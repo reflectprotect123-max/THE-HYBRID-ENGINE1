@@ -59,6 +59,48 @@
     return `${when}${sampleDate ? ` · latest ${String(sampleDate).slice(0, 10)}` : ''}${whoopSampleSummary(sample)}`;
   }
 
+  function whoopScoreState(value) {
+    const score = Number(value);
+    if (!Number.isFinite(score)) return { value: null, tone: 'neutral', label: 'No score yet' };
+    const rounded = Math.max(0, Math.min(100, Math.round(score)));
+    if (rounded >= 67) return { value: rounded, tone: 'good', label: 'Good recovery' };
+    if (rounded >= 34) return { value: rounded, tone: 'watch', label: 'Moderate recovery' };
+    return { value: rounded, tone: 'low', label: 'Low recovery' };
+  }
+
+  function whoopHomeMetric(label, value, unit = '') {
+    const display = formattedMetric(value);
+    return `<div class="whoop-home-metric"><span>${label}</span><b>${display || '—'}${display && unit ? ` ${unit}` : ''}</b></div>`;
+  }
+
+  function whoopHomePanel() {
+    return `<section class="card whoop-home-card" id="whoopHomeCard" aria-labelledby="whoopHomeTitle"><div class="whoop-home-head"><div><div class="eyebrow">WHOOP · TODAY</div><div class="title" id="whoopHomeTitle">Recovery snapshot</div></div><button class="btn small whoop-home-sync" type="button" id="whoopHomeSyncButton" onclick="syncIntegration('whoop')" disabled>Sync</button></div><div id="whoopHomeBody" class="whoop-home-body"><div class="whoop-home-loading">Loading WHOOP data…</div></div></section>`;
+  }
+
+  function renderWhoopHome(row, error = null) {
+    const body = document.getElementById('whoopHomeBody');
+    if (!body) return;
+    if (error) {
+      body.innerHTML = '<div class="whoop-home-empty"><div><div class="title">WHOOP unavailable</div><div class="meta" id="whoopHomeError"></div></div><a class="btn small" href="/.netlify/functions/whoop-connect">Retry</a></div>';
+      const message = document.getElementById('whoopHomeError');
+      if (message) message.textContent = compactError(error?.message, 'Try again in a moment.');
+      return;
+    }
+    if (!row?.connected) {
+      body.innerHTML = '<div class="whoop-home-empty"><div><div class="title">Connect WHOOP</div><div class="meta">Bring recovery, sleep and strain into today’s view.</div></div><a class="btn small primary" href="/.netlify/functions/whoop-connect">Connect</a></div>';
+      return;
+    }
+    const sample = row.normalized || latestWhoopSample;
+    if (!sample) {
+      body.innerHTML = '<div class="whoop-home-empty"><div><div class="title">WHOOP connected</div><div class="meta">Sync to bring today’s recovery data into Home.</div></div><button class="btn small primary" type="button" onclick="syncIntegration(\'whoop\')">Sync now</button></div>';
+      return;
+    }
+    const state = whoopScoreState(sample.recoveryScore);
+    const score = state.value === null ? 0 : state.value;
+    const synced = formattedDate(row.lastSyncAt);
+    body.innerHTML = `<div class="whoop-home-overview"><div class="whoop-home-ring whoop-home-ring--${state.tone}" style="--whoop-score:${score}"><div class="whoop-home-ring-inner"><span>Recovery</span><strong>${state.value === null ? '—' : state.value}</strong><small>${state.value === null ? 'No score' : '/ 100'}</small></div></div><div class="whoop-home-verdict"><span class="pill ${state.tone === 'good' ? 'ok' : ''}">${state.label}</span><div class="meta">${synced ? `Synced ${synced}` : 'Connected · sync when requested'}</div><div class="meta">Your training log remains the source of truth.</div></div></div><div class="whoop-home-metrics">${whoopHomeMetric('Sleep', sample.sleepPerformance, '%')}${whoopHomeMetric('HRV', sample.hrvMs, 'ms')}${whoopHomeMetric('Resting HR', sample.restingHr, 'bpm')}${whoopHomeMetric('Strain', sample.strain)}</div>`;
+  }
+
   function setMessage(message, isError = false) {
     const node = document.getElementById('integrationMessage');
     if (!node) return;
@@ -69,12 +111,18 @@
   function updateWhoopActions(connected) {
     const sync = document.getElementById('whoopSyncButton');
     const disconnect = document.getElementById('whoopDisconnectButton');
+    const homeSync = document.getElementById('whoopHomeSyncButton');
     if (sync) {
       sync.disabled = !connected || whoopBusy;
       sync.textContent = whoopBusy ? 'Syncing…' : 'Sync';
       sync.setAttribute('aria-busy', whoopBusy ? 'true' : 'false');
     }
     if (disconnect) disconnect.disabled = !connected || whoopBusy;
+    if (homeSync) {
+      homeSync.disabled = !connected || whoopBusy;
+      homeSync.textContent = whoopBusy ? 'Syncing…' : 'Sync';
+      homeSync.setAttribute('aria-busy', whoopBusy ? 'true' : 'false');
+    }
   }
 
   function renderIntegrationStatus(data) {
@@ -87,6 +135,7 @@
     const stravaMeta = document.getElementById('stravaIntegrationMeta');
     if (whoopMeta) whoopMeta.textContent = statusLine('whoop', whoop);
     if (stravaMeta) stravaMeta.textContent = statusLine('strava', strava);
+    renderWhoopHome(whoop);
     updateWhoopActions(whoopConnected);
   }
 
@@ -134,6 +183,7 @@
         return data;
       })
       .catch(error => {
+        renderWhoopHome(null, error);
         setMessage(`Could not load connection status: ${compactError(error?.message, 'Please try again.')}`, true);
         return null;
       });
@@ -161,7 +211,7 @@
       })
       .finally(() => {
         whoopBusy = false;
-        updateWhoopActions(Boolean(document.getElementById('whoopIntegrationMeta')?.textContent && document.getElementById('whoopIntegrationMeta').textContent !== 'Not connected'));
+        updateWhoopActions(whoopConnected);
       });
   };
 
@@ -200,15 +250,31 @@
   };
 
   const settingsCore = window.settings;
-  if (typeof settingsCore !== 'function') return;
-  window.settings = settings = function settingsWithIntegrations() {
-    settingsCore();
-    const root = document.getElementById('appScreen');
-    const stack = root?.querySelector('.stack');
-    if (!stack) return;
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = integrationPanel();
-    stack.insertBefore(wrapper.firstElementChild, stack.children[1] || null);
-    window.loadIntegrationStatus();
-  };
+  if (typeof settingsCore === 'function') {
+    window.settings = settings = function settingsWithIntegrations() {
+      settingsCore();
+      const root = document.getElementById('appScreen');
+      const stack = root?.querySelector('.stack');
+      if (!stack) return;
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = integrationPanel();
+      stack.insertBefore(wrapper.firstElementChild, stack.children[1] || null);
+      window.loadIntegrationStatus();
+    };
+  }
+
+  const homeCore = window.home;
+  if (typeof homeCore === 'function') {
+    window.home = home = function homeWithIntegrations() {
+      homeCore();
+      const root = document.getElementById('appScreen');
+      const stack = root?.querySelector('.stack');
+      if (!stack) return;
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = whoopHomePanel();
+      const anchor = [...stack.children].find(child => !['Active workout', 'Today'].includes(child.querySelector('.eyebrow')?.textContent?.trim()));
+      stack.insertBefore(wrapper.firstElementChild, anchor || null);
+      window.loadIntegrationStatus({ notice: null });
+    };
+  }
 })();

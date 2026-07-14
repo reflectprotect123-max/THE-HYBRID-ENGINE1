@@ -396,6 +396,7 @@ async function main() {
 
   check(/whoop-connect/.test(integrationsUi) && /integrations-status/.test(integrationsUi) && /integrations-disconnect/.test(integrationsUi) && /whoop-sync/.test(integrationsUi), 'Settings UI uses the integration function endpoints');
   check(/Connected data/.test(integrationsUi) && /href="?\/?\.netlify\/functions\/whoop-connect/.test(integrationsUi), 'handoff Connected data panel exposes WHOOP connect');
+  check(/whoopHomeCard/.test(integrationsUi) && /whoopHomeBody/.test(integrationsUi) && /whoopHomeSyncButton/.test(integrationsUi) && /renderWhoopHome/.test(integrationsUi), 'Home exposes a WHOOP-style recovery snapshot with sync states');
   check(/whoop-connect/.test(index) || /integrations-ui\.js/.test(index), 'app shell includes the WHOOP integration entry point');
 
   const staticFiles = await walkTextFiles(appRoot, (relativePath) => (

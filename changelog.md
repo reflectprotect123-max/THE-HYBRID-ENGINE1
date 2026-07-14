@@ -42,3 +42,4 @@
 - Added a WHOOP Sync control and compact recovery, sleep, HRV, resting-heart-rate and strain summary in Settings.
 - Fixed Netlify Lambda-compatible Blobs initialization so OAuth state, encrypted tokens, sync records and webhook deduplication can persist in production Functions.
 - Switched the Blobs store to Lambda-compatible eventual consistency so integration status reads do not require an unavailable uncached edge URL.
+- Added a WHOOP-style Today recovery card to Home with recovery score, sleep, HRV, resting heart rate, strain, connection states and one-tap sync.

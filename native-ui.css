@@ -194,6 +194,135 @@ body:not(.focused-flow) .btn.small {
   padding: 8px 11px;
 }
 
+body:not(.focused-flow) .whoop-home-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(130, 168, 233, .28);
+  background: radial-gradient(circle at 88% 8%, rgba(130, 168, 233, .16), transparent 12rem), linear-gradient(145deg, rgba(29, 32, 40, .98), rgba(18, 18, 18, .98));
+}
+
+body:not(.focused-flow) .whoop-home-head,
+body:not(.focused-flow) .whoop-home-overview,
+body:not(.focused-flow) .whoop-home-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+body:not(.focused-flow) .whoop-home-body {
+  margin-top: 17px;
+}
+
+body:not(.focused-flow) .whoop-home-loading {
+  min-height: 54px;
+  display: grid;
+  place-items: center;
+  color: #9a9da8;
+  font-size: 13px;
+}
+
+body:not(.focused-flow) .whoop-home-ring {
+  --whoop-score: 0;
+  --whoop-tone: #778399;
+  position: relative;
+  flex: 0 0 auto;
+  width: 116px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--whoop-tone) calc(var(--whoop-score) * 1%), rgba(255, 255, 255, .1) 0);
+  transform: rotate(-12deg);
+}
+
+body:not(.focused-flow) .whoop-home-ring::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: inherit;
+  background: #17191e;
+}
+
+body:not(.focused-flow) .whoop-home-ring--good { --whoop-tone: #9fc59b; }
+body:not(.focused-flow) .whoop-home-ring--watch { --whoop-tone: #d1a464; }
+body:not(.focused-flow) .whoop-home-ring--low { --whoop-tone: #cf7f7c; }
+
+body:not(.focused-flow) .whoop-home-ring-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  transform: rotate(12deg);
+}
+
+body:not(.focused-flow) .whoop-home-ring-inner span,
+body:not(.focused-flow) .whoop-home-ring-inner small {
+  color: #a8aeba;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+body:not(.focused-flow) .whoop-home-ring-inner strong {
+  color: #f1f0ec;
+  font-size: 33px;
+  line-height: 1;
+}
+
+body:not(.focused-flow) .whoop-home-verdict {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+body:not(.focused-flow) .whoop-home-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+body:not(.focused-flow) .whoop-home-metric {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .04);
+}
+
+body:not(.focused-flow) .whoop-home-metric span {
+  color: #9599a4;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+body:not(.focused-flow) .whoop-home-metric b {
+  color: #e8e7e2;
+  font-size: 16px;
+}
+
+body:not(.focused-flow) .whoop-home-empty {
+  min-height: 62px;
+}
+
+body:not(.focused-flow) .whoop-home-empty > div {
+  min-width: 0;
+}
+
+@media (max-width: 420px) {
+  body:not(.focused-flow) .whoop-home-overview {
+    align-items: flex-start;
+  }
+
+  body:not(.focused-flow) .whoop-home-ring {
+    width: 104px;
+  }
+}
+
 body:not(.focused-flow) .btn.block {
   min-height: 50px;
 }
