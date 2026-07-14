@@ -41,3 +41,4 @@
 - Hardened WHOOP V2 pagination, date normalization, timeout/error handling, rotating refresh-token races, stale webhook rejection, and provider revocation on disconnect.
 - Added a WHOOP Sync control and compact recovery, sleep, HRV, resting-heart-rate and strain summary in Settings.
 - Fixed Netlify Lambda-compatible Blobs initialization so OAuth state, encrypted tokens, sync records and webhook deduplication can persist in production Functions.
+- Switched the Blobs store to Lambda-compatible eventual consistency so integration status reads do not require an unavailable uncached edge URL.

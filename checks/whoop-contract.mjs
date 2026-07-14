@@ -144,6 +144,10 @@ async function main() {
     /connectLambda/.test(store) && /connectNetlifyBlobs/.test(store) && /event\.blobs/.test(store),
     'Netlify Lambda-compatible runtime initializes the Blobs context',
   );
+  check(
+    /consistency:\s*['"]eventual['"]/.test(store) && !/consistency:\s*['"]strong['"]/.test(store),
+    'Netlify Blobs store uses Lambda-compatible consistency',
+  );
   for (const [label, source] of [
     ['WHOOP connect', connect],
     ['WHOOP callback', callback],

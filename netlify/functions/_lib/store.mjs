@@ -7,7 +7,11 @@ export function connectNetlifyBlobs(event) {
   if (typeof event?.blobs === 'string' && event.blobs) connectLambda(event);
 }
 
-const store = () => getStore({ name: 'hybrid-integrations', consistency: 'strong' });
+// Lambda-compatible Functions receive the edge Blobs context, which does not
+// expose the uncached edge URL required by strong consistency. Eventual
+// consistency is the supported portable mode for this runtime and keeps the
+// OAuth/session records available without a 502 on reads.
+const store = () => getStore({ name: 'hybrid-integrations', consistency: 'eventual' });
 export async function setJson(key, value) { await store().setJSON(key, value); }
 export async function getJson(key) { return store().get(key, { type: 'json' }); }
 export async function deleteKey(key) { await store().delete(key); }
