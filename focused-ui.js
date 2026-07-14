@@ -111,6 +111,8 @@
     .focus-map-actions { display: flex; gap: 4px; }
     .focus-map-actions button { width: 28px; height: 28px; border: 1px solid var(--focus-line); border-radius: 7px; color: var(--muted); text-align: center; }
     .focus-map-actions button.danger { color: var(--bad); }
+    .focus-map-plus { display: grid; place-items: center; justify-self: center; width: 30px; height: 30px; margin: -2px auto; border: 1px solid var(--focus-gold-soft); border-radius: 50%; background: #1b1814; color: var(--focus-gold); font-size: 18px; font-weight: 900; line-height: 1; }
+    .focus-map-plus:disabled { border-color: var(--focus-line); background: transparent; color: var(--dim); opacity: .55; }
     .focus-add { width: 100%; margin-top: 14px; }
     .focus-interval { text-align: center; }
     .focus-interval .focus-bigtime { margin: 8px 0 4px; color: var(--text); font-size: clamp(46px, 14vw, 72px); font-weight: 950; letter-spacing: -.08em; font-variant-numeric: tabular-nums; }
@@ -622,8 +624,12 @@
     if (typeof sheet !== 'function') return;
     const rows = items.map((item, index) => {
       const name = fBuilderTitle(item);
-      const meta = item.kind === 'conditioning' ? (item.block.conditioningType === 'intervals' ? 'Intervals' : 'Easy aerobic') : item.kind === 'text' ? 'Instructions' : item.kind === 'strength-empty' ? 'Empty strength block' : `${item.block.heading || 'Strength'} · ${item.exercise.sets || 1} sets`;
-      return `<div class="focus-map-item ${index === focusedBuilderIndex ? 'active' : ''}"><span class="focus-map-number">${String.fromCharCode(65 + (index % 26))}</span><button onclick="focusBuilderJump(${index});focusBuilderCloseMap()"><div class="focus-map-name">${fEsc(name)}</div><div class="focus-map-meta">${fEsc(meta)}</div></button><div class="focus-map-actions"><button aria-label="Move up" onclick="event.stopPropagation();focusBuilderMove(${index}, -1)">↑</button><button aria-label="Move down" onclick="event.stopPropagation();focusBuilderMove(${index}, 1)">↓</button><button class="danger" aria-label="Remove" onclick="event.stopPropagation();focusBuilderRemove(${index})">×</button></div></div>`;
+      const isSuperset = item.kind === 'strength' && item.block?.superset;
+      const meta = item.kind === 'conditioning' ? (item.block.conditioningType === 'intervals' ? 'Intervals' : 'Easy aerobic') : item.kind === 'text' ? 'Instructions' : item.kind === 'strength-empty' ? 'Empty strength block' : `${item.block.heading || 'Strength'} · ${item.exercise.blankPrescription && !String(item.exercise.sets ?? '').trim() && !String(item.exercise.reps ?? '').trim() ? 'Blank prescription' : `${item.exercise.sets || 1} sets`}${isSuperset ? ' · Superset' : ''}`;
+      const next = items[index + 1];
+      const canSuperset = item.kind === 'strength' && next?.kind === 'strength';
+      const plus = index < items.length - 1 ? `<button class="focus-map-plus" ${canSuperset ? '' : 'disabled'} aria-label="${canSuperset ? 'Make superset' : 'Superset requires two strength exercises'}" onclick="event.stopPropagation();${canSuperset ? `focusBuilderSuperset(${index})` : 'return false'}">+</button>` : '';
+      return `<div class="focus-map-item ${index === focusedBuilderIndex ? 'active' : ''}"><span class="focus-map-number">${String.fromCharCode(65 + (index % 26))}</span><button onclick="focusBuilderJump(${index});focusBuilderCloseMap()"><div class="focus-map-name">${fEsc(name)}</div><div class="focus-map-meta">${fEsc(meta)}</div></button><div class="focus-map-actions"><button aria-label="Move up" onclick="event.stopPropagation();focusBuilderMove(${index}, -1)">↑</button><button aria-label="Move down" onclick="event.stopPropagation();focusBuilderMove(${index}, 1)">↓</button><button class="danger" aria-label="Remove" onclick="event.stopPropagation();focusBuilderRemove(${index})">×</button></div></div>${plus}`;
     }).join('');
     sheet(`<h2>Workout map</h2><p class="lead">Choose a screen or adjust the order.</p><div class="focus-map-list">${rows || '<div class="focus-empty">No blocks yet.</div>'}</div><button class="btn primary focus-add" onclick="focusBuilderCloseMap();focusBuilderAddSheet()">+ Add block</button>`);
   }
@@ -642,15 +648,47 @@
     if (item.blockIndex === target.blockIndex && item.kind === 'strength' && target.kind === 'strength') {
       const exercises = d.blocks[item.blockIndex].exercises;
       [exercises[item.exerciseIndex], exercises[target.exerciseIndex]] = [exercises[target.exerciseIndex], exercises[item.exerciseIndex]];
+    } else if (item.exerciseIndex === -1) {
+      const from = item.blockIndex;
+      const to = direction < 0 ? from - 1 : from + 1;
+      if (to < 0 || to >= d.blocks.length) return;
+      const moving = d.blocks[from];
+      const destination = d.blocks[to];
+      const isWarm = /^warm[- ]?up/i.test(String(moving.heading || ''));
+      const isCool = /^cool[- ]?down/i.test(String(moving.heading || ''));
+      const destinationIsWarm = /^warm[- ]?up/i.test(String(destination.heading || ''));
+      const destinationIsCool = /^cool[- ]?down/i.test(String(destination.heading || ''));
+      if ((isWarm && direction > 0) || (isCool && direction < 0) || (destinationIsWarm && direction < 0) || (destinationIsCool && direction > 0)) return;
+      [d.blocks[from], d.blocks[to]] = [d.blocks[to], d.blocks[from]];
     } else {
-      const blockA = d.blocks[item.blockIndex];
-      const blockB = d.blocks[target.blockIndex];
-      if (item.exerciseIndex === -1 && target.exerciseIndex === -1) [d.blocks[item.blockIndex], d.blocks[target.blockIndex]] = [d.blocks[target.blockIndex], d.blocks[item.blockIndex]];
-      else return;
+      return;
     }
     fPersistDraft();
     fCloseSheet();
-    focusedBuilderIndex = Math.max(0, Math.min(fBuilderItems().length - 1, index + direction));
+    const movedKey = item.exerciseIndex === -1 ? item.block?.id : item.exercise?.id;
+    focusedBuilderIndex = Math.max(0, fBuilderItems().findIndex(entry => (entry.exerciseIndex === -1 ? entry.block?.id : entry.exercise?.id) === movedKey));
+    focusedBuilder();
+  }
+
+  function fBuilderSuperset(index) {
+    const items = fBuilderItems();
+    const left = items[index];
+    const right = items[index + 1];
+    const d = fDraft();
+    if (!left || !right || left.kind !== 'strength' || right.kind !== 'strength' || !d) return;
+    if (left.blockIndex === right.blockIndex) {
+      d.blocks[left.blockIndex].superset = true;
+    } else {
+      const first = Math.min(left.blockIndex, right.blockIndex);
+      const second = Math.max(left.blockIndex, right.blockIndex);
+      const firstBlock = d.blocks[first];
+      const secondBlock = d.blocks[second];
+      if (firstBlock?.type !== 'strength' || secondBlock?.type !== 'strength') return;
+      d.blocks.splice(first, 2, { ...firstBlock, id: typeof id === 'function' ? id() : `superset-${Date.now()}`, heading: 'Superset', superset: true, exercises: [...(firstBlock.exercises || []), ...(secondBlock.exercises || [])] });
+    }
+    fPersistDraft();
+    fCloseSheet();
+    focusedBuilderIndex = Math.min(index, Math.max(0, fBuilderItems().length - 1));
     focusedBuilder();
   }
 
@@ -850,6 +888,7 @@
   window.focusBuilderMap = fBuilderMap;
   window.focusBuilderCloseMap = fBuilderCloseMap;
   window.focusBuilderMove = fBuilderMove;
+  window.focusBuilderSuperset = fBuilderSuperset;
   window.focusBuilderRemove = fBuilderRemove;
   window.focusLoggerJump = fLoggerJump;
   window.focusLoggerMap = fLoggerMap;

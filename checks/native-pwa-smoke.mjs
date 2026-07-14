@@ -235,6 +235,18 @@ async function run() {
     if (missingLogger.length) fail('focused-ui.js exposes focused Logger hooks', missingLogger.join(', '));
     else pass('focused-ui.js exposes focused Logger hooks');
 
+    const builderMapPatterns = [
+      /function\s+fBuilderMap\s*\(/,
+      /function\s+fBuilderSuperset\s*\(/,
+      /focusBuilderSuperset\(/,
+      /window\.focusBuilderSuperset\s*=\s*fBuilderSuperset/,
+      /destinationIsWarm/,
+      /destinationIsCool/,
+    ];
+    const missingBuilderMap = missingPatterns(focusedUi, builderMapPatterns);
+    if (missingBuilderMap.length) fail('focused Builder map supports supersets and block reordering', missingBuilderMap.join(', '));
+    else pass('focused Builder map supports supersets and block reordering');
+
     const builderStrengthStart = focusedUi.indexOf('function fBuilderStrength');
     const builderConditioningStart = focusedUi.indexOf('function fConditionMeasureOptions');
     const builderTextStart = focusedUi.indexOf('function fBuilderText');

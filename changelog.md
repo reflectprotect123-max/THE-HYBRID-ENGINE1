@@ -5,6 +5,8 @@
 - Added blank native Library templates for Full Body Day 1 — Bench, Full Body Day 2 — Squat and Full Body Day 3 — Deadlift.
 - Preserved the recovered exercise order and the Day 2 Pendlay Row naming note.
 - Kept all set, rep and load prescriptions empty; the Logger now adds the first set only when the athlete chooses it.
+- Added map “+” controls to group adjacent strength exercises into supersets.
+- Repaired map movement for instruction blocks so Warm-up can move to the top and Cool-down can move to the bottom.
 
 ## Streamlined build — 13 July 2026
 
