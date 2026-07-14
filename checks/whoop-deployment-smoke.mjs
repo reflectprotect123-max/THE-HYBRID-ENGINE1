@@ -169,7 +169,7 @@ async function main() {
   if (worker) {
     check(!/\.netlify\/functions/.test(worker.match(/APP_SHELL\s*=\s*\[([\s\S]*?)\]/)?.[1] || ''), 'service worker app shell does not cache function routes');
     check(/pathname\.startsWith\(['"]\/\.netlify\/functions\//.test(worker), 'service worker bypasses authenticated function requests');
-    check(/CACHE_NAME\s*=.*2026-07-14/.test(worker), 'service worker cache version matches the handoff build date');
+    check(/CACHE_NAME\s*=.*2026-07-15/.test(worker), 'service worker cache version matches the handoff build date');
   }
 
   if (integrationsUi) {
@@ -180,7 +180,7 @@ async function main() {
 
   const workspaceRoot = resolve(appRoot, '..');
   const archiveCandidates = [
-    join(workspaceRoot, 'THE-Hybrid-System-whoop-netlify-integrated-2026-07-14.zip'),
+    join(workspaceRoot, 'THE-Hybrid-System-first-cycle-blank-templates-2026-07-15.zip'),
   ];
   const archivePath = archiveCandidates.find((candidate) => existsSync(candidate));
   if (!archivePath) {

@@ -230,6 +230,7 @@
   function fBuilderRawTarget(exercise) {
     const type = fBuilderType(exercise);
     if (type === 'completion') return 'For completion';
+    if (exercise?.blankPrescription && !String(exercise?.reps ?? '').trim()) return 'Blank prescription';
     return String(exercise?.reps ?? '').trim() || (type === 'amrap' ? 'AMRAP' : '8');
   }
 
@@ -250,13 +251,14 @@
   function fBuilderTargetMarkup(exercise, itemIndex) {
     const type = fBuilderType(exercise);
     const raw = fBuilderRawTarget(exercise);
+    const blank = exercise?.blankPrescription && !String(exercise?.reps ?? '').trim();
     const normalized = raw.replace(/-/g, '–').trim();
     const common = ['range', 'amrap', 'percent1rm', 'seconds', 'completion'].includes(type) ? normalized : normalized.split(',')[0].trim();
     const custom = type !== 'completion' && (normalized.includes(',') || !fBuilderTargetOptions(type, common).includes('value="' + fEsc(common) + '" selected'));
     return `<div class="focus-field">
       <label>Target</label>
-      <select onchange="focusBuilderTarget(${itemIndex}, this.value)">${fBuilderTargetOptions(type, common)}</select>
-      <input class="focus-custom-input" ${custom ? '' : 'style="display:none"'} value="${fEsc(normalized)}" placeholder="Type a target" oninput="focusBuilderCustomTarget(${itemIndex}, this.value)">
+      <select onchange="focusBuilderTarget(${itemIndex}, this.value)">${blank ? '<option value="" selected>Blank</option>' : ''}${fBuilderTargetOptions(type, common)}</select>
+      <input class="focus-custom-input" ${custom && !blank ? '' : 'style="display:none"'} value="${blank ? '' : fEsc(normalized)}" placeholder="Type a target" oninput="focusBuilderCustomTarget(${itemIndex}, this.value)">
     </div>`;
   }
 
@@ -321,7 +323,7 @@
     return `<div class="focus-card">
       <div class="focus-card-title">Strength prescription<small>Set the plan here. The Logger records completed work later.</small></div>
       <div class="focus-fields">
-        <div class="focus-field"><label>Sets</label><select onchange="focusBuilderExercise(${itemIndex}, 'sets', this.value)">${Array.from({ length: 10 }, (_, i) => i + 1).map(value => `<option value="${value}" ${fNum(ex.sets) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div>
+        <div class="focus-field"><label>Sets</label><select onchange="focusBuilderExercise(${itemIndex}, 'sets', this.value)">${ex.blankPrescription && !String(ex.sets ?? '').trim() ? '<option value="" selected>Blank</option>' : ''}${Array.from({ length: 10 }, (_, i) => i + 1).map(value => `<option value="${value}" ${fNum(ex.sets) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div>
         <div class="focus-field"><label>Measure</label><select onchange="focusBuilderTargetType(${itemIndex}, this.value)"><option value="reps" ${type === 'reps' ? 'selected' : ''}>Reps</option><option value="repsPerSide" ${type === 'repsPerSide' ? 'selected' : ''}>Reps per side</option><option value="range" ${type === 'range' ? 'selected' : ''}>Rep range</option><option value="seconds" ${type === 'seconds' ? 'selected' : ''}>Seconds</option><option value="percent1rm" ${type === 'percent1rm' ? 'selected' : ''}>%1RM</option><option value="amrap" ${type === 'amrap' ? 'selected' : ''}>AMRAP</option><option value="completion" ${type === 'completion' ? 'selected' : ''}>For completion</option></select></div>
         ${fBuilderTargetMarkup(ex, itemIndex)}
         <div class="focus-field"><label>Rest</label><select onchange="focusBuilderExercise(${itemIndex}, 'restSec', this.value)">${fRestOptions(ex.restSec || 0)}</select></div>
@@ -329,7 +331,7 @@
         <div class="focus-field"><label>Tempo / hold <span>optional</span></label><input value="${fEsc(ex.tempo || ex.hold || '')}" placeholder="e.g. 3-1-1 or 30s" oninput="focusBuilderExercise(${itemIndex}, 'tempo', this.value)"></div>
         <div class="focus-field full"><label>Session cue <span>optional</span></label><textarea oninput="focusBuilderExercise(${itemIndex}, 'coachNote', this.value)" placeholder="Keep the cue short and useful">${fEsc(ex.coachNote || '')}</textarea></div>
       </div>
-      <div class="focus-plan" style="margin-top:14px"><span class="focus-plan-chip">${fNum(ex.sets) || 1} sets</span><span class="focus-plan-chip">${fEsc(targetText)}${side === 'each' ? ' · each side' : ''}</span><span class="focus-plan-chip">Rest ${fFmt(fNum(ex.restSec) || 0)}</span></div>
+      <div class="focus-plan" style="margin-top:14px"><span class="focus-plan-chip">${ex.blankPrescription && !String(ex.sets ?? '').trim() && !String(ex.reps ?? '').trim() ? 'Blank sets' : `${fNum(ex.sets) || 1} sets`}</span><span class="focus-plan-chip">${fEsc(targetText)}${side === 'each' ? ' · each side' : ''}</span><span class="focus-plan-chip">Rest ${fFmt(fNum(ex.restSec) || 0)}</span></div>
       <div class="focus-row-actions"><button class="btn" onclick="focusBuilderAddExercise(${item.blockIndex})">Add exercise</button><button class="btn" onclick="focusBuilderMap()">Workout map</button></div>
     </div>`;
   }
@@ -445,7 +447,7 @@
   function fBuilderExercise(itemIndex, key, value) {
     const item = fBuilderItems()[itemIndex];
     if (!item?.exercise) return;
-    if (key === 'sets') item.exercise.sets = Math.max(1, fNum(value) || 1);
+    if (key === 'sets') item.exercise.sets = item.exercise.blankPrescription && String(value ?? '') === '' ? '' : Math.max(1, fNum(value) || 1);
     else if (key === 'restSec') item.exercise.restSec = Math.max(0, fNum(value));
     else if (key === 'repsPerSide') {
       item.exercise.repsPerSide = value === 'each' ? 'each' : 'both';
@@ -677,6 +679,7 @@
       const metric = measure === 'completion' ? 'For completion' : measure === 'minutes' ? `${task.targetDurationMin || task.timeCapMin || 0} min` : measure === 'seconds' ? `${task.targetDurationSec || 0}s` : measure === 'distance' ? `${task.targetDistance || 0} m` : measure === 'calories' ? `${task.targetCalories || 0} cal` : `${task.rounds || 1} rounds`;
       return task.conditioningType === 'intervals' ? `${metric} · ${task.workSec || 0}s work / ${task.restSec || 0}s rest` : `${metric} easy aerobic`;
     }
+    if (task.blankPrescription && !String(task.sets ?? '').trim() && !String(task.reps ?? '').trim()) return 'Blank prescription';
     return `${task.sets || task.rows?.length || 0} sets · ${task.reps || task.rows?.[0]?.target || ''}`;
   }
 
@@ -706,7 +709,7 @@
 
   function fLoggerStrength(task) {
     const rest = typeof restSeconds === 'function' ? restSeconds(task.restSec) : fNum(task.restSec) || 90;
-    return `<div class="focus-card"><div class="focus-card-title">Log your sets<small>Load is only for the Logger. Builder prescriptions stay load-free.</small></div>${fLoggerRows(task)}<div class="focus-row-actions"><button class="btn" onclick="autofill()">Autofill load below</button><button class="btn" onclick="addExtra()">Add extra set</button><button class="btn" onclick="restMenu()">Rest menu</button></div><button class="btn primary focus-complete" onclick="completeStrength()">${task.complete ? 'Reopen exercise' : 'Complete exercise'}</button></div>`;
+    return `<div class="focus-card"><div class="focus-card-title">Log your sets<small>Load is only for the Logger. Builder prescriptions stay load-free.</small></div>${fLoggerRows(task)}<div class="focus-row-actions"><button class="btn" onclick="autofill()">Autofill load below</button><button class="btn" onclick="addExtra()">${task.blankPrescription && !(task.rows || []).length ? 'Add set' : 'Add extra set'}</button><button class="btn" onclick="restMenu()">Rest menu</button></div><button class="btn primary focus-complete" onclick="completeStrength()">${task.complete ? 'Reopen exercise' : 'Complete exercise'}</button></div>`;
   }
 
   function fConditioningNote(task) {

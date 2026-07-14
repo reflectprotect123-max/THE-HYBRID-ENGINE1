@@ -1,5 +1,11 @@
 # Changelog
 
+## First-cycle templates — 15 July 2026
+
+- Added blank native Library templates for Full Body Day 1 — Bench, Full Body Day 2 — Squat and Full Body Day 3 — Deadlift.
+- Preserved the recovered exercise order and the Day 2 Pendlay Row naming note.
+- Kept all set, rep and load prescriptions empty; the Logger now adds the first set only when the athlete chooses it.
+
 ## Streamlined build — 13 July 2026
 
 - Removed legacy readiness, Coach Tools and program-first clutter from the primary flow.

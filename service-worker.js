@@ -1,4 +1,4 @@
-const CACHE_NAME='the-hybrid-system-private-pwa-v3-2026-07-14';
+const CACHE_NAME='the-hybrid-system-private-pwa-v4-2026-07-15';
 const APP_SHELL = [
   './index.html',
   './focused-ui.js',
