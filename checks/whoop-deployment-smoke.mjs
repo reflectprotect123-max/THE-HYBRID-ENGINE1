@@ -180,7 +180,7 @@ async function main() {
 
   const workspaceRoot = resolve(appRoot, '..');
   const archiveCandidates = [
-    join(workspaceRoot, 'THE-Hybrid-System-first-cycle-blank-templates-2026-07-15.zip'),
+    join(workspaceRoot, 'THE-Hybrid-System-locked-logger-builder-2026-07-15.zip'),
   ];
   const archivePath = archiveCandidates.find((candidate) => existsSync(candidate));
   if (!archivePath) {

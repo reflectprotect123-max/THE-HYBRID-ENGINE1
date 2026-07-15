@@ -1,5 +1,13 @@
 # Changelog
 
+## Locked Logger and Builder tracking — 15 July 2026
+
+- Reworked the focused Builder so Sets occupy their own row and each strength exercise chooses one saved tracking mode: Reps + Kilos, Reps + %1RM, Seconds, Reps + Seconds, Reps only or For completion.
+- Added Builder-owned exercise instructions that appear at the top of the live Logger, plus a read-only superset round overview.
+- Made the live Logger render only the fields selected in Builder, with a dedicated Completed column and no mode, set-count, extra-set, history or rest-prescription controls.
+- Kept actual result entry, notes, navigation and the programmed rest timer available during the session.
+- Bumped the service-worker cache to v6 so the new Logger/Builder reaches installed PWAs.
+
 ## First-cycle templates — 15 July 2026
 
 - Added blank native Library templates for Full Body Day 1 — Bench, Full Body Day 2 — Squat and Full Body Day 3 — Deadlift.

@@ -247,7 +247,7 @@ async function run() {
     if (missingBuilderMap.length) fail('focused Builder map supports supersets and block reordering', missingBuilderMap.join(', '));
     else pass('focused Builder map supports supersets and block reordering');
 
-    const builderStrengthStart = focusedUi.indexOf('function fBuilderStrength');
+    const builderStrengthStart = focusedUi.indexOf('function fTrackingLabel');
     const builderConditioningStart = focusedUi.indexOf('function fConditionMeasureOptions');
     const builderTextStart = focusedUi.indexOf('function fBuilderText');
     const strengthBuilderSource = builderStrengthStart >= 0 && builderConditioningStart > builderStrengthStart
@@ -258,8 +258,11 @@ async function run() {
       : '';
     const strengthMeasurementChecks = [
       /<label>Sets<\/label>/,
-      /<label>Measure<\/label>/,
-      /Reps per side/,
+      /<label>Tracking<\/label>/,
+      /Reps \+ Kilos/,
+      /Reps \+ %1RM/,
+      /Each side/,
+      /Seconds/,
       /For completion/,
     ];
     const conditioningMeasurementChecks = [
@@ -274,13 +277,35 @@ async function run() {
     const missingStrengthMeasurements = missingPatterns(strengthBuilderSource, strengthMeasurementChecks);
     const missingConditioningMeasurements = missingPatterns(conditioningBuilderSource, conditioningMeasurementChecks);
     if (missingStrengthMeasurements.length) fail('Builder strength measurements', missingStrengthMeasurements.join(', '));
-    else pass('Builder strength measurements', 'sets, reps, side reps, seconds, %1RM, AMRAP, completion');
+    else pass('Builder strength measurements', 'sets, locked tracking modes, seconds, %1RM, and completion');
     if (missingConditioningMeasurements.length) fail('Builder conditioning measurements', missingConditioningMeasurements.join(', '));
     else pass('Builder conditioning measurements', 'minutes, seconds, distance, calories, rounds, completion');
     if (/\b(load|kg|previous best|working max)\b/i.test(strengthBuilderSource) || /\b(load|kg|previous best|working max)\b/i.test(conditioningBuilderSource)) {
       fail('Builder stays plan-only', 'load, kilo, or previous-best language found in the Builder controls');
     } else {
       pass('Builder stays plan-only', 'no load or previous-best controls');
+    }
+
+    const loggerRowsStart = focusedUi.indexOf('function fLoggerFieldDescriptors');
+    const loggerStrengthStart = focusedUi.indexOf('function fLoggerStrength');
+    const loggerInstructionStart = focusedUi.indexOf('function fLoggerInstruction');
+    const loggerSupersetStart = focusedUi.indexOf('function fLoggerSuperset');
+    const loggerSource = loggerRowsStart >= 0 && loggerInstructionStart > loggerRowsStart
+      ? focusedUi.slice(loggerRowsStart, loggerInstructionStart)
+      : '';
+    const loggerStrengthSource = loggerStrengthStart >= 0 && loggerInstructionStart > loggerStrengthStart
+      ? focusedUi.slice(loggerStrengthStart, loggerInstructionStart)
+      : '';
+    const lockedLoggerChecks = [
+      /Sets/, /Completed/, /Kilos/, /fLoggerTrackingMode/, /focus-log-complete/,
+    ];
+    const missingLockedLogger = missingPatterns(loggerSource, lockedLoggerChecks);
+    if (missingLockedLogger.length) fail('Logger renders locked dynamic fields', missingLockedLogger.join(', '));
+    else pass('Logger renders locked dynamic fields', 'sets, selected measures, and completed controls');
+    if (/addExtra\(\)|autofill\(\)|restMenu\(\)/.test(loggerStrengthSource)) {
+      fail('Logger does not expose Builder changes', 'extra sets, autofill, or rest-menu controls found in the strength Logger');
+    } else {
+      pass('Logger does not expose Builder changes', 'no set-count, mode, or rest-prescription controls');
     }
   } else {
     fail('focused-ui.js exposes focused Builder hooks', 'focused-ui.js could not be read');

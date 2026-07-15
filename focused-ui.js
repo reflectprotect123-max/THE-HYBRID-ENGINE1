@@ -11,8 +11,10 @@
 
   const F_MODALITIES = ['Run', 'Walk', 'Bike', 'Rower', 'Ski erg'];
   const F_REST = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
+  const F_TRACKING_MODES = ['reps-kilos', 'reps-percent', 'seconds', 'reps-seconds', 'reps-only', 'completion'];
   const F_STYLE_ID = 'focused-ui-style';
   let focusedBuilderIndex = 0;
+  let focusedBuilderAdvanced = {};
 
   const F_STYLE = `
     :root { --focus-gold: #d6aa6e; --focus-gold-soft: #b68a50; --focus-line: #363432; --focus-panel: #151515; --focus-panel-2: #1c1c1c; }
@@ -78,9 +80,10 @@
     .focus-history-cell span { display: block; margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
     .focus-note { margin-top: 14px; padding: 11px 12px; border-left: 2px solid var(--focus-gold); background: #1b1917; color: #ddd4c6; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
     .focus-log { padding: 4px 0 0; }
-    .focus-log-head, .focus-log-row { display: grid; grid-template-columns: 38px minmax(0, .72fr) minmax(0, 1fr) minmax(0, 1fr) 52px; gap: 8px; align-items: end; }
+    .focus-log-head, .focus-log-row { display: grid; grid-template-columns: var(--focus-log-cols, 38px minmax(0, 1fr) 52px); gap: 8px; align-items: center; }
     .focus-log-head { padding: 0 0 7px; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
-    .focus-log-head span:nth-child(3), .focus-log-head span:nth-child(4) { color: var(--focus-gold); }
+    .focus-log-head span:nth-child(3) { color: var(--focus-gold); }
+    .focus-log-head span:last-child { color: #63d58c; }
     .focus-log-row { padding: 10px 0; border-top: 1px solid #2b2a28; }
     .focus-log-row.done { opacity: .78; }
     .focus-set-index { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #4c4945; border-radius: 50%; color: var(--focus-gold); font-size: 13px; font-weight: 900; }
@@ -91,6 +94,16 @@
     .focus-log-static { min-height: 42px; display: grid; place-items: center; border: 1px solid #2f2e2c; border-radius: 9px; color: var(--muted); font-size: 12px; font-weight: 800; }
     .focus-log-btn { min-height: 42px; padding: 8px 5px; border: 1px solid var(--focus-line); border-radius: 9px; background: transparent; color: var(--focus-gold); font-size: 11px; font-weight: 850; }
     .focus-log-btn.primary { border-color: var(--focus-gold); background: var(--focus-gold); color: #17130e; }
+    .focus-log-btn.focus-log-complete { justify-self: center; width: 42px; min-height: 42px; padding: 0; border: 2px solid #63d58c; border-radius: 50%; color: #17130e; background: transparent; font-size: 22px; line-height: 1; }
+    .focus-log-btn.focus-log-complete.done { border-color: #63d58c; background: #63d58c; }
+    .focus-instruction-card { margin-top: 14px; }
+    .focus-instruction-copy { margin-top: 10px; padding: 12px 13px; border-left: 2px solid var(--focus-gold); background: #1b1917; color: #ddd4c6; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+    .focus-superset-card { border-color: #5d4a2f; }
+    .focus-superset-list { display: grid; gap: 7px; margin-top: 12px; }
+    .focus-superset-item { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid #393632; border-radius: 9px; background: #171615; }
+    .focus-superset-item.active { border-color: var(--focus-gold); }
+    .focus-superset-item b { color: var(--focus-gold); font-size: 11px; }
+    .focus-superset-item span { overflow: hidden; color: var(--text); font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
     .focus-row-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
     .focus-row-actions button { flex: 1; min-width: 120px; }
     .focus-row-actions .danger { color: var(--bad); }
@@ -127,7 +140,7 @@
       .focus-head { padding: 16px 14px 15px; }
       .focus-body { padding: 21px 14px 0; }
       .focus-progress { padding: 10px 14px; }
-      .focus-log-head, .focus-log-row { grid-template-columns: 34px minmax(0, .64fr) minmax(0, 1fr) minmax(0, 1fr) 48px; gap: 5px; }
+      .focus-log-head, .focus-log-row { grid-template-columns: var(--focus-log-cols, 34px minmax(0, 1fr) 48px); gap: 5px; }
       .focus-log-row input { padding: 7px 5px; font-size: 13px; }
       .focus-log-btn { padding: 7px 3px; font-size: 10px; }
       .focus-title-row { grid-template-columns: 46px minmax(0, 1fr) auto; gap: 9px; }
@@ -136,7 +149,7 @@
       .focus-quiet { padding: 7px 7px; }
     }
     @media (max-width: 370px) {
-      .focus-log-head, .focus-log-row { grid-template-columns: 30px minmax(0, .55fr) minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 4px; }
+      .focus-log-head, .focus-log-row { grid-template-columns: var(--focus-log-cols, 30px minmax(0, 1fr) 44px); gap: 4px; }
       .focus-log-row input { font-size: 12px; }
       .focus-log-btn { font-size: 9px; }
       .focus-item-title { font-size: 22px; }
@@ -162,6 +175,91 @@
   function fNum(value) {
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
+  }
+
+  function fTrackingLabel(mode) {
+    return {
+      'reps-kilos': 'Reps + Kilos',
+      'reps-percent': 'Reps + %1RM',
+      seconds: 'Seconds',
+      'reps-seconds': 'Reps + Seconds',
+      'reps-only': 'Reps only',
+      completion: 'For completion',
+    }[mode] || 'Reps + Kilos';
+  }
+
+  function fBuilderTrackingMode(exercise) {
+    const explicit = String(exercise?.trackingMode || '').trim();
+    if (F_TRACKING_MODES.includes(explicit)) return explicit;
+    if (exercise?.prescriptionType === 'seconds') return 'seconds';
+    if (exercise?.prescriptionType === 'percent1rm') return 'reps-percent';
+    if (exercise?.prescriptionType === 'completion') return 'completion';
+    return 'reps-kilos';
+  }
+
+  function fLoggerTrackingMode(task) {
+    const explicit = String(task?.trackingMode || '').trim();
+    if (F_TRACKING_MODES.includes(explicit)) return explicit;
+    if (task?.prescriptionType === 'seconds') return 'seconds';
+    if (task?.prescriptionType === 'percent1rm') return 'reps-percent';
+    if (task?.prescriptionType === 'completion') return 'completion';
+    return 'reps-kilos';
+  }
+
+  function fTargetNumber(value, preferLast = false) {
+    const matches = String(value ?? '').match(/\d+(?:\.\d+)?/g) || [];
+    if (!matches.length) return '';
+    return matches[preferLast ? matches.length - 1 : 0];
+  }
+
+  function fBuilderTargetReps(exercise) {
+    if (exercise?.blankPrescription && !String(exercise?.reps ?? '').trim()) return '';
+    if (String(exercise?.targetReps ?? '').trim()) return String(exercise.targetReps).trim();
+    if (exercise?.prescriptionType === 'percent1rm' && /%/.test(String(exercise?.reps || ''))) return '8';
+    if (exercise?.prescriptionType === 'seconds' && /s$/i.test(String(exercise?.reps || '').trim())) return '';
+    return String(exercise?.reps ?? '').trim() || '8';
+  }
+
+  function fBuilderTargetPercent(exercise) {
+    if (String(exercise?.percentTarget ?? '').trim()) return String(exercise.percentTarget).trim();
+    if (/%/.test(String(exercise?.reps || ''))) return String(exercise.reps).trim();
+    return '75%';
+  }
+
+  function fBuilderTargetSeconds(exercise) {
+    if (String(exercise?.secondsTarget ?? '').trim()) return String(exercise.secondsTarget).replace(/s$/i, '').trim();
+    if (exercise?.prescriptionType === 'seconds' || exercise?.trackingMode === 'seconds') return fTargetNumber(exercise?.reps, false) || '30';
+    return '30';
+  }
+
+  function fBuilderAdvancedKey(item) {
+    return String(item?.exercise?.id || item?.block?.id || item?.blockIndex || 'builder-item');
+  }
+
+  function fLoggerTargetReps(task, row = {}) {
+    const raw = String(task?.reps ?? '').trim();
+    if (!String(task?.targetReps ?? '').trim() && fLoggerTrackingMode(task) === 'reps-percent' && /%/.test(raw)) return '8';
+    const value = String(task?.targetReps ?? '').trim() || raw || row.target || '';
+    return value;
+  }
+
+  function fLoggerTargetPercent(task) {
+    return String(task?.percentTarget ?? task?.targetPercent ?? '').trim() || (/%/.test(String(task?.reps || '')) ? String(task.reps).trim() : '—');
+  }
+
+  function fLoggerTargetSeconds(task) {
+    return String(task?.secondsTarget ?? task?.targetSeconds ?? '').replace(/s$/i, '').trim() || fTargetNumber(task?.reps, false) || '30';
+  }
+
+  function fLoggerPlanTarget(task) {
+    const mode = fLoggerTrackingMode(task);
+    const reps = fLoggerTargetReps(task);
+    if (mode === 'completion') return 'For completion';
+    if (mode === 'seconds') return `${fLoggerTargetSeconds(task)}s hold`;
+    if (mode === 'reps-percent') return `${reps || '—'} reps · ${fLoggerTargetPercent(task)}`;
+    if (mode === 'reps-seconds') return `${reps || '—'} reps · ${fLoggerTargetSeconds(task)}s`;
+    if (mode === 'reps-only') return `${reps || '—'} reps`;
+    return `${reps || '—'} reps`;
   }
 
   function fFmt(value) {
@@ -230,10 +328,14 @@
   }
 
   function fBuilderRawTarget(exercise) {
-    const type = fBuilderType(exercise);
-    if (type === 'completion') return 'For completion';
+    const mode = fBuilderTrackingMode(exercise);
+    if (mode === 'completion') return 'For completion';
     if (exercise?.blankPrescription && !String(exercise?.reps ?? '').trim()) return 'Blank prescription';
-    return String(exercise?.reps ?? '').trim() || (type === 'amrap' ? 'AMRAP' : '8');
+    if (mode === 'seconds') return `${fBuilderTargetSeconds(exercise)}s`;
+    if (mode === 'reps-percent') return `${fBuilderTargetReps(exercise) || '—'} reps · ${fBuilderTargetPercent(exercise)}`;
+    if (mode === 'reps-seconds') return `${fBuilderTargetReps(exercise) || '—'} reps · ${fBuilderTargetSeconds(exercise)}s`;
+    if (mode === 'reps-only') return `${fBuilderTargetReps(exercise) || '—'} reps`;
+    return fBuilderTargetReps(exercise) || '8';
   }
 
   function fBuilderTargetOptions(type, raw) {
@@ -314,26 +416,66 @@
     return String(item.block?.heading || 'STRENGTH').toUpperCase();
   }
 
+  function fBuilderSelectTarget(itemIndex, key, label, value, type, blank = false) {
+    const inputValue = String(value ?? '').replace(/-/g, '–').replace(/s$/i, '').trim();
+    const normalized = type === 'seconds' && inputValue ? `${inputValue}s` : inputValue;
+    const options = fBuilderTargetOptions(type, normalized);
+    const isCustom = !!inputValue && !options.includes(`value="${fEsc(normalized)}" selected`);
+    return `<div class="focus-field">
+      <label>${fEsc(label)}</label>
+      <select onchange="focusBuilderTrackingTarget(${itemIndex}, '${key}', this.value, this)">${blank ? '<option value="" selected>Blank</option>' : ''}${options}</select>
+      <input class="focus-custom-input" ${isCustom ? '' : 'style="display:none"'} value="${fEsc(inputValue)}" placeholder="Type a target" oninput="focusBuilderTrackingCustomTarget(${itemIndex}, '${key}', this.value)">
+    </div>`;
+  }
+
+  function fBuilderTrackingTargetMarkup(exercise, itemIndex) {
+    const mode = fBuilderTrackingMode(exercise);
+    const blank = exercise?.blankPrescription && !String(exercise?.reps ?? '').trim();
+    const reps = fBuilderTargetReps(exercise);
+    const repsType = /[-–]/.test(reps) ? 'range' : 'reps';
+    if (mode === 'completion') return '<div class="focus-field full"><label>Target</label><div class="focus-static-value">For completion</div></div>';
+    const fields = [];
+    if (['reps-kilos', 'reps-percent', 'reps-seconds', 'reps-only'].includes(mode)) {
+      fields.push(fBuilderSelectTarget(itemIndex, 'targetReps', 'Target reps', reps, repsType, blank));
+    }
+    if (mode === 'reps-percent') fields.push(fBuilderSelectTarget(itemIndex, 'percentTarget', 'Target %1RM', fBuilderTargetPercent(exercise), 'percent1rm'));
+    if (mode === 'seconds' || mode === 'reps-seconds') fields.push(fBuilderSelectTarget(itemIndex, 'secondsTarget', 'Target seconds', fBuilderTargetSeconds(exercise), 'seconds'));
+    return fields.join('');
+  }
+
+  function fBuilderToggleAdvanced(itemIndex) {
+    const item = fBuilderItems()[itemIndex];
+    if (!item?.exercise) return;
+    const key = fBuilderAdvancedKey(item);
+    focusedBuilderAdvanced[key] = !focusedBuilderAdvanced[key];
+    focusedBuilder();
+  }
+
   function fBuilderStrength(item, itemIndex) {
     if (item.kind === 'strength-empty') {
       return `<div class="focus-card"><div class="focus-empty"><b>This strength block is empty.</b>Add the first exercise to start building it.</div><button class="btn primary focus-add" onclick="focusBuilderAddExercise(${item.blockIndex})">Add exercise</button></div>`;
     }
     const ex = item.exercise;
-    const type = fBuilderType(ex);
+    const mode = fBuilderTrackingMode(ex);
     const side = ex.repsPerSide || ex.side || 'both';
     const targetText = fBuilderRawTarget(ex);
+    const advancedKey = fBuilderAdvancedKey(item);
+    const showAdvanced = !!focusedBuilderAdvanced[advancedKey] || side === 'each' || String(ex.tempo || ex.hold || '').trim();
+    const setOptions = ex.blankPrescription && !String(ex.sets ?? '').trim()
+      ? '<option value="" selected>Blank</option>'
+      : Array.from({ length: 10 }, (_, i) => i + 1).map(value => `<option value="${value}" ${fNum(ex.sets) === value ? 'selected' : ''}>${value}</option>`).join('');
     return `<div class="focus-card">
       <div class="focus-card-title">Strength prescription<small>Set the plan here. The Logger records completed work later.</small></div>
       <div class="focus-fields">
-        <div class="focus-field"><label>Sets</label><select onchange="focusBuilderExercise(${itemIndex}, 'sets', this.value)">${ex.blankPrescription && !String(ex.sets ?? '').trim() ? '<option value="" selected>Blank</option>' : ''}${Array.from({ length: 10 }, (_, i) => i + 1).map(value => `<option value="${value}" ${fNum(ex.sets) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div>
-        <div class="focus-field"><label>Measure</label><select onchange="focusBuilderTargetType(${itemIndex}, this.value)"><option value="reps" ${type === 'reps' ? 'selected' : ''}>Reps</option><option value="repsPerSide" ${type === 'repsPerSide' ? 'selected' : ''}>Reps per side</option><option value="range" ${type === 'range' ? 'selected' : ''}>Rep range</option><option value="seconds" ${type === 'seconds' ? 'selected' : ''}>Seconds</option><option value="percent1rm" ${type === 'percent1rm' ? 'selected' : ''}>%1RM</option><option value="amrap" ${type === 'amrap' ? 'selected' : ''}>AMRAP</option><option value="completion" ${type === 'completion' ? 'selected' : ''}>For completion</option></select></div>
-        ${fBuilderTargetMarkup(ex, itemIndex)}
-        <div class="focus-field"><label>Rest</label><select onchange="focusBuilderExercise(${itemIndex}, 'restSec', this.value)">${fRestOptions(ex.restSec || 0)}</select></div>
-        <div class="focus-field"><label>Side</label><select onchange="focusBuilderExercise(${itemIndex}, 'repsPerSide', this.value)"><option value="both" ${side === 'both' ? 'selected' : ''}>Both / total</option><option value="each" ${side === 'each' ? 'selected' : ''}>Each side</option></select></div>
-        <div class="focus-field"><label>Tempo / hold <span>optional</span></label><input value="${fEsc(ex.tempo || ex.hold || '')}" placeholder="e.g. 3-1-1 or 30s" oninput="focusBuilderExercise(${itemIndex}, 'tempo', this.value)"></div>
-        <div class="focus-field full"><label>Session cue <span>optional</span></label><textarea oninput="focusBuilderExercise(${itemIndex}, 'coachNote', this.value)" placeholder="Keep the cue short and useful">${fEsc(ex.coachNote || '')}</textarea></div>
+        <div class="focus-field full"><label>Sets</label><select onchange="focusBuilderExercise(${itemIndex}, 'sets', this.value)">${setOptions}</select></div>
+        <div class="focus-field full"><label>Tracking</label><select onchange="focusBuilderSetTrackingMode(${itemIndex}, this.value)">${F_TRACKING_MODES.map(value => `<option value="${value}" ${value === mode ? 'selected' : ''}>${fTrackingLabel(value)}</option>`).join('')}</select></div>
+        ${fBuilderTrackingTargetMarkup(ex, itemIndex)}
+        <div class="focus-field full"><label>Rest</label><select onchange="focusBuilderExercise(${itemIndex}, 'restSec', this.value)">${fRestOptions(ex.restSec || 0)}</select></div>
+        <div class="focus-field full"><label>Exercise instructions</label><textarea oninput="focusBuilderExercise(${itemIndex}, 'coachNote', this.value)" placeholder="Write the cue the athlete should see at the top of the Logger">${fEsc(ex.coachNote || '')}</textarea></div>
       </div>
-      <div class="focus-plan" style="margin-top:14px"><span class="focus-plan-chip">${ex.blankPrescription && !String(ex.sets ?? '').trim() && !String(ex.reps ?? '').trim() ? 'Blank sets' : `${fNum(ex.sets) || 1} sets`}</span><span class="focus-plan-chip">${fEsc(targetText)}${side === 'each' ? ' · each side' : ''}</span><span class="focus-plan-chip">Rest ${fFmt(fNum(ex.restSec) || 0)}</span></div>
+      <button class="focus-link" style="margin-top:14px" onclick="focusBuilderToggleAdvanced(${itemIndex})">${showAdvanced ? 'Hide options' : 'More options'}</button>
+      ${showAdvanced ? `<div class="focus-fields" style="margin-top:14px"><div class="focus-field"><label>Side</label><select onchange="focusBuilderExercise(${itemIndex}, 'repsPerSide', this.value)"><option value="both" ${side === 'both' ? 'selected' : ''}>Both / total</option><option value="each" ${side === 'each' ? 'selected' : ''}>Each side</option></select></div><div class="focus-field"><label>Tempo / hold <span>optional</span></label><input value="${fEsc(ex.tempo || ex.hold || '')}" placeholder="e.g. 3-1-1 or 30s" oninput="focusBuilderExercise(${itemIndex}, 'tempo', this.value)"></div></div>` : ''}
+      <div class="focus-plan" style="margin-top:14px"><span class="focus-plan-chip">${ex.blankPrescription && !String(ex.sets ?? '').trim() && !String(ex.reps ?? '').trim() ? 'Blank sets' : `${fNum(ex.sets) || 1} sets`}</span><span class="focus-plan-chip">${fEsc(fTrackingLabel(mode))}</span><span class="focus-plan-chip">${fEsc(targetText)}</span><span class="focus-plan-chip">Rest ${fFmt(fNum(ex.restSec) || 0)}</span></div>
       <div class="focus-row-actions"><button class="btn" onclick="focusBuilderAddExercise(${item.blockIndex})">Add exercise</button><button class="btn" onclick="focusBuilderMap()">Workout map</button></div>
     </div>`;
   }
@@ -460,6 +602,71 @@
     else item.exercise[key] = value;
     fPersistDraft();
     if (key === 'sets' || key === 'restSec' || key === 'repsPerSide') focusedBuilder();
+  }
+
+  function fBuilderSetTrackingMode(itemIndex, mode) {
+    const item = fBuilderItems()[itemIndex];
+    const ex = item?.exercise;
+    if (!ex || !F_TRACKING_MODES.includes(mode)) return;
+    const targetReps = fBuilderTargetReps(ex);
+    const targetPercent = fBuilderTargetPercent(ex);
+    const targetSeconds = fBuilderTargetSeconds(ex);
+    ex.trackingMode = mode;
+    ex.targetReps = targetReps;
+    ex.percentTarget = targetPercent;
+    ex.secondsTarget = targetSeconds;
+    if (mode === 'completion') {
+      ex.prescriptionType = 'completion';
+      ex.reps = 'For completion';
+    } else if (mode === 'seconds') {
+      ex.prescriptionType = 'seconds';
+      ex.reps = targetSeconds ? `${targetSeconds}s` : '';
+    } else {
+      ex.prescriptionType = mode === 'reps-percent' ? 'percent1rm' : 'reps';
+      ex.reps = targetReps || (ex.blankPrescription ? '' : '8');
+    }
+    fPersistDraft();
+    focusedBuilder();
+  }
+
+  function fBuilderTrackingTarget(itemIndex, key, value, selectElement) {
+    const item = fBuilderItems()[itemIndex];
+    const ex = item?.exercise;
+    if (!ex || value === '__custom__') {
+      if (value === '__custom__') {
+        const input = selectElement?.parentElement?.querySelector('.focus-custom-input');
+        if (input) input.style.display = 'block';
+      }
+      return;
+    }
+    if (key === 'targetReps') {
+      ex.targetReps = String(value ?? '').replace(/-/g, '–');
+      if (fBuilderTrackingMode(ex) !== 'seconds' && fBuilderTrackingMode(ex) !== 'completion') ex.reps = ex.targetReps;
+    } else if (key === 'percentTarget') {
+      ex.percentTarget = String(value ?? '');
+    } else if (key === 'secondsTarget') {
+      ex.secondsTarget = String(value ?? '').replace(/s$/i, '');
+      if (fBuilderTrackingMode(ex) === 'seconds') ex.reps = ex.secondsTarget ? `${ex.secondsTarget}s` : '';
+    }
+    fPersistDraft();
+    focusedBuilder();
+  }
+
+  function fBuilderTrackingCustomTarget(itemIndex, key, value) {
+    const item = fBuilderItems()[itemIndex];
+    const ex = item?.exercise;
+    if (!ex) return;
+    const normalized = String(value ?? '').replace(/-/g, '–');
+    if (key === 'targetReps') {
+      ex.targetReps = normalized;
+      if (!['seconds', 'completion'].includes(fBuilderTrackingMode(ex))) ex.reps = normalized;
+    } else if (key === 'percentTarget') {
+      ex.percentTarget = normalized;
+    } else if (key === 'secondsTarget') {
+      ex.secondsTarget = normalized.replace(/s$/i, '');
+      if (fBuilderTrackingMode(ex) === 'seconds') ex.reps = ex.secondsTarget ? `${ex.secondsTarget}s` : '';
+    }
+    fPersistDraft();
   }
 
   function fBuilderTargetType(itemIndex, type) {
@@ -612,7 +819,7 @@
       state.exercises.push(libraryItem);
     }
     block.exercises = block.exercises || [];
-    block.exercises.push({ id: id(), exerciseId: libraryItem.id, name, category: cat, sets: 3, reps: '8', prescriptionType: 'reps', restSec: 90, repsPerSide: 'both', coachNote: '' });
+    block.exercises.push({ id: id(), exerciseId: libraryItem.id, name, category: cat, sets: 3, reps: '8', targetReps: '8', trackingMode: 'reps-kilos', prescriptionType: 'reps', percentTarget: '75%', secondsTarget: '30', restSec: 90, repsPerSide: 'both', coachNote: '' });
     fPersistDraft();
     fCloseSheet();
     focusedBuilderIndex = fBuilderItems().findIndex(item => item.blockIndex === blockIndex && item.exerciseIndex === block.exercises.length - 1);
@@ -712,20 +919,59 @@
 
   function fLoggerPlan(task) {
     if (!task) return '';
+    if (task.kind === 'superset') {
+      const rounds = Math.max(0, ...(task.exercises || []).map(ex => (ex.rows || []).length));
+      return `Superset · ${rounds} round${rounds === 1 ? '' : 's'}`;
+    }
     if (task.kind === 'conditioning') {
       const measure = ['minutes', 'seconds', 'distance', 'calories', 'rounds', 'completion'].includes(task.measurementType) ? task.measurementType : (task.conditioningType === 'intervals' ? 'rounds' : 'minutes');
       const metric = measure === 'completion' ? 'For completion' : measure === 'minutes' ? `${task.targetDurationMin || task.timeCapMin || 0} min` : measure === 'seconds' ? `${task.targetDurationSec || 0}s` : measure === 'distance' ? `${task.targetDistance || 0} m` : measure === 'calories' ? `${task.targetCalories || 0} cal` : `${task.rounds || 1} rounds`;
       return task.conditioningType === 'intervals' ? `${metric} · ${task.workSec || 0}s work / ${task.restSec || 0}s rest` : `${metric} easy aerobic`;
     }
     if (task.blankPrescription && !String(task.sets ?? '').trim() && !String(task.reps ?? '').trim()) return 'Blank prescription';
-    return `${task.sets || task.rows?.length || 0} sets · ${task.reps || task.rows?.[0]?.target || ''}`;
+    const rest = fNum(task.restSec) ? ` · Rest ${fFmt(task.restSec)}` : '';
+    return `${task.sets || task.rows?.length || 0} sets · ${fLoggerPlanTarget(task)}${rest}`;
   }
 
-  function fLoggerPrevious(task) {
-    const last = typeof lastRows === 'function' ? lastRows(task.exerciseId, task.name) : [];
-    if (!last.length) return `<div class="focus-history"><div class="focus-history-cell"><b>LAST</b><span>None logged yet</span></div><div class="focus-history-cell"><b>HISTORY</b><span>Build it as you train</span></div></div>`;
-    const text = last.map(row => row.targetKind === 'completion' ? 'Completed' : `${row.weight || 0} × ${row.reps || 0}${row.targetKind === 'seconds' ? 's' : ''}`).join(' · ');
-    return `<div class="focus-history"><div class="focus-history-cell"><b>LAST</b><span>${fEsc(text)}</span></div><div class="focus-history-cell"><b>HISTORY</b><span><button class="focus-link" onclick="exerciseProfile(${fJs(task.exerciseId || '')},${fJs(task.name || '')},${fJs(task.category || '')})">View exercise</button></span></div></div>`;
+  function fLoggerFieldDescriptors(task) {
+    const mode = fLoggerTrackingMode(task);
+    const repsLabel = task?.prescriptionType === 'repsPerSide' ? 'Reps / side' : 'Reps';
+    if (mode === 'completion') return [{ key: 'status', label: 'Status', readOnly: true, value: 'Ready' }];
+    if (mode === 'seconds') return [{ key: 'reps', label: 'Seconds', step: '1', inputmode: 'numeric' }];
+    if (mode === 'reps-percent') return [{ key: 'reps', label: repsLabel, step: '1', inputmode: 'numeric' }, { key: 'percent', label: '%1RM', readOnly: true, value: fLoggerTargetPercent(task) }];
+    if (mode === 'reps-seconds') return [{ key: 'reps', label: repsLabel, step: '1', inputmode: 'numeric' }, { key: 'seconds', label: 'Seconds', step: '1', inputmode: 'numeric' }];
+    if (mode === 'reps-only') return [{ key: 'reps', label: repsLabel, step: '1', inputmode: 'numeric' }];
+    return [{ key: 'reps', label: repsLabel, step: '1', inputmode: 'numeric' }, { key: 'weight', label: 'Kilos', step: '0.5', inputmode: 'decimal' }];
+  }
+
+  function fLoggerPrepareRow(task, row) {
+    const mode = fLoggerTrackingMode(task);
+    if (mode === 'completion') row.targetKind = 'completion';
+    else if (mode === 'seconds') row.targetKind = 'seconds';
+    else if (mode !== 'completion' && mode !== 'seconds' && row.targetKind === 'completion') row.targetKind = 'reps';
+    const fields = fLoggerFieldDescriptors(task);
+    fields.forEach(field => {
+      if (field.readOnly || field.key === 'status' || field.key === 'percent') return;
+      if (String(row[field.key] ?? '').trim() !== '') return;
+      if (field.key === 'reps') {
+        row.reps = mode === 'seconds' ? fLoggerTargetSeconds(task) : fTargetNumber(fLoggerTargetReps(task, row), true);
+      } else if (field.key === 'seconds') {
+        row.seconds = fLoggerTargetSeconds(task);
+      }
+    });
+  }
+
+  function fLoggerFieldValue(task, row, field) {
+    if (field.key === 'status') return field.value || 'Ready';
+    if (field.key === 'percent') return field.value || fLoggerTargetPercent(task);
+    return row[field.key] ?? '';
+  }
+
+  function fLoggerFieldMarkup(task, row, field, index, superset = false) {
+    const value = fLoggerFieldValue(task, row, field);
+    if (field.readOnly) return `<div class="focus-log-static">${fEsc(value || '—')}</div>`;
+    const setter = superset ? `setSupersetValue('${field.key}', this.value)` : `updateSet(${index}, '${field.key}', this.value)`;
+    return `<input type="number" step="${field.step || '1'}" inputmode="${field.inputmode || 'numeric'}" aria-label="${fEsc(field.label)}" value="${fEsc(value)}" onchange="${setter}">`;
   }
 
   function fLoggerRows(task) {
@@ -734,31 +980,36 @@
       else task.rows = [];
     }
     const rows = task.rows || [];
-    const last = typeof lastRows === 'function' ? lastRows(task.exerciseId, task.name) : [];
+    const fields = fLoggerFieldDescriptors(task);
+    rows.forEach(row => fLoggerPrepareRow(task, row));
+    const columnCount = fields.length;
+    const columns = `38px repeat(${columnCount}, minmax(0, 1fr)) 52px`;
     const body = rows.map((row, index) => `<div class="focus-log-row ${row.done ? 'done' : ''}">
       <div class="focus-set-index">${row.done ? '✓' : (row.extra ? '+' : row.n)}</div>
-      <div class="focus-target">${fEsc(typeof targetLabel === 'function' ? targetLabel(row) : row.target || '—')}<small>${last[index] ? (last[index].targetKind === 'completion' ? 'Last completed' : `Last ${fEsc(last[index].weight || 0)} × ${fEsc(last[index].reps || 0)}`) : ''}</small></div>
-      <div>${row.targetKind === 'completion' ? '<div class="focus-log-static">—</div>' : '<input type="number" step="0.5" inputmode="decimal" aria-label="Load" value="' + fEsc(row.weight || '') + '" onchange="updateSet(' + index + ', \'weight\', this.value)">'}</div>
-      <div>${row.targetKind === 'completion' ? '<div class="focus-log-static">Ready</div>' : '<input type="number" step="1" inputmode="numeric" aria-label="' + fEsc(typeof rowInputLabel === 'function' ? rowInputLabel(row) : 'Reps') + '" value="' + fEsc(row.reps || '') + '" onchange="updateSet(' + index + ', \'reps\', this.value)">'}</div>
-      <button class="focus-log-btn ${row.done ? '' : 'primary'}" onclick="toggleSet(${index})">${row.done ? 'Edit' : 'Log'}</button>
+      ${fields.map(field => `<div>${fLoggerFieldMarkup(task, row, field, index)}</div>`).join('')}
+      <button class="focus-log-btn focus-log-complete ${row.done ? 'done' : 'primary'}" aria-label="${row.done ? 'Edit' : 'Complete'} set ${index + 1}" onclick="toggleSet(${index})">${row.done ? '✓' : ''}</button>
     </div>`).join('');
-    return `<div class="focus-log"><div class="focus-log-head"><span>Set</span><span>Target</span><span>Load</span><span>${fEsc(typeof rowInputLabel === 'function' ? rowInputLabel(rows[0] || {}) : 'Reps')}</span><span></span></div>${body}</div>`;
+    return `<div class="focus-log" style="--focus-log-cols:${columns}"><div class="focus-log-head"><span>Sets</span>${fields.map(field => `<span>${fEsc(field.label)}</span>`).join('')}<span>Completed</span></div>${body}</div>`;
   }
 
   function fLoggerStrength(task) {
-    const rest = typeof restSeconds === 'function' ? restSeconds(task.restSec) : fNum(task.restSec) || 90;
-    return `<div class="focus-card"><div class="focus-card-title">Log your sets<small>Load is only for the Logger. Builder prescriptions stay load-free.</small></div>${fLoggerRows(task)}<div class="focus-row-actions"><button class="btn" onclick="autofill()">Autofill load below</button><button class="btn" onclick="addExtra()">${task.blankPrescription && !(task.rows || []).length ? 'Add set' : 'Add extra set'}</button><button class="btn" onclick="restMenu()">Rest menu</button></div><button class="btn primary focus-complete" onclick="completeStrength()">${task.complete ? 'Reopen exercise' : 'Complete exercise'}</button></div>`;
+    return `<div class="focus-card"><div class="focus-card-title">Log your sets<small>The Builder locked the fields for this exercise. Enter what you actually completed.</small></div>${fLoggerRows(task)}<button class="btn primary focus-complete" onclick="completeStrength()">${task.complete ? 'Reopen exercise' : 'Complete exercise'}</button></div>`;
+  }
+
+  function fLoggerInstruction(task) {
+    const note = String(task?.coachNote || '').trim();
+    return `<div class="focus-card focus-instruction-card"><div class="focus-card-title">Exercise instructions<small>Set in Builder · locked during the Logger</small></div><div class="focus-plan"><span class="focus-plan-chip">${fEsc(fTrackingLabel(fLoggerTrackingMode(task)))}</span><span class="focus-plan-chip">${fEsc(fLoggerPlanTarget(task))}</span>${fNum(task?.restSec) ? `<span class="focus-plan-chip">Rest ${fFmt(task.restSec)}</span>` : ''}</div><div class="focus-instruction-copy">${fEsc(note || 'Follow the programmed prescription and record the work you complete.')}</div></div>`;
   }
 
   function fConditioningNote(task) {
-    return `<div class="focus-field full"><label>Instructions</label><textarea oninput="updateConditioningNote(this.value)" placeholder="Session instructions">${fEsc(task.notes || '')}</textarea></div>`;
+    return `<div class="focus-field full"><label>Instructions · locked from Builder</label><div class="focus-instruction-copy">${fEsc(String(task.notes || '').trim() || 'Follow the programmed conditioning instructions.')}</div></div>`;
   }
 
   function fLoggerEasy(task) {
     const result = task.result || {};
     const fields = typeof resultFields === 'function' ? resultFields(task.modality, task) : ['duration', 'distance', 'calories', 'avgHr', 'notes'];
     const elapsed = typeof blockElapsed === 'function' ? blockElapsed(task) : 0;
-    return `<div class="focus-card"><div class="focus-card-title">Easy aerobic result<small>Log the work you actually completed.</small></div><div class="focus-plan"><span class="focus-plan-chip">${fEsc(task.modality || 'Run')}</span><span class="focus-plan-chip">Plan · ${fEsc(fLoggerPlan(task))}</span></div><div class="focus-row-actions"><button class="btn" onclick="toggleBlockClock()">${task.blockTimer?.on ? 'Pause timer' : 'Start timer'}</button><button class="btn" onclick="restMenu()">Timer menu</button></div><div class="focus-card soft"><div class="focus-card-title">Block duration<small id="blockClock">${fFmt(elapsed)}</small></div></div><div class="focus-fields">${typeof resultInputs === 'function' ? resultInputs(result, fields).replace('class=two', 'class="focus-fields"') : ''}</div>${fConditioningNote(task)}<button class="btn primary focus-complete" onclick="completeConditioning()">Complete block</button>${task.optional ? '<button class="btn focus-complete" onclick="skipOptionalTask()">Skip optional block</button>' : ''}</div>`;
+    return `<div class="focus-card"><div class="focus-card-title">Easy aerobic result<small>Log the work you actually completed.</small></div><div class="focus-plan"><span class="focus-plan-chip">${fEsc(task.modality || 'Run')}</span><span class="focus-plan-chip">Plan · ${fEsc(fLoggerPlan(task))}</span></div><div class="focus-row-actions"><button class="btn" onclick="toggleBlockClock()">${task.blockTimer?.on ? 'Pause timer' : 'Start timer'}</button></div><div class="focus-card soft"><div class="focus-card-title">Block duration<small id="blockClock">${fFmt(elapsed)}</small></div></div><div class="focus-fields">${typeof resultInputs === 'function' ? resultInputs(result, fields).replace('class=two', 'class="focus-fields"') : ''}</div>${fConditioningNote(task)}<button class="btn primary focus-complete" onclick="completeConditioning()">Complete block</button>${task.optional ? '<button class="btn focus-complete" onclick="skipOptionalTask()">Skip optional block</button>' : ''}</div>`;
   }
 
   function fLoggerIntervals(task) {
@@ -776,13 +1027,29 @@
   }
 
   function fLoggerSuperset(task) {
-    return `<div class="focus-card"><div class="focus-card-title">Superset<small>Log the current round, then move to the next exercise.</small></div>${typeof supersetTask === 'function' ? supersetTask(task) : ''}</div>`;
+    const item = typeof supersetCurrent === 'function' ? supersetCurrent(task) : null;
+    const exercises = task?.exercises || [];
+    const list = exercises.map((exercise, index) => {
+      const done = (exercise.rows || []).filter(row => row.done).length;
+      const total = (exercise.rows || []).length;
+      return `<div class="focus-superset-item ${item?.exIndex === index ? 'active' : ''}"><b>A${index + 1}</b><span>${fEsc(exercise.name || 'Exercise')} · ${done}/${total} logged</span></div>`;
+    }).join('');
+    if (!item) return `<div class="focus-card focus-superset-card"><div class="focus-card-title">Superset complete<small>All programmed rounds are logged.</small></div><div class="focus-superset-list">${list}</div><button class="btn primary focus-complete" onclick="completeTask()">Continue</button></div>`;
+    const exercise = exercises[item.exIndex];
+    const row = item.row;
+    fLoggerPrepareRow(exercise, row);
+    const fields = fLoggerFieldDescriptors(exercise);
+    const columns = `38px repeat(${fields.length}, minmax(0, 1fr)) 52px`;
+    const fieldHeaders = fields.map(field => `<span>${fEsc(field.label)}</span>`).join('');
+    const fieldValues = fields.map(field => `<div>${fLoggerFieldMarkup(exercise, row, field, item.rowIndex, true)}</div>`).join('');
+    const instruction = String(exercise.coachNote || task.notes || '').trim() || 'Complete each exercise in order before resting.';
+    return `<div class="focus-card focus-superset-card"><div class="focus-card-title">Superset round ${item.rowIndex + 1}<small>Complete A${item.exIndex + 1}, then move to the next exercise.</small></div><div class="focus-superset-list">${list}</div><div class="focus-instruction-copy">${fEsc(instruction)}</div><div class="focus-log" style="--focus-log-cols:${columns};margin-top:14px"><div class="focus-log-head"><span>Set</span>${fieldHeaders}<span>Done</span></div><div class="focus-log-row"><div class="focus-set-index">${item.rowIndex + 1}</div>${fieldValues}<button class="focus-log-btn focus-log-complete primary" aria-label="Complete superset set" onclick="logSupersetSet()"></button></div></div><button class="btn primary focus-complete" onclick="logSupersetSet()">Log ${fEsc(exercise.name || 'exercise')} and continue</button></div>`;
   }
 
   function fLoggerNav(session) {
     const index = Number(session.taskIndex) || 0;
     const last = index >= (session.tasks || []).length - 1;
-    return `<div class="focus-nav"><button class="btn" ${index ? '' : 'disabled'} onclick="focusLoggerBack()">Back</button><button class="btn" onclick="restMenu()">Timer</button><button class="btn primary" onclick="nextTask()">${last ? 'Finish' : 'Next'}</button></div><button class="btn ghost focus-abandon" onclick="abandonActiveSession()">Abandon workout</button>`;
+    return `<div class="focus-nav"><button class="btn" ${index ? '' : 'disabled'} onclick="focusLoggerBack()">Back</button><button class="btn" onclick="startCurrentRest()">Timer</button><button class="btn primary" onclick="nextTask()">${last ? 'Finish' : 'Next'}</button></div><button class="btn ghost focus-abandon" onclick="abandonActiveSession()">Abandon workout</button>`;
   }
 
   function focusedTrain() {
@@ -805,8 +1072,8 @@
     const marker = String.fromCharCode(65 + ((session.taskIndex || 0) % 26));
     let content = fLoggerHeader(session, task, session.taskIndex || 0);
     content += fProgress(tasks, session.taskIndex || 0, true);
-    content += `<div class="focus-body"><div class="focus-section-row"><span class="focus-section-label ${task.kind === 'conditioning' ? 'cond' : ''}">${fEsc(section)}</span><button class="focus-link" onclick="focusLoggerMap()">Overview</button></div><div class="focus-title-row"><span class="focus-marker">${marker}</span><div><div class="focus-item-kicker">${fEsc(session.name || 'Workout')}</div><h1 class="focus-item-title">${fEsc(title || 'Training')}</h1><div class="focus-item-sub">${fEsc(fLoggerPlan(task))}</div></div>${task.kind === 'strength' ? `<button class="focus-quiet" onclick="exerciseProfile(${fJs(task.exerciseId || '')},${fJs(task.name || '')},${fJs(task.category || '')})">History</button>` : ''}</div>`;
-    if (task.kind === 'strength') content += fLoggerPrevious(task) + (task.coachNote ? `<div class="focus-note">${fEsc(task.coachNote)}</div>` : '') + fLoggerStrength(task);
+    content += `<div class="focus-body"><div class="focus-section-row"><span class="focus-section-label ${task.kind === 'conditioning' ? 'cond' : ''}">${fEsc(section)}</span><button class="focus-link" onclick="focusLoggerMap()">Overview</button></div><div class="focus-title-row"><span class="focus-marker">${marker}</span><div><div class="focus-item-kicker">${fEsc(session.name || 'Workout')}</div><h1 class="focus-item-title">${fEsc(title || 'Training')}</h1><div class="focus-item-sub">${fEsc(fLoggerPlan(task))}</div></div></div>`;
+    if (task.kind === 'strength') content += fLoggerInstruction(task) + fLoggerStrength(task);
     else if (task.kind === 'conditioning') content += task.conditioningType === 'intervals' ? fLoggerIntervals(task) : fLoggerEasy(task);
     else if (task.kind === 'superset') content += fLoggerSuperset(task);
     else content += fLoggerText(task);
@@ -870,6 +1137,10 @@
   window.focusBuilderName = fBuilderName;
   window.focusBuilderBlock = fBuilderBlock;
   window.focusBuilderExercise = fBuilderExercise;
+  window.focusBuilderSetTrackingMode = fBuilderSetTrackingMode;
+  window.focusBuilderTrackingTarget = fBuilderTrackingTarget;
+  window.focusBuilderTrackingCustomTarget = fBuilderTrackingCustomTarget;
+  window.focusBuilderToggleAdvanced = fBuilderToggleAdvanced;
   window.focusBuilderTargetType = fBuilderTargetType;
   window.focusBuilderTarget = fBuilderTarget;
   window.focusBuilderCustomTarget = fBuilderCustomTarget;
