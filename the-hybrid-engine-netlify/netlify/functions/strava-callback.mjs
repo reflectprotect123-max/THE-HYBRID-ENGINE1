@@ -1,0 +1,5 @@
+import { exchangeStravaCode } from './_lib/strava.mjs';
+import { consumePending, saveToken, syncRecord } from './_lib/oauth.mjs';
+import { connectNetlifyBlobs } from './_lib/store.mjs';
+import { redirect, safeError } from './_lib/http.mjs';
+export async function handler(event) { connectNetlifyBlobs(event); try { const q = event.queryStringParameters || {}; if (q.error) return redirect('/?integration=strava&status=denied'); const pending = await consumePending('strava', q.state); if (!pending || !q.code) return redirect('/?integration=strava&status=error&message=invalid_oauth_state'); const token = await exchangeStravaCode(q.code); const athleteId = token.athlete?.id; await saveToken('strava', pending.sid, token, athleteId); await syncRecord('strava', pending.sid, { provider: 'strava', connectedAt: new Date().toISOString(), providerUserId: athleteId, athlete: token.athlete ? { firstname: token.athlete.firstname || '', lastname: token.athlete.lastname || '' } : null }); return redirect('/?integration=strava&status=connected'); } catch (error) { return redirect(`/?integration=strava&status=error&message=${encodeURIComponent(safeError(error))}`); } }
