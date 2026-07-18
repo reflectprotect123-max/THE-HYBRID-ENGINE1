@@ -1,4 +1,4 @@
-const CACHE_NAME='the-hybrid-engine-training-pwa-v11-2026-07-18';
+const CACHE_NAME='the-hybrid-engine-training-pwa-v12-2026-07-18';
 const APP_SHELL = [
   './index.html',
   './integrations-ui.js',

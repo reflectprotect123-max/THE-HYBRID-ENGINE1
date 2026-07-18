@@ -1,5 +1,18 @@
 # Changelog
 
+## Logger and Builder tracking rebuild — 18 July 2026
+
+- Rebuilt per-exercise tracking modes in Builder: Reps + Kilos, Seconds, Reps + Seconds, Reps only, and For completion. Each strength exercise stores one saved mode.
+- Builder now lays each set on its own row for per-set targets, with a live prescription preview and a tracking-mode chip on each exercise.
+- Live Logger renders only the fields for the chosen mode and adds a dedicated Done column. Removed the set-count/extra-set stepper and the rest-prescription line from the strength runner; the programmed rest timer is kept.
+- The exercise session cue now appears as an instruction banner at the top of the live logger.
+- Superset logger and edit sheet respect each exercise's tracking mode; the read-only round overview is retained.
+- Tonnage counts weighted modes only; Seconds, Reps only and For completion contribute no load.
+- Legacy templates and sessions without a saved mode default to Reps + Kilos — no data migration required.
+- Removed the now-unreachable manual extra-set add/remove helpers left over from the previous logger.
+- Bumped the service-worker cache to v12 so installed PWAs pick up the rebuild.
+- %1RM mode was intentionally deferred from this pass.
+
 ## Logger and Builder reset — 15 July 2026
 
 - Removed the focused Logger/Builder overlay and its late override wiring.
