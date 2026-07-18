@@ -8,11 +8,11 @@ export async function handler(event) {
   const denied = method(event, ['POST']);
   if (denied) return denied;
   const provider = event.queryStringParameters?.provider;
-  if (!['whoop', 'strava'].includes(provider)) return json({ error: 'invalid_provider' }, 400);
+  if (provider !== 'whoop') return json({ error: 'invalid_provider' }, 400);
   const sid = sessionFromEvent(event);
-  const data = await loadData(provider, sid);
-  const token = await loadToken(provider, sid);
-  if (provider === 'whoop' && token?.access_token) {
+  const data = await loadData('whoop', sid);
+  const token = await loadToken('whoop', sid);
+  if (token?.access_token) {
     try {
       await revokeWhoopToken(token.access_token);
     } catch (error) {
@@ -22,6 +22,6 @@ export async function handler(event) {
       }
     }
   }
-  await removeToken(provider, sid, data?.providerUserId || token?.athlete?.id);
-  return json({ ok: true, provider });
+  await removeToken('whoop', sid, data?.providerUserId || token?.athlete?.id);
+  return json({ ok: true, provider: 'whoop' });
 }

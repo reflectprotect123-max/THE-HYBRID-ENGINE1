@@ -6,11 +6,9 @@ export async function handler(event) {
   const denied = method(event, ['GET']);
   if (denied) return denied;
   const sid = sessionFromEvent(event);
-  const [whoopToken, stravaToken, whoop, strava] = await Promise.all([
+  const [whoopToken, whoop] = await Promise.all([
     loadToken('whoop', sid),
-    loadToken('strava', sid),
     loadData('whoop', sid),
-    loadData('strava', sid),
   ]);
   const normalized = whoop?.normalized && typeof whoop.normalized === 'object'
     ? {
@@ -26,6 +24,5 @@ export async function handler(event) {
     : null;
   return json({
     whoop: { connected: Boolean(whoopToken), lastSyncAt: whoop?.syncedAt || null, sampleDate: normalized?.date || null, normalized },
-    strava: { connected: Boolean(stravaToken), lastSyncAt: strava?.syncedAt || null, activityCount: strava?.activities?.length || 0 },
   });
 }

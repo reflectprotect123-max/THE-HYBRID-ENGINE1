@@ -9,21 +9,17 @@ Quick local test
 2. Visit: http://localhost:4173
 3. On a supported browser, use the install affordance when it appears.
 
-The app keeps the existing training model and persistence layer intact while
-keeping the native-feeling mobile shell, install prompt handling, offline
-status, safe PWA updates, and a cache that excludes authenticated integration
-functions.
+The app keeps the logger, calendar, history, backup and recovery layers intact
+while using one canonical Training surface: Programs and Resources. Resources
+contains the Exercise Library and Mobility Library.
 
-Logger and Builder reset
-- The focused Logger/Builder overlay and its late override wiring have been
-  removed from the deployed app.
-- Logger and Builder currently use the core app routes as a clean foundation.
-- WHOOP, Netlify functions, local storage, history, and recovery remain in the
-  package and are not part of this reset.
-- The new Logger and Builder will be rebuilt from this foundation in the next
-  pass.
-
-Builder and Logger behavior will be documented again after the clean rebuild.
+Training behavior
+- Training is the second navigation item after Home.
+- Programs contains session templates and the Builder entry point.
+- Resources contains Exercise Library and Mobility Library.
+- Scheduled sessions remain snapshots so deleting a template does not delete
+  logged history.
+- RPE remains valid conditioning guidance and is not stripped during load.
 
 Deployment
 Deploy the package through Netlify Git, the Netlify CLI, or the Netlify API

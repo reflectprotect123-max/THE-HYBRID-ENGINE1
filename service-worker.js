@@ -1,4 +1,4 @@
-const CACHE_NAME='the-hybrid-system-private-pwa-v10-2026-07-17';
+const CACHE_NAME='the-hybrid-engine-training-pwa-v11-2026-07-18';
 const APP_SHELL = [
   './index.html',
   './integrations-ui.js',
@@ -28,7 +28,7 @@ async function networkFirst(request, fallbackToIndex = false) {
   const cache = await caches.open(CACHE_NAME);
   try {
     const fresh = await fetch(request, { cache: 'no-store' });
-    if (fresh && fresh.ok) cache.put(request, fresh.clone()).catch(() => {});
+    if (fresh && fresh.ok && fresh.headers.get('cache-control') !== 'no-store') cache.put(request, fresh.clone()).catch(() => {});
     return fresh;
   } catch {
     const cached = await caches.match(request);
@@ -46,7 +46,8 @@ self.addEventListener('fetch', event => {
     event.respondWith(networkFirst(new Request('./index.html', { cache: 'no-store' }), true));
     return;
   }
-  if (requestUrl.origin === self.location.origin) event.respondWith(networkFirst(event.request, false));
+  const isAppShell = requestUrl.origin === self.location.origin && APP_SHELL.some(path => new URL(path, self.location.href).pathname === requestUrl.pathname);
+  if (isAppShell) event.respondWith(networkFirst(event.request, false));
 });
 
 self.addEventListener('message', event => {

@@ -26,11 +26,11 @@
 
 ## Streamlined build — 13 July 2026
 
-- Removed legacy readiness, Coach Tools and program-first clutter from the primary flow.
+- Removed legacy readiness and program-first clutter from the primary flow.
 - Home now focuses on active, scheduled and newly created workouts.
 - Calendar starts workouts directly without an extra preview step.
 - Library cards now use Edit in Builder and Schedule as the primary actions.
-- Strength logging no longer exposes RIR or estimated 1RM controls.
+- Strength logging is limited to the prescribed work and recorded results.
 - Conditioning creation is limited to Easy aerobic and Intervals.
 - Removed obsolete seeded templates, archived-template persistence and dead recovery data.
 - Corrected the default weekly schedule to Monday, Tuesday, Thursday and Friday.
@@ -55,13 +55,13 @@
 
 - Added the public privacy policy page at `/privacy.html`.
 - Added the `/privacy` route and no-cache headers for the policy page.
-- Documented the live Netlify domain and planned WHOOP/Strava callback URLs.
+- Documented explicit HTTPS configuration for the WHOOP callback URLs.
 ## 2026-07-14 — Function-enabled integrations
 
-- Added Netlify Functions for WHOOP and Strava OAuth, token refresh, sync, disconnect, and webhook handling.
+- Added Netlify Functions for WHOOP OAuth, token refresh, sync, disconnect, and webhook handling.
 - Added encrypted server-side token storage using Netlify Blobs; no provider secrets or tokens enter the static app.
 - Added a compact Connected data entry point inside Settings without changing the main navigation, colors, or core logging flow.
-- Added OAuth state/session protection, WHOOP HMAC verification, Strava challenge verification, webhook deduplication, and a cache version bump.
+- Added OAuth state/session protection, WHOOP HMAC verification, webhook deduplication, and a cache version bump.
 - Hardened WHOOP V2 pagination, date normalization, timeout/error handling, rotating refresh-token races, stale webhook rejection, and provider revocation on disconnect.
 - Added a WHOOP Sync control and compact recovery, sleep, HRV, resting-heart-rate and strain summary in Settings.
 - Fixed Netlify Lambda-compatible Blobs initialization so OAuth state, encrypted tokens, sync records and webhook deduplication can persist in production Functions.

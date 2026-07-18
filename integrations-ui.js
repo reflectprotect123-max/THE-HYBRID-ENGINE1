@@ -10,14 +10,14 @@
     disconnect: '/.netlify/functions/integrations-disconnect',
     whoopSync: '/.netlify/functions/whoop-sync',
   });
-  const PROVIDERS = Object.freeze(['whoop', 'strava']);
-  const baseIntegrationStatus = { whoop: { connected: false }, strava: { connected: false } };
+  const PROVIDERS = Object.freeze(['whoop']);
+  const baseIntegrationStatus = { whoop: { connected: false } };
   let latestWhoopSample = null;
   let whoopConnected = false;
   let whoopBusy = false;
 
   function integrationPanel() {
-    return '<details class="card" id="integrationCard"><summary class="title">Connected data</summary><div class="meta" style="margin-top:8px">Optional WHOOP recovery/sleep and Strava activity data. Your local training log remains the source of truth.</div><div class="stack" style="margin-top:12px"><div class="settingsrow"><div><div class="title">WHOOP</div><div class="meta" id="whoopIntegrationMeta">Not connected</div></div><div class="btns"><a class="btn small" href="/.netlify/functions/whoop-connect">Connect</a><button class="btn small" type="button" id="whoopSyncButton" onclick="syncIntegration(\'whoop\')" disabled>Sync</button><button class="btn small" type="button" id="whoopDisconnectButton" onclick="disconnectIntegration(\'whoop\')" disabled>Disconnect</button></div></div><div class="divider"></div><div class="settingsrow"><div><div class="title">Strava</div><div class="meta" id="stravaIntegrationMeta">Not connected</div></div><div class="btns"><a class="btn small" href="/.netlify/functions/strava-connect">Connect</a><button class="btn small" type="button" onclick="disconnectIntegration(\'strava\')">Disconnect</button></div></div></div><div class="meta" id="integrationMessage" style="margin-top:10px" aria-live="polite"></div></details>';
+    return '<details class="card" id="integrationCard"><summary class="title">Connected data</summary><div class="meta" style="margin-top:8px">Optional WHOOP recovery, sleep and strain data. Your local training log remains the source of truth.</div><div class="stack" style="margin-top:12px"><div class="settingsrow"><div><div class="title">WHOOP</div><div class="meta" id="whoopIntegrationMeta">Not connected</div></div><div class="btns"><a class="btn small" href="/.netlify/functions/whoop-connect">Connect</a><button class="btn small" type="button" id="whoopSyncButton" onclick="syncIntegration(\'whoop\')" disabled>Sync</button><button class="btn small" type="button" id="whoopDisconnectButton" onclick="disconnectIntegration(\'whoop\')" disabled>Disconnect</button></div></div></div><div class="meta" id="integrationMessage" style="margin-top:10px" aria-live="polite"></div></details>';
   }
 
   function compactError(value, fallback) {
@@ -53,7 +53,6 @@
     const error = row?.lastError || row?.error;
     if (!row?.connected) return error ? `Connection error: ${compactError(error, 'Unavailable')}` : 'Not connected';
     const when = formattedDate(row.lastSyncAt) || 'Connected · sync when requested';
-    if (provider === 'strava') return `${when} · ${Number(row.activityCount) || 0} recent activities`;
     const sample = row.normalized || latestWhoopSample;
     const sampleDate = row.sampleDate || row.lastSampleDate || sample?.date;
     return `${when}${sampleDate ? ` · latest ${String(sampleDate).slice(0, 10)}` : ''}${whoopSampleSummary(sample)}`;
@@ -127,14 +126,11 @@
 
   function renderIntegrationStatus(data) {
     const whoop = { ...baseIntegrationStatus.whoop, ...(data?.whoop || {}) };
-    const strava = { ...baseIntegrationStatus.strava, ...(data?.strava || {}) };
     whoopConnected = whoop.connected === true;
     if (!whoopConnected) latestWhoopSample = null;
     else if (whoop.normalized) latestWhoopSample = whoop.normalized;
     const whoopMeta = document.getElementById('whoopIntegrationMeta');
-    const stravaMeta = document.getElementById('stravaIntegrationMeta');
     if (whoopMeta) whoopMeta.textContent = statusLine('whoop', whoop);
-    if (stravaMeta) stravaMeta.textContent = statusLine('strava', strava);
     renderWhoopHome(whoop);
     updateWhoopActions(whoopConnected);
   }
@@ -143,7 +139,7 @@
     const params = new URLSearchParams(window.location.search);
     const provider = params.get('integration');
     if (!PROVIDERS.includes(provider)) return null;
-    const label = provider === 'whoop' ? 'WHOOP' : 'Strava';
+    const label = 'WHOOP';
     const status = params.get('status');
     if (status === 'connected') return `${label} connected.`;
     if (status === 'denied') return `${label} connection was cancelled.`;
@@ -216,15 +212,13 @@
   };
 
   window.disconnectIntegration = function disconnectIntegration(provider) {
-    if (!PROVIDERS.includes(provider)) {
+    if (provider !== 'whoop') {
       setMessage('Unknown integration.', true);
       return Promise.resolve(null);
     }
-    const label = provider === 'whoop' ? 'WHOOP' : 'Strava';
-    if (provider === 'whoop') {
-      whoopBusy = true;
-      updateWhoopActions(true);
-    }
+    const label = 'WHOOP';
+    whoopBusy = true;
+    updateWhoopActions(true);
     setMessage(`Disconnecting ${label}…`);
     return fetch(`${ENDPOINTS.disconnect}?provider=${encodeURIComponent(provider)}`, {
       method: 'POST',
@@ -233,7 +227,7 @@
     })
       .then(responseData)
       .then(data => {
-        if (provider === 'whoop') latestWhoopSample = null;
+        latestWhoopSample = null;
         setMessage(`${label} disconnected.`);
         return window.loadIntegrationStatus({ notice: `${label} disconnected.` }).then(() => data);
       })
@@ -242,10 +236,8 @@
         return null;
       })
       .finally(() => {
-        if (provider === 'whoop') {
-          whoopBusy = false;
-          updateWhoopActions(whoopConnected);
-        }
+        whoopBusy = false;
+        updateWhoopActions(whoopConnected);
       });
   };
 
