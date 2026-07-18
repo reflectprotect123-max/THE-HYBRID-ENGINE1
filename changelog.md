@@ -1,5 +1,11 @@
 # Changelog
 
+## Fresh start after TrainHeroic cleanup — 18 July 2026
+
+- Removed the bundled TrainHeroic import, raw export files, old baseline notes and legacy test harness from the working bundle.
+- Existing installs now purge all TrainHeroic-derived sessions, exercises and templates on load or import; the new Block 01 strength templates remain.
+- Calendar and history start clean without repopulating old TrainHeroic data.
+
 ## Logger and Builder tracking rebuild — 18 July 2026
 
 - Rebuilt per-exercise tracking modes in Builder: Reps + Kilos, Seconds, Reps + Seconds, Reps only, and For completion. Each strength exercise stores one saved mode.
@@ -80,3 +86,8 @@
 - Fixed Netlify Lambda-compatible Blobs initialization so OAuth state, encrypted tokens, sync records and webhook deduplication can persist in production Functions.
 - Switched the Blobs store to Lambda-compatible eventual consistency so integration status reads do not require an unavailable uncached edge URL.
 - Added a WHOOP-style Today recovery card to Home with recovery score, sleep, HRV, resting heart rate, strain, connection states and one-tap sync.
+## Strength Block 01 logger update
+
+- Added the fixed 4-week strength block with two sessions and the agreed exercise prescriptions.
+- Added simple Working Max and Last-session context to the live strength logger.
+- Bumped the service-worker cache so installed PWAs receive the updated logger.

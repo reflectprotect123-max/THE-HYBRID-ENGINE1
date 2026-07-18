@@ -1,4 +1,5 @@
-const CACHE_NAME='the-hybrid-engine-training-pwa-v12-2026-07-18';
+const CACHE_PREFIX='the-hybrid-engine-training-pwa-';
+const CACHE_NAME='the-hybrid-engine-training-pwa-v18-2026-07-18';
 const APP_SHELL = [
   './index.html',
   './integrations-ui.js',
@@ -19,7 +20,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.map(key => key !== CACHE_NAME ? caches.delete(key) : null)))
+      .then(keys => Promise.all(keys.map(key => key !== CACHE_NAME && key.startsWith(CACHE_PREFIX) ? caches.delete(key) : null)))
       .then(() => self.clients.claim())
   );
 });
@@ -28,7 +29,7 @@ async function networkFirst(request, fallbackToIndex = false) {
   const cache = await caches.open(CACHE_NAME);
   try {
     const fresh = await fetch(request, { cache: 'no-store' });
-    if (fresh && fresh.ok && fresh.headers.get('cache-control') !== 'no-store') cache.put(request, fresh.clone()).catch(() => {});
+    if (fresh && fresh.ok && !/\bno-store\b/i.test(fresh.headers.get('cache-control') || '')) cache.put(request, fresh.clone()).catch(() => {});
     return fresh;
   } catch {
     const cached = await caches.match(request);
@@ -43,6 +44,10 @@ self.addEventListener('fetch', event => {
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin === self.location.origin && requestUrl.pathname.startsWith('/.netlify/functions/')) return;
   if (event.request.mode === 'navigate') {
+    if (requestUrl.pathname === '/privacy' || requestUrl.pathname === '/privacy.html') {
+      event.respondWith(networkFirst(event.request, false));
+      return;
+    }
     event.respondWith(networkFirst(new Request('./index.html', { cache: 'no-store' }), true));
     return;
   }
