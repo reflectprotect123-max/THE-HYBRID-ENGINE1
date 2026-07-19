@@ -1,5 +1,11 @@
 # Changelog
 
+## UI/UX cleanup — 19 July 2026
+
+- Fixed a long-standing bug where reloading the app while it was on the Training tab could show a blank/broken screen. The app now waits until everything has fully loaded before it draws the first screen, instead of racing it.
+- Deleting a block or exercise in the Builder now always shows the app's own "Delete this? Yes/No" prompt, matching template deletion. The browser's native pop-up confirmation is no longer used anywhere.
+- Removed the "Show advanced" toggle in the Builder. Move up/down, Copy and Delete are now always visible on every block and exercise — nothing is hidden behind an extra tap.
+
 ## Nothing locked, free reordering — 19 July 2026
 
 - Retired the built-in "Strength Day 1" and "Strength Day 2" seed templates. They were locked/protected (no Edit or Delete option); existing copies are automatically removed from your saved data the next time the app loads, no action needed.
