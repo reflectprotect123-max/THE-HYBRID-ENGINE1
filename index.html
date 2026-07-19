@@ -319,183 +319,41 @@ details.dropbox{display:none!important}
 @media(max-width:520px){#appScreen.builder-screen .builderbottom .btn{min-width:100%;}.builder-screen .block{padding:12px}}
 </style>
 
+<script src="./vendor/supabase-2.110.7.js"></script>
 <script>
-const STORAGE='THE-builder-clean-v3';const RECOVERY_STORAGE=STORAGE+'-recovery-snapshot';const SAVE_STATUS_RESET_MS=1800;const seed={"exercises":[],"templates":[],"sessions":[],"profile":{"restingHr":60,"maxHr":190,"sex":"male"},"settings":{"units":"metric","intervalSound":true,"intervalVibrate":true,"minimalUi":false,"showBlockHelp":true}};
+const STORAGE='THE-builder-clean-v1';const RECOVERY_STORAGE=STORAGE+'-recovery-snapshot';const SAVE_STATUS_RESET_MS=1800;const seed={"exercises":[],"templates":[],"sessions":[],"profile":{"restingHr":60,"maxHr":190,"sex":"male"},"settings":{"units":"metric","intervalSound":true,"intervalVibrate":true,"minimalUi":false,"showBlockHelp":true}};
+// --- Cloud sync (Supabase) ---------------------------------------------
+// SUPABASE_URL / SUPABASE_ANON_KEY are safe to ship in client code by design:
+// the anon key is public, and Row Level Security on the app_state table (see
+// supabase-schema.sql) is what actually restricts access to each signed-in
+// user's own row. Leave both blank to keep the app fully local-only.
+const SUPABASE_URL='https://orysjncrksmdfabpuftd.supabase.co';const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9yeXNqbmNya3NtZGZhYnB1ZnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTE4NzksImV4cCI6MjA5OTk4Nzg3OX0.GTMBfFtH5O6SikzHo75sXGIZoEhmuJ7TvXiACd7T078';
+const SB=(SUPABASE_URL&&SUPABASE_ANON_KEY&&window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
+let cloudUser=null,cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncPending=false,cloudLastError='';
+let lastSyncedFingerprint=null;
+function cloudFingerprint(state){try{let c=clone(state||{});if(c&&c.meta){delete c.meta.lastSavedAt;delete c.meta.saveHealth;delete c.meta.localRevision;delete c.meta.lastSaveReason;delete c.meta.storagePersisted;}return JSON.stringify(c)}catch(e){return 'fp-error-'+Date.now()}}
+
 const BLOCK_01_STRENGTH_TEMPLATES=[
-  {
-    "id": "builtin-block01-strength-day-1",
-    "name": "Strength Day 1",
-    "builtIn": true,
-    "locked": true,
-    "source": "THE-Block-01-strength",
-    "blockWeeks": 4,
-    "coachInstructions": "4-week strength block. Main lift: build through 4×8, 8, 6, 6 with the final set as the heavy set of the day, staying around 2 reps in reserve. Increase each set week to week by the smallest available jump when able. Accessories: complete the prescribed work with 2–3 reps in reserve, increasing weight or reps across the block. Supersets are optional; use 60–90 seconds rest if needed.",
-    "blocks": [
-      {
-        "id": "builtin-block01-day1-block-1",
-        "type": "text",
-        "heading": "quick FB warm up ",
-        "notes": "2-3 minutes of cardio impletment \n\n2-3 rounda\n\n5 KB RDL\n5 goblet squats\n5/side gorilla rows \n5 Kb press \n1 turkish get up/side\n\n2 primers of your choice, 3x3\n-rest 45s.\n\n-seated box jump,med ball chest pass,empty bar landmine rotation to press, plyo push up med ball slam.",
-        "optional": false
-      },
-      {
-        "id": "builtin-block01-day1-block-2",
-        "type": "strength",
-        "heading": "main lift ",
-        "exercises": [
-          {
-            "id": "builtin-block01-day1-exercise-2-1",
-            "exerciseId": "custom-back-squat-e8d1cj78",
-            "name": "Back Squat",
-            "category": "Custom",
-            "mode": "reps_kg",
-            "sets": 4,
-            "reps": "8, 8, 6, 6",
-            "restSec": 180,
-            "coachNote": "Build to the heavy set of the day."
-          }
-        ]
-      },
-      {
-        "id": "builtin-block01-day1-block-3",
-        "type": "strength",
-        "heading": "secondary strength ",
-        "superset": false,
-        "exercises": [
-          {
-            "id": "builtin-block01-day1-exercise-3-1",
-            "exerciseId": "builtin-glute-ham-raise",
-            "name": "Glute ham raise",
-            "category": "secondary strength",
-            "mode": "reps_kg",
-            "sets": 4,
-            "reps": "6, 6, 6, 6",
-            "restSec": 90,
-            "coachNote": "4 x 4-6\n-rest 90s"
-          }
-        ]
-      },
-      {
-        "id": "builtin-block01-day1-block-4",
-        "type": "strength",
-        "heading": "upper push+row ",
-        "superset": true,
-        "exercises": [
-          {
-            "id": "builtin-block01-day1-exercise-4-1",
-            "exerciseId": "builtin-half-kneeling-db-press",
-            "name": "Half-Kneeling DB Press",
-            "category": "Strength · Accessory",
-            "mode": "reps_kg",
-            "sets": 3,
-            "reps": "10, 10, 10",
-            "restSec": 60,
-            "coachNote": "3 x 8-10/side"
-          },
-          {
-            "id": "builtin-block01-day1-exercise-4-2",
-            "exerciseId": "h57ea0d566017",
-            "name": "Chest Supported Elbowing Row",
-            "category": "Strength — Pull",
-            "mode": "reps_kg",
-            "sets": 3,
-            "reps": "10, 10, 10",
-            "restSec": 60,
-            "coachNote": "3 x 8-10\nrest 60s"
-          }
-        ]
-      },
-      {
-        "id": "builtin-block01-day1-block-5",
-        "type": "strength",
-        "heading": "arms & carry ",
-        "superset": true,
-        "exercises": [
-          {
-            "id": "builtin-block01-day1-exercise-5-1",
-            "exerciseId": "builtin-seated-incline-db-curls",
-            "name": "Seated Incline DB Curls",
-            "category": "Strength · Accessory",
-            "mode": "reps_kg",
-            "sets": 3,
-            "reps": "10, 10, 10",
-            "restSec": 60,
-            "coachNote": "3 x 8-10/side \n-rest 60s"
-          },
-          {
-            "id": "builtin-block01-day1-exercise-5-2",
-            "exerciseId": "custom-single-arm-farmers-carry-253bzvgh",
-            "name": "single arm farmers carry",
-            "category": "accessory",
-            "mode": "seconds",
-            "sets": 3,
-            "reps": "30s, 30s, 30s",
-            "restSec": 60,
-            "coachNote": "3 x 30s/side"
-          }
-        ]
-      },
-      {
-        "id": "builtin-block01-day1-block-6",
-        "type": "text",
-        "heading": "Cool Down",
-        "notes": "Recovery Breathing\\n\\n10 nasal breaths\\n\\n5-second inhale\\n1-second hold at the top\\n5-second exhale\\n1-second pause at the bottom\\n\\nTurn off the music and make sure you are in a relaxing state.\\n\\nThe goal is to start the recovery process before leaving the gym.",
-        "optional": false
-      }
-    ]
-  },
-  {
-    "id": "builtin-block01-strength-day-2",
-    "name": "Strength Day 2",
-    "builtIn": true,
-    "locked": true,
-    "source": "THE-Block-01-strength",
-    "blockWeeks": 4,
-    "coachInstructions": "4-week strength block. Main lift: build through 4×8, 8, 6, 6 with the final set as the heavy set of the day, staying around 2 reps in reserve. Increase each set week to week by the smallest available jump when able. Accessories: complete the prescribed work with 2–3 reps in reserve, increasing weight or reps across the block. Supersets are optional; use 60–90 seconds rest if needed.",
-    "blocks": [
-      {
-        "id": "builtin-block01-day2-block-1",
-        "type": "text",
-        "heading": "quick FB warm up ",
-        "notes": "",
-        "optional": false
-      },
-      {
-        "id": "builtin-block01-day2-block-2",
-        "type": "strength",
-        "heading": "main lift ",
-        "exercises": []
-      },
-      {
-        "id": "builtin-block01-day2-block-3",
-        "type": "strength",
-        "heading": "secondary strength ",
-        "superset": false,
-        "exercises": []
-      },
-      {
-        "id": "builtin-block01-day2-block-4",
-        "type": "strength",
-        "heading": "upper push+row ",
-        "superset": true,
-        "exercises": []
-      },
-      {
-        "id": "builtin-block01-day2-block-5",
-        "type": "strength",
-        "heading": "arms & carry ",
-        "superset": true,
-        "exercises": []
-      },
-      {
-        "id": "builtin-block01-day2-block-6",
-        "type": "text",
-        "heading": "Cool Down",
-        "notes": "",
-        "optional": false
-      }
-    ]
-  }
+  {id:'builtin-block01-strength-day-1',name:'Strength Day 1',builtIn:true,locked:true,source:'THE-Block-01-strength',blockWeeks:4,coachInstructions:'4-week strength block. Main lift: build through 4×8, 8, 6, 6 with the final set as the heavy set of the day, staying around 2 reps in reserve. Increase each set week to week by the smallest available jump when able. Accessories: complete the prescribed work with 2–3 reps in reserve, increasing weight or reps across the block. Supersets are optional; use 60–90 seconds rest if needed.',blocks:[
+    {id:'builtin-block01-day1-strength',type:'strength',heading:'Strength',exercises:[
+      {id:'builtin-b01-d1-e1',exerciseId:'builtin-back-squat-with-chains',name:'Back Squat With Chains',category:'Strength · Main',mode:'reps_kg',sets:4,reps:'8, 8, 6, 6',restSec:180,coachNote:'Build to the heavy set of the day.'},
+      {id:'builtin-b01-d1-e2',exerciseId:'builtin-glute-ham-raise',name:'Glute-Ham Raise',category:'Strength · Accessory',mode:'reps_kg',sets:4,reps:'4-6',restSec:120,coachNote:'Leave 2–3 reps in reserve.'},
+      {id:'builtin-b01-d1-e3',exerciseId:'builtin-half-kneeling-db-press',name:'Half-Kneeling DB Press',category:'Strength · Accessory',mode:'reps_kg',sets:3,reps:'8-10',perSide:true,restSec:90,coachNote:'8–10 reps per side. Leave 2–3 reps in reserve.'},
+      {id:'builtin-b01-d1-e4',exerciseId:'builtin-chest-supported-rows',name:'Chest-Supported Rows',category:'Strength · Accessory',mode:'reps_kg',sets:3,reps:'8-10',restSec:90,coachNote:'Leave 2–3 reps in reserve.'},
+      {id:'builtin-b01-d1-e5',exerciseId:'builtin-seated-incline-db-curls',name:'Seated Incline DB Curls',category:'Strength · Accessory',mode:'reps_kg',sets:3,reps:'8-10',perSide:true,restSec:90,coachNote:'8–10 reps per side. Leave 2–3 reps in reserve.'},
+      {id:'builtin-b01-d1-e6',exerciseId:'builtin-single-arm-farmer-carry',name:'Single-Arm Farmer Carry',category:'Strength · Carry',mode:'seconds',sets:3,reps:'30s',perSide:true,restSec:90,coachNote:'30 seconds per side.'}
+    ]}
+  ]},
+  {id:'builtin-block01-strength-day-2',name:'Strength Day 2',builtIn:true,locked:true,source:'THE-Block-01-strength',blockWeeks:4,coachInstructions:'4-week strength block. Main lift: build through 4×8, 8, 6, 6 with the final set as the heavy set of the day, staying around 2 reps in reserve. Increase each set week to week by the smallest available jump when able. Accessories: complete the prescribed work with 2–3 reps in reserve, increasing weight or reps across the block. Supersets are optional; use 60–90 seconds rest if needed.',blocks:[
+    {id:'builtin-block01-day2-strength',type:'strength',heading:'Strength',exercises:[
+      {id:'builtin-b01-d2-e1',exerciseId:'builtin-close-grip-board-press',name:'Close-Grip Board Press',category:'Strength · Main',mode:'reps_kg',sets:4,reps:'8, 8, 6, 6',restSec:180,coachNote:'Build to the heavy set of the day.'},
+      {id:'builtin-b01-d2-e2',exerciseId:'builtin-weighted-chin-ups',name:'Weighted Chin-Ups',category:'Strength · Main',mode:'reps_kg',sets:4,reps:'6-8',restSec:150,coachNote:'Leave 2–3 reps in reserve.'},
+      {id:'builtin-b01-d2-e3',exerciseId:'builtin-heels-elevated-goblet-squat',name:'Heels-Elevated Goblet Squat',category:'Strength · Accessory',mode:'reps_kg',sets:3,reps:'12-15',restSec:90,coachNote:'Leave 2–3 reps in reserve.'},
+      {id:'builtin-b01-d2-e4',exerciseId:'builtin-ring-face-pulls',name:'Ring Face Pulls',category:'Strength · Accessory',mode:'reps_kg',sets:3,reps:'12-15',restSec:90,coachNote:'Leave 2–3 reps in reserve.'},
+      {id:'builtin-b01-d2-e5',exerciseId:'builtin-b-stance-barbell-rdl',name:'B-Stance Barbell RDL',category:'Strength · Accessory',mode:'reps_kg',sets:3,reps:'8-10',perSide:true,restSec:120,coachNote:'8–10 reps per side. Leave 2–3 reps in reserve.'},
+      {id:'builtin-b01-d2-e6',exerciseId:'builtin-saxon-side-bends',name:'Saxon Side Bends',category:'Strength · Trunk',mode:'reps_kg',sets:3,reps:'10',perSide:true,restSec:90,coachNote:'10 reps per side.'}
+    ]}
+  ]}
 ];
 seed.templates=BLOCK_01_STRENGTH_TEMPLATES;
 const $=id=>document.getElementById(id),id=()=>Math.random().toString(36).slice(2,10),localDate=(d=new Date())=>{let tz=d.getTimezoneOffset()*60000;return new Date(d.getTime()-tz).toISOString().slice(0,10)},today=()=>localDate(),dateFromKey=k=>{let [y,m,d]=String(k||'').split('-').map(Number);return new Date(y||1970,(m||1)-1,d||1)},dateKeyLocal=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])),fmt=n=>{n=Math.max(0,Math.round(+n||0));return`${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`},dateLabel=k=>dateFromKey(k).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}),num=x=>(+x||0),clone=x=>JSON.parse(JSON.stringify(x));
@@ -593,7 +451,7 @@ function defaultState(){let x=clone(seed);x.tab='home';x.selected=today();x.dail
 
 
 
-function applyTrainingStateMigration(state){state=state||{};state.meta=state.meta||{};if(num(state.meta.legacyWorkoutCleanupVersion)<1){state.sessions=[];state.templates=[];state.hiddenTemplateIds=[];state.archivedTemplates=[];state.draft=null;state.active=null;state.meta.legacyWorkoutCleanupVersion=1;}state.exercises=Array.isArray(state.exercises)?state.exercises:[];state.templates=Array.isArray(state.templates)?state.templates:[];state.sessions=Array.isArray(state.sessions)?state.sessions:[];state.programs=Array.isArray(state.programs)?state.programs:[];state.dailyCheckins=Array.isArray(state.dailyCheckins)?state.dailyCheckins:[];state.hiddenTemplateIds=Array.isArray(state.hiddenTemplateIds)?state.hiddenTemplateIds:[];state.settings=state.settings||{};state.tab=state.tab||'home';state.meta.schemaVersion=Math.max(3,num(state.meta.schemaVersion));state.meta.appBuild='the-hybrid-engine-training-v1';return state}
+function applyTrainingStateMigration(state){state=state||{};state.meta=state.meta||{};state.exercises=Array.isArray(state.exercises)?state.exercises:[];state.templates=Array.isArray(state.templates)?state.templates:[];state.sessions=Array.isArray(state.sessions)?state.sessions:[];state.programs=Array.isArray(state.programs)?state.programs:[];state.dailyCheckins=Array.isArray(state.dailyCheckins)?state.dailyCheckins:[];state.hiddenTemplateIds=Array.isArray(state.hiddenTemplateIds)?state.hiddenTemplateIds:[];state.settings=state.settings||{};state.tab=state.tab||'home';state.meta.schemaVersion=Math.max(3,num(state.meta.schemaVersion));state.meta.appBuild='the-hybrid-engine-training-v1';return state}
 
 
 
@@ -635,6 +493,7 @@ function save(reason='auto'){
   S.meta.saveHealth={main:ok?'ok':'failed',recovery:recoveryOk?'ok':'failed',checkedAt:S.meta.lastSavedAt,reason};
   if(ok)writeStorage(JSON.stringify(S));
   setSaveStatus(ok?'ok':'bad',ok?'Saved':'Save failed');
+  if(typeof queueCloudPush==='function')queueCloudPush();
   return ok;
 }function dedupe(a){let o=[];(a||[]).forEach(x=>{if(x.name&&!o.some(y=>y.name.toLowerCase()===x.name.toLowerCase()))o.push(x)});return o.sort((a,b)=>a.name.localeCompare(b.name))}function tpl(i){return S.templates.find(x=>x.id===i)}function ses(i){return S.sessions.find(x=>x.id===i)}function activeSession(){let x=ses(S.active)||S.sessions.find(s=>s.status==='active');if(x){S.active=x.id;return x}S.active=null;return null}function nav(show=true){$('bottomNav').classList.toggle('hidden',!show)}function clock(show=false){$('workoutClock').classList.toggle('show',show)}function shell(title,eyebrow,body){$('appScreen').innerHTML=`<div class=eyebrow>${esc(eyebrow)}</div><h1>${esc(title)}</h1>${storageNotice()}${body}`;try{window.scrollTo({top:0,behavior:'instant'})}catch(e){window.scrollTo(0,0)}}
 function minimalUi(){return S.settings?.minimalUi!==false}function applyDisplayPrefs(){document.body.classList.toggle('minimal-ui',minimalUi())}function go(tab){S.tab=tab;save();render()}
@@ -855,7 +714,105 @@ function showSummary(i){let x=ses(i),s=x.summary||{},hasCond=sessionHasCondition
 function storageShieldStatus(){let persisted=S.meta?.storagePersisted;let last=S.meta?.lastSavedAt?new Date(S.meta.lastSavedAt).toLocaleString():'Not yet';return `<div class="card autosavecard"><div class=row><div><div class=eyebrow>Save Shield</div><div class=title>${persisted?'Protected storage':'Autosave on this device'}</div><div class=meta>Every set, note, check-in and completed workout saves to this browser automatically.<br>Last save: ${esc(last)}</div></div><span class="pill ${persisted?'ok':'warn'}">${persisted?'PROTECTED':'LOCAL'}</span></div><div class=autosavegrid><div class=stat><small>Primary save</small><b>${storageBroken?'WARN':'ON'}</b></div><div class=stat><small>Recovery copy</small><b>ON</b></div><div class=stat><small>Manual export</small><b>${dataHealth().completedSinceBackup}/7</b></div></div><div class=btns><button class="btn small primary" onclick=requestStoragePersistence()>Protect browser storage</button><button class="btn small" onclick=exportData()>Export safety backup</button></div><div class=meta style="margin-top:8px">Manual backups are still for changing phones, clearing browser data, or emergency restore.</div></div>`}
 async function refreshStoragePersistence(){try{if(navigator.storage?.persisted){let persisted=await navigator.storage.persisted();S.meta=S.meta||{};S.meta.storagePersisted=!!persisted;save('storage-check');return persisted}}catch(e){}return false}
 async function requestStoragePersistence(){try{if(!navigator.storage?.persist)return alert('This browser does not support protected storage. Autosave still works on this device.');let granted=await navigator.storage.persist();S.meta=S.meta||{};S.meta.storagePersisted=!!granted;save('storage-persist');alert(granted?'Protected storage granted. Your browser is less likely to clear this app data automatically.':'Protected storage was not granted. Autosave still works, but keep occasional backups.');settings()}catch(e){alert('Could not request protected storage. Autosave still works, but keep occasional backups.')}}
-function pickImport(){document.getElementById('importFile')?.click()}function settings(){let h=dataHealth(),last=h.lastBackup?new Date(h.lastBackup).toLocaleString():'Never on this device',lastComplete=h.lastCompleted?dateLabel(h.lastCompleted.date)+' · '+h.lastCompleted.name:'None yet';shell('Settings','Simple by default','<div class=stack>'+storageShieldStatus()+'<details class="card" open><summary class=title>Save & Backup</summary><div class=meta style="margin-top:8px">Last backup: '+esc(last)+'<br>Last completed: '+esc(lastComplete)+'</div><div class=stats style="margin-top:12px"><div class=stat><small>Completed</small><b>'+h.completed+'</b></div><div class=stat><small>Scheduled</small><b>'+h.scheduled+'</b></div><div class="stat wide"><small>Templates / exercises</small><b>'+h.templates+' / '+h.exercises+'</b></div></div><div class=btns style="margin-top:12px"><button class="btn primary small" onclick=exportData()>Export backup</button><button class="btn small" onclick=pickImport()>Import backup</button><button class="btn small" onclick=restoreRecoverySnapshot()>Restore recovery</button><input id=importFile class=hidden type=file accept=.json onchange=importData(event)></div></details><details class=card><summary class=title>App preferences</summary><div class=meta style="margin-top:8px">Metric units are locked during Version 1 testing so history stays consistent.</div><div class=divider></div><div class=settingsrow><div><div class=title>Interval sound</div><div class=meta>Alert when work/rest changes.</div></div><input type=checkbox '+(S.settings.intervalSound?"checked":"")+' onchange="S.settings.intervalSound=this.checked;save()"></div><div class=divider></div><div class=settingsrow><div><div class=title>Interval vibration</div><div class=meta>When supported by your device.</div></div><input type=checkbox '+(S.settings.intervalVibrate?"checked":"")+' onchange="S.settings.intervalVibrate=this.checked;save()"></div></details><div class=card><div class=eyebrow>Version</div><div class=title>THE — Hybrid System</div><div class=meta>Local-first training app · streamlined build.</div></div><details class=card><summary class="title" style="color:var(--bad)">Danger zone</summary><div class=meta style="margin-top:8px">Only use this if you truly want to wipe local data on this browser.</div><button class="btn danger block" style="margin-top:12px" onclick=resetLocal()>Reset local data</button></details></div>')}
+
+function cloudEnabled(){return !!SB}
+async function cloudInitAuth(){
+  if(!cloudEnabled())return;
+  try{const {data}=await SB.auth.getSession();cloudUser=data?.session?.user||null;if(cloudUser)await cloudReconcile()}catch(e){cloudLastError=String(e?.message||e)}
+  SB.auth.onAuthStateChange((event,session)=>{
+    const prev=cloudUser;cloudUser=session?.user||null;
+    if(event==='SIGNED_IN'&&cloudUser&&(!prev||prev.id!==cloudUser.id))cloudReconcile();
+    if(typeof render==='function'&&S)render();
+  });
+}
+async function cloudReconcile(){
+  if(!cloudEnabled()||!cloudUser)return;
+  cloudSyncBusy=true;cloudLastError='';
+  try{
+    const {data,error}=await SB.from('app_state').select('state,updated_at').eq('user_id',cloudUser.id).maybeSingle();
+    if(error)throw error;
+    if(data&&data.state){
+      const remoteFp=cloudFingerprint(data.state),localFp=cloudFingerprint(S);
+      if(remoteFp===localFp){
+        // Same real content on both sides (only volatile housekeeping fields
+        // like lastSavedAt differ) - nothing to reconcile, no need to guess
+        // which clock is "right".
+        lastSyncedFingerprint=localFp;
+      }else{
+        const localAt=Date.parse(S?.meta?.lastSavedAt||'')||0;
+        const remoteAt=data.updated_at?Date.parse(data.updated_at):0;
+        if(remoteAt>=localAt){
+          let incoming=ensureSeedTemplates(purgeTrainHeroicData(applyTrainingStateMigration(upgradeAlpha2(clone(data.state)))));
+          S=incoming;writeStorage(JSON.stringify(S));
+          lastSyncedFingerprint=cloudFingerprint(S);
+          if(typeof render==='function')render();
+        }else{
+          await cloudPushNow(true);
+        }
+      }
+    }else{
+      await cloudPushNow(true);
+    }
+  }catch(e){cloudLastError=String(e?.message||e)}
+  cloudSyncBusy=false;
+  if(S&&S.tab==='settings'&&typeof settings==='function')settings();
+}
+function queueCloudPush(){
+  if(!cloudEnabled()||!cloudUser)return;
+  if(cloudSyncTimer)clearTimeout(cloudSyncTimer);
+  cloudSyncTimer=setTimeout(()=>cloudPushNow(false),900);
+}
+async function cloudPushNow(force){
+  if(!cloudEnabled()||!cloudUser)return;
+  if(cloudSyncBusy&&!force){cloudSyncPending=true;return}
+  const fp=cloudFingerprint(S);
+  if(!force&&fp===lastSyncedFingerprint)return;
+  cloudSyncBusy=true;
+  try{
+    const {error}=await SB.from('app_state').upsert({user_id:cloudUser.id,state:S},{onConflict:'user_id'});
+    if(error)throw error;
+    lastSyncedFingerprint=fp;
+    cloudLastError='';
+  }catch(e){cloudLastError=String(e?.message||e)}
+  cloudSyncBusy=false;
+  if(cloudSyncPending){cloudSyncPending=false;queueCloudPush()}
+}
+async function cloudSignUp(email,password){
+  if(!cloudEnabled())return alert('Cloud sync is not configured yet.');
+  try{
+    const {data,error}=await SB.auth.signUp({email,password});
+    if(error)return alert('Sign up failed: '+error.message);
+    if(!data?.session)alert('Account created. Check your email to confirm, then sign in.');
+  }catch(e){alert('Sign up failed: '+(e?.message||e))}
+  settings();
+}
+async function cloudSignIn(email,password){
+  if(!cloudEnabled())return alert('Cloud sync is not configured yet.');
+  try{
+    const {error}=await SB.auth.signInWithPassword({email,password});
+    if(error)return alert('Sign in failed: '+error.message);
+  }catch(e){alert('Sign in failed: '+(e?.message||e))}
+  settings();
+}
+async function cloudSignOut(){
+  if(!cloudEnabled())return;
+  try{await SB.auth.signOut()}catch(e){}
+  settings();
+}
+function cloudSubmitAuth(mode){
+  const email=($('cloudEmail')?.value||'').trim(),password=$('cloudPassword')?.value||'';
+  if(!email||!password)return alert('Enter an email and password.');
+  if(mode==='signup')cloudSignUp(email,password);else cloudSignIn(email,password);
+}
+function cloudPanel(){
+  if(!cloudEnabled())return '<details class="card" open><summary class=title>Cloud sync</summary><div class=meta style="margin-top:8px">Not set up yet.</div></details>';
+  if(cloudSyncBusy)var busyNote=' · syncing…';else var busyNote='';
+  if(cloudUser){
+    return '<details class="card" open><summary class=title>Cloud sync</summary><div class=meta style="margin-top:8px">Signed in as '+esc(cloudUser.email||'')+'.'+esc(busyNote)+' Your training data syncs automatically to every device you sign into.'+(cloudLastError?'<br><span style="color:var(--bad)">Sync error: '+esc(cloudLastError)+'</span>':'')+'</div><button class="btn small" style="margin-top:12px" onclick="cloudSignOut()">Sign out</button></details>';
+  }
+  return '<details class="card" open><summary class=title>Cloud sync</summary><div class=meta style="margin-top:8px">Sign in to sync your training log across your phone and laptop.</div><div class=field><label>Email</label><input id=cloudEmail type=email autocomplete=email></div><div class=field><label>Password</label><input id=cloudPassword type=password autocomplete=current-password></div><div class=btns style="margin-top:10px"><button class="btn primary small" onclick="cloudSubmitAuth(\'signin\')">Sign in</button><button class="btn small" onclick="cloudSubmitAuth(\'signup\')">Create account</button></div>'+(cloudLastError?'<div class=meta style="margin-top:8px;color:var(--bad)">'+esc(cloudLastError)+'</div>':'')+'</details>';
+}
+function pickImport(){document.getElementById('importFile')?.click()}function settings(){let h=dataHealth(),last=h.lastBackup?new Date(h.lastBackup).toLocaleString():'Never on this device',lastComplete=h.lastCompleted?dateLabel(h.lastCompleted.date)+' · '+h.lastCompleted.name:'None yet';shell('Settings','Simple by default','<div class=stack>'+storageShieldStatus()+cloudPanel()+'<details class="card" open><summary class=title>Save & Backup</summary><div class=meta style="margin-top:8px">Last backup: '+esc(last)+'<br>Last completed: '+esc(lastComplete)+'</div><div class=stats style="margin-top:12px"><div class=stat><small>Completed</small><b>'+h.completed+'</b></div><div class=stat><small>Scheduled</small><b>'+h.scheduled+'</b></div><div class="stat wide"><small>Templates / exercises</small><b>'+h.templates+' / '+h.exercises+'</b></div></div><div class=btns style="margin-top:12px"><button class="btn primary small" onclick=exportData()>Export backup</button><button class="btn small" onclick=pickImport()>Import backup</button><button class="btn small" onclick=restoreRecoverySnapshot()>Restore recovery</button><input id=importFile class=hidden type=file accept=.json onchange=importData(event)></div></details><details class=card><summary class=title>App preferences</summary><div class=meta style="margin-top:8px">Metric units are locked during Version 1 testing so history stays consistent.</div><div class=divider></div><div class=settingsrow><div><div class=title>Interval sound</div><div class=meta>Alert when work/rest changes.</div></div><input type=checkbox '+(S.settings.intervalSound?"checked":"")+' onchange="S.settings.intervalSound=this.checked;save()"></div><div class=divider></div><div class=settingsrow><div><div class=title>Interval vibration</div><div class=meta>When supported by your device.</div></div><input type=checkbox '+(S.settings.intervalVibrate?"checked":"")+' onchange="S.settings.intervalVibrate=this.checked;save()"></div></details><div class=card><div class=eyebrow>Version</div><div class=title>THE — Hybrid System</div><div class=meta>Local-first training app · streamlined build.</div></div><details class=card><summary class="title" style="color:var(--bad)">Danger zone</summary><div class=meta style="margin-top:8px">Only use this if you truly want to wipe local data on this browser.</div><button class="btn danger block" style="margin-top:12px" onclick=resetLocal()>Reset local data</button></details></div>')}
 function extractImportPayload(raw){let state=raw?.state&&typeof raw.state==='object'?raw.state:raw;let sessions=Array.isArray(state?.sessions)?state.sessions:(Array.isArray(raw?.sessions)?raw.sessions:[]),dailyCheckins=Array.isArray(state?.dailyCheckins)?state.dailyCheckins:(Array.isArray(raw?.dailyCheckins)?raw.dailyCheckins:[]),templates=Array.isArray(state?.templates)?state.templates:[],exercises=Array.isArray(state?.exercises)?state.exercises:[],settings=state?.settings||{};if(!state||typeof state!=='object')throw new Error('Backup state is missing.');return{state,sessions,dailyCheckins,templates,exercises,settings,build:raw?.build||state?.build||'unknown'}}
 function importGraphSafe(value){let ok=true;function walk(node){if(!node||typeof node!=='object'||!ok)return;if(Array.isArray(node)){node.forEach(walk);return}for(const [key,val] of Object.entries(node)){if(/id$/i.test(key)&&typeof val==='string'&&val&&!/^[A-Za-z0-9_-]{1,120}$/.test(val)){ok=false;return}walk(val)}}walk(value);return ok}
 function mergeImportPayload(p){let next=clone(S),addedSessions=0,addedCheckins=0,addedTemplates=0,updatedTemplates=0,addedExercises=0;next.sessions=Array.isArray(next.sessions)?next.sessions:[];next.dailyCheckins=Array.isArray(next.dailyCheckins)?next.dailyCheckins:[];next.templates=Array.isArray(next.templates)?next.templates:[];next.exercises=Array.isArray(next.exercises)?next.exercises:[];for(const ex of Array.isArray(p?.exercises)?p.exercises:[]){if(!ex||typeof ex!=='object'||!importGraphSafe(ex)||!String(ex.name||'').trim())continue;let i=next.exercises.findIndex(x=>x.id===ex.id||String(x.name||'').trim().toLowerCase()===String(ex.name||'').trim().toLowerCase());if(i>=0)next.exercises[i]={...next.exercises[i],...clone(ex)};else{next.exercises.push(clone(ex));addedExercises++}}for(const t of Array.isArray(p?.templates)?p.templates:[]){if(!t||typeof t!=='object'||!importGraphSafe(t)||!t.id||!Array.isArray(t.blocks))continue;let y=clone(t);y.source=y.source||'THE-import';y.locked=false;y.builtIn=false;let i=next.templates.findIndex(a=>a.id===y.id);if(i>=0){next.templates[i]={...next.templates[i],...y};updatedTemplates++}else{next.templates.push(y);addedTemplates++}}for(const x of Array.isArray(p?.sessions)?p.sessions:[]){if(!x||typeof x!=='object'||!importGraphSafe(x)||!x.id||!x.date||!Array.isArray(x.blocks))continue;if(!next.sessions.some(s=>s.id===x.id)){next.sessions.push(clone(x));addedSessions++}}for(const c of Array.isArray(p?.dailyCheckins)?p.dailyCheckins:[]){if(!c||typeof c!=='object'||!importGraphSafe(c)||!c.date)continue;let i=next.dailyCheckins.findIndex(x=>x.date===c.date);if(i>=0)next.dailyCheckins[i]={...next.dailyCheckins[i],...clone(c)};else{next.dailyCheckins.push(clone(c));addedCheckins++}}next=applyTrainingStateMigration(upgradeAlpha2(next));ensureAllEntityMeta(next);S=next;save();return{addedSessions,addedCheckins,addedTemplates,updatedTemplates,addedExercises}}
@@ -869,7 +826,7 @@ Exercises found: ${(payload.exercises||[]).length}
 
 Import and merge? Templates are editable in Builder Clean, so matching template IDs can be updated.`;if(!confirm(message))return;downloadJson(backupEnvelope(S),'THE-recovery-before-import.json');let result=mergeImportPayload(payload);alert(`Import complete — ${result.addedSessions} workouts added, ${result.addedCheckins} check-ins added, ${result.addedTemplates} templates added, ${result.updatedTemplates} templates updated, ${result.addedExercises} exercises added.`);render()}catch(error){alert('Could not parse file. Make sure it is valid JSON. '+error.message)}finally{ev.target.value=''}};r.readAsText(f)}
 function resetLocal(){if(confirm('Delete all local THE data on this browser?')){removeStorage();location.reload()}}
-function sheet(content){$('modalRoot').innerHTML=`<div class=modal onclick="if(event.target===this)closeSheet()"><div class=sheet><button class=close onclick=closeSheet()>×</button>${content}</div></div>`;growTextAreas()}function closeSheet(){$('modalRoot').innerHTML=''}window.addEventListener('pagehide',()=>{if(S)save('pagehide')});document.addEventListener('visibilitychange',()=>{if(S&&document.visibilityState==='hidden')save('background');if(S&&document.visibilityState==='visible')refreshStoragePersistence()});setInterval(()=>{let active=activeSession();if(active)syncWorkoutClock();tickIntervals();let t=active?current():null;if(t?.blockTimer?.on&&$('blockClock'))$('blockClock').textContent=fmt(blockElapsed(t))},1000);refreshStoragePersistence();render();
+function sheet(content){$('modalRoot').innerHTML=`<div class=modal onclick="if(event.target===this)closeSheet()"><div class=sheet><button class=close onclick=closeSheet()>×</button>${content}</div></div>`;growTextAreas()}function closeSheet(){$('modalRoot').innerHTML=''}window.addEventListener('pagehide',()=>{if(S)save('pagehide')});document.addEventListener('visibilitychange',()=>{if(S&&document.visibilityState==='hidden')save('background');if(S&&document.visibilityState==='visible')refreshStoragePersistence()});setInterval(()=>{let active=activeSession();if(active)syncWorkoutClock();tickIntervals();let t=active?current():null;if(t?.blockTimer?.on&&$('blockClock'))$('blockClock').textContent=fmt(blockElapsed(t))},1000);refreshStoragePersistence();render();if(typeof cloudInitAuth==='function')cloudInitAuth();
 </script>
 
 <script>

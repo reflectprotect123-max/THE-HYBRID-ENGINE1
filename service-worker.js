@@ -1,5 +1,5 @@
 const CACHE_PREFIX='the-hybrid-engine-training-pwa-';
-const CACHE_NAME='the-hybrid-engine-training-pwa-v20-2026-07-19';
+const CACHE_NAME='the-hybrid-engine-training-pwa-v19-2026-07-19';
 const APP_SHELL = [
   './index.html',
   './integrations-ui.js',
@@ -7,7 +7,8 @@ const APP_SHELL = [
   './pwa.js',
   './manifest.json',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './vendor/supabase-2.110.7.js'
 ];
 
 self.addEventListener('install', event => {

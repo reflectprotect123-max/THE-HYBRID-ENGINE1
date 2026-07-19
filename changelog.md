@@ -1,5 +1,13 @@
 # Changelog
 
+## Cloud sync (Supabase) — 19 July 2026
+
+- Added optional cross-device sync: sign in from Settings → Cloud sync (email + password via Supabase Auth) and your training log syncs to every device you sign into.
+- The app stays local-first: it works fully offline from browser storage whether or not you're signed in, and only talks to Supabase when a change needs to sync.
+- Data model is one JSON row per account, protected by Supabase Row Level Security — nobody but you can read or write your row, even though the anon key ships in the app (that's expected/safe for Supabase; RLS is the actual boundary).
+- Conflict handling is last-write-wins by real content: if the same data exists on both sides nothing happens; if it differs, whichever device has the more recent genuine change wins. Two devices editing offline at the same time can still overwrite each other — there's no merge.
+- Requires a one-time setup: create a Supabase project, run `supabase-schema.sql` in its SQL editor, and add the project's URL + anon key to `index.html`.
+
 ## Fresh start after TrainHeroic cleanup — 18 July 2026
 
 - Removed the bundled TrainHeroic import, raw export files, old baseline notes and legacy test harness from the working bundle.
