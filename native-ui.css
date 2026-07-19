@@ -96,6 +96,15 @@ body .eyebrow {
   letter-spacing: .18em;
 }
 
+/* The page-level tagline above each screen's <h1> (e.g. "Plan and review"
+   above "Calendar"). Kept at full brand prominence on Home only, since
+   repeating it at full weight on every single screen read like marketing
+   copy stacked page after page rather than plain navigational chrome. */
+body .page-eyebrow-quiet {
+  opacity: .6;
+  font-size: 9px;
+}
+
 body h1 {
   max-width: 16ch;
   font-size: clamp(29px, 8vw, 42px);
@@ -331,6 +340,23 @@ body .btns,
 body .quickgrid,
 body .simpleactions {
   gap: 8px;
+}
+
+/* Block/exercise action row in the Builder (Edit, move up/down, Copy,
+   Delete). Now that all five are always visible, this keeps them wrapping
+   cleanly onto a second line on narrow screens instead of crowding or
+   overflowing, and puts a little extra air before Delete so it doesn't
+   sit flush against Copy at the same visual weight. */
+body .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  row-gap: 8px;
+}
+
+body .toolbar .btn.danger {
+  margin-left: 4px;
 }
 
 body .btn,

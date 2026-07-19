@@ -1,5 +1,11 @@
 # Changelog
 
+## UI polish pass — 19 July 2026
+
+- Training no longer says "Training" twice back to back — removed the duplicate title/tagline card at the top of the screen, kept the useful line and the Programs/Resources toggle.
+- Quieted the small gold tagline above each screen's title (e.g. "Plan and review" above Calendar) everywhere except Home, so it reads as a light touch rather than repeating marketing copy on every screen.
+- In the Builder, the block/exercise action row (Edit, move up/down, Copy, Delete) now wraps cleanly on narrow screens instead of crowding, with a touch more space before Delete so it doesn't sit flush against Copy.
+
 ## Recovery balance folded into the WHOOP card — 19 July 2026
 
 - Moved Training impact out of its own card and into the WHOOP recovery snapshot on Home, as a small "Recovery balance" strip right below Sleep/HRV/Resting HR/Strain — Easy, Strength and High-intensity side by side.
