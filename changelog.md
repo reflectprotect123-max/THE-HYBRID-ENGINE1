@@ -1,5 +1,11 @@
 # Changelog
 
+## Nothing locked, free reordering — 19 July 2026
+
+- Retired the built-in "Strength Day 1" and "Strength Day 2" seed templates. They were locked/protected (no Edit or Delete option); existing copies are automatically removed from your saved data the next time the app loads, no action needed.
+- No template is locked or protected anymore, for these or any future templates — every template gets a normal Edit and Delete option, with the existing "Delete this template? Yes/No" confirmation before anything is removed.
+- Removed the hard rule that kept Warm-up first and Cool-down last in the Builder. All blocks, including Warm-up and Cool-down, can now be freely moved up and down like any other block.
+
 ## Cloud sync (Supabase) — 19 July 2026
 
 - Added optional cross-device sync: sign in from Settings → Cloud sync (email + password via Supabase Auth) and your training log syncs to every device you sign into.
