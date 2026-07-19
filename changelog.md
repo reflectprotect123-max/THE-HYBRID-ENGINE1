@@ -1,5 +1,10 @@
 # Changelog
 
+## Recovery balance folded into the WHOOP card — 19 July 2026
+
+- Moved Training impact out of its own card and into the WHOOP recovery snapshot on Home, as a small "Recovery balance" strip right below Sleep/HRV/Resting HR/Strain — Easy, Strength and High-intensity side by side.
+- Same real data as before (your logged sessions vs. your synced recovery scores), just folded into the screen where you already look at WHOOP data instead of taking up its own separate card.
+
 ## Training impact moved to Home, now a bar chart — 19 July 2026
 
 - Moved the Training impact card from History to Home, right below This week — it's a daily insight, so it belongs on the screen you actually open every day, not buried in your workout history.
