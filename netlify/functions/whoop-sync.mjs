@@ -27,17 +27,25 @@ async function refreshWithoutDiscardingRotation(sid, currentToken) {
   }
 }
 
-async function fetchSnapshotForSession(sid, initialToken) {
+async function fetchSnapshotForSession(sid, initialToken, cycleHistoryDays) {
   let token = initialToken;
   if (tokenNeedsRefresh(token) && token.refresh_token) token = await refreshWithoutDiscardingRotation(sid, token);
   try {
-    return { token, snapshot: await fetchWhoopSnapshot(token.access_token) };
+    return { token, snapshot: await fetchWhoopSnapshot(token.access_token, { cycleHistoryDays }) };
   } catch (error) {
     if (!isWhoopUnauthorized(error) || !token.refresh_token) throw error;
     token = await refreshWithoutDiscardingRotation(sid, token);
-    return { token, snapshot: await fetchWhoopSnapshot(token.access_token) };
+    return { token, snapshot: await fetchWhoopSnapshot(token.access_token, { cycleHistoryDays }) };
   }
 }
+
+// A regular sync only asks WHOOP for a short rolling window of daily strain
+// (cheap, fast). The very first sync for an account instead asks for a much
+// longer backfill window so the fitness/fatigue trend chart has enough
+// history to be meaningful right away, rather than starting from nothing.
+// Triggered by the client passing ?backfill=1 exactly once per account.
+const REGULAR_SYNC_CYCLE_DAYS = 10;
+const BACKFILL_SYNC_CYCLE_DAYS = 100;
 
 export async function handler(event) {
   connectNetlifyBlobs(event);
@@ -47,9 +55,11 @@ export async function handler(event) {
     const sid = sessionFromEvent(event);
     const token = await loadToken('whoop', sid);
     if (!token) return json({ connected: false }, 401);
-    const { snapshot } = await fetchSnapshotForSession(sid, token);
+    const backfill = event.queryStringParameters?.backfill === '1';
+    const cycleHistoryDays = backfill ? BACKFILL_SYNC_CYCLE_DAYS : REGULAR_SYNC_CYCLE_DAYS;
+    const { snapshot } = await fetchSnapshotForSession(sid, token, cycleHistoryDays);
     await syncRecord('whoop', sid, snapshot);
-    return json({ connected: true, provider: 'whoop', normalized: snapshot.normalized, syncedAt: snapshot.syncedAt });
+    return json({ connected: true, provider: 'whoop', normalized: snapshot.normalized, dailyStrain: snapshot.dailyStrain, syncedAt: snapshot.syncedAt });
   } catch (error) {
     const response = whoopErrorResponse(error, 'sync_failed');
     return json(response.body, response.status, response.headers);

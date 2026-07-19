@@ -185,24 +185,35 @@
       });
   };
 
-  window.syncIntegration = function syncIntegration(provider) {
+  window.syncIntegration = function syncIntegration(provider, options) {
+    options = options || {};
     if (provider !== 'whoop') {
       setMessage('Sync is currently available for WHOOP only.', true);
       return Promise.resolve(null);
     }
+    const backfill = options.backfill === true;
+    const silent = options.silent === true;
     whoopBusy = true;
     updateWhoopActions(whoopConnected);
-    setMessage('Syncing WHOOP…');
-    return fetch(ENDPOINTS.whoopSync, { credentials: 'same-origin', cache: 'no-store' })
+    if (!silent) setMessage('Syncing WHOOP…');
+    const url = backfill ? `${ENDPOINTS.whoopSync}?backfill=1` : ENDPOINTS.whoopSync;
+    return fetch(url, { credentials: 'same-origin', cache: 'no-store' })
       .then(responseData)
       .then(data => {
         if (data.connected === false) throw Object.assign(new Error('not_connected'), { code: 'not_connected', status: 401 });
         latestWhoopSample = data.normalized || latestWhoopSample;
-        setMessage('WHOOP synced.');
-        return window.loadIntegrationStatus({ notice: 'WHOOP synced.' }).then(() => data);
+        if (Array.isArray(data.dailyStrain) && typeof window.mergeFitnessDailyStrain === 'function') {
+          window.mergeFitnessDailyStrain(data.dailyStrain, { backfill });
+        }
+        if (!silent) setMessage('WHOOP synced.');
+        const currentS = typeof S !== 'undefined' ? S : null;
+        const needsBackfill = !backfill && currentS && currentS.fitness && !currentS.fitness.backfilled;
+        const afterStatus = window.loadIntegrationStatus({ notice: silent ? null : 'WHOOP synced.' }).then(() => data);
+        if (needsBackfill) return afterStatus.then(result => syncIntegration('whoop', { backfill: true, silent: true }).then(() => result));
+        return afterStatus;
       })
       .catch(error => {
-        setMessage(friendlyError(error, 'WHOOP sync'), true);
+        if (!silent) setMessage(friendlyError(error, 'WHOOP sync'), true);
         return null;
       })
       .finally(() => {

@@ -1,5 +1,12 @@
 # Changelog
 
+## Fitness trend chart from WHOOP strain — 19 July 2026
+
+- Added a Fitness trend card to History showing Fitness (42-day trend), Fatigue (7-day trend) and Form, calculated from your daily WHOOP strain — the same idea as TrainingPeaks' Performance Management Chart, built from data you already sync.
+- Only appears once WHOOP is connected and syncing; nothing changes if WHOOP isn't connected. Shows a "still gathering data" message until about a week of strain history has built up.
+- The first WHOOP sync after this update automatically pulls a longer history (up to ~100 days) once, in the background, so the chart has a real trend to show instead of starting from nothing. Every sync after that stays light (a small rolling window), same as before.
+- Purely calculated from your own synced data on your device — no new data leaves your phone beyond the existing WHOOP sync call.
+
 ## UI/UX cleanup — 19 July 2026
 
 - Fixed a long-standing bug where reloading the app while it was on the Training tab could show a blank/broken screen. The app now waits until everything has fully loaded before it draws the first screen, instead of racing it.

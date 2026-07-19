@@ -1,5 +1,5 @@
 const CACHE_PREFIX='the-hybrid-engine-training-pwa-';
-const CACHE_NAME='the-hybrid-engine-training-pwa-v21-2026-07-19';
+const CACHE_NAME='the-hybrid-engine-training-pwa-v22-2026-07-19';
 const APP_SHELL = [
   './index.html',
   './integrations-ui.js',
