@@ -1,0 +1,6 @@
+node_modules/
+.claude/
+
+# build output — never commit a copy of the app inside the app
+the-hybrid-engine-netlify/
+*.zip
