@@ -1,9 +1,0 @@
-{
-  "name": "the-hybrid-engine-netlify",
-  "private": true,
-  "type": "module",
-  "engines": { "node": ">=18" },
-  "dependencies": {
-    "@netlify/blobs": "^10.7.9"
-  }
-}

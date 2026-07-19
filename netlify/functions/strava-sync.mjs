@@ -1,5 +1,0 @@
-import { fetchStravaSnapshot, refreshStravaToken } from './_lib/strava.mjs';
-import { loadToken, saveToken, sessionFromEvent, syncRecord } from './_lib/oauth.mjs';
-import { connectNetlifyBlobs } from './_lib/store.mjs';
-import { json, method } from './_lib/http.mjs';
-export async function handler(event) { connectNetlifyBlobs(event); const denied = method(event, ['GET']); if (denied) return denied; try { const sid = sessionFromEvent(event); let token = await loadToken('strava', sid); if (!token) return json({ connected: false }, 401); let snapshot; try { snapshot = await fetchStravaSnapshot(token.access_token); } catch (error) { if (!token.refresh_token) throw error; token = { ...token, ...(await refreshStravaToken(token.refresh_token)) }; await saveToken('strava', sid, token); snapshot = await fetchStravaSnapshot(token.access_token); } await syncRecord('strava', sid, snapshot); return json({ connected: true, provider: 'strava', count: snapshot.activities.length, syncedAt: snapshot.syncedAt }); } catch (error) { return json({ error: error instanceof Error ? error.message : 'sync_failed' }, 502); } }
