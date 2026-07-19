@@ -205,6 +205,9 @@
         if (Array.isArray(data.dailyStrain) && typeof window.mergeFitnessDailyStrain === 'function') {
           window.mergeFitnessDailyStrain(data.dailyStrain, { backfill });
         }
+        if (Array.isArray(data.dailyRecovery) && typeof window.mergeFitnessDailyRecovery === 'function') {
+          window.mergeFitnessDailyRecovery(data.dailyRecovery);
+        }
         if (!silent) setMessage('WHOOP synced.');
         const currentS = typeof S !== 'undefined' ? S : null;
         const needsBackfill = !backfill && currentS && currentS.fitness && !currentS.fitness.backfilled;

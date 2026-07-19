@@ -279,15 +279,38 @@ function extractDailyStrain(cycleRecords) {
   return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, strain]) => ({ date, strain }));
 }
 
-export async function fetchWhoopSnapshot(token, { cycleHistoryDays = 10 } = {}) {
-  const cycleDays = Math.max(7, Math.min(120, Math.round(finiteNumber(cycleHistoryDays) ?? 10)));
+// One recovery score per calendar day. WHOOP recovery records don't always
+// carry a plain "date" the way cycle records carry "start" - fall back to
+// created_at/updated_at, same idea as the single-snapshot selection above.
+// If WHOOP ever returns more than one recovery record for the same day, the
+// first one encountered wins (recovery is normally scored once per day, so
+// this is a rare edge case, not something worth guessing harder about).
+function extractDailyRecovery(recoveryRecords) {
+  const byDate = new Map();
+  for (const record of recoveryRecords) {
+    const date = dateOnly(record.date || record.created_at || record.updated_at);
+    const recoveryScore = firstNumber(record.score?.recovery_score, record.recovery_score);
+    if (!date || recoveryScore === null) continue;
+    if (!byDate.has(date)) byDate.set(date, recoveryScore);
+  }
+  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, recoveryScore]) => ({ date, recoveryScore }));
+}
+
+export async function fetchWhoopSnapshot(token, { historyDays = 10 } = {}) {
+  const days = Math.max(7, Math.min(120, Math.round(finiteNumber(historyDays) ?? 10)));
   const [recovery, cycle, sleep, workout] = await Promise.all([
-    fetchCollection('/recovery', token, 7),
-    fetchCollection('/cycle', token, cycleDays),
+    fetchCollection('/recovery', token, days),
+    fetchCollection('/cycle', token, days),
     fetchCollection('/activity/sleep', token, 7),
     fetchCollection('/activity/workout', token, MAX_WORKOUTS),
   ]);
-  return { recovery, cycle, sleep, workout, normalized: normalizeWhoopPayload({ recovery, cycle, sleep, workout }), dailyStrain: extractDailyStrain(recordsOf(cycle)), syncedAt: new Date().toISOString() };
+  return {
+    recovery, cycle, sleep, workout,
+    normalized: normalizeWhoopPayload({ recovery, cycle, sleep, workout }),
+    dailyStrain: extractDailyStrain(recordsOf(cycle)),
+    dailyRecovery: extractDailyRecovery(recordsOf(recovery)),
+    syncedAt: new Date().toISOString(),
+  };
 }
 
 export function verifyWhoopWebhook(rawBody, signature, timestamp, now = Date.now()) {

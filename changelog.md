@@ -1,5 +1,18 @@
 # Changelog
 
+## Training impact moved to Home, now a bar chart — 19 July 2026
+
+- Moved the Training impact card from History to Home, right below This week — it's a daily insight, so it belongs on the screen you actually open every day, not buried in your workout history.
+- Changed it from a plain list of numbers to an actual bar chart, so the difference between Easy aerobic, Strength and High-intensity conditioning reads at a glance instead of needing to compare digits.
+- No change to the underlying data or math — same real sessions, same real synced recovery scores, same small-sample caveat.
+
+## Training impact: next-day recovery by session type — 19 July 2026
+
+- Added a "Training impact" card to History showing your average synced WHOOP recovery the morning after Easy aerobic, Strength, and High-intensity conditioning sessions — using your own logged workouts and your own synced recovery scores, no invented formula.
+- Answers "is my training actually affecting my recovery" directly from your real data, instead of guessing at a weighting scheme.
+- Shows the session count behind each average and flags when a category has fewer than 5 sessions, since small samples shouldn't be read as a firm conclusion.
+- WHOOP sync now also pulls recovery history (same rolling-window / one-time-backfill approach as the strain history added earlier), so this has real data to work with from the first sync after this update.
+
 ## Fitness trend chart from WHOOP strain — 19 July 2026
 
 - Added a Fitness trend card to History showing Fitness (42-day trend), Fatigue (7-day trend) and Form, calculated from your daily WHOOP strain — the same idea as TrainingPeaks' Performance Management Chart, built from data you already sync.
