@@ -141,7 +141,7 @@ await t('rest chip tap-to-stop clears persistence', async () => {
   const stored = await page.evaluate(() => localStorage.getItem('hybrid-engine-v1-rest-ends'));
   if (stored) throw new Error('rest key not cleared');
 });
-await t('finish session → history + readiness card appear', async () => {
+await t('finish session → history recorded, readiness stays hidden', async () => {
   await page.click('#s-home .sessioncard, .navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
   await page.click('#s-training .completebar .bigbtn');
@@ -149,9 +149,19 @@ await t('finish session → history + readiness card appear', async () => {
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
   if (!saved.sessions.some((s) => s.status === 'completed')) throw new Error('no completed session');
   if (!(await page.$('#s-home .wd.has'))) throw new Error('week strip lacks .has');
+  if (await page.$('#readinessCard')) throw new Error('readiness visible without tapping the WHOOP card');
+});
+await t('tapping the WHOOP card reveals readiness; tapping again hides it', async () => {
+  await page.click('#whoopCard');
   await page.waitForSelector('#readinessCard', { timeout: 2000 });
   const txt = await page.textContent('#readinessCard');
   if (!/RPE/.test(txt)) throw new Error('readiness has no RPE info: ' + txt);
+  await page.click('#whoopCard');
+  if (await page.$('#readinessCard')) throw new Error('readiness still visible after collapse');
+});
+await t('WHOOP card renders the dual ring (strain outer, recovery inner)', async () => {
+  const rings = await page.$('#whoopCard .ringx .ringx-in');
+  if (!rings) throw new Error('dual ring structure missing');
 });
 await t('History shows the logged set', async () => {
   await page.click('#s-home .wd.today');

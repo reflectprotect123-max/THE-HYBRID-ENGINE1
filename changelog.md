@@ -1,5 +1,19 @@
 # Changelog
 
+## WHOOP-style dual ring, details hidden by default — 21 July 2026
+
+- The Home WHOOP card now draws WHOOP's own picture: inner ring is recovery
+  in WHOOP's colors (green ≥67, yellow 34–66, red <34), outer ring is strain
+  in WHOOP blue, filling further around as the day's strain (0–21) climbs.
+- Numbers stay out of your head: by default the card shows only the rings —
+  no percentages, no metrics, no advice. Tapping the card reveals recovery,
+  strain, HRV/RHR/sleep and the Readiness line; tapping again hides them.
+  Details always start hidden on each visit.
+- Settings moved to the WHOOP chip on the card (tap the chip, not the card).
+- Browser smoke covers the new behavior: readiness stays hidden after a
+  session until the card is tapped, and collapses again on a second tap.
+- Bumped the service-worker cache to v33.
+
 ## History, readiness, scheduling & a calmer Builder — 21 July 2026
 
 - History: every day in the week strip is now tappable and opens a History

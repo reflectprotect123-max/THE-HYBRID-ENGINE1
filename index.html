@@ -276,6 +276,11 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .daychip:hover{border-color:rgba(224,188,135,.4)}
 .daychip.on{border-color:rgba(198,154,97,.42);background:var(--gold-wash);color:var(--gold2)}
 .bex-grid.solo{grid-template-columns:1fr}
+/* WHOOP-style dual ring: outer = strain (blue), inner = recovery (WHOOP colors) */
+.ringx{width:62px;height:62px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center}
+.ringx-in{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;position:relative}
+.ringx-in::before{content:"";position:absolute;inset:5px;border-radius:inherit;background:#17191e}
+.ringx-in b{position:relative;z-index:1;font-size:12px}
 </style>
 </head>
 <body>
@@ -518,7 +523,7 @@ function renderHome(){
     cards+
     (wc?'<button class="addbtn" onclick="newWorkout()">+ New workout</button>':'')+
     whoopCardHtml()+
-    readinessCardHtml();
+    (WHOOP_OPEN?readinessCardHtml():'');
 }
 
 /* ---------- READINESS: WHOOP recovery × target-vs-felt RPE ---------- */
@@ -557,7 +562,7 @@ function readinessCardHtml(){
 /* ---------- WHOOP (server-side via Netlify functions) ---------- */
 const WHOOP_ENDPOINTS={status:'/.netlify/functions/integrations-status',connect:'/.netlify/functions/whoop-connect',sync:'/.netlify/functions/whoop-sync',disconnect:'/.netlify/functions/integrations-disconnect'};
 let WHOOP={loaded:false,connected:false,sample:null,lastSyncAt:null,busy:false,error:''};
-function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Strong',pct:r,val:r};if(r>=34)return{cls:'watch',label:'Steady',pct:r,val:r};return{cls:'low',label:'Low',pct:r,val:r};}
+function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null,color:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Strong',pct:r,val:r,color:'#16ec06'};if(r>=34)return{cls:'watch',label:'Steady',pct:r,val:r,color:'#ffde00'};return{cls:'low',label:'Low',pct:r,val:r,color:'#ff0026'};}
 async function loadWhoop(){
   try{
     const r=await fetch(WHOOP_ENDPOINTS.status,{credentials:'same-origin',cache:'no-store'});
@@ -601,30 +606,49 @@ async function disconnectWhoop(){
   if(CURRENT==='settings')renderSettings();
 }
 function updateWhoopCard(){if(CURRENT==='home')renderHome();}
+/* Details stay hidden behind the card until tapped — the rings carry the
+   picture; numbers and readiness only appear on request. */
+let WHOOP_OPEN=false;
+function toggleWhoopDetails(){WHOOP_OPEN=!WHOOP_OPEN;if(CURRENT==='home')renderHome();}
+const RING_TRACK='rgba(255,255,255,.09)',RING_IDLE='rgba(255,255,255,.14) 100%',STRAIN_BLUE='#0093e7';
+function whoopRings(recColor,recPct,strainPct,center){
+  const outer=strainPct==null?RING_IDLE:STRAIN_BLUE+' '+strainPct+'%';
+  const inner=recPct==null?RING_IDLE:recColor+' '+recPct+'%';
+  return '<div class="ringx" style="background:conic-gradient('+outer+','+RING_TRACK+' 0)">'+
+    '<div class="ringx-in" style="background:conic-gradient('+inner+','+RING_TRACK+' 0)"><b>'+center+'</b></div></div>';
+}
+function whoopSettingsChip(){return '<button class="chip" style="cursor:pointer;font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase" onclick="event.stopPropagation();go(\'settings\')">WHOOP</button>';}
 function whoopCardHtml(){
-  let ring,title,line,chip;
+  let rings,title,line,chip;
   if(!WHOOP.loaded){
-    ring='<div class="ring"><b>…</b></div>';
+    rings=whoopRings(null,null,null,'…');
     title='WHOOP · today';line='Loading recovery…';
     chip='<span class="chip">WHOOP</span>';
   } else if(!WHOOP.connected){
-    ring='<div class="ring" style="background:conic-gradient(rgba(255,255,255,.14) 100%,rgba(255,255,255,.1) 0)"><b>—</b></div>';
+    rings=whoopRings(null,null,null,'—');
     title='Connect WHOOP';line='Bring recovery, sleep and strain into today’s view.';
     chip='<a class="chip gold" style="text-decoration:none" onclick="event.stopPropagation()" href="'+WHOOP_ENDPOINTS.connect+'">Connect</a>';
   } else if(!WHOOP.sample){
-    ring='<div class="ring" style="background:conic-gradient(rgba(255,255,255,.14) 100%,rgba(255,255,255,.1) 0)"><b>—</b></div>';
+    rings=whoopRings(null,null,null,'—');
     title='WHOOP connected';line='Sync to pull today’s recovery.';
     chip='<button class="chip gold" style="cursor:pointer;font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase" onclick="event.stopPropagation();syncWhoop()">'+(WHOOP.busy?'Syncing…':'Sync')+'</button>';
   } else {
     const t=whoopTone(WHOOP.sample.recoveryScore);
-    const toneVar=t.cls==='good'?'var(--ok)':t.cls==='watch'?'var(--warn)':t.cls==='low'?'var(--bad)':'rgba(255,255,255,.14)';
-    ring='<div class="ring" style="background:conic-gradient('+toneVar+' '+t.pct+'%,rgba(255,255,255,.1) 0)"><b>'+(t.val==null?'—':t.val+'%')+'</b></div>';
-    title='Recovery '+(t.val==null?'—':t.val+'%')+' · '+t.label;
-    line='HRV '+(WHOOP.sample.hrvMs==null?'—':WHOOP.sample.hrvMs+' ms')+' · RHR '+(WHOOP.sample.restingHr==null?'—':WHOOP.sample.restingHr)+' · Sleep '+(WHOOP.sample.sleepPerformance==null?'—':WHOOP.sample.sleepPerformance+'%');
-    chip='<span class="chip">WHOOP</span>';
+    const strainRaw=Number(WHOOP.sample.strain);
+    const strainPct=Number.isFinite(strainRaw)?Math.max(0,Math.min(100,Math.round(strainRaw/21*100))):null;
+    chip=whoopSettingsChip();
+    if(!WHOOP_OPEN){
+      rings=whoopRings(t.color,t.val==null?null:t.pct,strainPct,'');
+      title='WHOOP · today';
+      line='Tap to show recovery, strain & readiness.';
+    } else {
+      rings=whoopRings(t.color,t.val==null?null:t.pct,strainPct,(t.val==null?'—':t.val+'%'));
+      title='Recovery '+(t.val==null?'—':t.val+'%')+' · '+t.label+(strainPct!=null?' · Strain '+strainRaw.toFixed(1):'');
+      line='HRV '+(WHOOP.sample.hrvMs==null?'—':WHOOP.sample.hrvMs+' ms')+' · RHR '+(WHOOP.sample.restingHr==null?'—':WHOOP.sample.restingHr)+' · Sleep '+(WHOOP.sample.sleepPerformance==null?'—':WHOOP.sample.sleepPerformance+'%');
+    }
   }
-  return '<div class="card whoopmini" id="whoopCard" style="cursor:pointer" onclick="go(\'settings\')" title="WHOOP & sync settings">'+
-    '<div style="display:flex;align-items:center;gap:14px">'+ring+'<div><b>'+esc(title)+'</b><p>'+esc(line)+'</p></div></div>'+chip+'</div>';
+  return '<div class="card whoopmini" id="whoopCard" style="cursor:pointer" onclick="toggleWhoopDetails()" title="Show or hide WHOOP details">'+
+    '<div style="display:flex;align-items:center;gap:14px">'+rings+'<div><b>'+esc(title)+'</b><p>'+esc(line)+'</p></div></div>'+chip+'</div>';
 }
 
 /* ---------- TRAINING (the mock's session day view) ---------- */
