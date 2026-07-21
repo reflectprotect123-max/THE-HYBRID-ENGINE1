@@ -1,5 +1,28 @@
 # Changelog
 
+## Ground-up rebuild on the design mock — 21 July 2026
+
+- Rebuilt index.html from the ground up as the design mock, exactly: Home
+  (welcome, Sunday-first week strip, today's session card, WHOOP mini-card),
+  Training (block day view with supersets and prescription lines), Logger
+  (set-by-set with per-mode columns, targets, RPE felt, auto rest chip) and
+  Builder (collapsible blocks, five tracking modes, live prescription line).
+- The whole backend is untouched: all six Netlify functions, WHOOP OAuth,
+  Supabase cloud sync (same app_state schema), the hybrid-engine-v1
+  localStorage model, the nameless template seed, and export/import backups.
+- Logger no longer exposes add/remove-set steppers (the mock has none) — set
+  counts live in the Builder.
+- The WHOOP home card now renders exactly like the mock's recovery card
+  (conic ring plus HRV · RHR · Sleep line) with Strong/Steady/Low labels, and
+  quietly re-syncs once a day when the stored sample is stale.
+- Removed the stale packaged app/ copy, the unreferenced pwa.js and
+  native-ui.css leftovers, and two checks tied to the deleted focused-ui
+  architecture; rewrote checks/native-pwa-smoke.mjs for the real
+  architecture and refreshed readme.txt (deployment env vars and production
+  WHOOP URLs included).
+- Bumped the service-worker cache to v31 so installed PWAs pick up the
+  rebuild.
+
 ## RPE hardening pass — 21 July 2026
 
 - Fixed an edge case where switching an exercise to "For completion" could leave stale target RPE/tempo attached, which then showed a spurious "Felt" column in the logger. Completion mode now clears RPE/tempo on switch and on save, and the runner refuses to show a Felt column for completion exercises even on older saved data.

@@ -399,6 +399,7 @@ async function main() {
   const staticFiles = await walkTextFiles(appRoot, (relativePath) => (
     relativePath === 'netlify' || relativePath.startsWith('netlify/functions/') ||
     relativePath === 'node_modules' || relativePath.startsWith('node_modules/') ||
+    relativePath === 'vendor' || relativePath.startsWith('vendor/') ||
     relativePath === 'checks' || relativePath.startsWith('checks/')
   ));
   const secretPatterns = [

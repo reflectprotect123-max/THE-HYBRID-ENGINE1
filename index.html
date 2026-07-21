@@ -313,8 +313,10 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 <script src="./vendor/supabase-2.110.7.js"></script>
 <script>
 /* ============================================================
-   THE Hybrid Engine — functional build on the design mock
-   Persistent local engine: workouts, live sessions, history.
+   THE Hybrid Engine — the design mock, made real.
+   Every screen renders the mock's exact markup; underneath,
+   a persistent local-first engine: workouts, live sessions,
+   history, WHOOP (server-side) and optional cloud sync.
    ============================================================ */
 
 /* ---------- persistence ---------- */
@@ -378,12 +380,12 @@ function renderScreen(id){
   else if(id==='settings')renderSettings();
 }
 
-/* ---------- week strip ---------- */
+/* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
 function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function weekDays(){
-  const now=new Date(),day=(now.getDay()+6)%7,mon=new Date(now);mon.setDate(now.getDate()-day);
+  const now=new Date(),sun=new Date(now);sun.setDate(now.getDate()-now.getDay());
   const todayKey=ymd(now),out=[];
-  for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const k=ymd(d);
+  for(let i=0;i<7;i++){const d=new Date(sun);d.setDate(sun.getDate()+i);const k=ymd(d);
     out.push({key:k,dow:'SMTWTFS'[d.getDay()],num:d.getDate(),today:k===todayKey,has:DB.sessions.some(s=>s.date===k)})}
   return out;
 }
@@ -392,44 +394,68 @@ function weekStripHtml(){
     '<div class="wd'+(d.today?' today':'')+(d.has?' has':'')+'"><span>'+d.dow+'</span><b>'+d.num+'</b></div>').join('')+'</div>';
 }
 
-/* ---------- HOME ---------- */
+/* ---------- HOME (mock layout: greeting, week, session card, WHOOP mini) ---------- */
 function activeSession(){return DB.sessions.find(s=>s.status==='active')||null}
+function workoutKind(w){
+  const strength=w.blocks.some(b=>b.exercises.some(e=>e.mode==='reps_kg'));
+  const conditioning=w.blocks.some(b=>b.exercises.some(e=>e.mode==='seconds'||e.mode==='reps_seconds'));
+  return [strength?'Strength':'',conditioning?'Conditioning':''].filter(Boolean).join(' + ')||'Session';
+}
+function workoutChips(w){
+  const mins=(w.blocks||[]).reduce((n,b)=>n+(+b.minutes||0),0);
+  const exs=(w.blocks||[]).reduce((n,b)=>n+(b.exercises||[]).length,0);
+  const rpe=w.blocks.some(b=>b.exercises.some(e=>e.sets.some(s=>s.rpe)));
+  const tempo=w.blocks.some(b=>b.exercises.some(e=>e.tempo));
+  const chips=[];
+  chips.push('<span class="chip gold">'+(mins?'~'+mins+' min':exs+' exercises')+'</span>');
+  if(rpe)chips.push('<span class="chip">RPE-based</span>');
+  if(tempo)chips.push('<span class="chip">Tempo work</span>');
+  return chips.join('');
+}
+function sessionCardHtml(w,kicker,onclick){
+  return '<div class="card sessioncard" onclick="'+onclick+'">'+
+    '<div class="sc-kicker">'+esc(kicker)+'</div>'+
+    '<h3>'+esc(w.name||'Untitled workout')+'</h3>'+
+    '<div class="sc-meta">'+esc((w.blocks||[]).map(b=>b.heading).filter(Boolean).join(' · '))+'</div>'+
+    '<div class="sc-chips">'+workoutChips(w)+'</div></div>';
+}
 function renderHome(){
   const el=document.getElementById('s-home');
   const act=activeSession();
   const now=new Date();
-  const dstr=now.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+  const dstr=now.toLocaleDateString(undefined,{weekday:'long'});
   const wc=DB.workouts.length;
+  const sub=act?dstr+' · One session in progress.'
+    :wc?dstr+' · '+(wc===1?'One session planned.':wc+' sessions ready.')
+    :dstr+' · Nothing built yet.';
   let cards='';
   if(act){
-    const w=DB.workouts.find(x=>x.id===act.workoutId);
-    cards+='<div class="card sessioncard" onclick="openSession(\''+act.id+'\')"><div class="sc-kicker">In progress · resume</div><h3>'+esc(act.name)+'</h3><div class="sc-meta">'+esc(w?blockCountLabel(w):'')+'</div><div class="sc-chips"><span class="chip gold">Resume</span></div></div>';
+    const w=DB.workouts.find(x=>x.id===act.workoutId)||{name:act.name,blocks:act.blocks};
+    cards+=sessionCardHtml(Object.assign({},w,{name:act.name||w.name}),'In progress · resume',"openSession('"+act.id+"')");
   }
   if(!wc){
-    cards+='<div class="card"><div class="sc-kicker">Start</div><h3 style="margin-top:5px">No workouts yet</h3><div class="sc-meta" style="margin-top:6px">Build your first workout in the Builder, then run it from here.</div><div class="sc-chips" style="margin-top:13px"><button class="chip gold" style="cursor:pointer;border:0;font:inherit" onclick="newWorkout()">+ New workout</button></div></div>';
+    cards+='<div class="card sessioncard" onclick="newWorkout()"><div class="sc-kicker">Start</div><h3>No workouts yet</h3><div class="sc-meta">Build your first workout in the Builder, then run it from here.</div><div class="sc-chips"><span class="chip gold">+ New workout</span></div></div>';
   } else {
+    let first=!act;
     DB.workouts.forEach(w=>{
       if(act&&act.workoutId===w.id)return;
-      const kind=[w.blocks.some(b=>b.exercises.some(e=>e.mode==='reps_kg'))?'Strength':'',w.blocks.some(b=>b.superset)?'Superset':''].filter(Boolean).join(' + ')||'Session';
-      const tempo=w.blocks.some(b=>b.exercises.some(e=>e.tempo)),rpe=w.blocks.some(b=>b.exercises.some(e=>e.sets.some(s=>s.rpe)));
-      const chips=['<span class="chip gold">'+((w.blocks||[]).reduce((n,b)=>n+b.exercises.length,0))+' exercises</span>'];
-      if(rpe)chips.push('<span class="chip">RPE-based</span>');
-      if(tempo)chips.push('<span class="chip">Tempo work</span>');
-      cards+='<div class="card sessioncard" onclick="startWorkout(\''+w.id+'\')"><div class="sc-kicker">'+esc(kind)+'</div><h3>'+esc(w.name||'Untitled workout')+'</h3><div class="sc-meta">'+esc(w.blocks.map(b=>b.heading).filter(Boolean).join(' · '))+'</div><div class="sc-chips">'+chips.join('')+'</div></div>';
+      const kicker=(first?'Today · ':'')+workoutKind(w);first=false;
+      cards+=sessionCardHtml(w,kicker,"startWorkout('"+w.id+"')");
     });
   }
   el.innerHTML=
     '<div class="kicker">Welcome back</div><h1>Train today</h1>'+
-    '<p class="sub">'+esc(dstr)+' · '+(wc?(wc+' workout'+(wc===1?'':'s')+' ready'):'nothing built yet')+'</p>'+
+    '<p class="sub">'+esc(sub)+'</p>'+
     weekStripHtml()+
     cards+
     (wc?'<button class="addbtn" onclick="newWorkout()">+ New workout</button>':'')+
     whoopCardHtml();
 }
+
 /* ---------- WHOOP (server-side via Netlify functions) ---------- */
 const WHOOP_ENDPOINTS={status:'/.netlify/functions/integrations-status',connect:'/.netlify/functions/whoop-connect',sync:'/.netlify/functions/whoop-sync',disconnect:'/.netlify/functions/integrations-disconnect'};
 let WHOOP={loaded:false,connected:false,sample:null,lastSyncAt:null,busy:false,error:''};
-function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Good recovery',pct:r,val:r};if(r>=34)return{cls:'watch',label:'Moderate recovery',pct:r,val:r};return{cls:'low',label:'Low recovery',pct:r,val:r};}
+function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Strong',pct:r,val:r};if(r>=34)return{cls:'watch',label:'Steady',pct:r,val:r};return{cls:'low',label:'Low',pct:r,val:r};}
 async function loadWhoop(){
   try{
     const r=await fetch(WHOOP_ENDPOINTS.status,{credentials:'same-origin',cache:'no-store'});
@@ -442,46 +468,64 @@ async function loadWhoop(){
   }catch(e){WHOOP.connected=false;WHOOP.sample=null;WHOOP.error=String(e&&e.message||e);}
   WHOOP.loaded=true;
   if(CURRENT==='home')updateWhoopCard();
+  if(CURRENT==='settings')renderSettings();
+  // keep today's card fresh without user work
+  if(WHOOP.connected&&!WHOOP.busy){
+    const today=ymd(new Date());
+    if(!WHOOP.sample||String(WHOOP.sample.date||'').slice(0,10)!==today)syncWhoop(true);
+  }
 }
-async function syncWhoop(){
-  if(WHOOP.busy)return;WHOOP.busy=true;updateWhoopCard();
+async function syncWhoop(silent){
+  if(WHOOP.busy)return;WHOOP.busy=true;if(!silent){updateWhoopCard();if(CURRENT==='settings')renderSettings();}
   try{
     const r=await fetch(WHOOP_ENDPOINTS.sync,{credentials:'same-origin',cache:'no-store'});
     if(!r.ok)throw new Error('Sync failed ('+r.status+')');
     const d=await r.json();
     if(d.connected===false)throw new Error('WHOOP is not connected.');
     if(d.normalized)WHOOP.sample=d.normalized;
+    WHOOP.lastSyncAt=new Date().toISOString();
     WHOOP.error='';
-  }catch(e){WHOOP.error=String(e&&e.message||e);}
-  WHOOP.busy=false;await loadWhoop();
+  }catch(e){if(!silent)WHOOP.error=String(e&&e.message||e);}
+  WHOOP.busy=false;
+  if(CURRENT==='home')updateWhoopCard();
+  if(CURRENT==='settings')renderSettings();
 }
 async function disconnectWhoop(){
   if(!confirm('Disconnect WHOOP from this app?'))return;
-  WHOOP.busy=true;updateWhoopCard();
+  WHOOP.busy=true;if(CURRENT==='settings')renderSettings();
   try{await fetch(WHOOP_ENDPOINTS.disconnect+'?provider=whoop',{method:'POST',credentials:'same-origin',cache:'no-store'});}catch(e){}
-  WHOOP.busy=false;WHOOP.sample=null;await loadWhoop();
+  WHOOP.busy=false;WHOOP.sample=null;WHOOP.connected=false;
+  await loadWhoop();
+  if(CURRENT==='settings')renderSettings();
 }
 function updateWhoopCard(){const el=document.getElementById('whoopCard');if(el)el.outerHTML=whoopCardHtml();}
-function whoopMetric(label,val,unit){const v=(val==null||val==='')?'—':val;return '<div class="whoop-metric"><span>'+label+'</span><b>'+esc(v)+(v!=='—'&&unit?' '+unit:'')+'</b></div>';}
 function whoopCardHtml(){
-  let inner;
+  let ring,title,line,chip;
   if(!WHOOP.loaded){
-    inner='<div style="display:flex;align-items:center;gap:14px"><div class="ring"><b>…</b></div><div><b>WHOOP · today</b><p>Loading recovery…</p></div></div><span class="chip">WHOOP</span>';
+    ring='<div class="ring"><b>…</b></div>';
+    title='WHOOP · today';line='Loading recovery…';
+    chip='<span class="chip">WHOOP</span>';
   } else if(!WHOOP.connected){
-    const msg=WHOOP.error?WHOOP.error:'Bring recovery, sleep and strain into today’s view.';
-    inner='<div style="display:flex;align-items:center;gap:14px"><div class="ring"><b>—</b></div><div><b>WHOOP not connected</b><p>'+esc(msg)+'</p></div></div><a class="chip gold" style="text-decoration:none" onclick="event.stopPropagation()" href="'+WHOOP_ENDPOINTS.connect+'">Connect</a>';
+    ring='<div class="ring" style="background:conic-gradient(rgba(255,255,255,.14) 100%,rgba(255,255,255,.1) 0)"><b>—</b></div>';
+    title='Connect WHOOP';line='Bring recovery, sleep and strain into today’s view.';
+    chip='<a class="chip gold" style="text-decoration:none" onclick="event.stopPropagation()" href="'+WHOOP_ENDPOINTS.connect+'">Connect</a>';
   } else if(!WHOOP.sample){
-    inner='<div style="display:flex;align-items:center;gap:14px"><div class="ring"><b>—</b></div><div><b>WHOOP connected</b><p>Sync to pull today’s recovery.</p></div></div><button class="chip gold" style="cursor:pointer;border:0;font:inherit" onclick="event.stopPropagation();syncWhoop()">'+(WHOOP.busy?'Syncing…':'Sync')+'</button>';
+    ring='<div class="ring" style="background:conic-gradient(rgba(255,255,255,.14) 100%,rgba(255,255,255,.1) 0)"><b>—</b></div>';
+    title='WHOOP connected';line='Sync to pull today’s recovery.';
+    chip='<button class="chip gold" style="cursor:pointer;font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase" onclick="event.stopPropagation();syncWhoop()">'+(WHOOP.busy?'Syncing…':'Sync')+'</button>';
   } else {
     const t=whoopTone(WHOOP.sample.recoveryScore);
-    const ring='<div class="ring" style="background:conic-gradient(var(--'+(t.cls==='good'?'ok':t.cls==='watch'?'warn':t.cls==='low'?'bad':'dim')+',#9fc59b) '+t.pct+'%,rgba(255,255,255,.1) 0)"><b>'+(t.val==null?'—':t.val+'%')+'</b></div>';
-    const sub='HRV '+(WHOOP.sample.hrvMs==null?'—':WHOOP.sample.hrvMs+' ms')+' · RHR '+(WHOOP.sample.restingHr==null?'—':WHOOP.sample.restingHr)+' · Sleep '+(WHOOP.sample.sleepPerformance==null?'—':WHOOP.sample.sleepPerformance+'%');
-    inner='<div style="display:flex;align-items:center;gap:14px">'+ring+'<div><b>Recovery '+(t.val==null?'—':t.val+'%')+' · '+esc(t.label.replace(' recovery',''))+'</b><p>'+esc(sub)+'</p></div></div><button class="chip'+(WHOOP.busy?'':' gold')+'" style="cursor:pointer;border:0;font:inherit" onclick="event.stopPropagation();syncWhoop()">'+(WHOOP.busy?'Syncing…':'Sync')+'</button>';
+    const toneVar=t.cls==='good'?'var(--ok)':t.cls==='watch'?'var(--warn)':t.cls==='low'?'var(--bad)':'rgba(255,255,255,.14)';
+    ring='<div class="ring" style="background:conic-gradient('+toneVar+' '+t.pct+'%,rgba(255,255,255,.1) 0)"><b>'+(t.val==null?'—':t.val+'%')+'</b></div>';
+    title='Recovery '+(t.val==null?'—':t.val+'%')+' · '+t.label;
+    line='HRV '+(WHOOP.sample.hrvMs==null?'—':WHOOP.sample.hrvMs+' ms')+' · RHR '+(WHOOP.sample.restingHr==null?'—':WHOOP.sample.restingHr)+' · Sleep '+(WHOOP.sample.sleepPerformance==null?'—':WHOOP.sample.sleepPerformance+'%');
+    chip='<span class="chip">WHOOP</span>';
   }
-  return '<div class="card whoopmini" id="whoopCard" style="cursor:pointer" onclick="go(\'settings\')" title="WHOOP & sync settings">'+inner+'</div>';
+  return '<div class="card whoopmini" id="whoopCard" style="cursor:pointer" onclick="go(\'settings\')" title="WHOOP & sync settings">'+
+    '<div style="display:flex;align-items:center;gap:14px">'+ring+'<div><b>'+esc(title)+'</b><p>'+esc(line)+'</p></div></div>'+chip+'</div>';
 }
 
-/* ---------- TRAINING (session day view — mock's second screen) ---------- */
+/* ---------- TRAINING (the mock's session day view) ---------- */
 function renderTraining(){
   ensureSession();
   renderSession();
@@ -536,7 +580,7 @@ function renderSession(){
     const rows=b.exercises.map((ex,ei)=>{
       const done=ex.sets.length&&ex.sets.every(st=>st.done);
       const open=(!b.superset&&ex.mode!=='completion');
-      const endcap=open?'<div class="chev" aria-hidden="true">›</div>':'<div class="st'+(done?' done':'')+'">✓</div>';
+      const endcap=open?'<div class="chev" aria-hidden="true">›</div>':'<div class="st">✓</div>';
       const onclick=open?'openLogger('+bi+','+ei+')':'toggleCompletion('+bi+','+ei+')';
       return '<div class="card exrow '+(open?'nav':'')+(done?' done':'')+'" onclick="'+onclick+'"><div class="t"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></div>'+endcap+'</div>';
     }).join('');
@@ -563,7 +607,7 @@ function finishSession(btn){
   setTimeout(()=>go('home'),1400);
 }
 
-/* ---------- LOGGER ---------- */
+/* ---------- LOGGER (the mock's set-by-set screen) ---------- */
 let CUR_REST=0,LOG_LOC=null;
 function loggerCols(mode){
   if(mode==='reps_kg')return['Set','KG','Reps','RPE felt',''];
@@ -617,33 +661,16 @@ function renderLoggerScreen(){
   }).join('');
   const restNote=CUR_REST?'Rest <i>'+fmtRest(CUR_REST)+' auto-starts on ✓</i>':'No prescribed rest';
   const last=lastTimeFor(ex.name);
-  const lastBox=last?'<div class="card lastbox">Last time ('+esc(last.date)+'): '+last.sets.map(st=>esc((st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @RPE '+st.felt:''))).join(' · ')+'</div>':'';
-  const stepper=ex.mode==='completion'?'':'<div class="bsteprow" style="margin-top:14px"><button class="stepbtn sm" onclick="removeLoggedSet()" aria-label="Remove a set">−</button><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+' · add / remove</span><button class="stepbtn sm" onclick="addLoggedSet()" aria-label="Add a set">+</button></div>';
+  const lastBox=last?'<div class="card lastbox"><b>Last time</b> ('+esc(prettyDay(last.date))+'): '+last.sets.map(st=>esc((st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @RPE '+st.felt:''))).join(' · ')+'</div>':'';
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" onclick="go(\'training\')">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(b.heading)+' · set targets</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
-    '<div class="card setcard">'+head+rows+stepper+'</div>'+lastBox+
+    '<div class="card setcard">'+head+(rows||'<div class="lastbox" style="margin-top:0">No sets.</div>')+'</div>'+lastBox+
     '<div class="card guidebar"><b>Why "RPE felt" matters:</b> target vs. actual RPE per set is data most apps throw away. Paired with the WHOOP recovery you sync, it powers a readiness picture no off-the-shelf app has.</div>';
-}
-function addLoggedSet(){
-  const s=curSession();if(!s||!LOG_LOC)return;
-  const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
-  const last=ex.sets[ex.sets.length-1]||{t:'',rpe:''};
-  ex.sets.push({t:last.t||'',rpe:last.rpe||'',aVal:'',aVal2:'',felt:'',done:false});
-  save();renderLoggerScreen();
-}
-function removeLoggedSet(){
-  const s=curSession();if(!s||!LOG_LOC)return;
-  const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
-  if(ex.sets.length<=1)return;
-  const last=ex.sets[ex.sets.length-1];
-  if((last.done||last.aVal||last.aVal2||last.felt)&&!confirm('Remove the last set? It has logged data.'))return;
-  ex.sets.pop();
-  save();renderLoggerScreen();
 }
 function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];if(slot===1)st.aVal=val;else if(slot===2)st.aVal2=val;else if(slot===3)st.felt=val;save();}
 function tickSet(si){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];st.done=!st.done;save();renderLoggerScreen();if(st.done&&CUR_REST>0)startRest(CUR_REST);}
 
-/* ---------- rest timer ---------- */
+/* ---------- rest timer: auto-starts on set completion, non-blocking chip ---------- */
 let restIv=null,restLeft=0;
 function startRest(sec){stopRest();restLeft=sec;const chip=document.getElementById('restchip');chip.classList.add('show');paintRest();restIv=setInterval(()=>{restLeft--;if(restLeft<=0)return stopRest();paintRest()},1000);}
 function paintRest(){const m=Math.floor(restLeft/60),s=String(restLeft%60).padStart(2,'0');document.getElementById('restclock').textContent=m+':'+s;}
@@ -721,7 +748,7 @@ function editSet(bi,ei,si,k,v){WK.blocks[bi].exercises[ei].sets[si][k]=v.trim();
 function refreshRx(bi,ei){const el=document.getElementById('rxb'+bi+'e'+ei);if(el)el.textContent=rxLine(WK.blocks[bi].exercises[ei]);}
 function toggleBlock(bi){openBlock=(openBlock===bi?-1:bi);renderBuilderBody();}
 
-/* ---------- confetti ---------- */
+/* ---------- confetti: light, no stats wall ---------- */
 function confetti(){const colors=['#c09358','#e0bc87','#82a8e9','#f5f1e9'];for(let i=0;i<36;i++){const c=document.createElement('div');c.className='confetti';c.style.left=(5+Math.random()*90)+'vw';c.style.background=colors[i%colors.length];c.style.animationDelay=(Math.random()*.5)+'s';c.style.transform='rotate('+(Math.random()*360)+'deg)';document.body.appendChild(c);setTimeout(()=>c.remove(),2200);}}
 
 /* ---------- Supabase cloud sync (namespaced under state.hybridEngine) ---------- */
@@ -821,13 +848,13 @@ function renderSettings(){
   // WHOOP panel
   let whoop;
   if(!WHOOP.loaded){whoop='<div class="sc-meta">Checking WHOOP connection…</div>';}
-  else if(!WHOOP.connected){whoop='<div class="sc-meta">'+(WHOOP.error?esc(WHOOP.error)+' ':'')+'Connect WHOOP to bring recovery, sleep and strain into Home. Requires the deployed app.</div><a class="bigbtn" style="display:block;text-align:center;text-decoration:none;margin-top:12px" href="'+WHOOP_ENDPOINTS.connect+'">Connect WHOOP</a>';}
+  else if(!WHOOP.connected){whoop='<div class="sc-meta">'+(WHOOP.error?esc(WHOOP.error)+' ':'')+'Connect WHOOP to bring recovery, sleep and strain into Home. Requires the deployed app.</div><a class="bigbtn" style="display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;margin-top:12px" href="'+WHOOP_ENDPOINTS.connect+'">Connect WHOOP</a>';}
   else{whoop='<div class="sc-meta">WHOOP connected'+(WHOOP.lastSyncAt?' · last sync '+esc(new Date(WHOOP.lastSyncAt).toLocaleString()):'')+'.</div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" onclick="syncWhoop()">'+(WHOOP.busy?'Syncing…':'Sync now')+'</button><button class="addbtn" style="flex:1;margin-top:0" onclick="disconnectWhoop()">Disconnect</button></div>';}
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" onclick="go(\'home\')">←</button><div><div class="kicker" style="margin-bottom:3px">Settings</div><h1 style="font-size:24px">Cloud, WHOOP &amp; data</h1></div></div>'+
-    '<div class="section"><div class="sec-head"><h2>Cloud sync</h2></div><div class="card" style="margin-top:10px">'+cloud+'</div></div>'+
-    '<div class="section"><div class="sec-head"><h2>WHOOP</h2></div><div class="card" style="margin-top:10px">'+whoop+'</div></div>'+
-    '<div class="section"><div class="sec-head"><h2>Your data</h2></div><div class="card" style="margin-top:10px"><div class="sc-meta">Everything is stored on this device and (if signed in) synced to the cloud.</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" onclick="exportData()">Export backup</button><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" onclick="document.getElementById(\'importFile\').click()">Import backup</button></div><input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importData(event)"><button class="addbtn" style="margin-top:10px;border-color:rgba(207,127,124,.5);color:var(--bad)" onclick="resetLocal()">Reset local data</button></div></div>';
+    '<div class="section"><div class="sec-head"><h2>Cloud sync</h2></div><div class="card" style="margin-top:10px;padding:14px">'+cloud+'</div></div>'+
+    '<div class="section"><div class="sec-head"><h2>WHOOP</h2></div><div class="card" style="margin-top:10px;padding:14px">'+whoop+'</div></div>'+
+    '<div class="section"><div class="sec-head"><h2>Your data</h2></div><div class="card" style="margin-top:10px;padding:14px"><div class="sc-meta">Everything is stored on this device and (if signed in) synced to the cloud.</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" onclick="exportData()">Export backup</button><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" onclick="document.getElementById(\'importFile\').click()">Import backup</button></div><input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importData(event)"><button class="addbtn" style="margin-top:10px;border-color:rgba(207,127,124,.5);color:var(--bad)" onclick="resetLocal()">Reset local data</button></div></div>';
 }
 
 /* ---------- template seed: the mock's session structure, no names — fill in your own ---------- */
