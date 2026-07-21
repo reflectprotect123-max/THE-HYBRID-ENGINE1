@@ -217,19 +217,25 @@ await t('builder: day chips schedule the workout', async () => {
   const sub = await page.textContent('#s-home .sub');
   if (!/session in progress|session planned/i.test(sub)) throw new Error('sub=' + sub);
 });
-await t('Logger tab resumes at the next unfinished exercise', async () => {
-  await page.click('.navlink[data-s="logger"]');
-  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
-  const kicker = await page.textContent('#s-logger .kicker');
-  if (!/exercise 1 of \d+/.test(kicker)) throw new Error('kicker=' + kicker);
+await t('no Logger tab: nav is Home · Training · Builder', async () => {
+  const navs = await page.$$eval('.navlink', (els) => els.map((e) => e.dataset.s));
+  if (navs.length !== 3 || navs.includes('logger')) throw new Error(navs.join(','));
 });
-await t('Logger steps forward and back through the session', async () => {
-  await page.click('#s-logger .histnav .markall');
+await t('logger detail view steps forward and back through the session', async () => {
+  await page.click('.navlink[data-s="training"]');
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  await page.click('#s-training .exrow.nav');
+  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
   let kicker = await page.textContent('#s-logger .kicker');
+  if (!/exercise 1 of \d+/.test(kicker)) throw new Error('kicker=' + kicker);
+  await page.click('#s-logger .histnav .markall');
+  kicker = await page.textContent('#s-logger .kicker');
   if (!/exercise 2 of \d+/.test(kicker)) throw new Error('after next: ' + kicker);
   await page.click('#s-logger .histnav .markall');
   kicker = await page.textContent('#s-logger .kicker');
   if (!/exercise 1 of \d+/.test(kicker)) throw new Error('after prev: ' + kicker);
+  const training = await page.$eval('.navlink[data-s="training"]', (el) => el.classList.contains('active'));
+  if (!training) throw new Error('Training tab not highlighted while logging');
 });
 await t('mobile viewport: nav becomes the bottom bar', async () => {
   await page.setViewportSize({ width: 390, height: 844 });

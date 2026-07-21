@@ -304,10 +304,6 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
         <svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
         Training
       </button>
-      <button class="navlink" data-s="logger" onclick="goLogger(this)">
-        <svg viewBox="0 0 24 24"><path d="M4 17V9M9.5 17V5M15 17v-7M20 17V8"/></svg>
-        Logger
-      </button>
       <button class="navlink" data-s="builder" onclick="go('builder',this)">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6l-.04.08H10l-.04-.08a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1l-.08-.04V10l.08-.04a1.7 1.7 0 0 0 .6-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6l.04-.08H14l.04.08a1.7 1.7 0 0 0 1 .6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.1.4.3.75.6 1l.08.04V14l-.08.04c-.3.25-.5.6-.6.96Z"/></svg>
         Builder
@@ -385,7 +381,9 @@ function go(id,btn){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
   const scr=document.getElementById('s-'+id);if(scr)scr.classList.add('on');
   document.querySelectorAll('.navlink').forEach(b=>b.classList.remove('active'));
-  const navBtn=btn||document.querySelector('.navlink[data-s="'+id+'"]');
+  // The logger is a detail view of Training — keep Training lit while logging.
+  const navId=id==='logger'?'training':id;
+  const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
   if(navBtn)navBtn.classList.add('active');
   renderScreen(id);
   window.scrollTo({top:0});
@@ -764,25 +762,14 @@ function firstLoggable(s){
   if(s.blocks.length&&s.blocks[0].exercises.length)return{bi:0,ei:0};
   return null;
 }
-/* Training is the map; the Logger is the flow. The Logger tab always
-   resumes at your next unfinished exercise and steps through the session. */
+/* Training is the one training destination; the logger is its detail
+   view, opened from an exercise row and stepped through in place. */
 function loggableList(s){
   const out=[];
   s.blocks.forEach((b,bi)=>{if(b.superset)return;b.exercises.forEach((ex,ei)=>{if(ex.mode!=='completion')out.push({bi,ei})})});
   return out;
 }
 function exFinished(ex){return ex.sets.length>0&&ex.sets.every(st=>st.done)}
-function nextUnfinished(s){
-  return loggableList(s).find(({bi,ei})=>!exFinished(s.blocks[bi].exercises[ei]))||null;
-}
-function goLogger(btn){
-  const s=curSession()||ensureSession();
-  if(s){
-    const cur=LOG_LOC&&s.blocks[LOG_LOC.bi]&&s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
-    if(!cur||exFinished(cur))LOG_LOC=nextUnfinished(s)||firstLoggable(s);
-  }
-  go('logger',btn);
-}
 function stepLogger(d){
   const s=curSession();if(!s||!LOG_LOC)return;
   const list=loggableList(s);

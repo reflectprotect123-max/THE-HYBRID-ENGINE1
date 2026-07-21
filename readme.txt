@@ -17,7 +17,8 @@ Screens
   recovery with the last week's target-vs-felt RPE gap.
 - Training: the day view — blocks, supersets, prescription lines, big
   "Mark session complete" button.
-- Logger: set-by-set logging with per-mode columns (KG/Reps/Secs), RPE felt,
+- Logger (opened by tapping an exercise in Training — no separate tab):
+  set-by-set logging with per-mode columns (KG/Reps/Secs), RPE felt,
   targets per set, last-time box (and last kg as the input placeholder), and
   a rest chip that auto-starts on ✓, survives reload, and vibrates at zero.
 - Builder: blocks, exercises, five tracking modes, "Train on" day chips,

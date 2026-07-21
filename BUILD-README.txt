@@ -1,7 +1,7 @@
 THE Hybrid Engine — mock-exact private PWA build
 
 The app is hybrid-engine-design-mock.html made real: index.html renders the
-mock's four screens exactly (Home, Training, Logger, Builder) on top of a
+mock's screens (Home, Training, Builder in the nav; the Logger opens as Training's detail view) on top of a
 persistent local-first engine. For a quick preview, open index.html in a
 browser. For install/offline behavior, serve from HTTPS or localhost; browsers
 do not allow service workers or PWA installation from file:// URLs.
@@ -21,7 +21,7 @@ Training
   (e.g. 4 × 12/10/8/8 · RPE 7→10 · @30X1 · rest 3:00), and the gold
   "Mark session complete" button with confetti.
 
-Logger
+Logger (opened from an exercise row in Training; steps Previous/Next through the session)
 - Set-by-set logging with per-mode columns: Reps + Kilos, Seconds,
   Reps + Seconds, Reps only, For completion.
 - Per-set targets, an "RPE felt" column, a "Last time" history box, and a

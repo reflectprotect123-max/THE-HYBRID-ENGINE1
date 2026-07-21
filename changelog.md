@@ -1,5 +1,16 @@
 # Changelog
 
+## One training destination: the Logger tab is gone — 21 July 2026
+
+- The nav is now Home · Training · Builder. Training is the single place
+  you go to train; the set-by-set logger opens by tapping an exercise row
+  and keeps its Previous/Next stepping, "Next exercise →" hand-off, and
+  in-place "Mark session complete" — it just isn't a competing tab anymore.
+- While logging, the Training tab stays highlighted (the logger is its
+  detail view).
+- Browser smoke asserts the three-tab nav and the tap-in/step-through flow.
+- Bumped the service-worker cache to v35.
+
 ## Training and Logger get distinct jobs — 21 July 2026
 
 - Training is the map: the whole session at a glance, supersets and
