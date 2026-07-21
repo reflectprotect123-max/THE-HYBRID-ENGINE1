@@ -488,7 +488,7 @@ function renderTraining(){
 }
 
 /* ---------- workout CRUD ---------- */
-function newWorkout(){WK={id:uid(),name:'',blocks:[newBlock()]};BUILDER_WID=WK.id;EDIT_EXISTING=false;openBlock=0;go('builder');}
+function newWorkout(){WK=templateWorkout();BUILDER_WID=WK.id;EDIT_EXISTING=false;openBlock=-1;go('builder');}
 function editWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;WK=JSON.parse(JSON.stringify(w));BUILDER_WID=id;EDIT_EXISTING=true;openBlock=-1;go('builder');}
 function hasLoggedWork(s){return s&&s.blocks.some(b=>b.exercises.some(e=>e.sets.some(st=>st.done||st.aVal||st.aVal2||st.felt)));}
 function previewWorkout(){
@@ -679,7 +679,7 @@ function deleteCurrentWorkout(){
   DB.workouts=DB.workouts.filter(x=>x.id!==id);
   DB.sessions=DB.sessions.filter(s=>!(s.workoutId===id&&s.status==='active'));
   if(CUR_SESSION&&!DB.sessions.find(s=>s.id===CUR_SESSION))CUR_SESSION=null;
-  BUILDER_WID=null;EDIT_EXISTING=false;WK={id:uid(),name:'',blocks:[newBlock()]};LOG_LOC=null;
+  BUILDER_WID=null;EDIT_EXISTING=false;WK=templateWorkout();LOG_LOC=null;
   save();go('home');
 }
 function renderBuilderBody(){
