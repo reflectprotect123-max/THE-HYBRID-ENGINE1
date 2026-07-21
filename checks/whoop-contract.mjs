@@ -96,7 +96,6 @@ async function main() {
     'readme.txt',
     'privacy.html',
     'index.html',
-    'integrations-ui.js',
     'integrations/whoop-adapter.js',
     'netlify/functions/_lib/config.mjs',
     'netlify/functions/_lib/crypto.mjs',
@@ -135,7 +134,6 @@ async function main() {
   const disconnect = sources.get('netlify/functions/integrations-disconnect.mjs') || '';
   const status = sources.get('netlify/functions/integrations-status.mjs') || '';
   const adapter = sources.get('integrations/whoop-adapter.js') || '';
-  const integrationsUi = sources.get('integrations-ui.js') || '';
   const index = sources.get('index.html') || '';
   const readme = sources.get('readme.txt') || '';
   const privacy = sources.get('privacy.html') || '';
@@ -391,9 +389,9 @@ async function main() {
   check(/https:\/\/thehybridengine1\.netlify\.app\/\.netlify\/functions\/whoop-webhook/.test(readme), 'production WHOOP webhook URL is documented');
   check(/WHOOP|server-side|credentials are not stored/i.test(privacy) && /credentials.*server-side/i.test(privacy), 'privacy policy states WHOOP credentials stay server-side');
 
-  check(/whoop-connect/.test(integrationsUi) && /integrations-status/.test(integrationsUi) && /integrations-disconnect/.test(integrationsUi) && /whoop-sync/.test(integrationsUi), 'Settings UI uses the integration function endpoints');
-  check(/Connected data/.test(integrationsUi) && /href="?\/?\.netlify\/functions\/whoop-connect/.test(integrationsUi), 'handoff Connected data panel exposes WHOOP connect');
-  check(/whoopHomeCard/.test(integrationsUi) && /whoopHomeBody/.test(integrationsUi) && /whoopHomeSyncButton/.test(integrationsUi) && /renderWhoopHome/.test(integrationsUi), 'Home exposes a WHOOP-style recovery snapshot with sync states');
+  check(/whoop-connect/.test(index) && /integrations-status/.test(index) && /integrations-disconnect/.test(index) && /whoop-sync/.test(index), 'app UI uses the integration function endpoints');
+  check(/Connect WHOOP/.test(index) && /WHOOP_ENDPOINTS\.connect/.test(index), 'Settings exposes a WHOOP connect entry');
+  check(/whoopCard/.test(index) && /whoopCardHtml/.test(index) && /ringx/.test(index) && /syncWhoop/.test(index), 'Home exposes a WHOOP-style recovery snapshot with sync states');
   check(/whoop-connect/.test(index) || /integrations-ui\.js/.test(index), 'app shell includes the WHOOP integration entry point');
 
   const staticFiles = await walkTextFiles(appRoot, (relativePath) => (

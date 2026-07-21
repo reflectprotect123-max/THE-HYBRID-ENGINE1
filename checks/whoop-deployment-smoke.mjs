@@ -95,7 +95,7 @@ async function main() {
   const headers = await readText('_headers');
   const readme = await readText('readme.txt');
   const worker = await readText('service-worker.js');
-  const integrationsUi = await readText('integrations-ui.js');
+  const indexHtml = await readText('index.html');
 
   let pkg = null;
   let lock = null;
@@ -172,10 +172,10 @@ async function main() {
     check(/CACHE_NAME\s*=\s*['\"].*-v\d+-\d{4}-\d{2}-\d{2}['\"]/.test(worker), 'service worker cache version is date-stamped');
   }
 
-  if (integrationsUi) {
-    check(/integrations-status/.test(integrationsUi) && /ENDPOINTS/.test(integrationsUi), 'browser status request uses the deployed status Function');
-    check(/integrations-disconnect/.test(integrationsUi) && /ENDPOINTS/.test(integrationsUi), 'browser disconnect request uses the deployed disconnect Function');
-    check(/method:\s*['"]POST['"]/.test(integrationsUi) && /credentials:\s*['"]same-origin['"]/.test(integrationsUi), 'browser disconnect request is same-origin POST');
+  if (indexHtml) {
+    check(/integrations-status/.test(indexHtml) && /WHOOP_ENDPOINTS/.test(indexHtml), 'browser status request uses the deployed status Function');
+    check(/integrations-disconnect/.test(indexHtml) && /WHOOP_ENDPOINTS/.test(indexHtml), 'browser disconnect request uses the deployed disconnect Function');
+    check(/method:\s*['"]POST['"]/.test(indexHtml) && /credentials:\s*['"]same-origin['"]/.test(indexHtml), 'browser disconnect request is same-origin POST');
   }
 
   const workspaceRoot = resolve(appRoot, '..');
@@ -194,7 +194,6 @@ async function main() {
       const archiveEntry = (target) => entries.find((entry) => entry === target || entry.endsWith(`/${target}`));
       const archiveRequired = [
         'index.html',
-        'integrations-ui.js',
         'service-worker.js',
         'netlify.toml',
         'package.json',
@@ -218,7 +217,6 @@ async function main() {
         'package.json',
         'package-lock.json',
         'service-worker.js',
-        'integrations-ui.js',
         'netlify/functions/whoop-connect.mjs',
         'netlify/functions/whoop-callback.mjs',
         'netlify/functions/whoop-sync.mjs',
