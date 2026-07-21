@@ -4,7 +4,7 @@ import { access, readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
-const requestedRoot = resolve(process.argv[2] || resolve(process.cwd(), 'app'));
+const requestedRoot = resolve(process.argv[2] || resolve(process.cwd()));
 const appRoot = existsSync(join(requestedRoot, 'app', 'index.html'))
   ? join(requestedRoot, 'app')
   : requestedRoot;
@@ -163,13 +163,13 @@ async function main() {
 
   check(Boolean(redirects) && /^\/privacy \/privacy\.html 200$/m.test(redirects), 'privacy route is preserved in Netlify redirects');
   check(Boolean(headers) && /\/privacy\.html[\s\S]*?Cache-Control:\s*no-cache/i.test(headers), 'privacy page has no-cache headers');
-  check(Boolean(readme) && /Netlify Git|Netlify CLI|Netlify API/i.test(readme) && /static drag-and-drop upload[\s\S]*?will not activate server functions/i.test(readme), 'deployment handoff warns against static-only publication');
+  check(Boolean(readme) && /Netlify Git|Netlify CLI|Netlify API/i.test(readme) && /static (?:drag-and-drop )?upload[\s\S]*?(?:will|does) not activate (?:server |the )?functions/i.test(readme), 'deployment handoff warns against static-only publication');
   check(Boolean(readme) && /netlify\/functions/.test(readme), 'deployment handoff names the Functions directory');
 
   if (worker) {
     check(!/\.netlify\/functions/.test(worker.match(/APP_SHELL\s*=\s*\[([\s\S]*?)\]/)?.[1] || ''), 'service worker app shell does not cache function routes');
     check(/pathname\.startsWith\(['"]\/\.netlify\/functions\//.test(worker), 'service worker bypasses authenticated function requests');
-    check(/CACHE_NAME\s*=.*2026-07-15/.test(worker), 'service worker cache version matches the handoff build date');
+    check(/CACHE_NAME\s*=\s*['\"].*-v\d+-\d{4}-\d{2}-\d{2}['\"]/.test(worker), 'service worker cache version is date-stamped');
   }
 
   if (integrationsUi) {

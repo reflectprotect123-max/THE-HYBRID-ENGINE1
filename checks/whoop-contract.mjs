@@ -5,7 +5,7 @@ import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const checkDir = fileURLToPath(new URL('.', import.meta.url));
-const requestedRoot = resolve(process.argv[2] || resolve(checkDir, '..', 'app'));
+const requestedRoot = resolve(process.argv[2] || resolve(checkDir, '..'));
 const appRoot = existsSync(join(requestedRoot, 'app', 'index.html'))
   ? join(requestedRoot, 'app')
   : requestedRoot;
