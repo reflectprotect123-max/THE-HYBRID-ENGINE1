@@ -618,10 +618,27 @@ function renderLoggerScreen(){
   const restNote=CUR_REST?'Rest <i>'+fmtRest(CUR_REST)+' auto-starts on ✓</i>':'No prescribed rest';
   const last=lastTimeFor(ex.name);
   const lastBox=last?'<div class="card lastbox">Last time ('+esc(last.date)+'): '+last.sets.map(st=>esc((st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @RPE '+st.felt:''))).join(' · ')+'</div>':'';
+  const stepper=ex.mode==='completion'?'':'<div class="bsteprow" style="margin-top:14px"><button class="stepbtn sm" onclick="removeLoggedSet()" aria-label="Remove a set">−</button><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+' · add / remove</span><button class="stepbtn sm" onclick="addLoggedSet()" aria-label="Add a set">+</button></div>';
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" onclick="go(\'training\')">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(b.heading)+' · set targets</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
-    '<div class="card setcard">'+head+rows+'</div>'+lastBox+
+    '<div class="card setcard">'+head+rows+stepper+'</div>'+lastBox+
     '<div class="card guidebar"><b>Why "RPE felt" matters:</b> target vs. actual RPE per set is data most apps throw away. Paired with the WHOOP recovery you sync, it powers a readiness picture no off-the-shelf app has.</div>';
+}
+function addLoggedSet(){
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
+  const last=ex.sets[ex.sets.length-1]||{t:'',rpe:''};
+  ex.sets.push({t:last.t||'',rpe:last.rpe||'',aVal:'',aVal2:'',felt:'',done:false});
+  save();renderLoggerScreen();
+}
+function removeLoggedSet(){
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
+  if(ex.sets.length<=1)return;
+  const last=ex.sets[ex.sets.length-1];
+  if((last.done||last.aVal||last.aVal2||last.felt)&&!confirm('Remove the last set? It has logged data.'))return;
+  ex.sets.pop();
+  save();renderLoggerScreen();
 }
 function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];if(slot===1)st.aVal=val;else if(slot===2)st.aVal2=val;else if(slot===3)st.felt=val;save();}
 function tickSet(si){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];st.done=!st.done;save();renderLoggerScreen();if(st.done&&CUR_REST>0)startRest(CUR_REST);}
@@ -813,18 +830,43 @@ function renderSettings(){
     '<div class="section"><div class="sec-head"><h2>Your data</h2></div><div class="card" style="margin-top:10px"><div class="sc-meta">Everything is stored on this device and (if signed in) synced to the cloud.</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" onclick="exportData()">Export backup</button><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" onclick="document.getElementById(\'importFile\').click()">Import backup</button></div><input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importData(event)"><button class="addbtn" style="margin-top:10px;border-color:rgba(207,127,124,.5);color:var(--bad)" onclick="resetLocal()">Reset local data</button></div></div>';
 }
 
-/* ---------- demo seed (so a fresh install looks like the design, like the mock) ---------- */
-function demoWorkout(){return {id:uid(),name:'Upper Pump — Day 1',blocks:[
-  {id:uid(),heading:'Warm-up',minutes:'8',format:'',superset:false,exercises:[{id:uid(),name:'Cardio of choice',mode:'seconds',tempo:'',rest:0,sets:[{t:'120',rpe:''}]}]},
+/* ---------- template seed: the mock's session structure, no names — fill in your own ---------- */
+function templateWorkout(keepId){return {id:keepId||uid(),name:'',blocks:[
+  {id:uid(),heading:'Warm-up',minutes:'8',format:'',superset:false,exercises:[{id:uid(),name:'',mode:'seconds',tempo:'',rest:0,sets:[{t:'120',rpe:''}]}]},
   {id:uid(),heading:'Warm-up prep',minutes:'',format:'Superset · 3 rounds',superset:true,exercises:[
-    {id:uid(),name:'Band pull-apart',mode:'reps',tempo:'',rest:0,sets:[{t:'15',rpe:''}]},
-    {id:uid(),name:'Scap push-up',mode:'reps',tempo:'',rest:0,sets:[{t:'10',rpe:''}]}]},
-  {id:uid(),heading:'Strength 1',minutes:'15',format:'4 working sets · straight sets',superset:false,exercises:[{id:uid(),name:'Incline Bench Press',mode:'reps_kg',tempo:'30X1',rest:180,sets:[{t:'12',rpe:'7'},{t:'10',rpe:'8'},{t:'8',rpe:'9'},{t:'8',rpe:'10'}]}]},
-  {id:uid(),heading:'Strength 2',minutes:'12',format:'Every 2:30 × 4 sets',superset:false,exercises:[{id:uid(),name:'Supinated Bent-Over Row',mode:'reps_kg',tempo:'20X1',rest:150,sets:[{t:'10',rpe:'7'},{t:'10',rpe:'8'},{t:'10',rpe:'8'},{t:'10',rpe:'8'}]}]},
-  {id:uid(),heading:'Carry finisher',minutes:'8',format:'3 rounds',superset:false,exercises:[{id:uid(),name:'Farmer carry',mode:'seconds',tempo:'',rest:90,sets:[{t:'40',rpe:'8'},{t:'40',rpe:'8'},{t:'40',rpe:'9'}]}]},
-  {id:uid(),heading:'Cooldown',minutes:'5',format:'',superset:false,exercises:[{id:uid(),name:'Stretch flow',mode:'completion',tempo:'',rest:0,sets:[{t:'',rpe:''}]}]}
+    {id:uid(),name:'',mode:'reps',tempo:'',rest:0,sets:[{t:'15',rpe:''}]},
+    {id:uid(),name:'',mode:'reps',tempo:'',rest:0,sets:[{t:'10',rpe:''}]}]},
+  {id:uid(),heading:'Strength 1',minutes:'15',format:'4 working sets · straight sets',superset:false,exercises:[{id:uid(),name:'',mode:'reps_kg',tempo:'',rest:180,sets:[{t:'12',rpe:'7'},{t:'10',rpe:'8'},{t:'8',rpe:'9'},{t:'8',rpe:'10'}]}]},
+  {id:uid(),heading:'Strength 2',minutes:'12',format:'Every 2:30 × 4 sets',superset:false,exercises:[{id:uid(),name:'',mode:'reps_kg',tempo:'',rest:150,sets:[{t:'10',rpe:'7'},{t:'10',rpe:'8'},{t:'10',rpe:'8'},{t:'10',rpe:'8'}]}]},
+  {id:uid(),heading:'Carry finisher',minutes:'8',format:'3 rounds',superset:false,exercises:[{id:uid(),name:'',mode:'seconds',tempo:'',rest:90,sets:[{t:'40',rpe:'8'},{t:'40',rpe:'8'},{t:'40',rpe:'9'}]}]},
+  {id:uid(),heading:'Cooldown',minutes:'5',format:'',superset:false,exercises:[{id:uid(),name:'',mode:'completion',tempo:'',rest:0,sets:[{t:'',rpe:''}]}]}
 ]};}
-function seedIfEmpty(){if(DB.workouts&&DB.workouts.length)return;if(DB.settings&&DB.settings.seeded)return;DB.workouts=[demoWorkout()];DB.settings=Object.assign({},DB.settings,{seeded:true});try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}}
+function isUntouchedDemo(w){
+  if(!w||w.name!=='Upper Pump — Day 1')return false;
+  const demoNames=['Cardio of choice','Band pull-apart','Scap push-up','Incline Bench Press','Supinated Bent-Over Row','Farmer carry','Stretch flow'];
+  const exNames=(w.blocks||[]).flatMap(b=>(b.exercises||[]).map(e=>e.name));
+  return exNames.join('|')===demoNames.join('|');
+}
+function seedIfEmpty(){
+  DB.settings=Object.assign({},DB.settings);
+  if(DB.settings.seedV===2)return;
+  if(!DB.workouts.length){
+    DB.workouts=[templateWorkout()];
+  }else{
+    // swap the old named demo for the nameless template — but never touch a workout
+    // the user completed a session with, renamed, or edited
+    DB.workouts=DB.workouts.map(w=>{
+      const completed=DB.sessions.some(s=>s.workoutId===w.id&&s.status==='completed');
+      if(isUntouchedDemo(w)&&!completed){
+        DB.sessions=DB.sessions.filter(s=>!(s.workoutId===w.id&&s.status!=='completed'));
+        return templateWorkout(w.id);
+      }
+      return w;
+    });
+  }
+  DB.settings.seedV=2;DB.settings.seeded=true;
+  try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}
+}
 function currentWorkout(){const act=DB.sessions.find(s=>s.status==='active');if(act){const w=DB.workouts.find(x=>x.id===act.workoutId);if(w)return w;}return DB.workouts[0]||null;}
 function ensureSession(){let s=curSession();if(s&&s.status==='active')return s;const act=DB.sessions.find(x=>x.status==='active');if(act){CUR_SESSION=act.id;return act;}const w=currentWorkout();if(!w)return null;s={id:uid(),workoutId:w.id,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),blocks:JSON.parse(JSON.stringify(w.blocks)).map(b=>{b.exercises.forEach(e=>e.sets.forEach(st=>{st.aVal='';st.aVal2='';st.felt='';st.done=false}));return b})};DB.sessions.push(s);CUR_SESSION=s.id;save();return s;}
 
