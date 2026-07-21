@@ -1,5 +1,19 @@
 # Changelog
 
+## Training and Logger get distinct jobs — 21 July 2026
+
+- Training is the map: the whole session at a glance, supersets and
+  completion rows ticked in place, and the finish button.
+- Logger is the flow: the Logger tab now always resumes at your next
+  unfinished exercise (never an arbitrary one), shows "exercise N of M"
+  in the header, and steps ‹ Previous / Next › through the session's
+  loggable exercises without bouncing back to Training.
+- When you tick an exercise's last set, a "Next exercise: … →" button
+  appears; when every set in the session is done, the Logger offers
+  "Mark session complete" right there.
+- Browser smoke grew two steps covering the resume-and-step behavior.
+- Bumped the service-worker cache to v34.
+
 ## WHOOP-style dual ring, details hidden by default — 21 July 2026
 
 - The Home WHOOP card now draws WHOOP's own picture: inner ring is recovery

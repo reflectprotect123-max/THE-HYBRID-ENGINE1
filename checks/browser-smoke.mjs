@@ -217,6 +217,20 @@ await t('builder: day chips schedule the workout', async () => {
   const sub = await page.textContent('#s-home .sub');
   if (!/session in progress|session planned/i.test(sub)) throw new Error('sub=' + sub);
 });
+await t('Logger tab resumes at the next unfinished exercise', async () => {
+  await page.click('.navlink[data-s="logger"]');
+  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
+  const kicker = await page.textContent('#s-logger .kicker');
+  if (!/exercise 1 of \d+/.test(kicker)) throw new Error('kicker=' + kicker);
+});
+await t('Logger steps forward and back through the session', async () => {
+  await page.click('#s-logger .histnav .markall');
+  let kicker = await page.textContent('#s-logger .kicker');
+  if (!/exercise 2 of \d+/.test(kicker)) throw new Error('after next: ' + kicker);
+  await page.click('#s-logger .histnav .markall');
+  kicker = await page.textContent('#s-logger .kicker');
+  if (!/exercise 1 of \d+/.test(kicker)) throw new Error('after prev: ' + kicker);
+});
 await t('mobile viewport: nav becomes the bottom bar', async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   const pos = await page.$eval('.side', (el) => getComputedStyle(el).position);

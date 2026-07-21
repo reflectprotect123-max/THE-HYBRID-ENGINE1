@@ -304,7 +304,7 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
         <svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
         Training
       </button>
-      <button class="navlink" data-s="logger" onclick="go('logger',this)">
+      <button class="navlink" data-s="logger" onclick="goLogger(this)">
         <svg viewBox="0 0 24 24"><path d="M4 17V9M9.5 17V5M15 17v-7M20 17V8"/></svg>
         Logger
       </button>
@@ -764,6 +764,33 @@ function firstLoggable(s){
   if(s.blocks.length&&s.blocks[0].exercises.length)return{bi:0,ei:0};
   return null;
 }
+/* Training is the map; the Logger is the flow. The Logger tab always
+   resumes at your next unfinished exercise and steps through the session. */
+function loggableList(s){
+  const out=[];
+  s.blocks.forEach((b,bi)=>{if(b.superset)return;b.exercises.forEach((ex,ei)=>{if(ex.mode!=='completion')out.push({bi,ei})})});
+  return out;
+}
+function exFinished(ex){return ex.sets.length>0&&ex.sets.every(st=>st.done)}
+function nextUnfinished(s){
+  return loggableList(s).find(({bi,ei})=>!exFinished(s.blocks[bi].exercises[ei]))||null;
+}
+function goLogger(btn){
+  const s=curSession()||ensureSession();
+  if(s){
+    const cur=LOG_LOC&&s.blocks[LOG_LOC.bi]&&s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
+    if(!cur||exFinished(cur))LOG_LOC=nextUnfinished(s)||firstLoggable(s);
+  }
+  go('logger',btn);
+}
+function stepLogger(d){
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const list=loggableList(s);
+  const idx=list.findIndex(l=>l.bi===LOG_LOC.bi&&l.ei===LOG_LOC.ei);
+  const j=idx+d;
+  if(j<0||j>=list.length)return;
+  LOG_LOC=list[j];renderLoggerScreen();window.scrollTo({top:0});
+}
 function renderLoggerScreen(){
   const el=document.getElementById('s-logger');let s=curSession()||ensureSession();
   if(s&&(!LOG_LOC||!s.blocks[LOG_LOC.bi]||!s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei]))LOG_LOC=firstLoggable(s);
@@ -789,9 +816,23 @@ function renderLoggerScreen(){
   }).join('');
   const restNote=CUR_REST?'Rest <i>'+fmtRest(CUR_REST)+' auto-starts on ✓</i>':'No prescribed rest';
   const lastBox=last?'<div class="card lastbox"><b>Last time</b> ('+esc(prettyDay(last.date))+'): '+last.sets.map(st=>esc((st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @RPE '+st.felt:''))).join(' · ')+'</div>':'';
+  const list=loggableList(s),idx=list.findIndex(l=>l.bi===LOG_LOC.bi&&l.ei===LOG_LOC.ei),total=list.length;
+  const kicker=esc(b.heading)+(idx>=0?' · exercise '+(idx+1)+' of '+total:' · set targets');
+  const doneHere=exFinished(ex);
+  let flow='';
+  if(doneHere&&idx>=0&&idx<total-1){
+    const nx=s.blocks[list[idx+1].bi].exercises[list[idx+1].ei];
+    flow+='<button class="addbtn" onclick="stepLogger(1)">Next exercise: '+esc(nx.name||'Exercise')+' →</button>';
+  }
+  const sessionDone=s.blocks.every(bb=>bb.exercises.every(e=>e.sets.every(st=>st.done)));
+  if(sessionDone)flow+='<div class="completebar" style="margin-top:16px"><button class="bigbtn" onclick="finishSession(this)">Everything logged — mark session complete</button></div>';
+  const stepNav=(idx>=0&&total>1)?'<div class="histnav">'+
+    (idx>0?'<button class="markall" onclick="stepLogger(-1)">‹ Previous</button>':'<span></span>')+
+    (idx<total-1?'<button class="markall" onclick="stepLogger(1)">Next ›</button>':'<span></span>')+'</div>':'';
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" onclick="go(\'training\')">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(b.heading)+' · set targets</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
-    '<div class="card setcard">'+head+(rows||'<div class="lastbox" style="margin-top:0">No sets.</div>')+'</div>'+lastBox+
+    '<div class="backrow"><button class="backbtn" onclick="go(\'training\')">←</button><div><div class="kicker" style="margin-bottom:3px">'+kicker+'</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
+    '<div class="card setcard">'+head+(rows||'<div class="lastbox" style="margin-top:0">No sets.</div>')+'</div>'+
+    flow+stepNav+lastBox+
     '<div class="card guidebar"><b>Why "RPE felt" matters:</b> target vs. actual RPE per set is data most apps throw away. Paired with the WHOOP recovery you sync, it powers a readiness picture no off-the-shelf app has.</div>';
 }
 function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];if(slot===1)st.aVal=val;else if(slot===2)st.aVal2=val;else if(slot===3)st.felt=val;save();}
