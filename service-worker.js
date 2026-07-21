@@ -1,5 +1,5 @@
 const CACHE_PREFIX='the-hybrid-engine-training-pwa-';
-const CACHE_NAME='the-hybrid-engine-training-pwa-v28-2026-07-21';
+const CACHE_NAME='the-hybrid-engine-training-pwa-v29-2026-07-21';
 const APP_SHELL = [
   './index.html',
   './integrations-ui.js',
@@ -46,6 +46,11 @@ self.addEventListener('fetch', event => {
   if (requestUrl.origin === self.location.origin && requestUrl.pathname.startsWith('/.netlify/functions/')) return;
   if (event.request.mode === 'navigate') {
     if (requestUrl.pathname === '/privacy' || requestUrl.pathname === '/privacy.html') {
+      event.respondWith(networkFirst(event.request, false));
+      return;
+    }
+    // Standalone pages served as-is (not routed through the index.html app shell).
+    if (requestUrl.pathname === '/hybrid-engine-app.html') {
       event.respondWith(networkFirst(event.request, false));
       return;
     }
