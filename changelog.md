@@ -1,5 +1,22 @@
 # Changelog
 
+## RPE hardening pass — 21 July 2026
+
+- Fixed an edge case where switching an exercise to "For completion" could leave stale target RPE/tempo attached, which then showed a spurious "Felt" column in the logger. Completion mode now clears RPE/tempo on switch and on save, and the runner refuses to show a Felt column for completion exercises even on older saved data.
+- Target RPE and Felt RPE inputs now constrain to 1–10 in 0.5 steps and clamp invalid entries on input.
+
+## Desktop sidebar layout — 21 July 2026
+
+- On wide screens (≥940px) the bottom navigation reflows into a left sidebar rail, matching the design mock; below 940px the original bottom-nav PWA layout is unchanged. Purely additive CSS on the existing nav — no markup change, fully reversible, and mobile is byte-for-byte as before.
+
+## Per-set RPE + tempo (FBB-style) — 21 July 2026
+
+- Builder: each set now has an optional target RPE beside its rep/second target, plus an optional Tempo field per exercise (e.g. 30X1). Both are optional — leave them blank and everything behaves exactly as before, with no change to existing saved templates.
+- Live logger: when an exercise has target RPE, the strength runner shows the target ("· RPE 8") next to each set and adds a compact "Felt" column so you can log the RPE you actually hit. Exercises with no RPE render identically to before (no extra column).
+- Prescriptions everywhere (Builder card, template preview, live runner) now append the RPE range and tempo, e.g. "4 × 12/10/8 · RPE 7→9 · @30X1".
+- Data model: exercise gains optional `rpe` (comma list, parallel to `reps`) and `tempo` (string); set rows gain optional `rpe` (target) and `feltRpe` (logged). Fully backward-compatible — no migration, older rows upgrade lazily on load.
+- Bumped the service-worker cache to v27.
+
 ## UI polish pass — 19 July 2026
 
 - Training no longer says "Training" twice back to back — removed the duplicate title/tagline card at the top of the screen, kept the useful line and the Programs/Resources toggle.
