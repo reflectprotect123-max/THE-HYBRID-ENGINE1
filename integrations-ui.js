@@ -275,6 +275,12 @@
     window.home = home = function homeWithIntegrations() {
       homeCore();
       const root = document.getElementById('appScreen');
+      const slot = root?.querySelector('#whoopHomeSlot');
+      if (slot) {
+        slot.outerHTML = whoopHomePanel();
+        window.loadIntegrationStatus({ notice: null });
+        return;
+      }
       const stack = root?.querySelector('.stack');
       if (!stack) return;
       const wrapper = document.createElement('div');
