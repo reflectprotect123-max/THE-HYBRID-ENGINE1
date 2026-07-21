@@ -12,15 +12,23 @@ Quick local test
 3. Service workers and PWA install need localhost or HTTPS, not file://.
 
 Screens
-- Home: week strip, today's session card, WHOOP recovery mini-card.
+- Home: tappable week strip (each day opens History), today's scheduled
+  session card, WHOOP recovery mini-card, and a Readiness line combining
+  recovery with the last week's target-vs-felt RPE gap.
 - Training: the day view — blocks, supersets, prescription lines, big
   "Mark session complete" button.
 - Logger: set-by-set logging with per-mode columns (KG/Reps/Secs), RPE felt,
-  targets per set, last-time box, and a rest chip that auto-starts on ✓.
-- Builder: blocks, exercises, five tracking modes, tempo/rest, per-set
-  targets with RPE, live prescription preview, "See how it looks →".
-- Settings (via the sidebar note or WHOOP card): cloud sync sign-in, WHOOP
-  connect/sync/disconnect, export/import backup, reset local data.
+  targets per set, last-time box (and last kg as the input placeholder), and
+  a rest chip that auto-starts on ✓, survives reload, and vibrates at zero.
+- Builder: blocks, exercises, five tracking modes, "Train on" day chips,
+  per-set targets with RPE (identical targets collapse to one "All sets"
+  row), tempo/rest behind a disclosure, live prescription preview,
+  "See how it looks →".
+- History: any past day's completed or incomplete sessions with their
+  logged sets, with previous/next-day navigation.
+- Settings (via the sidebar note or WHOOP card): cloud sync sign-in with
+  password reset, WHOOP connect/sync/disconnect, export/import backup,
+  reset local data.
 
 Deployment
 Deploy the repository root through Netlify Git, the Netlify CLI, or the
@@ -48,6 +56,8 @@ From the repository root, run:
 
   node checks/native-pwa-smoke.mjs .
   node checks/whoop-contract.mjs .
+  node checks/whoop-deployment-smoke.mjs .
+  node checks/browser-smoke.mjs       (needs: npm i -D playwright)
 
 This package is a private build artifact, not an access-control layer. Do not
 put provider credentials or secrets in the browser, ZIP, or repository.

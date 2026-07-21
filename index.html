@@ -264,6 +264,18 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
   .setrow{grid-template-columns:30px 1fr 1fr 54px 38px;gap:5px}
   .restchip{top:10px;right:10px}
 }
+
+/* ===== additions beyond the mock: history, readiness, scheduling, calmer builder ===== */
+.wd{cursor:pointer;border-radius:12px;transition:.15s ease}
+.wd:hover{background:rgba(255,255,255,.03)}
+.histnav{display:flex;justify-content:space-between;margin-top:2px}
+.exrow.plain{cursor:default}
+.exrow.plain:hover{border-color:var(--line)}
+.daychips{display:flex;gap:6px;flex-wrap:wrap}
+.daychip{padding:6px 11px;border:1px solid var(--line2);border-radius:999px;background:transparent;color:var(--muted);font:inherit;font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:.15s ease}
+.daychip:hover{border-color:rgba(224,188,135,.4)}
+.daychip.on{border-color:rgba(198,154,97,.42);background:var(--gold-wash);color:var(--gold2)}
+.bex-grid.solo{grid-template-columns:1fr}
 </style>
 </head>
 <body>
@@ -305,6 +317,7 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
     <section class="screen" id="s-logger"></section>
     <section class="screen" id="s-builder"></section>
     <section class="screen" id="s-settings"></section>
+    <section class="screen" id="s-history"></section>
   </main>
 </div>
 
@@ -378,6 +391,7 @@ function renderScreen(id){
   else if(id==='logger')renderLoggerScreen();
   else if(id==='builder')renderBuilder();
   else if(id==='settings')renderSettings();
+  else if(id==='history')renderHistory();
 }
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
@@ -386,12 +400,50 @@ function weekDays(){
   const now=new Date(),sun=new Date(now);sun.setDate(now.getDate()-now.getDay());
   const todayKey=ymd(now),out=[];
   for(let i=0;i<7;i++){const d=new Date(sun);d.setDate(sun.getDate()+i);const k=ymd(d);
-    out.push({key:k,dow:'SMTWTFS'[d.getDay()],num:d.getDate(),today:k===todayKey,has:DB.sessions.some(s=>s.date===k)})}
+    const trained=DB.sessions.some(s=>s.date===k);
+    const planned=k>=todayKey&&DB.workouts.some(w=>(w.days||[]).includes(d.getDay()));
+    out.push({key:k,dow:'SMTWTFS'[d.getDay()],num:d.getDate(),today:k===todayKey,has:trained||planned})}
   return out;
 }
 function weekStripHtml(){
   return '<div class="card week">'+weekDays().map(d=>
-    '<div class="wd'+(d.today?' today':'')+(d.has?' has':'')+'"><span>'+d.dow+'</span><b>'+d.num+'</b></div>').join('')+'</div>';
+    '<div class="wd'+(d.today?' today':'')+(d.has?' has':'')+'" onclick="openHistory(\''+d.key+'\')" title="View this day"><span>'+d.dow+'</span><b>'+d.num+'</b></div>').join('')+'</div>';
+}
+
+/* ---------- HISTORY (tap any week-strip day) ---------- */
+let HIST_DATE=null;
+function openHistory(key){HIST_DATE=key;go('history');}
+function shiftHistory(d){const p=HIST_DATE.split('-');const dt=new Date(+p[0],+p[1]-1,+p[2]+d);HIST_DATE=ymd(dt);renderHistory();}
+function loggedSetSummary(ex,st){
+  if(ex.mode==='completion')return '✓';
+  const bits=[];
+  if(st.aVal)bits.push(st.aVal+(ex.mode==='seconds'||ex.mode==='reps_seconds'?'s':(ex.mode==='reps_kg'?'kg':'')));
+  if(st.aVal2)bits.push('× '+st.aVal2);
+  if(st.felt)bits.push('@RPE '+st.felt);
+  return bits.join(' ')||'✓';
+}
+function renderHistory(){
+  const el=document.getElementById('s-history');if(!el)return;
+  if(!HIST_DATE)HIST_DATE=ymd(new Date());
+  const done=DB.sessions.filter(s=>s.date===HIST_DATE&&s.status!=='active');
+  const active=DB.sessions.filter(s=>s.date===HIST_DATE&&s.status==='active');
+  let body='';
+  done.forEach(s=>{
+    body+='<div class="section"><div class="sec-head"><h2>'+esc(s.name||'Workout')+'</h2><span>'+(s.status==='incomplete'?'incomplete':'completed')+'</span></div>';
+    s.blocks.forEach(b=>{b.exercises.forEach(ex=>{
+      const logged=ex.sets.filter(st=>st.done||st.aVal||st.aVal2||st.felt);
+      const allDone=ex.sets.length&&ex.sets.every(st=>st.done);
+      const sum=logged.length?logged.map(st=>loggedSetSummary(ex,st)).join(' · '):'—';
+      body+='<div class="card exrow plain'+(allDone?' done':'')+'"><div class="t"><b>'+esc(ex.name||'Exercise')+'</b><span>'+esc(b.heading)+' · '+esc(sum)+'</span></div><div class="st">✓</div></div>';
+    });});
+    body+='</div>';
+  });
+  if(active.length)body+='<div class="card guidebar" style="margin-top:16px">A session from this day is still in progress — it will appear here once finished.</div>';
+  if(!body)body='<div class="card lastbox" style="margin-top:16px">No training logged this day.</div>';
+  el.innerHTML=
+    '<div class="backrow"><button class="backbtn" onclick="go(\'home\')">←</button><div><div class="kicker" style="margin-bottom:3px">History</div><h1 style="font-size:24px">'+esc(prettyDay(HIST_DATE))+'</h1></div></div>'+
+    '<div class="histnav"><button class="markall" onclick="shiftHistory(-1)">‹ Previous day</button><button class="markall" onclick="shiftHistory(1)">Next day ›</button></div>'+
+    body;
 }
 
 /* ---------- HOME (mock layout: greeting, week, session card, WHOOP mini) ---------- */
@@ -419,15 +471,25 @@ function sessionCardHtml(w,kicker,onclick){
     '<div class="sc-meta">'+esc((w.blocks||[]).map(b=>b.heading).filter(Boolean).join(' · '))+'</div>'+
     '<div class="sc-chips">'+workoutChips(w)+'</div></div>';
 }
+function daysLabel(w){
+  const names=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return (w.days||[]).slice().sort().map(i=>names[i]).join(' & ');
+}
 function renderHome(){
   const el=document.getElementById('s-home');
   const act=activeSession();
   const now=new Date();
   const dstr=now.toLocaleDateString(undefined,{weekday:'long'});
   const wc=DB.workouts.length;
+  const todayDow=now.getDay();
+  const anyScheduled=DB.workouts.some(w=>w.days&&w.days.length);
+  const todays=DB.workouts.filter(w=>(w.days||[]).includes(todayDow));
   const sub=act?dstr+' · One session in progress.'
-    :wc?dstr+' · '+(wc===1?'One session planned.':wc+' sessions ready.')
-    :dstr+' · Nothing built yet.';
+    :!wc?dstr+' · Nothing built yet.'
+    :!anyScheduled?dstr+' · '+(wc===1?'One session planned.':wc+' sessions ready.')
+    :todays.length===1?dstr+' · One session planned.'
+    :todays.length>1?dstr+' · '+todays.length+' sessions planned.'
+    :dstr+' · Rest day — '+wc+' workout'+(wc===1?'':'s')+' ready.';
   let cards='';
   if(act){
     const w=DB.workouts.find(x=>x.id===act.workoutId)||{name:act.name,blocks:act.blocks};
@@ -436,10 +498,16 @@ function renderHome(){
   if(!wc){
     cards+='<div class="card sessioncard" onclick="newWorkout()"><div class="sc-kicker">Start</div><h3>No workouts yet</h3><div class="sc-meta">Build your first workout in the Builder, then run it from here.</div><div class="sc-chips"><span class="chip gold">+ New workout</span></div></div>';
   } else {
+    const rest=DB.workouts.filter(w=>!(act&&act.workoutId===w.id));
+    const ordered=[...rest.filter(w=>(w.days||[]).includes(todayDow)),...rest.filter(w=>!(w.days||[]).includes(todayDow))];
     let first=!act;
-    DB.workouts.forEach(w=>{
-      if(act&&act.workoutId===w.id)return;
-      const kicker=(first?'Today · ':'')+workoutKind(w);first=false;
+    ordered.forEach(w=>{
+      const scheduledToday=(w.days||[]).includes(todayDow);
+      let kicker;
+      if(scheduledToday)kicker='Today · '+workoutKind(w);
+      else if(w.days&&w.days.length)kicker=daysLabel(w)+' · '+workoutKind(w);
+      else kicker=(!anyScheduled&&first?'Today · ':'')+workoutKind(w);
+      first=false;
       cards+=sessionCardHtml(w,kicker,"startWorkout('"+w.id+"')");
     });
   }
@@ -449,7 +517,41 @@ function renderHome(){
     weekStripHtml()+
     cards+
     (wc?'<button class="addbtn" onclick="newWorkout()">+ New workout</button>':'')+
-    whoopCardHtml();
+    whoopCardHtml()+
+    readinessCardHtml();
+}
+
+/* ---------- READINESS: WHOOP recovery × target-vs-felt RPE ---------- */
+function rpeGapInfo(){
+  const done=DB.sessions
+    .filter(s=>(s.status==='completed'||s.status==='incomplete')&&s.completedAt&&Date.now()-s.completedAt<7*864e5)
+    .sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
+  for(const s of done){
+    const gaps=[];
+    s.blocks.forEach(b=>b.exercises.forEach(e=>e.sets.forEach(st=>{
+      const t=parseFloat(st.rpe),f=parseFloat(st.felt);
+      if(st.done&&Number.isFinite(t)&&Number.isFinite(f))gaps.push(f-t);
+    })));
+    if(gaps.length)return{gap:gaps.reduce((a,b)=>a+b,0)/gaps.length,date:s.date,n:gaps.length};
+  }
+  return null;
+}
+function readinessCardHtml(){
+  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
+  const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
+  const g=rpeGapInfo();
+  if(rec==null&&!g)return '';
+  const parts=[];
+  if(rec!=null)parts.push('Recovery '+rec+'%');
+  if(g){
+    const s=g.gap>=0.25?'ran RPE +'+g.gap.toFixed(1)+' over target':g.gap<=-0.25?'ran RPE '+Math.abs(g.gap).toFixed(1)+' under target':'hit its RPE targets';
+    parts.push('last session '+s);
+  }
+  let advice;
+  if((g&&g.gap>=1)||(rec!=null&&rec<34))advice='Pull back today — cap the top sets about one RPE lower.';
+  else if((rec==null||rec>=67)&&(!g||g.gap<=0.25))advice='Green light — train as planned, with room to push the top sets.';
+  else advice='Train as planned today.';
+  return '<div class="card guidebar" id="readinessCard"><b>Readiness:</b> '+esc(parts.join(' · '))+'. '+esc(advice)+'</div>';
 }
 
 /* ---------- WHOOP (server-side via Netlify functions) ---------- */
@@ -498,7 +600,7 @@ async function disconnectWhoop(){
   await loadWhoop();
   if(CURRENT==='settings')renderSettings();
 }
-function updateWhoopCard(){const el=document.getElementById('whoopCard');if(el)el.outerHTML=whoopCardHtml();}
+function updateWhoopCard(){if(CURRENT==='home')renderHome();}
 function whoopCardHtml(){
   let ring,title,line,chip;
   if(!WHOOP.loaded){
@@ -621,7 +723,7 @@ function gridCols(mode){
     :mode==='completion'?'34px 1fr':'34px 1fr 64px 40px';
 }
 function lastTimeFor(name){
-  const done=DB.sessions.filter(s=>s.status==='completed').sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
+  const done=DB.sessions.filter(s=>s.status==='completed'||s.status==='incomplete').sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
   for(const s of done){for(const b of s.blocks){for(const ex of b.exercises){
     if((ex.name||'').toLowerCase()===(name||'').toLowerCase()){
       const logged=ex.sets.filter(st=>st.done&&(st.aVal||st.aVal2));
@@ -644,11 +746,13 @@ function renderLoggerScreen(){
   if(!s||!LOG_LOC){el.innerHTML='<div class="kicker">Logger</div><h1 style="font-size:24px">Nothing to log yet</h1><p class="sub">Build a workout first — then log your sets here.</p><button class="addbtn" style="margin-top:16px" onclick="go(\'builder\')">Open the Builder</button>';return}
   const b=s.blocks[LOG_LOC.bi],ex=b.exercises[LOG_LOC.ei];CUR_REST=+ex.rest||0;
   const cols=loggerCols(ex.mode),grid=gridCols(ex.mode);
+  const last=lastTimeFor(ex.name);
   const head='<div class="sethead" style="grid-template-columns:'+grid+'">'+cols.map(c=>'<span>'+c+'</span>').join('')+'</div>';
   const rows=ex.sets.map((st,si)=>{
     const numCell='<div class="n"><b>'+(si+1)+'</b></div>';
+    const kgPh=last&&last.sets[si]&&last.sets[si].aVal?esc(last.sets[si].aVal)+' last':'kg';
     let mid='';
-    if(ex.mode==='reps_kg')mid='<input inputmode="decimal" placeholder="kg" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" oninput="setActual('+si+',2,this.value)">';
+    if(ex.mode==='reps_kg')mid='<input inputmode="decimal" placeholder="'+kgPh+'" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" oninput="setActual('+si+',2,this.value)">';
     else if(ex.mode==='reps_seconds')mid='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" oninput="setActual('+si+',2,this.value)">';
     else if(ex.mode==='seconds')mid='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)">';
     else if(ex.mode==='reps')mid='<input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)">';
@@ -660,7 +764,6 @@ function renderLoggerScreen(){
     return tline+'<div class="setrow'+(st.done?' done':'')+'" style="grid-template-columns:'+grid+'">'+numCell+mid+rpeIn+tickBtn+'</div>';
   }).join('');
   const restNote=CUR_REST?'Rest <i>'+fmtRest(CUR_REST)+' auto-starts on ✓</i>':'No prescribed rest';
-  const last=lastTimeFor(ex.name);
   const lastBox=last?'<div class="card lastbox"><b>Last time</b> ('+esc(prettyDay(last.date))+'): '+last.sets.map(st=>esc((st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @RPE '+st.felt:''))).join(' · ')+'</div>':'';
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" onclick="go(\'training\')">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(b.heading)+' · set targets</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
@@ -670,11 +773,43 @@ function renderLoggerScreen(){
 function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];if(slot===1)st.aVal=val;else if(slot===2)st.aVal2=val;else if(slot===3)st.felt=val;save();}
 function tickSet(si){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];st.done=!st.done;save();renderLoggerScreen();if(st.done&&CUR_REST>0)startRest(CUR_REST);}
 
-/* ---------- rest timer: auto-starts on set completion, non-blocking chip ---------- */
-let restIv=null,restLeft=0;
-function startRest(sec){stopRest();restLeft=sec;const chip=document.getElementById('restchip');chip.classList.add('show');paintRest();restIv=setInterval(()=>{restLeft--;if(restLeft<=0)return stopRest();paintRest()},1000);}
-function paintRest(){const m=Math.floor(restLeft/60),s=String(restLeft%60).padStart(2,'0');document.getElementById('restclock').textContent=m+':'+s;}
-function stopRest(){clearInterval(restIv);restIv=null;const c=document.getElementById('restchip');if(c)c.classList.remove('show');}
+/* ---------- rest timer: auto-starts on ✓, survives reload, vibrates at zero ---------- */
+const REST_KEY=LS_KEY+'-rest-ends';
+let restIv=null,restEnds=0;
+function startRest(sec){
+  stopRest(false);
+  restEnds=Date.now()+sec*1000;
+  try{localStorage.setItem(REST_KEY,String(restEnds))}catch(e){}
+  showRestChip();
+}
+function showRestChip(){
+  const chip=document.getElementById('restchip');
+  chip.classList.add('show');paintRest();
+  restIv=setInterval(tickRestTimer,500);
+}
+function tickRestTimer(){
+  const left=Math.ceil((restEnds-Date.now())/1000);
+  if(left<=0){
+    if(navigator.vibrate){try{navigator.vibrate([200,120,200])}catch(e){}}
+    stopRest();return;
+  }
+  paintRest();
+}
+function paintRest(){
+  const left=Math.max(0,Math.ceil((restEnds-Date.now())/1000));
+  const m=Math.floor(left/60),s=String(left%60).padStart(2,'0');
+  document.getElementById('restclock').textContent=m+':'+s;
+}
+function stopRest(clear){
+  clearInterval(restIv);restIv=null;restEnds=0;
+  if(clear!==false){try{localStorage.removeItem(REST_KEY)}catch(e){}}
+  const c=document.getElementById('restchip');if(c)c.classList.remove('show');
+}
+function resumeRest(){
+  const ends=Number(localStorage.getItem(REST_KEY))||0;
+  if(ends>Date.now()){restEnds=ends;showRestChip();}
+  else if(ends){try{localStorage.removeItem(REST_KEY)}catch(e){}}
+}
 
 /* ---------- BUILDER ---------- */
 let WK={id:uid(),name:'',blocks:[newBlock()]},EDIT_EXISTING=false,openBlock=0;
@@ -693,6 +828,7 @@ function renderBuilder(){
     '<h1 style="font-size:24px">Build your workout</h1>'+
     '<p class="sub">Add blocks, add exercises, set modes, sets, reps &amp; RPE. Then hit “See how it looks”.</p>'+
     '<div class="field" style="margin-top:18px"><label>Workout name</label><input id="wkName" value="'+esc(WK.name)+'" placeholder="e.g. Upper Pump — Day 1" oninput="WK.name=this.value"></div>'+
+    '<div class="field"><label>Train on</label><div class="daychips">'+[0,1,2,3,4,5,6].map(i=>'<button class="daychip'+((WK.days||[]).includes(i)?' on':'')+'" onclick="toggleDay('+i+')">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]+'</button>').join('')+'</div></div>'+
     '<div id="builderBody"></div>'+
     '<button class="addbtn" onclick="addBlock()">+ Add block</button>'+
     '<div class="completebar"><button class="bigbtn" onclick="previewWorkout()">See how it looks →</button></div>'+
@@ -723,17 +859,41 @@ function renderBuilderBody(){
   }).join('');
 }
 function blockSummary(b){const n=b.exercises.length;return n+' exercise'+(n===1?'':'s')+(b.minutes?' · '+esc(b.minutes)+' min':'')+(b.format?' · '+esc(b.format):'')}
+/* Calmer cards: identical set targets collapse to one row; tempo/rest sit
+   behind a disclosure until an exercise actually uses them. */
+const VARY=new Set(),OPTS=new Set();
+function exKey(ex,bi,ei){return ex.id||bi+'-'+ei}
+function setsUniform(ex){return ex.sets.length>1&&ex.sets.every(s=>s.t===ex.sets[0].t&&s.rpe===ex.sets[0].rpe)}
 function exCard(b,ex,bi,ei){
   const cfg=MODES[ex.mode]||MODES.reps_kg;
-  const setRows=ex.mode==='completion'
-    ? '<div class="bsetrow nomode"><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+'</span><span class="cmeta">marked complete — no targets</span></div>'
-    : ex.sets.map((s,si)=>'<div class="bsetrow"><span>Set '+(si+1)+'</span><input inputmode="numeric" value="'+esc(s.t)+'" placeholder="'+cfg.ph+'" oninput="editSet('+bi+','+ei+','+si+',\'t\',this.value)"><input class="rpe" inputmode="decimal" value="'+esc(s.rpe)+'" placeholder="RPE –" oninput="editSet('+bi+','+ei+','+si+',\'rpe\',this.value)"></div>').join('');
+  const key=exKey(ex,bi,ei);
+  const uniform=setsUniform(ex);
+  let setRows;
+  if(ex.mode==='completion'){
+    setRows='<div class="bsetrow nomode"><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+'</span><span class="cmeta">marked complete — no targets</span></div>';
+  } else if(uniform&&!VARY.has(key)){
+    setRows='<div class="bsetrow"><span>All sets</span><input inputmode="numeric" value="'+esc(ex.sets[0].t)+'" placeholder="'+cfg.ph+'" oninput="editAllSets('+bi+','+ei+',\'t\',this.value)"><input class="rpe" inputmode="decimal" value="'+esc(ex.sets[0].rpe)+'" placeholder="RPE –" oninput="editAllSets('+bi+','+ei+',\'rpe\',this.value)"></div>'+
+      '<button class="markall" style="margin-top:9px" onclick="varySets('+bi+','+ei+')">vary per set →</button>';
+  } else {
+    setRows=ex.sets.map((s,si)=>'<div class="bsetrow"><span>Set '+(si+1)+'</span><input inputmode="numeric" value="'+esc(s.t)+'" placeholder="'+cfg.ph+'" oninput="editSet('+bi+','+ei+','+si+',\'t\',this.value)"><input class="rpe" inputmode="decimal" value="'+esc(s.rpe)+'" placeholder="RPE –" oninput="editSet('+bi+','+ei+','+si+',\'rpe\',this.value)"></div>').join('')+
+      (uniform?'<button class="markall" style="margin-top:9px" onclick="unvarySets('+bi+','+ei+')">← same for all sets</button>':'');
+  }
+  const showOpts=Boolean(ex.tempo)||Boolean(+ex.rest)||OPTS.has(key);
+  const modeRow=showOpts
+    ? '<div class="bex-grid"><select onchange="setMode('+bi+','+ei+',this.value)">'+MODEKEYS.map(m=>'<option value="'+m+'" '+(m===ex.mode?'selected':'')+'>'+MODES[m].label+'</option>').join('')+'</select><input value="'+esc(ex.tempo)+'" placeholder="tempo" oninput="editEx('+bi+','+ei+',\'tempo\',this.value)"><input value="'+esc(ex.rest||'')+'" placeholder="rest s" inputmode="numeric" oninput="editEx('+bi+','+ei+',\'rest\',this.value)"></div>'
+    : '<div class="bex-grid solo"><select onchange="setMode('+bi+','+ei+',this.value)">'+MODEKEYS.map(m=>'<option value="'+m+'" '+(m===ex.mode?'selected':'')+'>'+MODES[m].label+'</option>').join('')+'</select></div>'+
+      '<button class="markall" style="margin-top:9px" onclick="showExOpts('+bi+','+ei+')">+ tempo · rest</button>';
   return '<div class="bex"><div class="bex-head"><input class="bexname" list="exNames" value="'+esc(ex.name)+'" placeholder="Exercise name" oninput="editEx('+bi+','+ei+',\'name\',this.value)"><button class="del" onclick="delEx('+bi+','+ei+')" aria-label="remove">✕</button></div>'+
-    '<div class="bex-grid"><select onchange="setMode('+bi+','+ei+',this.value)">'+MODEKEYS.map(m=>'<option value="'+m+'" '+(m===ex.mode?'selected':'')+'>'+MODES[m].label+'</option>').join('')+'</select><input value="'+esc(ex.tempo)+'" placeholder="tempo" oninput="editEx('+bi+','+ei+',\'tempo\',this.value)"><input value="'+esc(ex.rest||'')+'" placeholder="rest s" inputmode="numeric" oninput="editEx('+bi+','+ei+',\'rest\',this.value)"></div>'+
+    modeRow+
     (ex.mode==='completion'?'':'<div class="bsteprow"><button class="stepbtn sm" onclick="bumpSets('+bi+','+ei+',-1)">−</button><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+'</span><button class="stepbtn sm" onclick="bumpSets('+bi+','+ei+',1)">+</button></div>')+
     setRows+
     '<div class="rxline" id="rxb'+bi+'e'+ei+'">'+rxLine(ex)+'</div></div>';
 }
+function editAllSets(bi,ei,k,v){WK.blocks[bi].exercises[ei].sets.forEach(s=>s[k]=v.trim());refreshRx(bi,ei);}
+function varySets(bi,ei){VARY.add(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
+function unvarySets(bi,ei){VARY.delete(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
+function showExOpts(bi,ei){OPTS.add(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
+function toggleDay(i){WK.days=WK.days||[];const ix=WK.days.indexOf(i);if(ix>=0)WK.days.splice(ix,1);else WK.days.push(i);renderBuilder();}
 function addBlock(){WK.blocks.push(newBlock());openBlock=WK.blocks.length-1;renderBuilderBody();}
 function delBlock(bi){if(!confirm('Delete this block?'))return;WK.blocks.splice(bi,1);if(openBlock===bi)openBlock=-1;else if(openBlock>bi)openBlock--;renderBuilderBody();}
 function moveBlock(bi,d){const j=bi+d;if(j<0||j>=WK.blocks.length)return;[WK.blocks[bi],WK.blocks[j]]=[WK.blocks[j],WK.blocks[bi]];if(openBlock===bi)openBlock=j;else if(openBlock===j)openBlock=bi;renderBuilderBody();}
@@ -742,7 +902,7 @@ function toggleSS(bi,v){WK.blocks[bi].superset=v;renderBuilderBody();}
 function addEx(bi){WK.blocks[bi].exercises.push(newEx());renderBuilderBody();}
 function delEx(bi,ei){WK.blocks[bi].exercises.splice(ei,1);if(!WK.blocks[bi].exercises.length)WK.blocks[bi].exercises.push(newEx());renderBuilderBody();}
 function setMode(bi,ei,m){WK.blocks[bi].exercises[ei].mode=m;renderBuilderBody();}
-function bumpSets(bi,ei,d){const ex=WK.blocks[bi].exercises[ei],n=Math.max(1,ex.sets.length+d);if(d>0)while(ex.sets.length<n)ex.sets.push({t:ex.sets[ex.sets.length-1]?.t||'',rpe:''});else ex.sets=ex.sets.slice(0,n);renderBuilderBody();}
+function bumpSets(bi,ei,d){const ex=WK.blocks[bi].exercises[ei],n=Math.max(1,ex.sets.length+d);if(d>0)while(ex.sets.length<n)ex.sets.push({t:ex.sets[ex.sets.length-1]?.t||'',rpe:ex.sets[ex.sets.length-1]?.rpe||''});else ex.sets=ex.sets.slice(0,n);renderBuilderBody();}
 function editEx(bi,ei,k,v){WK.blocks[bi].exercises[ei][k]=v;refreshRx(bi,ei);}
 function editSet(bi,ei,si,k,v){WK.blocks[bi].exercises[ei].sets[si][k]=v.trim();refreshRx(bi,ei);}
 function refreshRx(bi,ei){const el=document.getElementById('rxb'+bi+'e'+ei);if(el)el.textContent=rxLine(WK.blocks[bi].exercises[ei]);}
@@ -768,6 +928,10 @@ async function cloudInit(){
   SB.auth.onAuthStateChange((event,session)=>{
     const prev=cloudUser;cloudUser=session?session.user:null;
     if(event==='SIGNED_IN'&&cloudUser&&(!prev||prev.id!==cloudUser.id))cloudReconcile();
+    if(event==='PASSWORD_RECOVERY'){
+      const np=prompt('Enter a new password for your account:');
+      if(np)SB.auth.updateUser({password:np}).then(({error})=>alert(error?('Password update failed: '+error.message):'Password updated. You are signed in.'));
+    }
     if(CURRENT==='settings')renderSettings();
   });
 }
@@ -831,6 +995,16 @@ async function cloudSignIn(mode){
   renderSettings();
 }
 async function cloudSignOut(){if(!cloudEnabled())return;try{await SB.auth.signOut()}catch(e){}cloudUser=null;renderSettings();}
+async function cloudResetPassword(){
+  if(!cloudEnabled())return alert('Cloud sync is not configured.');
+  const email=((document.getElementById('cloudEmail')||{}).value||'').trim();
+  if(!email)return alert('Enter your email above first, then tap "Forgot password?".');
+  try{
+    const {error}=await SB.auth.resetPasswordForEmail(email,{redirectTo:location.origin});
+    if(error)throw error;
+    alert('Password reset email sent to '+email+'. Open the link on this device to set a new password.');
+  }catch(e){alert('Reset failed: '+(e&&e.message||e));}
+}
 
 /* ---------- local data export / import / reset ---------- */
 function exportData(){const blob=new Blob([JSON.stringify({app:'THE Hybrid Engine',exportedAt:new Date().toISOString(),db:DB},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hybrid-engine-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);}
@@ -844,7 +1018,7 @@ function renderSettings(){
   let cloud;
   if(!cloudEnabled()){cloud='<div class="sc-meta">Cloud sync is not configured in this build.</div>';}
   else if(cloudUser){cloud='<div class="sc-meta">Signed in as <b>'+esc(cloudUser.email||'')+'</b>'+(cloudBusy?' · syncing…':'')+'. Your workouts and history sync to every device you sign into.'+(cloudError?'<br><span style="color:var(--bad)">'+esc(cloudError)+'</span>':'')+'</div><button class="addbtn" style="margin-top:12px" onclick="cloudSignOut()">Sign out</button>';}
-  else{cloud='<div class="sc-meta">Sign in to sync your training across phone and laptop.</div><div class="field"><label>Email</label><input id="cloudEmail" type="email" autocomplete="email"></div><div class="field"><label>Password</label><input id="cloudPassword" type="password" autocomplete="current-password"></div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" onclick="cloudSignIn(\'signin\')">Sign in</button><button class="addbtn" style="flex:1;margin-top:0" onclick="cloudSignIn(\'signup\')">Create account</button></div>'+(cloudError?'<div class="sc-meta" style="margin-top:8px;color:var(--bad)">'+esc(cloudError)+'</div>':'');}
+  else{cloud='<div class="sc-meta">Sign in to sync your training across phone and laptop.</div><div class="field"><label>Email</label><input id="cloudEmail" type="email" autocomplete="email"></div><div class="field"><label>Password</label><input id="cloudPassword" type="password" autocomplete="current-password"></div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" onclick="cloudSignIn(\'signin\')">Sign in</button><button class="addbtn" style="flex:1;margin-top:0" onclick="cloudSignIn(\'signup\')">Create account</button></div><button class="markall" style="margin-top:10px" onclick="cloudResetPassword()">Forgot password?</button>'+(cloudError?'<div class="sc-meta" style="margin-top:8px;color:var(--bad)">'+esc(cloudError)+'</div>':'');}
   // WHOOP panel
   let whoop;
   if(!WHOOP.loaded){whoop='<div class="sc-meta">Checking WHOOP connection…</div>';}
@@ -897,12 +1071,27 @@ function seedIfEmpty(){
 function currentWorkout(){const act=DB.sessions.find(s=>s.status==='active');if(act){const w=DB.workouts.find(x=>x.id===act.workoutId);if(w)return w;}return DB.workouts[0]||null;}
 function ensureSession(){let s=curSession();if(s&&s.status==='active')return s;const act=DB.sessions.find(x=>x.status==='active');if(act){CUR_SESSION=act.id;return act;}const w=currentWorkout();if(!w)return null;s={id:uid(),workoutId:w.id,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),blocks:JSON.parse(JSON.stringify(w.blocks)).map(b=>{b.exercises.forEach(e=>e.sets.forEach(st=>{st.aVal='';st.aVal2='';st.felt='';st.done=false}));return b})};DB.sessions.push(s);CUR_SESSION=s.id;save();return s;}
 
+/* ---------- stale sessions: yesterday's unfinished work becomes history ---------- */
+function expireStaleSessions(){
+  const today=ymd(new Date());let changed=false;
+  DB.sessions=DB.sessions.filter(s=>{
+    if(s.status!=='active'||s.date>=today)return true;
+    changed=true;
+    if(hasLoggedWork(s)){s.status='incomplete';s.completedAt=s.completedAt||s.startedAt||Date.now();return true;}
+    return false;
+  });
+  if(changed){try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}}
+}
+
 /* ---------- boot ---------- */
 load();
 seedIfEmpty();
+expireStaleSessions();
 go('home');
+resumeRest();
 loadWhoop();
 cloudInit();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&restEnds)paintRest();});
 if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('./service-worker.js').catch(()=>{})});}
 </script>
 </body>

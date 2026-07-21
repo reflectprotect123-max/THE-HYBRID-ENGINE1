@@ -1,5 +1,35 @@
 # Changelog
 
+## History, readiness, scheduling & a calmer Builder — 21 July 2026
+
+- History: every day in the week strip is now tappable and opens a History
+  screen with previous/next-day navigation, showing each finished session's
+  exercises with their logged sets (60kg × 12 @RPE 8 style), completed or
+  incomplete.
+- Readiness card on Home: combines WHOOP recovery with the last week's
+  target-vs-felt RPE gap into one plain-language line — green light, train
+  as planned, or pull back. Hidden until there is data.
+- Weekly scheduling: the Builder gains "Train on" day chips. Home orders
+  today's scheduled session first ("Today · Strength + Conditioning"),
+  labels the rest by their days, says "Rest day" honestly, and the week
+  strip rings upcoming planned days like the mock.
+- Rest timer: now survives reload and screen-lock (end-time persisted),
+  recomputes from wall clock, and vibrates when it hits zero.
+- Stale sessions: an unfinished session from a previous day no longer hogs
+  the resume card forever — with logged work it becomes an "incomplete"
+  history entry, empty ones are dropped.
+- Logger: the kg field shows last time's weight as its placeholder
+  ("60 last") so you stop retyping your working weight.
+- Calmer Builder: identical set targets collapse into one "All sets" row
+  with a "vary per set →" toggle (12/10/8/8-style ramps still expand);
+  tempo/rest hide behind a "+ tempo · rest" disclosure until an exercise
+  uses them; adding a set now copies the previous set's RPE too.
+- Cloud sync: "Forgot password?" flow (reset email + in-app new password).
+- New checks/browser-smoke.mjs drives the real app in headless Chromium —
+  20 end-to-end steps including the reload-survival rest timer — with a
+  built-in static server; it skips politely when playwright isn't installed.
+- Bumped the service-worker cache to v32.
+
 ## Ground-up rebuild on the design mock — 21 July 2026
 
 - Rebuilt index.html from the ground up as the design mock, exactly: Home

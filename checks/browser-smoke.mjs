@@ -1,0 +1,231 @@
+/*
+ * Browser smoke test — drives the real app in headless Chromium.
+ *
+ * Needs the `playwright` package (not a repo dependency, to keep Netlify
+ * builds lean): `npm i -D playwright` locally, or point NODE_PATH at an
+ * install. Skips cleanly when playwright is unavailable.
+ *
+ * Serves the repo root on an ephemeral port with a built-in static server,
+ * so no other tooling is required. Run: node checks/browser-smoke.mjs
+ */
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { extname, join, normalize, resolve } from 'node:path';
+
+let chromium;
+try {
+  ({ chromium } = await import('playwright'));
+} catch {
+  console.log('SKIP — browser smoke: playwright is not installed (npm i -D playwright, or set NODE_PATH).');
+  process.exit(0);
+}
+
+const root = resolve(process.cwd(), process.argv[2] || '.');
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+};
+
+const server = createServer(async (req, res) => {
+  try {
+    const pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    let file = normalize(join(root, pathname === '/' ? 'index.html' : pathname));
+    if (!file.startsWith(root)) { res.writeHead(403); res.end(); return; }
+    if (!existsSync(file)) { res.writeHead(404); res.end('not found'); return; }
+    const body = await readFile(file);
+    res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
+    res.end(body);
+  } catch (error) {
+    res.writeHead(500); res.end(String(error));
+  }
+});
+await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
+const base = `http://127.0.0.1:${server.address().port}`;
+
+let browser;
+try {
+  browser = await chromium.launch();
+} catch {
+  const bundled = '/opt/pw-browsers/chromium';
+  if (existsSync(bundled)) browser = await chromium.launch({ executablePath: bundled });
+  else { console.log('SKIP — browser smoke: no Chromium available for playwright.'); server.close(); process.exit(0); }
+}
+
+const errors = [];
+let failures = 0;
+const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+page.on('console', (m) => {
+  if (m.type() === 'error' && !/netlify|Failed to load resource|supabase/i.test(m.text())) errors.push('console: ' + m.text());
+});
+page.on('dialog', (d) => d.accept());
+
+const t = async (name, fn) => {
+  try { await fn(); console.log('PASS — ' + name); }
+  catch (e) { console.log('FAIL — ' + name + ': ' + e.message); failures += 1; }
+};
+
+await page.goto(base + '/', { waitUntil: 'networkidle' });
+
+await t('home renders the mock greeting', async () => {
+  const h1 = await page.textContent('#s-home h1');
+  if (h1.trim() !== 'Train today') throw new Error('h1=' + h1);
+});
+await t('week strip: 7 days, Sunday-first, today marked', async () => {
+  const days = await page.$$eval('#s-home .wd span', (els) => els.map((e) => e.textContent));
+  if (days.length !== 7 || days[0] !== 'S' || days[1] !== 'M') throw new Error(days.join(','));
+  if (!(await page.$('#s-home .wd.today'))) throw new Error('no today');
+});
+await t('seeded template session card present', async () => {
+  const meta = await page.textContent('#s-home .sessioncard .sc-meta');
+  if (!/Warm-up · Warm-up prep · Strength 1 · Strength 2 · Carry finisher · Cooldown/.test(meta)) throw new Error(meta);
+});
+await t('no readiness card without any data', async () => {
+  if (await page.$('#readinessCard')) throw new Error('readiness card rendered with no data');
+});
+await t('tapping a week day opens History (empty state)', async () => {
+  await page.click('#s-home .wd.today');
+  await page.waitForSelector('#s-history.on', { timeout: 2000 });
+  const body = await page.textContent('#s-history');
+  if (!/No training logged this day/.test(body)) throw new Error('unexpected: ' + body.slice(0, 80));
+  await page.click('#s-history .backbtn');
+});
+await t('session card opens the Training day view', async () => {
+  await page.click('#s-home .sessioncard');
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  const secs = await page.$$eval('#s-training .sec-head h2', (els) => els.map((e) => e.textContent));
+  if (secs[0] !== 'Warm-up' || !secs.includes('Strength 1')) throw new Error(secs.join(','));
+});
+await t('superset block has "Mark round complete"', async () => {
+  const label = await page.textContent('#s-training .superlabel .markall');
+  if (!/Mark round complete/.test(label)) throw new Error(label);
+});
+await t('logger opens on a strength row with prescribed rest', async () => {
+  const rows = await page.$$('#s-training .exrow.nav');
+  let clicked = false;
+  for (const row of rows) {
+    if (/rest/.test(await row.textContent())) { await row.click(); clicked = true; break; }
+  }
+  if (!clicked) throw new Error('no row with prescribed rest');
+  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
+  const head = await page.$$eval('#s-logger .sethead span', (els) => els.map((e) => e.textContent));
+  if (!head.includes('KG')) throw new Error(head.join(','));
+});
+await t('logging a set autosaves and starts the rest chip', async () => {
+  const inputs = await page.$$('#s-logger .setrow input');
+  await inputs[0].fill('60'); await inputs[1].fill('12'); await inputs[2].fill('8');
+  await page.click('#s-logger .setrow .tick');
+  await page.waitForSelector('#restchip.show', { timeout: 2000 });
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
+  const ok = saved.sessions.some((s) => s.blocks.some((b) => b.exercises.some((e) => e.sets.some((st) => st.done && st.aVal === '60' && st.felt === '8'))));
+  if (!ok) throw new Error('set not persisted');
+});
+await t('no add/remove-set steppers in the logger (mock-exact)', async () => {
+  if (await page.$('#s-logger .bsteprow')) throw new Error('stepper present');
+});
+await t('rest timer survives a full page reload', async () => {
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('#restchip.show', { timeout: 3000 });
+});
+await t('rest chip tap-to-stop clears persistence', async () => {
+  await page.click('#restchip');
+  const shown = await page.$eval('#restchip', (el) => el.classList.contains('show'));
+  if (shown) throw new Error('chip still shown');
+  const stored = await page.evaluate(() => localStorage.getItem('hybrid-engine-v1-rest-ends'));
+  if (stored) throw new Error('rest key not cleared');
+});
+await t('finish session → history + readiness card appear', async () => {
+  await page.click('#s-home .sessioncard, .navlink[data-s="training"]');
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  await page.click('#s-training .completebar .bigbtn');
+  await page.waitForSelector('#s-home.on', { timeout: 4000 });
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
+  if (!saved.sessions.some((s) => s.status === 'completed')) throw new Error('no completed session');
+  if (!(await page.$('#s-home .wd.has'))) throw new Error('week strip lacks .has');
+  await page.waitForSelector('#readinessCard', { timeout: 2000 });
+  const txt = await page.textContent('#readinessCard');
+  if (!/RPE/.test(txt)) throw new Error('readiness has no RPE info: ' + txt);
+});
+await t('History shows the logged set', async () => {
+  await page.click('#s-home .wd.today');
+  await page.waitForSelector('#s-history.on', { timeout: 2000 });
+  const body = await page.textContent('#s-history');
+  if (!/60kg × 12/.test(body)) throw new Error('logged set missing: ' + body.slice(0, 200));
+  await page.click('#s-history .backbtn');
+});
+await t('logger prefills last kg as placeholder next time', async () => {
+  await page.click('#s-home .sessioncard');
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  const rows = await page.$$('#s-training .exrow.nav');
+  for (const row of rows) {
+    if (/rest 3:00/.test(await row.textContent())) { await row.click(); break; }
+  }
+  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
+  const ph = await page.$eval('#s-logger .setrow input', (el) => el.placeholder);
+  if (!/60 last/.test(ph)) throw new Error('placeholder=' + ph);
+});
+await t('builder: uniform sets collapse to one "All sets" row', async () => {
+  await page.click('.navlink[data-s="builder"]');
+  await page.waitForSelector('#s-builder.on', { timeout: 2000 });
+  await page.click('#s-builder .bblock:nth-of-type(4) .bexp');
+  await page.waitForSelector('#s-builder .bblock:nth-of-type(4) .bex', { timeout: 2000 });
+  await page.click('#s-builder .bblock:nth-of-type(4) .addbtn.small');
+  const block = await page.$('#s-builder .bblock:nth-of-type(4)');
+  const txt = await block.textContent();
+  if (!/All sets/.test(txt)) throw new Error('no All sets row on fresh exercise');
+});
+await t('builder: "vary per set" expands to per-set rows', async () => {
+  const block = await page.$('#s-builder .bblock:nth-of-type(4)');
+  const vary = (await block.$$('.markall')).at(-1);
+  const label = await vary.textContent();
+  if (!/vary per set/.test(label)) throw new Error('toggle label=' + label);
+  await vary.click();
+  const rows = await page.$$eval('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .bsetrow', (els) => els.length);
+  if (rows < 3) throw new Error('rows=' + rows);
+});
+await t('builder: tempo/rest hidden behind disclosure when unused', async () => {
+  await page.click('#s-builder .bblock:nth-of-type(1) .bexp');
+  await page.waitForSelector('#s-builder .bblock:nth-of-type(1) .bex', { timeout: 2000 });
+  const txt = await page.textContent('#s-builder .bblock:nth-of-type(1) .bex');
+  if (!/\+ tempo · rest/.test(txt)) throw new Error('disclosure link missing (warm-up has rest 0)');
+});
+await t('builder: day chips schedule the workout', async () => {
+  const todayIdx = await page.evaluate(() => new Date().getDay());
+  await page.click(`#s-builder .daychip:nth-of-type(${todayIdx + 1})`);
+  const on = await page.$eval(`#s-builder .daychip:nth-of-type(${todayIdx + 1})`, (el) => el.classList.contains('on'));
+  if (!on) throw new Error('chip did not toggle');
+  await page.click('#s-builder .completebar .bigbtn');
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  await page.click('.navlink[data-s="home"]');
+  const sub = await page.textContent('#s-home .sub');
+  if (!/session in progress|session planned/i.test(sub)) throw new Error('sub=' + sub);
+});
+await t('mobile viewport: nav becomes the bottom bar', async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const pos = await page.$eval('.side', (el) => getComputedStyle(el).position);
+  if (pos !== 'fixed') throw new Error('side position=' + pos);
+});
+
+if (errors.length) {
+  console.log('RUNTIME ERRORS:');
+  errors.forEach((e) => console.log('  ' + e));
+  failures += errors.length;
+} else {
+  console.log('No runtime errors.');
+}
+
+await browser.close();
+server.close();
+if (failures) {
+  console.error(`FAIL — browser smoke failed (${failures}).`);
+  process.exitCode = 1;
+} else {
+  console.log('PASS — browser smoke passed.');
+}
