@@ -48,17 +48,22 @@ jobs:
             export BUBBLEWRAP_KEYSTORE_PASSWORD=hybridengine
             export BUBBLEWRAP_KEY_PASSWORD=hybridengine
           fi
-          yes | bubblewrap build --skipPwaValidation
+          yes | bubblewrap build --skipPwaValidation || true
+          echo "APK files produced:"; ls -la *.apk *.aab 2>/dev/null || echo "(none at top level)"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: hybrid-engine-android
           path: |
-            native/android/app-release-signed.apk
-            native/android/app-release-bundle.aab
+            native/android/*.apk
+            native/android/*.aab
           if-no-files-found: warn
       - name: Prepare release asset
-        run: cp app-release-signed.apk "$GITHUB_WORKSPACE/HybridEngine-Android.apk"
+        run: |
+          apk=$(ls app-release-signed.apk app-release-unsigned.apk *.apk 2>/dev/null | head -1)
+          if [ -z "$apk" ]; then echo "No APK was produced — failing so the flake is visible."; exit 1; fi
+          echo "Publishing APK: $apk"
+          cp "$apk" "$GITHUB_WORKSPACE/HybridEngine-Android.apk"
       - name: Publish to Release (clean public download link)
         uses: softprops/action-gh-release@v2
         with:
