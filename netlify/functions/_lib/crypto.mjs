@@ -13,7 +13,18 @@ export function encryptJson(value) {
 
 export function decryptJson(value) {
   if (!value) return null;
-  const [iv, tag, data] = String(value).split('.');
-  const decipher = createDecipheriv('aes-256-gcm', key(), unb64(iv)); decipher.setAuthTag(unb64(tag));
-  return JSON.parse(Buffer.concat([decipher.update(unb64(data)), decipher.final()]).toString('utf8'));
+  // Fail closed on anything that isn't a well-formed iv.tag.data GCM blob:
+  // a malformed or truncated stored record returns null instead of throwing,
+  // so one corrupt record can't 500 the whole function. A wrong key or a
+  // tampered ciphertext still lands here (GCM verification fails) and is
+  // likewise treated as "no token".
+  const parts = String(value).split('.');
+  if (parts.length !== 3 || parts.some((p) => !p)) return null;
+  try {
+    const [iv, tag, data] = parts;
+    const decipher = createDecipheriv('aes-256-gcm', key(), unb64(iv)); decipher.setAuthTag(unb64(tag));
+    return JSON.parse(Buffer.concat([decipher.update(unb64(data)), decipher.final()]).toString('utf8'));
+  } catch {
+    return null;
+  }
 }
