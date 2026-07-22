@@ -346,6 +346,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 /* ---------- shared training model ---------- */
 const MODES={
   reps_kg:{label:'Reps + Kilos',unit:'',ph:'reps'},
+  amrap:{label:'Max reps',unit:'',ph:'max'},
   seconds:{label:'Seconds',unit:'s',ph:'secs'},
   reps_seconds:{label:'Reps + Seconds',unit:'s',ph:'secs'},
   reps:{label:'Reps only',unit:'',ph:'reps'},
@@ -360,7 +361,7 @@ function rxLine(ex){
   const cfg=MODES[ex.mode]||MODES.reps_kg,n=ex.sets.length;let rx;
   if(ex.mode==='completion'){rx=n+' × complete'}
   else{
-    const vals=ex.sets.map(s=>(s.t||'—')+cfg.unit),u=[...new Set(vals)];
+    const vals=ex.sets.map(s=>(ex.mode==='amrap'||s.t==='max')?'max':(s.t||'—')+cfg.unit),u=[...new Set(vals)];
     rx=n+' × '+(u.length===1?u[0]:vals.join('/'));
     const rpes=ex.sets.map(s=>s.rpe).filter(Boolean);
     if(rpes.length){const uu=[...new Set(rpes)];rx+=' · RPE '+(uu.length===1?uu[0]:rpes[0]+'→'+rpes[rpes.length-1])}
@@ -420,7 +421,7 @@ function shiftHistory(d){const p=HIST_DATE.split('-');const dt=new Date(+p[0],+p
 function loggedSetSummary(ex,st){
   if(ex.mode==='completion')return '✓';
   const bits=[];
-  if(st.aVal)bits.push(st.aVal+(ex.mode==='seconds'||ex.mode==='reps_seconds'?'s':(ex.mode==='reps_kg'?'kg':'')));
+  if(st.aVal)bits.push(st.aVal+(ex.mode==='seconds'||ex.mode==='reps_seconds'?'s':(ex.mode==='reps_kg'||ex.mode==='amrap'?'kg':'')));
   if(st.aVal2)bits.push('× '+st.aVal2);
   if(st.felt)bits.push('@RPE '+st.felt);
   return bits.join(' ')||'✓';
@@ -452,7 +453,7 @@ function renderHistory(){
 /* ---------- HOME (mock layout: greeting, week, session card, WHOOP mini) ---------- */
 function activeSession(){return DB.sessions.find(s=>s.status==='active')||null}
 function workoutKind(w){
-  const strength=w.blocks.some(b=>b.exercises.some(e=>e.mode==='reps_kg'));
+  const strength=w.blocks.some(b=>b.exercises.some(e=>e.mode==='reps_kg'||e.mode==='amrap'));
   const conditioning=w.blocks.some(b=>b.exercises.some(e=>e.mode==='seconds'||e.mode==='reps_seconds'));
   return [strength?'Strength':'',conditioning?'Conditioning':''].filter(Boolean).join(' + ')||'Session';
 }
@@ -734,14 +735,14 @@ function finishSession(btn){
 /* ---------- LOGGER (the mock's set-by-set screen) ---------- */
 let CUR_REST=0,LOG_LOC=null;
 function loggerCols(mode){
-  if(mode==='reps_kg')return['Set','KG','Reps','RPE felt',''];
+  if(mode==='reps_kg'||mode==='amrap')return['Set','KG','Reps','RPE felt',''];
   if(mode==='reps_seconds')return['Set','Secs','Reps','RPE felt',''];
   if(mode==='seconds')return['Set','Secs','RPE felt',''];
   if(mode==='reps')return['Set','Reps','RPE felt',''];
   return['Set','Done'];
 }
 function gridCols(mode){
-  return mode==='reps_kg'||mode==='reps_seconds'?'34px 1fr 1fr 64px 40px'
+  return mode==='reps_kg'||mode==='amrap'||mode==='reps_seconds'?'34px 1fr 1fr 64px 40px'
     :mode==='completion'?'34px 1fr':'34px 1fr 64px 40px';
 }
 function lastTimeFor(name){
@@ -790,14 +791,19 @@ function renderLoggerScreen(){
     const numCell='<div class="n"><b>'+(si+1)+'</b></div>';
     const kgPh=last&&last.sets[si]&&last.sets[si].aVal?esc(last.sets[si].aVal)+' last':'kg';
     let mid='';
-    if(ex.mode==='reps_kg')mid='<input inputmode="decimal" placeholder="'+kgPh+'" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" oninput="setActual('+si+',2,this.value)">';
+    if(ex.mode==='reps_kg'||ex.mode==='amrap')mid='<input inputmode="decimal" placeholder="'+kgPh+'" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" oninput="setActual('+si+',2,this.value)">';
     else if(ex.mode==='reps_seconds')mid='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" oninput="setActual('+si+',2,this.value)">';
     else if(ex.mode==='seconds')mid='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)">';
     else if(ex.mode==='reps')mid='<input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal)+'" oninput="setActual('+si+',1,this.value)">';
     const rpeIn=ex.mode==='completion'?'':'<input class="rpein" inputmode="decimal" placeholder="felt" value="'+esc(st.felt)+'" oninput="setActual('+si+',3,this.value)">';
     const tickBtn='<button class="tick" onclick="tickSet('+si+')">✓</button>';
     const bits=[];
-    if(ex.mode!=='completion'){if(st.t)bits.push((ex.mode==='seconds'||ex.mode==='reps_seconds')?st.t+'s':st.t+' reps');if(st.rpe)bits.push('RPE '+esc(st.rpe));}
+    if(ex.mode!=='completion'){
+      if(ex.mode==='amrap')bits.push('max reps');
+      else if(st.t==='max')bits.push((ex.mode==='seconds'||ex.mode==='reps_seconds')?'max secs':'max reps');
+      else if(st.t)bits.push((ex.mode==='seconds'||ex.mode==='reps_seconds')?st.t+'s':st.t+' reps');
+      if(st.rpe)bits.push('RPE '+esc(st.rpe));
+    }
     const tline='<div class="settarget">Set '+(si+1)+(bits.length?' · target '+bits.join(' · '):(ex.mode==='completion'?' · mark complete':''))+'</div>';
     return tline+'<div class="setrow'+(st.done?' done':'')+'" style="grid-template-columns:'+grid+'">'+numCell+mid+rpeIn+tickBtn+'</div>';
   }).join('');
@@ -921,13 +927,15 @@ function exCard(b,ex,bi,ei){
   const key=exKey(ex,bi,ei);
   const uniform=setsUniform(ex);
   let setRows;
+  const amrap=ex.mode==='amrap';
+  const allCell=amrap?'<span class="cmeta">max reps</span>':'<input inputmode="numeric" value="'+esc(ex.sets[0].t)+'" placeholder="'+cfg.ph+'" oninput="editAllSets('+bi+','+ei+',\'t\',this.value)">';
   if(ex.mode==='completion'){
     setRows='<div class="bsetrow nomode"><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+'</span><span class="cmeta">marked complete — no targets</span></div>';
   } else if(uniform&&!VARY.has(key)){
-    setRows='<div class="bsetrow"><span>All sets</span><input inputmode="numeric" value="'+esc(ex.sets[0].t)+'" placeholder="'+cfg.ph+'" oninput="editAllSets('+bi+','+ei+',\'t\',this.value)"><input class="rpe" inputmode="decimal" value="'+esc(ex.sets[0].rpe)+'" placeholder="RPE –" oninput="editAllSets('+bi+','+ei+',\'rpe\',this.value)"></div>'+
+    setRows='<div class="bsetrow"><span>All sets</span>'+allCell+'<input class="rpe" inputmode="decimal" value="'+esc(ex.sets[0].rpe)+'" placeholder="RPE –" oninput="editAllSets('+bi+','+ei+',\'rpe\',this.value)"></div>'+
       '<button class="markall" style="margin-top:9px" onclick="varySets('+bi+','+ei+')">vary per set →</button>';
   } else {
-    setRows=ex.sets.map((s,si)=>'<div class="bsetrow"><span>Set '+(si+1)+'</span><input inputmode="numeric" value="'+esc(s.t)+'" placeholder="'+cfg.ph+'" oninput="editSet('+bi+','+ei+','+si+',\'t\',this.value)"><input class="rpe" inputmode="decimal" value="'+esc(s.rpe)+'" placeholder="RPE –" oninput="editSet('+bi+','+ei+','+si+',\'rpe\',this.value)"></div>').join('')+
+    setRows=ex.sets.map((s,si)=>'<div class="bsetrow"><span>Set '+(si+1)+'</span>'+(amrap?'<span class="cmeta">max reps</span>':'<input inputmode="numeric" value="'+esc(s.t)+'" placeholder="'+cfg.ph+'" oninput="editSet('+bi+','+ei+','+si+',\'t\',this.value)">')+'<input class="rpe" inputmode="decimal" value="'+esc(s.rpe)+'" placeholder="RPE –" oninput="editSet('+bi+','+ei+','+si+',\'rpe\',this.value)"></div>').join('')+
       (uniform?'<button class="markall" style="margin-top:9px" onclick="unvarySets('+bi+','+ei+')">← same for all sets</button>':'');
   }
   const showOpts=Boolean(ex.tempo)||Boolean(+ex.rest)||OPTS.has(key);
@@ -941,7 +949,8 @@ function exCard(b,ex,bi,ei){
     setRows+
     '<div class="rxline" id="rxb'+bi+'e'+ei+'">'+rxLine(ex)+'</div></div>';
 }
-function editAllSets(bi,ei,k,v){WK.blocks[bi].exercises[ei].sets.forEach(s=>s[k]=v.trim());refreshRx(bi,ei);}
+function normTarget(v){v=String(v).trim();return /^m(ax)?$/i.test(v)?'max':v;}
+function editAllSets(bi,ei,k,v){const val=k==='t'?normTarget(v):v.trim();WK.blocks[bi].exercises[ei].sets.forEach(s=>s[k]=val);refreshRx(bi,ei);}
 function varySets(bi,ei){VARY.add(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
 function unvarySets(bi,ei){VARY.delete(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
 function showExOpts(bi,ei){OPTS.add(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
@@ -956,7 +965,7 @@ function delEx(bi,ei){WK.blocks[bi].exercises.splice(ei,1);if(!WK.blocks[bi].exe
 function setMode(bi,ei,m){WK.blocks[bi].exercises[ei].mode=m;renderBuilderBody();}
 function bumpSets(bi,ei,d){const ex=WK.blocks[bi].exercises[ei],n=Math.max(1,ex.sets.length+d);if(d>0)while(ex.sets.length<n)ex.sets.push({t:ex.sets[ex.sets.length-1]?.t||'',rpe:ex.sets[ex.sets.length-1]?.rpe||''});else ex.sets=ex.sets.slice(0,n);renderBuilderBody();}
 function editEx(bi,ei,k,v){WK.blocks[bi].exercises[ei][k]=v;refreshRx(bi,ei);}
-function editSet(bi,ei,si,k,v){WK.blocks[bi].exercises[ei].sets[si][k]=v.trim();refreshRx(bi,ei);}
+function editSet(bi,ei,si,k,v){WK.blocks[bi].exercises[ei].sets[si][k]=k==='t'?normTarget(v):v.trim();refreshRx(bi,ei);}
 function refreshRx(bi,ei){const el=document.getElementById('rxb'+bi+'e'+ei);if(el)el.textContent=rxLine(WK.blocks[bi].exercises[ei]);}
 function toggleBlock(bi){openBlock=(openBlock===bi?-1:bi);renderBuilderBody();}
 

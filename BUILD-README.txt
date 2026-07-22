@@ -22,16 +22,17 @@ Training
   "Mark session complete" button with confetti.
 
 Logger (opened from an exercise row in Training; steps Previous/Next through the session)
-- Set-by-set logging with per-mode columns: Reps + Kilos, Seconds,
-  Reps + Seconds, Reps only, For completion.
+- Set-by-set logging with per-mode columns: Reps + Kilos, Max reps,
+  Seconds, Reps + Seconds, Reps only, For completion.
 - Per-set targets, an "RPE felt" column, a "Last time" history box, and a
   rest chip that auto-starts when a set is ticked (tap to stop). Set counts
   are edited in the Builder — the Logger has no add/remove-set controls,
   matching the mock.
 
 Builder
-- Collapsible blocks with minutes/format/superset, exercises with the five
-  tracking modes, tempo and rest fields, per-set targets with RPE, a live
+- Collapsible blocks with minutes/format/superset, exercises with the six
+  tracking modes (including Max reps for AMRAP work — every set at max,
+  or type "max" as any single set's target), tempo and rest fields, per-set targets with RPE, a live
   prescription preview line, and "See how it looks →" into the Training view.
 - "+ New workout" always starts from the full nameless template frame.
 

@@ -200,6 +200,20 @@ await t('builder: "vary per set" expands to per-set rows', async () => {
   const rows = await page.$$eval('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .bsetrow', (els) => els.length);
   if (rows < 3) throw new Error('rows=' + rows);
 });
+await t('builder: Max reps mode targets every set at max', async () => {
+  await page.selectOption('#s-builder .bblock:nth-of-type(4) .bex:last-of-type select', 'amrap');
+  const txt = await page.textContent('#s-builder .bblock:nth-of-type(4) .bex:last-of-type');
+  if (!/max reps/.test(txt)) throw new Error('no max-reps target cells');
+  const rx = await page.textContent('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .rxline');
+  if (!/× max/.test(rx)) throw new Error('rx=' + rx);
+});
+await t('builder: typing "max" as a single set target works', async () => {
+  await page.selectOption('#s-builder .bblock:nth-of-type(4) .bex:last-of-type select', 'reps_kg');
+  const input = await page.$('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .bsetrow input');
+  await input.fill('max');
+  const rx = await page.textContent('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .rxline');
+  if (!/max/.test(rx)) throw new Error('rx=' + rx);
+});
 await t('builder: tempo/rest hidden behind disclosure when unused', async () => {
   await page.click('#s-builder .bblock:nth-of-type(1) .bexp');
   await page.waitForSelector('#s-builder .bblock:nth-of-type(1) .bex', { timeout: 2000 });

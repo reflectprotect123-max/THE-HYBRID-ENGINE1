@@ -21,7 +21,7 @@ Screens
   set-by-set logging with per-mode columns (KG/Reps/Secs), RPE felt,
   targets per set, last-time box (and last kg as the input placeholder), and
   a rest chip that auto-starts on ✓, survives reload, and vibrates at zero.
-- Builder: blocks, exercises, five tracking modes, "Train on" day chips,
+- Builder: blocks, exercises, six tracking modes (incl. Max reps / AMRAP), "Train on" day chips,
   per-set targets with RPE (identical targets collapse to one "All sets"
   row), tempo/rest behind a disclosure, live prescription preview,
   "See how it looks →".

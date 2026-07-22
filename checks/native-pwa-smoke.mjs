@@ -162,6 +162,7 @@ async function run() {
       [/tickSet\(/, 'set completion ticks'],
       [/startRest\(CUR_REST\)/, 'rest auto-starts on set completion'],
       [/reps_kg/, 'Reps + Kilos tracking mode'],
+      [/amrap/, 'Max reps tracking mode'],
       [/reps_seconds/, 'Reps + Seconds tracking mode'],
       [/completion/, 'For completion tracking mode'],
       [/RPE felt/, 'actual-RPE logging'],

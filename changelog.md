@@ -1,5 +1,18 @@
 # Changelog
 
+## Max reps (AMRAP) — 21 July 2026
+
+- New "Max reps" tracking mode in the Builder for lifts where every set is
+  max reps at whatever's on the bar: set rows show "max reps" instead of a
+  target input, the prescription line reads "3 × max", and the logger keeps
+  KG / Reps / RPE felt columns so the achieved numbers still get recorded.
+- Mixed schemes work too: typing "max" (or just "m") as any single set's
+  target renders prescriptions like "12/10/max" and shows "target max reps"
+  for that set in the logger.
+- History summaries and the Strength/Conditioning card labels treat Max
+  reps work as strength.
+- Two new browser-smoke steps; service-worker cache bumped to v36.
+
 ## One training destination: the Logger tab is gone — 21 July 2026
 
 - The nav is now Home · Training · Builder. Training is the single place
