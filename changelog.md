@@ -23,8 +23,6 @@ real bugs surfaced and were fixed:
 Three of these are now covered by committed browser-smoke steps.
 Service-worker cache bumped to v37.
 
-# Changelog
-
 ## Max reps (AMRAP) — 21 July 2026
 
 - New "Max reps" tracking mode in the Builder for lifts where every set is
