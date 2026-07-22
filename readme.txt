@@ -25,6 +25,11 @@ Screens
   per-set targets with RPE (identical targets collapse to one "All sets"
   row), tempo/rest behind a disclosure, live prescription preview,
   "See how it looks →".
+- Progress: everything you log turned into trends — stat tiles (sessions,
+  kg this week, day streak), an 8-week training-volume bar chart, a
+  planned-vs-felt RPE two-line chart, and a 14-day WHOOP recovery line.
+  All drawn as inline SVG (no libraries, CSP-safe) with hover tooltips;
+  shows a calm empty state until the first session is finished.
 - History: any past day's completed or incomplete sessions with their
   logged sets, with previous/next-day navigation.
 - Settings (via the sidebar note or WHOOP card): cloud sync sign-in with

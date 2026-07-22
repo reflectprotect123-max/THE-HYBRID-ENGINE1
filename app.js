@@ -106,6 +106,7 @@ function renderScreen(id){
   else if(id==='builder')renderBuilder();
   else if(id==='settings')renderSettings();
   else if(id==='history')renderHistory();
+  else if(id==='progress')renderProgress();
 }
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
@@ -279,6 +280,7 @@ async function loadWhoop(){
     const d=await r.json();
     WHOOP.connected=!!(d.whoop&&d.whoop.connected);
     WHOOP.sample=d.whoop&&d.whoop.normalized?d.whoop.normalized:null;
+    if(WHOOP.sample)recordWhoopDaily(WHOOP.sample);
     WHOOP.lastSyncAt=d.whoop?d.whoop.lastSyncAt:null;
     WHOOP.error='';
   }catch(e){WHOOP.connected=false;WHOOP.sample=null;WHOOP.error=String(e&&e.message||e);}
@@ -298,7 +300,7 @@ async function syncWhoop(silent){
     if(!r.ok)throw new Error('Sync failed ('+r.status+')');
     const d=await r.json();
     if(d.connected===false)throw new Error('WHOOP is not connected.');
-    if(d.normalized)WHOOP.sample=d.normalized;
+    if(d.normalized){WHOOP.sample=d.normalized;recordWhoopDaily(d.normalized);}
     WHOOP.lastSyncAt=new Date().toISOString();
     WHOOP.error='';
   }catch(e){if(!silent)WHOOP.error=String(e&&e.message||e);}
@@ -332,9 +334,14 @@ function whoopSettingsChip(){return '<button class="chip" style="cursor:pointer;
 function whoopCardHtml(){
   let rings,title,line,chip;
   if(!WHOOP.loaded){
-    rings=whoopRings(null,null,null,'…');
-    title='WHOOP · today';line='Loading recovery…';
-    chip='<span class="chip">WHOOP</span>';
+    // Skeleton loader — a shimmering placeholder that matches the card's real
+    // shape so the layout doesn't jump when recovery arrives.
+    return '<div class="card whoopmini" id="whoopCard" aria-busy="true" aria-label="Loading WHOOP recovery">'+
+      '<div style="display:flex;align-items:center;gap:14px">'+
+      '<div class="skel skel-ring"></div>'+
+      '<div style="flex:1"><div class="skel skel-line" style="width:52%"></div>'+
+      '<div class="skel skel-line" style="width:78%"></div></div></div>'+
+      '<div class="skel" style="width:44px;height:18px;border-radius:9px"></div></div>';
   } else if(!WHOOP.connected){
     rings=whoopRings(null,null,null,'—');
     title='Connect WHOOP';line='Bring recovery, sleep and strain into today’s view.';
@@ -859,6 +866,127 @@ function expireStaleSessions(){
     return false;
   });
   if(changed){try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}}
+}
+
+/* ============================================================
+   PROGRESS — turn logged data into trend charts. Inline SVG
+   (CSP-safe, no libs), one axis per chart, recessive grid,
+   ink-coloured text, legend + direct end-labels for the two
+   series chart, native <title> hover, prefers-reduced-motion safe.
+   ============================================================ */
+function recordWhoopDaily(sample){
+  const date=String(sample&&sample.date||'').slice(0,10);
+  if(!date)return;
+  const rec=Number(sample.recoveryScore),str=Number(sample.strain);
+  DB.settings=DB.settings||{};
+  const hist=Array.isArray(DB.settings.whoopDaily)?DB.settings.whoopDaily:[];
+  const row={date,recovery:Number.isFinite(rec)?rec:null,strain:Number.isFinite(str)?str:null};
+  const i=hist.findIndex(h=>h.date===date);
+  if(i>=0)hist[i]=row;else hist.push(row);
+  hist.sort((a,b)=>a.date.localeCompare(b.date));
+  DB.settings.whoopDaily=hist.slice(-120);
+  try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}
+}
+function completedList(){
+  return DB.sessions.filter(s=>(s.status==='completed'||s.status==='incomplete')&&s.completedAt)
+    .sort((a,b)=>(a.completedAt||0)-(b.completedAt||0));
+}
+function sessionVolume(s){
+  let v=0;s.blocks.forEach(b=>b.exercises.forEach(e=>{if(e.mode==='reps_kg'||e.mode==='amrap')e.sets.forEach(st=>{if(st.done){const kg=parseFloat(st.aVal),r=parseFloat(st.aVal2);if(Number.isFinite(kg)&&Number.isFinite(r))v+=kg*r;}})}));
+  return Math.round(v);
+}
+function sessionRpe(s){
+  const t=[],f=[];s.blocks.forEach(b=>b.exercises.forEach(e=>e.sets.forEach(st=>{if(st.done){const tt=parseFloat(st.rpe),ff=parseFloat(st.felt);if(Number.isFinite(tt))t.push(tt);if(Number.isFinite(ff))f.push(ff);}})));
+  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  return {target:avg(t),felt:avg(f)};
+}
+function weekStart(ms){const d=new Date(ms);d.setHours(0,0,0,0);d.setDate(d.getDate()-d.getDay());return d;}
+function weeklyVolume(n){
+  const now=new Date();now.setHours(0,0,0,0);
+  const buckets=[];
+  for(let i=n-1;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-d.getDay()-i*7);buckets.push({key:ymd(d),d,vol:0});}
+  const idx=new Map(buckets.map((b,i)=>[b.key,i]));
+  completedList().forEach(s=>{const k=ymd(weekStart(s.completedAt));if(idx.has(k))buckets[idx.get(k)].vol+=sessionVolume(s);});
+  return buckets.map(b=>({label:(b.d.getMonth()+1)+'/'+b.d.getDate(),value:b.vol,full:'Week of '+prettyDay(b.key)}));
+}
+function dayStreak(){
+  const days=new Set(completedList().map(s=>ymd(new Date(s.completedAt))));
+  let n=0;const d=new Date();d.setHours(0,0,0,0);
+  if(!days.has(ymd(d)))d.setDate(d.getDate()-1); // today not required to have started
+  while(days.has(ymd(d))){n++;d.setDate(d.getDate()-1);}
+  return n;
+}
+function thisWeekVolume(){const k=ymd(weekStart(Date.now()));return completedList().filter(s=>ymd(weekStart(s.completedAt))===k).reduce((v,s)=>v+sessionVolume(s),0);}
+/* --- SVG chart builders --- */
+function niceMax(v){if(v<=0)return 10;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;const m=n<=1?1:n<=2?2:n<=5?5:10;return m*p;}
+function chartBars(data,unit){
+  const W=320,H=150,padB=20,padT=16,padL=4,padR=4,innerW=W-padL-padR,innerH=H-padB-padT;
+  const max=niceMax(Math.max(1,...data.map(d=>d.value)));
+  const n=data.length,slot=innerW/n,bw=Math.min(26,slot*0.56);
+  const y=v=>padT+innerH*(1-v/max);
+  let g='';[0,.5,1].forEach(f=>{const yy=padT+innerH*(1-f);g+='<line class="grid" x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'"/>'+'<text class="axt" x="'+padL+'" y="'+(yy-3)+'">'+fmtK(max*f)+'</text>';});
+  let bars='';data.forEach((d,i)=>{const cx=padL+slot*i+slot/2,h=Math.max(0,innerH*(d.value/max)),yy=padT+innerH-h;
+    bars+='<rect class="bar" x="'+(cx-bw/2)+'" y="'+yy+'" width="'+bw+'" height="'+h+'" rx="4"><title>'+esc(d.full)+': '+d.value+' '+unit+'</title></rect>';
+    bars+='<text class="axt" x="'+cx+'" y="'+(H-6)+'" text-anchor="middle">'+esc(d.label)+'</text>';
+    if(i===n-1&&d.value>0)bars+='<text class="val" x="'+cx+'" y="'+(yy-5)+'" text-anchor="middle">'+fmtK(d.value)+'</text>';
+  });
+  return '<div class="chart"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Bar chart">'+g+bars+'</svg></div>';
+}
+function chartLines(series,xlabels,domain,unit){
+  const W=320,H=150,padB=20,padT=16,padL=6,padR=16,innerW=W-padL-padR,innerH=H-padB-padT;
+  const lo=domain[0],hi=domain[1],n=xlabels.length;
+  const X=i=>n<=1?padL+innerW/2:padL+innerW*(i/(n-1));
+  const Y=v=>padT+innerH*(1-(v-lo)/(hi-lo));
+  let g='';[0,.5,1].forEach(f=>{const v=lo+(hi-lo)*f,yy=Y(v);g+='<line class="grid" x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'"/>'+'<text class="axt" x="'+padL+'" y="'+(yy-3)+'">'+(Math.round(v*10)/10)+'</text>';});
+  let lab='';xlabels.forEach((l,i)=>{if(n<=6||i%Math.ceil(n/6)===0||i===n-1)lab+='<text class="axt" x="'+X(i)+'" y="'+(H-6)+'" text-anchor="middle">'+esc(l)+'</text>';});
+  let paths='';series.forEach(s=>{
+    const pts=s.pts.map((v,i)=>v==null?null:[X(i),Y(v)]);
+    const d=pts.filter(Boolean).map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+    paths+='<path class="ln" d="'+d+'" stroke="'+s.color+'"/>';
+    pts.forEach((p,i)=>{if(!p)return;paths+='<circle class="dot" cx="'+p[0]+'" cy="'+p[1]+'" r="3.2" fill="'+s.color+'"><title>'+esc(xlabels[i]+' · '+s.name+' '+(Math.round(s.pts[i]*10)/10)+unit)+'</title></circle>';});
+    // direct end-label on last present point
+    for(let i=pts.length-1;i>=0;i--){if(pts[i]){paths+='<text class="val" x="'+(pts[i][0]+5)+'" y="'+(pts[i][1]+3)+'" fill="'+s.color+'">'+(Math.round(s.pts[i]*10)/10)+'</text>';break;}}
+  });
+  return '<div class="chart"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Line chart">'+g+lab+paths+'</svg></div>';
+}
+function fmtK(v){v=Math.round(v);return v>=1000?(v/1000).toFixed(v>=10000?0:1).replace(/\.0$/,'')+'k':String(v);}
+function chartCard(title,sub,inner,legend){return '<div class="card chartcard"><div class="chart-head"><h2>'+esc(title)+'</h2>'+(sub?'<span class="csub">'+esc(sub)+'</span>':'')+'</div>'+(legend||'')+inner+'</div>';}
+function renderProgress(){
+  const el=document.getElementById('s-progress');if(!el)return;
+  const head='<div class="kicker">Progress</div><h1 style="font-size:24px">Your trends</h1><p class="sub">Everything you log, turned into a picture over time.</p>';
+  const done=completedList();
+  if(!done.length){
+    el.innerHTML=head+'<div class="card empty"><div class="ei"><svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-4M13 16V8M18 16v-6"/></svg></div><h3>Nothing to chart yet</h3><p>Finish a session and your trends — training volume, planned vs felt RPE, and WHOOP recovery — start building here.</p></div>';
+    return;
+  }
+  // stat tiles
+  const stats='<div class="stats">'+
+    '<div class="stat"><b>'+done.length+'</b><span>Sessions</span></div>'+
+    '<div class="stat"><b>'+fmtK(thisWeekVolume())+'</b><span>kg this week</span></div>'+
+    '<div class="stat"><b>'+dayStreak()+'</b><span>Day streak</span></div></div>';
+  // volume by week
+  const wk=weeklyVolume(8);
+  const volCard=chartCard('Volume by week','kg lifted',chartBars(wk,'kg'));
+  // RPE planned vs felt (last 12 sessions with any rpe)
+  const rpeRows=done.map(s=>({d:s,r:sessionRpe(s)})).filter(x=>x.r.target!=null||x.r.felt!=null).slice(-12);
+  let rpeCard='';
+  if(rpeRows.length>=2){
+    const xl=rpeRows.map(x=>{const p=String(x.d.date).split('-');return (+p[1])+'/'+(+p[2]);});
+    const vals=rpeRows.flatMap(x=>[x.r.target,x.r.felt]).filter(v=>v!=null);
+    const lo=Math.max(0,Math.floor(Math.min(...vals)-1)),hi=Math.min(10,Math.ceil(Math.max(...vals)+1));
+    const series=[{name:'Planned',color:'#cf9d4f',pts:rpeRows.map(x=>x.r.target)},{name:'Felt',color:'#5b8def',pts:rpeRows.map(x=>x.r.felt)}];
+    const legend='<div class="legend"><span><i style="background:#cf9d4f"></i>Planned</span><span><i style="background:#5b8def"></i>Felt</span></div>';
+    rpeCard=chartCard('Planned vs felt RPE','last '+rpeRows.length+' sessions',chartLines(series,xl,[lo,hi],''),legend);
+  }
+  // WHOOP recovery (persisted daily history)
+  const wd=(DB.settings.whoopDaily||[]).filter(h=>Number.isFinite(h.recovery)).slice(-14);
+  let recCard='';
+  if(wd.length>=2){
+    const xl=wd.map(h=>{const p=h.date.split('-');return (+p[1])+'/'+(+p[2]);});
+    recCard=chartCard('WHOOP recovery','last '+wd.length+' days',chartLines([{name:'Recovery',color:'#9fc59b',pts:wd.map(h=>h.recovery)}],xl,[0,100],'%'));
+  }
+  el.innerHTML=head+stats+volCard+rpeCard+recCard+
+    (rpeCard?'':'<div class="card guidebar" style="margin-top:16px"><b>Tip:</b> add target RPE in the Builder and log the RPE you felt — a planned-vs-felt trend appears here.</div>');
 }
 
 /* ---------- boot ---------- */

@@ -1,5 +1,33 @@
 # Changelog
 
+## Progress view + Tier-3 polish: trends, skeletons, grain — 22 July 2026
+
+Adds a fourth tab — **Progress** — that turns everything you log into a
+picture over time, plus the last layer of visual finish.
+
+- **Progress trends.** Three charts, all drawn as clean inline SVG (no
+  libraries, CSP-safe): training **volume by week** (8-week bars), **planned
+  vs felt RPE** (two-line, with a legend and direct end-labels), and **WHOOP
+  recovery** over the last 14 days. Three stat tiles up top: sessions, kg
+  this week, and current day-streak. Each chart has native hover tooltips
+  and a single axis with a recessive grid.
+- WHOOP recovery/strain is now **persisted daily** (`whoopDaily`, capped at
+  120 days) every time status loads or a sync lands, so the recovery trend
+  builds itself in the background with no extra work.
+- **Empty state.** Before your first finished session, Progress shows a calm
+  "nothing to chart yet" card instead of a blank screen; a tip nudges you to
+  log target RPE so the planned-vs-felt trend can appear.
+- **Skeleton loader.** The WHOOP card now shows a shimmering placeholder that
+  matches its real shape while recovery loads, so the layout never jumps.
+- **Grain + press feedback.** A barely-there film grain over the whole app
+  and tactile :active states finish the Tier-3 pass. All honour
+  prefers-reduced-motion.
+- Service-worker cache bumped to v40.
+
+Verified: browser-smoke (30), torture (16), pentest (0 findings), and the
+contract/deployment/pwa checks all pass.
+
+
 ## UI/UX polish: real Inter, animated ring, press feedback, wake lock — 22 July 2026
 
 - Loaded the real Inter typeface (self-hosted variable woff2, 72 KB) that

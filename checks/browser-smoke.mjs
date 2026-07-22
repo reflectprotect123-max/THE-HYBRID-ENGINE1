@@ -231,9 +231,22 @@ await t('builder: day chips schedule the workout', async () => {
   const sub = await page.textContent('#s-home .sub');
   if (!/session in progress|session planned/i.test(sub)) throw new Error('sub=' + sub);
 });
-await t('no Logger tab: nav is Home · Training · Builder', async () => {
+await t('no Logger tab: nav is Home · Training · Builder · Progress', async () => {
   const navs = await page.$$eval('.navlink', (els) => els.map((e) => e.dataset.s));
-  if (navs.length !== 3 || navs.includes('logger')) throw new Error(navs.join(','));
+  if (navs.length !== 4 || navs.includes('logger')) throw new Error(navs.join(','));
+  if (!navs.includes('progress')) throw new Error('missing progress tab: ' + navs.join(','));
+});
+await t('Progress tab renders trends (empty state or charts, never blank)', async () => {
+  await page.click('.navlink[data-s="progress"]');
+  await page.waitForSelector('#s-progress.on', { timeout: 2000 });
+  const active = await page.$eval('.navlink[data-s="progress"]', (el) => el.classList.contains('active'));
+  if (!active) throw new Error('Progress tab not highlighted');
+  const html = await page.$eval('#s-progress', (el) => el.innerHTML);
+  if (!/Your trends/.test(html)) throw new Error('progress header missing');
+  // either the empty state or at least one chart must be present
+  if (!/class="[^"]*empty|class="chart"/.test(html)) throw new Error('neither empty state nor chart rendered');
+  await page.click('.navlink[data-s="home"]');
+  await page.waitForSelector('#s-home.on', { timeout: 2000 });
 });
 await t('logger detail view steps forward and back through the session', async () => {
   await page.click('.navlink[data-s="training"]');

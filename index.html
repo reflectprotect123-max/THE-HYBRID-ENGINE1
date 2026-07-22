@@ -313,6 +313,48 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .setrow.done .tick{animation:tickpop .3s cubic-bezier(.34,1.56,.64,1)}
 /* Cards ease in a touch more richly */
 .screen.on{animation:fade .22s cubic-bezier(.22,.8,.2,1)}
+
+/* ===== Tier 3: subtle background grain (fixed, non-interactive) ===== */
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.035;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.frame{position:relative;z-index:1}
+
+/* ===== Skeleton loaders ===== */
+.skel{position:relative;overflow:hidden;background:rgba(255,255,255,.05);border-radius:8px}
+.skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);animation:shimmer 1.3s infinite}
+@keyframes shimmer{100%{transform:translateX(100%)}}
+.skel-ring{width:52px;height:52px;border-radius:50%;flex:0 0 auto}
+.skel-line{height:11px;margin:5px 0}
+@media(prefers-reduced-motion:reduce){.skel::after{animation:none}}
+
+/* ===== Richer empty states ===== */
+.empty{margin-top:20px;padding:34px 20px;text-align:center;display:grid;justify-items:center;gap:4px}
+.empty .ei{width:52px;height:52px;display:grid;place-items:center;border-radius:16px;margin-bottom:8px;
+  border:1px solid rgba(224,188,135,.32);background:linear-gradient(145deg,rgba(192,147,88,.12),rgba(192,147,88,.02));color:var(--gold2)}
+.empty .ei svg{width:26px;height:26px;stroke:currentColor;stroke-width:1.7;fill:none}
+.empty h3{font-size:18px;font-weight:850;letter-spacing:-.02em}
+.empty p{color:var(--muted);font-size:13px;line-height:1.55;max-width:34ch}
+
+/* ===== Progress: stat tiles + charts ===== */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
+.stat{padding:14px 12px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(165deg,rgba(20,20,19,.98),rgba(14,14,13,.98))}
+.stat b{display:block;font-size:22px;font-weight:850;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.stat span{display:block;margin-top:3px;color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.1em;text-transform:uppercase}
+.chartcard{margin-top:16px;padding:16px 14px 12px}
+.chart-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px}
+.chart-head h2{font-size:13px;font-weight:850;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2)}
+.chart-head .csub{color:var(--dim);font-size:11px}
+.legend{display:flex;gap:14px;margin:2px 0 6px}
+.legend span{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:11px}
+.legend i{width:11px;height:3px;border-radius:2px;display:inline-block}
+.chart svg{width:100%;height:auto;display:block;overflow:visible}
+.chart .grid{stroke:rgba(255,255,255,.06);stroke-width:1}
+.chart .axt{fill:var(--dim);font-size:9px;font-weight:600;font-family:inherit}
+.chart .val{fill:var(--text);font-size:9.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.chart .bar{fill:var(--gold)}
+.chart .ln{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.chart .dot{stroke:#141312;stroke-width:1.5}
 </style>
 </head>
 <body>
@@ -340,6 +382,10 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6l-.04.08H10l-.04-.08a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1l-.08-.04V10l.08-.04a1.7 1.7 0 0 0 .6-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6l.04-.08H14l.04.08a1.7 1.7 0 0 0 1 .6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.1.4.3.75.6 1l.08.04V14l-.08.04c-.3.25-.5.6-.6.96Z"/></svg>
         Builder
       </button>
+      <button class="navlink" data-s="progress" data-click="go" data-args='["progress","@self"]'>
+        <svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-4M13 16V8M18 16v-6"/></svg>
+        Progress
+      </button>
     </nav>
     <div class="sidenote"><b id="sideStatus">Saved locally</b><br>Your workouts and logged sets live on this device. <button class="markall" style="padding:0" data-click="go" data-args='["settings"]'>Settings →</button></div>
   </aside>
@@ -351,6 +397,7 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
     <section class="screen" id="s-builder"></section>
     <section class="screen" id="s-settings"></section>
     <section class="screen" id="s-history"></section>
+    <section class="screen" id="s-progress"></section>
   </main>
 </div>
 
