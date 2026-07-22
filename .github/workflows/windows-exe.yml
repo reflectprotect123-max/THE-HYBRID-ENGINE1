@@ -5,6 +5,9 @@ on:
   push:
     paths: ["native/windows/**", ".github/workflows/windows-exe.yml"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -37,3 +40,15 @@ jobs:
             native/windows/src-tauri/target/release/bundle/msi/*.msi
             native/windows/src-tauri/target/release/*.exe
           if-no-files-found: warn
+      - name: Prepare release asset
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          Copy-Item $exe.FullName "$env:GITHUB_WORKSPACE/HybridEngine-Windows-Setup.exe"
+      - name: Publish to Release (clean public download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-latest
+          name: THE Hybrid Engine — Windows
+          body: "Windows installer for THE Hybrid Engine. Run it, then click More info → Run anyway past SmartScreen (unsigned). Rebuilt automatically."
+          files: HybridEngine-Windows-Setup.exe

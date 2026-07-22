@@ -5,6 +5,9 @@ on:
   push:
     paths: ["native/android/**", ".github/workflows/android-apk.yml"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -54,3 +57,12 @@ jobs:
             native/android/app-release-signed.apk
             native/android/app-release-bundle.aab
           if-no-files-found: warn
+      - name: Prepare release asset
+        run: cp app-release-signed.apk "$GITHUB_WORKSPACE/HybridEngine-Android.apk"
+      - name: Publish to Release (clean public download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: THE Hybrid Engine — Android
+          body: "Android APK for THE Hybrid Engine. Copy to your phone and tap to install (allow install from unknown sources). Rebuilt automatically."
+          files: HybridEngine-Android.apk
