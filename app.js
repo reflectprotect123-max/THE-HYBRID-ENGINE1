@@ -97,7 +97,7 @@ function go(id,btn){
 let _wakeLock=null;
 async function acquireWake(){try{if('wakeLock'in navigator&&!_wakeLock){_wakeLock=await navigator.wakeLock.request('screen');_wakeLock.addEventListener('release',()=>{_wakeLock=null});}}catch(e){}}
 async function releaseWake(){try{if(_wakeLock){const w=_wakeLock;_wakeLock=null;await w.release();}}catch(e){}}
-function updateWake(){((CURRENT==='training'||CURRENT==='logger')&&curSession())?acquireWake():releaseWake();}
+function updateWake(){(((CURRENT==='training'||CURRENT==='logger')&&curSession())||(CURRENT==='conditioning'&&CON.live))?acquireWake():releaseWake();}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')updateWake();});
 function renderScreen(id){
   if(id==='home')renderHome();
@@ -107,6 +107,7 @@ function renderScreen(id){
   else if(id==='settings')renderSettings();
   else if(id==='history')renderHistory();
   else if(id==='progress')renderProgress();
+  else if(id==='conditioning')renderConditioning();
 }
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
@@ -809,10 +810,18 @@ function renderSettings(){
   if(!WHOOP.loaded){whoop='<div class="sc-meta">Checking WHOOP connection…</div>';}
   else if(!WHOOP.connected){whoop='<div class="sc-meta">'+(WHOOP.error?esc(WHOOP.error)+' ':'')+'Connect WHOOP to bring recovery, sleep and strain into Home. Requires the deployed app.</div><a class="bigbtn" style="display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;margin-top:12px" href="'+WHOOP_ENDPOINTS.connect+'">Connect WHOOP</a>';}
   else{whoop='<div class="sc-meta">WHOOP connected'+(WHOOP.lastSyncAt?' · last sync '+esc(new Date(WHOOP.lastSyncAt).toLocaleString()):'')+'.</div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" data-click="syncWhoop">'+(WHOOP.busy?'Syncing…':'Sync now')+'</button><button class="addbtn" style="flex:1;margin-top:0" data-click="disconnectWhoop">Disconnect</button></div>';}
+  // Training profile (drives conditioning HR zones)
+  const prof=DB.settings.profile||{},zz=conZones();
+  const profile='<div class="sc-meta">Sets your conditioning heart-rate zones. Max HR defaults to 220 &minus; age; enter a tested max to override.</div>'+
+    '<div style="display:flex;gap:8px;margin-top:12px">'+
+    '<div class="field" style="flex:1"><label>Age</label><input type="number" min="10" max="100" inputmode="numeric" value="'+(prof.age||'')+'" placeholder="30" data-change="setProfile" data-args="[&quot;age&quot;,&quot;@value&quot;]"></div>'+
+    '<div class="field" style="flex:1"><label>Max HR (override)</label><input type="number" min="120" max="230" inputmode="numeric" value="'+(prof.maxHr||'')+'" placeholder="auto" data-change="setProfile" data-args="[&quot;maxHr&quot;,&quot;@value&quot;]"></div></div>'+
+    '<div class="sc-meta" style="margin-top:10px">Zones now: Low '+zz.list[0].lo+'&ndash;'+zz.list[0].hi+' · Moderate '+zz.list[1].lo+'&ndash;'+zz.list[1].hi+' · High '+zz.list[2].lo+'&ndash;'+zz.list[2].hi+'</div>';
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Settings</div><h1 style="font-size:24px">Cloud, WHOOP &amp; data</h1></div></div>'+
     '<div class="section"><div class="sec-head"><h2>Cloud sync</h2></div><div class="card" style="margin-top:10px;padding:14px">'+cloud+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>WHOOP</h2></div><div class="card" style="margin-top:10px;padding:14px">'+whoop+'</div></div>'+
+    '<div class="section"><div class="sec-head"><h2>Training profile</h2></div><div class="card" style="margin-top:10px;padding:14px">'+profile+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>Your data</h2></div><div class="card" style="margin-top:10px;padding:14px"><div class="sc-meta">Everything is stored on this device and (if signed in) synced to the cloud.</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" data-click="exportData">Export backup</button><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" data-click="triggerImport">Import backup</button></div><input id="importFile" type="file" accept="application/json,.json" style="display:none" data-change="importData" data-args="[&quot;@event&quot;]"><button class="addbtn" style="margin-top:10px;border-color:rgba(207,127,124,.5);color:var(--bad)" data-click="resetLocal">Reset local data</button></div></div>';
 }
 
@@ -987,6 +996,345 @@ function renderProgress(){
   }
   el.innerHTML=head+stats+volCard+rpeCard+recCard+
     (rpeCard?'':'<div class="card guidebar" style="margin-top:16px"><b>Tip:</b> add target RPE in the Builder and log the RPE you felt — a planned-vs-felt trend appears here.</div>');
+}
+
+/* ============================================================
+   CONDITIONING — live heart-rate zone training.
+   HR arrives over Web Bluetooth from WHOOP's Heart Rate Broadcast
+   (standard BLE Heart Rate Service 0x180D / measurement 0x2A37).
+   Live screen is built once, then updated with targeted DOM writes
+   so nothing flickers at 1Hz. Sessions persist (downsampled) into
+   DB.settings.conditioning, capped, and ride the normal cloud sync.
+   ============================================================ */
+const CON={view:'setup',fmt:'intervals',live:false,ble:{dev:null,chr:null,connected:false,sim:false},
+  startedAt:0,samples:[],avgSum:0,avgN:0,max:0,lastBpm:null,phases:[],phaseIdx:-1,round:0,rounds:0,
+  timer:null,simBpm:95,simNext:0,record:null,error:''};
+
+/* --- profile & zone model (3 bands, Morpheus-style) --- */
+function conProfile(){const p=DB.settings.profile||{};const age=parseInt(p.age,10)||30;const o=parseInt(p.maxHr,10)||0;return{age,maxHr:o>0?o:220-age};}
+function conZones(){
+  const m=conProfile().maxHr,floor=Math.round(m*.5),lowTop=Math.round(m*.78),modTop=Math.round(m*.875);
+  return{floor,max:m,list:[
+    {key:'low',name:'Low',color:'#5b8def',lo:floor,hi:lowTop},
+    {key:'mod',name:'Moderate',color:'#cf9d4f',lo:lowTop,hi:modTop},
+    {key:'high',name:'High',color:'#e0524d',lo:modTop,hi:m}]};
+}
+function conZoneOf(bpm,z){z=z||conZones();return bpm<z.list[0].hi?z.list[0]:bpm<z.list[1].hi?z.list[1]:z.list[2];}
+function conMmss(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function setProfile(key,val){
+  const p=Object.assign({},DB.settings.profile);const n=parseInt(val,10);
+  if(Number.isFinite(n)&&n>0)p[key]=n;else delete p[key];
+  DB.settings.profile=p;save();
+  if(CURRENT==='settings')renderSettings();
+}
+
+/* --- session formats --- */
+const CON_FORMATS={
+  steady:{name:'Steady-state',desc:'Zone 2 · 20 min',rounds:0,build:function(){return[
+    {name:'Warm-up',dur:120,kind:'warm'},{name:'Zone 2',dur:1200,kind:'work2'},{name:'Cool-down',dur:120,kind:'cool'}];}},
+  intervals:{name:'Intervals',desc:'8×30s / 90s',rounds:8,build:function(){
+    const s=[{name:'Warm-up',dur:180,kind:'warm'}];
+    for(let i=1;i<=8;i++){s.push({name:'Work '+i,dur:30,kind:'work',round:i});s.push({name:'Recover',dur:90,kind:'rest',round:i});}
+    s.push({name:'Cool-down',dur:120,kind:'cool'});return s;}},
+  tempo:{name:'Tempo',desc:'10×15s / 60s',rounds:10,build:function(){
+    const s=[{name:'Warm-up',dur:180,kind:'warm'}];
+    for(let i=1;i<=10;i++){s.push({name:'Work '+i,dur:15,kind:'work',round:i});s.push({name:'Recover',dur:60,kind:'rest',round:i});}
+    s.push({name:'Cool-down',dur:120,kind:'cool'});return s;}}
+};
+function conPickFmt(f){if(CON_FORMATS[f]){CON.fmt=f;if(CURRENT==='conditioning')renderConditioning();}}
+
+/* --- Web Bluetooth (WHOOP HR broadcast = standard BLE heart_rate) --- */
+function conParseHr(dv){const flags=dv.getUint8(0);return (flags&1)?dv.getUint16(1,true):dv.getUint8(1);}
+function conOnHr(e){try{conSample(conParseHr(e.target.value));}catch(err){}}
+async function conConnect(){
+  CON.error='';
+  if(!('bluetooth' in navigator)){CON.error='Live HR needs Chrome on Android or desktop — this browser has no Web Bluetooth. You can still run the demo.';renderConditioning();return;}
+  try{
+    const dev=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}]});
+    const server=await dev.gatt.connect();
+    const svc=await server.getPrimaryService('heart_rate');
+    const chr=await svc.getCharacteristic('heart_rate_measurement');
+    await chr.startNotifications();
+    chr.addEventListener('characteristicvaluechanged',conOnHr);
+    dev.addEventListener('gattserverdisconnected',conOnDrop);
+    CON.ble={dev,chr,connected:true,sim:false};
+    conStart();
+  }catch(e){
+    if(e&&e.name==='NotFoundError')return; // user closed the picker
+    CON.error='Bluetooth: '+String(e&&e.message||e);renderConditioning();
+  }
+}
+function conOnDrop(){
+  if(!CON.live){conCleanupBle();return;}
+  CON.ble.connected=false;conStatus('Signal lost — reconnecting…');
+  conReconnect();
+}
+async function conReconnect(){
+  for(let i=0;i<5&&CON.live&&CON.ble.dev;i++){
+    try{
+      const server=await CON.ble.dev.gatt.connect();
+      const svc=await server.getPrimaryService('heart_rate');
+      const chr=await svc.getCharacteristic('heart_rate_measurement');
+      await chr.startNotifications();
+      chr.addEventListener('characteristicvaluechanged',conOnHr);
+      CON.ble.chr=chr;CON.ble.connected=true;conStatus('');return;
+    }catch(e){await new Promise(r=>setTimeout(r,2000));}
+  }
+  if(CON.live)conStatus('Connection lost. Finish to keep what was recorded.',true);
+}
+function conCleanupBle(){
+  try{if(CON.ble.chr)CON.ble.chr.removeEventListener('characteristicvaluechanged',conOnHr);}catch(e){}
+  try{if(CON.ble.dev)CON.ble.dev.removeEventListener('gattserverdisconnected',conOnDrop);}catch(e){}
+  try{if(CON.ble.dev&&CON.ble.dev.gatt&&CON.ble.dev.gatt.connected)CON.ble.dev.gatt.disconnect();}catch(e){}
+  CON.ble={dev:null,chr:null,connected:false,sim:false};
+}
+function conStatus(msg,isErr){const el=document.getElementById('conStatus');if(el){el.textContent=msg||'';el.className='constatus'+(isErr?' err':'');}}
+
+/* demo mode: simulated stream — for trying the flow without a band (and for tests) */
+function conStartDemo(){CON.ble={dev:null,chr:null,connected:true,sim:true};conStart();}
+
+/* --- session lifecycle --- */
+function conStart(){
+  if(CON.live)return;
+  const f=CON_FORMATS[CON.fmt]||CON_FORMATS.intervals;
+  CON.phases=f.build();CON.rounds=f.rounds||0;CON.round=0;CON.phaseIdx=-1;
+  CON.samples=[];CON.avgSum=0;CON.avgN=0;CON.max=0;CON.lastBpm=null;
+  CON.simBpm=95;CON.simNext=0;CON.error='';
+  CON.startedAt=Date.now();CON.live=true;CON.view='live';
+  if(CURRENT!=='conditioning')go('conditioning');else{renderConditioning();updateWake();}
+  CON.timer=setInterval(conTick,500);
+}
+function conPhaseAt(t){
+  let acc=0;
+  for(let i=0;i<CON.phases.length;i++){const p=CON.phases[i];if(t<acc+p.dur)return{p,idx:i,left:acc+p.dur-t};acc+=p.dur;}
+  return{done:true};
+}
+function conTick(){
+  if(!CON.live)return;
+  const t=(Date.now()-CON.startedAt)/1000;
+  const info=conPhaseAt(t);
+  if(info.done){conFinish();return;}
+  if(info.idx!==CON.phaseIdx){
+    CON.phaseIdx=info.idx;
+    if(info.p.round)CON.round=info.p.round;
+    conPaintPhase(info.p);
+    try{if(navigator.vibrate)navigator.vibrate(info.p.kind==='work'?[180,90,180]:[120]);}catch(e){}
+  }
+  const pc=document.getElementById('conPhaseClock');if(pc)pc.textContent=conMmss(info.left);
+  const elp=document.getElementById('conElapsed');if(elp)elp.textContent=conMmss(t);
+  if(CON.ble.sim&&t>=CON.simNext){
+    CON.simNext=Math.floor(t)+1;
+    const z=conZones(),k=info.p.kind;
+    const target=k==='work'?z.max*.93:k==='rest'?z.max*.68:k==='work2'?z.max*.72:k==='cool'?105:118;
+    CON.simBpm+= (target-CON.simBpm)*.15 + (Math.random()*7-3.5);
+    CON.simBpm=Math.max(70,Math.min(z.max+2,CON.simBpm));
+    conSample(Math.round(CON.simBpm));
+  }
+}
+function conSample(bpm){
+  if(!CON.live||!Number.isFinite(bpm)||bpm<25||bpm>250)return;
+  const t=Math.max(0,Math.round((Date.now()-CON.startedAt)/1000));
+  CON.samples.push({t,bpm});
+  CON.avgSum+=bpm;CON.avgN++;if(bpm>CON.max)CON.max=bpm;CON.lastBpm=bpm;
+  conPaintHr(bpm);
+}
+function conAbort(){
+  if(!CON.live)return;
+  if(!confirm('Discard this session? Nothing will be saved.'))return;
+  CON.live=false;clearInterval(CON.timer);CON.timer=null;
+  conCleanupBle();CON.view='setup';CON.record=null;
+  renderConditioning();updateWake();
+}
+function conDownsample(samples,dur){
+  const every=2,n=Math.max(1,Math.min(Math.ceil(dur/every)+1,2700));
+  const sum=new Array(n).fill(0),cnt=new Array(n).fill(0);
+  samples.forEach(s=>{const i=Math.max(0,Math.min(n-1,Math.floor(s.t/every)));sum[i]+=s.bpm;cnt[i]++;});
+  return{every,pts:sum.map((v,i)=>cnt[i]?Math.round(v/cnt[i]):null)};
+}
+function conFinish(){
+  if(!CON.live)return;
+  CON.live=false;clearInterval(CON.timer);CON.timer=null;
+  conCleanupBle();
+  const dur=Math.min(Math.round((Date.now()-CON.startedAt)/1000),3*3600);
+  if(!CON.avgN){CON.view='setup';CON.error='No heart-rate data was received, so nothing was saved.';renderConditioning();updateWake();return;}
+  const z=conZones(),ds=conDownsample(CON.samples,dur);
+  const zsec={low:0,mod:0,high:0};
+  ds.pts.forEach(b=>{if(b!=null)zsec[conZoneOf(b,z).key]+=ds.every;});
+  // HR recovery: peak, then how far it fell 60s later
+  let peakI=0;ds.pts.forEach((b,i)=>{if(b!=null&&(ds.pts[peakI]==null||b>ds.pts[peakI]))peakI=i;});
+  let after=null;for(let i=Math.min(ds.pts.length-1,peakI+Math.round(60/ds.every));i>peakI&&after==null;i--)after=ds.pts[i];
+  const hrr=(ds.pts[peakI]!=null&&after!=null)?Math.max(0,ds.pts[peakI]-after):null;
+  const avg=Math.round(CON.avgSum/CON.avgN);
+  const cal=Math.max(0,Math.round((dur/60)*((avg*0.62-55)*0.12+7)));
+  const rec={id:uid(),date:ymd(new Date()),startedAt:CON.startedAt,dur,fmt:CON.fmt,maxHr:z.max,
+    every:ds.every,hr:ds.pts,zsec,max:CON.max,avg,hrr,cal,sim:CON.ble.sim||undefined};
+  const list=Array.isArray(DB.settings.conditioning)?DB.settings.conditioning.slice():[];
+  list.push(rec);DB.settings.conditioning=list.slice(-40);
+  save();
+  CON.record=rec;CON.view='results';
+  renderConditioning();updateWake();
+}
+function conOpenResult(id){
+  const r=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).find(x=>x.id===id);
+  if(r){CON.record=r;CON.view='results';renderConditioning();}
+}
+function conDone(){CON.view='setup';CON.record=null;CON.error='';renderConditioning();}
+
+/* --- SVG helpers --- */
+function conArc(cx,cy,r,a0,a1){
+  const x0=cx+r*Math.cos(a0),y0=cy+r*Math.sin(a0),x1=cx+r*Math.cos(a1),y1=cy+r*Math.sin(a1);
+  return 'M'+x0.toFixed(1)+' '+y0.toFixed(1)+' A'+r+' '+r+' 0 '+((a1-a0)>Math.PI?1:0)+' 1 '+x1.toFixed(1)+' '+y1.toFixed(1);
+}
+function conGaugeSvg(z){
+  const A0=Math.PI,A1=2*Math.PI;let s='<path d="'+conArc(100,100,82,A0,A1)+'" stroke="rgba(255,255,255,.09)" stroke-width="11" fill="none" stroke-linecap="round"/>';
+  z.list.forEach(zz=>{
+    const f0=Math.max(0,(zz.lo-z.floor)/(z.max-z.floor)),f1=Math.min(1,(zz.hi-z.floor)/(z.max-z.floor));
+    s+='<path d="'+conArc(100,100,82,A0+(A1-A0)*f0,A0+(A1-A0)*f1)+'" stroke="'+zz.color+'" stroke-opacity=".22" stroke-width="10" fill="none"/>';
+  });
+  return s+'<path id="conGaugeFill" d="" stroke="'+z.list[0].color+'" stroke-width="11" fill="none" stroke-linecap="round"/>';
+}
+function conLiveGridSvg(z,lo,hi){
+  const Y=v=>10+(150-10-18)*(1-(v-lo)/(hi-lo));let s='';
+  [z.floor,z.list[0].hi,z.list[1].hi,z.max].forEach(v=>{const y=Y(v);s+='<line class="grid" x1="6" y1="'+y.toFixed(1)+'" x2="310" y2="'+y.toFixed(1)+'"/>';});
+  return s;
+}
+/* targeted paints for the live screen */
+function conPaintPhase(p){
+  const bar=document.getElementById('conPhaseBar');if(!bar)return;
+  const cls=p.kind==='work'?'work':p.kind==='rest'?'rest':p.kind==='cool'?'cool':'warm';
+  bar.className='phasebar '+cls;
+  document.getElementById('conPhaseBig').textContent=p.kind==='work'?'WORK':p.kind==='rest'?'RECOVER':p.name.toUpperCase();
+  document.getElementById('conRounds').textContent=CON.rounds?('Round '+CON.round+' / '+CON.rounds):(CON_FORMATS[CON.fmt]?CON_FORMATS[CON.fmt].name:'');
+  const zn=document.getElementById('conZnow');if(zn)zn.textContent=p.name;
+  const pl=document.getElementById('conPhaseLabel');if(pl)pl.textContent=p.kind==='work'?'Work':p.kind==='rest'?'Recover':p.kind==='cool'?'Cool-down':p.kind==='work2'?'Zone 2':'Warm-up';
+}
+function conPaintHr(bpm){
+  const el=document.getElementById('conBpm');if(!el)return;
+  const z=conZones(),zn=conZoneOf(bpm,z);
+  el.textContent=bpm;el.style.color=zn.color;
+  document.getElementById('conZLabel').textContent=zn.name;
+  document.getElementById('conAvg').textContent=CON.avgN?Math.round(CON.avgSum/CON.avgN):'—';
+  document.getElementById('conMax').textContent=CON.max||'—';
+  const fill=document.getElementById('conGaugeFill');
+  if(fill){
+    const frac=Math.max(0,Math.min(1,(bpm-z.floor)/(z.max-z.floor)));
+    fill.setAttribute('d',frac>0.005?conArc(100,100,82,Math.PI,Math.PI+Math.PI*frac):'');
+    fill.setAttribute('stroke',zn.color);
+  }
+  conPaintLine(z);
+}
+function conPaintLine(z){
+  const g=document.getElementById('conLiveSeg');if(!g)return;
+  const pts=CON.samples.slice(-110).map(s=>s.bpm);
+  const lo=z.floor-6,hi=z.max+4,n=Math.max(60,pts.length);
+  const X=i=>6+(310-6)*(i/(n-1)),Y=v=>10+(150-10-18)*(1-(v-lo)/(hi-lo));
+  let s='';
+  for(let i=1;i<pts.length;i++){
+    const zn=conZoneOf((pts[i]+pts[i-1])/2,z);
+    s+='<line x1="'+X(i-1).toFixed(1)+'" y1="'+Y(pts[i-1]).toFixed(1)+'" x2="'+X(i).toFixed(1)+'" y2="'+Y(pts[i]).toFixed(1)+'" stroke="'+zn.color+'" stroke-width="2.4" stroke-linecap="round"/>';
+  }
+  if(pts.length)s+='<circle cx="'+X(pts.length-1).toFixed(1)+'" cy="'+Y(pts[pts.length-1]).toFixed(1)+'" r="3.2" fill="'+conZoneOf(pts[pts.length-1],z).color+'" stroke="#141312" stroke-width="1.5"/>';
+  g.innerHTML=s;
+}
+function conPaintAll(){
+  const t=(Date.now()-CON.startedAt)/1000,info=conPhaseAt(t);
+  if(!info.done){conPaintPhase(info.p);const pc=document.getElementById('conPhaseClock');if(pc)pc.textContent=conMmss(info.left);}
+  const elp=document.getElementById('conElapsed');if(elp)elp.textContent=conMmss(t);
+  if(CON.lastBpm!=null)conPaintHr(CON.lastBpm);
+}
+
+/* --- views --- */
+function conSetupHtml(){
+  const z=conZones(),f=CON_FORMATS[CON.fmt];
+  const rec=WHOOP.sample&&Number.isFinite(Number(WHOOP.sample.recoveryScore))?Math.round(Number(WHOOP.sample.recoveryScore)):null;
+  let h='<div class="kicker">Conditioning</div><h1 style="font-size:24px">Zone session</h1><p class="sub">Train by live heart rate. Zones come from your max HR — set it in Settings.</p>';
+  if(rec!=null)h+='<div class="recpill"><b>Your recovery today</b><span class="v">'+rec+'%</span></div>';
+  h+='<div class="card" style="margin-top:14px;padding:15px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Today&rsquo;s heart-rate zones · max '+z.max+'</div>';
+  z.list.forEach(zz=>{h+='<div class="zrow"><span class="zdot" style="background:'+zz.color+'"></span><span class="znm">'+zz.name+'</span><span class="zbar"><span class="zfill" style="background:linear-gradient(90deg,'+zz.color+'55,'+zz.color+')"></span></span><span class="zrng">'+zz.lo+'&ndash;'+zz.hi+'</span></div>';});
+  h+='</div>';
+  h+='<div style="margin-top:16px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase">Choose format</div><div class="fmtpick">';
+  Object.keys(CON_FORMATS).forEach(k=>{const ff=CON_FORMATS[k];
+    h+='<button aria-pressed="'+(CON.fmt===k)+'" data-click="conPickFmt" data-args="[&quot;'+k+'&quot;]">'+ff.name+'<small>'+ff.desc+'</small></button>';});
+  h+='</div></div>';
+  if('bluetooth' in navigator){
+    h+='<button class="bigbtn" style="margin-top:16px" data-click="conConnect">Connect WHOOP HR &amp; start</button>';
+    h+='<p class="con-hint">Turn on <b>HR Broadcast</b> in the WHOOP app (Device Settings) so the band shows up in the Bluetooth picker.</p>';
+  }else{
+    h+='<div class="con-note"><b>Live HR needs Chrome.</b> Open this app in Chrome on Android (or desktop) to connect your WHOOP — this browser doesn&rsquo;t support Web Bluetooth. The demo below still works.</div>';
+  }
+  h+='<button class="addbtn" style="margin-top:10px" data-click="conStartDemo">Run a demo with simulated HR</button>';
+  if(CON.error)h+='<div class="constatus err" style="margin-top:12px">'+esc(CON.error)+'</div>';
+  const hist=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).slice(-3).reverse();
+  if(hist.length){
+    h+='<div class="section" style="margin-top:22px"><div class="sec-head"><h2>Recent sessions</h2></div><div class="conlist">';
+    hist.forEach(r=>{const fN=CON_FORMATS[r.fmt]?CON_FORMATS[r.fmt].name:r.fmt;
+      h+='<div class="card exrow nav" style="cursor:pointer" data-click="conOpenResult" data-args="[&quot;'+r.id+'&quot;]"><div><b>'+esc(fN)+(r.sim?' · demo':'')+'</b><p>'+esc(prettyDay(r.date))+' · '+conMmss(r.dur)+' · avg '+(r.avg||'—')+' bpm</p></div><span class="chev">›</span></div>';});
+    h+='</div></div>';
+  }
+  return h;
+}
+function conLiveHtml(){
+  const z=conZones(),f=CON_FORMATS[CON.fmt];
+  return '<div class="livetop"><div><div class="znow" id="conZnow">Starting…</div><span class="chip" id="conFmtBadge">'+(f?f.name:'')+(CON.ble.sim?' · demo':'')+'</span></div>'+
+    '<div class="clockbox"><b id="conPhaseClock">–:––</b><span id="conPhaseLabel">&nbsp;</span></div></div>'+
+    '<div class="congauge"><svg viewBox="0 0 200 118" aria-hidden="true">'+conGaugeSvg(z)+'</svg>'+
+    '<div class="gbpm"><b id="conBpm">—</b><span>bpm · <span id="conZLabel">waiting for signal</span></span></div></div>'+
+    '<div class="livemid"><div class="m"><b id="conAvg">—</b><span>avg hr</span></div>'+
+    '<div class="m mbig"><b id="conElapsed">0:00</b><span>elapsed</span></div>'+
+    '<div class="m"><b id="conMax">—</b><span>max hr</span></div></div>'+
+    '<div class="phasebar" id="conPhaseBar"><span id="conPhaseBig">READY</span><span class="rounds" id="conRounds"></span></div>'+
+    '<div class="card chartcard"><div class="chart-head"><h2>Heart rate</h2><span class="csub">live</span></div>'+
+    '<div class="chart"><svg viewBox="0 0 320 150" role="img" aria-label="Live heart rate">'+conLiveGridSvg(z,z.floor-6,z.max+4)+'<g id="conLiveSeg"></g></svg></div></div>'+
+    '<div class="conctrls"><button class="finish" data-click="conFinish">Finish session</button><button class="abort" data-click="conAbort">Discard</button></div>'+
+    '<div class="constatus" id="conStatus"></div>';
+}
+function conDonutSvg(zsec,total){
+  const C=2*Math.PI*46;let off=0,s='<circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="13"/>';
+  conZones().list.forEach(zz=>{
+    const sec=zsec[zz.key]||0;if(!sec||!total)return;
+    const len=(sec/total)*C;
+    s+='<circle cx="60" cy="60" r="46" fill="none" stroke="'+zz.color+'" stroke-width="13" stroke-dasharray="'+len.toFixed(1)+' '+(C-len).toFixed(1)+'" stroke-dashoffset="'+(-off).toFixed(1)+'" transform="rotate(-90 60 60)"/>';
+    off+=len;
+  });
+  return s;
+}
+function conResChartSvg(rec){
+  const z=conZones();const m=rec.maxHr||z.max;
+  const floor=Math.round(m*.5),lowTop=Math.round(m*.78),modTop=Math.round(m*.875);
+  const zoneAt=b=>b<lowTop?'#5b8def':b<modTop?'#cf9d4f':'#e0524d';
+  const pts=rec.hr||[],n=pts.length;if(n<2)return'<div class="sc-meta">Not enough data for a graph.</div>';
+  const lo=floor-8,hi=m+4;
+  const X=i=>6+(310-6)*(i/(n-1)),Y=v=>10+(150-10-20)*(1-(v-lo)/(hi-lo));
+  let g='';[floor,lowTop,modTop,m].forEach(v=>{const y=Y(v);g+='<line class="grid" x1="6" y1="'+y.toFixed(1)+'" x2="310" y2="'+y.toFixed(1)+'"/><text class="axt" x="6" y="'+(y-2).toFixed(1)+'">'+v+'</text>';});
+  const step=Math.max(1,Math.floor(n/240));let s='';
+  let prev=null,prevI=0;
+  for(let i=0;i<n;i+=step){const b=pts[i];if(b==null){prev=null;continue;}
+    if(prev!=null)s+='<line x1="'+X(prevI).toFixed(1)+'" y1="'+Y(prev).toFixed(1)+'" x2="'+X(i).toFixed(1)+'" y2="'+Y(b).toFixed(1)+'" stroke="'+zoneAt((b+prev)/2)+'" stroke-width="2" stroke-linecap="round"/>';
+    prev=b;prevI=i;}
+  return '<div class="chart"><svg viewBox="0 0 320 150" role="img" aria-label="Session heart rate">'+g+s+'</svg></div>';
+}
+function conResultsHtml(rec){
+  if(!rec)return conSetupHtml();
+  const total=(rec.zsec.low||0)+(rec.zsec.mod||0)+(rec.zsec.high||0);
+  const fN=CON_FORMATS[rec.fmt]?CON_FORMATS[rec.fmt].name:rec.fmt;
+  let h='<div class="rhead" style="display:flex;align-items:baseline;justify-content:space-between"><div><div class="kicker">Session complete</div><h1 style="font-size:24px">'+esc(fN)+(rec.sim?' · demo':'')+'</h1></div><span class="chip">'+conMmss(rec.dur)+'</span></div>';
+  h+='<div class="card" style="margin-top:14px;padding:15px"><div class="donutwrap"><div class="dcell"><svg viewBox="0 0 120 120">'+conDonutSvg(rec.zsec,total)+'</svg><div class="dctxt"><div><b>'+conMmss(rec.dur)+'</b><span>total</span></div></div></div><div class="zlist">';
+  conZones().list.forEach(zz=>{h+='<div class="zi"><i style="background:'+zz.color+'"></i><span class="n">'+zz.name+'</span><span class="t">'+conMmss(rec.zsec[zz.key]||0)+'</span></div>';});
+  h+='</div></div></div>';
+  h+='<div class="card chartcard" style="margin-top:14px"><div class="chart-head"><h2>Heart rate</h2><span class="csub">whole session · colored by zone</span></div>'+conResChartSvg(rec)+'</div>';
+  h+='<div class="stats stats2">'+
+    '<div class="stat"><b>'+(rec.max||'—')+'</b><span>max hr</span></div>'+
+    '<div class="stat"><b>'+(rec.avg||'—')+'</b><span>avg hr</span></div>'+
+    '<div class="stat hrr"><b>'+(rec.hrr!=null?'▼ '+rec.hrr:'—')+'</b><span>hr recovery · 60s</span></div>'+
+    '<div class="stat"><b>'+(rec.cal!=null?rec.cal:'—')+'</b><span>est calories</span></div></div>';
+  h+='<p class="con-hint">HR recovery = how far your heart rate dropped in the 60s after your peak — a real conditioning-fitness marker.</p>';
+  h+='<button class="bigbtn" style="margin-top:14px" data-click="conDone">Done</button>';
+  return h;
+}
+function renderConditioning(){
+  const el=document.getElementById('s-conditioning');if(!el)return;
+  el.innerHTML=CON.view==='live'?conLiveHtml():CON.view==='results'?conResultsHtml(CON.record):conSetupHtml();
+  if(CON.view==='live')conPaintAll();
 }
 
 /* ---------- boot ---------- */

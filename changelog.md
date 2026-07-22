@@ -1,5 +1,36 @@
 # Changelog
 
+## Conditioning: live WHOOP heart-rate zone training — 22 July 2026
+
+A fifth tab. Start a conditioning session, connect your WHOOP over
+Bluetooth, and train by live heart rate — Morpheus-style.
+
+- **Live capture, for real.** Uses WHOOP's official HR Broadcast (standard
+  BLE Heart Rate Service) + Web Bluetooth. Second-by-second BPM with
+  automatic reconnect if the signal drops. Works in Chrome on Android and
+  desktop; the app detects unsupported browsers and says so plainly.
+- **Three formats:** Steady-state (Zone 2 · 20 min), Intervals (8×30s/90s),
+  Tempo (10×15s/60s) — warm-up and cool-down included, vibration cues on
+  every phase change, round counter, phase clock.
+- **Live screen** built once and updated in place (no flicker): zone gauge
+  arc, big BPM colored by zone, avg/max, elapsed, and a live HR line
+  colored by zone as it draws.
+- **Results:** zone-time donut, whole-session HR graph colored by zone,
+  max/avg HR, **60-second HR recovery** (peak-to-minute drop — the
+  conditioning-fitness marker), and estimated calories. Sessions persist
+  (2s-downsampled trace, capped at 40) and ride the normal cloud sync.
+- **Zones from your physiology:** 3 bands (Low/Moderate/High) off max HR —
+  220 − age by default, tested-max override in Settings → Training profile.
+- **Demo mode** with simulated HR runs anywhere — try the whole flow
+  without a band (also how CI exercises it, since headless browsers have
+  no Bluetooth).
+- Wake lock held during live sessions; service-worker cache bumped to v41;
+  browser-smoke gains a Conditioning step (nav is now five tabs).
+
+Verified: browser-smoke (31), torture (16), pentest (0 findings), and the
+contract/deployment/pwa checks all pass.
+
+
 ## Progress view + Tier-3 polish: trends, skeletons, grain — 22 July 2026
 
 Adds a fourth tab — **Progress** — that turns everything you log into a

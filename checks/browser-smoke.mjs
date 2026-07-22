@@ -231,10 +231,32 @@ await t('builder: day chips schedule the workout', async () => {
   const sub = await page.textContent('#s-home .sub');
   if (!/session in progress|session planned/i.test(sub)) throw new Error('sub=' + sub);
 });
-await t('no Logger tab: nav is Home · Training · Builder · Progress', async () => {
+await t('no Logger tab: nav is Home · Training · Builder · Conditioning · Progress', async () => {
   const navs = await page.$$eval('.navlink', (els) => els.map((e) => e.dataset.s));
-  if (navs.length !== 4 || navs.includes('logger')) throw new Error(navs.join(','));
-  if (!navs.includes('progress')) throw new Error('missing progress tab: ' + navs.join(','));
+  if (navs.length !== 5 || navs.includes('logger')) throw new Error(navs.join(','));
+  if (!navs.includes('progress') || !navs.includes('conditioning')) throw new Error('missing tab: ' + navs.join(','));
+});
+await t('Conditioning: setup shows zones; demo session records live HR and saves results', async () => {
+  await page.click('.navlink[data-s="conditioning"]');
+  await page.waitForSelector('#s-conditioning.on', { timeout: 2000 });
+  let html = await page.$eval('#s-conditioning', (el) => el.innerHTML);
+  if (!/Zone session/.test(html) || !/Moderate/.test(html)) throw new Error('setup missing zones');
+  // start the simulated-HR demo (no Bluetooth in CI), let it tick a few seconds
+  await page.evaluate(() => conStartDemo());
+  await page.waitForFunction(() => CON.live && CON.samples.length >= 2, null, { timeout: 8000 });
+  const bpm = await page.textContent('#conBpm');
+  if (!/^\d+$/.test(bpm.trim())) throw new Error('live BPM not painting: ' + bpm);
+  const seg = await page.$eval('#conLiveSeg', (g) => g.innerHTML.length);
+  if (!seg) throw new Error('live HR line not drawing');
+  // finish → results persisted with donut + zone times
+  await page.evaluate(() => conFinish());
+  await page.waitForFunction(() => CON.view === 'results', null, { timeout: 2000 });
+  html = await page.$eval('#s-conditioning', (el) => el.innerHTML);
+  if (!/Session complete/.test(html) || !/hr recovery/i.test(html)) throw new Error('results missing');
+  const saved = await page.evaluate(() => (DB.settings.conditioning || []).length);
+  if (!saved) throw new Error('session not persisted');
+  // clean up so later steps see pristine state
+  await page.evaluate(() => { DB.settings.conditioning = []; save(); conDone(); go('home'); });
 });
 await t('Progress tab renders trends (empty state or charts, never blank)', async () => {
   await page.click('.navlink[data-s="progress"]');

@@ -25,6 +25,16 @@ Screens
   per-set targets with RPE (identical targets collapse to one "All sets"
   row), tempo/rest behind a disclosure, live prescription preview,
   "See how it looks →".
+- Conditioning: live heart-rate zone training. Connect WHOOP via its
+  Bluetooth HR Broadcast (Chrome on Android / desktop — Web Bluetooth),
+  pick a format (steady-state Zone 2, 8x30/90 intervals, 10x15/60 tempo),
+  then train against a live zone gauge, big BPM, phase/round timer with
+  vibration cues, and a live zone-colored HR line. Finishing saves the
+  session (downsampled trace, capped at 40) and shows results: zone-time
+  donut, whole-session HR graph colored by zone, max/avg HR, 60s HR
+  recovery, and estimated calories. Zones derive from max HR (220-age or
+  a tested override — Settings > Training profile). A simulated-HR demo
+  runs anywhere, no band needed.
 - Progress: everything you log turned into trends — stat tiles (sessions,
   kg this week, day streak), an 8-week training-volume bar chart, a
   planned-vs-felt RPE two-line chart, and a 14-day WHOOP recovery line.
