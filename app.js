@@ -95,8 +95,12 @@ function go(id,btn){
 /* Wake Lock — keep the phone screen awake while training so it never sleeps
    between sets. Held only on the Training/Logger screens with a live session. */
 let _wakeLock=null;
-async function acquireWake(){try{if('wakeLock'in navigator&&!_wakeLock){_wakeLock=await navigator.wakeLock.request('screen');_wakeLock.addEventListener('release',()=>{_wakeLock=null});}}catch(e){}}
-async function releaseWake(){try{if(_wakeLock){const w=_wakeLock;_wakeLock=null;await w.release();}}catch(e){}}
+async function acquireWake(){
+  try{if(window.AndroidHR&&window.AndroidHR.keepAwake)window.AndroidHR.keepAwake(true);}catch(e){}
+  try{if('wakeLock'in navigator&&!_wakeLock){_wakeLock=await navigator.wakeLock.request('screen');_wakeLock.addEventListener('release',()=>{_wakeLock=null});}}catch(e){}}
+async function releaseWake(){
+  try{if(window.AndroidHR&&window.AndroidHR.keepAwake)window.AndroidHR.keepAwake(false);}catch(e){}
+  try{if(_wakeLock){const w=_wakeLock;_wakeLock=null;await w.release();}}catch(e){}}
 function updateWake(){(((CURRENT==='training'||CURRENT==='logger')&&curSession())||(CURRENT==='conditioning'&&CON.live))?acquireWake():releaseWake();}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')updateWake();});
 function renderScreen(id){
@@ -793,7 +797,11 @@ async function cloudResetPassword(){
 }
 
 /* ---------- local data export / import / reset ---------- */
-function exportData(){const blob=new Blob([JSON.stringify({app:'THE Hybrid Engine',exportedAt:new Date().toISOString(),db:DB},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hybrid-engine-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);}
+function exportData(){
+  const text=JSON.stringify({app:'THE Hybrid Engine',exportedAt:new Date().toISOString(),db:DB},null,2);
+  // Inside the installed app, blob downloads don't exist — hand the file to native.
+  try{if(window.AndroidHR&&window.AndroidHR.saveFile){window.AndroidHR.saveFile('hybrid-engine-backup.json',text);return;}}catch(e){}
+  const blob=new Blob([text],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hybrid-engine-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);}
 function importData(ev){const f=ev.target.files&&ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const p=JSON.parse(rd.result);const d=p.db||p;if(!d||!Array.isArray(d.workouts))throw new Error('Not a valid backup.');DB={workouts:d.workouts||[],sessions:d.sessions||[],settings:d.settings||{}};save();renderSettings();alert('Backup imported.');}catch(e){alert('Import failed: '+(e&&e.message||e));}};rd.readAsText(f);}
 function resetLocal(){if(!confirm('Wipe all workouts and history on THIS device? Cloud data (if signed in) is not touched unless you then sync.'))return;DB={workouts:[],sessions:[],settings:{}};try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}renderSettings();}
 
@@ -1008,7 +1016,7 @@ function renderProgress(){
    ============================================================ */
 const CON={view:'setup',fmt:'intervals',live:false,ble:{dev:null,chr:null,connected:false,sim:false},
   startedAt:0,samples:[],avgSum:0,avgN:0,max:0,lastBpm:null,phases:[],phaseIdx:-1,round:0,rounds:0,
-  timer:null,simBpm:95,simNext:0,record:null,error:''};
+  timer:null,simBpm:95,simNext:0,record:null,error:'',info:''};
 
 /* --- profile & zone model (3 bands, Morpheus-style) --- */
 function conProfile(){const p=DB.settings.profile||{};const age=parseInt(p.age,10)||30;const o=parseInt(p.maxHr,10)||0;return{age,maxHr:o>0?o:220-age};}
@@ -1043,11 +1051,31 @@ const CON_FORMATS={
 };
 function conPickFmt(f){if(CON_FORMATS[f]){CON.fmt=f;if(CURRENT==='conditioning')renderConditioning();}}
 
+/* --- Native HR bridge (the installed Android app injects window.AndroidHR;
+       native BLE streams samples back through the conNative* globals) --- */
+function conHasNative(){try{return !!(window.AndroidHR&&typeof window.AndroidHR.startScan==='function');}catch(e){return false;}}
+function conNativeSample(bpm){conSample(Number(bpm));}
+function conNativeState(state,msg){
+  if(state==='connected'){
+    if(!CON.live){CON.info='';CON.ble={dev:null,chr:null,connected:true,sim:false,native:true};conStart();}
+    else{CON.ble.connected=true;conStatus('');}
+  }else if(state==='scanning'){
+    CON.info='Scanning for your WHOOP… make sure HR Broadcast is on.';CON.error='';
+    if(CURRENT==='conditioning'&&CON.view==='setup')renderConditioning();
+  }else if(state==='reconnecting'){conStatus('Signal lost — reconnecting…');}
+  else if(state==='lost'){conStatus('Connection lost. Finish to keep what was recorded.',true);}
+  else{ // error
+    if(!CON.live){CON.info='';CON.error=String(msg||'Bluetooth error');if(CURRENT==='conditioning')renderConditioning();}
+    else conStatus(String(msg||'Bluetooth error'),true);
+  }
+}
+
 /* --- Web Bluetooth (WHOOP HR broadcast = standard BLE heart_rate) --- */
 function conParseHr(dv){const flags=dv.getUint8(0);return (flags&1)?dv.getUint16(1,true):dv.getUint8(1);}
 function conOnHr(e){try{conSample(conParseHr(e.target.value));}catch(err){}}
 async function conConnect(){
   CON.error='';
+  if(conHasNative()){try{window.AndroidHR.startScan();}catch(e){CON.error='Bluetooth: '+String(e&&e.message||e);renderConditioning();}return;}
   if(!('bluetooth' in navigator)){CON.error='Live HR needs Chrome on Android or desktop — this browser has no Web Bluetooth. You can still run the demo.';renderConditioning();return;}
   try{
     const dev=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}]});
@@ -1083,6 +1111,7 @@ async function conReconnect(){
   if(CON.live)conStatus('Connection lost. Finish to keep what was recorded.',true);
 }
 function conCleanupBle(){
+  try{if(CON.ble.native&&window.AndroidHR)window.AndroidHR.stop();}catch(e){}
   try{if(CON.ble.chr)CON.ble.chr.removeEventListener('characteristicvaluechanged',conOnHr);}catch(e){}
   try{if(CON.ble.dev)CON.ble.dev.removeEventListener('gattserverdisconnected',conOnDrop);}catch(e){}
   try{if(CON.ble.dev&&CON.ble.dev.gatt&&CON.ble.dev.gatt.connected)CON.ble.dev.gatt.disconnect();}catch(e){}
@@ -1256,13 +1285,14 @@ function conSetupHtml(){
   Object.keys(CON_FORMATS).forEach(k=>{const ff=CON_FORMATS[k];
     h+='<button aria-pressed="'+(CON.fmt===k)+'" data-click="conPickFmt" data-args="[&quot;'+k+'&quot;]">'+ff.name+'<small>'+ff.desc+'</small></button>';});
   h+='</div></div>';
-  if('bluetooth' in navigator){
+  if(conHasNative()||('bluetooth' in navigator)){
     h+='<button class="bigbtn" style="margin-top:16px" data-click="conConnect">Connect WHOOP HR &amp; start</button>';
-    h+='<p class="con-hint">Turn on <b>HR Broadcast</b> in the WHOOP app (Device Settings) so the band shows up in the Bluetooth picker.</p>';
+    h+='<p class="con-hint">Turn on <b>HR Broadcast</b> in the WHOOP app (Device Settings) so the band shows up'+(conHasNative()?'.':' in the Bluetooth picker.')+'</p>';
   }else{
     h+='<div class="con-note"><b>Live HR needs Chrome.</b> Open this app in Chrome on Android (or desktop) to connect your WHOOP — this browser doesn&rsquo;t support Web Bluetooth. The demo below still works.</div>';
   }
   h+='<button class="addbtn" style="margin-top:10px" data-click="conStartDemo">Run a demo with simulated HR</button>';
+  if(CON.info)h+='<div class="constatus" style="margin-top:12px">'+esc(CON.info)+'</div>';
   if(CON.error)h+='<div class="constatus err" style="margin-top:12px">'+esc(CON.error)+'</div>';
   const hist=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).slice(-3).reverse();
   if(hist.length){

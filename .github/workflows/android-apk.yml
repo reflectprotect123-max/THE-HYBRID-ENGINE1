@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    paths: ["native/android/**", ".github/workflows/android-apk.yml"]
+    paths: ["native/android-app/**", ".github/workflows/android-apk.yml"]
 
 permissions:
   contents: write
@@ -11,76 +11,51 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: native/android
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-      - uses: actions/setup-node@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          node-version: 20
-      - name: Install Bubblewrap
-        run: npm install -g @bubblewrap/cli
+          gradle-version: "8.9"
       - name: Restore signing keystore
-        if: ${{ env.KEYSTORE_B64 != '' }}
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-        run: echo "$KEYSTORE_B64" | base64 -d > hybrid-release.keystore
-      - name: Build APK (and AAB)
-        env:
-          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          # Bubblewrap self-manages its own JDK+SDK (the mode that has worked).
-          # Its one weakness in CI: on a COLD run the SDK download floods
-          # gradle's stderr and overflows Node's maxBuffer, crashing the CLI
-          # before any APK appears. The download only happens once, so a retry
-          # loop fixes it — attempt 1 populates ~/.bubblewrap, attempts 2-3
-          # reuse it with almost no output and succeed. Quiet gradle logging
-          # further shrinks the output.
-          unset ANDROID_HOME ANDROID_SDK_ROOT
-          mkdir -p ~/.gradle
-          printf 'org.gradle.console=plain\norg.gradle.logging.level=quiet\norg.gradle.daemon=false\n' > ~/.gradle/gradle.properties
-          if [ ! -f hybrid-release.keystore ]; then
-            echo "No release keystore secret set — generating a throwaway key for an unsigned-style build."
-            keytool -genkeypair -v -keystore hybrid-release.keystore -alias hybrid \
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > native/android-app/release.keystore
+            echo "Using the release keystore from secrets (same key as the TWA, so this installs as an update)."
+          else
+            echo "No keystore secret — generating a throwaway key (dev-style build)."
+            keytool -genkeypair -v -keystore native/android-app/release.keystore -alias hybrid \
               -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass hybridengine -keypass hybridengine \
               -dname "CN=THE Hybrid Engine, OU=Personal, O=Hybrid, L=NA, ST=NA, C=AU"
-            export BUBBLEWRAP_KEYSTORE_PASSWORD=hybridengine
-            export BUBBLEWRAP_KEY_PASSWORD=hybridengine
           fi
-          ok=0
-          for i in 1 2 3 4; do
-            echo "=== Bubblewrap build attempt $i ==="
-            if yes | bubblewrap build --skipPwaValidation; then ok=1; break; fi
-            echo "attempt $i failed (likely the one-time SDK download overflow); retrying with the SDK now cached…"
-            sleep 3
-          done
-          echo "APK files produced:"; ls -la *.apk *.aab 2>/dev/null || echo "(none at top level)"
-          [ "$ok" = 1 ]
-      - name: Upload APK
+      - name: Build release APK
+        env:
+          KEYSTORE_FILE: ${{ github.workspace }}/native/android-app/release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'hybridengine' }}
+          KEY_ALIAS: hybrid
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'hybridengine' }}
+        run: gradle -p native/android-app assembleRelease --no-daemon
+      - name: Collect APK
+        run: |
+          apk=$(ls native/android-app/app/build/outputs/apk/release/*.apk | head -1)
+          if [ -z "$apk" ]; then echo "No APK produced."; exit 1; fi
+          cp "$apk" HybridEngine-Android.apk
+          ls -la HybridEngine-Android.apk
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: hybrid-engine-android
-          path: |
-            native/android/*.apk
-            native/android/*.aab
-          if-no-files-found: warn
-      - name: Prepare release asset
-        run: |
-          apk=$(ls app-release-signed.apk app-release-unsigned.apk *.apk 2>/dev/null | head -1)
-          if [ -z "$apk" ]; then echo "No APK was produced — failing so the flake is visible."; exit 1; fi
-          echo "Publishing APK: $apk"
-          cp "$apk" "$GITHUB_WORKSPACE/HybridEngine-Android.apk"
+          path: HybridEngine-Android.apk
       - name: Publish to Release (clean public download link)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
           name: THE Hybrid Engine — Android
-          body: "Android APK for THE Hybrid Engine. Copy to your phone and tap to install (allow install from unknown sources). Rebuilt automatically."
+          body: "Android app for THE Hybrid Engine (native shell v2 — live WHOOP heart rate over Bluetooth built in). Installing over the previous version keeps your workouts. Copy to your phone and tap to install (allow install from unknown sources). Rebuilt automatically."
           files: HybridEngine-Android.apk

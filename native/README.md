@@ -17,13 +17,21 @@ installer needs a Windows toolchain and the Android APK needs the Android SDK
 - Local (on a Windows machine): `cd native/windows && npm install &&
   npx tauri icon src-tauri/icons/icon-source.png && npm run build`.
 
-## Android (.apk) — `native/android`, Bubblewrap TWA
-- Digital Asset Links are already deployed at
-  `/.well-known/assetlinks.json` (matches the release keystore below), so the
-  installed app runs full-screen with no browser chrome.
-- CI: **Actions → "Build Android APK" → Run workflow**. Artifact
-  `hybrid-engine-android` contains `app-release-signed.apk` (sideload it) and
-  an `.aab` (for Play Store).
+## Android (.apk) — `native/android-app`, native WebView shell (v2, current)
+- **Why v2:** the original Bubblewrap TWA (kept at `native/android`, dormant)
+  could not expose Web Bluetooth, so live WHOOP heart rate was impossible
+  inside the installed app. v2 is a small plain-Java WebView shell with a
+  native BLE bridge (`window.AndroidHR`): the Conditioning screen scans,
+  connects to WHOOP's HR Broadcast (BLE heart-rate service 0x180D), and
+  streams second-by-second BPM into the page. Also bridged: screen
+  keep-awake, backup export (system file saver), backup import (chooser).
+- Same `applicationId` (`com.hybridengine.app`), same signing key, higher
+  `versionCode` (2) — so it **installs over the old app as a normal
+  update**, keeping data. All app logic still lives in the deployed PWA and
+  updates over the air; rebuild the APK only to change the wrapper itself.
+- CI: **Actions → "Build Android APK" → Run workflow** (auto-runs on changes
+  under `native/android-app/`). Artifact `hybrid-engine-android`; also
+  published to the `android-latest` release for a clean download link.
 - Signing: the release keystore is **not** committed. To sign with the key
   whose fingerprint is in `assetlinks.json`, add these repo secrets
   (Settings → Secrets and variables → Actions):

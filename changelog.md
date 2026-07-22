@@ -1,5 +1,34 @@
 # Changelog
 
+## Native Android app v2: live heart rate INSIDE the installed app — 22 July 2026
+
+The installed Android app can now do live WHOOP heart rate — no Chrome
+needed. The old TWA wrapper could never expose Bluetooth, so it has been
+replaced by a small native shell (plain Java, zero dependencies) with a
+BLE bridge.
+
+- **window.AndroidHR bridge:** native scan → connect to WHOOP's HR
+  Broadcast (BLE heart-rate service) → second-by-second BPM streamed into
+  the Conditioning screen. Auto-connects when it sees a WHOOP; shows a
+  chooser if several straps are broadcasting; auto-reconnects on dropouts.
+- **Runtime permissions handled natively** (Bluetooth on Android 12+,
+  location-scoped scan on 7–11), including the "turn Bluetooth on" prompt.
+- **Same package, same signing key, versionCode 2** — installing the new
+  APK over the old app is a normal in-place update; nothing is lost.
+- Native niceties the WebView needed: backup **export** via the system
+  file saver, backup **import** via the file chooser, screen keep-awake
+  during live sessions, deep links, dark chrome everywhere.
+- The web app detects the bridge and prefers it; in plain browsers it
+  still uses Web Bluetooth, and the simulated demo works everywhere.
+  Service-worker cache bumped to v42.
+- CI rebuilt: the Android workflow now compiles the native shell with
+  Gradle and publishes to the same `android-latest` release link.
+
+Verified: all six suites pass (31-step browser smoke incl. the
+Conditioning demo). The Bluetooth path itself needs real hardware — first
+on-device pairing is the remaining validation step.
+
+
 ## Conditioning: live WHOOP heart-rate zone training — 22 July 2026
 
 A fifth tab. Start a conditioning session, connect your WHOOP over
