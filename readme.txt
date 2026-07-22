@@ -59,6 +59,7 @@ From the repository root, run:
   node checks/whoop-contract.mjs .
   node checks/whoop-deployment-smoke.mjs .
   node checks/browser-smoke.mjs       (needs: npm i -D playwright)
+  node checks/pentest.mjs             (adversarial; needs playwright for the browser half)
 
 This package is a private build artifact, not an access-control layer. Do not
 put provider credentials or secrets in the browser, ZIP, or repository.

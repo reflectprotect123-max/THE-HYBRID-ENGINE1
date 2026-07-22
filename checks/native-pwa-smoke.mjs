@@ -118,6 +118,7 @@ async function run() {
   console.log(`Native PWA smoke test — ${bundleRoot}`);
 
   const index = await readBundleText('index.html');
+  const app = await readBundleText('app.js');
   const manifestSource = await readBundleText('manifest.json');
   const serviceWorker = await readBundleText('service-worker.js');
 
@@ -147,10 +148,17 @@ async function run() {
 
   if (index) {
     check(/<link\s+rel="manifest"/.test(index), 'index.html links the web app manifest');
-    check(/serviceWorker/.test(index) && /register\(\s*['"]\.\/service-worker\.js['"]/.test(index), 'index.html registers the service worker');
+    check(/<script\s+src="\.\/app\.js"/.test(index), 'index.html loads the external app.js');
+    // CSP-safe: no inline scripts or inline on* handlers in the shell.
+    check(!/<script>[\s\S]/.test(index), 'index.html has no inline <script> block');
+    check(!/\son(?:click|input|change|load|submit)=/.test(index), 'index.html has no inline event handlers');
 
-    // The mock-exact behavior contracts: local-first persistence, the four
-    // mock screens, set logging with automatic rest, and server-side WHOOP.
+    const behaviorSource = (app || '') + (index || '');
+    check(/serviceWorker/.test(behaviorSource) && /register\(\s*['"]\.\/service-worker\.js['"]/.test(behaviorSource), 'app registers the service worker');
+
+    // The mock-exact behavior contracts, now living in app.js: local-first
+    // persistence, the mock screens, set logging with automatic rest,
+    // server-side WHOOP, and the CSP-safe delegation layer.
     const behaviorPatterns = [
       [/const LS_KEY='hybrid-engine-v1'/, 'local-first persistence key'],
       [/s-home/, 'Home screen'],
@@ -172,9 +180,10 @@ async function run() {
       [/whoop-sync/, 'WHOOP sync endpoint'],
       [/integrations-disconnect/, 'WHOOP disconnect endpoint'],
       [/templateWorkout\(/, 'nameless template seed'],
+      [/addEventListener\('click',e=>\{const el=e\.target\.closest\('\[data-click\]'\)/, 'CSP-safe click delegation'],
     ];
     for (const [pattern, label] of behaviorPatterns) {
-      check(pattern.test(index), `app contract: ${label}`);
+      check(pattern.test(behaviorSource), `app contract: ${label}`);
     }
     check(!/api\.prod\.whoop\.com|WHOOP_CLIENT_SECRET|APP_SESSION_SECRET/.test(index), 'index.html has no provider API or secret material');
   }

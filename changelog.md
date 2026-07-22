@@ -1,5 +1,28 @@
 # Changelog
 
+## CSP hardening: no inline script, no unsafe-inline — 21 July 2026
+
+Closes the one serious finding from the pen-test: the CSP previously
+allowed script-src 'unsafe-inline', so any future XSS could read the
+Supabase token from localStorage.
+
+- Moved the entire app from an inline <script> into an external app.js,
+  loaded with `defer` after the Supabase client. The page now has zero
+  inline JavaScript.
+- Replaced all 78 inline on* handlers (onclick/oninput/onchange) with a
+  small CSP-safe event-delegation layer: markup carries
+  data-click/-input/-change="fn" plus a JSON data-args array, with
+  @self/@value/@checked/@event sentinels resolved at dispatch. Each site
+  behaves exactly as before.
+- Tightened the CSP to `script-src 'self'` — dropped 'unsafe-inline'.
+  (style-src keeps it; inline styles are not a script-execution vector.)
+- Service worker caches app.js; cache bumped to v38. Checks updated to
+  read app.js; native-pwa-smoke now also asserts the shell has no inline
+  script and no inline handlers, and that the delegation layer exists.
+
+Verified: pen-test now reports 0 findings (was 1); browser-smoke (29),
+torture (16), and all four contract/deploy/pwa checks pass.
+
 ## Hardening: XSS, corrupt storage, empty sessions — 21 July 2026
 
 Ran a full workout end-to-end plus an adversarial torture pass. Four
