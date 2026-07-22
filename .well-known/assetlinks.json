@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.hybridengine.app",
+      "sha256_cert_fingerprints": [
+        "89:05:AD:78:AF:DD:45:21:DE:01:51:51:8A:DE:B3:A2:9A:81:04:F6:70:2A:E3:EC:E9:9F:52:5D:F5:B2:80:E8"
+      ]
+    }
+  }
+]

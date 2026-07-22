@@ -1,0 +1,53 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ["native/android/**", ".github/workflows/android-apk.yml"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+      - name: Restore signing keystore
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: echo "$KEYSTORE_B64" | base64 -d > hybrid-release.keystore
+      - name: Build APK (and AAB)
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ ! -f hybrid-release.keystore ]; then
+            echo "No release keystore secret set — generating a throwaway key for an unsigned-style build."
+            keytool -genkeypair -v -keystore hybrid-release.keystore -alias hybrid \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass hybridengine -keypass hybridengine \
+              -dname "CN=THE Hybrid Engine, OU=Personal, O=Hybrid, L=NA, ST=NA, C=AU"
+            export BUBBLEWRAP_KEYSTORE_PASSWORD=hybridengine
+            export BUBBLEWRAP_KEY_PASSWORD=hybridengine
+          fi
+          yes | bubblewrap build --skipPwaValidation
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-engine-android
+          path: |
+            native/android/app-release-signed.apk
+            native/android/app-release-bundle.aab
+          if-no-files-found: warn

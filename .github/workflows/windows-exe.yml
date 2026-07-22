@@ -1,0 +1,39 @@
+name: Build Windows .exe
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ["native/windows/**", ".github/workflows/windows-exe.yml"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: native/windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/windows/src-tauri
+      - name: Install deps
+        run: npm install
+      - name: Generate icons
+        run: npx tauri icon src-tauri/icons/icon-source.png
+      - name: Build .exe + installers
+        run: npm run build
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-engine-windows
+          path: |
+            native/windows/src-tauri/target/release/bundle/nsis/*.exe
+            native/windows/src-tauri/target/release/bundle/msi/*.msi
+            native/windows/src-tauri/target/release/*.exe
+          if-no-files-found: warn
