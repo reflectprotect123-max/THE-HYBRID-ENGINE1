@@ -35,10 +35,17 @@ jobs:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          # Let Bubblewrap fully self-manage its JDK+SDK. The ubuntu runner
-          # preseeds ANDROID_SDK_ROOT/ANDROID_HOME to a different SDK, and
-          # gradle refuses when two conflicting SDK paths are injected.
-          unset ANDROID_HOME ANDROID_SDK_ROOT
+          # Point Bubblewrap at the runner's PREINSTALLED Android SDK + the
+          # setup-java JDK. This avoids Bubblewrap downloading its own SDK on a
+          # cold runner — that download floods gradle's stderr and overflows
+          # Node's maxBuffer ("cli ERROR stderr maxBuffer length exceeded"),
+          # crashing the build before any APK is produced. Using one existing
+          # SDK also removes the dual-path conflict from before.
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          mkdir -p ~/.bubblewrap ~/.gradle
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_SDK_ROOT" > ~/.bubblewrap/config.json
+          printf 'org.gradle.console=plain\norg.gradle.logging.level=quiet\norg.gradle.daemon=false\n' > ~/.gradle/gradle.properties
+          echo "Bubblewrap SDK config:"; cat ~/.bubblewrap/config.json
           if [ ! -f hybrid-release.keystore ]; then
             echo "No release keystore secret set — generating a throwaway key for an unsigned-style build."
             keytool -genkeypair -v -keystore hybrid-release.keystore -alias hybrid \
@@ -48,7 +55,7 @@ jobs:
             export BUBBLEWRAP_KEYSTORE_PASSWORD=hybridengine
             export BUBBLEWRAP_KEY_PASSWORD=hybridengine
           fi
-          yes | bubblewrap build --skipPwaValidation || true
+          yes | bubblewrap build --skipPwaValidation
           echo "APK files produced:"; ls -la *.apk *.aab 2>/dev/null || echo "(none at top level)"
       - name: Upload APK
         uses: actions/upload-artifact@v4
