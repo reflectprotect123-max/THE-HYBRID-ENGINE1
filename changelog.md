@@ -1,5 +1,26 @@
 # Changelog
 
+## UI/UX polish: real Inter, animated ring, press feedback, wake lock — 22 July 2026
+
+- Loaded the real Inter typeface (self-hosted variable woff2, 72 KB) that
+  the design was drawn for — previously it silently fell back to system
+  fonts. Sharpens every number, heading and the tabular rest timer.
+  CSP-safe (font-src 'self') and cached for offline.
+- The WHOOP dual ring now animates up from zero to its value on render
+  (registered @property arcs), instead of snapping. Honours
+  prefers-reduced-motion.
+- Tactile press feedback across cards, chips, buttons, nav and the week
+  strip; a little confirmation pop when a set is ticked; a slightly
+  richer screen-transition ease. All subtle and mock-faithful.
+- Wake Lock: the screen stays awake on the Training/Logger screens during
+  a live session, so your phone won't sleep between sets. Released when
+  you leave; re-acquired when you return.
+- Service-worker cache bumped to v39 (adds the font to the offline shell).
+
+Verified: browser-smoke (29), torture (16), pentest (0 findings), and the
+contract/deployment/pwa checks all pass.
+
+
 ## CSP hardening: no inline script, no unsafe-inline — 21 July 2026
 
 Closes the one serious finding from the pen-test: the CSP previously

@@ -11,7 +11,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="THE" />
+<link rel="preload" href="fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin />
 <style>
+/* Self-hosted Inter (variable) — the typeface the design was drawn for.
+   Bundled so it works under the strict CSP (font-src 'self') and offline. */
+@font-face{
+  font-family:'Inter';
+  font-style:normal;
+  font-weight:100 900;
+  font-display:swap;
+  src:url('fonts/inter-var.woff2') format('woff2');
+}
 :root{
   --bg:#080808; --panel:#111110; --panel2:#181816; --panel3:#0c0c0b;
   --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.12);
@@ -276,11 +286,33 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .daychip:hover{border-color:rgba(224,188,135,.4)}
 .daychip.on{border-color:rgba(198,154,97,.42);background:var(--gold-wash);color:var(--gold2)}
 .bex-grid.solo{grid-template-columns:1fr}
-/* WHOOP-style dual ring: outer = strain (blue), inner = recovery (WHOOP colors) */
-.ringx{width:62px;height:62px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center}
-.ringx-in{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;position:relative}
+/* WHOOP-style dual ring: outer = strain (blue), inner = recovery (WHOOP colors).
+   The arcs animate up from 0 to their value via registered custom properties. */
+@property --oa{syntax:'<number>';inherits:false;initial-value:0}
+@property --ia{syntax:'<number>';inherits:false;initial-value:0}
+@keyframes fillOuter{from{--oa:0}to{--oa:var(--oaT,0)}}
+@keyframes fillInner{from{--ia:0}to{--ia:var(--iaT,0)}}
+.ringx{--track:rgba(255,255,255,.09);width:62px;height:62px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;
+  background:conic-gradient(var(--oc,rgba(255,255,255,.14)) calc(var(--oa)*1%),var(--track) 0);
+  animation:fillOuter .95s cubic-bezier(.22,.8,.2,1) forwards}
+.ringx-in{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;position:relative;
+  background:conic-gradient(var(--ic,rgba(255,255,255,.14)) calc(var(--ia)*1%),var(--track) 0);
+  animation:fillInner .95s cubic-bezier(.22,.8,.2,1) forwards}
 .ringx-in::before{content:"";position:absolute;inset:5px;border-radius:inherit;background:#17191e}
 .ringx-in b{position:relative;z-index:1;font-size:12px}
+@media(prefers-reduced-motion:reduce){.ringx,.ringx-in{animation:none;--oa:var(--oaT,0);--ia:var(--iaT,0)}}
+
+/* Micro-interactions: tactile press feedback (subtle, mock-faithful) */
+.sessioncard,.exrow,.bigbtn,.chip,.daychip,.addbtn,.backbtn,.wd,.whoopmini,.markall,.bexp,.bctrls button,.stepbtn{transition:transform .12s cubic-bezier(.22,.8,.2,1),background .15s ease,border-color .15s ease,box-shadow .15s ease}
+.sessioncard:active,.exrow:active,.bigbtn:active,.chip:active,.daychip:active,.addbtn:active,.backbtn:active,.wd:active,.whoopmini:active,.markall:active{transform:scale(.985)}
+.navlink{transition:transform .12s ease,background .15s ease,color .15s ease}
+.navlink:active{transform:scale(.94)}
+.stepbtn:active,.bexp:active,.bctrls button:active{transform:scale(.9)}
+/* Set-tick confirmation pop */
+@keyframes tickpop{0%{transform:scale(1)}45%{transform:scale(1.22)}100%{transform:scale(1)}}
+.setrow.done .tick{animation:tickpop .3s cubic-bezier(.34,1.56,.64,1)}
+/* Cards ease in a touch more richly */
+.screen.on{animation:fade .22s cubic-bezier(.22,.8,.2,1)}
 </style>
 </head>
 <body>

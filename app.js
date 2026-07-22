@@ -89,8 +89,16 @@ function go(id,btn){
   const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
   if(navBtn)navBtn.classList.add('active');
   renderScreen(id);
+  updateWake();
   window.scrollTo({top:0});
 }
+/* Wake Lock — keep the phone screen awake while training so it never sleeps
+   between sets. Held only on the Training/Logger screens with a live session. */
+let _wakeLock=null;
+async function acquireWake(){try{if('wakeLock'in navigator&&!_wakeLock){_wakeLock=await navigator.wakeLock.request('screen');_wakeLock.addEventListener('release',()=>{_wakeLock=null});}}catch(e){}}
+async function releaseWake(){try{if(_wakeLock){const w=_wakeLock;_wakeLock=null;await w.release();}}catch(e){}}
+function updateWake(){((CURRENT==='training'||CURRENT==='logger')&&curSession())?acquireWake():releaseWake();}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')updateWake();});
 function renderScreen(id){
   if(id==='home')renderHome();
   else if(id==='training')renderTraining();
@@ -311,12 +319,14 @@ function updateWhoopCard(){if(CURRENT==='home')renderHome();}
    picture; numbers and readiness only appear on request. */
 let WHOOP_OPEN=false;
 function toggleWhoopDetails(){WHOOP_OPEN=!WHOOP_OPEN;if(CURRENT==='home')renderHome();}
-const RING_TRACK='rgba(255,255,255,.09)',RING_IDLE='rgba(255,255,255,.14) 100%',STRAIN_BLUE='#0093e7';
+const STRAIN_BLUE='#0093e7',RING_IDLE_COLOR='rgba(255,255,255,.14)';
 function whoopRings(recColor,recPct,strainPct,center){
-  const outer=strainPct==null?RING_IDLE:STRAIN_BLUE+' '+strainPct+'%';
-  const inner=recPct==null?RING_IDLE:recColor+' '+recPct+'%';
-  return '<div class="ringx" style="background:conic-gradient('+outer+','+RING_TRACK+' 0)">'+
-    '<div class="ringx-in" style="background:conic-gradient('+inner+','+RING_TRACK+' 0)"><b>'+center+'</b></div></div>';
+  // Arc targets + colors feed CSS custom properties; the CSS animates each
+  // arc up from 0. A null pct shows a faint full ring (idle/loading).
+  const oaT=strainPct==null?100:strainPct, oc=strainPct==null?RING_IDLE_COLOR:STRAIN_BLUE;
+  const iaT=recPct==null?100:recPct, ic=recPct==null?RING_IDLE_COLOR:recColor;
+  return '<div class="ringx" style="--oaT:'+oaT+';--oc:'+oc+'">'+
+    '<div class="ringx-in" style="--iaT:'+iaT+';--ic:'+ic+'"><b>'+center+'</b></div></div>';
 }
 function whoopSettingsChip(){return '<button class="chip" style="cursor:pointer;font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase" data-click="go" data-args="[&quot;settings&quot;]">WHOOP</button>';}
 function whoopCardHtml(){
