@@ -35,17 +35,16 @@ jobs:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          # Point Bubblewrap at the runner's PREINSTALLED Android SDK + the
-          # setup-java JDK. This avoids Bubblewrap downloading its own SDK on a
-          # cold runner — that download floods gradle's stderr and overflows
-          # Node's maxBuffer ("cli ERROR stderr maxBuffer length exceeded"),
-          # crashing the build before any APK is produced. Using one existing
-          # SDK also removes the dual-path conflict from before.
-          export ANDROID_HOME="$ANDROID_SDK_ROOT"
-          mkdir -p ~/.bubblewrap ~/.gradle
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_SDK_ROOT" > ~/.bubblewrap/config.json
+          # Bubblewrap self-manages its own JDK+SDK (the mode that has worked).
+          # Its one weakness in CI: on a COLD run the SDK download floods
+          # gradle's stderr and overflows Node's maxBuffer, crashing the CLI
+          # before any APK appears. The download only happens once, so a retry
+          # loop fixes it — attempt 1 populates ~/.bubblewrap, attempts 2-3
+          # reuse it with almost no output and succeed. Quiet gradle logging
+          # further shrinks the output.
+          unset ANDROID_HOME ANDROID_SDK_ROOT
+          mkdir -p ~/.gradle
           printf 'org.gradle.console=plain\norg.gradle.logging.level=quiet\norg.gradle.daemon=false\n' > ~/.gradle/gradle.properties
-          echo "Bubblewrap SDK config:"; cat ~/.bubblewrap/config.json
           if [ ! -f hybrid-release.keystore ]; then
             echo "No release keystore secret set — generating a throwaway key for an unsigned-style build."
             keytool -genkeypair -v -keystore hybrid-release.keystore -alias hybrid \
@@ -55,8 +54,15 @@ jobs:
             export BUBBLEWRAP_KEYSTORE_PASSWORD=hybridengine
             export BUBBLEWRAP_KEY_PASSWORD=hybridengine
           fi
-          yes | bubblewrap build --skipPwaValidation
+          ok=0
+          for i in 1 2 3 4; do
+            echo "=== Bubblewrap build attempt $i ==="
+            if yes | bubblewrap build --skipPwaValidation; then ok=1; break; fi
+            echo "attempt $i failed (likely the one-time SDK download overflow); retrying with the SDK now cached…"
+            sleep 3
+          done
           echo "APK files produced:"; ls -la *.apk *.aab 2>/dev/null || echo "(none at top level)"
+          [ "$ok" = 1 ]
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
