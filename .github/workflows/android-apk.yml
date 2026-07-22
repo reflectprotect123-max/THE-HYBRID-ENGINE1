@@ -17,7 +17,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -33,6 +32,10 @@ jobs:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          # Let Bubblewrap fully self-manage its JDK+SDK. The ubuntu runner
+          # preseeds ANDROID_SDK_ROOT/ANDROID_HOME to a different SDK, and
+          # gradle refuses when two conflicting SDK paths are injected.
+          unset ANDROID_HOME ANDROID_SDK_ROOT
           if [ ! -f hybrid-release.keystore ]; then
             echo "No release keystore secret set — generating a throwaway key for an unsigned-style build."
             keytool -genkeypair -v -keystore hybrid-release.keystore -alias hybrid \

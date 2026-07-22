@@ -23,7 +23,6 @@
     "targets": ["nsis", "msi"],
     "icon": ["icons/icon.ico", "icons/icon.png"],
     "publisher": "Hybrid",
-    "category": "HealthAndFitness",
     "shortDescription": "Get built, not burnt.",
     "longDescription": "THE Hybrid Engine — a local-first hybrid training logger and builder with WHOOP recovery."
   }
