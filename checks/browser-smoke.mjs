@@ -251,6 +251,43 @@ await t('logger detail view steps forward and back through the session', async (
   const training = await page.$eval('.navlink[data-s="training"]', (el) => el.classList.contains('active'));
   if (!training) throw new Error('Training tab not highlighted while logging');
 });
+await t('hostile exercise/target text is escaped, never executed (XSS)', async () => {
+  const executed = await page.evaluate(async () => {
+    window.__xss = 0;
+    const evil = '<img src=x onerror="window.__xss=1">';
+    WK = templateWorkout(); WK.name = 'XSS'; BUILDER_WID = WK.id; EDIT_EXISTING = false; openBlock = 2;
+    WK.blocks[2].exercises[0].name = evil;
+    WK.blocks[2].exercises[0].tempo = evil;
+    WK.blocks[2].exercises[0].sets[0].t = evil;
+    renderBuilder();
+    startWorkout((DB.workouts.push(JSON.parse(JSON.stringify(WK))), DB.workouts[DB.workouts.length - 1]).id);
+    openLogger(2, 0);
+    await new Promise((r) => setTimeout(r, 200));
+    const fired = window.__xss;
+    BUILDER_WID = DB.workouts[DB.workouts.length - 1].id; deleteCurrentWorkout();
+    return fired;
+  });
+  if (executed) throw new Error('XSS executed');
+});
+await t('corrupted localStorage (bad JSON and wrong types) boots clean', async () => {
+  for (const bad of ['{{{not json', JSON.stringify({ workouts: { a: 1 }, sessions: 'nope', settings: 7 }), JSON.stringify({ workouts: [{ name: 'no blocks' }], sessions: [null] })]) {
+    await page.evaluate((v) => localStorage.setItem('hybrid-engine-v1', v), bad);
+    await page.reload({ waitUntil: 'networkidle' });
+    const h1 = await page.textContent('#s-home h1').catch(() => '');
+    if (h1.trim() !== 'Train today') throw new Error('did not boot on: ' + bad.slice(0, 30));
+  }
+  await page.evaluate(() => { localStorage.removeItem('hybrid-engine-v1'); });
+  await page.reload({ waitUntil: 'networkidle' });
+});
+await t('empty workout cannot be previewed into a finishable session', async () => {
+  const stayed = await page.evaluate(() => {
+    WK = { id: uid(), name: 'Empty', blocks: [] }; BUILDER_WID = WK.id; EDIT_EXISTING = false; go('builder');
+    previewWorkout();
+    return CURRENT === 'builder' && !DB.sessions.some((s) => s.name === 'Empty');
+  });
+  if (!stayed) throw new Error('empty workout produced a session');
+  await page.evaluate(() => go('home'));
+});
 await t('mobile viewport: nav becomes the bottom bar', async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   const pos = await page.$eval('.side', (el) => getComputedStyle(el).position);

@@ -1,5 +1,30 @@
 # Changelog
 
+## Hardening: XSS, corrupt storage, empty sessions — 21 July 2026
+
+Ran a full workout end-to-end plus an adversarial torture pass. Four
+real bugs surfaced and were fixed:
+
+- **Stored XSS (serious):** an exercise name / tempo / set-target
+  containing HTML executed when the Builder card rendered its
+  prescription line, and in the logger's per-set target line. Both
+  spots now escape the value (the prescription line elsewhere already
+  went through the escaping path). Hostile input is shown as text.
+- **Corrupt localStorage crashed boot:** a stored blob with the wrong
+  types (workouts not an array, sessions a string, a workout with no
+  blocks) threw on load. load() now runs every record through
+  sanitizeDB(), coercing shapes and dropping junk, so the app always
+  boots to a clean Home.
+- **Empty session was "complete":** a session with no exercises passed
+  the all-sets-done check by vacuous truth. sessionAllDone() now
+  requires at least one exercise, and the Builder refuses to preview a
+  workout with no blocks/exercises.
+
+Three of these are now covered by committed browser-smoke steps.
+Service-worker cache bumped to v37.
+
+# Changelog
+
 ## Max reps (AMRAP) — 21 July 2026
 
 - New "Max reps" tracking mode in the Builder for lifts where every set is

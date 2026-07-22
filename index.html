@@ -337,7 +337,19 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 const LS_KEY='hybrid-engine-v1';
 let DB={workouts:[],sessions:[],settings:{}};
 function uid(){return Math.random().toString(36).slice(2,10)}
-function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){DB=Object.assign({workouts:[],sessions:[],settings:{}},JSON.parse(raw))}}catch(e){}}
+function sanitizeDB(d){
+  d=(d&&typeof d==='object')?d:{};
+  const arr=v=>Array.isArray(v)?v:[];
+  const cleanEx=e=>{e=(e&&typeof e==='object')?e:{};e.sets=arr(e.sets).map(s=>(s&&typeof s==='object')?s:{});if(!e.sets.length)e.sets=[newSet()];e.mode=MODES[e.mode]?e.mode:'reps_kg';return e;};
+  const cleanBlock=b=>{b=(b&&typeof b==='object')?b:{};b.exercises=arr(b.exercises).map(cleanEx);if(!b.exercises.length)b.exercises=[newEx()];return b;};
+  const cleanBlocks=v=>{const bl=arr(v).map(cleanBlock);return bl;};
+  return {
+    workouts:arr(d.workouts).map(w=>{w=(w&&typeof w==='object')?w:{};w.blocks=cleanBlocks(w.blocks);if(!w.id)w.id=uid();return w;}),
+    sessions:arr(d.sessions).map(s=>{s=(s&&typeof s==='object')?s:{};s.blocks=cleanBlocks(s.blocks);if(!s.id)s.id=uid();return s;}),
+    settings:(d.settings&&typeof d.settings==='object')?d.settings:{},
+  };
+}
+function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw)DB=sanitizeDB(JSON.parse(raw));}catch(e){DB={workouts:[],sessions:[],settings:{}};}}
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(DB));flashSaved()}catch(e){}if(typeof queueCloudPush==='function')queueCloudPush();}
 let savedTimer=null;
 function flashSaved(){const el=document.getElementById('sideStatus');if(!el)return;el.textContent='Saved ✓';clearTimeout(savedTimer);savedTimer=setTimeout(()=>{if(el)el.textContent='Saved locally'},1200)}
@@ -662,6 +674,7 @@ function editWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;WK=
 function hasLoggedWork(s){return s&&s.blocks.some(b=>b.exercises.some(e=>e.sets.some(st=>st.done||st.aVal||st.aVal2||st.felt)));}
 function previewWorkout(){
   if(!WK.name.trim())WK.name='Untitled workout';
+  if(!WK.blocks.some(b=>b.exercises.length)){alert('Add at least one block with an exercise before previewing.');return;}
   const i=DB.workouts.findIndex(x=>x.id===WK.id);
   const clean=JSON.parse(JSON.stringify(WK));
   if(i>=0)DB.workouts[i]=clean;else DB.workouts.push(clean);
@@ -714,7 +727,7 @@ function renderSession(){
     }
     return '<div class="section">'+head+rows+'</div>';
   }).join('');
-  const allDone=s.blocks.every(b=>b.exercises.every(e=>e.sets.every(st=>st.done)));
+  const allDone=sessionAllDone(s);
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" onclick="go(\'home\')">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 style="font-size:24px">'+esc(s.name||'Workout')+'</h1></div></div>'+
     '<div id="sessBody">'+body+'</div>'+
@@ -771,6 +784,10 @@ function loggableList(s){
   return out;
 }
 function exFinished(ex){return ex.sets.length>0&&ex.sets.every(st=>st.done)}
+function sessionAllDone(s){
+  const exs=s.blocks.flatMap(b=>b.exercises);
+  return exs.length>0&&exs.every(exFinished);
+}
 function stepLogger(d){
   const s=curSession();if(!s||!LOG_LOC)return;
   const list=loggableList(s);
@@ -801,7 +818,7 @@ function renderLoggerScreen(){
     if(ex.mode!=='completion'){
       if(ex.mode==='amrap')bits.push('max reps');
       else if(st.t==='max')bits.push((ex.mode==='seconds'||ex.mode==='reps_seconds')?'max secs':'max reps');
-      else if(st.t)bits.push((ex.mode==='seconds'||ex.mode==='reps_seconds')?st.t+'s':st.t+' reps');
+      else if(st.t)bits.push((ex.mode==='seconds'||ex.mode==='reps_seconds')?esc(st.t)+'s':esc(st.t)+' reps');
       if(st.rpe)bits.push('RPE '+esc(st.rpe));
     }
     const tline='<div class="settarget">Set '+(si+1)+(bits.length?' · target '+bits.join(' · '):(ex.mode==='completion'?' · mark complete':''))+'</div>';
@@ -817,7 +834,7 @@ function renderLoggerScreen(){
     const nx=s.blocks[list[idx+1].bi].exercises[list[idx+1].ei];
     flow+='<button class="addbtn" onclick="stepLogger(1)">Next exercise: '+esc(nx.name||'Exercise')+' →</button>';
   }
-  const sessionDone=s.blocks.every(bb=>bb.exercises.every(e=>e.sets.every(st=>st.done)));
+  const sessionDone=sessionAllDone(s);
   if(sessionDone)flow+='<div class="completebar" style="margin-top:16px"><button class="bigbtn" onclick="finishSession(this)">Everything logged — mark session complete</button></div>';
   const stepNav=(idx>=0&&total>1)?'<div class="histnav">'+
     (idx>0?'<button class="markall" onclick="stepLogger(-1)">‹ Previous</button>':'<span></span>')+
@@ -947,7 +964,7 @@ function exCard(b,ex,bi,ei){
     modeRow+
     (ex.mode==='completion'?'':'<div class="bsteprow"><button class="stepbtn sm" onclick="bumpSets('+bi+','+ei+',-1)">−</button><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+'</span><button class="stepbtn sm" onclick="bumpSets('+bi+','+ei+',1)">+</button></div>')+
     setRows+
-    '<div class="rxline" id="rxb'+bi+'e'+ei+'">'+rxLine(ex)+'</div></div>';
+    '<div class="rxline" id="rxb'+bi+'e'+ei+'">'+esc(rxLine(ex))+'</div></div>';
 }
 function normTarget(v){v=String(v).trim();return /^m(ax)?$/i.test(v)?'max':v;}
 function editAllSets(bi,ei,k,v){const val=k==='t'?normTarget(v):v.trim();WK.blocks[bi].exercises[ei].sets.forEach(s=>s[k]=val);refreshRx(bi,ei);}
