@@ -96,7 +96,11 @@ function go(id,btn){
   if(scr){scr.classList.add('on');scr.classList.remove('anim');void scr.offsetWidth;scr.classList.add('anim');}
   document.querySelectorAll('.navlink').forEach(b=>b.classList.remove('active'));
   // The logger is a detail view of Training — keep Training lit while logging.
-  const navId=id==='logger'||id==='recap'?'training':id==='exhist'?'progress':id;
+  // Builder, Conditioning, Progress and exercise-history all live under Library now.
+  const LIB_SCREENS={library:1,builder:1,conditioning:1,progress:1,exhist:1};
+  const navId=id==='logger'||id==='recap'?'training'
+    :LIB_SCREENS[id]?'library'
+    :(id==='settings'||id==='history'||id==='import')?'home':id;
   const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
   if(navBtn)navBtn.classList.add('active');
   renderScreen(id);
@@ -118,6 +122,7 @@ function renderScreen(id){
   if(id==='home')renderHome();
   else if(id==='training')renderTraining();
   else if(id==='logger')renderLoggerScreen();
+  else if(id==='library')renderLibrary();
   else if(id==='builder')renderBuilder();
   else if(id==='settings')renderSettings();
   else if(id==='history')renderHistory();
@@ -130,12 +135,22 @@ function renderScreen(id){
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
 function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function dateKeyDow(key){const p=String(key).split('-');return new Date(+p[0],+p[1]-1,+p[2]).getDay();}
+/* A workout is planned on a given day if it recurs on that weekday (w.days) or
+   was scheduled one-off for that exact date (w.dates). Both are additive. */
+function plannedOn(w,key){return (w.days||[]).includes(dateKeyDow(key))||(w.dates||[]).includes(key);}
+function scheduleWorkoutOn(workoutId,key){
+  const w=DB.workouts.find(x=>x.id===workoutId);if(!w)return;
+  w.dates=Array.isArray(w.dates)?w.dates:[];
+  if(!w.dates.includes(key))w.dates.push(key);
+  save();
+}
 function weekDays(){
   const now=new Date(),sun=new Date(now);sun.setDate(now.getDate()-now.getDay());
   const todayKey=ymd(now),out=[];
   for(let i=0;i<7;i++){const d=new Date(sun);d.setDate(sun.getDate()+i);const k=ymd(d);
     const trained=DB.sessions.some(s=>s.date===k);
-    const planned=k>=todayKey&&DB.workouts.some(w=>(w.days||[]).includes(d.getDay()));
+    const planned=k>=todayKey&&DB.workouts.some(w=>plannedOn(w,k));
     out.push({key:k,dow:'SMTWTFS'[d.getDay()],num:d.getDate(),today:k===todayKey,has:trained||planned})}
   return out;
 }
@@ -235,8 +250,9 @@ function renderHome(){
   const dstr=now.toLocaleDateString(undefined,{weekday:'long'});
   const wc=DB.workouts.length;
   const todayDow=now.getDay();
-  const anyScheduled=DB.workouts.some(w=>w.days&&w.days.length);
-  const todays=DB.workouts.filter(w=>(w.days||[]).includes(todayDow));
+  const todayKey=ymd(now);
+  const anyScheduled=DB.workouts.some(w=>(w.days&&w.days.length)||(w.dates&&w.dates.length));
+  const todays=DB.workouts.filter(w=>plannedOn(w,todayKey));
   const sub=act?dstr+' · One session in progress.'
     :!wc?dstr+' · Nothing built yet.'
     :!anyScheduled?dstr+' · '+(wc===1?'One session planned.':wc+' sessions ready.')
@@ -249,23 +265,21 @@ function renderHome(){
     cards+=sessionCardHtml(Object.assign({},w,{name:act.name||w.name}),'In progress · resume','openSession',act.id);
   }
   if(!wc){
-    cards+='<div class="card sessioncard" data-click="newWorkout"><div class="sc-kicker">Start</div><h3>No workouts yet</h3><div class="sc-meta">Build your first workout in the Builder, then run it from here.</div><div class="sc-chips"><span class="chip gold">+ New workout</span></div></div>';
+    cards+='<div class="card sessioncard" data-click="openAddSheet"><div class="sc-kicker">Start here</div><h3>No sessions yet</h3><div class="sc-meta">Tap + to build a session — strength or conditioning — and schedule it for today or a day ahead.</div><div class="sc-chips"><span class="chip gold">+ Add a session</span></div></div>';
   } else {
+    // Home shows what's on for TODAY (recurring or one-off scheduled). Templates
+    // that aren't scheduled live in the Library, not on the front page.
     const rest=DB.workouts.filter(w=>!(act&&act.workoutId===w.id));
-    const ordered=[...rest.filter(w=>(w.days||[]).includes(todayDow)),...rest.filter(w=>!(w.days||[]).includes(todayDow))];
-    let first=!act;
-    ordered.forEach(w=>{
-      const scheduledToday=(w.days||[]).includes(todayDow);
-      let kicker;
-      if(scheduledToday)kicker='Today · '+workoutKind(w);
-      else if(w.days&&w.days.length)kicker=daysLabel(w)+' · '+workoutKind(w);
-      else kicker=(!anyScheduled&&first?'Today · ':'')+workoutKind(w);
-      first=false;
-      cards+=sessionCardHtml(w,kicker,'startWorkout',w.id);
+    const todayList=rest.filter(w=>plannedOn(w,todayKey));
+    todayList.forEach(w=>{
+      cards+=sessionCardHtml(w,'Today · '+workoutKind(w),'startWorkout',w.id);
     });
+    if(!act&&!todayList.length){
+      cards+='<div class="card sessioncard empty-plan"><div class="sc-kicker">Nothing on today</div><h3>Rest day</h3><div class="sc-meta">Tap + to build a session or add one from your Library — schedule it for today or a day ahead.</div></div>';
+    }
   }
   // the one dominant tap: resume the live session, or start today's scheduled workout
-  const todayW=!act&&DB.workouts.find(w=>(w.days||[]).includes(new Date().getDay()));
+  const todayW=!act&&DB.workouts.find(w=>plannedOn(w,todayKey));
   const cta=act?'<button class="bigbtn homecta" data-click="startToday">Resume '+esc(act.name||'session')+' →</button>'
     :todayW?'<button class="bigbtn homecta" data-click="startToday">Start today&rsquo;s session →</button>':'';
   el.innerHTML=
@@ -275,14 +289,23 @@ function renderHome(){
     cta+
     weekStripHtml()+
     cards+
-    (wc?'<button class="addbtn" data-click="newWorkout">+ New workout</button>':'')+
-    '<div class="quickrow">'+
-      '<button class="card quickact" data-click="conNav"><span class="qi">⚡</span><b>Start conditioning</b><span>Live heart-rate zones</span></button>'+
-      '<button class="card quickact" data-click="openImport"><span class="qi">📋</span><b>Import a workout</b><span>From text or a photo</span></button></div>'+
     homeMiniStats()+
+    todayZonesCardHtml()+
     whoopCardHtml()+
     (WHOOP_OPEN?readinessCardHtml():'')+
-    homeZoneWeekHtml();
+    homeZoneWeekHtml()+
+    '<button class="fab" aria-label="Add a session" title="Add a session" data-click="openAddSheet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>';
+}
+/* Today's heart-rate zones — the conditioning front page, surfaced on Home so
+   the plan for the day is visible at a glance. Tap to run a zone session. */
+function todayZonesCardHtml(){
+  const z=conZones();
+  const adj=z.adj>0?' · widened for '+z.rec+'%':z.adj<0?' · eased for '+z.rec+'%':'';
+  let h='<div class="card zonescard" data-click="conNav" style="cursor:pointer" title="Start a zone session">'+
+    '<div class="zc-head"><div><div class="zc-kicker">Today&rsquo;s heart-rate zones</div><div class="zc-sub">Max '+z.max+' bpm'+esc(adj)+'</div></div><span class="zc-go">Start ⚡</span></div>';
+  z.list.forEach(zz=>{h+='<div class="zrow"><span class="zdot" style="background:'+zz.color+';box-shadow:0 0 8px '+zz.color+'99"></span><span class="znm">'+zz.name+'</span><span class="zbar"><span class="zfill" style="background:linear-gradient(90deg,'+zz.color+'55,'+zz.color+')"></span></span><span class="zrng">'+zz.lo+'&ndash;'+(zz.key==='high'?zz.hi+'+':zz.hi)+'</span></div>';});
+  h+='</div>';
+  return h;
 }
 function startToday(){
   const act=activeSession();
@@ -399,10 +422,15 @@ function updateWhoopCard(){if(CURRENT==='home')renderHome();}
 let WHOOP_OPEN=false;
 function toggleWhoopDetails(){WHOOP_OPEN=!WHOOP_OPEN;if(CURRENT==='home')renderHome();}
 const STRAIN_BLUE='#5b8def',RING_IDLE_COLOR='rgba(255,255,255,.14)';
+/* Neon ring palette — the recovery/strain rings glow in bright neon (brighter
+   than the muted band colours used for text), per the athlete request. */
+const STRAIN_NEON='#33C4FF';
+const RING_NEON={'#9fc59b':'#3DFF9E','#cf9d4f':'#FFC24D','#e0524d':'#FF5B57'};
+function neonRing(c){return RING_NEON[c]||c;}
 function whoopRings(recColor,recPct,strainPct,center){
   // Arc targets + colors feed CSS custom properties; the CSS animates each
   // arc up from 0. A null pct shows a faint full ring (idle/loading).
-  const oaT=strainPct==null?100:strainPct, oc=strainPct==null?RING_IDLE_COLOR:STRAIN_BLUE;
+  const oaT=strainPct==null?100:strainPct, oc=strainPct==null?RING_IDLE_COLOR:STRAIN_NEON;
   const iaT=recPct==null?100:recPct, ic=recPct==null?RING_IDLE_COLOR:recColor;
   return '<div class="ringx" style="--oaT:'+oaT+';--oc:'+oc+'">'+
     '<div class="ringx-in" style="--iaT:'+iaT+';--ic:'+ic+'"><b>'+center+'</b></div></div>';
@@ -433,11 +461,11 @@ function whoopCardHtml(){
     const strainPct=Number.isFinite(strainRaw)?Math.max(0,Math.min(100,Math.round(strainRaw/21*100))):null;
     chip=whoopSettingsChip();
     if(!WHOOP_OPEN){
-      rings=whoopRings(t.color,t.val==null?null:t.pct,strainPct,'');
+      rings=whoopRings(neonRing(t.color),t.val==null?null:t.pct,strainPct,'');
       title='WHOOP · today';
       line='Tap to show recovery, strain & readiness.';
     } else {
-      rings=whoopRings(t.color,t.val==null?null:t.pct,strainPct,(t.val==null?'—':t.val+'%'));
+      rings=whoopRings(neonRing(t.color),t.val==null?null:t.pct,strainPct,(t.val==null?'—':t.val+'%'));
       title='Recovery '+(t.val==null?'—':t.val+'%')+' · '+t.label+(strainPct!=null?' · Strain '+strainRaw.toFixed(1):'');
       line='HRV '+(WHOOP.sample.hrvMs==null?'—':WHOOP.sample.hrvMs+' ms')+' · RHR '+(WHOOP.sample.restingHr==null?'—':WHOOP.sample.restingHr)+' · Sleep '+(WHOOP.sample.sleepPerformance==null?'—':WHOOP.sample.sleepPerformance+'%');
     }
@@ -885,6 +913,139 @@ function resumeRest(){
 let WK={id:uid(),name:'',blocks:[newBlock()]},EDIT_EXISTING=false,openBlock=0;
 function refreshExNames(){const names=[...new Set(DB.workouts.flatMap(w=>w.blocks.flatMap(b=>blockExercises(b).map(e=>e.name).filter(Boolean))))];document.getElementById('exNames').innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join('');}
 let BUILDER_WID=null;
+/* ============================================================
+   LIBRARY — one home for saved sessions, conditioning and progress,
+   styled after the athlete app: a LIBRARY title, a tab strip, a
+   search box and template rows with Add + a ⋮ menu. Conditioning and
+   Progress keep their own screens but wear the same tab strip so it
+   reads as a single tabbed Library.
+   ============================================================ */
+let LIB_TAB='sessions';   // sessions | conditioning | progress
+let LIB_QUERY='';         // template search text
+let SCHED_DATE=null;      // date the +/Add flow schedules onto (YYYY-MM-DD)
+function libTabStrip(active){
+  const tabs=[['sessions','Sessions'],['conditioning','Conditioning'],['progress','Progress']];
+  return '<div class="libtabs">'+tabs.map(t=>'<button class="libtab'+(t[0]===active?' on':'')+'" data-click="libGo" data-args="[&quot;'+t[0]+'&quot;]">'+t[1]+'</button>').join('')+'</div>';
+}
+function libGo(tab){
+  LIB_TAB=tab;
+  if(tab==='conditioning'){ if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';} go('conditioning'); }
+  else if(tab==='progress'){ go('progress'); }
+  else { go('library'); }
+}
+function libHeaderHtml(active){
+  return '<div class="libhead"><div class="kicker">Your collection</div></div>'+
+    '<h1 style="font-size:26px;letter-spacing:.08em">LIBRARY</h1>'+libTabStrip(active);
+}
+function renderLibrary(){
+  const el=document.getElementById('s-library');if(!el)return;
+  LIB_TAB='sessions';
+  el.innerHTML=libHeaderHtml('sessions')+
+    '<div class="libsearch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'+
+      '<input placeholder="Search sessions" value="'+esc(LIB_QUERY)+'" data-input="libSearch" data-args="[&quot;@value&quot;]"></div>'+
+    (SCHED_DATE?'<div class="card guidebar" style="margin-top:12px">Adding to <b>'+esc(prettyDay(SCHED_DATE))+'</b> — tap <b>Add</b> on a session below, or create a new one. <button class="markall" style="padding:0;margin-left:4px;color:var(--dim)" data-click="clearSchedDate">cancel</button></div>':'')+
+    '<div class="libsec-title">My Sessions</div>'+
+    '<button class="tplcreate" data-click="createSessionTemplate"><span class="pl">+</span><div><b>Create Session Template</b><span>Build a reusable session — strength or conditioning</span></div></button>'+
+    '<div id="libList"></div>';
+  renderLibList();
+}
+function libSearch(v){LIB_QUERY=v;renderLibList();}
+function renderLibList(){const box=document.getElementById('libList');if(box)box.innerHTML=libListHtml();}
+function libListHtml(){
+  const q=LIB_QUERY.trim().toLowerCase();
+  let list=DB.workouts.slice();
+  if(q)list=list.filter(w=>((w.name||'').toLowerCase().includes(q))||(w.blocks||[]).some(b=>blockExercises(b).some(e=>(e.name||'').toLowerCase().includes(q))));
+  if(!list.length)return '<div class="tplempty">'+(q?'No sessions match &ldquo;'+esc(LIB_QUERY)+'&rdquo;.':'No saved sessions yet — create one above.')+'</div>';
+  return list.map(tplRowHtml).join('');
+}
+function tplSummary(w){
+  const names=[];
+  (w.blocks||[]).forEach(b=>{ if(isCond(b))names.push(CON_FORMATS[b.condFmt]?CON_FORMATS[b.condFmt].name:'Conditioning'); else blockExercises(b).forEach(e=>{if(e.name)names.push(e.name);}); });
+  if(!names.length)return blockCountLabel(w);
+  return names.slice(0,4).join(', ')+(names.length>4?' +'+(names.length-4)+' more':'');
+}
+function tplRowHtml(w){
+  const id=esc(w.id);
+  return '<div class="tplrow"><div class="tpm" style="cursor:pointer" data-click="editWorkout" data-args="[&quot;'+id+'&quot;]"><b>'+esc(w.name||'Untitled session')+'</b><span>'+esc(tplSummary(w))+'</span></div>'+
+    '<button class="tpadd" data-click="tpAdd" data-args="[&quot;'+id+'&quot;]">Add</button>'+
+    '<button class="tpmenu" aria-label="More options" data-click="tplMenu" data-args="[&quot;'+id+'&quot;]">⋮</button></div>';
+}
+/* schedule a saved session onto the chosen day (default today) */
+function tpAdd(id){
+  const date=SCHED_DATE||ymd(new Date());
+  scheduleWorkoutOn(id,date);
+  const w=DB.workouts.find(x=>x.id===id);
+  SCHED_DATE=null;
+  toast((w&&w.name?w.name:'Session')+' added to '+prettyDay(date));
+  go('home');
+}
+function clearSchedDate(){SCHED_DATE=null;renderLibrary();}
+/* row ⋮ menu */
+function tplMenu(id){
+  const w=DB.workouts.find(x=>x.id===id);if(!w)return;
+  openSheet('<div class="grab"></div><h3>'+esc(w.name||'Untitled session')+'</h3><p class="ssub">'+esc(tplSummary(w))+'</p>'+
+    '<button class="bigopt" data-click="editWorkoutFromSheet" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">✏️</span><div><b>Edit session</b><span>Change blocks, exercises &amp; targets</span></div></button>'+
+    '<button class="bigopt" data-click="dupWorkout" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">⧉</span><div><b>Duplicate</b><span>Make a copy to tweak</span></div></button>'+
+    '<button class="bigopt" data-click="delWorkoutFromLib" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">🗑️</span><div><b>Delete</b><span>Remove from your Library</span></div></button>'+
+    '<button class="cancel" data-click="closeSheet">Cancel</button>');
+}
+function editWorkoutFromSheet(id){closeSheet();editWorkout(id);}
+function dupWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;const c=JSON.parse(JSON.stringify(w));c.id=uid();c.name=(w.name||'Session')+' (copy)';c.dates=[];DB.workouts.push(c);save();closeSheet();renderLibrary();}
+function delWorkoutFromLib(id){
+  const w=DB.workouts.find(x=>x.id===id);if(!w)return;
+  if(!confirm('Delete "'+(w.name||'this session')+'"? This cannot be undone.'))return;
+  DB.workouts=DB.workouts.filter(x=>x.id!==id);
+  DB.sessions=DB.sessions.filter(s=>!(s.workoutId===id&&s.status==='active'));
+  if(CUR_SESSION&&!DB.sessions.find(s=>s.id===CUR_SESSION))CUR_SESSION=null;
+  save();closeSheet();renderLibrary();
+}
+/* Create Session Template card → pick a kind, open the Builder on a fresh blank */
+function createSessionTemplate(){
+  openSheet('<div class="grab"></div><h3>Create Session Template</h3><p class="ssub">A reusable session you can add to any day.</p>'+
+    '<button class="bigopt" data-click="createTemplateKind" data-args="[&quot;strength&quot;]"><span class="oi">🏋️</span><div><b>Strength session</b><span>Blocks, exercises, sets &amp; reps</span></div></button>'+
+    '<button class="bigopt" data-click="createTemplateKind" data-args="[&quot;conditioning&quot;]"><span class="oi">❤️</span><div><b>Conditioning session</b><span>Live heart-rate zone work</span></div></button>'+
+    '<button class="cancel" data-click="closeSheet">Cancel</button>');
+}
+function createTemplateKind(kind){closeSheet();newScheduledWorkout(kind,null);}
+
+/* ---------- bottom sheet + Home add flow ---------- */
+function openSheet(html){const el=document.getElementById('sheet');if(!el)return;el.innerHTML='<div class="sheet-scrim" data-click="closeSheet"></div><div class="sheet">'+html+'</div>';el.hidden=false;}
+function closeSheet(){const el=document.getElementById('sheet');if(!el)return;el.hidden=true;el.innerHTML='';}
+function toast(msg){
+  let el=document.getElementById('toast');
+  if(!el){el=document.createElement('div');el.id='toast';el.className='toast';document.body.appendChild(el);}
+  el.textContent=msg;el.classList.add('on');
+  clearTimeout(el._t);el._t=setTimeout(()=>{if(el)el.classList.remove('on')},2400);
+}
+function openAddSheet(){
+  const d=SCHED_DATE||ymd(new Date());SCHED_DATE=d;
+  openSheet('<div class="grab"></div><h3>Add a session</h3><p class="ssub">Schedule it for today or a day ahead.</p>'+
+    '<div class="datefield"><label>Day</label><input type="date" min="'+ymd(new Date())+'" value="'+d+'" data-change="setSchedDate" data-args="[&quot;@value&quot;]"></div>'+
+    '<button class="bigopt" data-click="sheetCreateSession"><span class="oi">✍️</span><div><b>Create Session</b><span>Build a strength or conditioning session as you go</span></div></button>'+
+    '<button class="bigopt" data-click="sheetAddFromLibrary"><span class="oi">📚</span><div><b>Add From Library</b><span>Drop in one of your saved sessions</span></div></button>'+
+    '<button class="cancel" data-click="closeSheet">Cancel</button>');
+}
+function setSchedDate(v){if(v)SCHED_DATE=v;}
+function sheetCreateSession(){
+  const day=prettyDay(SCHED_DATE||ymd(new Date()));
+  openSheet('<div class="grab"></div><h3>Create Session</h3><p class="ssub">Adding to '+esc(day)+' — build it as you go.</p>'+
+    '<button class="bigopt" data-click="createKind" data-args="[&quot;strength&quot;]"><span class="oi">🏋️</span><div><b>Strength session</b><span>Blocks, exercises, sets &amp; reps</span></div></button>'+
+    '<button class="bigopt" data-click="createKind" data-args="[&quot;conditioning&quot;]"><span class="oi">❤️</span><div><b>Conditioning session</b><span>Live heart-rate zone work</span></div></button>'+
+    '<button class="cancel" data-click="closeSheet">Cancel</button>');
+}
+function createKind(kind){const date=SCHED_DATE||ymd(new Date());SCHED_DATE=null;closeSheet();newScheduledWorkout(kind,date);}
+function sheetAddFromLibrary(){closeSheet();LIB_TAB='sessions';go('library');}
+/* fresh blank session of the chosen kind, optionally scheduled on a date */
+function newScheduledWorkout(kind,date){
+  const dates=date?[date]:[];
+  const blocks=kind==='conditioning'
+    ?[newCondBlock()]
+    :[{id:uid(),heading:'Block 1',minutes:'',format:'',superset:false,exercises:[newEx()]}];
+  WK={id:uid(),name:'',days:[],dates:dates,blocks:blocks};
+  BUILDER_WID=WK.id;EDIT_EXISTING=false;openBlock=0;
+  go('builder');
+}
+
 function renderBuilder(){
   refreshExNames();
   const cw=currentWorkout();
@@ -894,8 +1055,7 @@ function renderBuilder(){
   }
   const el=document.getElementById('s-builder');
   el.innerHTML=
-    '<div class="kicker">Builder</div>'+
-    '<h1 style="font-size:24px">Build your workout</h1>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back to Library" data-click="go" data-args="[&quot;library&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder</div><h1 style="font-size:24px">Build your session</h1></div></div>'+
     '<p class="sub">Add blocks, add exercises, set modes, sets, reps &amp; RPE. Then hit “See how it looks”.</p>'+
     '<button class="addbtn" style="margin-top:14px" data-click="openImport">📋 Import from text or photo</button>'+
     '<div class="field" style="margin-top:18px"><label>Workout name</label><input id="wkName" value="'+esc(WK.name)+'" placeholder="e.g. Upper Pump — Day 1" data-input="setWkName" data-args="[&quot;@value&quot;]"></div>'+
@@ -1167,41 +1327,33 @@ function renderSettings(){
     '<div class="section"><div class="sec-head"><h2>Your data</h2></div><div class="card" style="margin-top:10px;padding:14px"><div class="sc-meta">Everything is stored on this device and (if signed in) synced to the cloud.</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" data-click="exportData">Export backup</button><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" data-click="triggerImport">Import backup</button></div><input id="importFile" type="file" accept="application/json,.json" style="display:none" data-change="importData" data-args="[&quot;@event&quot;]"><button class="addbtn" style="margin-top:10px;border-color:rgba(207,127,124,.5);color:var(--bad)" data-click="resetLocal">Reset local data</button></div></div>';
 }
 
-/* ---------- template seed: the mock's session structure, no names — fill in your own ---------- */
-function templateWorkout(keepId){return {id:keepId||uid(),name:'',blocks:[
-  {id:uid(),heading:'Warm-up',minutes:'8',format:'',superset:false,exercises:[{id:uid(),name:'',mode:'seconds',tempo:'',rest:0,sets:[{t:'120',rpe:''}]}]},
-  {id:uid(),heading:'Warm-up prep',minutes:'',format:'Superset · 3 rounds',superset:true,exercises:[
-    {id:uid(),name:'',mode:'reps',tempo:'',rest:0,sets:[{t:'15',rpe:''}]},
-    {id:uid(),name:'',mode:'reps',tempo:'',rest:0,sets:[{t:'10',rpe:''}]}]},
-  {id:uid(),heading:'Strength 1',minutes:'15',format:'4 working sets · straight sets',superset:false,exercises:[{id:uid(),name:'',mode:'reps_kg',tempo:'',rest:180,sets:[{t:'12',rpe:'7'},{t:'10',rpe:'8'},{t:'8',rpe:'9'},{t:'8',rpe:'10'}]}]},
-  {id:uid(),heading:'Strength 2',minutes:'12',format:'Every 2:30 × 4 sets',superset:false,exercises:[{id:uid(),name:'',mode:'reps_kg',tempo:'',rest:150,sets:[{t:'10',rpe:'7'},{t:'10',rpe:'8'},{t:'10',rpe:'8'},{t:'10',rpe:'8'}]}]},
-  {id:uid(),heading:'Carry finisher',minutes:'8',format:'3 rounds',superset:false,exercises:[{id:uid(),name:'',mode:'seconds',tempo:'',rest:90,sets:[{t:'40',rpe:'8'},{t:'40',rpe:'8'},{t:'40',rpe:'9'}]}]},
-  {id:uid(),heading:'Cooldown',minutes:'5',format:'',superset:false,exercises:[{id:uid(),name:'',mode:'completion',tempo:'',rest:0,sets:[{t:'',rpe:''}]}]}
+/* ---------- new blank session: one empty block, fill it in yourself ---------- */
+function templateWorkout(keepId){return {id:keepId||uid(),name:'',days:[],dates:[],blocks:[
+  {id:uid(),heading:'Block 1',minutes:'',format:'',superset:false,exercises:[newEx()]}
 ]};}
-function isUntouchedDemo(w){
-  if(!w||w.name!=='Upper Pump — Day 1')return false;
-  const demoNames=['Cardio of choice','Band pull-apart','Scap push-up','Incline Bench Press','Supinated Bent-Over Row','Farmer carry','Stretch flow'];
-  const exNames=(w.blocks||[]).flatMap(b=>(b.exercises||[]).map(e=>e.name));
-  return exNames.join('|')===demoNames.join('|');
+/* The old auto-seeded 6-block demo template used to be created on first run.
+   It's gone now — Home starts empty and you add sessions via + or the Library.
+   Migrate away any untouched copy of that old seed so it doesn't clutter the
+   new Library. Never touch a workout the user renamed, edited or trained. */
+function isOldSeedTemplate(w){
+  if(w.name&&w.name.trim())return false;
+  const heads=(w.blocks||[]).map(b=>b.heading).join('|');
+  if(heads!=='Warm-up|Warm-up prep|Strength 1|Strength 2|Carry finisher|Cooldown')return false;
+  return (w.blocks||[]).every(b=>isCond(b)||(b.exercises||[]).every(e=>!e.name||!(''+e.name).trim()));
 }
 function seedIfEmpty(){
   DB.settings=Object.assign({},DB.settings);
-  if(DB.settings.seedV===2)return;
-  if(!DB.workouts.length){
-    DB.workouts=[templateWorkout()];
-  }else{
-    // swap the old named demo for the nameless template — but never touch a workout
-    // the user completed a session with, renamed, or edited
-    DB.workouts=DB.workouts.map(w=>{
-      const completed=DB.sessions.some(s=>s.workoutId===w.id&&s.status==='completed');
-      if(isUntouchedDemo(w)&&!completed){
-        DB.sessions=DB.sessions.filter(s=>!(s.workoutId===w.id&&s.status!=='completed'));
-        return templateWorkout(w.id);
-      }
-      return w;
-    });
-  }
-  DB.settings.seedV=2;DB.settings.seeded=true;
+  if(DB.settings.seedV===3)return;
+  // one-time cleanup of the retired blank seed template(s)
+  DB.workouts=DB.workouts.filter(w=>{
+    const completed=DB.sessions.some(s=>s.workoutId===w.id&&s.status==='completed');
+    if(isOldSeedTemplate(w)&&!completed){
+      DB.sessions=DB.sessions.filter(s=>!(s.workoutId===w.id&&s.status!=='completed'));
+      return false;
+    }
+    return true;
+  });
+  DB.settings.seedV=3;DB.settings.seeded=true;
   try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}
 }
 function currentWorkout(){const act=DB.sessions.find(s=>s.status==='active');if(act){const w=DB.workouts.find(x=>x.id===act.workoutId);if(w)return w;}return DB.workouts[0]||null;}
@@ -1304,7 +1456,7 @@ function fmtK(v){v=Math.round(v);return v>=1000?(v/1000).toFixed(v>=10000?0:1).r
 function chartCard(title,sub,inner,legend){return '<div class="card chartcard"><div class="chart-head"><h2>'+esc(title)+'</h2>'+(sub?'<span class="csub">'+esc(sub)+'</span>':'')+'</div>'+(legend||'')+inner+'</div>';}
 function renderProgress(){
   const el=document.getElementById('s-progress');if(!el)return;
-  const head='<div class="kicker">Progress</div><h1 style="font-size:24px">Your trends</h1><p class="sub">Everything you log, turned into a picture over time.</p>';
+  const head=libHeaderHtml('progress')+'<h1 style="font-size:22px;margin-top:14px">Your trends</h1><p class="sub">Everything you log, turned into a picture over time.</p>';
   const done=completedList();
   if(!done.length){
     el.innerHTML=head+'<div class="card empty"><div class="ei"><svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-4M13 16V8M18 16v-6"/></svg></div><h3>Nothing to chart yet</h3><p>Finish a session and your trends — training volume, planned vs felt RPE, and WHOOP recovery — start building here.</p></div>';
@@ -1940,11 +2092,12 @@ function conSetupHtml(){
   const z=conZones(),f=CON_FORMATS[CON.fmt];
   const rec=WHOOP.sample&&Number.isFinite(Number(WHOOP.sample.recoveryScore))?Math.round(Number(WHOOP.sample.recoveryScore)):null;
   const sess=(CON.sink||{}).scope==='session'?curSession():null;
-  let h;
+  // standalone conditioning lives under Library → wear the same tab strip
+  let h=sess?'':libHeaderHtml('conditioning');
   if(sess){
-    h='<div class="backrow"><button class="backbtn" aria-label="Back to workout" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(sess.name||'Workout')+' · conditioning</div><h1 style="font-size:24px">Zone session</h1></div></div>';
+    h+='<div class="backrow"><button class="backbtn" aria-label="Back to workout" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(sess.name||'Workout')+' · conditioning</div><h1 style="font-size:24px">Zone session</h1></div></div>';
   }else{
-    h='<div class="kicker">Conditioning</div><h1 style="font-size:24px">Zone session</h1><p class="sub">Train by live heart rate. Zones adapt to your recovery — tune your profile in Settings.</p>';
+    h+='<h1 style="font-size:24px;margin-top:14px">Zone session</h1><p class="sub">Train by live heart rate. Zones adapt to your recovery — tune your profile in Settings.</p>';
   }
   if(rec!=null)h+='<div class="recpill"><b>Your recovery today</b><span class="v">'+rec+'%</span></div>';
   h+='<div class="card" style="margin-top:14px;padding:15px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Today&rsquo;s heart-rate zones · max '+z.max+(z.adj>0?' · widened for '+z.rec+'% recovery':z.adj<0?' · eased for '+z.rec+'% recovery':'')+'</div>';

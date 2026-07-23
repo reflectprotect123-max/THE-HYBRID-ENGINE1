@@ -1,5 +1,31 @@
 # Changelog
 
+## The Library Release — three tabs, a real Library, Home you can read at a glance — 25 July 2026
+
+The app reorganised around how you actually use it: a home you glance at, a place
+you train, and one shelf that holds everything else.
+
+**Three tabs: Home · Training · Library.** The bottom bar is down to three. Builder,
+Conditioning and Progress all moved under a new **Library** — each on its own tab
+(Sessions · Conditioning · Progress), styled like the athlete app: a LIBRARY title,
+a search box, a "Create Session Template" card, and a row per saved session with its
+exercise summary, an **Add** button and a ⋮ menu (edit · duplicate · delete).
+
+**Home shows today.** Your saved sessions live in the Library now, not scattered on
+the front page — Home shows only what's actually on for today, plus a new **Today's
+heart-rate zones** card (the conditioning front page, surfaced) sitting right by your
+WHOOP rings. Those rings are now **bright neon** — a glowing cyan strain ring around a
+neon recovery ring — so recovery reads in a glance.
+
+**A + button that schedules.** Tap **+** on Home to add a session to today or any day
+ahead: **Create Session** (pick Strength or Conditioning, then build it as you go) or
+**Add From Library** (drop a saved session onto the chosen day). Sessions can be
+scheduled for a specific date, not just a recurring weekday.
+
+**Gone: the demo template.** The app no longer seeds a blank six-block placeholder —
+you start clean and add exactly what you want. Any leftover copy of the old seed is
+cleared automatically.
+
 ## The Athlete Release — new Logger, recap, PRs, custom conditioning — 24 July 2026
 
 The phone app rebuilt around one loop: show today's work, log it fast, adapt to

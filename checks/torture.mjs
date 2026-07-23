@@ -37,11 +37,24 @@ await page.goto(base + '/', { waitUntil: 'networkidle' });
 
 /* ============ PART 1 — a full, realistic workout ============ */
 await t('build a full workout using all six modes + superset + schedule', async () => {
-  await page.click('.navlink[data-s="builder"]');
+  // The app no longer auto-seeds — construct a 6-block workout and open the Builder on it.
+  await page.evaluate(() => {
+    WK = { id: uid(), name: '', days: [], dates: [], blocks: [
+      { id: uid(), heading: 'Warm-up', minutes: '8', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'seconds', tempo: '', rest: 0, sets: [{ t: '120', rpe: '' }] }] },
+      { id: uid(), heading: 'Prep', minutes: '', format: 'Superset', superset: true, exercises: [
+        { id: uid(), name: '', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '15', rpe: '' }] },
+        { id: uid(), name: '', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '10', rpe: '' }] }] },
+      { id: uid(), heading: 'Strength 1', minutes: '15', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 180, sets: [{ t: '8', rpe: '8' }, { t: '8', rpe: '8' }] }] },
+      { id: uid(), heading: 'Strength 2', minutes: '12', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 120, sets: [{ t: '10', rpe: '7' }] }] },
+      { id: uid(), heading: 'Finisher', minutes: '8', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 90, sets: [{ t: '40', rpe: '8' }] }] },
+      { id: uid(), heading: 'Cooldown', minutes: '5', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'completion', tempo: '', rest: 0, sets: [{ t: '', rpe: '' }] }] }
+    ] };
+    BUILDER_WID = WK.id; EDIT_EXISTING = false; openBlock = -1; go('builder');
+  });
   await page.fill('#wkName', 'Break Test — Full Day');
   const today = await page.evaluate(() => new Date().getDay());
   await page.click(`#s-builder .daychip:nth-of-type(${today + 1})`);
-  // name every seeded exercise & set modes across the template
+  // name every exercise & set modes across the blocks
   await page.evaluate(() => {
     WK.blocks[0].exercises[0].name = 'Bike erg';
     WK.blocks[1].exercises[0].name = 'Band pull-apart';
@@ -183,13 +196,13 @@ await t('absurd inputs: negative, huge, emoji, 10k-char name', async () => {
   await page.evaluate(() => {
     const w = templateWorkout();
     w.name = '💀'.repeat(50) + 'x'.repeat(10000);
-    w.blocks[2].exercises[0].name = 'Bench';
-    w.blocks[2].exercises[0].rest = '999999';
-    w.blocks[2].exercises[0].sets = [{ t: '-5', rpe: '99' }, { t: '1e9', rpe: '-3' }, { t: '0.0001', rpe: '🔥' }];
+    w.blocks[0].exercises[0].name = 'Bench';
+    w.blocks[0].exercises[0].rest = '999999';
+    w.blocks[0].exercises[0].sets = [{ t: '-5', rpe: '99' }, { t: '1e9', rpe: '-3' }, { t: '0.0001', rpe: '🔥' }];
     DB.workouts.push(w); save(); startWorkout(w.id);
   });
   await page.waitForSelector('#s-training.on');
-  await page.evaluate(() => openLogger(2, 0));
+  await page.evaluate(() => openLogger(0, 0));
   await page.evaluate(() => { setActual(0, 1, '-100'); setActual(0, 2, '999999999'); setActual(0, 3, 'emoji🔥'); tickSet(0); });
   const chip = await page.$eval('#restchip', (el) => el.classList.contains('show'));
   if (!chip) throw new Error('rest did not start for huge rest value');

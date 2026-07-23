@@ -83,7 +83,23 @@ await t('week strip: 7 days, Sunday-first, today marked', async () => {
   if (days.length !== 7 || days[0] !== 'S' || days[1] !== 'M') throw new Error(days.join(','));
   if (!(await page.$('#s-home .wd.today'))) throw new Error('no today');
 });
-await t('seeded template session card present', async () => {
+await t('a session scheduled for today shows a card on Home', async () => {
+  // The app no longer auto-seeds a template — schedule one for today so the
+  // logger/builder tests below have a session to drive.
+  await page.evaluate(() => {
+    const today = ymd(new Date());
+    const w = { id: uid(), name: '', days: [], dates: [today], blocks: [
+      { id: uid(), heading: 'Warm-up', minutes: '8', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'seconds', tempo: '', rest: 0, sets: [{ t: '120', rpe: '' }] }] },
+      { id: uid(), heading: 'Warm-up prep', minutes: '', format: 'Superset · 3 rounds', superset: true, exercises: [
+        { id: uid(), name: '', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '15', rpe: '' }] },
+        { id: uid(), name: '', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '10', rpe: '' }] }] },
+      { id: uid(), heading: 'Strength 1', minutes: '15', format: '4 working sets · straight sets', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 180, sets: [{ t: '12', rpe: '7' }, { t: '10', rpe: '8' }, { t: '8', rpe: '9' }, { t: '8', rpe: '10' }] }] },
+      { id: uid(), heading: 'Strength 2', minutes: '12', format: 'Every 2:30 × 4 sets', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 150, sets: [{ t: '10', rpe: '7' }, { t: '10', rpe: '8' }, { t: '10', rpe: '8' }, { t: '10', rpe: '8' }] }] },
+      { id: uid(), heading: 'Carry finisher', minutes: '8', format: '3 rounds', superset: false, exercises: [{ id: uid(), name: '', mode: 'seconds', tempo: '', rest: 90, sets: [{ t: '40', rpe: '8' }, { t: '40', rpe: '8' }, { t: '40', rpe: '9' }] }] },
+      { id: uid(), heading: 'Cooldown', minutes: '5', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'completion', tempo: '', rest: 0, sets: [{ t: '', rpe: '' }] }] }
+    ] };
+    DB.workouts = [w]; save(); go('home');
+  });
   const meta = await page.textContent('#s-home .sessioncard .sc-meta');
   if (!/Warm-up · Warm-up prep · Strength 1 · Strength 2 · Carry finisher · Cooldown/.test(meta)) throw new Error(meta);
 });
@@ -216,7 +232,7 @@ await t('logger prefills last kg as placeholder next time', async () => {
   if (ph !== '60') throw new Error('placeholder=' + ph);
 });
 await t('builder: uniform sets collapse to one "All sets" row', async () => {
-  await page.click('.navlink[data-s="builder"]');
+  await page.evaluate(() => { BUILDER_WID = null; go('builder'); });
   await page.waitForSelector('#s-builder.on', { timeout: 2000 });
   await page.click('#s-builder .bblock:nth-of-type(4) .bexp');
   await page.waitForSelector('#s-builder .bblock:nth-of-type(4) .bex', { timeout: 2000 });
@@ -265,13 +281,25 @@ await t('builder: day chips schedule the workout', async () => {
   const sub = await page.textContent('#s-home .sub');
   if (!/session in progress|session planned/i.test(sub)) throw new Error('sub=' + sub);
 });
-await t('no Logger tab: nav is Home · Training · Builder · Conditioning · Progress', async () => {
+await t('nav is three tabs: Home · Training · Library', async () => {
   const navs = await page.$$eval('.navlink', (els) => els.map((e) => e.dataset.s));
-  if (navs.length !== 5 || navs.includes('logger')) throw new Error(navs.join(','));
-  if (!navs.includes('progress') || !navs.includes('conditioning')) throw new Error('missing tab: ' + navs.join(','));
+  if (navs.length !== 3 || navs.includes('logger')) throw new Error(navs.join(','));
+  if (navs.join(',') !== 'home,training,library') throw new Error('unexpected tabs: ' + navs.join(','));
+});
+await t('Library: LIBRARY screen with Sessions/Conditioning/Progress tabs + Create card', async () => {
+  await page.click('.navlink[data-s="library"]');
+  await page.waitForSelector('#s-library.on', { timeout: 2000 });
+  const html = await page.$eval('#s-library', (el) => el.innerHTML);
+  if (!/LIBRARY/.test(html)) throw new Error('LIBRARY title missing');
+  const tabs = await page.$$eval('#s-library .libtab', (els) => els.map((e) => e.textContent));
+  if (tabs.join(',') !== 'Sessions,Conditioning,Progress') throw new Error('lib tabs: ' + tabs.join(','));
+  if (!/Create Session Template/.test(html)) throw new Error('create card missing');
+  if (!(await page.$('#s-library .tplrow'))) throw new Error('no template row for the seeded session');
+  const active = await page.$eval('.navlink[data-s="library"]', (el) => el.classList.contains('active'));
+  if (!active) throw new Error('Library tab not highlighted');
 });
 await t('Conditioning: setup shows zones; demo session records live HR and saves results', async () => {
-  await page.click('.navlink[data-s="conditioning"]');
+  await page.evaluate(() => libGo('conditioning'));
   await page.waitForSelector('#s-conditioning.on', { timeout: 2000 });
   let html = await page.$eval('#s-conditioning', (el) => el.innerHTML);
   if (!/Zone session/.test(html) || !/Conditioning/.test(html)) throw new Error('setup missing zones');
@@ -449,11 +477,12 @@ await t('conditioning: custom format builds from settings; free run is open-ende
   if (r.freeNote !== 'open-ended') throw new Error('free presc note: ' + r.freeNote);
   if (r.adaptIgnored !== 0) throw new Error('custom format must not move progression');
 });
-await t('Progress tab renders trends (empty state or charts, never blank)', async () => {
-  await page.click('.navlink[data-s="progress"]');
+await t('Progress (under Library) renders trends (empty state or charts, never blank)', async () => {
+  await page.evaluate(() => libGo('progress'));
   await page.waitForSelector('#s-progress.on', { timeout: 2000 });
-  const active = await page.$eval('.navlink[data-s="progress"]', (el) => el.classList.contains('active'));
-  if (!active) throw new Error('Progress tab not highlighted');
+  const active = await page.$eval('.navlink[data-s="library"]', (el) => el.classList.contains('active'));
+  if (!active) throw new Error('Library tab not highlighted on Progress');
+  if (!(await page.$('#s-progress .libtab'))) throw new Error('Progress missing the Library tab strip');
   const html = await page.$eval('#s-progress', (el) => el.innerHTML);
   if (!/Your trends/.test(html)) throw new Error('progress header missing');
   // either the empty state or at least one chart must be present
@@ -462,7 +491,7 @@ await t('Progress tab renders trends (empty state or charts, never blank)', asyn
   await page.waitForSelector('#s-home.on', { timeout: 2000 });
 });
 await t('importer: paste → meaning-questions inline → learn → save lands in Builder', async () => {
-  await page.click('.navlink[data-s="builder"]');
+  await page.evaluate(() => { BUILDER_WID = null; go('builder'); });
   await page.waitForSelector('#s-builder.on', { timeout: 2000 });
   await page.click('#s-builder [data-click="openImport"]');
   await page.waitForSelector('#s-import.on', { timeout: 2000 });
@@ -524,13 +553,13 @@ await t('hostile exercise/target text is escaped, never executed (XSS)', async (
   const executed = await page.evaluate(async () => {
     window.__xss = 0;
     const evil = '<img src=x onerror="window.__xss=1">';
-    WK = templateWorkout(); WK.name = 'XSS'; BUILDER_WID = WK.id; EDIT_EXISTING = false; openBlock = 2;
-    WK.blocks[2].exercises[0].name = evil;
-    WK.blocks[2].exercises[0].tempo = evil;
-    WK.blocks[2].exercises[0].sets[0].t = evil;
+    WK = templateWorkout(); WK.name = 'XSS'; BUILDER_WID = WK.id; EDIT_EXISTING = false; openBlock = 0;
+    WK.blocks[0].exercises[0].name = evil;
+    WK.blocks[0].exercises[0].tempo = evil;
+    WK.blocks[0].exercises[0].sets[0].t = evil;
     renderBuilder();
     startWorkout((DB.workouts.push(JSON.parse(JSON.stringify(WK))), DB.workouts[DB.workouts.length - 1]).id);
-    openLogger(2, 0);
+    openLogger(0, 0);
     await new Promise((r) => setTimeout(r, 200));
     const fired = window.__xss;
     BUILDER_WID = DB.workouts[DB.workouts.length - 1].id; deleteCurrentWorkout();
