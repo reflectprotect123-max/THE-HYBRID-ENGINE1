@@ -381,6 +381,20 @@ await t('cloud: settings changes are in the sync fingerprint; mergeSettings neve
   if (r.condIds !== 'a,b') throw new Error('mergeSettings lost conditioning history: ' + r.condIds);
   if (r.lexKeys !== 'amrap,emom') throw new Error('mergeSettings lost learned lexicon: ' + r.lexKeys);
 });
+await t('weekly zone targets: defaults + this-week banked minutes', async () => {
+  const r = await page.evaluate(() => {
+    DB.settings.zoneTargets = undefined; DB.settings.conditioning = [];
+    const t = zoneTargets();
+    const now = Date.now();
+    DB.settings.conditioning = [{ id: 'z1', sim: false, startedAt: now, date: ymd(new Date()), zsec: { low: 600, mod: 900, high: 120 } }];
+    save();
+    const w = thisWeekZoneMin();
+    DB.settings.conditioning = []; save();
+    return { t, w };
+  });
+  if (r.t.low !== 60 || r.t.mod !== 45 || r.t.high !== 12) throw new Error('zone target defaults wrong: ' + JSON.stringify(r.t));
+  if (r.w.low !== 10 || r.w.mod !== 15 || r.w.high !== 2) throw new Error('this-week zone minutes wrong: ' + JSON.stringify(r.w));
+});
 await t('Progress tab renders trends (empty state or charts, never blank)', async () => {
   await page.click('.navlink[data-s="progress"]');
   await page.waitForSelector('#s-progress.on', { timeout: 2000 });

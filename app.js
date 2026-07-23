@@ -92,7 +92,8 @@ let CURRENT='home';
 function go(id,btn){
   CURRENT=id;
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
-  const scr=document.getElementById('s-'+id);if(scr)scr.classList.add('on');
+  const scr=document.getElementById('s-'+id);
+  if(scr){scr.classList.add('on');scr.classList.remove('anim');void scr.offsetWidth;scr.classList.add('anim');}
   document.querySelectorAll('.navlink').forEach(b=>b.classList.remove('active'));
   // The logger is a detail view of Training — keep Training lit while logging.
   const navId=id==='logger'?'training':id;
@@ -271,7 +272,14 @@ function renderHome(){
       '<button class="card quickact" data-click="openImport"><span class="qi">📋</span><b>Import a workout</b><span>From text or a photo</span></button></div>'+
     homeMiniStats()+
     whoopCardHtml()+
-    (WHOOP_OPEN?readinessCardHtml():'');
+    (WHOOP_OPEN?readinessCardHtml():'')+
+    homeZoneWeekHtml();
+}
+/* Morpheus weekly zone banking on Home — only once you've trained a zone this week */
+function homeZoneWeekHtml(){
+  const w=thisWeekZoneMin();
+  if(w.low+w.mod+w.high<=0)return '';
+  return '<div class="section" style="margin-top:20px"><div class="sec-head"><h2>This week in zone</h2><span data-click="go" data-args="[&quot;progress&quot;]" style="cursor:pointer">Progress ›</span></div>'+weeklyZoneTargetCard()+'</div>';
 }
 /* glanceable numbers under the fold — only once there's real data */
 function homeMiniStats(){
@@ -525,6 +533,7 @@ function conRunBlock(bi){
   const b=s.blocks[bi];if(!isCond(b))return;
   if(b.condResult){CON.sink={scope:'session',sid:s.id,bi:bi,bid:b.id};CON.record=b.condResult;CON.view='results';CON.error='';CON.info='';go('conditioning');return;}
   CON.sink={scope:'session',sid:s.id,bi:bi,bid:b.id};
+  CON.targetZone=b.targetZone||'mod';
   CON.fmt=(b.condFmt&&CON_FORMATS[b.condFmt])?b.condFmt:'intervals';
   CON.view='setup';CON.record=null;CON.error='';CON.info='';
   go('conditioning');
@@ -635,8 +644,12 @@ function renderLoggerScreen(){
   const stepNav=(idx>=0&&total>1)?'<div class="histnav">'+
     (idx>0?'<button class="markall" data-click="stepLogger" data-args="[-1]">‹ Previous</button>':'<span></span>')+
     (idx<total-1?'<button class="markall" data-click="stepLogger" data-args="[1]">Next ›</button>':'<span></span>')+'</div>':'';
+  let sdone=0,stot=0;s.blocks.forEach(b=>{if(isCond(b)){stot++;if(b.condResult)sdone++;}else blockExercises(b).forEach(e=>{stot++;if(exFinished(e))sdone++;});});
+  const spct=stot?Math.round(100*sdone/stot):0;
+  const progStrip='<div class="logprog"><div class="lpbar"><span style="width:'+spct+'%"></span></div><div class="lptext">'+sdone+' of '+stot+' done<em>'+spct+'%</em></div></div>';
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+kicker+'</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
+    progStrip+
     '<div class="card setcard">'+head+(rows||'<div class="lastbox" style="margin-top:0">No sets.</div>')+'</div>'+
     flow+stepNav+lastBox+
     '<div class="card guidebar"><b>Why "RPE felt" matters:</b> target vs. actual RPE per set is data most apps throw away. Paired with the WHOOP recovery you sync, it powers a readiness picture no off-the-shelf app has.</div>';
@@ -645,12 +658,12 @@ function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;cons
 function tickSet(si){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];st.done=!st.done;save();renderLoggerScreen();if(st.done&&CUR_REST>0)startRest(CUR_REST);}
 
 /* ---------- rest timer: auto-starts on ✓, survives reload, vibrates at zero ---------- */
-const REST_KEY=LS_KEY+'-rest-ends';
-let restIv=null,restEnds=0;
+const REST_KEY=LS_KEY+'-rest-ends',REST_TOT_KEY=LS_KEY+'-rest-total';
+let restIv=null,restEnds=0,restTotal=0;
 function startRest(sec){
   stopRest(false);
-  restEnds=Date.now()+sec*1000;
-  try{localStorage.setItem(REST_KEY,String(restEnds))}catch(e){}
+  restTotal=sec;restEnds=Date.now()+sec*1000;
+  try{localStorage.setItem(REST_KEY,String(restEnds));localStorage.setItem(REST_TOT_KEY,String(sec))}catch(e){}
   showRestChip();
 }
 function showRestChip(){
@@ -669,16 +682,18 @@ function tickRestTimer(){
 function paintRest(){
   const left=Math.max(0,Math.ceil((restEnds-Date.now())/1000));
   const m=Math.floor(left/60),s=String(left%60).padStart(2,'0');
-  document.getElementById('restclock').textContent=m+':'+s;
+  const cl=document.getElementById('restclock');if(cl)cl.textContent=m+':'+s;
+  const arc=document.getElementById('restarc');
+  if(arc){const C=2*Math.PI*19,frac=restTotal>0?Math.max(0,Math.min(1,left/restTotal)):0;arc.style.strokeDasharray=C.toFixed(1);arc.style.strokeDashoffset=(C*(1-frac)).toFixed(1);}
 }
 function stopRest(clear){
-  clearInterval(restIv);restIv=null;restEnds=0;
-  if(clear!==false){try{localStorage.removeItem(REST_KEY)}catch(e){}}
+  clearInterval(restIv);restIv=null;restEnds=0;restTotal=0;
+  if(clear!==false){try{localStorage.removeItem(REST_KEY);localStorage.removeItem(REST_TOT_KEY)}catch(e){}}
   const c=document.getElementById('restchip');if(c)c.classList.remove('show');
 }
 function resumeRest(){
   const ends=Number(localStorage.getItem(REST_KEY))||0;
-  if(ends>Date.now()){restEnds=ends;showRestChip();}
+  if(ends>Date.now()){restEnds=ends;restTotal=Number(localStorage.getItem(REST_TOT_KEY))||Math.ceil((ends-Date.now())/1000);showRestChip();}
   else if(ends){try{localStorage.removeItem(REST_KEY)}catch(e){}}
 }
 
@@ -1187,6 +1202,7 @@ function progConditioningCards(){
     if(vals.length>=2)
       out+=chartCard('Average heart rate','per conditioning session',chartLines([{name:'Avg HR',color:'#5b8def',pts:avg}],xl,[Math.min(...vals)-8,Math.max(...vals)+8],' bpm'));
   }
+  out=weeklyZoneTargetCard()+out;
   return out?'<div class="section" style="margin-top:24px;margin-bottom:-4px"><div class="sec-head"><h2>Conditioning</h2></div></div>'+out:'';
 }
 
@@ -1201,6 +1217,9 @@ function progConditioningCards(){
 const CON={view:'setup',fmt:'intervals',live:false,ble:{dev:null,chr:null,connected:false,sim:false},
   startedAt:0,samples:[],avgSum:0,avgN:0,max:0,lastBpm:null,phases:[],phaseIdx:-1,round:0,rounds:0,
   timer:null,simBpm:95,simNext:0,record:null,error:'',info:'',
+  /* live zone accounting: seconds banked per zone this session, the current
+     in-target-zone streak, and which zone we're aiming to hold. */
+  zlive:{low:0,mod:0,high:0},lastT:0,streak:0,targetZone:'mod',
   /* sink = where a finished session writes. Standalone (the Conditioning tab)
      saves to DB.settings.conditioning as ever; a session-scoped run writes the
      result onto its block inside a hybrid workout instead. */
@@ -1471,6 +1490,7 @@ function conStart(){
   CON.rounds=presc.rounds||0;CON.round=0;CON.phaseIdx=-1;
   CON.samples=[];CON.avgSum=0;CON.avgN=0;CON.max=0;CON.lastBpm=null;
   CON.simBpm=95;CON.simNext=0;CON.error='';
+  CON.zlive={low:0,mod:0,high:0};CON.lastT=0;CON.streak=0;
   CON.startedAt=Date.now();CON.live=true;CON.view='live';
   if(CURRENT!=='conditioning')go('conditioning');else{renderConditioning();updateWake();}
   CON.timer=setInterval(conTick,500);
@@ -1507,6 +1527,14 @@ function conTick(){
 function conSample(bpm){
   if(!CON.live||!Number.isFinite(bpm)||bpm<25||bpm>250)return;
   const t=Math.max(0,Math.round((Date.now()-CON.startedAt)/1000));
+  // bank the elapsed time in the zone we were just in, and track the target streak
+  if(CON.lastBpm!=null&&CON.lastT){
+    const dt=Math.max(0,Math.min(6,t-CON.lastT));
+    const zk=conZoneOf(CON.lastBpm).key;
+    CON.zlive[zk]=(CON.zlive[zk]||0)+dt;
+    CON.streak=(zk===CON.targetZone||(CON.targetZone==='mod'&&zk==='high'))?CON.streak+dt:0;
+  }
+  CON.lastT=t;
   CON.samples.push({t,bpm});
   CON.avgSum+=bpm;CON.avgN++;if(bpm>CON.max){CON.max=bpm;conNoteMax(bpm);}CON.lastBpm=bpm;
   conPaintHr(bpm);
@@ -1578,6 +1606,31 @@ function allCondRecords(){
   DB.sessions.forEach(s=>{if(s.status==='active')return;(s.blocks||[]).forEach(b=>{if(isCond(b)&&b.condResult)fromSess.push(Object.assign({},b.condResult,{date:b.condResult.date||s.date}));});});
   return legacy.concat(fromSess);
 }
+/* --- weekly zone-time targets (Morpheus: bank time in each zone each week) --- */
+function zoneTargets(){const t=DB.settings.zoneTargets||{};return{low:parseInt(t.low,10)||60,mod:parseInt(t.mod,10)||45,high:parseInt(t.high,10)||12};}
+function thisWeekZoneMin(){
+  const k=ymd(weekStart(Date.now())),out={low:0,mod:0,high:0};
+  allCondRecords().filter(r=>!r.sim).forEach(r=>{
+    const ms=r.startedAt||Date.parse(r.date+'T12:00:00')||Date.now();
+    if(ymd(weekStart(ms))!==k)return;
+    const z=r.zsec||{};out.low+=(z.low||0)/60;out.mod+=(z.mod||0)/60;out.high+=(z.high||0)/60;
+  });
+  return{low:Math.round(out.low),mod:Math.round(out.mod),high:Math.round(out.high)};
+}
+function zoneRing(color,frac){
+  const r=26,C=2*Math.PI*r,len=Math.max(0,Math.min(1,frac||0))*C;
+  return '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="'+r+'" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>'+
+    '<circle cx="32" cy="32" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="6" stroke-linecap="round" stroke-dasharray="'+len.toFixed(1)+' '+(C-len).toFixed(1)+'" transform="rotate(-90 32 32)"/></svg>';
+}
+function weeklyZoneTargetCard(){
+  const t=zoneTargets(),w=thisWeekZoneMin();
+  const map={low:{n:'Recovery',c:'#5b8def'},mod:{n:'Conditioning',c:'#33c07a'},high:{n:'Overload',c:'#e0524d'}};
+  const cells=['low','mod','high'].map(k=>{
+    const done=w[k],tgt=t[k],frac=tgt?done/tgt:0;
+    return '<div class="ztcell"><div class="ztring">'+zoneRing(map[k].c,frac)+'<div class="ztc"><b>'+done+'</b><span>/'+tgt+'m</span></div></div><div class="ztn" style="color:'+map[k].c+'">'+map[k].n+'</div></div>';
+  }).join('');
+  return '<div class="card ztcard"><div class="lbl2">This week in zone · target minutes</div><div class="ztgrid">'+cells+'</div></div>';
+}
 function conDone(){
   const sink=CON.sink||{scope:'standalone'};
   CON.sink={scope:'standalone'};CON.record=null;CON.error='';CON.adaptDelta=0;
@@ -1586,7 +1639,7 @@ function conDone(){
 }
 /* The Conditioning nav tab and Home shortcut always mean a standalone session —
    reset the sink unless a session run is mid-flight (don't hijack it). */
-function conNav(btn){if(!CON.live)CON.sink={scope:'standalone'};go('conditioning',btn);}
+function conNav(btn){if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';}go('conditioning',btn);}
 
 /* --- SVG helpers --- */
 function conArc(cx,cy,r,a0,a1){
@@ -1629,7 +1682,18 @@ function conPaintHr(bpm){
     fill.setAttribute('d',frac>0.005?conArc(100,100,82,Math.PI,Math.PI+Math.PI*frac):'');
     fill.setAttribute('stroke',zn.color);
   }
+  const st=document.getElementById('conStreak');
+  if(st){if(CON.streak>=6){st.textContent='🔥 '+conMmss(CON.streak)+' in zone';st.classList.add('on');}else{st.textContent='';st.classList.remove('on');}}
+  conPaintZoneTime(z);
   conPaintLine(z);
+}
+function conPaintZoneTime(z){
+  const el=document.getElementById('conZoneTime');if(!el)return;
+  z=z||conZones();
+  const tot=(CON.zlive.low||0)+(CON.zlive.mod||0)+(CON.zlive.high||0);
+  const bar=z.list.map(zz=>{const s=CON.zlive[zz.key]||0;return '<span class="zt" style="flex:'+(tot?Math.max(0.001,s):1)+';background:'+zz.color+';opacity:'+(s>0?0.9:0.18)+'"></span>';}).join('');
+  const labs=z.list.map(zz=>'<span class="ztl"><i style="background:'+zz.color+'"></i>'+conMmss(CON.zlive[zz.key]||0)+'</span>').join('');
+  el.innerHTML='<div class="ztbar">'+bar+'</div><div class="ztlabs">'+labs+'</div>';
 }
 function conPaintLine(z){
   const g=document.getElementById('conLiveSeg');if(!g)return;
@@ -1693,7 +1757,7 @@ function conSetupHtml(){
 }
 function conLiveHtml(){
   const z=conZones(),f=CON_FORMATS[CON.fmt];
-  return '<div class="livetop"><div><div class="znow" id="conZnow">Starting…</div><span class="chip" id="conFmtBadge">'+(f?f.name:'')+(CON.ble.sim?' · demo':'')+'</span></div>'+
+  return '<div class="livetop"><div><div class="znow" id="conZnow">Starting…</div><span class="chip" id="conFmtBadge">'+(f?f.name:'')+(CON.ble.sim?' · demo':'')+'</span><span class="zstreak" id="conStreak"></span></div>'+
     '<div class="clockbox"><b id="conPhaseClock">–:––</b><span id="conPhaseLabel">&nbsp;</span></div></div>'+
     '<div class="congauge"><svg viewBox="0 0 200 118" aria-hidden="true">'+conGaugeSvg(z)+'</svg>'+
     '<div class="gbpm"><b id="conBpm">—</b><span class="u">bpm</span><span class="zlab" id="conZLabel">waiting…</span></div></div>'+
@@ -1701,6 +1765,7 @@ function conLiveHtml(){
     '<div class="m mbig"><b id="conElapsed">0:00</b><span>elapsed</span></div>'+
     '<div class="m"><b id="conMax">—</b><span>max hr</span></div></div>'+
     '<div class="phasebar" id="conPhaseBar"><span id="conPhaseBig">READY</span><span class="rounds" id="conRounds"></span></div>'+
+    '<div class="zonetime" id="conZoneTime"></div>'+
     '<div class="card chartcard"><div class="chart-head"><h2>Heart rate</h2><span class="csub">live</span></div>'+
     '<div class="chart"><svg viewBox="0 0 320 150" role="img" aria-label="Live heart rate">'+conLiveGridSvg(z,z.floor-6,z.max+4)+'<g id="conLiveSeg"></g></svg></div></div>'+
     '<div class="conctrls"><button data-click="conSkip">Skip ›</button><button class="finish" data-click="conFinish">Finish</button><button class="abort" data-click="conAbort">Discard</button></div>'+

@@ -1,5 +1,28 @@
 # Changelog
 
+## Weekly zone targets, live zone-time, transitions & a proper rest ring — 23 July 2026
+
+Four bigger UI/UX builds:
+
+- **Weekly zone targets (Morpheus banking).** Home and Progress now show three
+  rings — Recovery / Conditioning / Overload — filling toward a weekly
+  target-minutes goal (60 / 45 / 12 by default), banked from your sessions. Turns
+  the trend charts into something to hit.
+- **Live "time in zone" + streak.** During a conditioning session the live screen
+  shows a colour bar of the minutes you've banked in each zone so far, and a
+  "🔥 in zone" flame appears while you're holding your target zone.
+- **Screen transitions.** Navigating now fades-and-lifts each screen in (respects
+  reduced-motion) so the app feels less like hard page swaps.
+- **Rest timer, redesigned.** The rest chip is now a circular countdown ring around
+  the clock — glanceable from across the gym — and it survives a reload with the
+  ring intact.
+- **Logger orientation.** A session-progress bar ("3 of 7 done · 43%") sits under
+  the header so you always know how far through the workout you are.
+
+Native shell **v2.7.0 (versionCode 11)**. Service-worker cache v52. All six suites
+green, plus a new regression test for the weekly zone-target maths.
+
+
 ## Visual polish pass — 23 July 2026
 
 Small, high-value UI/UX touch-ups after the debug sweep:
