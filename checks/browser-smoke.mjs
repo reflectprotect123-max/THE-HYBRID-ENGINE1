@@ -240,7 +240,22 @@ await t('Conditioning: setup shows zones; demo session records live HR and saves
   await page.click('.navlink[data-s="conditioning"]');
   await page.waitForSelector('#s-conditioning.on', { timeout: 2000 });
   let html = await page.$eval('#s-conditioning', (el) => el.innerHTML);
-  if (!/Zone session/.test(html) || !/Moderate/.test(html)) throw new Error('setup missing zones');
+  if (!/Zone session/.test(html) || !/Conditioning/.test(html)) throw new Error('setup missing zones');
+  // HR-zone engine: Tanaka max, blue/green/red bands, HRR when resting known
+  const zn = await page.evaluate(() => {
+    DB.settings.profile = { age: 30 }; save();
+    const a = conZones();
+    DB.settings.profile = { age: 30, restingHr: 50 }; save();
+    const b = conZones();
+    DB.settings.profile = {}; save();
+    return { a, b };
+  });
+  if (zn.a.max !== Math.round(208 - 0.7 * 30)) throw new Error('max HR not Tanaka: ' + zn.a.max);
+  if (zn.a.method !== 'pctmax') throw new Error('expected %max fallback with no resting HR');
+  if (zn.b.method !== 'hrr') throw new Error('expected HRR method when resting HR set');
+  const keys = zn.a.list.map((z) => z.name).join(',');
+  if (keys !== 'Recovery,Conditioning,Overload') throw new Error('zone names wrong: ' + keys);
+  if (zn.a.list[1].color !== '#33c07a') throw new Error('conditioning zone not green');
   // start the simulated-HR demo (no Bluetooth in CI), let it tick a few seconds
   await page.evaluate(() => conStartDemo());
   await page.waitForFunction(() => CON.live && CON.samples.length >= 2, null, { timeout: 8000 });

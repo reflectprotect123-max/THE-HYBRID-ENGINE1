@@ -847,11 +847,17 @@ function renderSettings(){
   else{whoop='<div class="sc-meta">WHOOP connected'+(WHOOP.lastSyncAt?' · last sync '+esc(new Date(WHOOP.lastSyncAt).toLocaleString()):'')+'.</div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" data-click="syncWhoop">'+(WHOOP.busy?'Syncing…':'Sync now')+'</button><button class="addbtn" style="flex:1;margin-top:0" data-click="disconnectWhoop">Disconnect</button></div>';}
   // Training profile (drives conditioning HR zones)
   const prof=DB.settings.profile||{},zz=conZones();
-  const profile='<div class="sc-meta">Sets your conditioning heart-rate zones. Max HR defaults to 220 &minus; age; enter a tested max to override.</div>'+
+  const methodLine=zz.method==='hrr'
+    ? 'Zones use <b>Heart-Rate Reserve</b> (resting '+zz.rest+' → max '+zz.max+') — the personalised, gold-standard method.'
+    : 'Zones use <b>% of max HR</b>. Add a resting HR (or connect WHOOP) to switch to the personalised Heart-Rate Reserve method.';
+  const recLine=zz.rec==null?'' : (zz.adj>0?' · widened for a strong '+zz.rec+'% recovery' : zz.adj<0?' · eased for a low '+zz.rec+'% recovery' : ' · '+zz.rec+'% recovery today');
+  const profile='<div class="sc-meta">Sets your heart-rate zones. Max HR uses the Tanaka formula (208 &minus; 0.7 &times; age); enter a tested max to override. '+methodLine+'</div>'+
     '<div style="display:flex;gap:8px;margin-top:12px">'+
     '<div class="field" style="flex:1"><label>Age</label><input type="number" min="10" max="100" inputmode="numeric" value="'+(prof.age||'')+'" placeholder="30" data-change="setProfile" data-args="[&quot;age&quot;,&quot;@value&quot;]"></div>'+
-    '<div class="field" style="flex:1"><label>Max HR (override)</label><input type="number" min="120" max="230" inputmode="numeric" value="'+(prof.maxHr||'')+'" placeholder="auto" data-change="setProfile" data-args="[&quot;maxHr&quot;,&quot;@value&quot;]"></div></div>'+
-    '<div class="sc-meta" style="margin-top:10px">Zones now: Low '+zz.list[0].lo+'&ndash;'+zz.list[0].hi+' · Moderate '+zz.list[1].lo+'&ndash;'+zz.list[1].hi+' · High '+zz.list[2].lo+'&ndash;'+zz.list[2].hi+'</div>';
+    '<div class="field" style="flex:1"><label>Resting HR</label><input type="number" min="30" max="110" inputmode="numeric" value="'+(prof.restingHr||'')+'" placeholder="'+(WHOOP.sample&&WHOOP.sample.restingHr?'WHOOP '+WHOOP.sample.restingHr:'auto')+'" data-change="setProfile" data-args="[&quot;restingHr&quot;,&quot;@value&quot;]"></div>'+
+    '<div class="field" style="flex:1"><label>Max HR (override)</label><input type="number" min="120" max="230" inputmode="numeric" value="'+(prof.maxHr||'')+'" placeholder="'+conMaxHr()+'" data-change="setProfile" data-args="[&quot;maxHr&quot;,&quot;@value&quot;]"></div></div>'+
+    '<div class="zonekey" style="margin-top:12px">'+zz.list.map(function(z){return '<div class="zk"><i style="background:'+z.color+'"></i><span class="n">'+z.name+'</span><span class="r">'+z.lo+'&ndash;'+(z.key==='high'?z.hi+'+':z.hi)+'</span></div>';}).join('')+'</div>'+
+    '<div class="sc-meta" style="margin-top:8px">Max '+zz.max+' bpm'+recLine+'.</div>';
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Settings</div><h1 style="font-size:24px">Cloud, WHOOP &amp; data</h1></div></div>'+
     '<div class="section"><div class="sec-head"><h2>Cloud sync</h2></div><div class="card" style="margin-top:10px;padding:14px">'+cloud+'</div></div>'+
@@ -1042,7 +1048,7 @@ function progZoneBars(bk){
   let bars='';
   bk.forEach((b,i)=>{
     const cx=padL+slot*i+slot/2;let y=padT+innerH;
-    [['low','#5b8def'],['mod','#cf9d4f'],['high','#e0524d']].forEach(pair=>{
+    [['low','#5b8def'],['mod','#33c07a'],['high','#e0524d']].forEach(pair=>{
       const h=innerH*(b[pair[0]]/max);
       if(h>0.5){y-=h;bars+='<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+(y+1).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0.5,h-2).toFixed(1)+'" rx="2" fill="'+pair[1]+'"><title>Week of '+b.key+' · '+pair[0]+' '+Math.round(b[pair[0]])+' min</title></rect>';}
     });
@@ -1061,7 +1067,7 @@ function progConditioningCards(){
   cond.forEach(r=>{const k=ymd(weekStart(r.startedAt||Date.now()));if(bidx.has(k)){const b=buckets[bidx.get(k)];b.low+=(r.zsec.low||0)/60;b.mod+=(r.zsec.mod||0)/60;b.high+=(r.zsec.high||0)/60;}});
   if(buckets.some(b=>b.low+b.mod+b.high>0))
     out+=chartCard('Zone minutes by week','conditioning',progZoneBars(buckets),
-      '<div class="legend"><span><i style="background:#5b8def"></i>Low</span><span><i style="background:#cf9d4f"></i>Moderate</span><span><i style="background:#e0524d"></i>High</span></div>');
+      '<div class="legend"><span><i style="background:#5b8def"></i>Recovery</span><span><i style="background:#33c07a"></i>Conditioning</span><span><i style="background:#e0524d"></i>Overload</span></div>');
   const rows=cond.slice(-12);
   if(rows.length>=2){
     const xl=rows.map(r=>{const p=String(r.date).split('-');return (+p[1])+'/'+(+p[2]);});
@@ -1087,20 +1093,66 @@ const CON={view:'setup',fmt:'intervals',live:false,ble:{dev:null,chr:null,connec
   startedAt:0,samples:[],avgSum:0,avgN:0,max:0,lastBpm:null,phases:[],phaseIdx:-1,round:0,rounds:0,
   timer:null,simBpm:95,simNext:0,record:null,error:'',info:''};
 
-/* --- profile & zone model (3 bands, Morpheus-style) --- */
-function conProfile(){const p=DB.settings.profile||{};const age=parseInt(p.age,10)||30;const o=parseInt(p.maxHr,10)||0;return{age,maxHr:o>0?o:220-age};}
+/* --- profile & zone model (3 bands, Morpheus-style) ---
+   Max HR uses Tanaka (208 - 0.7*age), the meta-analysis-validated formula that
+   beats 220-age (which overestimates for the young, underestimates past ~40).
+   A manual override wins; and if a live session ever records a beat above the
+   estimate we remember it (obsMaxHr) and use it — exactly what Morpheus does. */
+function conMaxHr(){
+  const p=DB.settings.profile||{};
+  const age=parseInt(p.age,10)||30;
+  const manual=parseInt(p.maxHr,10)||0;
+  const est=manual>0?manual:Math.round(208-0.7*age);
+  const obs=parseInt(p.obsMaxHr,10)||0;
+  return Math.max(est,obs);
+}
+function conProfile(){const p=DB.settings.profile||{};const age=parseInt(p.age,10)||30;return{age,maxHr:conMaxHr()};}
+/* Resting HR: manual override, else WHOOP's measured resting HR, else null. */
+function restingHr(){
+  const p=DB.settings.profile||{};const manual=parseInt(p.restingHr,10)||0;
+  if(manual>0)return manual;
+  const w=WHOOP.sample?parseInt(WHOOP.sample.restingHr,10):0;
+  return w>0?w:null;
+}
+/* Remember a new observed max whenever a live beat exceeds the estimate. */
+function conNoteMax(bpm){
+  if(!Number.isFinite(bpm)||bpm<100||bpm>240)return;
+  const p=Object.assign({},DB.settings.profile);
+  const cur=parseInt(p.obsMaxHr,10)||0;
+  if(bpm>cur&&bpm>conMaxHr()-1){p.obsMaxHr=bpm;DB.settings.profile=p;save();}
+}
+/* Three dynamic bands (Recovery / Conditioning / Overload = blue / green / red).
+   Thresholds are computed on Heart-Rate Reserve (Karvonen: resting + pct*(max-resting))
+   whenever resting HR is known — the gold-standard, fitness-individualised method —
+   and fall back to plain %max when it isn't. The bands then shift each day with
+   WHOOP recovery, asymmetrically like Morpheus: a low-recovery day broadens blue
+   and drops red so "hard" arrives sooner and protects you; a high-recovery day
+   expands green and lifts the overload line so you can safely push. */
 function conZones(){
-  const m=conProfile().maxHr;
-  // Recovery-driven daily nudge (Morpheus-style): strong recovery raises the
-  // work thresholds a touch, poor recovery lowers them so "hard" comes sooner.
+  const m=conMaxHr(),rest=restingHr();
   const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
   const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
-  const adj=rec==null?0:rec>=67?0.02:rec<34?-0.04:0;
-  const floor=Math.round(m*.5),lowTop=Math.round(m*(.78+adj)),modTop=Math.round(m*(.875+adj));
-  return{floor,max:m,rec,adj,list:[
-    {key:'low',name:'Low',color:'#5b8def',lo:floor,hi:lowTop},
-    {key:'mod',name:'Moderate',color:'#cf9d4f',lo:lowTop,hi:modTop},
-    {key:'high',name:'High',color:'#e0524d',lo:modTop,hi:m}]};
+  // asymmetric daily re-zoning on Morpheus's 80/40 recovery bands
+  let dLow=0,dMod=0;
+  if(rec!=null){ if(rec<40){dLow=+0.03;dMod=-0.05;} else if(rec>80){dLow=-0.03;dMod=+0.04;} }
+  let floor,lowTop,modTop,method;
+  if(rest&&rest>0&&rest<m-20){
+    const R=m-rest;method='hrr';
+    floor =Math.round(rest+R*0.30);
+    lowTop=Math.round(rest+R*(0.60+dLow));
+    modTop=Math.round(rest+R*(0.85+dMod));
+  }else{
+    method='pctmax';
+    floor =Math.round(m*0.50);
+    lowTop=Math.round(m*(0.70+dLow));
+    modTop=Math.round(m*(0.88+dMod));
+  }
+  lowTop=Math.max(floor+4,Math.min(lowTop,m-6));
+  modTop=Math.max(lowTop+4,Math.min(modTop,m-2));
+  return{floor,max:m,rest:rest||null,rec,adj:dMod,method,list:[
+    {key:'low', name:'Recovery',    color:'#5b8def', lo:floor, hi:lowTop},
+    {key:'mod', name:'Conditioning',color:'#33c07a', lo:lowTop,hi:modTop},
+    {key:'high',name:'Overload',    color:'#e0524d', lo:modTop,hi:m}]};
 }
 function conZoneOf(bpm,z){z=z||conZones();return bpm<z.list[0].hi?z.list[0]:bpm<z.list[1].hi?z.list[1]:z.list[2];}
 function conMmss(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
@@ -1263,7 +1315,7 @@ function conSample(bpm){
   if(!CON.live||!Number.isFinite(bpm)||bpm<25||bpm>250)return;
   const t=Math.max(0,Math.round((Date.now()-CON.startedAt)/1000));
   CON.samples.push({t,bpm});
-  CON.avgSum+=bpm;CON.avgN++;if(bpm>CON.max)CON.max=bpm;CON.lastBpm=bpm;
+  CON.avgSum+=bpm;CON.avgN++;if(bpm>CON.max){CON.max=bpm;conNoteMax(bpm);}CON.lastBpm=bpm;
   conPaintHr(bpm);
 }
 function conAbort(){
@@ -1377,9 +1429,9 @@ function conPaintAll(){
 function conSetupHtml(){
   const z=conZones(),f=CON_FORMATS[CON.fmt];
   const rec=WHOOP.sample&&Number.isFinite(Number(WHOOP.sample.recoveryScore))?Math.round(Number(WHOOP.sample.recoveryScore)):null;
-  let h='<div class="kicker">Conditioning</div><h1 style="font-size:24px">Zone session</h1><p class="sub">Train by live heart rate. Zones come from your max HR — set it in Settings.</p>';
+  let h='<div class="kicker">Conditioning</div><h1 style="font-size:24px">Zone session</h1><p class="sub">Train by live heart rate. Zones adapt to your recovery — tune your profile in Settings.</p>';
   if(rec!=null)h+='<div class="recpill"><b>Your recovery today</b><span class="v">'+rec+'%</span></div>';
-  h+='<div class="card" style="margin-top:14px;padding:15px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Today&rsquo;s heart-rate zones · max '+z.max+(z.adj>0?' · raised for '+z.rec+'% recovery':z.adj<0?' · eased for '+z.rec+'% recovery':'')+'</div>';
+  h+='<div class="card" style="margin-top:14px;padding:15px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Today&rsquo;s heart-rate zones · max '+z.max+(z.adj>0?' · widened for '+z.rec+'% recovery':z.adj<0?' · eased for '+z.rec+'% recovery':'')+'</div>';
   z.list.forEach(zz=>{h+='<div class="zrow"><span class="zdot" style="background:'+zz.color+'"></span><span class="znm">'+zz.name+'</span><span class="zbar"><span class="zfill" style="background:linear-gradient(90deg,'+zz.color+'55,'+zz.color+')"></span></span><span class="zrng">'+zz.lo+'&ndash;'+zz.hi+'</span></div>';});
   h+='</div>';
   h+='<div style="margin-top:16px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase">Choose format</div><div class="fmtpick">';
@@ -1431,8 +1483,8 @@ function conDonutSvg(zsec,total){
 }
 function conResChartSvg(rec){
   const z=conZones();const m=rec.maxHr||z.max;
-  const floor=Math.round(m*.5),lowTop=Math.round(m*.78),modTop=Math.round(m*.875);
-  const zoneAt=b=>b<lowTop?'#5b8def':b<modTop?'#cf9d4f':'#e0524d';
+  const floor=Math.round(m*.5),lowTop=Math.round(m*.70),modTop=Math.round(m*.88);
+  const zoneAt=b=>b<lowTop?'#5b8def':b<modTop?'#33c07a':'#e0524d';
   const pts=rec.hr||[],n=pts.length;if(n<2)return'<div class="sc-meta">Not enough data for a graph.</div>';
   const lo=floor-8,hi=m+4;
   const X=i=>6+(310-6)*(i/(n-1)),Y=v=>10+(150-10-20)*(1-(v-lo)/(hi-lo));
