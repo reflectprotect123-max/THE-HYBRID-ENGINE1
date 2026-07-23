@@ -1601,7 +1601,19 @@ function impLookup(phrase){
   if(best&&bd<=1){const hit=IMP_ALIAS[best]||lex.ex[best];return{name:hit.name,mode:hit.mode,fuzzy:true};}
   return null;
 }
-const IMP_HEADINGS=/^(warm[\s-]?up|warmup|cool[\s-]?down|cooldown|finisher|accessor(y|ies)|main|strength|conditioning|power primer|primer|prep|core|circuit|metcon)\b/i;
+const IMP_HEADINGS=/^(warm[\s-]?up|warmup|cool[\s-]?down|cooldown|finisher|accessor(y|ies)|main|strength|conditioning|power primer|primer|prep|core|circuit|metcon|for time|for reps|rft|chipper|buy[\s-]?in|cash[\s-]?out|part [a-d]|block \d|section)\b/i;
+const IMP_PROSE_RX=/\b(the|your|you|they|is|are|was|were|be|been|before|after|with|that|this|which|while|need|needs|select|matches|contains|including|broken|because|should|would|could|about|between|than|then|when|where|into a)\b/i;
+/* A movement line has a number, a rep scheme, or matches the library.
+   A line with none of those that reads like a sentence is prose (a note). */
+function impLooksProse(line,lower){
+  if(/\d/.test(line))return false;                 // any number → treat as workout data
+  const words=line.split(/\s+/).filter(Boolean).length;
+  if(words<3)return false;                          // short → probably a movement name
+  const clean=lower.replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim();
+  if(impLookup(clean)||impLookup(clean.replace(/^\d+\s+/,'')))return false; // known movement
+  if(IMP_HEADINGS.test(lower))return false;         // section heading
+  return IMP_PROSE_RX.test(lower);                  // reads like a sentence → prose/note
+}
 function impRpe(lower){const m=lower.match(/@?\s*rpe\s*(\d\d?)/)||lower.match(/@\s*(\d\d?)\b/);return m?+m[1]:0;}
 function impTitle(s){return s.replace(/\b\w/g,c=>c.toUpperCase());}
 let IMP_ISSUE_ID=0;
@@ -1613,8 +1625,18 @@ function impParse(text){
   const ensure=()=>cur||newBlock('Main');
   const issue=o=>{o.id=++IMP_ISSUE_ID;o.resolved=false;wk.issues.push(o);return o;};
   const lex=impLex();
+  let noteMode=false,pendingReps=null;
   lines.forEach((raw,idx)=>{
     let line=raw.replace(/^[\-•\*]+\s*/,'').trim();
+    let lowr=line.toLowerCase();
+    // Coaching notes: once we see a "Note/Stimulus/Scaling/Coach" header,
+    // everything after is prose — keep it as a note, never an exercise.
+    if(/^(effort\s+)?note|^notes\b|^stimulus|^scaling|^coach|^strategy/i.test(lowr)){noteMode=true;
+      const after=line.replace(/^[^:]*:\s*/,'');if(after&&after!==line)wk.notes.push(after);return;}
+    if(noteMode){wk.notes.push(line);return;}
+    // Prose rejection: a line with no numbers that reads like a sentence
+    // (contains function words, or is long) is a note — not a movement.
+    if(impLooksProse(line,lowr)){wk.notes.push(line);return;}
     const mk=line.match(/^([a-d])\s?(\d)[).:\s]\s*/i)||line.match(/^(\d)([a-d])[).:\s]\s*/i);
     if(mk){const letter=(/[a-d]/i.test(mk[1])?mk[1]:mk[2]).toLowerCase();
       if(letter===lastMarker&&cur){cur.superset=true;if(!cur.format)cur.format='superset';}
@@ -1646,6 +1668,13 @@ function impParse(text){
       if(rounds){cur.rounds=+rounds[1];cur.format=rounds[1]+' rounds';cur.superset=true;}
       if(restVal)cur.rest=restVal;return;}
     if(intoNew)newBlock('Circuit',{superset:true});
+    // A lone rep scheme / ladder with no movement ("18-16-14-12-10", "5x5")
+    // belongs to the movement on the next line — hold it and attach.
+    const bareLadder=lower.match(/^\d+(?:\s*-\s*\d+){2,}$/)||lower.match(/^\d+\s*x\s*\d+$/);
+    if(bareLadder&&!impLookup(lower.replace(/[\d\sx-]/g,'').trim())){
+      const parts=lower.split(/\s*[x-]\s*/).map(Number).filter(n=>Number.isFinite(n));
+      pendingReps=/x/.test(lower)?{sets:parts[0],reps:parts[1]}:{sets:parts.length,reps:parts[0],varied:parts};
+      return;}
     if(headWithScheme){
       const hz=impTitle(line.replace(/\d+\s*x\s*\d+.*/i,'').trim());
       newBlock(hz);
@@ -1657,6 +1686,9 @@ function impParse(text){
     const ex=impParseExercise(line,lower,issue);
     if(!ex){if(line)issue({kind:'unreadable',text:raw});return;}
     ensure();if(restVal)ex.rest=restVal;
+    // apply a held rep scheme from the previous line if this movement had none
+    if(pendingReps&&ex.sets===1&&!ex.reps&&!ex.secs){ex.sets=pendingReps.sets;ex.reps=pendingReps.reps;if(pendingReps.varied)ex.varied=pendingReps.varied;}
+    pendingReps=null;
     if(typo)issue({kind:'typo',ref:ex,word:typo,rest:restVal});
     cur.exercises.push(ex);
     if(rounds&&!thenRounds){cur.rounds=+rounds[1];cur.format=rounds[1]+' rounds';cur.superset=true;if(restVal)cur.rest=restVal;}
@@ -1668,11 +1700,13 @@ function impParseExercise(line,lower,issue){
   const rpe=impRpe(lower);
   const time=lower.match(/(\d+)\s*(s|sec|secs|min|mins)\b/);
   const scheme=lower.match(/(\d+)\s*x\s*(\d+)(?:\s*-\s*(\d+))?/);
-  const list=lower.match(/\b(\d+(?:\s*,\s*\d+){2,})\b/);
+  // rep ladder: "8,8,6,6" or a descending scheme "18-16-14-12-10"
+  const list=lower.match(/\b(\d+(?:\s*,\s*\d+){2,})\b/)||lower.match(/\b(\d+(?:\s*-\s*\d+){2,})\b/);
   const lead=lower.match(/^(\d+)\s+([a-z].*)/);
   const kg=lower.match(/(\d+(?:\.\d+)?)\s*kg/);
   const eachSide=/\b(each side|per side|per leg|per arm|e\/s|ea)\b/.test(lower);
   const namePart=line.replace(/@?\s*rpe\s*\d\d?/ig,'').replace(/@\s*\d\d?\b/g,'')
+    .replace(/\b\d+(?:\s*-\s*\d+){2,}\b/g,'')
     .replace(/\d+\s*x\s*\d+(\s*-\s*\d+)?/ig,'').replace(/\b\d+(?:\s*,\s*\d+){2,}\b/g,'')
     .replace(/\d+\s*(s|sec|secs|min|mins)\b/ig,'').replace(/\d+(?:\.\d+)?\s*kg/ig,'')
     .replace(/\b(each side|per side|per leg|per arm|e\/s|ea)\b/ig,'')
@@ -1683,7 +1717,7 @@ function impParseExercise(line,lower,issue){
   const name=look?look.name:impTitle(namePart);
   const mode=look?look.mode:(time?'seconds':'reps');
   const ex={name,mode,rpe,rest:0,eachSide};
-  if(list){const arr=list[1].split(/\s*,\s*/).map(Number);ex.sets=arr.length;ex.reps=arr[0];ex.varied=arr;}
+  if(list){const arr=list[1].split(/\s*[,-]\s*/).map(Number);ex.sets=arr.length;ex.reps=arr[0];ex.varied=arr;}
   else if(scheme){ex.sets=+scheme[1];ex.reps=+scheme[2];if(scheme[3])ex.range=scheme[2]+'-'+scheme[3];}
   else if(time){ex.sets=1;ex.secs=+time[1]*((/min/).test(time[2])?60:1);if(mode==='reps')ex.mode='seconds';}
   else if(lead){ex.sets=1;ex.reps=+lead[1];}
