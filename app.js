@@ -17,7 +17,7 @@ function sanitizeDB(d){
   d=(d&&typeof d==='object')?d:{};
   const arr=v=>Array.isArray(v)?v:[];
   const cleanEx=e=>{e=(e&&typeof e==='object')?e:{};e.sets=arr(e.sets).map(s=>(s&&typeof s==='object')?s:{});if(!e.sets.length)e.sets=[newSet()];e.mode=MODES[e.mode]?e.mode:'reps_kg';return e;};
-  const cleanBlock=b=>{b=(b&&typeof b==='object')?b:{};b.exercises=arr(b.exercises).map(cleanEx);if(!b.exercises.length)b.exercises=[newEx()];return b;};
+  const cleanBlock=b=>{b=(b&&typeof b==='object')?b:{};if(isCond(b)){delete b.exercises;return b;}b.exercises=arr(b.exercises).map(cleanEx);if(!b.exercises.length)b.exercises=[newEx()];return b;};
   const cleanBlocks=v=>{const bl=arr(v).map(cleanBlock);return bl;};
   return {
     workouts:arr(d.workouts).map(w=>{w=(w&&typeof w==='object')?w:{};w.blocks=cleanBlocks(w.blocks);if(!w.id)w.id=uid();return w;}),
@@ -26,9 +26,14 @@ function sanitizeDB(d){
   };
 }
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw)DB=sanitizeDB(JSON.parse(raw));}catch(e){DB={workouts:[],sessions:[],settings:{}};}}
-function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(DB));flashSaved()}catch(e){}if(typeof queueCloudPush==='function')queueCloudPush();}
+let _storageWarned=false;
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(DB));flashSaved();}catch(e){flashSaveFailed(e);}if(typeof queueCloudPush==='function')queueCloudPush();}
 let savedTimer=null;
 function flashSaved(){const el=document.getElementById('sideStatus');if(!el)return;el.textContent='Saved ✓';clearTimeout(savedTimer);savedTimer=setTimeout(()=>{if(el)el.textContent='Saved locally'},1200)}
+function flashSaveFailed(e){
+  const el=document.getElementById('sideStatus');if(el){el.textContent='⚠ Not saved — storage full';}
+  if(!_storageWarned){_storageWarned=true;try{alert('This device’s storage is full, so your latest changes could not be saved locally. Export a backup (Settings → Export) or sign in to cloud sync, then clear space.');}catch(x){}}
+}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------- CSP-safe event delegation (no inline on* handlers) ----------
@@ -288,7 +293,7 @@ function rpeGapInfo(){
     .sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
   for(const s of done){
     const gaps=[];
-    s.blocks.forEach(b=>b.exercises.forEach(e=>e.sets.forEach(st=>{
+    s.blocks.forEach(b=>blockExercises(b).forEach(e=>e.sets.forEach(st=>{
       const t=parseFloat(st.rpe),f=parseFloat(st.felt);
       if(st.done&&Number.isFinite(t)&&Number.isFinite(f))gaps.push(f-t);
     })));
@@ -438,7 +443,7 @@ function freshSessionBlocks(blocks){
 }
 function previewWorkout(){
   if(!WK.name.trim())WK.name='Untitled workout';
-  if(!WK.blocks.some(b=>b.exercises.length)){alert('Add at least one block with an exercise before previewing.');return;}
+  if(!WK.blocks.some(b=>isCond(b)||blockExercises(b).length)){alert('Add at least one block with an exercise before previewing.');return;}
   const i=DB.workouts.findIndex(x=>x.id===WK.id);
   const clean=JSON.parse(JSON.stringify(WK));
   if(i>=0)DB.workouts[i]=clean;else DB.workouts.push(clean);
@@ -516,8 +521,8 @@ function renderCondBlockRow(b,bi){
 function conRunBlock(bi){
   const s=curSession();if(!s)return;
   const b=s.blocks[bi];if(!isCond(b))return;
-  if(b.condResult){CON.sink={scope:'session',sid:s.id,bi:bi};CON.record=b.condResult;CON.view='results';CON.error='';CON.info='';go('conditioning');return;}
-  CON.sink={scope:'session',sid:s.id,bi:bi};
+  if(b.condResult){CON.sink={scope:'session',sid:s.id,bi:bi,bid:b.id};CON.record=b.condResult;CON.view='results';CON.error='';CON.info='';go('conditioning');return;}
+  CON.sink={scope:'session',sid:s.id,bi:bi,bid:b.id};
   CON.fmt=(b.condFmt&&CON_FORMATS[b.condFmt])?b.condFmt:'intervals';
   CON.view='setup';CON.record=null;CON.error='';CON.info='';
   go('conditioning');
@@ -549,7 +554,7 @@ function gridCols(mode){
 }
 function lastTimeFor(name){
   const done=DB.sessions.filter(s=>s.status==='completed'||s.status==='incomplete').sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
-  for(const s of done){for(const b of s.blocks){for(const ex of b.exercises){
+  for(const s of done){for(const b of s.blocks){for(const ex of blockExercises(b)){
     if((ex.name||'').toLowerCase()===(name||'').toLowerCase()){
       const logged=ex.sets.filter(st=>st.done&&(st.aVal||st.aVal2));
       if(logged.length)return {date:s.date,sets:logged};
@@ -677,7 +682,7 @@ function resumeRest(){
 
 /* ---------- BUILDER ---------- */
 let WK={id:uid(),name:'',blocks:[newBlock()]},EDIT_EXISTING=false,openBlock=0;
-function refreshExNames(){const names=[...new Set(DB.workouts.flatMap(w=>w.blocks.flatMap(b=>b.exercises.map(e=>e.name).filter(Boolean))))];document.getElementById('exNames').innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join('');}
+function refreshExNames(){const names=[...new Set(DB.workouts.flatMap(w=>w.blocks.flatMap(b=>blockExercises(b).map(e=>e.name).filter(Boolean))))];document.getElementById('exNames').innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join('');}
 let BUILDER_WID=null;
 function renderBuilder(){
   refreshExNames();
@@ -806,7 +811,28 @@ let cloudUser=null,cloudBusy=false,cloudError='',cloudTimer=null,cloudPending=fa
 function cloudEnabled(){return !!SB}
 function localChangeAt(){return Number(localStorage.getItem(CHANGE_KEY))||0}
 function markLocalChange(at){try{localStorage.setItem(CHANGE_KEY,String(at||Date.now()))}catch(e){}}
-function cloudFp(engine){try{return JSON.stringify({w:engine.workouts||[],s:engine.sessions||[]})}catch(e){return 'fp-'+Math.random()}}
+function cloudFp(engine){try{
+  // Include settings so profile/zone/progression/conditioning changes DO sync.
+  // Exclude whoopDaily — it's device-local, re-derived per device, and would
+  // otherwise churn the fingerprint on every WHOOP sample.
+  const st=Object.assign({},engine.settings||{});delete st.whoopDaily;
+  return JSON.stringify({w:engine.workouts||[],s:engine.sessions||[],st});
+}catch(e){return 'fp-'+Math.random()}}
+/* Merge two settings blobs without losing additive data: earned progression
+   never regresses (max level per format), standalone conditioning history and
+   the learned lexicon are unioned. `winner` (second arg) wins scalar fields
+   (profile, flags) — pass the newer/local side there depending on direction. */
+function mergeSettings(base,winner){
+  base=base||{};winner=winner||{};
+  const out=Object.assign({},base,winner);
+  const bp=base.conProgress||{},wp=winner.conProgress||{},pk=new Set([...Object.keys(bp),...Object.keys(wp)]);
+  if(pk.size){const cp={};pk.forEach(k=>{const a=(bp[k]&&bp[k].level|0)||0,b=(wp[k]&&wp[k].level|0)||0;cp[k]=Object.assign({},(b>=a?wp[k]:bp[k])||{},{level:Math.max(a,b)});});out.conProgress=cp;}
+  const bc=Array.isArray(base.conditioning)?base.conditioning:[],wc=Array.isArray(winner.conditioning)?winner.conditioning:[];
+  if(bc.length||wc.length){const seen=new Set(),m=[];bc.concat(wc).forEach(r=>{if(r&&r.id&&!seen.has(r.id)){seen.add(r.id);m.push(r);}});m.sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));out.conditioning=m.slice(-40);}
+  const bl=base.lexicon||{},wl=winner.lexicon||{};
+  if(bl.kw||bl.ex||wl.kw||wl.ex)out.lexicon={kw:Object.assign({},bl.kw,wl.kw),ex:Object.assign({},bl.ex,wl.ex)};
+  return out;
+}
 async function cloudInit(){
   if(!cloudEnabled())return;
   try{const {data}=await SB.auth.getSession();cloudUser=data&&data.session?data.session.user:null;if(cloudUser)await cloudReconcile();}
@@ -835,7 +861,9 @@ async function cloudReconcile(){
       else{
         const remoteAt=data.updated_at?Date.parse(data.updated_at):0,localAt=localChangeAt();
         if(localEmpty||remoteAt>=localAt){
-          DB={workouts:remote.workouts||[],sessions:remote.sessions||[],settings:Object.assign({},DB.settings,remote.settings||{})};
+          // sanitize the pulled state (a second device / foreign backup may carry
+          // malformed blocks) while preserving our merged, additive settings
+          DB=sanitizeDB({workouts:remote.workouts||[],sessions:remote.sessions||[],settings:mergeSettings(DB.settings,remote.settings||{})});
           try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}
           markLocalChange(remoteAt||Date.now());lastSyncedFp=cloudFp(DB);
           renderScreen(CURRENT);
@@ -861,7 +889,10 @@ async function cloudPushNow(force){
     // merge-preserve: keep any other keys already in this user's state row
     let existing={};
     try{const {data}=await SB.from('app_state').select('state').eq('user_id',cloudUser.id).maybeSingle();if(data&&data.state&&typeof data.state==='object')existing=data.state;}catch(e){}
-    const state=Object.assign({},existing,{hybridEngine:{workouts:DB.workouts,sessions:DB.sessions,settings:DB.settings}});
+    // Keep the remote's additive data (another device's conditioning history,
+    // higher progression, learned words) while our local scalar edits win.
+    const exSettings=(existing&&existing.hybridEngine&&existing.hybridEngine.settings)||{};
+    const state=Object.assign({},existing,{hybridEngine:{workouts:DB.workouts,sessions:DB.sessions,settings:mergeSettings(exSettings,DB.settings)}});
     const {error}=await SB.from('app_state').upsert({user_id:cloudUser.id,state},{onConflict:'user_id'});
     if(error)throw error;
     lastSyncedFp=fp;cloudError='';
@@ -898,7 +929,7 @@ function exportData(){
   // Inside the installed app, blob downloads don't exist — hand the file to native.
   try{if(window.AndroidHR&&window.AndroidHR.saveFile){window.AndroidHR.saveFile('hybrid-engine-backup.json',text);return;}}catch(e){}
   const blob=new Blob([text],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hybrid-engine-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);}
-function importData(ev){const f=ev.target.files&&ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const p=JSON.parse(rd.result);const d=p.db||p;if(!d||!Array.isArray(d.workouts))throw new Error('Not a valid backup.');DB={workouts:d.workouts||[],sessions:d.sessions||[],settings:d.settings||{}};save();renderSettings();alert('Backup imported.');}catch(e){alert('Import failed: '+(e&&e.message||e));}};rd.readAsText(f);}
+function importData(ev){const f=ev.target.files&&ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const p=JSON.parse(rd.result);const d=p.db||p;if(!d||!Array.isArray(d.workouts))throw new Error('Not a valid backup.');DB=sanitizeDB(d);save();renderSettings();alert('Backup imported.');}catch(e){alert('Import failed: '+(e&&e.message||e));}};rd.readAsText(f);}
 function resetLocal(){if(!confirm('Wipe all workouts and history on THIS device? Cloud data (if signed in) is not touched unless you then sync.'))return;DB={workouts:[],sessions:[],settings:{}};try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}renderSettings();}
 
 /* ---------- SETTINGS screen ---------- */
@@ -973,7 +1004,7 @@ function seedIfEmpty(){
   try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}
 }
 function currentWorkout(){const act=DB.sessions.find(s=>s.status==='active');if(act){const w=DB.workouts.find(x=>x.id===act.workoutId);if(w)return w;}return DB.workouts[0]||null;}
-function ensureSession(){let s=curSession();if(s&&s.status==='active')return s;const act=DB.sessions.find(x=>x.status==='active');if(act){CUR_SESSION=act.id;return act;}const w=currentWorkout();if(!w)return null;s={id:uid(),workoutId:w.id,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),blocks:JSON.parse(JSON.stringify(w.blocks)).map(b=>{b.exercises.forEach(e=>e.sets.forEach(st=>{st.aVal='';st.aVal2='';st.felt='';st.done=false}));return b})};DB.sessions.push(s);CUR_SESSION=s.id;save();return s;}
+function ensureSession(){let s=curSession();if(s&&s.status==='active')return s;const act=DB.sessions.find(x=>x.status==='active');if(act){CUR_SESSION=act.id;return act;}const w=currentWorkout();if(!w)return null;s={id:uid(),workoutId:w.id,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),blocks:freshSessionBlocks(w.blocks)};DB.sessions.push(s);CUR_SESSION=s.id;save();return s;}
 
 /* ---------- stale sessions: yesterday's unfinished work becomes history ---------- */
 function expireStaleSessions(){
@@ -1011,11 +1042,11 @@ function completedList(){
     .sort((a,b)=>(a.completedAt||0)-(b.completedAt||0));
 }
 function sessionVolume(s){
-  let v=0;s.blocks.forEach(b=>b.exercises.forEach(e=>{if(e.mode==='reps_kg'||e.mode==='amrap')e.sets.forEach(st=>{if(st.done){const kg=parseFloat(st.aVal),r=parseFloat(st.aVal2);if(Number.isFinite(kg)&&Number.isFinite(r))v+=kg*r;}})}));
+  let v=0;s.blocks.forEach(b=>blockExercises(b).forEach(e=>{if(e.mode==='reps_kg'||e.mode==='amrap')e.sets.forEach(st=>{if(st.done){const kg=parseFloat(st.aVal),r=parseFloat(st.aVal2);if(Number.isFinite(kg)&&Number.isFinite(r))v+=kg*r;}})}));
   return Math.round(v);
 }
 function sessionRpe(s){
-  const t=[],f=[];s.blocks.forEach(b=>b.exercises.forEach(e=>e.sets.forEach(st=>{if(st.done){const tt=parseFloat(st.rpe),ff=parseFloat(st.felt);if(Number.isFinite(tt))t.push(tt);if(Number.isFinite(ff))f.push(ff);}})));
+  const t=[],f=[];s.blocks.forEach(b=>blockExercises(b).forEach(e=>e.sets.forEach(st=>{if(st.done){const tt=parseFloat(st.rpe),ff=parseFloat(st.felt);if(Number.isFinite(tt))t.push(tt);if(Number.isFinite(ff))f.push(ff);}})));
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   return {target:avg(t),felt:avg(f)};
 }
@@ -1133,7 +1164,7 @@ function progConditioningCards(){
   const buckets=[];
   for(let i=7;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-now.getDay()-i*7);buckets.push({key:ymd(d),label:(d.getMonth()+1)+'/'+d.getDate(),low:0,mod:0,high:0});}
   const bidx=new Map(buckets.map((b,i)=>[b.key,i]));
-  cond.forEach(r=>{const k=ymd(weekStart(r.startedAt||Date.now()));if(bidx.has(k)){const b=buckets[bidx.get(k)];b.low+=(r.zsec.low||0)/60;b.mod+=(r.zsec.mod||0)/60;b.high+=(r.zsec.high||0)/60;}});
+  cond.forEach(r=>{const k=ymd(weekStart(r.startedAt||Date.now()));if(bidx.has(k)){const b=buckets[bidx.get(k)],z=r.zsec||{};b.low+=(z.low||0)/60;b.mod+=(z.mod||0)/60;b.high+=(z.high||0)/60;}});
   if(buckets.some(b=>b.low+b.mod+b.high>0))
     out+=chartCard('Zone minutes by week','conditioning',progZoneBars(buckets),
       '<div class="legend"><span><i style="background:#5b8def"></i>Recovery</span><span><i style="background:#33c07a"></i>Conditioning</span><span><i style="background:#e0524d"></i>Overload</span></div>');
@@ -1175,7 +1206,8 @@ function conMaxHr(){
   const p=DB.settings.profile||{};
   const age=parseInt(p.age,10)||30;
   const manual=parseInt(p.maxHr,10)||0;
-  const est=manual>0?manual:Math.round(208-0.7*age);
+  if(manual>0)return manual;              // an explicit tested max is authoritative
+  const est=Math.round(208-0.7*age);      // Tanaka estimate, auto-raised by observed beats
   const obs=parseInt(p.obsMaxHr,10)||0;
   return Math.max(est,obs);
 }
@@ -1191,6 +1223,7 @@ function restingHr(){
 function conNoteMax(bpm){
   if(!Number.isFinite(bpm)||bpm<100||bpm>240)return;
   const p=Object.assign({},DB.settings.profile);
+  if(parseInt(p.maxHr,10)>0)return;       // respect an explicit tested max — don't auto-raise
   const cur=parseInt(p.obsMaxHr,10)||0;
   if(bpm>cur&&bpm>conMaxHr()-1){p.obsMaxHr=bpm;DB.settings.profile=p;save();}
 }
@@ -1504,7 +1537,10 @@ function conFinish(){
   const sink=CON.sink||{scope:'standalone'};
   let persisted=false;
   if(sink.scope==='session'){
-    const s=DB.sessions.find(x=>x.id===sink.sid),b=s&&s.blocks[sink.bi];
+    const s=DB.sessions.find(x=>x.id===sink.sid);
+    // find the block by id first (survives reordering/edits), then by index
+    let b=s&&sink.bid&&s.blocks.find(x=>x.id===sink.bid);
+    if(!isCond(b))b=s&&s.blocks[sink.bi];
     if(isCond(b)){b.condResult=rec;save();persisted=true;}
   }
   if(!persisted){ // standalone (the Conditioning tab) — the original path, unchanged

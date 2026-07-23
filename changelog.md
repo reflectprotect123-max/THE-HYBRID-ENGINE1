@@ -1,5 +1,39 @@
 # Changelog
 
+## Debug pass: crash fixes + a real cloud-sync data-loss fix — 23 July 2026
+
+A full debug sweep (static review across three subsystems + a runtime driver that
+exercises every flow and edge case). Findings, all fixed:
+
+- **Cloud sync silently dropped settings — data loss.** The sync fingerprint only
+  hashed workouts and sessions, so anything stored under settings — your
+  **progression levels, standalone conditioning history, and HR profile
+  (resting/observed max)** — never reached the cloud, and could be **overwritten by
+  a stale second device** on reconcile. Now settings are part of the fingerprint
+  (minus the device-local WHOOP daily cache), and a new merge keeps additive data
+  safe on both push and pull: progression never regresses (max level per format),
+  conditioning history and the learned import lexicon are unioned, never clobbered.
+- **Conditioning blocks could crash the app.** A conditioning block has no
+  exercises; several core functions (Home volume/RPE stats, readiness card,
+  Builder name list, session auto-create, "last time" lookup, preview) iterated
+  exercises without guarding, so a hybrid workout coming from cloud/import/in-session
+  could blank a screen. All guarded. The root cause — the data sanitizer injecting a
+  phantom blank exercise into every conditioning block on load — is fixed too.
+- **Cloud pull and backup import now sanitize** incoming data (a second device or a
+  hand-edited backup can't install malformed blocks).
+- **Storage-full is no longer silent** — a full device now surfaces a clear "not
+  saved" warning instead of pretending the save worked.
+- **Result mis-filing hardened** — a conditioning result now finds its block by id
+  (survives reordering), and an explicit tested max HR is authoritative (no silent
+  auto-raise over a number you entered).
+
+- Native shell **v2.6.1 (versionCode 9)**. Service-worker cache v50.
+
+Verified: all six suites green, plus new regression tests for the settings-sync
+fingerprint, the additive merge, and the no-phantom-exercise sanitizer; and a
+runtime driver that pushes 14 flows/edge-cases with zero console errors.
+
+
 ## Intervals that progress themselves — the Morpheus autoregulation model — 23 July 2026
 
 Your interval sessions now get harder as *you* get fitter — and back off when you

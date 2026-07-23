@@ -345,6 +345,42 @@ await t('interval progression: level-0 base unchanged; adaptation steps up; red 
   if (!(r.servedRounds < r.earnedRounds) || r.servedAdj !== -1) throw new Error('red day did not deload today: ' + JSON.stringify(r));
   if (r.levelStill !== 2) throw new Error('red day changed the earned baseline: ' + r.levelStill);
 });
+await t('sanitizeDB keeps conditioning blocks exercise-less (no phantom exercise)', async () => {
+  const r = await page.evaluate(() => {
+    const raw = { workouts: [{ id: 'w', name: 'x', blocks: [{ id: 's', heading: 'S', exercises: [{ name: 'Squat', mode: 'reps_kg', sets: [{ t: '5' }] }] }, { id: 'c', kind: 'conditioning', condFmt: 'intervals', targetZone: 'mod' }] }], sessions: [], settings: {} };
+    const clean = sanitizeDB(raw);
+    const b = clean.workouts[0].blocks;
+    return { strengthHasEx: Array.isArray(b[0].exercises) && b[0].exercises.length === 1, condHasNoEx: !b[1].exercises, condKind: b[1].kind };
+  });
+  if (!r.strengthHasEx) throw new Error('strength block lost its exercise');
+  if (!r.condHasNoEx) throw new Error('phantom exercise injected into conditioning block');
+  if (r.condKind !== 'conditioning') throw new Error('conditioning kind not preserved');
+});
+await t('cloud: settings changes are in the sync fingerprint; mergeSettings never loses additive data', async () => {
+  const r = await page.evaluate(() => {
+    const A = { workouts: [], sessions: [] };
+    const base = cloudFp(Object.assign({}, A, { settings: { conProgress: { intervals: { level: 1 } } } }));
+    const bumped = cloudFp(Object.assign({}, A, { settings: { conProgress: { intervals: { level: 2 } } } }));
+    const whoopOnly = cloudFp(Object.assign({}, A, { settings: { conProgress: { intervals: { level: 1 } }, whoopDaily: [{ x: Math.random() }] } }));
+    const baseNoWhoop = cloudFp(Object.assign({}, A, { settings: { conProgress: { intervals: { level: 1 } } } }));
+    const merged = mergeSettings(
+      { conProgress: { intervals: { level: 5 } }, conditioning: [{ id: 'a', startedAt: 1 }], lexicon: { kw: { emom: 'x' }, ex: {} } },
+      { conProgress: { intervals: { level: 2 } }, conditioning: [{ id: 'b', startedAt: 2 }], lexicon: { kw: { amrap: 'y' }, ex: {} } }
+    );
+    return {
+      settingsInFp: base !== bumped,
+      whoopExcluded: whoopOnly === baseNoWhoop,
+      levelMax: merged.conProgress.intervals.level,
+      condIds: merged.conditioning.map((c) => c.id).sort().join(','),
+      lexKeys: Object.keys(merged.lexicon.kw).sort().join(','),
+    };
+  });
+  if (!r.settingsInFp) throw new Error('settings change not reflected in cloud fingerprint (would not sync)');
+  if (!r.whoopExcluded) throw new Error('whoopDaily should be excluded from the fingerprint');
+  if (r.levelMax !== 5) throw new Error('mergeSettings regressed progression level: ' + r.levelMax);
+  if (r.condIds !== 'a,b') throw new Error('mergeSettings lost conditioning history: ' + r.condIds);
+  if (r.lexKeys !== 'amrap,emom') throw new Error('mergeSettings lost learned lexicon: ' + r.lexKeys);
+});
 await t('Progress tab renders trends (empty state or charts, never blank)', async () => {
   await page.click('.navlink[data-s="progress"]');
   await page.waitForSelector('#s-progress.on', { timeout: 2000 });
