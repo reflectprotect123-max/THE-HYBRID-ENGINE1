@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
   private static final int REQ_FILE = 2;
   private static final int REQ_EXPORT = 3;
   private static final int REQ_BT_ON = 4;
+  private static final int REQ_OCR = 5;
   private static final long SCAN_MS = 6000;
   private static final int MAX_RECONNECTS = 5;
 
@@ -158,6 +159,7 @@ public class MainActivity extends Activity {
     });
 
     web.addJavascriptInterface(new HrBridge(), "AndroidHR");
+    web.addJavascriptInterface(new OcrBridge(), "AndroidOCR");
 
     BluetoothManager bm = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
     if (bm != null) btAdapter = bm.getAdapter();
@@ -202,6 +204,44 @@ public class MainActivity extends Activity {
           startActivityForResult(i, REQ_EXPORT);
         } catch (Exception e) { pendingExport = null; toast("Could not open the file saver."); }
       });
+    }
+  }
+
+  /**
+   * On-device photo OCR via ML Kit (bundled model — free, offline, the
+   * photo never leaves the phone). The page calls AndroidOCR.scan(); we
+   * open the system photo picker, run text recognition, and hand the text
+   * back through impNativeOcr()/impNativeOcrErr().
+   */
+  private class OcrBridge {
+    @JavascriptInterface public void scan() {
+      main.post(() -> {
+        try {
+          Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+          i.addCategory(Intent.CATEGORY_OPENABLE);
+          i.setType("image/*");
+          startActivityForResult(Intent.createChooser(i, "Choose photo"), REQ_OCR);
+        } catch (Exception e) {
+          js("typeof impNativeOcrErr==='function'&&impNativeOcrErr(" + JSONObject.quote("Could not open the photo picker.") + ")");
+        }
+      });
+    }
+  }
+
+  private void runOcr(Uri uri) {
+    js("typeof impNativeOcrBusy==='function'&&impNativeOcrBusy()");
+    try {
+      com.google.mlkit.vision.common.InputImage img =
+          com.google.mlkit.vision.common.InputImage.fromFilePath(this, uri);
+      com.google.mlkit.vision.text.TextRecognition.getClient(
+              com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
+          .process(img)
+          .addOnSuccessListener(t ->
+              js("typeof impNativeOcr==='function'&&impNativeOcr(" + JSONObject.quote(t.getText() == null ? "" : t.getText()) + ")"))
+          .addOnFailureListener(e ->
+              js("typeof impNativeOcrErr==='function'&&impNativeOcrErr(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")"));
+    } catch (Exception e) {
+      js("typeof impNativeOcrErr==='function'&&impNativeOcrErr(" + JSONObject.quote("Could not read that image.") + ")");
     }
   }
 
@@ -394,6 +434,8 @@ public class MainActivity extends Activity {
           toast("Backup saved.");
         } catch (Exception e) { toast("Could not save the backup."); }
       }
+    } else if (req == REQ_OCR) {
+      if (res == RESULT_OK && data != null && data.getData() != null) runOcr(data.getData());
     } else if (req == REQ_BT_ON) {
       if (res == RESULT_OK && pendingScan) { pendingScan = false; beginScanFlow(); }
       else if (pendingScan) { pendingScan = false; state("error", "Bluetooth stayed off."); }

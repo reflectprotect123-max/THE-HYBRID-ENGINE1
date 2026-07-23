@@ -1824,7 +1824,28 @@ function impSave(){
   IMP.wk=null;IMP.text='';
   editWorkout(w.id);
 }
-function impPickPhoto(){const f=document.getElementById('impFile');if(f)f.click();}
+function impHasNativeOcr(){try{return !!(window.AndroidOCR&&typeof window.AndroidOCR.scan==='function');}catch(e){return false;}}
+function impPickPhoto(){
+  // Installed app: native ML Kit reads the photo (faster, more accurate,
+  // immune to WebView WASM quirks). Browsers fall back to tesseract.js.
+  if(impHasNativeOcr()){
+    IMP.ocrMsg='';IMP.wk=null;
+    try{window.AndroidOCR.scan();}catch(e){IMP.ocrMsg='Could not open the photo picker.';renderImport();}
+    return;
+  }
+  const f=document.getElementById('impFile');if(f)f.click();
+}
+/* callbacks from the native OCR bridge */
+function impNativeOcrBusy(){IMP.photoUrl='';IMP.ocrBusy=true;IMP.ocrMsg='';if(CURRENT==='import')renderImport();}
+function impNativeOcr(text){
+  IMP.ocrBusy=false;
+  const t=String(text||'').split('\n').map(l=>l.trim()).filter(Boolean).join('\n');
+  if(!t){IMP.ocrMsg='No text found in that photo — try a clearer shot.';if(CURRENT==='import')renderImport();return;}
+  IMP.text=t;IMP.wk=null;
+  IMP.ocrMsg='Text extracted ✓ — check it below, fix any misreads, then “Read my workout”.';
+  if(CURRENT==='import')renderImport();
+}
+function impNativeOcrErr(msg){IMP.ocrBusy=false;IMP.ocrMsg='Photo reading failed: '+(msg&&msg!=='null'&&msg!=='undefined'?msg:'unknown error');if(CURRENT==='import')renderImport();}
 let IMP_TESS=null;
 function impLoadTesseract(){
   if(window.Tesseract)return Promise.resolve();
@@ -1850,7 +1871,7 @@ async function impPhoto(ev){
       corePath:'./vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
       langPath:'./vendor/tesseract/',gzip:true
     });
-    const {data}=await worker.recognize(IMP.photoUrl);
+    const {data}=await worker.recognize(f);
     await worker.terminate();
     const text=(data.text||'').split('\n').map(l=>l.trim()).filter(Boolean).join('\n');
     IMP.ocrBusy=false;
@@ -1858,7 +1879,10 @@ async function impPhoto(ev){
     IMP.text=text;IMP.ocrMsg='Text extracted ✓ — check it below, fix any misreads, then “Read my workout”.';
     IMP.wk=null;renderImport();
   }catch(e){
-    IMP.ocrBusy=false;IMP.ocrMsg='Photo reading failed: '+String(e&&e.message||e);renderImport();
+    IMP.ocrBusy=false;
+    const m=(e&&(e.message||(''+e)))||'unknown error';
+    IMP.ocrMsg='Photo reading failed: '+m+'. If you are in the installed app, update to the newest APK — it reads photos natively.';
+    renderImport();
   }
 }
 

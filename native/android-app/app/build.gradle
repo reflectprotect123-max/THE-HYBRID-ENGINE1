@@ -12,8 +12,8 @@ android {
     applicationId 'com.hybridengine.app'   // same id as the old TWA → installs as an update
     minSdk 24
     targetSdk 35
-    versionCode 3                          // 1=TWA, 2=native shell, 3=chooser honors accept types
-    versionName '2.1.0'
+    versionCode 4                          // 4 = native ML Kit photo OCR
+    versionName '2.2.0'
   }
 
   signingConfigs {
@@ -40,4 +40,9 @@ android {
   }
 
   lint { checkReleaseBuilds false }
+}
+
+dependencies {
+  // On-device text recognition (bundled model): free, offline photo OCR
+  implementation "com.google.mlkit:text-recognition:16.0.1"
 }
