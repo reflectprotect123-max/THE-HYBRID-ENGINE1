@@ -409,6 +409,13 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .adaptbar b{font-weight:800}
 .adaptbar.up{border:1px solid rgba(51,192,122,.4);background:rgba(51,192,122,.09);color:#a8e6c4}
 .adaptbar.down{border:1px solid rgba(224,188,135,.4);background:var(--gold-wash);color:var(--gold2)}
+.progcard{margin-top:14px;padding:14px}
+.progcard .lbl2{color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+.proglist{display:flex;flex-direction:column;gap:9px}
+.pgrow{display:flex;align-items:center;gap:10px}
+.pgrow .nm{font-size:13px;font-weight:750;width:96px;flex:0 0 auto}
+.pgrow .lv{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#7fd6a6;background:rgba(51,192,122,.12);border:1px solid rgba(51,192,122,.3);border-radius:99px;padding:2px 8px;flex:0 0 auto}
+.pgrow .pd{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);margin-left:auto}
 .con-hint{margin-top:12px;color:var(--dim);font-size:11px;text-align:center;line-height:1.5}
 .con-note{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--panel3);color:var(--muted);font-size:12px;line-height:1.5}
 .livetop{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
@@ -420,7 +427,9 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .congauge svg{width:min(82%,340px);height:auto;overflow:visible}
 .congauge .gbpm{position:absolute;top:52%;left:0;right:0;text-align:center;pointer-events:none}
 .congauge .gbpm b{font-size:clamp(48px,16vw,66px);font-weight:850;letter-spacing:-.04em;font-variant-numeric:tabular-nums;line-height:1}
-.congauge .gbpm span{display:block;margin-top:2px;font-size:11px;font-weight:750;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+.congauge .gbpm span{display:block;font-weight:750;letter-spacing:.1em;text-transform:uppercase}
+.congauge .gbpm .u{margin-top:2px;font-size:10px;color:var(--dim)}
+.congauge .gbpm .zlab{margin-top:3px;font-size:13px;font-weight:800;letter-spacing:.06em;color:var(--dim)}
 .livemid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin:2px 0 14px}
 .livemid .m{text-align:center}
 .livemid .m b{display:block;font-size:19px;font-weight:850;font-variant-numeric:tabular-nums}

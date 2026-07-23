@@ -1,5 +1,23 @@
 # Changelog
 
+## Visual polish pass — 23 July 2026
+
+Small, high-value UI/UX touch-ups after the debug sweep:
+
+- **Home "Last recovery"** now shows your actual recovery %, colour-coded
+  (green / amber / red), instead of a blank dash when a WHOOP score is available.
+- **Live conditioning gauge** — the big BPM number now stacks cleanly over "BPM"
+  and the current zone name, and the zone name is painted in its own zone colour
+  (blue / green / red) instead of wrapping awkwardly.
+- **Phase bar** reads the format name during warm-up instead of a meaningless
+  "Round 0 / N".
+- **Progress → Conditioning** leads with an "Interval progression" card showing the
+  level you've earned per format and the target it now serves (e.g. Intervals ·
+  Lv 3 · 9×35s / 85s) — the autoregulation made visible in your trends.
+
+Native shell **v2.6.2 (versionCode 10)**. Service-worker cache v51. All six suites green.
+
+
 ## Debug pass: crash fixes + a real cloud-sync data-loss fix — 23 July 2026
 
 A full debug sweep (static review across three subsystems + a runtime driver that

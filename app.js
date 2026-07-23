@@ -279,11 +279,13 @@ function homeMiniStats(){
   const cond=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>!r.sim).length;
   if(!done&&!cond)return '';
   const wd=(DB.settings.whoopDaily||[]).filter(h=>Number.isFinite(h.recovery));
-  const rec=wd.length?Math.round(wd[wd.length-1].recovery):null;
+  let rec=wd.length?Math.round(wd[wd.length-1].recovery):null;
+  if(rec==null&&WHOOP.sample&&Number.isFinite(Number(WHOOP.sample.recoveryScore)))rec=Math.round(Number(WHOOP.sample.recoveryScore));
+  const tone=rec!=null?whoopTone(rec):null,recStyle=tone&&tone.color?' style="color:'+tone.color+'"':'';
   return '<div class="stats" style="margin-top:16px">'+
     '<div class="stat"><b>'+fmtK(thisWeekVolume())+'</b><span>kg this week</span></div>'+
     '<div class="stat"><b>'+dayStreak()+'</b><span>Day streak</span></div>'+
-    '<div class="stat"><b>'+(rec!=null?rec+'%':'—')+'</b><span>Last recovery</span></div></div>';
+    '<div class="stat"><b'+recStyle+'>'+(rec!=null?rec+'%':'—')+'</b><span>Last recovery</span></div></div>';
 }
 
 /* ---------- READINESS: WHOOP recovery × target-vs-felt RPE ---------- */
@@ -1168,6 +1170,13 @@ function progConditioningCards(){
   if(buckets.some(b=>b.low+b.mod+b.high>0))
     out+=chartCard('Zone minutes by week','conditioning',progZoneBars(buckets),
       '<div class="legend"><span><i style="background:#5b8def"></i>Recovery</span><span><i style="background:#33c07a"></i>Conditioning</span><span><i style="background:#e0524d"></i>Overload</span></div>');
+  const earned=['intervals','tempo','steady'].map(k=>({k,lvl:conProgLevel(k)})).filter(x=>x.lvl>0);
+  if(earned.length){
+    let pc='<div class="card progcard"><div class="lbl2">Interval progression · earned from your sessions</div><div class="proglist">';
+    pc+=earned.map(x=>'<div class="pgrow"><span class="nm">'+CON_FORMATS[x.k].name+'</span><span class="lv">Lv '+x.lvl+'</span><span class="pd">'+esc(conPrescDesc(x.k,conPrescription(x.k,true)))+'</span></div>').join('');
+    pc+='</div></div>';
+    out=pc+out;
+  }
   const rows=cond.slice(-12);
   if(rows.length>=2){
     const xl=rows.map(r=>{const p=String(r.date).split('-');return (+p[1])+'/'+(+p[2]);});
@@ -1603,7 +1612,7 @@ function conPaintPhase(p){
   const cls=p.kind==='work'?'work':p.kind==='rest'?'rest':p.kind==='cool'?'cool':'warm';
   bar.className='phasebar '+cls;
   document.getElementById('conPhaseBig').textContent=p.kind==='work'?'WORK':p.kind==='rest'?'RECOVER':p.name.toUpperCase();
-  document.getElementById('conRounds').textContent=CON.rounds?('Round '+CON.round+' / '+CON.rounds):(CON_FORMATS[CON.fmt]?CON_FORMATS[CON.fmt].name:'');
+  document.getElementById('conRounds').textContent=(CON.rounds&&CON.round>0)?('Round '+CON.round+' / '+CON.rounds):(CON_FORMATS[CON.fmt]?CON_FORMATS[CON.fmt].name:'');
   const zn=document.getElementById('conZnow');if(zn)zn.textContent=p.name;
   const pl=document.getElementById('conPhaseLabel');if(pl)pl.textContent=p.kind==='work'?'Work':p.kind==='rest'?'Recover':p.kind==='cool'?'Cool-down':p.kind==='work2'?'Zone 2':p.kind==='ready'?'Get ready':'Warm-up';
 }
@@ -1611,7 +1620,7 @@ function conPaintHr(bpm){
   const el=document.getElementById('conBpm');if(!el)return;
   const z=conZones(),zn=conZoneOf(bpm,z);
   el.textContent=bpm;el.style.color=zn.color;
-  document.getElementById('conZLabel').textContent=zn.name;
+  const zl=document.getElementById('conZLabel');if(zl){zl.textContent=zn.name;zl.style.color=zn.color;}
   document.getElementById('conAvg').textContent=CON.avgN?Math.round(CON.avgSum/CON.avgN):'—';
   document.getElementById('conMax').textContent=CON.max||'—';
   const fill=document.getElementById('conGaugeFill');
@@ -1687,7 +1696,7 @@ function conLiveHtml(){
   return '<div class="livetop"><div><div class="znow" id="conZnow">Starting…</div><span class="chip" id="conFmtBadge">'+(f?f.name:'')+(CON.ble.sim?' · demo':'')+'</span></div>'+
     '<div class="clockbox"><b id="conPhaseClock">–:––</b><span id="conPhaseLabel">&nbsp;</span></div></div>'+
     '<div class="congauge"><svg viewBox="0 0 200 118" aria-hidden="true">'+conGaugeSvg(z)+'</svg>'+
-    '<div class="gbpm"><b id="conBpm">—</b><span>bpm · <span id="conZLabel">waiting for signal</span></span></div></div>'+
+    '<div class="gbpm"><b id="conBpm">—</b><span class="u">bpm</span><span class="zlab" id="conZLabel">waiting…</span></div></div>'+
     '<div class="livemid"><div class="m"><b id="conAvg">—</b><span>avg hr</span></div>'+
     '<div class="m mbig"><b id="conElapsed">0:00</b><span>elapsed</span></div>'+
     '<div class="m"><b id="conMax">—</b><span>max hr</span></div></div>'+
