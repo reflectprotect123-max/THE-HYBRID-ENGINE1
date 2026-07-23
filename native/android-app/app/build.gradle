@@ -12,8 +12,8 @@ android {
     applicationId 'com.hybridengine.app'   // same id as the old TWA → installs as an update
     minSdk 24
     targetSdk 35
-    versionCode 11                         // 11 = transitions, zone targets, rest ring, live streak
-    versionName '2.7.0'
+    versionCode 12                         // 12 = always-visible Settings gear on Home
+    versionName '2.7.1'
   }
 
   signingConfigs {

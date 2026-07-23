@@ -1,5 +1,16 @@
 # Changelog
 
+## Always-visible Settings — 23 July 2026
+
+Fixed a real gap: **Settings** (cloud sync, WHOOP, profile, export/import backup)
+was only reachable through the WHOOP chip on Home — which only appears once WHOOP
+is connected and synced. If you weren't on WHOOP, there was no way to open Settings
+at all. Added a permanent **gear button in the Home header** that opens Settings
+regardless of WHOOP state.
+
+Native shell **v2.7.1 (versionCode 12)**. Service-worker cache v53.
+
+
 ## Weekly zone targets, live zone-time, transitions & a proper rest ring — 23 July 2026
 
 Four bigger UI/UX builds:
