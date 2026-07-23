@@ -286,6 +286,31 @@ await t('nav is three tabs: Home · Training · Library', async () => {
   if (navs.length !== 3 || navs.includes('logger')) throw new Error(navs.join(','));
   if (navs.join(',') !== 'home,training,library') throw new Error('unexpected tabs: ' + navs.join(','));
 });
+await t('Calendar: month grid, schedule a future day, planned dot shows', async () => {
+  await page.evaluate(() => { CAL_VIEW = null; go('calendar'); });
+  await page.waitForSelector('#s-calendar.on', { timeout: 2000 });
+  const cells = await page.$$eval('#s-calendar .calcell:not(.blank)', (els) => els.length);
+  if (cells < 28) throw new Error('month grid too small: ' + cells);
+  if (!(await page.$('#s-calendar .calcell.today'))) throw new Error('today not marked');
+  // schedule the seeded session on a future day (7 days out) and confirm a planned dot appears
+  const result = await page.evaluate(() => {
+    const d = new Date(); d.setDate(d.getDate() + 7); const key = ymd(d);
+    const w = DB.workouts[0];
+    scheduleWorkoutOn(w.id, key);
+    renderCalendar();
+    return { key, planned: (w.dates || []).includes(key) };
+  });
+  if (!result.planned) throw new Error('future date not stored on workout');
+  const plannedDots = await page.$$eval('#s-calendar .cd.plan', (els) => els.length);
+  if (plannedDots < 1) throw new Error('no planned dot rendered');
+  // unschedule via the day sheet, back to clean
+  await page.evaluate((key) => { calDay(key); }, result.key);
+  await page.waitForSelector('#sheet .sheet', { timeout: 2000 });
+  await page.evaluate((key) => { calUnschedule(DB.workouts[0].id, key); }, result.key);
+  const stillPlanned = await page.evaluate((key) => (DB.workouts[0].dates || []).includes(key), result.key);
+  if (stillPlanned) throw new Error('unschedule did not remove the date');
+  await page.evaluate(() => go('home'));
+});
 await t('Library: LIBRARY screen with Sessions/Conditioning/Progress tabs + Create card', async () => {
   await page.click('.navlink[data-s="library"]');
   await page.waitForSelector('#s-library.on', { timeout: 2000 });

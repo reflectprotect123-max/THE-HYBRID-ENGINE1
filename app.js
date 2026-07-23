@@ -100,7 +100,7 @@ function go(id,btn){
   const LIB_SCREENS={library:1,builder:1,conditioning:1,progress:1,exhist:1};
   const navId=id==='logger'||id==='recap'?'training'
     :LIB_SCREENS[id]?'library'
-    :(id==='settings'||id==='history'||id==='import')?'home':id;
+    :(id==='settings'||id==='history'||id==='import'||id==='calendar')?'home':id;
   const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
   if(navBtn)navBtn.classList.add('active');
   renderScreen(id);
@@ -131,6 +131,7 @@ function renderScreen(id){
   else if(id==='import')renderImport();
   else if(id==='recap')renderRecap();
   else if(id==='exhist')renderExHist();
+  else if(id==='calendar')renderCalendar();
 }
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
@@ -158,6 +159,62 @@ function weekStripHtml(){
   return '<div class="card week">'+weekDays().map(d=>
     '<div class="wd'+(d.today?' today':'')+(d.has?' has':'')+'" data-click="openHistory" data-args="[&quot;'+d.key+'&quot;]" title="View this day"><span>'+d.dow+'</span><b>'+d.num+'</b></div>').join('')+'</div>';
 }
+
+/* ---------- CALENDAR (month view: what's planned ahead, what's trained) ---------- */
+let CAL_VIEW=null;   // {y,m} displayed month; null → current month
+function calMonth(){if(!CAL_VIEW){const n=new Date();CAL_VIEW={y:n.getFullYear(),m:n.getMonth()};}return CAL_VIEW;}
+function calShift(d){const c=calMonth();let m=c.m+d,y=c.y;while(m<0){m+=12;y--;}while(m>11){m-=12;y++;}CAL_VIEW={y,m};renderCalendar();}
+function calToday(){CAL_VIEW=null;renderCalendar();}
+function trainedOn(key){return DB.sessions.some(s=>s.date===key&&s.status!=='active');}
+function isCondWorkout(w){return (w.blocks||[]).length>0&&(w.blocks||[]).every(isCond);}
+function renderCalendar(){
+  const el=document.getElementById('s-calendar');if(!el)return;
+  const {y,m}=calMonth();
+  const first=new Date(y,m,1),startDow=first.getDay(),daysInMonth=new Date(y,m+1,0).getDate();
+  const todayKey=ymd(new Date());
+  const monthName=first.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  let cells='';
+  for(let i=0;i<startDow;i++)cells+='<div class="calcell blank"></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const key=ymd(new Date(y,m,d));
+    const trained=trainedOn(key);
+    const planned=key>=todayKey&&DB.workouts.some(w=>plannedOn(w,key));
+    const dots=(planned?'<i class="cd plan"></i>':'')+(trained?'<i class="cd done"></i>':'');
+    cells+='<div class="calcell'+(key===todayKey?' today':'')+((trained||planned)?' has':'')+'" data-click="calDay" data-args="[&quot;'+key+'&quot;]"><b>'+d+'</b><span class="cdots">'+dots+'</span></div>';
+  }
+  el.innerHTML=
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Calendar</div><h1 style="font-size:24px">'+esc(monthName)+'</h1></div></div>'+
+    '<div class="calnav"><button class="markall" data-click="calShift" data-args="[-1]">‹ Prev</button><button class="markall" data-click="calToday">Today</button><button class="markall" data-click="calShift" data-args="[1]">Next ›</button></div>'+
+    '<div class="calgrid calhead">'+['S','M','T','W','T','F','S'].map(d=>'<div class="caldowh">'+d+'</div>').join('')+'</div>'+
+    '<div class="calgrid">'+cells+'</div>'+
+    '<div class="callegend"><span><i class="cd plan"></i>Planned</span><span><i class="cd done"></i>Trained</span></div>';
+}
+function calDay(key){
+  const todayKey=ymd(new Date());
+  const trained=DB.sessions.filter(s=>s.date===key&&s.status!=='active');
+  const planned=DB.workouts.filter(w=>plannedOn(w,key));
+  let h='<div class="grab"></div><h3>'+esc(prettyDay(key))+'</h3>';
+  if(planned.length){
+    h+='<p class="ssub">Planned</p>';
+    planned.forEach(w=>{
+      const canStart=key===todayKey,oneOff=(w.dates||[]).includes(key);
+      h+='<div class="bigopt" style="cursor:default"><span class="oi">'+(isCondWorkout(w)?'❤️':'🏋️')+'</span><div style="flex:1;min-width:0"><b>'+esc(w.name||'Untitled session')+'</b><span>'+esc(tplSummary(w))+'</span></div>'+
+        (canStart?'<button class="tpadd" data-click="calStart" data-args="[&quot;'+esc(w.id)+'&quot;]">Start</button>':oneOff?'<button class="tpmenu" aria-label="Unschedule" title="Remove from this day" data-click="calUnschedule" data-args="[&quot;'+esc(w.id)+'&quot;,&quot;'+key+'&quot;]">✕</button>':'')+'</div>';
+    });
+  }
+  if(trained.length){
+    h+='<p class="ssub" style="margin-top:12px">Done</p>';
+    trained.forEach(s=>{h+='<button class="bigopt" data-click="calHist" data-args="[&quot;'+key+'&quot;]"><span class="oi">✅</span><div><b>'+esc(s.name||'Session')+'</b><span>'+(s.status==='incomplete'?'incomplete':'completed')+'</span></div></button>';});
+  }
+  if(key>=todayKey)h+='<button class="bigopt" data-click="calAdd" data-args="[&quot;'+key+'&quot;]"><span class="oi">＋</span><div><b>Add a session</b><span>Schedule strength or conditioning for this day</span></div></button>';
+  if(!planned.length&&!trained.length&&key<todayKey)h+='<p class="ssub">Nothing logged this day.</p>';
+  h+='<button class="cancel" data-click="closeSheet">Close</button>';
+  openSheet(h);
+}
+function calStart(id){closeSheet();startWorkout(id);}
+function calUnschedule(id,key){const w=DB.workouts.find(x=>x.id===id);if(w){w.dates=(w.dates||[]).filter(k=>k!==key);save();}closeSheet();renderCalendar();}
+function calHist(key){closeSheet();openHistory(key);}
+function calAdd(key){SCHED_DATE=key;closeSheet();openAddSheet();}
 
 /* ---------- HISTORY (tap any week-strip day) ---------- */
 let HIST_DATE=null;
@@ -287,6 +344,7 @@ function renderHome(){
       '<button class="gearbtn" aria-label="Settings" title="Settings" data-click="go" data-args="[&quot;settings&quot;]"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div>'+
     '<p class="sub">'+esc(sub)+'</p>'+
     cta+
+    '<div class="weekhead"><span>This week</span><button class="weekcal" data-click="go" data-args="[&quot;calendar&quot;]">Calendar ›</button></div>'+
     weekStripHtml()+
     cards+
     homeMiniStats()+

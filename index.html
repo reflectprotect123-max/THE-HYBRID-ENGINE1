@@ -399,6 +399,31 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .tplempty{text-align:center;padding:30px 16px;color:var(--dim)}
 .empty-plan{opacity:.85}
 
+/* ---- week header + calendar ---- */
+.weekhead{display:flex;align-items:center;justify-content:space-between;margin:18px 2px 8px}
+.weekhead span{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.weekcal{background:none;border:none;color:var(--gold2);font:inherit;font-size:12px;font-weight:750;cursor:pointer;padding:2px 0}
+.calnav{display:flex;gap:8px;margin:14px 0 12px}
+.calnav .markall{flex:1;text-align:center;border:1px solid var(--line);border-radius:10px;padding:8px 0}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.calgrid.calhead{margin-bottom:6px;gap:6px}
+.caldowh{text-align:center;font-size:10px;font-weight:800;letter-spacing:.05em;color:var(--dim);padding:2px 0}
+.calcell{aspect-ratio:1;border-radius:11px;border:1px solid var(--line);background:var(--panel3);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;cursor:pointer;transition:transform .12s,border-color .15s,background .15s;position:relative}
+.calcell.blank{border:none;background:none;cursor:default}
+.calcell b{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.calcell.has{border-color:var(--line2)}
+.calcell.today{border-color:var(--gold2);background:linear-gradient(180deg,var(--gold-wash),transparent)}
+.calcell.today b{color:var(--gold2)}
+.calcell:active{transform:scale(.94)}
+.cdots{display:flex;gap:3px;height:6px;align-items:center}
+.cd{width:5px;height:5px;border-radius:50%;display:inline-block}
+.cd.plan{background:var(--gold2)}
+.cd.done{background:#3DFF9E;box-shadow:0 0 5px #3DFF9E88}
+.callegend{display:flex;gap:18px;justify-content:center;margin-top:16px;font-size:11px;color:var(--dim)}
+.callegend span{display:flex;align-items:center;gap:6px}
+.callegend .cd{width:7px;height:7px}
+
 /* ---- toast ---- */
 .toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);
   background:var(--panel2);border:1px solid var(--line2);color:var(--text);font-size:13px;font-weight:600;
@@ -756,6 +781,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     <section class="screen" id="s-import"></section>
     <section class="screen" id="s-recap"></section>
     <section class="screen" id="s-exhist"></section>
+    <section class="screen" id="s-calendar"></section>
   </main>
 </div>
 
