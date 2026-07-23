@@ -259,6 +259,7 @@ public class MainActivity extends Activity {
    */
   private android.speech.SpeechRecognizer recognizer;
   private boolean voiceWant = false;
+  private boolean voiceTryOffline = true;   // offline first, fall back to online if unavailable
 
   private class VoiceBridge {
     @JavascriptInterface public void start() {
@@ -268,6 +269,7 @@ public class MainActivity extends Activity {
           return;
         }
         voiceWant = true;
+        voiceTryOffline = true;
         startRecognizer();
       });
     }
@@ -304,10 +306,15 @@ public class MainActivity extends Activity {
             if (voiceWant && (err == android.speech.SpeechRecognizer.ERROR_NO_MATCH || err == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
               main.post(() -> startRecognizer()); return;
             }
+            // 12/13 = language not supported / unavailable offline → retry online (free)
+            if (voiceTryOffline && (err == 12 || err == 13 || err == android.speech.SpeechRecognizer.ERROR_SERVER)) {
+              voiceTryOffline = false;
+              if (voiceWant) { main.post(() -> startRecognizer()); return; }
+            }
             if (err == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)
               js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr('denied')");
             else if (voiceWant)
-              js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr(" + JSONObject.quote("error " + err) + ")");
+              js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr(" + JSONObject.quote(err == 13 || err == 12 ? "no speech language available — check Google voice typing is set up" : ("error " + err)) + ")");
             voiceWant = false;
           }
           public void onResults(Bundle b) {
@@ -322,7 +329,7 @@ public class MainActivity extends Activity {
       i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
       i.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
       i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "en-US");
-      i.putExtra("android.speech.extra.PREFER_OFFLINE", true);
+      if (voiceTryOffline) i.putExtra("android.speech.extra.PREFER_OFFLINE", true);
       recognizer.startListening(i);
     } catch (Exception e) {
       voiceWant = false;
