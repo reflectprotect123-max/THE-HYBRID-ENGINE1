@@ -270,6 +270,39 @@ await t('Progress tab renders trends (empty state or charts, never blank)', asyn
   await page.click('.navlink[data-s="home"]');
   await page.waitForSelector('#s-home.on', { timeout: 2000 });
 });
+await t('importer: paste → meaning-questions inline → learn → save lands in Builder', async () => {
+  await page.click('.navlink[data-s="builder"]');
+  await page.waitForSelector('#s-builder.on', { timeout: 2000 });
+  await page.click('#s-builder [data-click="openImport"]');
+  await page.waitForSelector('#s-import.on', { timeout: 2000 });
+  await page.fill('#impSrc', 'power primer 3x3\n-test 45s between sets');
+  await page.click('[data-click="impRead"]');
+  let out = await page.textContent('#impOut');
+  if (!/2 things need you/.test(out)) throw new Error('expected 2 inline questions: ' + out.slice(0, 120));
+  // clean input must NOT ask about blank weights (meaning-only rule)
+  const cleanQ = await page.evaluate(() => { const w = impParse('Bench press 4x8\nOHP 3x10'); return w.issues.length; });
+  if (cleanQ !== 0) throw new Error('clean paste asked ' + cleanQ + ' questions');
+  // resolve: section → name the movement; typo → learn test=rest
+  const pend = await page.evaluate(() => impPending().map((i) => ({ id: i.id, kind: i.kind })));
+  for (const q of pend) {
+    if (q.kind === 'nameOrSection') {
+      await page.fill('#impIn' + q.id, 'sandbag over shoulder');
+      await page.evaluate((id) => impResolve(id, 'setmove'), q.id);
+    } else await page.evaluate((id) => impResolve(id, 'yes'), q.id);
+  }
+  out = await page.textContent('#impOut');
+  if (!/All sorted/.test(out)) throw new Error('not all sorted: ' + out.slice(0, 120));
+  const lex = await page.evaluate(() => DB.settings.lexicon);
+  if (!lex || lex.kw.test !== 'rest' || !lex.ex['sandbag over shoulder']) throw new Error('lexicon not learned: ' + JSON.stringify(lex));
+  if (lex.ex['power primer']) throw new Error('section name wrongly learned as movement');
+  const before = await page.evaluate(() => DB.workouts.length);
+  await page.click('[data-click="impSave"]');
+  await page.waitForSelector('#s-builder.on', { timeout: 2000 });
+  const okSaved = await page.evaluate((b) => DB.workouts.length === b + 1 && WK.blocks.length >= 1, before);
+  if (!okSaved) throw new Error('imported workout did not land in Builder');
+  // cleanup: remove imported workout + learned lexicon so later steps are pristine
+  await page.evaluate(() => { deleteCurrentWorkout(); DB.settings.lexicon = { kw: {}, ex: {} }; save(); go('home'); });
+});
 await t('logger detail view steps forward and back through the session', async () => {
   await page.click('.navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });

@@ -12,8 +12,8 @@ android {
     applicationId 'com.hybridengine.app'   // same id as the old TWA → installs as an update
     minSdk 24
     targetSdk 35
-    versionCode 2                          // TWA shipped as 1
-    versionName '2.0.0'
+    versionCode 3                          // 1=TWA, 2=native shell, 3=chooser honors accept types
+    versionName '2.1.0'
   }
 
   signingConfigs {

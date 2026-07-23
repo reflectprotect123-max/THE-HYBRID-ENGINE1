@@ -134,8 +134,24 @@ public class MainActivity extends Activity {
           Intent i = new Intent(Intent.ACTION_GET_CONTENT);
           i.addCategory(Intent.CATEGORY_OPENABLE);
           i.setType("*/*");
-          i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/json", "text/plain"});
-          startActivityForResult(Intent.createChooser(i, "Choose backup"), REQ_FILE);
+          // Honor the page's accept= list (backup import wants JSON, the
+          // workout-photo importer wants images) instead of hardcoding.
+          String[] accept = params == null ? null : params.getAcceptTypes();
+          if (accept != null && accept.length > 0 && accept[0] != null && !accept[0].trim().isEmpty()) {
+            java.util.List<String> mimes = new java.util.ArrayList<>();
+            for (String a : accept) {
+              if (a == null) continue;
+              a = a.trim();
+              if (a.isEmpty()) continue;
+              if (a.startsWith(".")) { // extension → best-effort mime
+                if (a.equals(".json")) mimes.add("application/json");
+                else if (a.equals(".txt")) mimes.add("text/plain");
+              } else mimes.add(a);
+            }
+            if (mimes.size() == 1) i.setType(mimes.get(0));
+            else if (!mimes.isEmpty()) i.putExtra(Intent.EXTRA_MIME_TYPES, mimes.toArray(new String[0]));
+          }
+          startActivityForResult(Intent.createChooser(i, "Choose file"), REQ_FILE);
         } catch (Exception e) { fileCallback = null; return false; }
         return true;
       }

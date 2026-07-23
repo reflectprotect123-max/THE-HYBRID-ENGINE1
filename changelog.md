@@ -1,5 +1,45 @@
 # Changelog
 
+## Importer: write it or photograph it — it becomes a template — 23 July 2026
+
+Builder gains "Import from text or photo". Type or paste a workout in any
+style — or attach a screenshot/photo — and it becomes a real, editable
+template. Free and fully on-device.
+
+- **Meaning-only questions.** It never nags about blank weights or reps
+  (those fill at logging time, as always). Only genuine ambiguity — an
+  unknown movement, "power primer 3x3" (exercise or section?), a probable
+  typo like "test 45s" — appears as an amber chip INSIDE the draft, fixed
+  in place. Clean input builds instantly with zero questions.
+- **It learns your shorthand.** Every confirmed fix becomes a rule in
+  your lexicon (synced with your account): your abbreviations, spellings
+  and movements. Two-tier on purpose: vocabulary is learned forever;
+  "that section contained X this time" is never generalised. The lexicon
+  is visible and editable (tap ✕ to unlearn).
+- **Photo/screenshot OCR, on-device.** Self-hosted tesseract.js (WASM)
+  reads the image locally — first use downloads ~7 MB, then it's cached.
+  The photo never leaves the device; screenshots of typed text read
+  near-perfectly (a synthetic screenshot round-trips to a saved template
+  in under 2 seconds in tests). Works in the installed Android app, in
+  Chrome, and in the Windows app alike.
+- **Base library of ~110 movements** with aliases (DL/RDL/OHP/KB/T2B…),
+  plus notation for sets×reps, ranges (8-10), per-set lists (8,8,6,6),
+  EMOM/AMRAP, "into"/"then 3 rounds" circuits, A1/A2 supersets, timed
+  holds, carries, each-side and @RPE.
+- Saving opens the template straight in the Builder for a final look.
+- Native shell v2.1 (versionCode 3): the in-app file chooser now honors
+  the page's accept types, so photo picking works for the importer while
+  backup import still filters to JSON.
+- CSP: script-src gains 'wasm-unsafe-eval' (WebAssembly only — inline
+  script remains blocked; pentest suite unchanged and green).
+- Service-worker cache bumped to v43. The OCR engine is deliberately NOT
+  in the offline app shell — it loads on demand and browser-caches.
+
+Verified: all six suites pass (browser-smoke 32 steps, incl. a full
+importer round-trip with learning assertions), plus a real-OCR
+end-to-end: screenshot → text → draft → saved template, no errors.
+
+
 ## Native Android app v2: live heart rate INSIDE the installed app — 22 July 2026
 
 The installed Android app can now do live WHOOP heart rate — no Chrome

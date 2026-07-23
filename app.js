@@ -112,6 +112,7 @@ function renderScreen(id){
   else if(id==='history')renderHistory();
   else if(id==='progress')renderProgress();
   else if(id==='conditioning')renderConditioning();
+  else if(id==='import')renderImport();
 }
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
@@ -614,6 +615,7 @@ function renderBuilder(){
     '<div class="kicker">Builder</div>'+
     '<h1 style="font-size:24px">Build your workout</h1>'+
     '<p class="sub">Add blocks, add exercises, set modes, sets, reps &amp; RPE. Then hit “See how it looks”.</p>'+
+    '<button class="addbtn" style="margin-top:14px" data-click="openImport">📋 Import from text or photo</button>'+
     '<div class="field" style="margin-top:18px"><label>Workout name</label><input id="wkName" value="'+esc(WK.name)+'" placeholder="e.g. Upper Pump — Day 1" data-input="setWkName" data-args="[&quot;@value&quot;]"></div>'+
     '<div class="field"><label>Train on</label><div class="daychips">'+[0,1,2,3,4,5,6].map(i=>'<button class="daychip'+((WK.days||[]).includes(i)?' on':'')+'" data-click="toggleDay" data-args="['+i+']">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]+'</button>').join('')+'</div></div>'+
     '<div id="builderBody"></div>'+
@@ -1365,6 +1367,400 @@ function renderConditioning(){
   const el=document.getElementById('s-conditioning');if(!el)return;
   el.innerHTML=CON.view==='live'?conLiveHtml():CON.view==='results'?conResultsHtml(CON.record):conSetupHtml();
   if(CON.view==='live')conPaintAll();
+}
+
+/* ============================================================
+   IMPORTER — write/paste/photograph a workout, get a template.
+   Meaning-only questions (never nags about blank numbers), fixes
+   happen inline in the draft, and every confirmed fix is learned
+   into DB.settings.lexicon (synced with the account). Photo OCR
+   runs fully on-device via self-hosted tesseract.js (lazy-loaded;
+   ~7MB on first use, then browser-cached). No cloud, no cost.
+   ============================================================ */
+const IMP_LIB_RAW=[
+ /* barbell */
+ ['Back squat','reps_kg',['squat','squats','bb squat','back squats','high bar squat','low bar squat']],
+ ['Front squat','reps_kg',['front squats','fs']],
+ ['Overhead squat','reps_kg',['ohs','overhead squats']],
+ ['Box squat','reps_kg',['box squats']],
+ ['Deadlift','reps_kg',['dl','deadlifts','deads','conventional deadlift']],
+ ['Romanian deadlift','reps_kg',['rdl','rdls','romanian deadlifts','stiff leg deadlift','sldl']],
+ ['Sumo deadlift','reps_kg',['sumo','sumo deadlifts']],
+ ['Trap bar deadlift','reps_kg',['trap bar','hex bar deadlift','trap bar deadlifts']],
+ ['Bench press','reps_kg',['bench','bb bench','flat bench','benchpress']],
+ ['Incline bench press','reps_kg',['incline bench','incline press','incline bb press']],
+ ['Close grip bench press','reps_kg',['cgbp','close grip bench']],
+ ['Overhead press','reps_kg',['ohp','press','shoulder press','military press','strict press']],
+ ['Push press','reps_kg',['push presses']],
+ ['Barbell row','reps_kg',['bb row','bent over row','pendlay row','barbell rows','bor']],
+ ['Hip thrust','reps_kg',['hip thrusts','bb hip thrust']],
+ ['Good morning','reps_kg',['good mornings','gm']],
+ ['Clean','reps_kg',['power clean','cleans','hang clean','squat clean','power cleans']],
+ ['Clean and jerk','reps_kg',['c&j','clean & jerk','clean and jerks']],
+ ['Snatch','reps_kg',['power snatch','snatches','hang snatch']],
+ ['Thruster','reps_kg',['thrusters']],
+ ['Front rack lunge','reps_kg',['front rack lunges']],
+ ['Barbell curl','reps_kg',['bb curl','barbell curls']],
+ /* dumbbell / kettlebell */
+ ['Dumbbell bench press','reps_kg',['db bench','db press','db bench press','dumbbell press']],
+ ['Incline dumbbell press','reps_kg',['incline db press','incline db bench','incline dumbbell bench']],
+ ['Dumbbell row','reps_kg',['db row','db rows','single arm row','one arm row']],
+ ['Dumbbell shoulder press','reps_kg',['db shoulder press','db ohp','seated db press']],
+ ['Dumbbell curl','reps_kg',['db curl','db curls','bicep curl','bicep curls','curls']],
+ ['Hammer curl','reps_kg',['hammer curls']],
+ ['Lateral raise','reps_kg',['lateral raises','side raise','side raises','lat raise']],
+ ['Dumbbell fly','reps_kg',['db fly','db flys','chest fly','flyes']],
+ ['Goblet squat','reps_kg',['goblet squats']],
+ ['Dumbbell lunge','reps_kg',['db lunge','db lunges']],
+ ['Dumbbell romanian deadlift','reps_kg',['db rdl','db rdls']],
+ ['Kettlebell swing','reps',['kb swing','kb swings','kettlebell swings','swing','swings','russian swing']],
+ ['Kettlebell snatch','reps',['kb snatch','kb snatches']],
+ ['Kettlebell clean and press','reps',['kb clean and press','kb clean & press']],
+ ['Turkish get-up','reps',['tgu','turkish getup','turkish get ups','get up','get-ups']],
+ ['Devils press','reps',['devil press','devil’s press','devils presses']],
+ ['Dumbbell snatch','reps',['db snatch','db snatches','alt db snatch']],
+ /* machine / cable */
+ ['Lat pulldown','reps_kg',['pulldown','pulldowns','lat pull down']],
+ ['Seated cable row','reps_kg',['cable row','cable rows','seated row','low row']],
+ ['Cable fly','reps_kg',['cable flys','cable crossover']],
+ ['Tricep pushdown','reps_kg',['pushdown','pushdowns','rope pushdown','tricep extension']],
+ ['Face pull','reps_kg',['face pulls','facepull']],
+ ['Leg press','reps_kg',['leg presses']],
+ ['Leg extension','reps_kg',['leg extensions']],
+ ['Leg curl','reps_kg',['leg curls','hamstring curl','ham curl']],
+ ['Calf raise','reps_kg',['calf raises','calves']],
+ ['Chest supported row','reps_kg',['chest supported rows','seal row']],
+ ['Hack squat','reps_kg',['hack squats']],
+ /* bodyweight / gymnastics */
+ ['Pull-up','reps',['pull up','pullup','pull-ups','pullups','pull ups','chin up','chin-up','chins','chinups']],
+ ['Push-up','reps',['push up','pushup','push-ups','pushups','push ups','press up','press-ups','press ups']],
+ ['Dip','reps',['dips','ring dip','ring dips','bar dip','bar dips']],
+ ['Ring row','reps',['ring rows','inverted row','inverted rows']],
+ ['Muscle-up','reps',['muscle up','muscle ups','ring muscle up','bar muscle up','mu']],
+ ['Handstand push-up','reps',['hspu','handstand pushup','handstand push ups']],
+ ['Wall walk','reps',['wall walks','wallwalk','wall-walk']],
+ ['Burpee','reps',['burpees','burpee over bar','bar facing burpee']],
+ ['Air squat','reps',['air squats','bodyweight squat','bw squat']],
+ ['Lunge','reps',['lunges','walking lunge','walking lunges','reverse lunge','reverse lunges']],
+ ['Box jump','reps',['box jumps','box jump over']],
+ ['Jump squat','reps',['jump squats']],
+ ['Broad jump','reps',['broad jumps']],
+ ['Step-up','reps',['step up','step ups','box step up','box step-ups']],
+ ['Sit-up','reps',['sit up','situp','sit-ups','situps','sit ups','abmat sit up']],
+ ['V-up','reps',['v up','v ups','vups']],
+ ['Toes-to-bar','reps',['toes to bar','ttb','t2b']],
+ ['Knees-to-elbow','reps',['knees to elbow','k2e']],
+ ['Hanging knee raise','reps',['knee raises','hanging knee raises','leg raise','leg raises','hanging leg raise']],
+ ['Mountain climber','reps',['mountain climbers','climbers']],
+ ['Wall ball','reps',['wall balls','wallball','wallballs','wb']],
+ ['Slam ball','reps',['slam balls','ball slam','ball slams','med ball slam']],
+ ['Russian twist','reps',['russian twists']],
+ ['Back extension','reps',['back extensions','hyperextension','hyperextensions','45 degree back extension']],
+ ['Glute bridge','reps',['glute bridges']],
+ ['Nordic curl','reps',['nordic curls','nordics']],
+ ['Pistol squat','reps',['pistol','pistols','pistol squats']],
+ ['Band pull-apart','reps',['band pull aparts','band pull apart','pull aparts']],
+ ['Scap push-up','reps',['scap pushup','scap push ups','scap pushups']],
+ /* timed holds & carries */
+ ['Plank','seconds',['planks','front plank','plank hold']],
+ ['Side plank','seconds',['side planks']],
+ ['Dead hang','seconds',['deadhang','dead hangs','hang','bar hang']],
+ ['Hollow hold','seconds',['hollow','hollow holds','hollow body hold']],
+ ['Wall sit','seconds',['wall sits','wall sit hold']],
+ ['L-sit','seconds',['l sit','l-sits','l sits']],
+ ['Handstand hold','seconds',['handstand holds','hs hold','wall handstand hold']],
+ ['Farmer carry','seconds',['farmers carry','farmer walk','farmers walk','farmer hold','farmers hold','carry','carries']],
+ ['Suitcase carry','seconds',['suitcase carries']],
+ ['Overhead carry','seconds',['oh carry','overhead carries','waiter carry']],
+ ['Sled push','seconds',['sled pushes','prowler','prowler push']],
+ ['Sled drag','seconds',['sled drags']],
+ /* cardio */
+ ['Cardio','seconds',['cardio of choice','bike','assault bike','echo bike','air bike','ski','ski erg','skierg','row erg','rower','erg','run','running','jog','treadmill','skip','skipping','jump rope','double unders','singles','shuttle runs','shuttles']],
+ ['Bike (calories)','reps',['cal bike','cals bike','bike cals','cal assault bike','cal echo bike']],
+ ['Row (calories)','reps',['cal row','cals row','row cals']],
+ ['Ski (calories)','reps',['cal ski','cals ski','ski cals']],
+ ['Run (metres)','reps',['m run','metre run','meter run']],
+ ['Row (metres)','reps',['m row','metre row','meter row']]
+];
+const IMP_ALIAS={};
+IMP_LIB_RAW.forEach(e=>{IMP_ALIAS[e[0].toLowerCase()]={name:e[0],mode:e[1]};e[2].forEach(a=>{IMP_ALIAS[a]={name:e[0],mode:e[1]};});});
+function impLex(){const l=DB.settings.lexicon;return (l&&typeof l==='object')?{kw:l.kw||{},ex:l.ex||{}}:{kw:{},ex:{}};}
+function impLearnWord(word,meaning){const l=impLex();l.kw[word]=meaning;DB.settings.lexicon=l;save();}
+function impLearnMove(alias,name,mode){const l=impLex();l.ex[alias.toLowerCase()]={name,mode};DB.settings.lexicon=l;save();}
+function impUnlearn(type,key){const l=impLex();delete l[type][key];DB.settings.lexicon=l;save();if(CURRENT==='import')renderImport();}
+function impEdit(a,b){const m=a.length,n=b.length,d=[];for(let i=0;i<=m;i++)d[i]=[i];for(let j=0;j<=n;j++)d[0][j]=j;
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n];}
+function impLookup(phrase){
+  const p=phrase.toLowerCase().trim().replace(/[.,:]+$/,'');if(!p)return null;
+  const lex=impLex();
+  if(lex.ex[p])return{name:lex.ex[p].name,mode:lex.ex[p].mode,learned:true};
+  if(IMP_ALIAS[p])return{name:IMP_ALIAS[p].name,mode:IMP_ALIAS[p].mode};
+  if(p.slice(-1)==='s'&&IMP_ALIAS[p.slice(0,-1)])return{name:IMP_ALIAS[p.slice(0,-1)].name,mode:IMP_ALIAS[p.slice(0,-1)].mode};
+  let best=null,bd=99;
+  for(const k in IMP_ALIAS){if(Math.abs(k.length-p.length)>2)continue;const dd=impEdit(k,p);if(dd<bd){bd=dd;best=k;}}
+  for(const k in lex.ex){if(Math.abs(k.length-p.length)>2)continue;const dd=impEdit(k,p);if(dd<bd){bd=dd;best=k;}}
+  if(best&&bd<=1){const hit=IMP_ALIAS[best]||lex.ex[best];return{name:hit.name,mode:hit.mode,fuzzy:true};}
+  return null;
+}
+const IMP_HEADINGS=/^(warm[\s-]?up|warmup|cool[\s-]?down|cooldown|finisher|accessor(y|ies)|main|strength|conditioning|power primer|primer|prep|core|circuit|metcon)\b/i;
+function impRpe(lower){const m=lower.match(/@?\s*rpe\s*(\d\d?)/)||lower.match(/@\s*(\d\d?)\b/);return m?+m[1]:0;}
+function impTitle(s){return s.replace(/\b\w/g,c=>c.toUpperCase());}
+let IMP_ISSUE_ID=0;
+function impParse(text){
+  const lines=text.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  const wk={name:'Imported workout',blocks:[],issues:[],notes:[]};
+  let cur=null,lastMarker='';
+  const newBlock=(h,opts)=>{cur=Object.assign({heading:h||'Main',format:'',rounds:0,rest:0,superset:false,exercises:[]},opts||{});wk.blocks.push(cur);return cur;};
+  const ensure=()=>cur||newBlock('Main');
+  const issue=o=>{o.id=++IMP_ISSUE_ID;o.resolved=false;wk.issues.push(o);return o;};
+  const lex=impLex();
+  lines.forEach((raw,idx)=>{
+    let line=raw.replace(/^[\-•\*]+\s*/,'').trim();
+    const mk=line.match(/^([a-d])\s?(\d)[).:\s]\s*/i)||line.match(/^(\d)([a-d])[).:\s]\s*/i);
+    if(mk){const letter=(/[a-d]/i.test(mk[1])?mk[1]:mk[2]).toLowerCase();
+      if(letter===lastMarker&&cur){cur.superset=true;if(!cur.format)cur.format='superset';}
+      else if(cur&&cur.exercises.length){newBlock('Block '+letter.toUpperCase());}
+      lastMarker=letter;line=line.replace(mk[0],'').trim();}
+    let lower=line.toLowerCase();
+    if(/^day\s*\d/.test(lower)&&idx>0){wk.notes.push('Looks like more than one day — import each day separately for now.');return;}
+    if(idx===0&&!/\d/.test(line)&&line.split(' ').length<=5&&!IMP_HEADINGS.test(line)&&!impLookup(line)){wk.name=impTitle(line);return;}
+    const emom=lower.match(/^emom\s*(\d+)/),amrap=lower.match(/^amrap\s*(\d+)/);
+    if(emom){newBlock('EMOM',{format:'EMOM · '+emom[1]+' min'});return;}
+    if(amrap){newBlock('AMRAP',{format:'AMRAP · '+amrap[1]+' min'});return;}
+    const thenRounds=lower.match(/^then\s+(\d+)\s*rounds?/);
+    if(thenRounds){newBlock('Circuit',{superset:true,rounds:+thenRounds[1],format:thenRounds[1]+' rounds'});return;}
+    const rounds=lower.match(/(\d+)\s*rounds?(\s+of\s+that)?/);
+    let intoNew=false;if(/^into\b/.test(lower)){intoNew=true;line=line.replace(/^into\s+/i,'');lower=line.toLowerCase();}
+    const rm=lower.match(/\b(rest|test|rst|reset)\s*(\d+)\s*(s|sec|secs|min|mins|m)?\b/);
+    let restVal=0,typo=null;
+    if(rm){restVal=+rm[2]*((/min|m$/).test(rm[3]||'')?60:1);
+      if(rm[1]!=='rest'&&lex.kw[rm[1]]!=='rest')typo=rm[1];
+      line=line.replace(rm[0],'').replace(/between (sets?|rounds?)/i,'').trim();lower=line.toLowerCase();}
+    if(!line&&restVal&&cur&&cur.exercises.length){const le=cur.exercises[cur.exercises.length-1];le.rest=restVal;
+      if(typo)issue({kind:'typo',ref:le,word:typo,rest:restVal});return;}
+    if(!line&&restVal&&cur){cur.rest=restVal;if(typo)issue({kind:'typo',ref:cur,word:typo,rest:restVal});return;}
+    const scheme=lower.match(/(\d+)\s*x\s*(\d+)(?:\s*-\s*(\d+))?/);
+    const headWithScheme=IMP_HEADINGS.test(lower)&&scheme&&!impLookup(lower.replace(/\d+\s*x\s*\d+(\s*-\s*\d+)?/,'').replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim());
+    const isHeading=IMP_HEADINGS.test(lower)&&!scheme&&!impLookup(lower.replace(/\d.*$/,'').trim());
+    if(isHeading&&!intoNew){
+      newBlock(impTitle(line).replace(/Warm ?Up/i,'Warm-up').replace(/Cool ?Down/i,'Cool-down'));
+      if(rounds){cur.rounds=+rounds[1];cur.format=rounds[1]+' rounds';cur.superset=true;}
+      if(restVal)cur.rest=restVal;return;}
+    if(intoNew)newBlock('Circuit',{superset:true});
+    if(headWithScheme){
+      const hz=impTitle(line.replace(/\d+\s*x\s*\d+.*/i,'').trim());
+      newBlock(hz);
+      const exH={name:'',mode:'reps_kg',sets:+scheme[1],reps:+scheme[2],range:scheme[3]?scheme[2]+'-'+scheme[3]:'',rpe:impRpe(lower),rest:restVal};
+      cur.exercises.push(exH);
+      issue({kind:'nameOrSection',ref:exH,block:hz,blockObj:cur});
+      if(typo)issue({kind:'typo',ref:exH,word:typo,rest:restVal});
+      return;}
+    const ex=impParseExercise(line,lower,issue);
+    if(!ex){if(line)issue({kind:'unreadable',text:raw});return;}
+    ensure();if(restVal)ex.rest=restVal;
+    if(typo)issue({kind:'typo',ref:ex,word:typo,rest:restVal});
+    cur.exercises.push(ex);
+    if(rounds&&!thenRounds){cur.rounds=+rounds[1];cur.format=rounds[1]+' rounds';cur.superset=true;if(restVal)cur.rest=restVal;}
+  });
+  wk.blocks=wk.blocks.filter(b=>b.exercises.length);
+  return wk;
+}
+function impParseExercise(line,lower,issue){
+  const rpe=impRpe(lower);
+  const time=lower.match(/(\d+)\s*(s|sec|secs|min|mins)\b/);
+  const scheme=lower.match(/(\d+)\s*x\s*(\d+)(?:\s*-\s*(\d+))?/);
+  const list=lower.match(/\b(\d+(?:\s*,\s*\d+){2,})\b/);
+  const lead=lower.match(/^(\d+)\s+([a-z].*)/);
+  const kg=lower.match(/(\d+(?:\.\d+)?)\s*kg/);
+  const eachSide=/\b(each side|per side|per leg|per arm|e\/s|ea)\b/.test(lower);
+  const namePart=line.replace(/@?\s*rpe\s*\d\d?/ig,'').replace(/@\s*\d\d?\b/g,'')
+    .replace(/\d+\s*x\s*\d+(\s*-\s*\d+)?/ig,'').replace(/\b\d+(?:\s*,\s*\d+){2,}\b/g,'')
+    .replace(/\d+\s*(s|sec|secs|min|mins)\b/ig,'').replace(/\d+(?:\.\d+)?\s*kg/ig,'')
+    .replace(/\b(each side|per side|per leg|per arm|e\/s|ea)\b/ig,'')
+    .replace(/^\d+\s+/,'').replace(/\d+\s*rounds?.*$/i,'')
+    .replace(/[^A-Za-z ()\-/&’']/g,' ').replace(/\s+/g,' ').trim();
+  if(!namePart)return null;
+  const look=impLookup(namePart);
+  const name=look?look.name:impTitle(namePart);
+  const mode=look?look.mode:(time?'seconds':'reps');
+  const ex={name,mode,rpe,rest:0,eachSide};
+  if(list){const arr=list[1].split(/\s*,\s*/).map(Number);ex.sets=arr.length;ex.reps=arr[0];ex.varied=arr;}
+  else if(scheme){ex.sets=+scheme[1];ex.reps=+scheme[2];if(scheme[3])ex.range=scheme[2]+'-'+scheme[3];}
+  else if(time){ex.sets=1;ex.secs=+time[1]*((/min/).test(time[2])?60:1);if(mode==='reps')ex.mode='seconds';}
+  else if(lead){ex.sets=1;ex.reps=+lead[1];}
+  else{ex.sets=1;ex.reps=0;}
+  if(kg)ex.kg=+kg[1];
+  if(!look)issue({kind:'confirmName',ref:ex,raw:namePart,name});
+  else if(look.fuzzy)issue({kind:'confirmName',ref:ex,raw:namePart,name,fuzzy:true});
+  return ex;
+}
+/* ---- importer UI ---- */
+const IMP={text:'',wk:null,builtAnyway:false,ocrBusy:false,ocrMsg:'',photoUrl:''};
+function openImport(){IMP.wk=null;IMP.builtAnyway=false;IMP.ocrMsg='';IMP.photoUrl='';go('import');}
+function impPending(){return IMP.wk?IMP.wk.issues.filter(i=>!i.resolved):[];}
+const IMP_MODE_LABEL={reps_kg:'Reps × kg',reps:'Reps',seconds:'Time',reps_seconds:'Reps × time',amrap:'Max reps',completion:'For time'};
+function impTargetStr(ex){
+  let s;
+  if(ex.mode==='seconds')s=ex.sets+' × '+(ex.secs!=null?ex.secs+'s':'—');
+  else if(ex.mode==='amrap')s=ex.sets+' × max reps';
+  else if(ex.varied)s=ex.sets+' sets · '+ex.varied.join(', ');
+  else s=ex.sets+' × '+(ex.range?ex.range:(ex.reps||'—'));
+  if(ex.mode==='reps_kg'&&ex.kg)s+=' @ '+ex.kg+'kg';
+  if(ex.eachSide)s+=' each side';
+  if(ex.rpe)s+=' · @RPE '+ex.rpe;
+  if(ex.rest)s+=' · rest '+(ex.rest%60===0&&ex.rest>=60?(ex.rest/60)+'min':ex.rest+'s');
+  return s;
+}
+function impIssueChip(iss){
+  const label=iss.kind==='confirmName'?(iss.fuzzy?('Did you mean '+iss.name+'?'):'New movement — confirm'):
+    iss.kind==='typo'?('“'+iss.word+'” → rest?'):
+    iss.kind==='nameOrSection'?'Exercise or section?':'Couldn’t read';
+  return '<span class="imp-needs">⚑ '+esc(label)+'</span>';
+}
+function impFixerHtml(iss){
+  const id=iss.id;
+  if(iss.kind==='confirmName')return '<div class="imp-fixer"><div class="fq">'+(iss.fuzzy?('Did you mean <code>'+esc(iss.name)+'</code>?'):('I don’t know <code>'+esc(iss.raw)+'</code> yet.'))+'</div>'+
+    '<div class="fopts"><button data-click="impResolve" data-args="['+id+',&quot;yes&quot;]">'+(iss.fuzzy?'Yes — that’s it':'Add “'+esc(iss.name)+'” to my movements')+'<small>Remembered — won’t ask again</small></button></div>'+
+    '<div class="frow"><input id="impIn'+id+'" placeholder="No — correct name…"><button data-click="impResolve" data-args="['+id+',&quot;rename&quot;]">Set</button></div></div>';
+  if(iss.kind==='typo')return '<div class="imp-fixer"><div class="fq">You wrote <code>'+esc(iss.word)+' '+iss.rest+'s</code> — read it as <code>rest '+iss.rest+'s</code>?</div>'+
+    '<div class="fopts"><button data-click="impResolve" data-args="['+id+',&quot;yes&quot;]">Yes — and remember “'+esc(iss.word)+'” = rest<small>Your spelling, learned</small></button>'+
+    '<button data-click="impResolve" data-args="['+id+',&quot;no&quot;]">No — drop it</button></div></div>';
+  if(iss.kind==='nameOrSection')return '<div class="imp-fixer"><div class="fq">Is <code>'+esc(iss.block)+'</code> the exercise itself, or a section?</div>'+
+    '<div class="fopts"><button data-click="impResolve" data-args="['+id+',&quot;isex&quot;]">It’s the exercise<small>Use the name as the movement (remembered)</small></button></div>'+
+    '<div class="frow"><input id="impIn'+id+'" placeholder="It’s a section — movement is…"><button data-click="impResolve" data-args="['+id+',&quot;setmove&quot;]">Set</button></div>'+
+    '<div class="fnote">Named here for <b>this workout only</b> — “'+esc(iss.block)+'” stays a section, so next time it can hold something else.</div></div>';
+  if(iss.kind==='unreadable')return '<div class="imp-fixer"><div class="fq">Couldn’t read <code>'+esc(iss.text)+'</code>.</div>'+
+    '<div class="fopts"><button data-click="impResolve" data-args="['+id+',&quot;skip&quot;]">Skip it</button></div></div>';
+  return '';
+}
+function renderImport(){
+  const el=document.getElementById('s-import');if(!el)return;
+  let h='<div class="backrow"><button class="backbtn" data-click="go" data-args="[&quot;builder&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder · Import</div><h1 style="font-size:24px">Add a workout</h1></div></div>'+
+    '<p class="sub">Type it, paste it, or attach a photo/screenshot — any style, typos welcome. It asks only when a <b>meaning</b> is unclear; blank weights and reps just stay blank, like always.</p>'+
+    '<textarea class="imp-src" id="impSrc" spellcheck="false" placeholder="e.g.&#10;Push Day&#10;Bench 4x8 @RPE8 rest 3min&#10;into 5 deadlifts&#10;10s dead hang rest 30s 2 rounds of that">'+esc(IMP.text)+'</textarea>'+
+    '<button class="addbtn" style="margin-top:10px" data-click="impPickPhoto">📷 Attach photo / screenshot</button>'+
+    '<input type="file" id="impFile" accept="image/*" style="display:none" data-change="impPhoto" data-args="[&quot;@event&quot;]">'+
+    '<div class="imp-photo'+(IMP.photoUrl||IMP.ocrBusy||IMP.ocrMsg?' on':'')+'" id="impPhotoBox">'+
+      (IMP.photoUrl?'<img src="'+IMP.photoUrl+'" alt="">':'')+
+      '<div class="pt2">'+(IMP.ocrBusy?'<b>Reading your photo on this device…</b> '+esc(IMP.ocrMsg)+'<div class="imp-scan"></div>':(IMP.ocrMsg?esc(IMP.ocrMsg):''))+'</div></div>'+
+    '<button class="bigbtn" style="margin-top:14px" data-click="impRead">Read my workout →</button>'+
+    '<div id="impOut">'+impDraftHtml()+'</div>'+impLexHtml();
+  el.innerHTML=h;
+  const ta=document.getElementById('impSrc');
+  if(ta)ta.addEventListener('input',()=>{IMP.text=ta.value;},{once:false});
+}
+function impDraftHtml(){
+  if(!IMP.wk)return '';
+  const wk=IMP.wk,pend=impPending();
+  let h='';
+  if(pend.length&&!IMP.builtAnyway)h+='<div class="imp-state warn"><span>⚑</span><span class="grow">'+pend.length+' thing'+(pend.length===1?'':'s')+' need'+(pend.length===1?'s':'')+' you — fix in place below</span><button data-click="impAnyway">Build anyway</button></div>';
+  else h+='<div class="imp-state okay"><span>✓</span><span class="grow">'+(wk.issues.length?'All sorted — template ready':'Read cleanly — nothing to check')+'</span></div>';
+  h+='<div style="margin-top:10px;font-size:13px;color:var(--muted)">Template: <b style="color:var(--text)">'+esc(wk.name)+'</b></div>';
+  wk.blocks.forEach(b=>{
+    const meta=[];if(b.format)meta.push(b.format);if(b.rest)meta.push('rest '+b.rest+'s');if(b.superset&&!b.format)meta.push('superset');
+    h+='<div class="card" style="margin-top:14px;overflow:hidden"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:12px 14px 6px"><b style="font-size:13px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2)">'+esc(b.heading)+'</b><span style="font-size:11px;color:var(--dim)">'+esc(meta.join(' · '))+'</span></div>';
+    b.exercises.forEach(e=>{
+      h+='<div style="padding:10px 14px;border-top:1px solid rgba(255,255,255,.04)"><div style="display:flex;align-items:flex-start;gap:10px"><div style="flex:1"><b style="font-size:14.5px;font-weight:750">'+(e.name?esc(e.name):'<span style="color:#d8a24a">Movement — name it below</span>')+'</b><p style="margin-top:2px;color:var(--muted);font-size:12px">'+esc(impTargetStr(e))+'</p></div><span class="chip">'+IMP_MODE_LABEL[e.mode]+'</span></div>';
+      wk.issues.forEach(iss=>{if(iss.ref===e)h+=iss.resolved?'<span class="imp-needs done">✓ sorted</span>':impIssueChip(iss)+impFixerHtml(iss);});
+      h+='</div>';
+    });
+    h+='</div>';
+  });
+  wk.issues.filter(i=>!i.resolved&&i.kind==='unreadable').forEach(iss=>{h+='<div class="card" style="margin-top:14px;padding:12px 14px">'+impIssueChip(iss)+impFixerHtml(iss)+'</div>';});
+  if(wk.notes.length)h+='<div style="margin-top:12px;color:var(--dim);font-size:11.5px;line-height:1.6">'+wk.notes.map(esc).join('<br>')+'</div>';
+  const ready=!pend.length||IMP.builtAnyway;
+  h+='<button class="bigbtn" style="margin-top:16px'+(ready?'':';opacity:.35;pointer-events:none')+'" data-click="impSave">'+(ready?'Save & open in Builder':'Save — '+pend.length+' to sort first')+'</button>';
+  return h;
+}
+function impLexHtml(){
+  const lex=impLex();let items='';let n=0;
+  Object.keys(lex.kw).forEach(k=>{n++;items+='<div class="li"><i></i><code>'+esc(k)+'</code> → '+esc(lex.kw[k])+'<span class="tag">word</span><button class="rm" data-click="impUnlearn" data-args="[&quot;kw&quot;,&quot;'+esc(k)+'&quot;]">✕</button></div>';});
+  Object.keys(lex.ex).forEach(k=>{n++;items+='<div class="li"><i></i><code>'+esc(k)+'</code> → '+esc(lex.ex[k].name)+'<span class="tag">movement</span><button class="rm" data-click="impUnlearn" data-args="[&quot;ex&quot;,&quot;'+esc(k)+'&quot;]">✕</button></div>';});
+  return '<div class="imp-lex"><div class="lh">Your lexicon · learns from your fixes · tap ✕ to unlearn</div>'+(n?items:'<div class="empty">Empty so far. Every fix you confirm becomes a permanent rule — your abbreviations, your spellings, your movements. Chatty the first week, then it goes quiet.</div>')+'</div>';
+}
+function impRead(){
+  const ta=document.getElementById('impSrc');IMP.text=ta?ta.value:IMP.text;
+  if(!IMP.text.trim()){alert('Type, paste, or attach a photo first.');return;}
+  IMP.builtAnyway=false;IMP.wk=impParse(IMP.text.trim());renderImport();
+  const out=document.getElementById('impOut');if(out)out.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function impAnyway(){IMP.builtAnyway=true;renderImport();}
+function impResolve(id,action){
+  const iss=IMP.wk&&IMP.wk.issues.find(i=>i.id===id);if(!iss)return;
+  const inp=document.getElementById('impIn'+id);const val=inp?inp.value.trim():'';
+  if(iss.kind==='confirmName'){
+    if(action==='yes')impLearnMove(iss.raw,iss.name,iss.ref.mode);
+    else if(action==='rename'){if(!val){alert('Type the correct name (or tap Yes).');return;}iss.ref.name=impTitle(val);impLearnMove(iss.raw,iss.ref.name,iss.ref.mode);}
+  }else if(iss.kind==='typo'){
+    if(action==='yes')impLearnWord(iss.word,'rest');else iss.ref.rest=0;
+  }else if(iss.kind==='nameOrSection'){
+    if(action==='isex'){iss.ref.name=iss.block;iss.blockObj.heading='Main';impLearnMove(iss.block,iss.block,iss.ref.mode);}
+    else if(action==='setmove'){if(!val){alert('Type the movement name.');return;}iss.ref.name=impTitle(val);
+      if(!impLookup(val))impLearnMove(val,iss.ref.name,iss.ref.mode);}
+  }
+  iss.resolved=true;renderImport();
+}
+function impSave(){
+  const wk=IMP.wk;if(!wk)return;
+  const w={id:uid(),name:wk.name,days:[],blocks:wk.blocks.map(b=>({
+    id:uid(),heading:b.heading,minutes:'',format:b.format,superset:!!b.superset,
+    exercises:b.exercises.map(e=>{
+      const rest=e.rest||b.rest||0;
+      const mkT=(i)=>{
+        let t;
+        if(e.mode==='seconds')t=e.secs!=null?String(e.secs):'';
+        else if(e.mode==='amrap')t='max';
+        else if(e.varied)t=String(e.varied[Math.min(i,e.varied.length-1)]);
+        else t=e.range?e.range:(e.reps?String(e.reps):'');
+        if(e.kg&&e.mode==='reps_kg'&&t)t+=' @'+e.kg+'kg';
+        if(e.eachSide&&t)t+=' e/s';
+        return t;
+      };
+      const n=Math.max(1,e.sets||1);
+      return{id:uid(),name:e.name||'Movement',mode:e.mode,tempo:'',rest,
+        sets:Array.from({length:n},(_,i)=>({t:mkT(i),rpe:e.rpe?String(e.rpe):''}))};
+    })
+  }))};
+  DB.workouts.push(w);save();
+  IMP.wk=null;IMP.text='';
+  editWorkout(w.id);
+}
+function impPickPhoto(){const f=document.getElementById('impFile');if(f)f.click();}
+let IMP_TESS=null;
+function impLoadTesseract(){
+  if(window.Tesseract)return Promise.resolve();
+  if(IMP_TESS)return IMP_TESS;
+  IMP_TESS=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='./vendor/tesseract/tesseract.min.js';
+    s.onload=()=>res();s.onerror=()=>{IMP_TESS=null;rej(new Error('Could not load the photo reader.'));};
+    document.head.appendChild(s);
+  });
+  return IMP_TESS;
+}
+async function impPhoto(ev){
+  const f=ev.target.files&&ev.target.files[0];if(!f)return;
+  try{if(IMP.photoUrl)URL.revokeObjectURL(IMP.photoUrl);}catch(e){}
+  IMP.photoUrl=URL.createObjectURL(f);
+  IMP.ocrBusy=true;IMP.ocrMsg='(first time downloads the reader, ~7 MB)';renderImport();
+  try{
+    await impLoadTesseract();
+    IMP.ocrMsg='recognising…';renderImport();
+    const worker=await Tesseract.createWorker('eng',1,{
+      workerPath:'./vendor/tesseract/worker.min.js',
+      corePath:'./vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
+      langPath:'./vendor/tesseract/',gzip:true
+    });
+    const {data}=await worker.recognize(IMP.photoUrl);
+    await worker.terminate();
+    const text=(data.text||'').split('\n').map(l=>l.trim()).filter(Boolean).join('\n');
+    IMP.ocrBusy=false;
+    if(!text){IMP.ocrMsg='No text found in that photo — try a clearer shot.';renderImport();return;}
+    IMP.text=text;IMP.ocrMsg='Text extracted ✓ — check it below, fix any misreads, then “Read my workout”.';
+    IMP.wk=null;renderImport();
+  }catch(e){
+    IMP.ocrBusy=false;IMP.ocrMsg='Photo reading failed: '+String(e&&e.message||e);renderImport();
+  }
 }
 
 /* ---------- boot ---------- */

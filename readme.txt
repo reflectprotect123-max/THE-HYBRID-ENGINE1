@@ -21,6 +21,11 @@ Screens
   set-by-set logging with per-mode columns (KG/Reps/Secs), RPE felt,
   targets per set, last-time box (and last kg as the input placeholder), and
   a rest chip that auto-starts on ✓, survives reload, and vibrates at zero.
+- Import (Builder > "Import from text or photo"): paste any written
+  workout — or attach a screenshot/photo, read on-device by a bundled
+  OCR engine — and it parses into a template. It asks only about genuine
+  ambiguity (inline, in the draft), learns your shorthand into a synced,
+  editable lexicon, and opens the result in the Builder.
 - Builder: blocks, exercises, six tracking modes (incl. Max reps / AMRAP), "Train on" day chips,
   per-set targets with RPE (identical targets collapse to one "All sets"
   row), tempo/rest behind a disclosure, live prescription preview,
