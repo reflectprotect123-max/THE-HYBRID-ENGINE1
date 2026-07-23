@@ -76,6 +76,7 @@ public class MainActivity extends Activity {
   private static final int REQ_EXPORT = 3;
   private static final int REQ_BT_ON = 4;
   private static final int REQ_OCR = 5;
+  private static final int REQ_MIC = 6;
   private static final long SCAN_MS = 6000;
   private static final int MAX_RECONNECTS = 5;
 
@@ -160,6 +161,7 @@ public class MainActivity extends Activity {
 
     web.addJavascriptInterface(new HrBridge(), "AndroidHR");
     web.addJavascriptInterface(new OcrBridge(), "AndroidOCR");
+    web.addJavascriptInterface(new VoiceBridge(), "AndroidVoice");
 
     BluetoothManager bm = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
     if (bm != null) btAdapter = bm.getAdapter();
@@ -180,7 +182,11 @@ public class MainActivity extends Activity {
 
   @Override protected void onPause() { super.onPause(); CookieManager.getInstance().flush(); }
 
-  @Override protected void onDestroy() { closeGatt(); super.onDestroy(); }
+  @Override protected void onDestroy() {
+    closeGatt();
+    try { if (recognizer != null) recognizer.destroy(); } catch (Exception ignored) {}
+    super.onDestroy();
+  }
 
   /* ---------- the JS bridge ---------- */
 
@@ -245,6 +251,85 @@ public class MainActivity extends Activity {
     }
   }
 
+  /**
+   * On-device voice dictation via Android SpeechRecognizer (free). The page
+   * calls AndroidVoice.start(); we stream partials to impNativeVoicePartial()
+   * and finals to impNativeVoiceFinal(), auto-restarting for continuous
+   * dictation until AndroidVoice.stop().
+   */
+  private android.speech.SpeechRecognizer recognizer;
+  private boolean voiceWant = false;
+
+  private class VoiceBridge {
+    @JavascriptInterface public void start() {
+      main.post(() -> {
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+          requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQ_MIC);
+          return;
+        }
+        voiceWant = true;
+        startRecognizer();
+      });
+    }
+    @JavascriptInterface public void stop() {
+      main.post(() -> {
+        voiceWant = false;
+        try { if (recognizer != null) recognizer.stopListening(); } catch (Exception ignored) {}
+        js("typeof impNativeVoiceEnd==='function'&&impNativeVoiceEnd()");
+      });
+    }
+  }
+
+  private void startRecognizer() {
+    try {
+      if (!android.speech.SpeechRecognizer.isRecognitionAvailable(this)) {
+        js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr(" + JSONObject.quote("no speech service on this device") + ")");
+        voiceWant = false; return;
+      }
+      if (recognizer == null) {
+        recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+        recognizer.setRecognitionListener(new android.speech.RecognitionListener() {
+          public void onReadyForSpeech(Bundle p) {}
+          public void onBeginningOfSpeech() {}
+          public void onRmsChanged(float v) {}
+          public void onBufferReceived(byte[] b) {}
+          public void onEndOfSpeech() {}
+          public void onPartialResults(Bundle b) {
+            java.util.ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+            if (r != null && !r.isEmpty()) js("typeof impNativeVoicePartial==='function'&&impNativeVoicePartial(" + JSONObject.quote(r.get(0)) + ")");
+          }
+          public void onEvent(int t, Bundle b) {}
+          public void onError(int err) {
+            // 6/7 = timeout/no-match: just restart while the user still wants to dictate
+            if (voiceWant && (err == android.speech.SpeechRecognizer.ERROR_NO_MATCH || err == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+              main.post(() -> startRecognizer()); return;
+            }
+            if (err == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)
+              js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr('denied')");
+            else if (voiceWant)
+              js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr(" + JSONObject.quote("error " + err) + ")");
+            voiceWant = false;
+          }
+          public void onResults(Bundle b) {
+            java.util.ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+            if (r != null && !r.isEmpty()) js("typeof impNativeVoiceFinal==='function'&&impNativeVoiceFinal(" + JSONObject.quote(r.get(0)) + ")");
+            if (voiceWant) main.post(() -> startRecognizer());   // continuous dictation
+            else js("typeof impNativeVoiceEnd==='function'&&impNativeVoiceEnd()");
+          }
+        });
+      }
+      Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+      i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+      i.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+      i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "en-US");
+      i.putExtra("android.speech.extra.PREFER_OFFLINE", true);
+      recognizer.startListening(i);
+    } catch (Exception e) {
+      voiceWant = false;
+      js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+    }
+  }
+
   private void js(String call) { main.post(() -> web.evaluateJavascript(call, null)); }
   private void state(String st, String msg) {
     js("typeof conNativeState==='function'&&conNativeState(" + JSONObject.quote(st) + "," + JSONObject.quote(msg == null ? "" : msg) + ")");
@@ -277,6 +362,11 @@ public class MainActivity extends Activity {
   }
 
   @Override public void onRequestPermissionsResult(int code, String[] perms, int[] grants) {
+    if (code == REQ_MIC) {
+      if (grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) { voiceWant = true; startRecognizer(); }
+      else js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr('denied')");
+      return;
+    }
     if (code != REQ_PERMS) return;
     if (hasPerms()) { if (pendingScan) { pendingScan = false; beginScanFlow(); } }
     else { pendingScan = false; state("error", "Bluetooth permission was refused — allow it to read your WHOOP."); }

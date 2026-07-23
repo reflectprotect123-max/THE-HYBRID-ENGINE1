@@ -282,6 +282,13 @@ await t('importer: paste → meaning-questions inline → learn → save lands i
   // clean input must NOT ask about blank weights (meaning-only rule)
   const cleanQ = await page.evaluate(() => { const w = impParse('Bench press 4x8\nOHP 3x10'); return w.issues.length; });
   if (cleanQ !== 0) throw new Error('clean paste asked ' + cleanQ + ' questions');
+  // prose paragraphs become notes, not fake exercises
+  const prose = await page.evaluate(() => impParse('Bench 4x8\nEffort Note:\nSelect a pace that matches the rest you need before your next set.'));
+  if (prose.blocks.flatMap((b) => b.exercises).length !== 1) throw new Error('prose leaked into exercises');
+  if (!prose.notes.length) throw new Error('note paragraph not captured');
+  // spoken dictation is tidied into parseable text (number words → digits)
+  const spoken = await page.evaluate(() => impSplitSpoken('bench four by eight at rpe eight rest three minutes'));
+  if (!/bench 4 ?x ?8/.test(spoken) || !/@RPE 8/.test(spoken) || !/3min/.test(spoken)) throw new Error('voice tidy failed: ' + spoken);
   // resolve: section → name the movement; typo → learn test=rest
   const pend = await page.evaluate(() => impPending().map((i) => ({ id: i.id, kind: i.kind })));
   for (const q of pend) {

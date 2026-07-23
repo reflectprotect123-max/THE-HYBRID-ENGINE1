@@ -1728,7 +1728,7 @@ function impParseExercise(line,lower,issue){
   return ex;
 }
 /* ---- importer UI ---- */
-const IMP={text:'',wk:null,builtAnyway:false,ocrBusy:false,ocrMsg:'',photoUrl:''};
+const IMP={text:'',wk:null,builtAnyway:false,ocrBusy:false,ocrMsg:'',photoUrl:'',listening:false};
 function openImport(){IMP.wk=null;IMP.builtAnyway=false;IMP.ocrMsg='';IMP.photoUrl='';go('import');}
 function impPending(){return IMP.wk?IMP.wk.issues.filter(i=>!i.resolved):[];}
 const IMP_MODE_LABEL={reps_kg:'Reps × kg',reps:'Reps',seconds:'Time',reps_seconds:'Reps × time',amrap:'Max reps',completion:'For time'};
@@ -1771,8 +1771,12 @@ function renderImport(){
   let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;builder&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder · Import</div><h1 style="font-size:24px">Add a workout</h1></div></div>'+
     '<p class="sub">Type it, paste it, or attach a photo/screenshot — any style, typos welcome. It asks only when a <b>meaning</b> is unclear; blank weights and reps just stay blank, like always.</p>'+
     '<textarea class="imp-src" id="impSrc" spellcheck="false" placeholder="e.g.&#10;Push Day&#10;Bench 4x8 @RPE8 rest 3min&#10;into 5 deadlifts&#10;10s dead hang rest 30s 2 rounds of that">'+esc(IMP.text)+'</textarea>'+
-    '<button class="addbtn" style="margin-top:10px" data-click="impPickPhoto">📷 Attach photo / screenshot</button>'+
+    '<div class="imp-inputs">'+
+      '<button class="addbtn imp-in" data-click="impVoice">'+(IMP.listening?'⏹ Stop':'🎤 Say it')+'</button>'+
+      '<button class="addbtn imp-in" data-click="impPickPhoto">📷 Photo</button>'+
+    '</div>'+
     '<input type="file" id="impFile" accept="image/*" style="display:none" data-change="impPhoto" data-args="[&quot;@event&quot;]">'+
+    (IMP.listening?'<div class="imp-listen"><span class="dot"></span>Listening… say your workout, then tap Stop.</div>':'')+
     '<div class="imp-photo'+(IMP.photoUrl||IMP.ocrBusy||IMP.ocrMsg?' on':'')+'" id="impPhotoBox">'+
       (IMP.photoUrl?'<img src="'+IMP.photoUrl+'" alt="">':'')+
       '<div class="pt2">'+(IMP.ocrBusy?'<b>Reading your photo on this device…</b> '+esc(IMP.ocrMsg)+'<div class="imp-scan"></div>':(IMP.ocrMsg?esc(IMP.ocrMsg):''))+'</div></div>'+
@@ -1858,6 +1862,82 @@ function impSave(){
   IMP.wk=null;IMP.text='';
   editWorkout(w.id);
 }
+/* ---- voice input: browser speech recognition → the same parser ---- */
+let IMP_REC=null,IMP_BASE='';
+const IMP_NUM={zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100};
+function impNumberWords(s){
+  return s
+    .replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-](one|two|three|four|five|six|seven|eight|nine)\b/gi,(m,a,b)=>IMP_NUM[a.toLowerCase()]+IMP_NUM[b.toLowerCase()])
+    .replace(/\b(one|two|three|four|five|six|seven|eight|nine)\s+hundred\b/gi,(m,a)=>IMP_NUM[a.toLowerCase()]*100)
+    .replace(/\b(a|one)\s+hundred\b/gi,'100')
+    .replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/gi,m=>IMP_NUM[m.toLowerCase()]);
+}
+function impTidySpoken(s){
+  return impNumberWords(' '+s+' ')
+    .replace(/\bby\b/gi,'x')                       // "four by eight" → 4x8
+    .replace(/\b(?:at\s+)?@?\s*rpe\s*(\d\d?)/gi,'@RPE $1')
+    .replace(/\bat\s+(?=\d)/gi,' ')                // "at 100 kg" → "100 kg"
+    .replace(/\b(kilos?|kilograms?)\b/gi,'kg')
+    .replace(/(\d)\s+kg\b/gi,'$1kg')
+    .replace(/\bseconds?\b/gi,'s').replace(/\bminutes?\b/gi,'min').replace(/\bmins?\b/gi,'min')
+    .replace(/\b(\d+)\s*s\b/gi,'$1s').replace(/\b(\d+)\s*min\b/gi,'$1min')
+    .replace(/\breps?\b/gi,'')                      // "8 reps" → "8"
+    .replace(/\bsuperset(ted)?\s+with\b/gi,'\nA2 ')
+    .replace(/\s+/g,' ').trim();
+}
+const IMP_UNIT_RX=/^(x|s|sec|secs|min|mins|m|kg|kilos?|rounds?|reps?|rpe|rest|cals?|calories|seconds?|minutes?|met(?:er|re)s?|each|per|at|by|to|of)$/i;
+function impSplitSpoken(s){
+  // Break a spoken run into lines at natural workout boundaries, then before
+  // each "<number> <movement>" so run-on dictation still separates.
+  return impTidySpoken(s)
+    .replace(/\s+(into|then|next|after that|followed by)\s+/gi,'\n')
+    .replace(/\s*,\s*/g,'\n')
+    .replace(/(\S)\s+(\d+)\s+([a-z][a-z-]+)/gi,(m,pre,n,w)=>IMP_UNIT_RX.test(w)?m:(pre+'\n'+n+' '+w))
+    .split('\n').map(l=>l.trim()).filter(Boolean).join('\n');
+}
+function impHasNativeVoice(){try{return !!(window.AndroidVoice&&typeof window.AndroidVoice.start==='function');}catch(e){return false;}}
+function impVoice(){
+  if(IMP.listening){impVoiceStop();return;}
+  const ta=document.getElementById('impSrc');IMP.text=ta?ta.value:IMP.text;
+  IMP_BASE=IMP.text?IMP.text.replace(/\s+$/,'')+'\n':'';
+  if(impHasNativeVoice()){
+    try{window.AndroidVoice.start();IMP.listening=true;IMP.ocrMsg='';renderImport();}
+    catch(e){IMP.ocrMsg='Could not start voice: '+String(e&&e.message||e);renderImport();}
+    return;
+  }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){IMP.ocrMsg='Voice needs Chrome or the installed app — this browser has no speech recognition. You can still type or paste.';renderImport();return;}
+  try{
+    IMP_REC=new SR();IMP_REC.lang='en-US';IMP_REC.continuous=true;IMP_REC.interimResults=true;
+    IMP_REC.onresult=e=>{
+      let said='';for(let i=0;i<e.results.length;i++)said+=e.results[i][0].transcript+' ';
+      IMP.text=IMP_BASE+impSplitSpoken(said);
+      const t=document.getElementById('impSrc');if(t){t.value=IMP.text;t.scrollTop=t.scrollHeight;}
+    };
+    IMP_REC.onerror=ev=>{IMP.listening=false;IMP_REC=null;IMP.ocrMsg=ev&&ev.error==='not-allowed'?'Microphone permission was refused.':'Voice error: '+(ev&&ev.error||'unknown');renderImport();};
+    IMP_REC.onend=()=>{if(IMP.listening){IMP.listening=false;renderImport();}};
+    IMP_REC.start();IMP.listening=true;IMP.ocrMsg='';renderImport();
+  }catch(e){IMP.listening=false;IMP_REC=null;IMP.ocrMsg='Could not start voice: '+String(e&&e.message||e);renderImport();}
+}
+function impVoiceStop(){
+  IMP.listening=false;
+  try{if(impHasNativeVoice())window.AndroidVoice.stop();}catch(e){}
+  try{if(IMP_REC)IMP_REC.stop();}catch(e){}
+  IMP_REC=null;renderImport();
+}
+/* callbacks from the native speech bridge */
+function impNativeVoicePartial(text){
+  if(!IMP.listening)return;
+  IMP.text=IMP_BASE+impSplitSpoken(String(text||''));
+  const t=document.getElementById('impSrc');if(t){t.value=IMP.text;t.scrollTop=t.scrollHeight;}
+}
+function impNativeVoiceFinal(text){
+  IMP_BASE=(IMP_BASE+impSplitSpoken(String(text||''))).replace(/\s+$/,'')+'\n';
+  IMP.text=IMP_BASE.replace(/\n$/,'');
+  const t=document.getElementById('impSrc');if(t)t.value=IMP.text;
+}
+function impNativeVoiceEnd(){if(IMP.listening){IMP.listening=false;renderImport();}}
+function impNativeVoiceErr(msg){IMP.listening=false;IMP.ocrMsg=(msg==='denied')?'Microphone permission was refused.':'Voice error: '+(msg||'unknown');renderImport();}
 function impHasNativeOcr(){try{return !!(window.AndroidOCR&&typeof window.AndroidOCR.scan==='function');}catch(e){return false;}}
 function impPickPhoto(){
   // Installed app: native ML Kit reads the photo (faster, more accurate,

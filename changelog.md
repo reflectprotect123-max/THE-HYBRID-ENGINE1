@@ -1,5 +1,29 @@
 # Changelog
 
+## Importer gains voice: just say your workout — 23 July 2026
+
+Third way into the importer, alongside type/paste and photo: **speak it.**
+
+- **Say it** button → dictation streams into the box live, then runs the
+  same parser + review + learning. Speak an exercise at a time (natural
+  pauses = clean lines).
+- **Speech is tidied for the parser:** number words → digits ("four by
+  eight" → 4x8), "at RPE eight" → @RPE8, "three minutes" → 3min, "thirty
+  seconds" → 30s, "into/then" → new lines, "a hundred kg" → 100kg. Run-on
+  sentences are split before each "<number> <movement>".
+- **Two engines, one behaviour:** the installed app uses Android's
+  on-device SpeechRecognizer via a new native bridge (free, offline,
+  auto-restarts for continuous dictation); Chrome uses the Web Speech
+  API; unsupported browsers say so. Mic permission handled natively.
+- Native shell **v2.3 (versionCode 5)** adds the voice bridge +
+  RECORD_AUDIO. Service-worker cache v47.
+
+Honest scope: voice is a fast *capture* — brilliant one-exercise-at-a-time,
+and the review screen catches anything a run-on mangles. Verified: all six
+suites green (browser-smoke now also asserts prose-as-notes and the voice
+tidy pipeline).
+
+
 ## One coherent app: dashboard Home, conditioning everywhere, polish — 23 July 2026
 
 The full UX pass (Tier A–C from the audit):
