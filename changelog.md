@@ -1,5 +1,38 @@
 # Changelog
 
+## Intervals that progress themselves — the Morpheus autoregulation model — 23 July 2026
+
+Your interval sessions now get harder as *you* get fitter — and back off when you
+don't — instead of staying frozen at 8×30/90 forever. This is how Morpheus does
+it: not a fixed ladder, but **autoregulation** from the metrics we already record.
+
+Two coupled loops:
+- **An earned baseline.** After every real session, the app reads that session's
+  metrics — time held in the Conditioning/Overload zones, your 60-second HR
+  recovery versus your recent median, whether it was sustainable — and steps a
+  hidden per-format **level** up when your body shows it adapted. Miss the mark
+  twice and it eases back so you keep progressing rather than stalling. When it
+  climbs, it rotates the levers for balanced overload: **add a round → lengthen
+  work → trim rest**, each capped.
+- **A daily readiness gate.** Today's actual prescription is your earned baseline
+  *scaled by your WHOOP recovery*, on the same 80/40 bands the zones use. A red
+  day deloads **today only** (a round off, or longer rest) without touching your
+  hard-earned level; a green day serves the full thing.
+
+Nothing changes silently: the conditioning screen shows today's exact
+prescription and why (`9×35s / 85s · Level 3 · strong recovery`), the results
+screen tells you when you stepped up and what's next, and the Builder block
+previews what it'll serve. Demo runs never move your baseline, and a level-0
+profile is byte-for-byte the old session — so nothing you've done changes until
+you earn it.
+
+- Native shell **v2.6 (versionCode 8)**. Service-worker cache v49.
+
+Verified: all six suites green — the smoke test asserts level-0 equals the base
+session, that a strong on-target session steps the level up, and that a
+red-recovery day deloads today without changing the earned baseline.
+
+
 ## The hybrid session + Morpheus-grade heart-rate zones — 23 July 2026
 
 Strength and conditioning stop being two separate apps. One workout can now

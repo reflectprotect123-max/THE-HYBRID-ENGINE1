@@ -399,6 +399,16 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .exrow.condrow{border-color:rgba(51,192,122,.26)}
 .exrow.condrow .t b::before{content:"♥ ";color:#33c07a;font-size:12px}
 .exrow.condrow.done{border-color:rgba(51,192,122,.4)}
+/* progression prescription line + adaptation banner */
+.prescline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+.prescline.build{margin-top:12px}
+.prescline .pd{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+.prescline .pnote{font-size:11px;font-weight:650;color:#7fd6a6;text-transform:uppercase;letter-spacing:.05em}
+.prescline .pnote.dim{color:var(--dim)}
+.adaptbar{margin-top:12px;padding:12px 14px;border-radius:13px;font-size:12.5px;line-height:1.5}
+.adaptbar b{font-weight:800}
+.adaptbar.up{border:1px solid rgba(51,192,122,.4);background:rgba(51,192,122,.09);color:#a8e6c4}
+.adaptbar.down{border:1px solid rgba(224,188,135,.4);background:var(--gold-wash);color:var(--gold2)}
 .con-hint{margin-top:12px;color:var(--dim);font-size:11px;text-align:center;line-height:1.5}
 .con-note{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--panel3);color:var(--muted);font-size:12px;line-height:1.5}
 .livetop{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}

@@ -315,6 +315,36 @@ await t('hybrid session: strength + conditioning blocks run and persist in one w
     CUR_SESSION = null; WK = templateWorkout(); BUILDER_WID = null; save(); go('home');
   });
 });
+await t('interval progression: level-0 base unchanged; adaptation steps up; red recovery deloads today only', async () => {
+  const r = await page.evaluate(() => {
+    const out = {};
+    DB.settings.conProgress = {}; WHOOP.sample = null; save();
+    // level 0 must equal the base session exactly
+    const p0 = conPrescription('intervals');
+    out.base = [p0.rounds, p0.work, p0.rest, conPrescDesc('intervals', p0)];
+    // a level-3 profile rotates the levers: +round, +work, -rest
+    DB.settings.conProgress = { intervals: { level: 3 } }; save();
+    const p3 = conPrescription('intervals');
+    out.lvl3 = [p3.rounds, p3.work, p3.rest];
+    // adaptation: strong on-target session on a green day steps the level up
+    DB.settings.conProgress = {}; WHOOP.sample = { recoveryScore: 85 }; save();
+    const delta = conAdapt({ id: 'a1', fmt: 'intervals', dur: 600, zsec: { low: 100, mod: 300, high: 50 }, hrr: 20 });
+    out.delta = delta; out.levelAfter = conProgLevel('intervals');
+    // red-recovery day deloads TODAY without touching the earned baseline
+    DB.settings.conProgress = { intervals: { level: 2 } }; WHOOP.sample = { recoveryScore: 30 }; save();
+    const earned = conPrescription('intervals', true), served = conPrescription('intervals');
+    out.earnedRounds = earned.rounds; out.servedRounds = served.rounds;
+    out.servedAdj = served.dailyAdj; out.levelStill = conProgLevel('intervals');
+    DB.settings.conProgress = {}; WHOOP.sample = null; save();
+    return out;
+  });
+  if (r.base[0] !== 8 || r.base[1] !== 30 || r.base[2] !== 90) throw new Error('level-0 not base 8/30/90: ' + r.base);
+  if (r.base[3] !== '8×30s / 90s') throw new Error('base desc wrong: ' + r.base[3]);
+  if (r.lvl3[0] !== 9 || r.lvl3[1] !== 35 || r.lvl3[2] !== 85) throw new Error('level-3 levers wrong: ' + r.lvl3);
+  if (r.delta !== 1 || r.levelAfter !== 1) throw new Error('adaptation did not step up: ' + JSON.stringify(r));
+  if (!(r.servedRounds < r.earnedRounds) || r.servedAdj !== -1) throw new Error('red day did not deload today: ' + JSON.stringify(r));
+  if (r.levelStill !== 2) throw new Error('red day changed the earned baseline: ' + r.levelStill);
+});
 await t('Progress tab renders trends (empty state or charts, never blank)', async () => {
   await page.click('.navlink[data-s="progress"]');
   await page.waitForSelector('#s-progress.on', { timeout: 2000 });

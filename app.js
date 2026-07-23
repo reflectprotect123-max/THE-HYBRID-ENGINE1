@@ -194,7 +194,7 @@ function workoutKind(w){
   const conditioning=w.blocks.some(b=>isCond(b)||blockExercises(b).some(e=>e.mode==='seconds'||e.mode==='reps_seconds'));
   return [strength?'Strength':'',conditioning?'Conditioning':''].filter(Boolean).join(' + ')||'Session';
 }
-function condBlockMinutes(b){const f=CON_FORMATS[b&&b.condFmt];if(!f)return 0;try{return Math.round(f.build().reduce((n,p)=>n+(p.dur||0),0)/60);}catch(e){return 0;}}
+function condBlockMinutes(b){const f=CON_FORMATS[b&&b.condFmt];if(!f)return 0;try{return Math.round(f.build(conPrescription(b.condFmt)).reduce((n,p)=>n+(p.dur||0),0)/60);}catch(e){return 0;}}
 function workoutChips(w){
   const mins=(w.blocks||[]).reduce((n,b)=>n+(isCond(b)?condBlockMinutes(b):(+b.minutes||0)),0);
   const exs=(w.blocks||[]).reduce((n,b)=>n+blockExercises(b).length,0);
@@ -506,7 +506,7 @@ function renderCondBlockRow(b,bi){
   const head='<div class="sec-head"><h2>'+esc(b.heading||'Conditioning')+'</h2><span>heart rate</span></div>';
   let sub;
   if(done){const r=b.condResult;sub=conMmss(r.dur)+' · avg '+(r.avg||'—')+' · max '+(r.max||'—')+' bpm'+(r.hrr!=null?' · ▼'+r.hrr+' recovery':'');}
-  else{sub=(f?f.desc:'Live zone session')+' · target '+condZoneName(b.targetZone);}
+  else{sub=(f?conPrescDesc(b.condFmt):'Live zone session')+' · target '+condZoneName(b.targetZone);}
   const endcap=done?'<div class="st">✓</div>':'<div class="chev" aria-hidden="true">›</div>';
   return '<div class="section">'+head+'<div class="card exrow condrow nav'+(done?' done':'')+'" data-click="conRunBlock" data-args="['+bi+']"><div class="t"><b>'+esc(title)+'</b><span>'+esc(sub)+'</span></div>'+endcap+'</div></div>';
 }
@@ -734,6 +734,8 @@ function condBlockCard(b,bi,open){
   let body='<div class="condbuild">';
   body+='<div class="lbl2">Format</div><div class="fmtpick build">'+Object.keys(CON_FORMATS).map(k=>{const ff=CON_FORMATS[k];return '<button aria-pressed="'+(b.condFmt===k)+'" data-click="setCondFmt" data-args="['+bi+',&quot;'+k+'&quot;]">'+ff.name+'<small>'+ff.desc+'</small></button>';}).join('')+'</div>';
   body+='<div class="lbl2" style="margin-top:12px">Target zone</div><div class="zonepick">'+conZones().list.map(z=>'<button aria-pressed="'+(b.targetZone===z.key)+'" data-click="setCondZone" data-args="['+bi+',&quot;'+z.key+'&quot;]"><i style="background:'+z.color+'"></i>'+z.name+'</button>').join('')+'</div>';
+  const ep=conPrescription(b.condFmt,true);
+  body+='<div class="prescline build"><span class="pd">'+esc(conPrescDesc(b.condFmt,ep))+'</span><span class="pnote">'+(ep.level>0?'earned · Level '+ep.level:'auto-progresses as you adapt')+'</span></div>';
   body+='</div>';
   return '<div class="bblock cond open">'+head+body+'</div>';
 }
@@ -1235,19 +1237,96 @@ function setProfile(key,val){
 }
 
 /* --- session formats --- */
+/* Formats are parameterised by a prescription {rounds,work,rest,minutes}.
+   build(p) with no argument reproduces the base session byte-for-byte, so a
+   level-0 profile is identical to before progression existed. */
 const CON_FORMATS={
-  steady:{name:'Steady-state',desc:'Zone 2 · 20 min',rounds:0,build:function(){return[
-    {name:'Warm-up',dur:120,kind:'warm'},{name:'Zone 2',dur:1200,kind:'work2'},{name:'Cool-down',dur:120,kind:'cool'}];}},
-  intervals:{name:'Intervals',desc:'8×30s / 90s',rounds:8,build:function(){
-    const s=[{name:'Warm-up',dur:180,kind:'warm'}];
-    for(let i=1;i<=8;i++){s.push({name:'Work '+i,dur:30,kind:'work',round:i});s.push({name:'Recover',dur:90,kind:'rest',round:i});}
+  steady:{name:'Steady-state',desc:'Zone 2 · 20 min',base:{minutes:20},build:function(p){
+    p=p||this.base;return[
+    {name:'Warm-up',dur:120,kind:'warm'},{name:'Zone 2',dur:(p.minutes||20)*60,kind:'work2'},{name:'Cool-down',dur:120,kind:'cool'}];}},
+  intervals:{name:'Intervals',desc:'8×30s / 90s',base:{rounds:8,work:30,rest:90},build:function(p){
+    p=p||this.base;const s=[{name:'Warm-up',dur:180,kind:'warm'}];
+    for(let i=1;i<=p.rounds;i++){s.push({name:'Work '+i,dur:p.work,kind:'work',round:i});s.push({name:'Recover',dur:p.rest,kind:'rest',round:i});}
     s.push({name:'Cool-down',dur:120,kind:'cool'});return s;}},
-  tempo:{name:'Tempo',desc:'10×15s / 60s',rounds:10,build:function(){
-    const s=[{name:'Warm-up',dur:180,kind:'warm'}];
-    for(let i=1;i<=10;i++){s.push({name:'Work '+i,dur:15,kind:'work',round:i});s.push({name:'Recover',dur:60,kind:'rest',round:i});}
+  tempo:{name:'Tempo',desc:'10×15s / 60s',base:{rounds:10,work:15,rest:60},build:function(p){
+    p=p||this.base;const s=[{name:'Warm-up',dur:180,kind:'warm'}];
+    for(let i=1;i<=p.rounds;i++){s.push({name:'Work '+i,dur:p.work,kind:'work',round:i});s.push({name:'Recover',dur:p.rest,kind:'rest',round:i});}
     s.push({name:'Cool-down',dur:120,kind:'cool'});return s;}}
 };
 function conPickFmt(f){if(CON_FORMATS[f]){CON.fmt=f;if(CURRENT==='conditioning')renderConditioning();}}
+
+/* ---- Autoregulated interval progression (the Morpheus model) ----
+   Two coupled loops: an earned baseline `level` per format that climbs only when
+   a session's metrics show real adaptation (conAdapt), and a daily readiness gate
+   that scales today's prescription by WHOOP recovery on the same 80/40 bands the
+   zones use. Everything is shown and explained; nothing changes silently. */
+function conProgLevel(fmtKey){const cp=DB.settings.conProgress||{};const f=cp[fmtKey];return f&&Number.isFinite(f.level)?Math.max(0,f.level|0):0;}
+function conPrescription(fmtKey,ignoreDaily){
+  const fmt=CON_FORMATS[fmtKey]||CON_FORMATS.intervals;const base=fmt.base||{};
+  const level=conProgLevel(fmtKey);
+  const p={};
+  if(fmtKey==='steady'){
+    p.minutes=Math.min(40,(base.minutes||20)+2*level);
+  }else{
+    // rotate the levers for balanced overload: +1 round, then +5s work, then -5s rest
+    let rounds=base.rounds,work=base.work,rest=base.rest;
+    for(let i=0;i<level;i++){const m=i%3;
+      if(m===0)rounds=Math.min(12,rounds+1);
+      else if(m===1)work=Math.min(base.work*2,work+5);
+      else rest=Math.max(Math.round(base.rest*0.6),rest-5);
+    }
+    p.rounds=rounds;p.work=work;p.rest=rest;
+  }
+  // daily readiness gate — Morpheus 80/40. Red deloads TODAY without touching the
+  // earned baseline; green serves the full earned level.
+  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
+  const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
+  let dailyAdj=0;
+  if(rec!=null&&!ignoreDaily){
+    if(rec<40){dailyAdj=-1;
+      if(fmtKey==='steady')p.minutes=Math.max(10,p.minutes-5);
+      else if(p.rounds>3&&level>0)p.rounds=p.rounds-1;
+      else p.rest=(p.rest||0)+10;
+    }else if(rec>80){dailyAdj=1;}
+  }
+  p.level=level;p.dailyAdj=dailyAdj;p.rec=rec;
+  let note='';
+  if(level>0)note='Level '+level;
+  if(dailyAdj<0)note=(note?note+' · ':'')+'eased today'+(rec!=null?' for '+rec+'% recovery':'');
+  else if(dailyAdj>0&&level>0)note=note+' · strong recovery';
+  p.note=note;
+  return p;
+}
+function conPrescDesc(fmtKey,p){p=p||conPrescription(fmtKey);
+  return fmtKey==='steady'?('Zone 2 · '+p.minutes+' min'):(p.rounds+'×'+p.work+'s / '+p.rest+'s');}
+/* Read the session's metrics and move the earned baseline. Positive adaptation
+   (held the target zone, HR recovery holding/improving, not a red-recovery
+   max-out) steps the level up; repeated misses ease it back. Demo runs never
+   count. Returns the level delta so the results screen can explain it. */
+function conAdapt(rec){
+  if(!rec||rec.sim)return 0;
+  const fmtKey=rec.fmt;if(!CON_FORMATS[fmtKey])return 0;
+  const z=rec.zsec||{low:0,mod:0,high:0};
+  const total=Math.max(1,rec.dur||0);
+  const workSec=fmtKey==='steady'?((z.low||0)+(z.mod||0)):((z.mod||0)+(z.high||0));
+  const frac=fmtKey==='steady'?0.6:0.45;
+  const onTarget=workSec/total>=frac;
+  const overcooked=(z.high||0)/total>0.6;
+  // HR recovery holding vs the median of recent same-format sessions
+  const hist=allCondRecords().filter(r=>!r.sim&&r.fmt===fmtKey&&r.id!==rec.id).slice(-3);
+  const hrrs=hist.map(r=>r.hrr).filter(v=>Number.isFinite(v));
+  let hrrOk=true;
+  if(rec.hrr!=null&&hrrs.length){const sorted=hrrs.slice().sort((a,b)=>a-b);const med=sorted[Math.floor(sorted.length/2)];hrrOk=rec.hrr>=med-1;}
+  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
+  const notRed=!Number.isFinite(recRaw)||recRaw>=40;
+  const cp=Object.assign({},DB.settings.conProgress);
+  const cur=cp[fmtKey]||{level:0,miss:0};
+  let level=cur.level|0,miss=cur.miss|0,delta=0;
+  if(onTarget&&hrrOk&&!overcooked&&notRed){level=Math.min(20,level+1);miss=0;delta=1;}
+  else{miss++;if(miss>=2){level=Math.max(0,level-1);miss=0;delta=-1;}}
+  cp[fmtKey]={level,miss};DB.settings.conProgress=cp;save();
+  return delta;
+}
 
 /* --- Native HR bridge (the installed Android app injects window.AndroidHR;
        native BLE streams samples back through the conNative* globals) --- */
@@ -1345,8 +1424,9 @@ function conSkip(){
 function conStart(){
   if(CON.live)return;
   const f=CON_FORMATS[CON.fmt]||CON_FORMATS.intervals;
-  CON.phases=[{name:'Get ready',dur:5,kind:'ready'}].concat(f.build());
-  CON.rounds=f.rounds||0;CON.round=0;CON.phaseIdx=-1;
+  const presc=conPrescription(CON.fmt);
+  CON.phases=[{name:'Get ready',dur:5,kind:'ready'}].concat(f.build(presc));
+  CON.rounds=presc.rounds||0;CON.round=0;CON.phaseIdx=-1;
   CON.samples=[];CON.avgSum=0;CON.avgN=0;CON.max=0;CON.lastBpm=null;
   CON.simBpm=95;CON.simNext=0;CON.error='';
   CON.startedAt=Date.now();CON.live=true;CON.view='live';
@@ -1432,13 +1512,15 @@ function conFinish(){
     list.push(rec);DB.settings.conditioning=list.slice(-40);
     save();CON.sink={scope:'standalone'};
   }
+  // autoregulated progression: let this session's metrics move the earned baseline
+  CON.adaptDelta=conAdapt(rec);CON.adaptFmt=rec.fmt;CON.adaptLevel=conProgLevel(rec.fmt);
   CON.record=rec;CON.view='results';
   renderConditioning();updateWake();
 }
 function conOpenResult(id){
   const r=allCondRecords().find(x=>x.id===id);
   if(!r)return;
-  CON.sink={scope:'standalone'};
+  CON.sink={scope:'standalone'};CON.adaptDelta=0;
   CON.record=r;CON.view='results';
   if(CURRENT!=='conditioning')go('conditioning');else renderConditioning();
 }
@@ -1453,7 +1535,7 @@ function allCondRecords(){
 }
 function conDone(){
   const sink=CON.sink||{scope:'standalone'};
-  CON.sink={scope:'standalone'};CON.record=null;CON.error='';
+  CON.sink={scope:'standalone'};CON.record=null;CON.error='';CON.adaptDelta=0;
   if(sink.scope==='session'&&DB.sessions.find(x=>x.id===sink.sid)){CON.view='setup';CUR_SESSION=sink.sid;go('training');return;}
   CON.view='setup';renderConditioning();
 }
@@ -1542,7 +1624,10 @@ function conSetupHtml(){
   h+='<div style="margin-top:16px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase">Choose format</div><div class="fmtpick">';
   Object.keys(CON_FORMATS).forEach(k=>{const ff=CON_FORMATS[k];
     h+='<button aria-pressed="'+(CON.fmt===k)+'" data-click="conPickFmt" data-args="[&quot;'+k+'&quot;]">'+ff.name+'<small>'+ff.desc+'</small></button>';});
-  h+='</div></div>';
+  h+='</div>';
+  const presc=conPrescription(CON.fmt);
+  h+='<div class="prescline"><span class="pd">'+esc(conPrescDesc(CON.fmt,presc))+'</span>'+(presc.note?'<span class="pnote">'+esc(presc.note)+'</span>':'<span class="pnote dim">today&rsquo;s session</span>')+'</div>';
+  h+='</div>';
   if(conHasNative()||('bluetooth' in navigator)){
     h+='<button class="bigbtn" style="margin-top:16px" data-click="conConnect">Connect WHOOP HR &amp; start</button>';
     h+='<p class="con-hint">Turn on <b>HR Broadcast</b> in the WHOOP app (Device Settings) so the band shows up'+(conHasNative()?'.':' in the Bluetooth picker.')+'</p>';
@@ -1606,6 +1691,11 @@ function conResultsHtml(rec){
   const total=(rec.zsec.low||0)+(rec.zsec.mod||0)+(rec.zsec.high||0);
   const fN=CON_FORMATS[rec.fmt]?CON_FORMATS[rec.fmt].name:rec.fmt;
   let h='<div class="rhead" style="display:flex;align-items:baseline;justify-content:space-between"><div><div class="kicker">Session complete</div><h1 style="font-size:24px">'+esc(fN)+(rec.sim?' · demo':'')+'</h1></div><span class="chip">'+conMmss(rec.dur)+'</span></div>';
+  if(!rec.sim&&CON.adaptFmt===rec.fmt&&CON.adaptDelta){
+    const nextDesc=esc(conPrescDesc(rec.fmt,conPrescription(rec.fmt,true)));
+    if(CON.adaptDelta>0)h+='<div class="adaptbar up">💪 <b>You adapted</b> — stepped up to Level '+CON.adaptLevel+'. Next time: '+nextDesc+'.</div>';
+    else h+='<div class="adaptbar down">↩ <b>Eased to Level '+CON.adaptLevel+'</b> — we&rsquo;ll rebuild from '+nextDesc+' so you keep progressing.</div>';
+  }
   h+='<div class="card" style="margin-top:14px;padding:15px"><div class="donutwrap"><div class="dcell"><svg viewBox="0 0 120 120">'+conDonutSvg(rec.zsec,total)+'</svg><div class="dctxt"><div><b>'+conMmss(rec.dur)+'</b><span>total</span></div></div></div><div class="zlist">';
   conZones().list.forEach(zz=>{h+='<div class="zi"><i style="background:'+zz.color+'"></i><span class="n">'+zz.name+'</span><span class="t">'+conMmss(rec.zsec[zz.key]||0)+'</span></div>';});
   h+='</div></div></div>';
