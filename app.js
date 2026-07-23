@@ -194,13 +194,16 @@ function workoutKind(w){
   const conditioning=w.blocks.some(b=>isCond(b)||blockExercises(b).some(e=>e.mode==='seconds'||e.mode==='reps_seconds'));
   return [strength?'Strength':'',conditioning?'Conditioning':''].filter(Boolean).join(' + ')||'Session';
 }
+function condBlockMinutes(b){const f=CON_FORMATS[b&&b.condFmt];if(!f)return 0;try{return Math.round(f.build().reduce((n,p)=>n+(p.dur||0),0)/60);}catch(e){return 0;}}
 function workoutChips(w){
-  const mins=(w.blocks||[]).reduce((n,b)=>n+(+b.minutes||0),0);
+  const mins=(w.blocks||[]).reduce((n,b)=>n+(isCond(b)?condBlockMinutes(b):(+b.minutes||0)),0);
   const exs=(w.blocks||[]).reduce((n,b)=>n+blockExercises(b).length,0);
+  const hasCond=(w.blocks||[]).some(isCond);
   const rpe=w.blocks.some(b=>blockExercises(b).some(e=>e.sets.some(s=>s.rpe)));
   const tempo=w.blocks.some(b=>blockExercises(b).some(e=>e.tempo));
   const chips=[];
-  chips.push('<span class="chip gold">'+(mins?'~'+mins+' min':exs+' exercises')+'</span>');
+  chips.push('<span class="chip gold">'+(mins?'~'+mins+' min':exs?exs+' exercises':'session')+'</span>');
+  if(hasCond)chips.push('<span class="chip cond">♥ Conditioning</span>');
   if(rpe)chips.push('<span class="chip">RPE-based</span>');
   if(tempo)chips.push('<span class="chip">Tempo work</span>');
   return chips.join('');

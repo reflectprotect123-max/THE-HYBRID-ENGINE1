@@ -1,5 +1,45 @@
 # Changelog
 
+## The hybrid session + Morpheus-grade heart-rate zones — 23 July 2026
+
+Strength and conditioning stop being two separate apps. One workout can now
+interleave set-by-set lifting with live heart-rate conditioning pieces — the
+Morpheus "mixed" model — and the whole zone engine was rebuilt to match how
+Morpheus actually trains.
+
+**Heart-rate zones — the best-evidence formula.**
+- **Max HR** now uses **Tanaka (208 − 0.7 × age)**, the meta-analysis-validated
+  formula that beats 220 − age (which overestimates for the young and
+  underestimates past ~40), and **auto-raises** to any higher beat you hit in a
+  session — exactly what Morpheus does.
+- **Zones compute on Heart-Rate Reserve** (Karvonen: `resting + pct × (max −
+  resting)`) whenever your resting HR is known — from Settings or straight from
+  WHOOP — the gold-standard, fitness-individualised method. It falls back to
+  %max cleanly with no band.
+- Three bands are now **Recovery / Conditioning / Overload = blue / green / red**
+  (Morpheus's palette; colour-blind-checked), and they **re-zone every day with
+  your WHOOP recovery, asymmetrically**: a low-recovery day broadens blue and
+  drops the overload line so "hard" arrives sooner; a high-recovery day expands
+  green and lifts overload so you can safely push.
+- Settings shows the method in use, a resting-HR input, and today's bpm ranges.
+
+**One hybrid workout.**
+- Builder gains **♥ Add conditioning** — a block with a format (steady /
+  intervals / tempo) and a target zone, no exercises.
+- The session runs strength rows and a live heart-rate conditioning row in one
+  place; finishing the conditioning piece writes its result onto the block and
+  returns you to the workout. Standalone conditioning (the Conditioning tab) is
+  unchanged.
+- History and Progress show conditioning from both hybrid sessions and
+  standalone runs. Existing workouts and saved data are untouched (blocks
+  default to strength).
+- Native shell **v2.5 (versionCode 7)**. Service-worker cache v48.
+
+Verified: all six suites green (browser-smoke now builds and runs a full
+strength-plus-conditioning session, and asserts the Tanaka value, the HRR/%max
+method switch, and the blue/green/red bands).
+
+
 ## Importer gains voice: just say your workout — 23 July 2026
 
 Third way into the importer, alongside type/paste and photo: **speak it.**
