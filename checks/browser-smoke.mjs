@@ -100,35 +100,36 @@ await t('tapping a week day opens History (empty state)', async () => {
 await t('session card opens the Training day view', async () => {
   await page.click('#s-home .sessioncard');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
-  const secs = await page.$$eval('#s-training .sec-head h2', (els) => els.map((e) => e.textContent));
-  if (secs[0] !== 'Warm-up' || !secs.includes('Strength 1')) throw new Error(secs.join(','));
+  const secs = await page.$$eval('#s-training .lgsec', (els) => els.map((e) => e.textContent));
+  if (!/^Warm-up/.test(secs[0] || '') || !secs.some((x) => /Strength 1/.test(x))) throw new Error(secs.join(','));
 });
-await t('superset block has "Mark round complete"', async () => {
-  const label = await page.textContent('#s-training .superlabel .markall');
-  if (!/Mark round complete/.test(label)) throw new Error(label);
+await t('superset block is labeled "flows on" (auto-advance chain)', async () => {
+  const label = await page.textContent('#s-training .lgsec .lgss');
+  if (!/flows on/.test(label)) throw new Error(label);
 });
-await t('logger opens on a strength row with prescribed rest', async () => {
-  const rows = await page.$$('#s-training .exrow.nav');
+await t('logger accordion opens on a strength row with prescribed rest', async () => {
+  const rows = await page.$$('#s-training .lgcrow');
   let clicked = false;
   for (const row of rows) {
-    if (/rest/.test(await row.textContent())) { await row.click(); clicked = true; break; }
+    const txt = await row.textContent();
+    if (/rest/.test(txt) && /RPE|reps/.test(txt)) { await row.click(); clicked = true; break; }
   }
   if (!clicked) throw new Error('no row with prescribed rest');
-  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
-  const head = await page.$$eval('#s-logger .sethead span', (els) => els.map((e) => e.textContent));
-  if (!head.includes('KG')) throw new Error(head.join(','));
+  await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
+  const head = await page.$$eval('#s-training .lgx.open .lgth', (els) => els.map((e) => e.textContent));
+  if (!head.includes('KG') || !head.includes('Target')) throw new Error(head.join(','));
 });
 await t('logging a set autosaves and starts the rest chip', async () => {
-  const inputs = await page.$$('#s-logger .setrow input');
+  const inputs = await page.$$('#s-training .lgx.open .lgrow input');
   await inputs[0].fill('60'); await inputs[1].fill('12'); await inputs[2].fill('8');
-  await page.click('#s-logger .setrow .tick');
+  await page.click('#s-training .lgx.open .lgrow .lgtick');
   await page.waitForSelector('#restchip.show', { timeout: 2000 });
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
   const ok = saved.sessions.some((s) => s.blocks.some((b) => b.exercises.some((e) => e.sets.some((st) => st.done && st.aVal === '60' && st.felt === '8'))));
   if (!ok) throw new Error('set not persisted');
 });
 await t('no add/remove-set steppers in the logger (mock-exact)', async () => {
-  if (await page.$('#s-logger .bsteprow')) throw new Error('stepper present');
+  if (await page.$('#s-training .bsteprow')) throw new Error('stepper present');
 });
 await t('rest timer survives a full page reload', async () => {
   await page.reload({ waitUntil: 'networkidle' });
@@ -206,13 +207,13 @@ await t('History shows the logged set', async () => {
 await t('logger prefills last kg as placeholder next time', async () => {
   await page.click('#s-home .sessioncard');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
-  const rows = await page.$$('#s-training .exrow.nav');
+  const rows = await page.$$('#s-training .lgcrow');
   for (const row of rows) {
     if (/rest 3:00/.test(await row.textContent())) { await row.click(); break; }
   }
-  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
-  const ph = await page.$eval('#s-logger .setrow input', (el) => el.placeholder);
-  if (!/60 last/.test(ph)) throw new Error('placeholder=' + ph);
+  await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
+  const ph = await page.$eval('#s-training .lgx.open .lgrow input', (el) => el.placeholder);
+  if (ph !== '60') throw new Error('placeholder=' + ph);
 });
 await t('builder: uniform sets collapse to one "All sets" row', async () => {
   await page.click('.navlink[data-s="builder"]');
@@ -480,19 +481,22 @@ await t('importer: paste → meaning-questions inline → learn → save lands i
   // cleanup: remove imported workout + learned lexicon so later steps are pristine
   await page.evaluate(() => { deleteCurrentWorkout(); DB.settings.lexicon = { kw: {}, ex: {} }; save(); go('home'); });
 });
-await t('logger detail view steps forward and back through the session', async () => {
+await t('logger accordion: open, collapse, one-at-a-time', async () => {
   await page.click('.navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
-  await page.click('#s-training .exrow.nav');
-  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
-  let kicker = await page.textContent('#s-logger .kicker');
-  if (!/exercise 1 of \d+/.test(kicker)) throw new Error('kicker=' + kicker);
-  await page.click('#s-logger .histnav .markall');
-  kicker = await page.textContent('#s-logger .kicker');
-  if (!/exercise 2 of \d+/.test(kicker)) throw new Error('after next: ' + kicker);
-  await page.click('#s-logger .histnav .markall');
-  kicker = await page.textContent('#s-logger .kicker');
-  if (!/exercise 1 of \d+/.test(kicker)) throw new Error('after prev: ' + kicker);
+  const rows = await page.$$('#s-training .lgcrow');
+  if (rows.length < 2) throw new Error('need at least 2 exercise rows, got ' + rows.length);
+  await rows[0].click();
+  await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
+  // collapse via the letter chip
+  await page.click('#s-training .lgx.open .lgltr');
+  if (await page.$('#s-training .lgx.open')) throw new Error('card did not collapse');
+  // open a different row — only ONE open card ever
+  const rows2 = await page.$$('#s-training .lgcrow');
+  await rows2[1].click();
+  await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
+  const openCount = await page.$$eval('#s-training .lgx.open', (els) => els.length);
+  if (openCount !== 1) throw new Error('open cards=' + openCount);
   const training = await page.$eval('.navlink[data-s="training"]', (el) => el.classList.contains('active'));
   if (!training) throw new Error('Training tab not highlighted while logging');
 });

@@ -462,6 +462,42 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .zonetime .ztlabs{display:flex;justify-content:space-between;margin-top:7px}
 .zonetime .ztl{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
 .zonetime .ztl i{width:8px;height:8px;border-radius:2px}
+/* ===== the logger accordion (Mock A skeleton) ===== */
+.lgsec{display:flex;align-items:baseline;gap:10px;margin:20px 2px 8px;font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.lgsec .lgss{font-size:9px;letter-spacing:.1em;color:var(--gold2);border:1px solid rgba(192,147,88,.4);border-radius:99px;padding:2px 8px;text-transform:uppercase}
+.lgsec .lgfmt{font-size:10px;letter-spacing:.04em;color:var(--dim);text-transform:none;font-weight:600}
+.lgx{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden;margin-top:8px}
+.lgx.donex{border-color:rgba(51,192,122,.3)}
+.lgcrow{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:0 12px;min-height:60px;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
+.lgltr{flex:0 0 auto;min-width:34px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--gold-wash);color:var(--gold2);font-size:12px;font-weight:850;border:0;font-family:inherit;cursor:pointer}
+.lgx.donex .lgltr{background:rgba(51,192,122,.12);color:#7fd6a6}
+.lgcn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.lgcn b{font-size:15.5px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgcn span{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgstat{flex:0 0 auto;font-size:12px;font-weight:800;color:var(--dim)}
+.lgstat.done{color:#7fd6a6}
+.lgstat.part{color:var(--gold2)}
+.lgcar{flex:0 0 auto;color:var(--dim);font-size:13px}
+.lgx.open{border-color:rgba(192,147,88,.4)}
+.lgtop{display:flex;align-items:center;gap:10px;padding:12px 12px 2px}
+.lgttl{flex:1;min-width:0;font-size:17px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lgmeta{flex:0 0 auto;font-size:11px;color:var(--dim);font-weight:700}
+.lghead{padding:8px 12px 0}
+.lgth{font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:center;padding:4px 0}
+.lgth:first-child{text-align:left;padding-left:2px}
+.lgrow{display:grid;gap:6px;align-items:center;padding:3px 12px}
+.lgno{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:9px;font-size:12.5px;font-weight:850;color:var(--muted);border:1px solid var(--line);background:var(--panel2)}
+.lgrow.done .lgno{background:rgba(51,192,122,.1);border-color:rgba(51,192,122,.5);color:#7fd6a6}
+.lgtgt{display:flex;align-items:center;justify-content:center;min-height:48px;font-size:12px;font-weight:750;color:var(--dim);text-align:center}
+.lgrow input{width:100%;min-width:0;min-height:48px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);text-align:center;font:inherit;font-size:15.5px;font-weight:750;outline:none}
+.lgrow input:focus{border-color:var(--gold)}
+.lgrow input::placeholder{color:var(--dim);font-weight:500}
+.lgrow.done input{border-color:rgba(51,192,122,.25)}
+.lgrow input.lgrpe{border-color:rgba(224,188,135,.3)}
+.lgtick{min-height:48px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--dim);font-size:15px;font-weight:800;font-family:inherit;cursor:pointer}
+.lgrow.done .lgtick{background:rgba(51,192,122,.12);border-color:rgba(51,192,122,.5);color:#7fd6a6}
+.lglast{display:flex;align-items:center;gap:6px;padding:10px 12px 12px;font-size:11.5px;color:var(--dim)}
+.lglast b{color:var(--muted);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* ===== session recap + exercise history ===== */
 .recaphead{text-align:center;margin-top:10px}
 .recaphead .big{font-size:44px;line-height:1}

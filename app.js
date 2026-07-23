@@ -493,27 +493,91 @@ function openSession(sessionId){CUR_SESSION=sessionId;go('training');}
 function curSession(){return DB.sessions.find(s=>s.id===CUR_SESSION)||null}
 function prettyDay(key){const p=String(key||'').split('-');if(p.length!==3)return key;const d=new Date(+p[0],+p[1]-1,+p[2]);return d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});}
 function prettyMeta(m){return esc(m).replace(/(RPE [^·]+)/g,'<i>$1</i>').replace(/(@[^ ·]+)/g,'<i>$1</i>')}
+/* ============ THE LOGGER (Mock A skeleton, on the real data model) ============
+   The session view IS the logger: every exercise is a collapsed row with its
+   live state; tapping one opens its per-set table in place (one open at a
+   time). Ticking a set autofills from last time, starts the rest ring, and
+   superset blocks flow C1→C2→C3 automatically. */
+function sessionLetters(s){
+  const out={};let li=0;
+  s.blocks.forEach((b,bi)=>{
+    if(isCond(b)){out[bi]=['♥'];return;}
+    if(b.superset){const L=String.fromCharCode(65+li++);out[bi]=blockExercises(b).map((_,ei)=>L+(ei+1));}
+    else out[bi]=blockExercises(b).map(()=>String.fromCharCode(65+li++));
+  });
+  return out;
+}
+function lgState(ex){const d=ex.sets.filter(st=>st.done).length,t=ex.sets.length;
+  return d===t&&t>0?'<span class="lgstat done">✓ done</span>':d>0?'<span class="lgstat part">'+d+'/'+t+'</span>':'<span class="lgstat">'+t+' set'+(t===1?'':'s')+'</span>';}
+function lgCols(mode){
+  if(mode==='reps_kg'||mode==='amrap')return{h:['Set','Target','KG','Reps','RPE','✓'],g:'36px 50px 1fr 1fr 52px 46px'};
+  if(mode==='reps_seconds')return{h:['Set','Target','Secs','Reps','RPE','✓'],g:'36px 50px 1fr 1fr 52px 46px'};
+  if(mode==='seconds')return{h:['Set','Target','Secs','RPE','✓'],g:'36px 56px 1fr 60px 46px'};
+  return{h:['Set','Target','Reps','RPE','✓'],g:'36px 56px 1fr 60px 46px'}; // reps
+}
+function lgTarget(ex,st){
+  if(ex.mode==='amrap')return 'max'+(st.rpe?' @'+st.rpe:'');
+  const t=st.t==='max'?'max':(st.t||'—');
+  return t+(st.rpe?' @'+st.rpe:'');
+}
+function lgOpenCard(s,b,ex,bi,ei,letter){
+  const cols=lgCols(ex.mode),last=lastTimeFor(ex.name);
+  CUR_REST=+ex.rest||0;
+  const head='<div class="lghead"><span class="thead-cols" style="display:grid;grid-template-columns:'+cols.g+';gap:6px">'+cols.h.map(c=>'<span class="lgth">'+c+'</span>').join('')+'</span></div>';
+  const rows=ex.sets.map((st,si)=>{
+    const kgPh=last&&last.sets[si]&&last.sets[si].aVal?esc(last.sets[si].aVal):'kg';
+    let cells='';
+    if(ex.mode==='reps_kg'||ex.mode==='amrap')
+      cells='<input inputmode="decimal" placeholder="'+kgPh+'" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="kg"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]" aria-label="reps">';
+    else if(ex.mode==='reps_seconds')
+      cells='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="seconds"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]" aria-label="reps">';
+    else if(ex.mode==='seconds')
+      cells='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="seconds">';
+    else
+      cells='<input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="reps">';
+    return '<div class="lgrow'+(st.done?' done':'')+'" style="grid-template-columns:'+cols.g+'">'+
+      '<div class="lgno">'+(si+1)+'</div>'+
+      '<div class="lgtgt">'+esc(lgTarget(ex,st))+'</div>'+cells+
+      '<input class="lgrpe" inputmode="decimal" placeholder="–" value="'+esc(st.felt)+'" data-input="setActual" data-args="['+si+',3,&quot;@value&quot;]" aria-label="RPE felt">'+
+      '<button class="lgtick" data-click="tickSet" data-args="['+si+']" aria-label="mark set done">'+(st.done?'✓':'○')+'</button></div>';
+  }).join('');
+  const meta=[(ex.tempo?'@'+esc(ex.tempo):''),(+ex.rest?'rest '+fmtRest(+ex.rest):'no rest')].filter(Boolean).join(' · ');
+  const lastLine=last?'<div class="lglast">Last time · <b>'+esc(last.sets.map(st=>(st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @'+st.felt:'')).filter(x=>x.trim()).join(' · '))+'</b>'+(isLiftMode(ex.mode)?'<button class="markall" style="margin-left:auto" data-click="openExHist" data-args="[&quot;'+esc(ex.name)+'&quot;]">history ›</button>':'')+'</div>':'';
+  return '<div class="lgx open" id="lgx'+bi+'-'+ei+'">'+
+    '<div class="lgtop"><button class="lgltr" data-click="openLogger" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button><span class="lgttl">'+esc(ex.name||'Exercise')+'</span><span class="lgmeta">'+meta+'</span></div>'+
+    head+rows+lastLine+
+    '</div>';
+}
 function renderSession(){
   const el=document.getElementById('s-training');const s=curSession();
   if(!s){el.innerHTML='<div class="kicker">Training</div><h1 style="font-size:24px">No workout yet</h1><p class="sub">Build a workout first — then it runs here.</p><button class="addbtn" style="margin-top:16px" data-click="go" data-args="[&quot;builder&quot;]">Open the Builder</button>';return}
-  const body=s.blocks.map((b,bi)=>{
-    if(isCond(b))return renderCondBlockRow(b,bi);
-    const head='<div class="sec-head"><h2>'+esc(b.heading||'Block')+'</h2>'+(b.minutes?'<span>'+esc(b.minutes)+' min</span>':'')+'</div>'+(b.format?'<div class="sec-format">'+esc(b.format)+'</div>':'');
-    const rows=b.exercises.map((ex,ei)=>{
+  const letters=sessionLetters(s);
+  let sdone=0,stot=0;
+  s.blocks.forEach(b=>{if(isCond(b)){stot++;if(b.condResult)sdone++;}else blockExercises(b).forEach(e=>{stot+=e.sets.length;sdone+=e.sets.filter(st=>st.done).length;});});
+  const spct=stot?Math.round(100*sdone/stot):0;
+  let body='';
+  s.blocks.forEach((b,bi)=>{
+    if(isCond(b)){body+=renderCondBlockRow(b,bi);return;}
+    if(b.heading)body+='<div class="lgsec">'+esc(b.heading)+(b.superset?'<span class="lgss">superset · flows on</span>':'')+(b.format?'<span class="lgfmt">'+esc(b.format)+'</span>':'')+'</div>';
+    blockExercises(b).forEach((ex,ei)=>{
+      const open=LOG_LOC&&LOG_LOC.bi===bi&&LOG_LOC.ei===ei&&ex.mode!=='completion';
+      if(open){body+=lgOpenCard(s,b,ex,bi,ei,letters[bi][ei]);return;}
       const done=ex.sets.length&&ex.sets.every(st=>st.done);
-      const open=(!b.superset&&ex.mode!=='completion');
-      const endcap=open?'<div class="chev" aria-hidden="true">›</div>':'<div class="st">✓</div>';
-      const act=open?'openLogger':'toggleCompletion';
-      return '<div class="card exrow '+(open?'nav':'')+(done?' done':'')+'" data-click="'+act+'" data-args="['+bi+','+ei+']"><div class="t"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></div>'+endcap+'</div>';
-    }).join('');
-    if(b.superset){
-      return '<div class="section">'+head+'<div class="superwrap"><div class="superlabel"><span>'+esc(b.format||'Superset')+'</span><button class="markall" data-click="markSuperset" data-args="['+bi+']">Mark round complete</button></div>'+rows+'</div></div>';
-    }
-    return '<div class="section">'+head+rows+'</div>';
-  }).join('');
+      if(ex.mode==='completion'){
+        body+='<div class="lgx'+(done?' donex':'')+'"><button class="lgcrow" data-click="toggleCompletion" data-args="['+bi+','+ei+']">'+
+          '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
+          (done?'<span class="lgstat done">✓ done</span>':'<span class="lgstat">tap ✓</span>')+'</button></div>';
+        return;
+      }
+      body+='<div class="lgx'+(done?' donex':'')+'"><button class="lgcrow" data-click="openLogger" data-args="['+bi+','+ei+']">'+
+        '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
+        lgState(ex)+'<span class="lgcar">›</span></button></div>';
+    });
+  });
   const allDone=sessionAllDone(s);
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 style="font-size:24px">'+esc(s.name||'Workout')+'</h1></div></div>'+
+    '<div class="logprog"><div class="lpbar"><span style="width:'+spct+'%"></span></div><div class="lptext">'+sdone+' of '+stot+' done<em>'+spct+'%</em></div></div>'+
     '<div id="sessBody">'+body+'</div>'+
     '<div class="completebar"><button class="bigbtn'+(allDone?' donestate':'')+'" data-click="finishSession" data-args="[&quot;@self&quot;]">'+(allDone?'Everything logged — finish ✓':'Mark session complete')+'</button></div>';
 }
@@ -688,19 +752,8 @@ function progTopLifts(){
   return '<div class="card chartcard" style="margin-top:14px"><div class="chart-head"><h2>Top lifts</h2><span class="csub">est 1RM · tap for history</span></div>'+inner+'</div>';
 }
 
-/* ---------- LOGGER (the mock's set-by-set screen) ---------- */
+/* ---------- LOGGER state + helpers (accordion lives in renderSession) ---------- */
 let CUR_REST=0,LOG_LOC=null;
-function loggerCols(mode){
-  if(mode==='reps_kg'||mode==='amrap')return['Set','KG','Reps','RPE felt',''];
-  if(mode==='reps_seconds')return['Set','Secs','Reps','RPE felt',''];
-  if(mode==='seconds')return['Set','Secs','RPE felt',''];
-  if(mode==='reps')return['Set','Reps','RPE felt',''];
-  return['Set','Done'];
-}
-function gridCols(mode){
-  return mode==='reps_kg'||mode==='amrap'||mode==='reps_seconds'?'34px 1fr 1fr 64px 40px'
-    :mode==='completion'?'34px 1fr':'34px 1fr 64px 40px';
-}
 function lastTimeFor(name){
   const done=DB.sessions.filter(s=>s.status==='completed'||s.status==='incomplete').sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
   for(const s of done){for(const b of s.blocks){for(const ex of blockExercises(b)){
@@ -710,9 +763,13 @@ function lastTimeFor(name){
     }}}}
   return null;
 }
+/* Toggle an exercise's inline table open/closed (one open at a time). */
 function openLogger(bi,ei){
   const s=curSession();if(!s)return;
-  LOG_LOC={bi,ei};go('logger');
+  LOG_LOC=(LOG_LOC&&LOG_LOC.bi===bi&&LOG_LOC.ei===ei)?null:{bi,ei};
+  if(CURRENT!=='training')go('training');else renderSession();
+  if(LOG_LOC){const c=document.getElementById('lgx'+bi+'-'+ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  updateWake();
 }
 function firstLoggable(s){
   for(let bi=0;bi<s.blocks.length;bi++){const b=s.blocks[bi];if(isCond(b))continue;for(let ei=0;ei<blockExercises(b).length;ei++){if(!b.superset&&b.exercises[ei].mode!=='completion')return{bi,ei};}}
@@ -731,69 +788,33 @@ function blockDone(b){return isCond(b)?!!b.condResult:(blockExercises(b).length>
 function sessionAllDone(s){
   return s.blocks.length>0&&s.blocks.every(blockDone);
 }
-function stepLogger(d){
-  const s=curSession();if(!s||!LOG_LOC)return;
-  const list=loggableList(s);
-  const idx=list.findIndex(l=>l.bi===LOG_LOC.bi&&l.ei===LOG_LOC.ei);
-  const j=idx+d;
-  if(j<0||j>=list.length)return;
-  LOG_LOC=list[j];renderLoggerScreen();window.scrollTo({top:0});
-}
-function renderLoggerScreen(){
-  const el=document.getElementById('s-logger');let s=curSession()||ensureSession();
-  if(s&&(!LOG_LOC||!s.blocks[LOG_LOC.bi]||!s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei]))LOG_LOC=firstLoggable(s);
-  if(!s||!LOG_LOC){el.innerHTML='<div class="kicker">Logger</div><h1 style="font-size:24px">Nothing to log yet</h1><p class="sub">Build a workout first — then log your sets here.</p><button class="addbtn" style="margin-top:16px" data-click="go" data-args="[&quot;builder&quot;]">Open the Builder</button>';return}
-  const b=s.blocks[LOG_LOC.bi],ex=b.exercises[LOG_LOC.ei];CUR_REST=+ex.rest||0;
-  const cols=loggerCols(ex.mode),grid=gridCols(ex.mode);
-  const last=lastTimeFor(ex.name);
-  const head='<div class="sethead" style="grid-template-columns:'+grid+'">'+cols.map(c=>'<span>'+c+'</span>').join('')+'</div>';
-  const rows=ex.sets.map((st,si)=>{
-    const numCell='<div class="n"><b>'+(si+1)+'</b></div>';
-    const kgPh=last&&last.sets[si]&&last.sets[si].aVal?esc(last.sets[si].aVal)+' last':'kg';
-    let mid='';
-    if(ex.mode==='reps_kg'||ex.mode==='amrap')mid='<input inputmode="decimal" placeholder="'+kgPh+'" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]">';
-    else if(ex.mode==='reps_seconds')mid='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]">';
-    else if(ex.mode==='seconds')mid='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]">';
-    else if(ex.mode==='reps')mid='<input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]">';
-    const rpeIn=ex.mode==='completion'?'':'<input class="rpein" inputmode="decimal" placeholder="felt" value="'+esc(st.felt)+'" data-input="setActual" data-args="['+si+',3,&quot;@value&quot;]">';
-    const tickBtn='<button class="tick" data-click="tickSet" data-args="['+si+']">✓</button>';
-    const bits=[];
-    if(ex.mode!=='completion'){
-      if(ex.mode==='amrap')bits.push('max reps');
-      else if(st.t==='max')bits.push((ex.mode==='seconds'||ex.mode==='reps_seconds')?'max secs':'max reps');
-      else if(st.t)bits.push((ex.mode==='seconds'||ex.mode==='reps_seconds')?esc(st.t)+'s':esc(st.t)+' reps');
-      if(st.rpe)bits.push('RPE '+esc(st.rpe));
-    }
-    const tline='<div class="settarget">Set '+(si+1)+(bits.length?' · target '+bits.join(' · '):(ex.mode==='completion'?' · mark complete':''))+'</div>';
-    return tline+'<div class="setrow'+(st.done?' done':'')+'" style="grid-template-columns:'+grid+'">'+numCell+mid+rpeIn+tickBtn+'</div>';
-  }).join('');
-  const restNote=CUR_REST?'Rest <i>'+fmtRest(CUR_REST)+' auto-starts on ✓</i>':'No prescribed rest';
-  const lastBox=last?'<div class="card lastbox"><b>Last time</b> ('+esc(prettyDay(last.date))+'): '+last.sets.map(st=>esc((st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @RPE '+st.felt:''))).join(' · ')+'</div>':'';
-  const list=loggableList(s),idx=list.findIndex(l=>l.bi===LOG_LOC.bi&&l.ei===LOG_LOC.ei),total=list.length;
-  const kicker=esc(b.heading)+(idx>=0?' · exercise '+(idx+1)+' of '+total:' · set targets');
-  const doneHere=exFinished(ex);
-  let flow='';
-  if(doneHere&&idx>=0&&idx<total-1){
-    const nx=s.blocks[list[idx+1].bi].exercises[list[idx+1].ei];
-    flow+='<button class="addbtn" data-click="stepLogger" data-args="[1]">Next exercise: '+esc(nx.name||'Exercise')+' →</button>';
-  }
-  const sessionDone=sessionAllDone(s);
-  if(sessionDone)flow+='<div class="completebar" style="margin-top:16px"><button class="bigbtn" data-click="finishSession" data-args="[&quot;@self&quot;]">Everything logged — mark session complete</button></div>';
-  const stepNav=(idx>=0&&total>1)?'<div class="histnav">'+
-    (idx>0?'<button class="markall" data-click="stepLogger" data-args="[-1]">‹ Previous</button>':'<span></span>')+
-    (idx<total-1?'<button class="markall" data-click="stepLogger" data-args="[1]">Next ›</button>':'<span></span>')+'</div>':'';
-  let sdone=0,stot=0;s.blocks.forEach(b=>{if(isCond(b)){stot++;if(b.condResult)sdone++;}else blockExercises(b).forEach(e=>{stot++;if(exFinished(e))sdone++;});});
-  const spct=stot?Math.round(100*sdone/stot):0;
-  const progStrip='<div class="logprog"><div class="lpbar"><span style="width:'+spct+'%"></span></div><div class="lptext">'+sdone+' of '+stot+' done<em>'+spct+'%</em></div></div>';
-  el.innerHTML=
-    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+kicker+'</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
-    progStrip+
-    '<div class="card setcard">'+head+(rows||'<div class="lastbox" style="margin-top:0">No sets.</div>')+'</div>'+
-    flow+stepNav+lastBox+
-    '<div class="card guidebar"><b>Why "RPE felt" matters:</b> target vs. actual RPE per set is data most apps throw away. Paired with the WHOOP recovery you sync, it powers a readiness picture no off-the-shelf app has.</div>';
-}
+/* Legacy step-through logger retired — the accordion in renderSession replaced
+   it. renderLoggerScreen kept as a alias so any stale go('logger') lands right. */
+function renderLoggerScreen(){renderSession();}
 function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];if(slot===1)st.aVal=val;else if(slot===2)st.aVal2=val;else if(slot===3)st.felt=val;save();}
-function tickSet(si){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];st.done=!st.done;save();renderLoggerScreen();if(st.done&&CUR_REST>0)startRest(CUR_REST);}
+function tickSet(si){
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const b=s.blocks[LOG_LOC.bi],ex=b.exercises[LOG_LOC.ei],st=ex.sets[si];
+  st.done=!st.done;
+  if(st.done){
+    // tick with blanks = "as prescribed": fill from last time + the target
+    if(ex.mode==='reps_kg'||ex.mode==='amrap'){
+      if(!st.aVal){const last=lastTimeFor(ex.name);st.aVal=(last&&last.sets[si]&&last.sets[si].aVal)||(last&&last.sets[0]&&last.sets[0].aVal)||'';}
+      if(!st.aVal2&&st.t&&st.t!=='max')st.aVal2=st.t;
+    }else if(!st.aVal&&st.t&&st.t!=='max'){st.aVal=st.t;}
+  }
+  save();
+  if(st.done&&CUR_REST>0)startRest(CUR_REST);
+  // superset flow: finishing an exercise inside a superset block opens the next
+  if(st.done&&exFinished(ex)){
+    if(b.superset){
+      const nxt=b.exercises.findIndex((e2,j)=>j!==LOG_LOC.ei&&!exFinished(e2));
+      LOG_LOC=nxt>=0?{bi:LOG_LOC.bi,ei:nxt}:null;
+    }else LOG_LOC=null;
+  }
+  renderSession();
+  if(LOG_LOC){const c=document.getElementById('lgx'+LOG_LOC.bi+'-'+LOG_LOC.ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
+}
 
 /* ---------- rest timer: auto-starts on ✓, survives reload, vibrates at zero ---------- */
 const REST_KEY=LS_KEY+'-rest-ends',REST_TOT_KEY=LS_KEY+'-rest-total';
