@@ -311,6 +311,58 @@ await t('Calendar: month grid, schedule a future day, planned dot shows', async 
   if (stillPlanned) throw new Error('unschedule did not remove the date');
   await page.evaluate(() => go('home'));
 });
+await t('scheduling: one-off-today CTA starts the session (not the builder)', async () => {
+  await page.evaluate(() => {
+    const today = ymd(new Date());
+    DB.sessions = DB.sessions.filter((s) => s.status !== 'active');
+    DB.workouts = [{ id: uid(), name: 'One-off today', days: [], dates: [today],
+      blocks: [{ id: uid(), heading: 'Main', superset: false, exercises: [{ id: uid(), name: 'Row', mode: 'reps_kg', rest: 60, sets: [{ t: '5', rpe: '8' }] }] }] }];
+    CUR_SESSION = null; save(); go('home');
+  });
+  await page.click('#s-home .homecta');
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  const started = await page.evaluate(() => { const s = curSession(); return !!(s && s.status === 'active' && s.name === 'One-off today'); });
+  if (!started) throw new Error('one-off-today CTA did not start the session');
+});
+await t('scheduling: a future-dated Create Session does NOT start a today session', async () => {
+  const res = await page.evaluate(() => {
+    DB.sessions = DB.sessions.filter((s) => s.status !== 'active'); CUR_SESSION = null; save();
+    const fut = new Date(); fut.setDate(fut.getDate() + 6); const key = ymd(fut);
+    SCHED_DATE = key; createKind('strength');           // builds a blank workout dated in the future, opens builder
+    WK.name = 'Next week lower'; WK.blocks[0].exercises[0].name = 'Squat';
+    previewWorkout();                                    // "See how it looks"
+    const active = DB.sessions.filter((s) => s.status === 'active').length;
+    const saved = DB.workouts.find((w) => w.name === 'Next week lower');
+    return { screen: CURRENT, active, scheduled: !!(saved && (saved.dates || []).includes(key)) };
+  });
+  if (res.active !== 0) throw new Error('future Create Session wrongly started a today session');
+  if (!res.scheduled) throw new Error('future session not saved with its date');
+  if (res.screen !== 'calendar') throw new Error('did not land on the calendar; screen=' + res.screen);
+});
+await t('scheduling: cancelling the add sheet clears the pending date', async () => {
+  const leaked = await page.evaluate(() => {
+    const fut = new Date(); fut.setDate(fut.getDate() + 4);
+    SCHED_DATE = ymd(fut); openAddSheet(); closeSheet();
+    return SCHED_DATE;
+  });
+  if (leaked !== null) throw new Error('SCHED_DATE leaked after cancel: ' + leaked);
+  // restore the standard seeded session so the Library/logger tests below have data
+  await page.evaluate(() => {
+    const today = ymd(new Date());
+    DB.sessions = []; CUR_SESSION = null;
+    DB.workouts = [{ id: uid(), name: '', days: [], dates: [today], blocks: [
+      { id: uid(), heading: 'Warm-up', minutes: '8', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'seconds', tempo: '', rest: 0, sets: [{ t: '120', rpe: '' }] }] },
+      { id: uid(), heading: 'Warm-up prep', minutes: '', format: 'Superset · 3 rounds', superset: true, exercises: [
+        { id: uid(), name: '', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '15', rpe: '' }] },
+        { id: uid(), name: '', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '10', rpe: '' }] }] },
+      { id: uid(), heading: 'Strength 1', minutes: '15', format: '4 working sets · straight sets', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 180, sets: [{ t: '12', rpe: '7' }, { t: '10', rpe: '8' }, { t: '8', rpe: '9' }, { t: '8', rpe: '10' }] }] },
+      { id: uid(), heading: 'Strength 2', minutes: '12', format: 'Every 2:30 × 4 sets', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 150, sets: [{ t: '10', rpe: '7' }, { t: '10', rpe: '8' }, { t: '10', rpe: '8' }, { t: '10', rpe: '8' }] }] },
+      { id: uid(), heading: 'Carry finisher', minutes: '8', format: '3 rounds', superset: false, exercises: [{ id: uid(), name: '', mode: 'seconds', tempo: '', rest: 90, sets: [{ t: '40', rpe: '8' }, { t: '40', rpe: '8' }, { t: '40', rpe: '9' }] }] },
+      { id: uid(), heading: 'Cooldown', minutes: '5', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'completion', tempo: '', rest: 0, sets: [{ t: '', rpe: '' }] }] }
+    ] }];
+    save(); go('home');
+  });
+});
 await t('Library: LIBRARY screen with Sessions/Conditioning/Progress tabs + Create card', async () => {
   await page.click('.navlink[data-s="library"]');
   await page.waitForSelector('#s-library.on', { timeout: 2000 });

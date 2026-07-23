@@ -192,14 +192,16 @@ function renderCalendar(){
 function calDay(key){
   const todayKey=ymd(new Date());
   const trained=DB.sessions.filter(s=>s.date===key&&s.status!=='active');
-  const planned=DB.workouts.filter(w=>plannedOn(w,key));
+  // only today-or-future days can have something "planned" (matches the grid dot)
+  const planned=key>=todayKey?DB.workouts.filter(w=>plannedOn(w,key)):[];
   let h='<div class="grab"></div><h3>'+esc(prettyDay(key))+'</h3>';
   if(planned.length){
     h+='<p class="ssub">Planned</p>';
     planned.forEach(w=>{
       const canStart=key===todayKey,oneOff=(w.dates||[]).includes(key);
-      h+='<div class="bigopt" style="cursor:default"><span class="oi">'+(isCondWorkout(w)?'❤️':'🏋️')+'</span><div style="flex:1;min-width:0"><b>'+esc(w.name||'Untitled session')+'</b><span>'+esc(tplSummary(w))+'</span></div>'+
-        (canStart?'<button class="tpadd" data-click="calStart" data-args="[&quot;'+esc(w.id)+'&quot;]">Start</button>':oneOff?'<button class="tpmenu" aria-label="Unschedule" title="Remove from this day" data-click="calUnschedule" data-args="[&quot;'+esc(w.id)+'&quot;,&quot;'+key+'&quot;]">✕</button>':'')+'</div>';
+      let action=canStart?'<button class="tpadd" data-click="calStart" data-args="[&quot;'+esc(w.id)+'&quot;]">Start</button>':'';
+      if(oneOff)action+='<button class="tpmenu" aria-label="Unschedule" title="Remove from this day" data-click="calUnschedule" data-args="[&quot;'+esc(w.id)+'&quot;,&quot;'+key+'&quot;]">✕</button>';
+      h+='<div class="bigopt" style="cursor:default"><span class="oi">'+(isCondWorkout(w)?'❤️':'🏋️')+'</span><div style="flex:1;min-width:0"><b>'+esc(w.name||'Untitled session')+'</b><span>'+esc(tplSummary(w))+'</span></div>'+action+'</div>';
     });
   }
   if(trained.length){
@@ -214,7 +216,7 @@ function calDay(key){
 function calStart(id){closeSheet();startWorkout(id);}
 function calUnschedule(id,key){const w=DB.workouts.find(x=>x.id===id);if(w){w.dates=(w.dates||[]).filter(k=>k!==key);save();}closeSheet();renderCalendar();}
 function calHist(key){closeSheet();openHistory(key);}
-function calAdd(key){SCHED_DATE=key;closeSheet();openAddSheet();}
+function calAdd(key){closeSheet();SCHED_DATE=key;openAddSheet();}
 
 /* ---------- HISTORY (tap any week-strip day) ---------- */
 let HIST_DATE=null;
@@ -368,8 +370,9 @@ function todayZonesCardHtml(){
 function startToday(){
   const act=activeSession();
   if(act){CUR_SESSION=act.id;go('training');return;}
-  const w=DB.workouts.find(x=>(x.days||[]).includes(new Date().getDay()));
-  if(w)startWorkout(w.id);else go('builder');
+  const key=ymd(new Date());
+  const w=DB.workouts.find(x=>plannedOn(x,key));   // recurring OR one-off scheduled for today
+  if(w)startWorkout(w.id);else openAddSheet();
 }
 /* Morpheus weekly zone banking on Home — only once you've trained a zone this week */
 function homeZoneWeekHtml(){
@@ -566,6 +569,17 @@ function previewWorkout(){
     s.blocks=freshSessionBlocks(clean.blocks);
   }
   save();
+  // Scheduled for a future day only (no recurring weekday, no date today)? Save it
+  // to the Calendar instead of starting a live session today.
+  const todayKey=ymd(new Date());
+  const futureOnly=!s&&Array.isArray(clean.dates)&&clean.dates.length&&!clean.dates.includes(todayKey)&&
+    !((clean.days||[]).includes(new Date().getDay()))&&clean.dates.every(k=>k>todayKey);
+  if(futureOnly){
+    LOG_LOC=null;
+    toast((clean.name||'Session')+' saved for '+prettyDay(clean.dates.slice().sort()[0]));
+    go('calendar');
+    return;
+  }
   if(s)CUR_SESSION=s.id;else{CUR_SESSION=null;const w=DB.workouts.find(x=>x.id===WK.id);if(w){const ns={id:uid(),workoutId:w.id,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),blocks:freshSessionBlocks(w.blocks)};DB.sessions.push(ns);CUR_SESSION=ns.id;save();}}
   LOG_LOC=null;
   go('training');
@@ -810,11 +824,12 @@ function renderRecap(){
 function recapDone(){RECAP=null;go('home');}
 /* ---- per-exercise history ---- */
 let EXH_NAME='';
-function openExHist(name){EXH_NAME=String(name||'');go('exhist');}
+let EXH_BACK='progress';
+function openExHist(name){EXH_NAME=String(name||'');EXH_BACK=(CURRENT==='history'||CURRENT==='recap')?CURRENT:'progress';go('exhist');}
 function renderExHist(){
   const el=document.getElementById('s-exhist');if(!el)return;
   const hist=exLogFor(EXH_NAME);
-  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;progress&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Exercise history</div><h1 style="font-size:24px">'+esc(EXH_NAME||'Exercise')+'</h1></div></div>';
+  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;'+esc(EXH_BACK)+'&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Exercise history</div><h1 style="font-size:24px">'+esc(EXH_NAME||'Exercise')+'</h1></div></div>';
   if(!hist.length){
     el.innerHTML=h+'<div class="card empty" style="margin-top:16px"><h3>No lifts logged yet</h3><p>Log kg × reps for this movement and its story builds here — best set, estimated 1RM trend, every session.</p></div>';return;
   }
@@ -987,7 +1002,7 @@ function libTabStrip(active){
 }
 function libGo(tab){
   LIB_TAB=tab;
-  if(tab==='conditioning'){ if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';} go('conditioning'); }
+  if(tab==='conditioning'){ if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';CON.view='setup';} go('conditioning'); }
   else if(tab==='progress'){ go('progress'); }
   else { go('library'); }
 }
@@ -1068,7 +1083,10 @@ function createTemplateKind(kind){closeSheet();newScheduledWorkout(kind,null);}
 
 /* ---------- bottom sheet + Home add flow ---------- */
 function openSheet(html){const el=document.getElementById('sheet');if(!el)return;el.innerHTML='<div class="sheet-scrim" data-click="closeSheet"></div><div class="sheet">'+html+'</div>';el.hidden=false;}
-function closeSheet(){const el=document.getElementById('sheet');if(!el)return;el.hidden=true;el.innerHTML='';}
+/* Dismissing a sheet drops any pending schedule target so it can't leak onto a
+   later Library "Add". Flows that intentionally carry SCHED_DATE forward
+   (Add From Library) re-set it right after closing. */
+function closeSheet(){const el=document.getElementById('sheet');if(el){el.hidden=true;el.innerHTML='';}SCHED_DATE=null;}
 function toast(msg){
   let el=document.getElementById('toast');
   if(!el){el=document.createElement('div');el.id='toast';el.className='toast';document.body.appendChild(el);}
@@ -1091,8 +1109,8 @@ function sheetCreateSession(){
     '<button class="bigopt" data-click="createKind" data-args="[&quot;conditioning&quot;]"><span class="oi">❤️</span><div><b>Conditioning session</b><span>Live heart-rate zone work</span></div></button>'+
     '<button class="cancel" data-click="closeSheet">Cancel</button>');
 }
-function createKind(kind){const date=SCHED_DATE||ymd(new Date());SCHED_DATE=null;closeSheet();newScheduledWorkout(kind,date);}
-function sheetAddFromLibrary(){closeSheet();LIB_TAB='sessions';go('library');}
+function createKind(kind){const date=SCHED_DATE||ymd(new Date());closeSheet();newScheduledWorkout(kind,date);}
+function sheetAddFromLibrary(){const d=SCHED_DATE;closeSheet();SCHED_DATE=d;LIB_TAB='sessions';go('library');}
 /* fresh blank session of the chosen kind, optionally scheduled on a date */
 function newScheduledWorkout(kind,date){
   const dates=date?[date]:[];
@@ -2069,7 +2087,7 @@ function conDone(){
 }
 /* The Conditioning nav tab and Home shortcut always mean a standalone session —
    reset the sink unless a session run is mid-flight (don't hijack it). */
-function conNav(btn){if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';}go('conditioning',btn);}
+function conNav(btn){if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';CON.view='setup';}go('conditioning',btn);}
 
 /* --- SVG helpers --- */
 function conArc(cx,cy,r,a0,a1){
