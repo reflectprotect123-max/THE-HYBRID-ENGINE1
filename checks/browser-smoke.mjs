@@ -141,15 +141,48 @@ await t('rest chip tap-to-stop clears persistence', async () => {
   const stored = await page.evaluate(() => localStorage.getItem('hybrid-engine-v1-rest-ends'));
   if (stored) throw new Error('rest key not cleared');
 });
-await t('finish session → history recorded, readiness stays hidden', async () => {
+await t('finish session → recap shows, Done → home, history recorded', async () => {
   await page.click('#s-home .sessioncard, .navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
   await page.click('#s-training .completebar .bigbtn');
-  await page.waitForSelector('#s-home.on', { timeout: 4000 });
+  await page.waitForSelector('#s-recap.on', { timeout: 4000 });
+  const recap = await page.textContent('#s-recap');
+  if (!/Session complete/.test(recap)) throw new Error('recap missing header');
+  if (!/kg volume/.test(recap) || !/sets done/.test(recap)) throw new Error('recap missing stats');
+  await page.click('#s-recap .completebar .bigbtn');
+  await page.waitForSelector('#s-home.on', { timeout: 2000 });
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
   if (!saved.sessions.some((s) => s.status === 'completed')) throw new Error('no completed session');
   if (!(await page.$('#s-home .wd.has'))) throw new Error('week strip lacks .has');
   if (await page.$('#readinessCard')) throw new Error('readiness visible without tapping the WHOOP card');
+});
+await t('PR engine: epley math, detection on finish, exercise history + top lifts', async () => {
+  const r = await page.evaluate(() => {
+    const out = {};
+    // seed one past session with a 100x5 best (e1 ~116.7)
+    const past = { id: uid(), workoutId: 'x', name: 'Seed', date: ymd(new Date(Date.now() - 3 * 864e5)), status: 'completed',
+      completedAt: Date.now() - 3 * 864e5, startedAt: Date.now() - 3 * 864e5 - 3600e3,
+      blocks: [{ id: uid(), heading: 'Main', exercises: [{ id: uid(), name: 'Test squat', mode: 'reps_kg', rest: 90,
+        sets: [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true }] }] }] };
+    DB.sessions.push(past); save();
+    out.epley = Math.round(epley(100, 5) * 10) / 10;
+    out.best = exBest('Test squat') ? Math.round(exBest('Test squat').e1 * 10) / 10 : null;
+    // a finishing session that beats it: 105x5 (e1 ~122.5)
+    const s = { id: uid(), workoutId: 'x', name: 'Now', date: ymd(new Date()), status: 'active', startedAt: Date.now(),
+      blocks: [{ id: uid(), heading: 'Main', exercises: [{ id: uid(), name: 'Test squat', mode: 'reps_kg', rest: 90,
+        sets: [{ t: '5', rpe: '8', aVal: '105', aVal2: '5', felt: '9', done: true }] }] }] };
+    const prs = detectPRs(s);
+    out.prCount = prs.length; out.prName = prs[0] && prs[0].name;
+    out.hist = exLogFor('Test squat').length;
+    out.topLifts = progTopLifts().includes('Test squat');
+    DB.sessions = DB.sessions.filter(x => x.name !== 'Seed'); save();
+    return out;
+  });
+  if (r.epley !== 116.7) throw new Error('epley wrong: ' + r.epley);
+  if (r.best !== 116.7) throw new Error('exBest wrong: ' + r.best);
+  if (r.prCount !== 1 || r.prName !== 'Test squat') throw new Error('PR not detected: ' + JSON.stringify(r));
+  if (r.hist < 1) throw new Error('exLogFor empty');
+  if (!r.topLifts) throw new Error('top lifts card missing the movement');
 });
 await t('tapping the WHOOP card reveals readiness; tapping again hides it', async () => {
   await page.click('#whoopCard');

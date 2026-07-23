@@ -462,6 +462,30 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .zonetime .ztlabs{display:flex;justify-content:space-between;margin-top:7px}
 .zonetime .ztl{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
 .zonetime .ztl i{width:8px;height:8px;border-radius:2px}
+/* ===== session recap + exercise history ===== */
+.recaphead{text-align:center;margin-top:10px}
+.recaphead .big{font-size:44px;line-height:1}
+.recaphead h1{font-size:26px;font-weight:850;letter-spacing:-.02em;margin-top:8px}
+.recaphead p{color:var(--muted);font-size:13px;margin-top:4px}
+.prcard{display:flex;align-items:center;gap:12px;margin-top:10px;padding:13px 15px;border:1px solid rgba(224,188,135,.45);border-radius:14px;background:linear-gradient(165deg,rgba(192,147,88,.14),rgba(192,147,88,.05));cursor:pointer}
+.prcard .tro{font-size:22px;flex:0 0 auto}
+.prcard .t{flex:1;min-width:0}
+.prcard .t b{display:block;font-size:14.5px;font-weight:800}
+.prcard .t span{font-size:12px;color:var(--gold2);font-variant-numeric:tabular-nums}
+.prcard .chev{color:var(--dim)}
+.rpegap{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);font-size:12.5px;color:var(--muted);line-height:1.5}
+.rpegap b{color:var(--text)}
+.exh-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px}
+.exh-list{margin-top:14px}
+.exh-row{display:flex;align-items:baseline;gap:10px;padding:11px 2px;border-bottom:1px solid var(--hair);font-size:13px}
+.exh-row .d{color:var(--dim);font-size:11.5px;width:74px;flex:0 0 auto}
+.exh-row .s{flex:1;color:var(--muted);font-variant-numeric:tabular-nums}
+.exh-row .e{color:var(--gold2);font-weight:800;font-variant-numeric:tabular-nums}
+.exh-row.pr .e::after{content:" 🏆";font-size:11px}
+.toplift{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--hair);cursor:pointer}
+.toplift b{flex:1;font-size:14px;font-weight:750}
+.toplift .v{color:var(--gold2);font-weight:800;font-variant-numeric:tabular-nums;font-size:13.5px}
+.toplift .chev{color:var(--dim);font-size:12px}
 .logprog{margin:2px 0 16px}
 .logprog .lpbar{height:6px;border-radius:99px;background:rgba(255,255,255,.06);overflow:hidden}
 .logprog .lpbar span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .35s ease}
@@ -606,6 +630,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     <section class="screen" id="s-progress"></section>
     <section class="screen" id="s-conditioning"></section>
     <section class="screen" id="s-import"></section>
+    <section class="screen" id="s-recap"></section>
+    <section class="screen" id="s-exhist"></section>
   </main>
 </div>
 

@@ -96,7 +96,7 @@ function go(id,btn){
   if(scr){scr.classList.add('on');scr.classList.remove('anim');void scr.offsetWidth;scr.classList.add('anim');}
   document.querySelectorAll('.navlink').forEach(b=>b.classList.remove('active'));
   // The logger is a detail view of Training — keep Training lit while logging.
-  const navId=id==='logger'?'training':id;
+  const navId=id==='logger'||id==='recap'?'training':id==='exhist'?'progress':id;
   const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
   if(navBtn)navBtn.classList.add('active');
   renderScreen(id);
@@ -124,6 +124,8 @@ function renderScreen(id){
   else if(id==='progress')renderProgress();
   else if(id==='conditioning')renderConditioning();
   else if(id==='import')renderImport();
+  else if(id==='recap')renderRecap();
+  else if(id==='exhist')renderExHist();
 }
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
@@ -173,7 +175,8 @@ function renderHistory(){
         const logged=ex.sets.filter(st=>st.done||st.aVal||st.aVal2||st.felt);
         const allDone=ex.sets.length&&ex.sets.every(st=>st.done);
         const sum=logged.length?logged.map(st=>loggedSetSummary(ex,st)).join(' · '):'—';
-        body+='<div class="card exrow plain'+(allDone?' done':'')+'"><div class="t"><b>'+esc(ex.name||'Exercise')+'</b><span>'+esc(b.heading)+' · '+esc(sum)+'</span></div><div class="st">✓</div></div>';
+        const lift=isLiftMode(ex.mode)&&ex.name;
+        body+='<div class="card exrow plain'+(allDone?' done':'')+(lift?' nav':'')+'"'+(lift?' style="cursor:pointer" data-click="openExHist" data-args="[&quot;'+esc(ex.name)+'&quot;]"':'')+'><div class="t"><b>'+esc(ex.name||'Exercise')+'</b><span>'+esc(b.heading)+' · '+esc(sum)+'</span></div><div class="'+(lift?'chev':'st')+'">'+(lift?'›':'✓')+'</div></div>';
       });
     });
     body+='</div>';
@@ -543,12 +546,146 @@ function toggleCompletion(bi,ei){const s=curSession();if(!s)return;const ex=s.bl
 function markSuperset(bi){const s=curSession();if(!s)return;s.blocks[bi].exercises.forEach(ex=>ex.sets.forEach(st=>st.done=true));save();renderSession();}
 function finishSession(btn){
   const s=curSession();if(!s)return;
+  const prs=detectPRs(s);
   s.status='completed';s.completedAt=Date.now();s.date=ymd(new Date());
   CUR_SESSION=null;LOG_LOC=null;
   save();
-  btn.textContent='Completed ✓';btn.classList.add('donestate');
+  RECAP=buildRecap(s,prs);
+  if(btn&&btn.textContent!==undefined){btn.textContent='Completed ✓';btn.classList.add('donestate');}
   confetti();
-  setTimeout(()=>go('home'),1400);
+  setTimeout(()=>go('recap'),650);
+}
+
+/* ============================================================
+   THE APP REMEMBERS — e1RM engine, per-exercise history, PRs,
+   and the session-complete recap.
+   ============================================================ */
+function epley(kg,reps){kg=+kg;reps=+reps;if(!(kg>0)||!(reps>0))return null;return reps===1?kg:kg*(1+reps/30);}
+function isLiftMode(m){return m==='reps_kg'||m==='amrap';}
+/* All logged history for one exercise name (lift modes), oldest→newest. */
+function exLogFor(name){
+  const key=String(name||'').trim().toLowerCase();if(!key)return[];
+  const out=[];
+  DB.sessions.filter(s=>s.status!=='active'&&s.completedAt)
+    .sort((a,b)=>(a.completedAt||0)-(b.completedAt||0))
+    .forEach(s=>{
+      const sets=[];
+      s.blocks.forEach(b=>blockExercises(b).forEach(e=>{
+        if(!isLiftMode(e.mode)||String(e.name||'').trim().toLowerCase()!==key)return;
+        e.sets.forEach(st=>{const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null)sets.push({kg:+st.aVal,reps:+st.aVal2,felt:st.felt||'',e1});});
+      }));
+      if(sets.length){const best=sets.reduce((m,x)=>x.e1>m.e1?x:m,sets[0]);out.push({sid:s.id,date:s.date,at:s.completedAt,sets,best});}
+    });
+  return out;
+}
+function exBest(name,excludeSid){
+  let best=null;
+  exLogFor(name).forEach(h=>{if(h.sid===excludeSid)return;if(!best||h.best.e1>best.e1)best=Object.assign({date:h.date},h.best);});
+  return best;
+}
+/* PRs for a finishing session: any lift whose best set beats all history. */
+function detectPRs(s){
+  const prs=[];const seen=new Set();
+  s.blocks.forEach(b=>blockExercises(b).forEach(e=>{
+    if(!isLiftMode(e.mode))return;
+    const key=String(e.name||'').trim().toLowerCase();if(!key||seen.has(key))return;seen.add(key);
+    let best=null;
+    e.sets.forEach(st=>{const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null&&(!best||e1>best.e1))best={kg:+st.aVal,reps:+st.aVal2,e1};});
+    if(!best)return;
+    const prev=exBest(e.name,s.id);
+    if(!prev||best.e1>prev.e1+0.01)prs.push({name:e.name,kg:best.kg,reps:best.reps,e1:best.e1,prevE1:prev?prev.e1:null});
+  }));
+  return prs;
+}
+/* ---- recap ---- */
+let RECAP=null;
+function buildRecap(s,prs){
+  const vol=sessionVolume(s),rpe=sessionRpe(s);
+  let done=0,tot=0;
+  s.blocks.forEach(b=>{if(isCond(b)){tot++;if(b.condResult)done++;}else blockExercises(b).forEach(e=>{tot+=e.sets.length;done+=e.sets.filter(st=>st.done).length;});});
+  const cond=s.blocks.filter(b=>isCond(b)&&b.condResult).map(b=>b.condResult);
+  const dur=s.completedAt&&s.startedAt?Math.round((s.completedAt-s.startedAt)/60000):null;
+  return{name:s.name||'Workout',date:s.date,vol,rpe,done,tot,prs:prs||[],cond,dur};
+}
+function renderRecap(){
+  const el=document.getElementById('s-recap');if(!el)return;
+  const r=RECAP;
+  if(!r){el.innerHTML='<div class="kicker">Session</div><h1 style="font-size:24px">Nothing just finished</h1><p class="sub">Finish a session and its story lands here.</p><button class="addbtn" style="margin-top:16px" data-click="go" data-args="[&quot;home&quot;]">Home</button>';return;}
+  let h='<div class="recaphead"><div class="big">💪</div><h1>Session complete</h1><p>'+esc(r.name)+' · '+esc(prettyDay(r.date))+(r.dur?' · '+r.dur+' min':'')+'</p></div>';
+  h+='<div class="stats" style="margin-top:18px">'+
+    '<div class="stat"><b>'+fmtK(r.vol)+'</b><span>kg volume</span></div>'+
+    '<div class="stat"><b>'+r.done+'/'+r.tot+'</b><span>sets done</span></div>'+
+    '<div class="stat"><b>'+(r.rpe.felt!=null?(Math.round(r.rpe.felt*10)/10):'—')+'</b><span>avg felt RPE</span></div></div>';
+  if(r.prs.length){
+    h+='<div class="sec-head" style="margin-top:20px"><h2>Records</h2><span>'+r.prs.length+' new</span></div>';
+    r.prs.forEach(p=>{
+      const delta=p.prevE1!=null?' · +'+(Math.round((p.e1-p.prevE1)*10)/10)+' on your best':' · first benchmark';
+      h+='<div class="prcard" data-click="openExHist" data-args="[&quot;'+esc(p.name)+'&quot;]"><span class="tro">🏆</span><div class="t"><b>'+esc(p.name)+'</b><span>'+p.kg+'kg × '+p.reps+' · est 1RM '+(Math.round(p.e1*10)/10)+'kg'+delta+'</span></div><span class="chev">›</span></div>';
+    });
+  }
+  if(r.rpe.target!=null&&r.rpe.felt!=null){
+    const gap=Math.round((r.rpe.felt-r.rpe.target)*10)/10;
+    const msg=gap>0.7?'Felt harder than planned — worth an easier day soon.':gap<-0.7?'Felt easier than planned — room to push next time.':'Right on plan.';
+    h+='<div class="rpegap"><b>Planned '+(Math.round(r.rpe.target*10)/10)+' → felt '+(Math.round(r.rpe.felt*10)/10)+'.</b> '+msg+'</div>';
+  }
+  r.cond.forEach(c=>{
+    const total=(c.zsec&&((c.zsec.low||0)+(c.zsec.mod||0)+(c.zsec.high||0)))||0;
+    h+='<div class="card" style="margin-top:14px;padding:15px"><div class="donutwrap"><div class="dcell"><svg viewBox="0 0 120 120">'+conDonutSvg(c.zsec||{},total)+'</svg><div class="dctxt"><div><b>'+conMmss(c.dur)+'</b><span>engine</span></div></div></div><div class="zlist">';
+    conZones().list.forEach(zz=>{h+='<div class="zi"><i style="background:'+zz.color+'"></i><span class="n">'+zz.name+'</span><span class="t">'+conMmss((c.zsec&&c.zsec[zz.key])||0)+'</span></div>';});
+    h+='</div></div></div>';
+  });
+  h+='<div class="completebar"><button class="bigbtn" data-click="recapDone">Done</button></div>';
+  el.innerHTML=h;
+}
+function recapDone(){RECAP=null;go('home');}
+/* ---- per-exercise history ---- */
+let EXH_NAME='';
+function openExHist(name){EXH_NAME=String(name||'');go('exhist');}
+function renderExHist(){
+  const el=document.getElementById('s-exhist');if(!el)return;
+  const hist=exLogFor(EXH_NAME);
+  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;progress&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Exercise history</div><h1 style="font-size:24px">'+esc(EXH_NAME||'Exercise')+'</h1></div></div>';
+  if(!hist.length){
+    el.innerHTML=h+'<div class="card empty" style="margin-top:16px"><h3>No lifts logged yet</h3><p>Log kg × reps for this movement and its story builds here — best set, estimated 1RM trend, every session.</p></div>';return;
+  }
+  const best=hist.reduce((m,x)=>x.best.e1>m.best.e1?x:m,hist[0]);
+  h+='<div class="exh-tiles">'+
+    '<div class="stat"><b>'+best.best.kg+'×'+best.best.reps+'</b><span>best set</span></div>'+
+    '<div class="stat"><b>'+(Math.round(best.best.e1*10)/10)+'</b><span>est 1RM kg</span></div>'+
+    '<div class="stat"><b>'+hist.length+'</b><span>sessions</span></div></div>';
+  const rows=hist.slice(-12);
+  if(rows.length>=2){
+    const xl=rows.map(x=>{const p=String(x.date).split('-');return (+p[1])+'/'+(+p[2]);});
+    const pts=rows.map(x=>Math.round(x.best.e1*10)/10);
+    const lo=Math.floor(Math.min(...pts)*0.96),hi=Math.ceil(Math.max(...pts)*1.04);
+    h+=chartCard('Estimated 1RM','Epley · best set per session',chartLines([{name:'e1RM',color:'#e0bc87',pts}],xl,[lo,hi],'kg'));
+  }
+  h+='<div class="sec-head" style="margin-top:20px"><h2>Sessions</h2><span>latest first</span></div><div class="exh-list">';
+  let run=0;
+  const rendered=hist.slice(-15).map(x=>{
+    const isPr=x.best.e1>run+0.01;if(isPr)run=x.best.e1;
+    return {x,isPr};
+  });
+  // running-PR flags computed oldest→newest; display newest first
+  rendered.reverse().forEach(({x,isPr})=>{
+    const sum=x.sets.map(st=>st.kg+'×'+st.reps+(st.felt?' @'+st.felt:'')).join(' · ');
+    h+='<div class="exh-row'+(isPr?' pr':'')+'"><span class="d">'+esc(prettyDay(x.date))+'</span><span class="s">'+esc(sum)+'</span><span class="e">'+(Math.round(x.best.e1*10)/10)+'</span></div>';
+  });
+  h+='</div>';
+  el.innerHTML=h;
+}
+/* Top lifts card for Progress: best e1RM per movement, top 5. */
+function progTopLifts(){
+  const names=new Map();
+  DB.sessions.filter(s=>s.status!=='active').forEach(s=>s.blocks.forEach(b=>blockExercises(b).forEach(e=>{
+    if(!isLiftMode(e.mode))return;const k=String(e.name||'').trim();if(!k)return;
+    e.sets.forEach(st=>{const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null){const cur=names.get(k.toLowerCase());if(!cur||e1>cur.e1)names.set(k.toLowerCase(),{name:k,e1,kg:+st.aVal,reps:+st.aVal2});}});
+  })));
+  const top=[...names.values()].sort((a,b)=>b.e1-a.e1).slice(0,5);
+  if(!top.length)return '';
+  let inner='';
+  top.forEach(t=>{inner+='<div class="toplift" data-click="openExHist" data-args="[&quot;'+esc(t.name)+'&quot;]"><b>'+esc(t.name)+'</b><span class="v">'+(Math.round(t.e1*10)/10)+'kg · '+t.kg+'×'+t.reps+'</span><span class="chev">›</span></div>';});
+  return '<div class="card chartcard" style="margin-top:14px"><div class="chart-head"><h2>Top lifts</h2><span class="csub">est 1RM · tap for history</span></div>'+inner+'</div>';
 }
 
 /* ---------- LOGGER (the mock's set-by-set screen) ---------- */
@@ -1153,7 +1290,7 @@ function renderProgress(){
     const xl=wd.map(h=>{const p=h.date.split('-');return (+p[1])+'/'+(+p[2]);});
     recCard=chartCard('WHOOP recovery','last '+wd.length+' days',chartLines([{name:'Recovery',color:'#9fc59b',pts:wd.map(h=>h.recovery)}],xl,[0,100],'%'));
   }
-  el.innerHTML=head+stats+volCard+rpeCard+recCard+progConditioningCards()+
+  el.innerHTML=head+stats+volCard+progTopLifts()+rpeCard+recCard+progConditioningCards()+
     (rpeCard?'':'<div class="card guidebar" style="margin-top:16px"><b>Tip:</b> add target RPE in the Builder and log the RPE you felt — a planned-vs-felt trend appears here.</div>');
 }
 /* --- conditioning trends (real sessions; demos excluded) --- */
