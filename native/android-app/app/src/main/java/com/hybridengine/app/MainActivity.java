@@ -211,7 +211,36 @@ public class MainActivity extends Activity {
         } catch (Exception e) { pendingExport = null; toast("Could not open the file saver."); }
       });
     }
+    /**
+     * Rest-timer buzz that fires even when the WebView throttles JS timers
+     * (screen dimmed/locked while the process is alive). The page schedules
+     * it when a rest starts and cancels it if the rest is stopped early —
+     * the native Handler keeps time instead of the page.
+     */
+    @JavascriptInterface public void scheduleBuzz(final long delayMs) {
+      main.post(() -> {
+        if (buzzRunnable != null) main.removeCallbacks(buzzRunnable);
+        buzzRunnable = () -> {
+          try {
+            android.os.Vibrator v = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (v != null) {
+              if (Build.VERSION.SDK_INT >= 26)
+                v.vibrate(android.os.VibrationEffect.createWaveform(new long[]{0, 200, 120, 200}, -1));
+              else v.vibrate(new long[]{0, 200, 120, 200}, -1);
+            }
+          } catch (Exception ignored) {}
+          buzzRunnable = null;
+        };
+        main.postDelayed(buzzRunnable, Math.max(0, delayMs));
+      });
+    }
+    @JavascriptInterface public void cancelBuzz() {
+      main.post(() -> {
+        if (buzzRunnable != null) { main.removeCallbacks(buzzRunnable); buzzRunnable = null; }
+      });
+    }
   }
+  private Runnable buzzRunnable = null;
 
   /**
    * On-device photo OCR via ML Kit (bundled model — free, offline, the

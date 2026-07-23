@@ -429,6 +429,26 @@ await t('weekly zone targets: defaults + this-week banked minutes', async () => 
   if (r.t.low !== 60 || r.t.mod !== 45 || r.t.high !== 12) throw new Error('zone target defaults wrong: ' + JSON.stringify(r.t));
   if (r.w.low !== 10 || r.w.mod !== 15 || r.w.high !== 2) throw new Error('this-week zone minutes wrong: ' + JSON.stringify(r.w));
 });
+await t('conditioning: custom format builds from settings; free run is open-ended', async () => {
+  const r = await page.evaluate(() => {
+    DB.settings.customFmt = { rounds: 5, work: 45, rest: 75 }; save();
+    const p = conPrescription('custom');
+    const phases = CON_FORMATS.custom.build(p);
+    const work = phases.filter((x) => x.kind === 'work');
+    const free = CON_FORMATS.free.build();
+    const fp = conPrescription('free');
+    DB.settings.customFmt = undefined; save();
+    return { rounds: p.rounds, work: p.work, rest: p.rest, phaseWork: work.length, firstWork: work[0] && work[0].dur,
+      desc: conPrescDesc('custom', p), freeLen: free.length, freeKind: free[0].kind, freeNote: fp.note,
+      adaptIgnored: conAdapt({ id: 'c1', fmt: 'custom', dur: 600, zsec: { low: 0, mod: 600, high: 0 }, hrr: 20 }) };
+  });
+  if (r.rounds !== 5 || r.work !== 45 || r.rest !== 75) throw new Error('custom presc wrong: ' + JSON.stringify(r));
+  if (r.phaseWork !== 5 || r.firstWork !== 45) throw new Error('custom build wrong: ' + JSON.stringify(r));
+  if (r.desc !== '5×45s / 75s') throw new Error('custom desc: ' + r.desc);
+  if (r.freeLen !== 1 || r.freeKind !== 'work2') throw new Error('free build wrong');
+  if (r.freeNote !== 'open-ended') throw new Error('free presc note: ' + r.freeNote);
+  if (r.adaptIgnored !== 0) throw new Error('custom format must not move progression');
+});
 await t('Progress tab renders trends (empty state or charts, never blank)', async () => {
   await page.click('.navlink[data-s="progress"]');
   await page.waitForSelector('#s-progress.on', { timeout: 2000 });

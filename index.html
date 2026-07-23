@@ -440,6 +440,11 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .pgrow .nm{font-size:13px;font-weight:750;width:96px;flex:0 0 auto}
 .pgrow .lv{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#7fd6a6;background:rgba(51,192,122,.12);border:1px solid rgba(51,192,122,.3);border-radius:99px;padding:2px 8px;flex:0 0 auto}
 .pgrow .pd{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);margin-left:auto}
+.customfmt{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.customfmt .cf{display:flex;flex-direction:column;gap:5px}
+.customfmt .cf span{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.customfmt .cf input{min-height:46px;padding:8px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--text);font:inherit;text-align:center;font-weight:750;outline:none;width:100%}
+.customfmt .cf input:focus{border-color:var(--gold)}
 .con-hint{margin-top:12px;color:var(--dim);font-size:11px;text-align:center;line-height:1.5}
 .con-note{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--panel3);color:var(--muted);font-size:12px;line-height:1.5}
 .livetop{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}

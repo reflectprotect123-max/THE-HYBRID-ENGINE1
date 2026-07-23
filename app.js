@@ -203,7 +203,7 @@ function workoutKind(w){
   const conditioning=w.blocks.some(b=>isCond(b)||blockExercises(b).some(e=>e.mode==='seconds'||e.mode==='reps_seconds'));
   return [strength?'Strength':'',conditioning?'Conditioning':''].filter(Boolean).join(' + ')||'Session';
 }
-function condBlockMinutes(b){const f=CON_FORMATS[b&&b.condFmt];if(!f)return 0;try{return Math.round(f.build(conPrescription(b.condFmt)).reduce((n,p)=>n+(p.dur||0),0)/60);}catch(e){return 0;}}
+function condBlockMinutes(b){const f=CON_FORMATS[b&&b.condFmt];if(!f||b.condFmt==='free')return 0;try{return Math.round(f.build(conPrescription(b.condFmt)).reduce((n,p)=>n+(p.dur||0),0)/60);}catch(e){return 0;}}
 function workoutChips(w){
   const mins=(w.blocks||[]).reduce((n,b)=>n+(isCond(b)?condBlockMinutes(b):(+b.minutes||0)),0);
   const exs=(w.blocks||[]).reduce((n,b)=>n+blockExercises(b).length,0);
@@ -823,6 +823,8 @@ function startRest(sec){
   stopRest(false);
   restTotal=sec;restEnds=Date.now()+sec*1000;
   try{localStorage.setItem(REST_KEY,String(restEnds));localStorage.setItem(REST_TOT_KEY,String(sec))}catch(e){}
+  // native buzz keeps time even if the WebView throttles JS with the screen off
+  try{if(window.AndroidHR&&window.AndroidHR.scheduleBuzz)window.AndroidHR.scheduleBuzz(sec*1000);}catch(e){}
   showRestChip();
 }
 function showRestChip(){
@@ -847,7 +849,10 @@ function paintRest(){
 }
 function stopRest(clear){
   clearInterval(restIv);restIv=null;restEnds=0;restTotal=0;
-  if(clear!==false){try{localStorage.removeItem(REST_KEY);localStorage.removeItem(REST_TOT_KEY)}catch(e){}}
+  if(clear!==false){
+    try{localStorage.removeItem(REST_KEY);localStorage.removeItem(REST_TOT_KEY)}catch(e){}
+    try{if(window.AndroidHR&&window.AndroidHR.cancelBuzz)window.AndroidHR.cancelBuzz();}catch(e){}
+  }
   const c=document.getElementById('restchip');if(c)c.classList.remove('show');
 }
 function resumeRest(){
@@ -1471,8 +1476,31 @@ const CON_FORMATS={
   tempo:{name:'Tempo',desc:'10×15s / 60s',base:{rounds:10,work:15,rest:60},build:function(p){
     p=p||this.base;const s=[{name:'Warm-up',dur:180,kind:'warm'}];
     for(let i=1;i<=p.rounds;i++){s.push({name:'Work '+i,dur:p.work,kind:'work',round:i});s.push({name:'Recover',dur:p.rest,kind:'rest',round:i});}
-    s.push({name:'Cool-down',dur:120,kind:'cool'});return s;}}
+    s.push({name:'Cool-down',dur:120,kind:'cool'});return s;}},
+  custom:{name:'Custom',desc:'your rounds',build:function(p){
+    p=p||customFmtBase();const s=[{name:'Warm-up',dur:180,kind:'warm'}];
+    for(let i=1;i<=p.rounds;i++){s.push({name:'Work '+i,dur:p.work,kind:'work',round:i});s.push({name:'Recover',dur:p.rest,kind:'rest',round:i});}
+    s.push({name:'Cool-down',dur:120,kind:'cool'});return s;}},
+  free:{name:'Free run',desc:'just track HR',build:function(){
+    // open-ended: one long phase, you finish when you're done
+    return[{name:'Free run',dur:8*3600,kind:'work2'}];}}
 };
+/* Custom format: user-tuned rounds/work/rest, kept in settings (synced). */
+function customFmtBase(){
+  const c=DB.settings.customFmt||{};
+  const rounds=Math.max(1,Math.min(30,parseInt(c.rounds,10)||6));
+  const work=Math.max(10,Math.min(600,parseInt(c.work,10)||40));
+  const rest=Math.max(0,Math.min(600,parseInt(c.rest,10)||80));
+  return{rounds,work,rest};
+}
+function setCustomFmt(key,val){
+  const c=Object.assign({},DB.settings.customFmt);
+  const n=parseInt(val,10);
+  if(Number.isFinite(n))c[key]=n;
+  DB.settings.customFmt=c;save();
+  if(CURRENT==='conditioning')renderConditioning();
+}
+function isProgressedFmt(k){return k==='steady'||k==='intervals'||k==='tempo';}
 function conPickFmt(f){if(CON_FORMATS[f]){CON.fmt=f;if(CURRENT==='conditioning')renderConditioning();}}
 
 /* ---- Autoregulated interval progression (the Morpheus model) ----
@@ -1482,9 +1510,21 @@ function conPickFmt(f){if(CON_FORMATS[f]){CON.fmt=f;if(CURRENT==='conditioning')
    zones use. Everything is shown and explained; nothing changes silently. */
 function conProgLevel(fmtKey){const cp=DB.settings.conProgress||{};const f=cp[fmtKey];return f&&Number.isFinite(f.level)?Math.max(0,f.level|0):0;}
 function conPrescription(fmtKey,ignoreDaily){
-  const fmt=CON_FORMATS[fmtKey]||CON_FORMATS.intervals;const base=fmt.base||{};
-  const level=conProgLevel(fmtKey);
+  if(fmtKey==='free'){const rr=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
+    return{level:0,dailyAdj:0,rec:Number.isFinite(rr)?Math.round(rr):null,note:'open-ended'};}
+  const fmt=CON_FORMATS[fmtKey]||CON_FORMATS.intervals;const base=fmtKey==='custom'?customFmtBase():(fmt.base||{});
+  const level=isProgressedFmt(fmtKey)?conProgLevel(fmtKey):0;
   const p={};
+  if(fmtKey==='custom'){
+    p.rounds=base.rounds;p.work=base.work;p.rest=base.rest;
+    const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
+    const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
+    let dailyAdj=0;
+    if(rec!=null&&!ignoreDaily&&rec<40){dailyAdj=-1;if(p.rounds>3)p.rounds--;else p.rest+=10;}
+    p.level=0;p.dailyAdj=dailyAdj;p.rec=rec;
+    p.note=dailyAdj<0?'eased today'+(rec!=null?' for '+rec+'% recovery':''):'your format';
+    return p;
+  }
   if(fmtKey==='steady'){
     p.minutes=Math.min(40,(base.minutes||20)+2*level);
   }else{
@@ -1518,6 +1558,7 @@ function conPrescription(fmtKey,ignoreDaily){
   return p;
 }
 function conPrescDesc(fmtKey,p){p=p||conPrescription(fmtKey);
+  if(fmtKey==='free')return 'Open-ended · finish when done';
   return fmtKey==='steady'?('Zone 2 · '+p.minutes+' min'):(p.rounds+'×'+p.work+'s / '+p.rest+'s');}
 /* Read the session's metrics and move the earned baseline. Positive adaptation
    (held the target zone, HR recovery holding/improving, not a red-recovery
@@ -1525,7 +1566,7 @@ function conPrescDesc(fmtKey,p){p=p||conPrescription(fmtKey);
    count. Returns the level delta so the results screen can explain it. */
 function conAdapt(rec){
   if(!rec||rec.sim)return 0;
-  const fmtKey=rec.fmt;if(!CON_FORMATS[fmtKey])return 0;
+  const fmtKey=rec.fmt;if(!CON_FORMATS[fmtKey]||!isProgressedFmt(fmtKey))return 0;
   const z=rec.zsec||{low:0,mod:0,high:0};
   const total=Math.max(1,rec.dur||0);
   const workSec=fmtKey==='steady'?((z.low||0)+(z.mod||0)):((z.mod||0)+(z.high||0));
@@ -1891,8 +1932,16 @@ function conSetupHtml(){
   h+='</div>';
   h+='<div style="margin-top:16px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase">Choose format</div><div class="fmtpick">';
   Object.keys(CON_FORMATS).forEach(k=>{const ff=CON_FORMATS[k];
-    h+='<button aria-pressed="'+(CON.fmt===k)+'" data-click="conPickFmt" data-args="[&quot;'+k+'&quot;]">'+ff.name+'<small>'+ff.desc+'</small></button>';});
+    const d=k==='custom'?(function(){const c=customFmtBase();return c.rounds+'×'+c.work+'s / '+c.rest+'s';})():ff.desc;
+    h+='<button aria-pressed="'+(CON.fmt===k)+'" data-click="conPickFmt" data-args="[&quot;'+k+'&quot;]">'+ff.name+'<small>'+d+'</small></button>';});
   h+='</div>';
+  if(CON.fmt==='custom'){
+    const c=customFmtBase();
+    h+='<div class="customfmt">'+
+      '<label class="cf"><span>Rounds</span><input inputmode="numeric" value="'+c.rounds+'" data-change="setCustomFmt" data-args="[&quot;rounds&quot;,&quot;@value&quot;]"></label>'+
+      '<label class="cf"><span>Work s</span><input inputmode="numeric" value="'+c.work+'" data-change="setCustomFmt" data-args="[&quot;work&quot;,&quot;@value&quot;]"></label>'+
+      '<label class="cf"><span>Rest s</span><input inputmode="numeric" value="'+c.rest+'" data-change="setCustomFmt" data-args="[&quot;rest&quot;,&quot;@value&quot;]"></label></div>';
+  }
   const presc=conPrescription(CON.fmt);
   h+='<div class="prescline"><span class="pd">'+esc(conPrescDesc(CON.fmt,presc))+'</span>'+(presc.note?'<span class="pnote">'+esc(presc.note)+'</span>':'<span class="pnote dim">today&rsquo;s session</span>')+'</div>';
   h+='</div>';
