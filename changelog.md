@@ -1,5 +1,36 @@
 # Changelog
 
+## One coherent app: dashboard Home, conditioning everywhere, polish — 23 July 2026
+
+The full UX pass (Tier A–C from the audit):
+
+- **Home is a dashboard now.** Below your plan: quick actions (Start
+  conditioning · Import a workout) and glanceable stats (kg this week,
+  day streak, last recovery) once you have data. The seed card reads
+  "Session template" instead of "Untitled workout". Dead space gone.
+- **Conditioning feeds Progress:** a new Conditioning section with
+  stacked zone-minutes-by-week bars (Low/Moderate/High), an HR-recovery
+  trend, and an average-HR trend. Demo sessions are excluded.
+- **Conditioning shows in History:** finished sessions appear on their
+  day next to strength work — duration, avg/max HR, HR recovery — and
+  tap through to the full results view.
+- **One visual language for the body:** recovery bands now share the
+  zone palette (green/gold/red) and the strain ring uses the same blue
+  as the Low zone — no more neon one-offs.
+- **Recovery-driven zones (Morpheus-style):** strong recovery (≥67%)
+  nudges work thresholds up 2%, poor recovery (<34%) eases them 4% —
+  labelled on the setup screen so it's never silent.
+- **Live-session niceties:** a 5s "Get ready" countdown before every
+  session, audio cues on phase changes (high beep = work, low = recover)
+  alongside the vibration, and a Skip › button to jump an interval.
+- **Warmer empty states:** History's quiet days get a proper card;
+  Settings' WHOOP errors read like English, not HTTP.
+- **Accessibility:** visible gold focus rings on everything interactive,
+  aria-labels on back buttons, dim-text contrast raised.
+- Service-worker cache bumped to v44. All six suites green (browser-smoke
+  32 steps, unchanged assertions all still pass).
+
+
 ## Importer: write it or photograph it — it becomes a template — 23 July 2026
 
 Builder gains "Import from text or photo". Type or paste a workout in any

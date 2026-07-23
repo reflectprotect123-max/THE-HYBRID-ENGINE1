@@ -25,7 +25,7 @@
 :root{
   --bg:#080808; --panel:#111110; --panel2:#181816; --panel3:#0c0c0b;
   --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.12);
-  --text:#f5f1e9; --muted:#aaa49a; --dim:#777168;
+  --text:#f5f1e9; --muted:#aaa49a; --dim:#847d73;
   --gold:#c09358; --gold2:#e0bc87; --gold-wash:rgba(192,147,88,.09);
   --blue:#82a8e9; --blue2:#6793ee;
   --ok:#9fc59b; --warn:#d1a464; --bad:#cf7f7c;
@@ -397,7 +397,7 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .phasebar.rest{background:rgba(91,141,239,.14);color:#a8c4f2}
 .phasebar.warm,.phasebar.cool{background:rgba(207,157,79,.14);color:var(--gold2)}
 .phasebar .rounds{font-size:11.5px;font-weight:700;opacity:.85}
-.conctrls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.conctrls{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
 .conctrls button{border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--text);font:inherit;font-size:12.5px;font-weight:700;padding:13px 6px;border-radius:14px;cursor:pointer}
 .conctrls button.finish{border-color:rgba(224,188,135,.45);background:var(--gold-wash);color:var(--gold2)}
 .conctrls button.abort{border-color:rgba(224,82,77,.4);color:#f0a6a3}
@@ -460,6 +460,15 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .imp-lex .li .rm{margin-left:auto;background:none;border:0;color:var(--dim);font-size:14px;cursor:pointer;padding:2px 6px}
 .imp-lex .li .rm:hover{color:var(--bad)}
 .imp-lex .empty{margin-top:8px;color:var(--dim);font-size:12px;line-height:1.5}
+
+/* ===== Home quick actions + a11y focus ===== */
+.quickrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.quickact{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px;cursor:pointer;font:inherit;color:var(--text);text-align:left}
+.quickact .qi{font-size:18px;margin-bottom:5px}
+.quickact b{font-size:13.5px;font-weight:800;letter-spacing:-.01em}
+.quickact span:last-child{color:var(--dim);font-size:11px}
+.quickact:hover{border-color:rgba(224,188,135,.4)}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[data-click]:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
 </style>
 </head>
 <body>

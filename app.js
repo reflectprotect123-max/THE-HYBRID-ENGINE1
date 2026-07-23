@@ -159,10 +159,17 @@ function renderHistory(){
     });});
     body+='</div>';
   });
+  // conditioning sessions logged on this day (live HR sessions)
+  const condDay=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>r.date===HIST_DATE);
+  condDay.forEach(r=>{
+    const fN=(CON_FORMATS[r.fmt]?CON_FORMATS[r.fmt].name:r.fmt)+(r.sim?' · demo':'');
+    body+='<div class="section"><div class="sec-head"><h2>Conditioning</h2><span>completed</span></div>'+
+      '<div class="card exrow nav" style="cursor:pointer" data-click="conOpenResult" data-args="[&quot;'+esc(r.id)+'&quot;]"><div><b>'+esc(fN)+'</b><p>'+conMmss(r.dur)+' · avg '+(r.avg||'—')+' · max '+(r.max||'—')+' bpm'+(r.hrr!=null?' · ▼'+r.hrr+' recovery':'')+'</p></div><span class="chev">›</span></div></div>';
+  });
   if(active.length)body+='<div class="card guidebar" style="margin-top:16px">A session from this day is still in progress — it will appear here once finished.</div>';
-  if(!body)body='<div class="card lastbox" style="margin-top:16px">No training logged this day.</div>';
+  if(!body)body='<div class="card empty"><div class="ei"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 11h16"/></svg></div><h3>A quiet day</h3><p>No training logged this day. Rest counts too — or start something from Home.</p></div>';
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">History</div><h1 style="font-size:24px">'+esc(prettyDay(HIST_DATE))+'</h1></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">History</div><h1 style="font-size:24px">'+esc(prettyDay(HIST_DATE))+'</h1></div></div>'+
     '<div class="histnav"><button class="markall" data-click="shiftHistory" data-args="[-1]">‹ Previous day</button><button class="markall" data-click="shiftHistory" data-args="[1]">Next day ›</button></div>'+
     body;
 }
@@ -188,7 +195,7 @@ function workoutChips(w){
 function sessionCardHtml(w,kicker,fn,id){
   return '<div class="card sessioncard" data-click="'+fn+'" data-args="[&quot;'+esc(id)+'&quot;]">'+
     '<div class="sc-kicker">'+esc(kicker)+'</div>'+
-    '<h3>'+esc(w.name||'Untitled workout')+'</h3>'+
+    '<h3>'+esc(w.name||'Session template')+'</h3>'+
     '<div class="sc-meta">'+esc((w.blocks||[]).map(b=>b.heading).filter(Boolean).join(' · '))+'</div>'+
     '<div class="sc-chips">'+workoutChips(w)+'</div></div>';
 }
@@ -238,8 +245,24 @@ function renderHome(){
     weekStripHtml()+
     cards+
     (wc?'<button class="addbtn" data-click="newWorkout">+ New workout</button>':'')+
+    '<div class="quickrow">'+
+      '<button class="card quickact" data-click="go" data-args="[&quot;conditioning&quot;]"><span class="qi">⚡</span><b>Start conditioning</b><span>Live heart-rate zones</span></button>'+
+      '<button class="card quickact" data-click="openImport"><span class="qi">📋</span><b>Import a workout</b><span>From text or a photo</span></button></div>'+
+    homeMiniStats()+
     whoopCardHtml()+
     (WHOOP_OPEN?readinessCardHtml():'');
+}
+/* glanceable numbers under the fold — only once there's real data */
+function homeMiniStats(){
+  const done=completedList().length;
+  const cond=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>!r.sim).length;
+  if(!done&&!cond)return '';
+  const wd=(DB.settings.whoopDaily||[]).filter(h=>Number.isFinite(h.recovery));
+  const rec=wd.length?Math.round(wd[wd.length-1].recovery):null;
+  return '<div class="stats" style="margin-top:16px">'+
+    '<div class="stat"><b>'+fmtK(thisWeekVolume())+'</b><span>kg this week</span></div>'+
+    '<div class="stat"><b>'+dayStreak()+'</b><span>Day streak</span></div>'+
+    '<div class="stat"><b>'+(rec!=null?rec+'%':'—')+'</b><span>Last recovery</span></div></div>';
 }
 
 /* ---------- READINESS: WHOOP recovery × target-vs-felt RPE ---------- */
@@ -278,7 +301,9 @@ function readinessCardHtml(){
 /* ---------- WHOOP (server-side via Netlify functions) ---------- */
 const WHOOP_ENDPOINTS={status:'/.netlify/functions/integrations-status',connect:'/.netlify/functions/whoop-connect',sync:'/.netlify/functions/whoop-sync',disconnect:'/.netlify/functions/integrations-disconnect'};
 let WHOOP={loaded:false,connected:false,sample:null,lastSyncAt:null,busy:false,error:''};
-function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null,color:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Strong',pct:r,val:r,color:'#16ec06'};if(r>=34)return{cls:'watch',label:'Steady',pct:r,val:r,color:'#ffde00'};return{cls:'low',label:'Low',pct:r,val:r,color:'#ff0026'};}
+/* One visual language for the body: recovery bands share the conditioning
+   zone palette (green=go, gold=steady, red=easy day). */
+function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null,color:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Strong',pct:r,val:r,color:'#9fc59b'};if(r>=34)return{cls:'watch',label:'Steady',pct:r,val:r,color:'#cf9d4f'};return{cls:'low',label:'Low',pct:r,val:r,color:'#e0524d'};}
 async function loadWhoop(){
   try{
     const r=await fetch(WHOOP_ENDPOINTS.status,{credentials:'same-origin',cache:'no-store'});
@@ -327,7 +352,7 @@ function updateWhoopCard(){if(CURRENT==='home')renderHome();}
    picture; numbers and readiness only appear on request. */
 let WHOOP_OPEN=false;
 function toggleWhoopDetails(){WHOOP_OPEN=!WHOOP_OPEN;if(CURRENT==='home')renderHome();}
-const STRAIN_BLUE='#0093e7',RING_IDLE_COLOR='rgba(255,255,255,.14)';
+const STRAIN_BLUE='#5b8def',RING_IDLE_COLOR='rgba(255,255,255,.14)';
 function whoopRings(recColor,recPct,strainPct,center){
   // Arc targets + colors feed CSS custom properties; the CSS animates each
   // arc up from 0. A null pct shows a faint full ring (idle/loading).
@@ -442,7 +467,7 @@ function renderSession(){
   }).join('');
   const allDone=sessionAllDone(s);
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 style="font-size:24px">'+esc(s.name||'Workout')+'</h1></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 style="font-size:24px">'+esc(s.name||'Workout')+'</h1></div></div>'+
     '<div id="sessBody">'+body+'</div>'+
     '<div class="completebar"><button class="bigbtn'+(allDone?' donestate':'')+'" data-click="finishSession" data-args="[&quot;@self&quot;]">'+(allDone?'Everything logged — finish ✓':'Mark session complete')+'</button></div>';
 }
@@ -553,7 +578,7 @@ function renderLoggerScreen(){
     (idx>0?'<button class="markall" data-click="stepLogger" data-args="[-1]">‹ Previous</button>':'<span></span>')+
     (idx<total-1?'<button class="markall" data-click="stepLogger" data-args="[1]">Next ›</button>':'<span></span>')+'</div>':'';
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+kicker+'</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+kicker+'</div><h1 style="font-size:24px">'+esc(ex.name||'Exercise')+'</h1><div class="logmeta">'+(ex.tempo?'Tempo <i>@'+esc(ex.tempo)+'</i> · ':'')+restNote+'</div></div></div>'+
     '<div class="card setcard">'+head+(rows||'<div class="lastbox" style="margin-top:0">No sets.</div>')+'</div>'+
     flow+stepNav+lastBox+
     '<div class="card guidebar"><b>Why "RPE felt" matters:</b> target vs. actual RPE per set is data most apps throw away. Paired with the WHOOP recovery you sync, it powers a readiness picture no off-the-shelf app has.</div>';
@@ -818,7 +843,7 @@ function renderSettings(){
   // WHOOP panel
   let whoop;
   if(!WHOOP.loaded){whoop='<div class="sc-meta">Checking WHOOP connection…</div>';}
-  else if(!WHOOP.connected){whoop='<div class="sc-meta">'+(WHOOP.error?esc(WHOOP.error)+' ':'')+'Connect WHOOP to bring recovery, sleep and strain into Home. Requires the deployed app.</div><a class="bigbtn" style="display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;margin-top:12px" href="'+WHOOP_ENDPOINTS.connect+'">Connect WHOOP</a>';}
+  else if(!WHOOP.connected){whoop='<div class="sc-meta">'+(WHOOP.error?'<b>Can&rsquo;t reach WHOOP right now — it works from the live app.</b> ':'')+'Connect WHOOP to bring recovery, sleep and strain into Home.</div><a class="bigbtn" style="display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;margin-top:12px" href="'+WHOOP_ENDPOINTS.connect+'">Connect WHOOP</a>';}
   else{whoop='<div class="sc-meta">WHOOP connected'+(WHOOP.lastSyncAt?' · last sync '+esc(new Date(WHOOP.lastSyncAt).toLocaleString()):'')+'.</div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" data-click="syncWhoop">'+(WHOOP.busy?'Syncing…':'Sync now')+'</button><button class="addbtn" style="flex:1;margin-top:0" data-click="disconnectWhoop">Disconnect</button></div>';}
   // Training profile (drives conditioning HR zones)
   const prof=DB.settings.profile||{},zz=conZones();
@@ -828,7 +853,7 @@ function renderSettings(){
     '<div class="field" style="flex:1"><label>Max HR (override)</label><input type="number" min="120" max="230" inputmode="numeric" value="'+(prof.maxHr||'')+'" placeholder="auto" data-change="setProfile" data-args="[&quot;maxHr&quot;,&quot;@value&quot;]"></div></div>'+
     '<div class="sc-meta" style="margin-top:10px">Zones now: Low '+zz.list[0].lo+'&ndash;'+zz.list[0].hi+' · Moderate '+zz.list[1].lo+'&ndash;'+zz.list[1].hi+' · High '+zz.list[2].lo+'&ndash;'+zz.list[2].hi+'</div>';
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Settings</div><h1 style="font-size:24px">Cloud, WHOOP &amp; data</h1></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Settings</div><h1 style="font-size:24px">Cloud, WHOOP &amp; data</h1></div></div>'+
     '<div class="section"><div class="sec-head"><h2>Cloud sync</h2></div><div class="card" style="margin-top:10px;padding:14px">'+cloud+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>WHOOP</h2></div><div class="card" style="margin-top:10px;padding:14px">'+whoop+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>Training profile</h2></div><div class="card" style="margin-top:10px;padding:14px">'+profile+'</div></div>'+
@@ -1004,8 +1029,50 @@ function renderProgress(){
     const xl=wd.map(h=>{const p=h.date.split('-');return (+p[1])+'/'+(+p[2]);});
     recCard=chartCard('WHOOP recovery','last '+wd.length+' days',chartLines([{name:'Recovery',color:'#9fc59b',pts:wd.map(h=>h.recovery)}],xl,[0,100],'%'));
   }
-  el.innerHTML=head+stats+volCard+rpeCard+recCard+
+  el.innerHTML=head+stats+volCard+rpeCard+recCard+progConditioningCards()+
     (rpeCard?'':'<div class="card guidebar" style="margin-top:16px"><b>Tip:</b> add target RPE in the Builder and log the RPE you felt — a planned-vs-felt trend appears here.</div>');
+}
+/* --- conditioning trends (real sessions; demos excluded) --- */
+function progZoneBars(bk){
+  const W=320,H=150,padB=20,padT=16,padL=4,padR=4,innerW=W-padL-padR,innerH=H-padB-padT;
+  const totals=bk.map(b=>b.low+b.mod+b.high);
+  const max=niceMax(Math.max(1,...totals));
+  const slot=innerW/bk.length,bw=Math.min(26,slot*.56);
+  let g='';[0,.5,1].forEach(f=>{const yy=padT+innerH*(1-f);g+='<line class="grid" x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'"/><text class="axt" x="'+padL+'" y="'+(yy-3)+'">'+Math.round(max*f)+'</text>';});
+  let bars='';
+  bk.forEach((b,i)=>{
+    const cx=padL+slot*i+slot/2;let y=padT+innerH;
+    [['low','#5b8def'],['mod','#cf9d4f'],['high','#e0524d']].forEach(pair=>{
+      const h=innerH*(b[pair[0]]/max);
+      if(h>0.5){y-=h;bars+='<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+(y+1).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0.5,h-2).toFixed(1)+'" rx="2" fill="'+pair[1]+'"><title>Week of '+b.key+' · '+pair[0]+' '+Math.round(b[pair[0]])+' min</title></rect>';}
+    });
+    bars+='<text class="axt" x="'+cx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle">'+b.label+'</text>';
+  });
+  return '<div class="chart"><svg viewBox="0 0 320 150" role="img" aria-label="Zone minutes by week">'+g+bars+'</svg></div>';
+}
+function progConditioningCards(){
+  const cond=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>!r.sim);
+  if(!cond.length)return '';
+  let out='';
+  const now=new Date();now.setHours(0,0,0,0);
+  const buckets=[];
+  for(let i=7;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-now.getDay()-i*7);buckets.push({key:ymd(d),label:(d.getMonth()+1)+'/'+d.getDate(),low:0,mod:0,high:0});}
+  const bidx=new Map(buckets.map((b,i)=>[b.key,i]));
+  cond.forEach(r=>{const k=ymd(weekStart(r.startedAt||Date.now()));if(bidx.has(k)){const b=buckets[bidx.get(k)];b.low+=(r.zsec.low||0)/60;b.mod+=(r.zsec.mod||0)/60;b.high+=(r.zsec.high||0)/60;}});
+  if(buckets.some(b=>b.low+b.mod+b.high>0))
+    out+=chartCard('Zone minutes by week','conditioning',progZoneBars(buckets),
+      '<div class="legend"><span><i style="background:#5b8def"></i>Low</span><span><i style="background:#cf9d4f"></i>Moderate</span><span><i style="background:#e0524d"></i>High</span></div>');
+  const rows=cond.slice(-12);
+  if(rows.length>=2){
+    const xl=rows.map(r=>{const p=String(r.date).split('-');return (+p[1])+'/'+(+p[2]);});
+    const hrr=rows.map(r=>Number.isFinite(r.hrr)?r.hrr:null);
+    if(hrr.filter(v=>v!=null).length>=2)
+      out+=chartCard('HR recovery','60s drop after peak · higher is fitter',chartLines([{name:'HRR',color:'#9fc59b',pts:hrr}],xl,[0,Math.max(40,...hrr.filter(v=>v!=null))+10],' bpm'));
+    const avg=rows.map(r=>r.avg||null),vals=avg.filter(v=>v!=null);
+    if(vals.length>=2)
+      out+=chartCard('Average heart rate','per conditioning session',chartLines([{name:'Avg HR',color:'#5b8def',pts:avg}],xl,[Math.min(...vals)-8,Math.max(...vals)+8],' bpm'));
+  }
+  return out?'<div class="section" style="margin-top:24px;margin-bottom:-4px"><div class="sec-head"><h2>Conditioning</h2></div></div>'+out:'';
 }
 
 /* ============================================================
@@ -1023,8 +1090,14 @@ const CON={view:'setup',fmt:'intervals',live:false,ble:{dev:null,chr:null,connec
 /* --- profile & zone model (3 bands, Morpheus-style) --- */
 function conProfile(){const p=DB.settings.profile||{};const age=parseInt(p.age,10)||30;const o=parseInt(p.maxHr,10)||0;return{age,maxHr:o>0?o:220-age};}
 function conZones(){
-  const m=conProfile().maxHr,floor=Math.round(m*.5),lowTop=Math.round(m*.78),modTop=Math.round(m*.875);
-  return{floor,max:m,list:[
+  const m=conProfile().maxHr;
+  // Recovery-driven daily nudge (Morpheus-style): strong recovery raises the
+  // work thresholds a touch, poor recovery lowers them so "hard" comes sooner.
+  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
+  const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
+  const adj=rec==null?0:rec>=67?0.02:rec<34?-0.04:0;
+  const floor=Math.round(m*.5),lowTop=Math.round(m*(.78+adj)),modTop=Math.round(m*(.875+adj));
+  return{floor,max:m,rec,adj,list:[
     {key:'low',name:'Low',color:'#5b8def',lo:floor,hi:lowTop},
     {key:'mod',name:'Moderate',color:'#cf9d4f',lo:lowTop,hi:modTop},
     {key:'high',name:'High',color:'#e0524d',lo:modTop,hi:m}]};
@@ -1125,10 +1198,32 @@ function conStatus(msg,isErr){const el=document.getElementById('conStatus');if(e
 function conStartDemo(){CON.ble={dev:null,chr:null,connected:true,sim:true};conStart();}
 
 /* --- session lifecycle --- */
+let CON_AC=null;
+function conBeep(freq,ms){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    if(!CON_AC)CON_AC=new AC();
+    if(CON_AC.state==='suspended')CON_AC.resume();
+    const o=CON_AC.createOscillator(),g=CON_AC.createGain();
+    o.type='sine';o.frequency.value=freq;g.gain.value=.08;
+    o.connect(g);g.connect(CON_AC.destination);o.start();
+    g.gain.exponentialRampToValueAtTime(.0001,CON_AC.currentTime+ms/1000);
+    o.stop(CON_AC.currentTime+ms/1000);
+  }catch(e){}
+}
+function conSkip(){
+  if(!CON.live)return;
+  const t=(Date.now()-CON.startedAt)/1000;
+  const info=conPhaseAt(t);
+  if(info.done)return;
+  CON.startedAt-=Math.ceil(info.left)*1000; // jump the clock to the next phase
+  conTick();
+}
 function conStart(){
   if(CON.live)return;
   const f=CON_FORMATS[CON.fmt]||CON_FORMATS.intervals;
-  CON.phases=f.build();CON.rounds=f.rounds||0;CON.round=0;CON.phaseIdx=-1;
+  CON.phases=[{name:'Get ready',dur:5,kind:'ready'}].concat(f.build());
+  CON.rounds=f.rounds||0;CON.round=0;CON.phaseIdx=-1;
   CON.samples=[];CON.avgSum=0;CON.avgN=0;CON.max=0;CON.lastBpm=null;
   CON.simBpm=95;CON.simNext=0;CON.error='';
   CON.startedAt=Date.now();CON.live=true;CON.view='live';
@@ -1146,17 +1241,19 @@ function conTick(){
   const info=conPhaseAt(t);
   if(info.done){conFinish();return;}
   if(info.idx!==CON.phaseIdx){
+    const first=CON.phaseIdx===-1;
     CON.phaseIdx=info.idx;
     if(info.p.round)CON.round=info.p.round;
     conPaintPhase(info.p);
     try{if(navigator.vibrate)navigator.vibrate(info.p.kind==='work'?[180,90,180]:[120]);}catch(e){}
+    if(!first)conBeep(info.p.kind==='work'?880:520,150);
   }
   const pc=document.getElementById('conPhaseClock');if(pc)pc.textContent=conMmss(info.left);
   const elp=document.getElementById('conElapsed');if(elp)elp.textContent=conMmss(t);
   if(CON.ble.sim&&t>=CON.simNext){
     CON.simNext=Math.floor(t)+1;
     const z=conZones(),k=info.p.kind;
-    const target=k==='work'?z.max*.93:k==='rest'?z.max*.68:k==='work2'?z.max*.72:k==='cool'?105:118;
+    const target=k==='work'?z.max*.93:k==='rest'?z.max*.68:k==='work2'?z.max*.72:k==='cool'?105:k==='ready'?100:118;
     CON.simBpm+= (target-CON.simBpm)*.15 + (Math.random()*7-3.5);
     CON.simBpm=Math.max(70,Math.min(z.max+2,CON.simBpm));
     conSample(Math.round(CON.simBpm));
@@ -1207,7 +1304,9 @@ function conFinish(){
 }
 function conOpenResult(id){
   const r=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).find(x=>x.id===id);
-  if(r){CON.record=r;CON.view='results';renderConditioning();}
+  if(!r)return;
+  CON.record=r;CON.view='results';
+  if(CURRENT!=='conditioning')go('conditioning');else renderConditioning();
 }
 function conDone(){CON.view='setup';CON.record=null;CON.error='';renderConditioning();}
 
@@ -1237,7 +1336,7 @@ function conPaintPhase(p){
   document.getElementById('conPhaseBig').textContent=p.kind==='work'?'WORK':p.kind==='rest'?'RECOVER':p.name.toUpperCase();
   document.getElementById('conRounds').textContent=CON.rounds?('Round '+CON.round+' / '+CON.rounds):(CON_FORMATS[CON.fmt]?CON_FORMATS[CON.fmt].name:'');
   const zn=document.getElementById('conZnow');if(zn)zn.textContent=p.name;
-  const pl=document.getElementById('conPhaseLabel');if(pl)pl.textContent=p.kind==='work'?'Work':p.kind==='rest'?'Recover':p.kind==='cool'?'Cool-down':p.kind==='work2'?'Zone 2':'Warm-up';
+  const pl=document.getElementById('conPhaseLabel');if(pl)pl.textContent=p.kind==='work'?'Work':p.kind==='rest'?'Recover':p.kind==='cool'?'Cool-down':p.kind==='work2'?'Zone 2':p.kind==='ready'?'Get ready':'Warm-up';
 }
 function conPaintHr(bpm){
   const el=document.getElementById('conBpm');if(!el)return;
@@ -1280,7 +1379,7 @@ function conSetupHtml(){
   const rec=WHOOP.sample&&Number.isFinite(Number(WHOOP.sample.recoveryScore))?Math.round(Number(WHOOP.sample.recoveryScore)):null;
   let h='<div class="kicker">Conditioning</div><h1 style="font-size:24px">Zone session</h1><p class="sub">Train by live heart rate. Zones come from your max HR — set it in Settings.</p>';
   if(rec!=null)h+='<div class="recpill"><b>Your recovery today</b><span class="v">'+rec+'%</span></div>';
-  h+='<div class="card" style="margin-top:14px;padding:15px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Today&rsquo;s heart-rate zones · max '+z.max+'</div>';
+  h+='<div class="card" style="margin-top:14px;padding:15px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Today&rsquo;s heart-rate zones · max '+z.max+(z.adj>0?' · raised for '+z.rec+'% recovery':z.adj<0?' · eased for '+z.rec+'% recovery':'')+'</div>';
   z.list.forEach(zz=>{h+='<div class="zrow"><span class="zdot" style="background:'+zz.color+'"></span><span class="znm">'+zz.name+'</span><span class="zbar"><span class="zfill" style="background:linear-gradient(90deg,'+zz.color+'55,'+zz.color+')"></span></span><span class="zrng">'+zz.lo+'&ndash;'+zz.hi+'</span></div>';});
   h+='</div>';
   h+='<div style="margin-top:16px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase">Choose format</div><div class="fmtpick">';
@@ -1317,7 +1416,7 @@ function conLiveHtml(){
     '<div class="phasebar" id="conPhaseBar"><span id="conPhaseBig">READY</span><span class="rounds" id="conRounds"></span></div>'+
     '<div class="card chartcard"><div class="chart-head"><h2>Heart rate</h2><span class="csub">live</span></div>'+
     '<div class="chart"><svg viewBox="0 0 320 150" role="img" aria-label="Live heart rate">'+conLiveGridSvg(z,z.floor-6,z.max+4)+'<g id="conLiveSeg"></g></svg></div></div>'+
-    '<div class="conctrls"><button class="finish" data-click="conFinish">Finish session</button><button class="abort" data-click="conAbort">Discard</button></div>'+
+    '<div class="conctrls"><button data-click="conSkip">Skip ›</button><button class="finish" data-click="conFinish">Finish</button><button class="abort" data-click="conAbort">Discard</button></div>'+
     '<div class="constatus" id="conStatus"></div>';
 }
 function conDonutSvg(zsec,total){
@@ -1635,7 +1734,7 @@ function impFixerHtml(iss){
 }
 function renderImport(){
   const el=document.getElementById('s-import');if(!el)return;
-  let h='<div class="backrow"><button class="backbtn" data-click="go" data-args="[&quot;builder&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder · Import</div><h1 style="font-size:24px">Add a workout</h1></div></div>'+
+  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;builder&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder · Import</div><h1 style="font-size:24px">Add a workout</h1></div></div>'+
     '<p class="sub">Type it, paste it, or attach a photo/screenshot — any style, typos welcome. It asks only when a <b>meaning</b> is unclear; blank weights and reps just stay blank, like always.</p>'+
     '<textarea class="imp-src" id="impSrc" spellcheck="false" placeholder="e.g.&#10;Push Day&#10;Bench 4x8 @RPE8 rest 3min&#10;into 5 deadlifts&#10;10s dead hang rest 30s 2 rounds of that">'+esc(IMP.text)+'</textarea>'+
     '<button class="addbtn" style="margin-top:10px" data-click="impPickPhoto">📷 Attach photo / screenshot</button>'+
