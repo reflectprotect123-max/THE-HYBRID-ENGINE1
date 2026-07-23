@@ -273,6 +273,48 @@ await t('Conditioning: setup shows zones; demo session records live HR and saves
   // clean up so later steps see pristine state
   await page.evaluate(() => { DB.settings.conditioning = []; save(); conDone(); go('home'); });
 });
+await t('hybrid session: strength + conditioning blocks run and persist in one workout', async () => {
+  await page.evaluate(() => {
+    WK = templateWorkout(); WK.name = 'Hybrid Day';
+    WK.blocks = [
+      { id: uid(), heading: 'Strength', minutes: '', format: '', superset: false,
+        exercises: [{ id: uid(), name: 'Back squat', mode: 'reps_kg', tempo: '', rest: 60, sets: [{ t: '5', rpe: '8' }] }] },
+      newCondBlock()
+    ];
+    WK.blocks[1].condFmt = 'intervals';
+    BUILDER_WID = WK.id; EDIT_EXISTING = false; openBlock = -1;
+    previewWorkout();
+  });
+  let html = await page.$eval('#s-training', (el) => el.innerHTML);
+  if (!/condrow/.test(html)) throw new Error('conditioning row missing in the session');
+  // open the conditioning block from the session and run the demo
+  await page.evaluate(() => {
+    const s = curSession();
+    const bi = s.blocks.findIndex((b) => b.kind === 'conditioning');
+    conRunBlock(bi);
+    conStartDemo();
+  });
+  await page.waitForFunction(() => CON.live && CON.samples.length >= 2, null, { timeout: 8000 });
+  if (await page.evaluate(() => CON.sink.scope) !== 'session') throw new Error('sink not session-scoped during run');
+  await page.evaluate(() => conFinish());
+  const state = await page.evaluate(() => {
+    const s = curSession();
+    const b = s.blocks.find((x) => x.kind === 'conditioning');
+    return { hasResult: !!(b && b.condResult), standalone: (DB.settings.conditioning || []).length };
+  });
+  if (!state.hasResult) throw new Error('condResult not stored on the block');
+  if (state.standalone !== 0) throw new Error('session run leaked into standalone history');
+  // finish the whole session; the union read must surface the conditioning result
+  await page.evaluate(() => { const s = curSession(); s.status = 'completed'; s.completedAt = Date.now(); CUR_SESSION = null; CON.sink = { scope: 'standalone' }; save(); });
+  const union = await page.evaluate(() => allCondRecords().length);
+  if (union < 1) throw new Error('completed hybrid conditioning missing from union read');
+  // clean up
+  await page.evaluate(() => {
+    DB.sessions = DB.sessions.filter((s) => s.name !== 'Hybrid Day');
+    DB.workouts = DB.workouts.filter((w) => w.name !== 'Hybrid Day');
+    CUR_SESSION = null; WK = templateWorkout(); BUILDER_WID = null; save(); go('home');
+  });
+});
 await t('Progress tab renders trends (empty state or charts, never blank)', async () => {
   await page.click('.navlink[data-s="progress"]');
   await page.waitForSelector('#s-progress.on', { timeout: 2000 });

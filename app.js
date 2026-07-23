@@ -58,6 +58,11 @@ const MODEKEYS=Object.keys(MODES);
 function newSet(){return{t:'',rpe:''}}
 function newEx(){return{id:uid(),name:'',mode:'reps_kg',tempo:'',rest:90,sets:[newSet(),newSet(),newSet()]}}
 function newBlock(){return{id:uid(),heading:'New block',minutes:'',format:'',superset:false,exercises:[newEx()]}}
+/* A conditioning block runs by live heart rate instead of set-by-set. It has no
+   exercises; kind:'conditioning' is what tells every path to treat it that way. */
+function newCondBlock(){return{id:uid(),kind:'conditioning',heading:'Conditioning',condFmt:'intervals',targetZone:'mod',minutes:''}}
+function isCond(b){return b&&b.kind==='conditioning'}
+function blockExercises(b){return (b&&b.exercises)||[]}
 function fmtRest(s){s=+s||0;return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
 function rxLine(ex){
   const cfg=MODES[ex.mode]||MODES.reps_kg,n=ex.sets.length;let rx;
@@ -151,15 +156,23 @@ function renderHistory(){
   let body='';
   done.forEach(s=>{
     body+='<div class="section"><div class="sec-head"><h2>'+esc(s.name||'Workout')+'</h2><span>'+(s.status==='incomplete'?'incomplete':'completed')+'</span></div>';
-    s.blocks.forEach(b=>{b.exercises.forEach(ex=>{
-      const logged=ex.sets.filter(st=>st.done||st.aVal||st.aVal2||st.felt);
-      const allDone=ex.sets.length&&ex.sets.every(st=>st.done);
-      const sum=logged.length?logged.map(st=>loggedSetSummary(ex,st)).join(' · '):'—';
-      body+='<div class="card exrow plain'+(allDone?' done':'')+'"><div class="t"><b>'+esc(ex.name||'Exercise')+'</b><span>'+esc(b.heading)+' · '+esc(sum)+'</span></div><div class="st">✓</div></div>';
-    });});
+    s.blocks.forEach(b=>{
+      if(isCond(b)){
+        const r=b.condResult;const fN=(CON_FORMATS[b.condFmt]?CON_FORMATS[b.condFmt].name:'Conditioning');
+        const sum=r?conMmss(r.dur)+' · avg '+(r.avg||'—')+' · max '+(r.max||'—')+' bpm'+(r.hrr!=null?' · ▼'+r.hrr+' recovery':''):'not run';
+        body+='<div class="card exrow plain'+(r?' done':'')+(r?'" style="cursor:pointer" data-click="conOpenResult" data-args="[&quot;'+esc(r.id)+'&quot;]':'"')+'><div class="t"><b>'+esc(fN)+'</b><span>'+esc(b.heading||'Conditioning')+' · '+esc(sum)+'</span></div><div class="'+(r?'chev':'st')+'">'+(r?'›':'✓')+'</div></div>';
+        return;
+      }
+      b.exercises.forEach(ex=>{
+        const logged=ex.sets.filter(st=>st.done||st.aVal||st.aVal2||st.felt);
+        const allDone=ex.sets.length&&ex.sets.every(st=>st.done);
+        const sum=logged.length?logged.map(st=>loggedSetSummary(ex,st)).join(' · '):'—';
+        body+='<div class="card exrow plain'+(allDone?' done':'')+'"><div class="t"><b>'+esc(ex.name||'Exercise')+'</b><span>'+esc(b.heading)+' · '+esc(sum)+'</span></div><div class="st">✓</div></div>';
+      });
+    });
     body+='</div>';
   });
-  // conditioning sessions logged on this day (live HR sessions)
+  // standalone conditioning sessions logged on this day (Conditioning tab)
   const condDay=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>r.date===HIST_DATE);
   condDay.forEach(r=>{
     const fN=(CON_FORMATS[r.fmt]?CON_FORMATS[r.fmt].name:r.fmt)+(r.sim?' · demo':'');
@@ -177,15 +190,15 @@ function renderHistory(){
 /* ---------- HOME (mock layout: greeting, week, session card, WHOOP mini) ---------- */
 function activeSession(){return DB.sessions.find(s=>s.status==='active')||null}
 function workoutKind(w){
-  const strength=w.blocks.some(b=>b.exercises.some(e=>e.mode==='reps_kg'||e.mode==='amrap'));
-  const conditioning=w.blocks.some(b=>b.exercises.some(e=>e.mode==='seconds'||e.mode==='reps_seconds'));
+  const strength=w.blocks.some(b=>!isCond(b)&&blockExercises(b).some(e=>e.mode==='reps_kg'||e.mode==='amrap'));
+  const conditioning=w.blocks.some(b=>isCond(b)||blockExercises(b).some(e=>e.mode==='seconds'||e.mode==='reps_seconds'));
   return [strength?'Strength':'',conditioning?'Conditioning':''].filter(Boolean).join(' + ')||'Session';
 }
 function workoutChips(w){
   const mins=(w.blocks||[]).reduce((n,b)=>n+(+b.minutes||0),0);
-  const exs=(w.blocks||[]).reduce((n,b)=>n+(b.exercises||[]).length,0);
-  const rpe=w.blocks.some(b=>b.exercises.some(e=>e.sets.some(s=>s.rpe)));
-  const tempo=w.blocks.some(b=>b.exercises.some(e=>e.tempo));
+  const exs=(w.blocks||[]).reduce((n,b)=>n+blockExercises(b).length,0);
+  const rpe=w.blocks.some(b=>blockExercises(b).some(e=>e.sets.some(s=>s.rpe)));
+  const tempo=w.blocks.some(b=>blockExercises(b).some(e=>e.tempo));
   const chips=[];
   chips.push('<span class="chip gold">'+(mins?'~'+mins+' min':exs+' exercises')+'</span>');
   if(rpe)chips.push('<span class="chip">RPE-based</span>');
@@ -246,7 +259,7 @@ function renderHome(){
     cards+
     (wc?'<button class="addbtn" data-click="newWorkout">+ New workout</button>':'')+
     '<div class="quickrow">'+
-      '<button class="card quickact" data-click="go" data-args="[&quot;conditioning&quot;]"><span class="qi">⚡</span><b>Start conditioning</b><span>Live heart-rate zones</span></button>'+
+      '<button class="card quickact" data-click="conNav"><span class="qi">⚡</span><b>Start conditioning</b><span>Live heart-rate zones</span></button>'+
       '<button class="card quickact" data-click="openImport"><span class="qi">📋</span><b>Import a workout</b><span>From text or a photo</span></button></div>'+
     homeMiniStats()+
     whoopCardHtml()+
@@ -409,7 +422,17 @@ function renderTraining(){
 /* ---------- workout CRUD ---------- */
 function newWorkout(){WK=templateWorkout();BUILDER_WID=WK.id;EDIT_EXISTING=false;openBlock=-1;go('builder');}
 function editWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;WK=JSON.parse(JSON.stringify(w));BUILDER_WID=id;EDIT_EXISTING=true;openBlock=-1;go('builder');}
-function hasLoggedWork(s){return s&&s.blocks.some(b=>b.exercises.some(e=>e.sets.some(st=>st.done||st.aVal||st.aVal2||st.felt)));}
+function hasLoggedWork(s){return s&&s.blocks.some(b=>(isCond(b)&&b.condResult)||blockExercises(b).some(e=>e.sets.some(st=>st.done||st.aVal||st.aVal2||st.felt)));}
+/* Deep-clone a workout's blocks into a pristine session shape: strength sets
+   cleared, conditioning blocks reset (no result yet). One helper so every
+   entry point (preview, start) treats hybrid blocks identically. */
+function freshSessionBlocks(blocks){
+  return JSON.parse(JSON.stringify(blocks||[])).map(b=>{
+    if(isCond(b)){delete b.condResult;return b;}
+    (b.exercises||[]).forEach(e=>(e.sets||[]).forEach(st=>{st.aVal='';st.aVal2='';st.felt='';st.done=false;}));
+    return b;
+  });
+}
 function previewWorkout(){
   if(!WK.name.trim())WK.name='Untitled workout';
   if(!WK.blocks.some(b=>b.exercises.length)){alert('Add at least one block with an exercise before previewing.');return;}
@@ -421,10 +444,10 @@ function previewWorkout(){
   let s=DB.sessions.find(x=>x.workoutId===WK.id&&x.status==='active');
   if(s&&!hasLoggedWork(s)){
     s.name=clean.name;
-    s.blocks=JSON.parse(JSON.stringify(clean.blocks)).map(b=>{b.exercises.forEach(e=>e.sets.forEach(st=>{st.aVal='';st.aVal2='';st.felt='';st.done=false}));return b});
+    s.blocks=freshSessionBlocks(clean.blocks);
   }
   save();
-  if(s)CUR_SESSION=s.id;else{CUR_SESSION=null;const w=DB.workouts.find(x=>x.id===WK.id);if(w){const ns={id:uid(),workoutId:w.id,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),blocks:JSON.parse(JSON.stringify(w.blocks)).map(b=>{b.exercises.forEach(e=>e.sets.forEach(st=>{st.aVal='';st.aVal2='';st.felt='';st.done=false}));return b})};DB.sessions.push(ns);CUR_SESSION=ns.id;save();}}
+  if(s)CUR_SESSION=s.id;else{CUR_SESSION=null;const w=DB.workouts.find(x=>x.id===WK.id);if(w){const ns={id:uid(),workoutId:w.id,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),blocks:freshSessionBlocks(w.blocks)};DB.sessions.push(ns);CUR_SESSION=ns.id;save();}}
   LOG_LOC=null;
   go('training');
 }
@@ -436,7 +459,7 @@ function startWorkout(workoutId){
   let s=DB.sessions.find(x=>x.workoutId===workoutId&&x.status==='active');
   if(!s){
     s={id:uid(),workoutId:workoutId,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),
-       blocks:JSON.parse(JSON.stringify(w.blocks)).map(b=>{b.exercises.forEach(e=>e.sets.forEach(st=>{st.aVal='';st.aVal2='';st.felt='';st.done=false}));return b})};
+       blocks:freshSessionBlocks(w.blocks)};
     DB.sessions.push(s);save();
   }
   openSession(s.id);
@@ -452,6 +475,7 @@ function renderSession(){
   const el=document.getElementById('s-training');const s=curSession();
   if(!s){el.innerHTML='<div class="kicker">Training</div><h1 style="font-size:24px">No workout yet</h1><p class="sub">Build a workout first — then it runs here.</p><button class="addbtn" style="margin-top:16px" data-click="go" data-args="[&quot;builder&quot;]">Open the Builder</button>';return}
   const body=s.blocks.map((b,bi)=>{
+    if(isCond(b))return renderCondBlockRow(b,bi);
     const head='<div class="sec-head"><h2>'+esc(b.heading||'Block')+'</h2>'+(b.minutes?'<span>'+esc(b.minutes)+' min</span>':'')+'</div>'+(b.format?'<div class="sec-format">'+esc(b.format)+'</div>':'');
     const rows=b.exercises.map((ex,ei)=>{
       const done=ex.sets.length&&ex.sets.every(st=>st.done);
@@ -470,6 +494,30 @@ function renderSession(){
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 style="font-size:24px">'+esc(s.name||'Workout')+'</h1></div></div>'+
     '<div id="sessBody">'+body+'</div>'+
     '<div class="completebar"><button class="bigbtn'+(allDone?' donestate':'')+'" data-click="finishSession" data-args="[&quot;@self&quot;]">'+(allDone?'Everything logged — finish ✓':'Mark session complete')+'</button></div>';
+}
+function condZoneName(key){const z=conZones().list.find(x=>x.key===key);return z?z.name:'Conditioning';}
+function renderCondBlockRow(b,bi){
+  const f=CON_FORMATS[b.condFmt];
+  const title=f?f.name:'Conditioning';
+  const done=!!b.condResult;
+  const head='<div class="sec-head"><h2>'+esc(b.heading||'Conditioning')+'</h2><span>heart rate</span></div>';
+  let sub;
+  if(done){const r=b.condResult;sub=conMmss(r.dur)+' · avg '+(r.avg||'—')+' · max '+(r.max||'—')+' bpm'+(r.hrr!=null?' · ▼'+r.hrr+' recovery':'');}
+  else{sub=(f?f.desc:'Live zone session')+' · target '+condZoneName(b.targetZone);}
+  const endcap=done?'<div class="st">✓</div>':'<div class="chev" aria-hidden="true">›</div>';
+  return '<div class="section">'+head+'<div class="card exrow condrow nav'+(done?' done':'')+'" data-click="conRunBlock" data-args="['+bi+']"><div class="t"><b>'+esc(title)+'</b><span>'+esc(sub)+'</span></div>'+endcap+'</div></div>';
+}
+/* Run (or review) a conditioning block inside the live session. Reuses the whole
+   Conditioning screen; CON.sink tells conFinish to write the result onto the
+   block instead of the standalone history. */
+function conRunBlock(bi){
+  const s=curSession();if(!s)return;
+  const b=s.blocks[bi];if(!isCond(b))return;
+  if(b.condResult){CON.sink={scope:'session',sid:s.id,bi:bi};CON.record=b.condResult;CON.view='results';CON.error='';CON.info='';go('conditioning');return;}
+  CON.sink={scope:'session',sid:s.id,bi:bi};
+  CON.fmt=(b.condFmt&&CON_FORMATS[b.condFmt])?b.condFmt:'intervals';
+  CON.view='setup';CON.record=null;CON.error='';CON.info='';
+  go('conditioning');
 }
 function toggleCompletion(bi,ei){const s=curSession();if(!s)return;const ex=s.blocks[bi].exercises[ei];const d=!ex.sets.every(st=>st.done);ex.sets.forEach(st=>st.done=d);save();renderSession();}
 function markSuperset(bi){const s=curSession();if(!s)return;s.blocks[bi].exercises.forEach(ex=>ex.sets.forEach(st=>st.done=true));save();renderSession();}
@@ -510,21 +558,21 @@ function openLogger(bi,ei){
   LOG_LOC={bi,ei};go('logger');
 }
 function firstLoggable(s){
-  for(let bi=0;bi<s.blocks.length;bi++){const b=s.blocks[bi];for(let ei=0;ei<b.exercises.length;ei++){if(!b.superset&&b.exercises[ei].mode!=='completion')return{bi,ei};}}
-  if(s.blocks.length&&s.blocks[0].exercises.length)return{bi:0,ei:0};
+  for(let bi=0;bi<s.blocks.length;bi++){const b=s.blocks[bi];if(isCond(b))continue;for(let ei=0;ei<blockExercises(b).length;ei++){if(!b.superset&&b.exercises[ei].mode!=='completion')return{bi,ei};}}
+  for(let bi=0;bi<s.blocks.length;bi++){if(!isCond(s.blocks[bi])&&blockExercises(s.blocks[bi]).length)return{bi,ei:0};}
   return null;
 }
 /* Training is the one training destination; the logger is its detail
    view, opened from an exercise row and stepped through in place. */
 function loggableList(s){
   const out=[];
-  s.blocks.forEach((b,bi)=>{if(b.superset)return;b.exercises.forEach((ex,ei)=>{if(ex.mode!=='completion')out.push({bi,ei})})});
+  s.blocks.forEach((b,bi)=>{if(b.superset||isCond(b))return;b.exercises.forEach((ex,ei)=>{if(ex.mode!=='completion')out.push({bi,ei})})});
   return out;
 }
 function exFinished(ex){return ex.sets.length>0&&ex.sets.every(st=>st.done)}
+function blockDone(b){return isCond(b)?!!b.condResult:(blockExercises(b).length>0&&blockExercises(b).every(exFinished));}
 function sessionAllDone(s){
-  const exs=s.blocks.flatMap(b=>b.exercises);
-  return exs.length>0&&exs.every(exFinished);
+  return s.blocks.length>0&&s.blocks.every(blockDone);
 }
 function stepLogger(d){
   const s=curSession();if(!s||!LOG_LOC)return;
@@ -644,7 +692,7 @@ function renderBuilder(){
     '<div class="field" style="margin-top:18px"><label>Workout name</label><input id="wkName" value="'+esc(WK.name)+'" placeholder="e.g. Upper Pump — Day 1" data-input="setWkName" data-args="[&quot;@value&quot;]"></div>'+
     '<div class="field"><label>Train on</label><div class="daychips">'+[0,1,2,3,4,5,6].map(i=>'<button class="daychip'+((WK.days||[]).includes(i)?' on':'')+'" data-click="toggleDay" data-args="['+i+']">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]+'</button>').join('')+'</div></div>'+
     '<div id="builderBody"></div>'+
-    '<button class="addbtn" data-click="addBlock">+ Add block</button>'+
+    '<div class="addrow"><button class="addbtn" data-click="addBlock">+ Add block</button><button class="addbtn cond" data-click="addCondBlock">♥ Add conditioning</button></div>'+
     '<div class="completebar"><button class="bigbtn" data-click="previewWorkout">See how it looks →</button></div>'+
     (EDIT_EXISTING&&DB.workouts.length?'<button class="markall" style="display:block;margin:16px auto 0;color:var(--bad)" data-click="deleteCurrentWorkout">Delete this workout</button>':'');
   renderBuilderBody();
@@ -663,6 +711,7 @@ function renderBuilderBody(){
   const box=document.getElementById('builderBody');if(!box)return;
   box.innerHTML=WK.blocks.map((b,bi)=>{
     const open=bi===openBlock;
+    if(isCond(b))return condBlockCard(b,bi,open);
     return '<div class="bblock '+(open?'open':'')+'"><div class="bblock-head"><button class="bexp" data-click="toggleBlock" data-args="['+bi+']" aria-label="expand block">'+(open?'▾':'▸')+'</button><input class="bhead" value="'+esc(b.heading)+'" placeholder="Block name" data-input="editBlock" data-args="['+bi+',&quot;heading&quot;,&quot;@value&quot;]"><div class="bctrls"><button data-click="moveBlock" data-args="['+bi+',-1]" aria-label="move up">↑</button><button data-click="moveBlock" data-args="['+bi+',1]" aria-label="move down">↓</button><button class="del" data-click="delBlock" data-args="['+bi+']" aria-label="delete block">✕</button></div></div>'+
       (open?
         '<div class="brow2"><input class="bmin" value="'+esc(b.minutes)+'" placeholder="min" inputmode="numeric" data-input="editBlock" data-args="['+bi+',&quot;minutes&quot;,&quot;@value&quot;]"><input class="bfmt" value="'+esc(b.format)+'" placeholder="format — e.g. Every 2:30 × 4 sets" data-input="editBlock" data-args="['+bi+',&quot;format&quot;,&quot;@value&quot;]"><label class="bss"><input type="checkbox" '+(b.superset?'checked':'')+' data-change="toggleSS" data-args="['+bi+',&quot;@checked&quot;]"> Superset</label></div>'+
@@ -672,7 +721,22 @@ function renderBuilderBody(){
     '</div>';
   }).join('');
 }
-function blockSummary(b){const n=b.exercises.length;return n+' exercise'+(n===1?'':'s')+(b.minutes?' · '+esc(b.minutes)+' min':'')+(b.format?' · '+esc(b.format):'')}
+function blockSummary(b){const n=blockExercises(b).length;return n+' exercise'+(n===1?'':'s')+(b.minutes?' · '+esc(b.minutes)+' min':'')+(b.format?' · '+esc(b.format):'')}
+/* Conditioning block in the Builder: no exercises — pick a format and a target
+   zone. Runs by live heart rate inside the session. */
+function condBlockSummary(b){const f=CON_FORMATS[b.condFmt];return (f?f.name+' · '+f.desc:'Conditioning')+' · target '+condZoneName(b.targetZone);}
+function condBlockCard(b,bi,open){
+  const head='<div class="bblock-head"><button class="bexp" data-click="toggleBlock" data-args="['+bi+']" aria-label="expand block">'+(open?'▾':'▸')+'</button><input class="bhead" value="'+esc(b.heading)+'" placeholder="Conditioning" data-input="editBlock" data-args="['+bi+',&quot;heading&quot;,&quot;@value&quot;]"><span class="bkindtag">♥ HR</span><div class="bctrls"><button data-click="moveBlock" data-args="['+bi+',-1]" aria-label="move up">↑</button><button data-click="moveBlock" data-args="['+bi+',1]" aria-label="move down">↓</button><button class="del" data-click="delBlock" data-args="['+bi+']" aria-label="delete block">✕</button></div></div>';
+  if(!open)return '<div class="bblock cond">'+head+'<div class="bsummary" data-click="toggleBlock" data-args="['+bi+']">'+condBlockSummary(b)+'</div></div>';
+  let body='<div class="condbuild">';
+  body+='<div class="lbl2">Format</div><div class="fmtpick build">'+Object.keys(CON_FORMATS).map(k=>{const ff=CON_FORMATS[k];return '<button aria-pressed="'+(b.condFmt===k)+'" data-click="setCondFmt" data-args="['+bi+',&quot;'+k+'&quot;]">'+ff.name+'<small>'+ff.desc+'</small></button>';}).join('')+'</div>';
+  body+='<div class="lbl2" style="margin-top:12px">Target zone</div><div class="zonepick">'+conZones().list.map(z=>'<button aria-pressed="'+(b.targetZone===z.key)+'" data-click="setCondZone" data-args="['+bi+',&quot;'+z.key+'&quot;]"><i style="background:'+z.color+'"></i>'+z.name+'</button>').join('')+'</div>';
+  body+='</div>';
+  return '<div class="bblock cond open">'+head+body+'</div>';
+}
+function setCondFmt(bi,k){if(CON_FORMATS[k])WK.blocks[bi].condFmt=k;renderBuilderBody();}
+function setCondZone(bi,k){WK.blocks[bi].targetZone=k;renderBuilderBody();}
+function addCondBlock(){WK.blocks.push(newCondBlock());openBlock=WK.blocks.length-1;renderBuilderBody();}
 /* Calmer cards: identical set targets collapse to one row; tempo/rest sit
    behind a disclosure until an exercise actually uses them. */
 const VARY=new Set(),OPTS=new Set();
@@ -1057,7 +1121,7 @@ function progZoneBars(bk){
   return '<div class="chart"><svg viewBox="0 0 320 150" role="img" aria-label="Zone minutes by week">'+g+bars+'</svg></div>';
 }
 function progConditioningCards(){
-  const cond=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>!r.sim);
+  const cond=allCondRecords().filter(r=>!r.sim);
   if(!cond.length)return '';
   let out='';
   const now=new Date();now.setHours(0,0,0,0);
@@ -1091,7 +1155,11 @@ function progConditioningCards(){
    ============================================================ */
 const CON={view:'setup',fmt:'intervals',live:false,ble:{dev:null,chr:null,connected:false,sim:false},
   startedAt:0,samples:[],avgSum:0,avgN:0,max:0,lastBpm:null,phases:[],phaseIdx:-1,round:0,rounds:0,
-  timer:null,simBpm:95,simNext:0,record:null,error:'',info:''};
+  timer:null,simBpm:95,simNext:0,record:null,error:'',info:'',
+  /* sink = where a finished session writes. Standalone (the Conditioning tab)
+     saves to DB.settings.conditioning as ever; a session-scoped run writes the
+     result onto its block inside a hybrid workout instead. */
+  sink:{scope:'standalone'}};
 
 /* --- profile & zone model (3 bands, Morpheus-style) ---
    Max HR uses Tanaka (208 - 0.7*age), the meta-analysis-validated formula that
@@ -1323,6 +1391,8 @@ function conAbort(){
   if(!confirm('Discard this session? Nothing will be saved.'))return;
   CON.live=false;clearInterval(CON.timer);CON.timer=null;
   conCleanupBle();CON.view='setup';CON.record=null;
+  const sink=CON.sink||{scope:'standalone'};CON.sink={scope:'standalone'};
+  if(sink.scope==='session'&&DB.sessions.find(x=>x.id===sink.sid)){CUR_SESSION=sink.sid;go('training');return;}
   renderConditioning();updateWake();
 }
 function conDownsample(samples,dur){
@@ -1348,19 +1418,45 @@ function conFinish(){
   const cal=Math.max(0,Math.round((dur/60)*((avg*0.62-55)*0.12+7)));
   const rec={id:uid(),date:ymd(new Date()),startedAt:CON.startedAt,dur,fmt:CON.fmt,maxHr:z.max,
     every:ds.every,hr:ds.pts,zsec,max:CON.max,avg,hrr,cal,sim:CON.ble.sim||undefined};
-  const list=Array.isArray(DB.settings.conditioning)?DB.settings.conditioning.slice():[];
-  list.push(rec);DB.settings.conditioning=list.slice(-40);
-  save();
+  const sink=CON.sink||{scope:'standalone'};
+  let persisted=false;
+  if(sink.scope==='session'){
+    const s=DB.sessions.find(x=>x.id===sink.sid),b=s&&s.blocks[sink.bi];
+    if(isCond(b)){b.condResult=rec;save();persisted=true;}
+  }
+  if(!persisted){ // standalone (the Conditioning tab) — the original path, unchanged
+    const list=Array.isArray(DB.settings.conditioning)?DB.settings.conditioning.slice():[];
+    list.push(rec);DB.settings.conditioning=list.slice(-40);
+    save();CON.sink={scope:'standalone'};
+  }
   CON.record=rec;CON.view='results';
   renderConditioning();updateWake();
 }
 function conOpenResult(id){
-  const r=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).find(x=>x.id===id);
+  const r=allCondRecords().find(x=>x.id===id);
   if(!r)return;
+  CON.sink={scope:'standalone'};
   CON.record=r;CON.view='results';
   if(CURRENT!=='conditioning')go('conditioning');else renderConditioning();
 }
-function conDone(){CON.view='setup';CON.record=null;CON.error='';renderConditioning();}
+/* Every conditioning result the app knows: legacy standalone history plus the
+   ones embedded in completed hybrid sessions. Read paths (History, Progress)
+   take the union so both kinds show up everywhere. */
+function allCondRecords(){
+  const legacy=Array.isArray(DB.settings.conditioning)?DB.settings.conditioning.slice():[];
+  const fromSess=[];
+  DB.sessions.forEach(s=>{if(s.status==='active')return;(s.blocks||[]).forEach(b=>{if(isCond(b)&&b.condResult)fromSess.push(Object.assign({},b.condResult,{date:b.condResult.date||s.date}));});});
+  return legacy.concat(fromSess);
+}
+function conDone(){
+  const sink=CON.sink||{scope:'standalone'};
+  CON.sink={scope:'standalone'};CON.record=null;CON.error='';
+  if(sink.scope==='session'&&DB.sessions.find(x=>x.id===sink.sid)){CON.view='setup';CUR_SESSION=sink.sid;go('training');return;}
+  CON.view='setup';renderConditioning();
+}
+/* The Conditioning nav tab and Home shortcut always mean a standalone session —
+   reset the sink unless a session run is mid-flight (don't hijack it). */
+function conNav(btn){if(!CON.live)CON.sink={scope:'standalone'};go('conditioning',btn);}
 
 /* --- SVG helpers --- */
 function conArc(cx,cy,r,a0,a1){
@@ -1429,7 +1525,13 @@ function conPaintAll(){
 function conSetupHtml(){
   const z=conZones(),f=CON_FORMATS[CON.fmt];
   const rec=WHOOP.sample&&Number.isFinite(Number(WHOOP.sample.recoveryScore))?Math.round(Number(WHOOP.sample.recoveryScore)):null;
-  let h='<div class="kicker">Conditioning</div><h1 style="font-size:24px">Zone session</h1><p class="sub">Train by live heart rate. Zones adapt to your recovery — tune your profile in Settings.</p>';
+  const sess=(CON.sink||{}).scope==='session'?curSession():null;
+  let h;
+  if(sess){
+    h='<div class="backrow"><button class="backbtn" aria-label="Back to workout" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(sess.name||'Workout')+' · conditioning</div><h1 style="font-size:24px">Zone session</h1></div></div>';
+  }else{
+    h='<div class="kicker">Conditioning</div><h1 style="font-size:24px">Zone session</h1><p class="sub">Train by live heart rate. Zones adapt to your recovery — tune your profile in Settings.</p>';
+  }
   if(rec!=null)h+='<div class="recpill"><b>Your recovery today</b><span class="v">'+rec+'%</span></div>';
   h+='<div class="card" style="margin-top:14px;padding:15px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Today&rsquo;s heart-rate zones · max '+z.max+(z.adj>0?' · widened for '+z.rec+'% recovery':z.adj<0?' · eased for '+z.rec+'% recovery':'')+'</div>';
   z.list.forEach(zz=>{h+='<div class="zrow"><span class="zdot" style="background:'+zz.color+'"></span><span class="znm">'+zz.name+'</span><span class="zbar"><span class="zfill" style="background:linear-gradient(90deg,'+zz.color+'55,'+zz.color+')"></span></span><span class="zrng">'+zz.lo+'&ndash;'+zz.hi+'</span></div>';});
@@ -1447,7 +1549,7 @@ function conSetupHtml(){
   h+='<button class="addbtn" style="margin-top:10px" data-click="conStartDemo">Run a demo with simulated HR</button>';
   if(CON.info)h+='<div class="constatus" style="margin-top:12px">'+esc(CON.info)+'</div>';
   if(CON.error)h+='<div class="constatus err" style="margin-top:12px">'+esc(CON.error)+'</div>';
-  const hist=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).slice(-3).reverse();
+  const hist=sess?[]:(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).slice(-3).reverse();
   if(hist.length){
     h+='<div class="section" style="margin-top:22px"><div class="sec-head"><h2>Recent sessions</h2></div><div class="conlist">';
     hist.forEach(r=>{const fN=CON_FORMATS[r.fmt]?CON_FORMATS[r.fmt].name:r.fmt;
@@ -1511,7 +1613,8 @@ function conResultsHtml(rec){
     '<div class="stat hrr"><b>'+(rec.hrr!=null?'▼ '+rec.hrr:'—')+'</b><span>hr recovery · 60s</span></div>'+
     '<div class="stat"><b>'+(rec.cal!=null?rec.cal:'—')+'</b><span>est calories</span></div></div>';
   h+='<p class="con-hint">HR recovery = how far your heart rate dropped in the 60s after your peak — a real conditioning-fitness marker.</p>';
-  h+='<button class="bigbtn" style="margin-top:14px" data-click="conDone">Done</button>';
+  const inSession=(CON.sink||{}).scope==='session';
+  h+='<button class="bigbtn" style="margin-top:14px" data-click="conDone">'+(inSession?'Back to workout ✓':'Done')+'</button>';
   return h;
 }
 function renderConditioning(){
