@@ -264,10 +264,15 @@ function renderHome(){
       cards+=sessionCardHtml(w,kicker,'startWorkout',w.id);
     });
   }
+  // the one dominant tap: resume the live session, or start today's scheduled workout
+  const todayW=!act&&DB.workouts.find(w=>(w.days||[]).includes(new Date().getDay()));
+  const cta=act?'<button class="bigbtn homecta" data-click="startToday">Resume '+esc(act.name||'session')+' →</button>'
+    :todayW?'<button class="bigbtn homecta" data-click="startToday">Start today&rsquo;s session →</button>':'';
   el.innerHTML=
     '<div class="homehead"><div><div class="kicker">Welcome back</div><h1>Train today</h1></div>'+
       '<button class="gearbtn" aria-label="Settings" title="Settings" data-click="go" data-args="[&quot;settings&quot;]"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div>'+
     '<p class="sub">'+esc(sub)+'</p>'+
+    cta+
     weekStripHtml()+
     cards+
     (wc?'<button class="addbtn" data-click="newWorkout">+ New workout</button>':'')+
@@ -278,6 +283,12 @@ function renderHome(){
     whoopCardHtml()+
     (WHOOP_OPEN?readinessCardHtml():'')+
     homeZoneWeekHtml();
+}
+function startToday(){
+  const act=activeSession();
+  if(act){CUR_SESSION=act.id;go('training');return;}
+  const w=DB.workouts.find(x=>(x.days||[]).includes(new Date().getDay()));
+  if(w)startWorkout(w.id);else go('builder');
 }
 /* Morpheus weekly zone banking on Home — only once you've trained a zone this week */
 function homeZoneWeekHtml(){
@@ -575,8 +586,17 @@ function renderSession(){
     });
   });
   const allDone=sessionAllDone(s);
+  // readiness where you're working: recovery % + what it means for today
+  let ready='';
+  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
+  if(Number.isFinite(recRaw)){
+    const rec=Math.round(recRaw),t=whoopTone(rec);
+    const hint=rec<40?'take −1 RPE today and win anyway':rec>80?'green light — push the top sets':'steady — train as planned';
+    ready='<div class="readyline"><i style="background:'+(t.color||'#847d73')+'"></i><b>'+rec+'% recovery</b><span>'+hint+'</span></div>';
+  }
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 style="font-size:24px">'+esc(s.name||'Workout')+'</h1></div></div>'+
+    ready+
     '<div class="logprog"><div class="lpbar"><span style="width:'+spct+'%"></span></div><div class="lptext">'+sdone+' of '+stot+' done<em>'+spct+'%</em></div></div>'+
     '<div id="sessBody">'+body+'</div>'+
     '<div class="completebar"><button class="bigbtn'+(allDone?' donestate':'')+'" data-click="finishSession" data-args="[&quot;@self&quot;]">'+(allDone?'Everything logged — finish ✓':'Mark session complete')+'</button></div>';

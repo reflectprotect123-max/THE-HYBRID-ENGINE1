@@ -78,11 +78,15 @@ await t('log EVERY set of EVERY exercise like a real session', async () => {
   });
   if (!result) throw new Error('not all sets done');
 });
-await t('finish button offered inside logger, finish from there', async () => {
-  await page.evaluate(() => { const s = curSession(); const l = loggableList(s); openLogger(l[l.length - 1].bi, l[l.length - 1].ei); });
-  await page.waitForSelector('#s-logger .completebar .bigbtn', { timeout: 2000 });
-  await page.click('#s-logger .completebar .bigbtn');
-  await page.waitForSelector('#s-home.on', { timeout: 4000 });
+await t('finish offered in the session view; finish lands on recap → home', async () => {
+  await page.evaluate(() => renderSession());
+  await page.waitForSelector('#s-training .completebar .bigbtn', { timeout: 2000 });
+  const label = await page.textContent('#s-training .completebar .bigbtn');
+  if (!/finish/i.test(label)) throw new Error('finish label=' + label);
+  await page.click('#s-training .completebar .bigbtn');
+  await page.waitForSelector('#s-recap.on', { timeout: 4000 });
+  await page.click('#s-recap .completebar .bigbtn');
+  await page.waitForSelector('#s-home.on', { timeout: 2000 });
   const db = await S();
   if (!db.sessions.some((s) => s.status === 'completed' && s.name === 'Break Test — Full Day')) throw new Error('session not completed');
 });
@@ -202,7 +206,7 @@ await t('spam: 30 blocks, 50 sets, rapid tick/untick, rapid prev/next', async ()
   await page.waitForSelector('#s-training.on');
   await page.evaluate(() => openLogger(2, 0));
   await page.evaluate(() => { for (let i = 0; i < 40; i++) tickSet(i % 50); stopRest(); });
-  await page.evaluate(() => { for (let i = 0; i < 60; i++) stepLogger(i % 2 === 0 ? 1 : -1); });
+  await page.evaluate(() => { for (let i = 0; i < 60; i++) openLogger(i % 5, 0); });
   const db = await S();
   const spam = db.sessions.find((s) => s.name === 'Spam' && s.status === 'active');
   if (!spam) throw new Error('spam session lost');

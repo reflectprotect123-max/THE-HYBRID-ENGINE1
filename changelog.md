@@ -1,5 +1,39 @@
 # Changelog
 
+## The Athlete Release — new Logger, recap, PRs, custom conditioning — 24 July 2026
+
+The phone app rebuilt around one loop: show today's work, log it fast, adapt to
+your recovery, prove your progress. Four phases in one release:
+
+**The Logger (the blessed design, live).** The session view IS the logger now:
+every exercise a collapsed row — letter chips (A, B; supersets share a letter as
+C1/C2/C3), live state, rx summary — and tapping one opens its per-set table in
+place: SET · TARGET (your prescription, ghosted) · KG · REPS · RPE · ✓. Ticking
+a set autofills blanks from last time, starts the rest ring, and supersets flow
+to the next movement automatically. One card open at a time; the whole day
+readable at a glance.
+
+**The app remembers.** Finish a session and a recap screen marks the moment:
+volume, sets done, planned-vs-felt RPE verdict, HR zones if the day was hybrid —
+and any records you set. New per-exercise history: best set, estimated-1RM
+(Epley) trend chart, every past session; reachable from the recap, History day
+rows, the logger's "history ›" link, and a new Top lifts card on Progress.
+
+**Conditioning depth.** A Custom format (your rounds / work / rest, editable on
+the setup screen) and a Free run mode (open-ended — just track HR, finish when
+done). Both record zones and HR recovery like everything else; the earned
+progression stays reserved for the three canonical formats.
+
+**Reliability + readiness.** The rest-timer buzz now fires from a native alarm
+even when the screen is off (WebView timers throttle — the phone itself keeps
+time now). The session header shows your recovery and what it means today
+("green light — push the top sets" / "take −1 RPE today and win anyway"), and
+Home gains the one dominant tap: Start today's session / Resume.
+
+Native shell **v2.8.0 (versionCode 13)**. Service-worker cache v54. All six
+suites green, logger tests rewritten to the new behaviors.
+
+
 ## Always-visible Settings — 23 July 2026
 
 Fixed a real gap: **Settings** (cloud sync, WHOOP, profile, export/import backup)
