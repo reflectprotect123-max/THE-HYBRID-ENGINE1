@@ -24,7 +24,7 @@ const PAL={
   gold:cssVar('--gold','#c09358'), gold2:cssVar('--gold2','#e0bc87'),
   text:cssVar('--text','#f5f1e9'), dim:cssVar('--dim','#847d73'),
   blue:cssVar('--blue','#82a8e9'),
-  ok:cssVar('--ok','#9fc59b'), bad:cssVar('--bad','#cf7f7c'),
+  ok:cssVar('--ok','#9fc59b'),
   zoneLow:cssVar('--z-low','#5b8def'), zoneMod:cssVar('--z-mod','#cf9d4f'), zoneHigh:cssVar('--z-high','#e0524d'),
   zoneBlue:cssVar('--zone-blue','#5b8def'), zoneGreen:cssVar('--zone-green','#33c07a'), zoneRed:cssVar('--zone-red','#e0524d'),
   neonStrain:cssVar('--neon-strain','#33C4FF'), neonOk:cssVar('--neon-ok','#3DFF9E'),
@@ -531,15 +531,14 @@ function stepsAsk(){
 }
 /* re-render once the user answers the Android permission prompt */
 function nativeStepsReady(){if(CURRENT==='home')renderHome();}
-function fmtSteps(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n);}
 /* the " · Steps 8.4k" tail appended to the WHOOP detail line */
 function stepsSuffix(){
   const n=stepsToday();
-  if(n!=null)return ' · Steps '+fmtSteps(n);
+  if(n!=null)return ' · Steps '+fmtK(n);
   if(stepsNeedsPermission())return ' · Steps —';
   return '';
 }
-const STRAIN_BLUE=PAL.zoneLow,RING_IDLE_COLOR=PAL.ringIdle;
+const RING_IDLE_COLOR=PAL.ringIdle;
 /* Neon ring palette — the recovery/strain rings glow in bright neon (brighter
    than the muted band colours used for text), per the athlete request. */
 const STRAIN_NEON=PAL.neonStrain;
@@ -1730,7 +1729,7 @@ function renderSettings(){
   if(stepsBridge()){
     const sn=stepsToday();
     whoop+='<div class="sc-meta" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">'+
-      (sn!=null?'Steps today · <b>'+fmtSteps(sn)+'</b> — counted by this phone.'
+      (sn!=null?'Steps today · <b>'+fmtK(sn)+'</b> — counted by this phone.'
        :stepsNeedsPermission()?'Step counting needs permission to read physical activity.'
        :'This phone has no step counter available.')+'</div>'+
       (stepsNeedsPermission()?'<button class="addbtn" style="margin-top:10px" data-click="stepsAsk">Allow step counting</button>':'');
