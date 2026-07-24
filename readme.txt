@@ -1,10 +1,14 @@
-THE Hybrid Engine — the design mock, made real (private PWA)
+THE Hybrid System — local-first training PWA + coach website
 
-The app is the design mock (hybrid-engine-design-mock.html) built for real:
-Home, Training, Logger and Builder render the mock's exact screens, backed by
-a persistent local-first engine. Workouts, live sessions and history are
-stored on-device (localStorage), with optional Supabase cloud sync and
-server-side WHOOP recovery via Netlify functions.
+Two entities share one Supabase project:
+  1. The athlete app (repo root) — a local-first PWA. Workouts, live sessions
+     and history live on-device (localStorage), with optional cloud sync and
+     server-side WHOOP recovery via Netlify functions. Wrapped as an Android
+     app (native/android-app) that adds BLE heart rate, on-device OCR, voice
+     input and a step counter.
+  2. The coach website (coach/) — a desktop builder served in place at
+     /coach/. Authors programs -> weeks -> days -> sessions and publishes them
+     to an athlete's calendar. See coach/GO-LIVE.md.
 
 Quick local test
 1. Run: python3 -m http.server 4173
@@ -17,10 +21,15 @@ Screens
   recovery with the last week's target-vs-felt RPE gap.
 - Training: the day view — blocks, supersets, prescription lines, big
   "Mark session complete" button.
-- Logger (opened by tapping an exercise in Training — no separate tab):
-  set-by-set logging with per-mode columns (KG/Reps/Secs), RPE felt,
-  targets per set, last-time box (and last kg as the input placeholder), and
-  a rest chip that auto-starts on ✓, survives reload, and vibrates at zero.
+- Logger: not a separate screen — every exercise in Training is a row that
+  expands in place into a set-by-set accordion, with per-mode columns
+  (KG/Reps/Secs), RPE felt, per-set targets and notes, a last-time line (last
+  kg becomes the input placeholder), a plate calculator, exercise swap, and a
+  rest chip that auto-starts on ✓, survives reload, and vibrates at zero.
+- Library: saved sessions, conditioning formats, progress and per-exercise
+  history, behind one tab with sub-tabs.
+- Calendar: month grid — schedule sessions ahead, see planned vs trained days.
+  Long-press any session card (Home or Library) for Move / Delete.
 - Import (Builder > "Import from text or photo"): paste any written
   workout — or attach a screenshot/photo, read on-device by a bundled
   OCR engine — and it parses into a template. It asks only about genuine
@@ -79,7 +88,13 @@ From the repository root, run:
   node checks/whoop-contract.mjs .
   node checks/whoop-deployment-smoke.mjs .
   node checks/browser-smoke.mjs       (needs: npm i -D playwright)
+  node checks/torture.mjs             (edge cases / abuse of the session engine)
   node checks/pentest.mjs             (adversarial; needs playwright for the browser half)
+  node checks/emit-contract.mjs       (coach -> phone shape contract; dual-mode)
+  node checks/coach-smoke.mjs         (the coach builder, fully offline)
 
-This package is a private build artifact, not an access-control layer. Do not
-put provider credentials or secrets in the browser, ZIP, or repository.
+All eight should pass before shipping. The last two are the only automated
+coverage of the coach entity.
+
+This repository is not an access-control layer. Do not put provider
+credentials or secrets in the browser or the repository.

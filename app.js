@@ -1446,8 +1446,10 @@ function toggleBlock(bi){openBlock=(openBlock===bi?-1:bi);renderBuilderBody();}
 function confetti(){const colors=[PAL.gold,PAL.gold2,PAL.blue,PAL.text];for(let i=0;i<36;i++){const c=document.createElement('div');c.className='confetti';c.style.left=(5+Math.random()*90)+'vw';c.style.background=colors[i%colors.length];c.style.animationDelay=(Math.random()*.5)+'s';c.style.transform='rotate('+(Math.random()*360)+'deg)';document.body.appendChild(c);setTimeout(()=>c.remove(),2200);}}
 
 /* ---------- Supabase cloud sync (namespaced under state.hybridEngine) ---------- */
-const SUPABASE_URL='https://orysjncrksmdfabpuftd.supabase.co';
-const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9yeXNqbmNya3NtZGZhYnB1ZnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTE4NzksImV4cCI6MjA5OTk4Nzg3OX0.GTMBfFtH5O6SikzHo75sXGIZoEhmuJ7TvXiACd7T078';
+/* project URL + anon key come from the shared config.js (one source for both
+   the athlete app and the coach site). Missing config simply disables sync. */
+const SUPABASE_URL=(window.HYBRID_SUPABASE||{}).url||'';
+const SUPABASE_ANON_KEY=(window.HYBRID_SUPABASE||{}).anonKey||'';
 const SB=(SUPABASE_URL&&SUPABASE_ANON_KEY&&window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
 const CHANGE_KEY=LS_KEY+'-changedAt';
 let cloudUser=null,cloudBusy=false,cloudError='',cloudTimer=null,cloudPending=false,lastSyncedFp=null,cloudSyncedAt=0;

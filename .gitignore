@@ -9,3 +9,7 @@ the-hybrid-engine-netlify/
 native/android/*.keystore
 native/**/target/
 native/android/keystore.b64
+
+# generated design-kit cards (regenerate: python3 design/_split_kit.py)
+design/cards/
+design/cards-index.html

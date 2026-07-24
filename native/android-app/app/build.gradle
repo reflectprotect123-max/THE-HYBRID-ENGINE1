@@ -12,8 +12,8 @@ android {
     applicationId 'com.hybridengine.app'   // same id as the old TWA → installs as an update
     minSdk 24
     targetSdk 35
-    versionCode 21                         // 21 = on-device step counter (AndroidSteps bridge)
-    versionName '2.10.0'
+    versionCode 22                         // 22 = shared config.js, deduped coach assets
+    versionName '2.10.1'
   }
 
   signingConfigs {

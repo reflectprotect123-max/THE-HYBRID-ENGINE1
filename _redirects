@@ -1,5 +1,19 @@
 /.well-known/assetlinks.json  /.well-known/assetlinks.json  200
 /privacy /privacy.html 200
+# Non-web paths: source, tests, build tooling and schema live in the repo but
+# have no business being fetched from the CDN. `!` forces the rule to win over
+# the real file (publish = "." serves the whole tree). Tidiness, not secrecy —
+# the repository is public, so nothing here is hidden by this.
+/checks/*            /index.html  404!
+/native/*            /index.html  404!
+/design/*            /index.html  404!
+/netlify/functions/_lib/*  /index.html  404!
+/*.sql               /index.html  404!
+/*.md                /index.html  404!
+/readme.txt          /index.html  404!
+/package.json        /index.html  404!
+/package-lock.json   /index.html  404!
+
 # Coach website (Entity 2) is served in place at /coach/* — the files are real
 # (they win over the SPA fallback below) and the service worker bypasses /coach,
 # so the athlete shell never intercepts it. No separate site needed.
