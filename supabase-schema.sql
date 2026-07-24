@@ -100,7 +100,11 @@ returns boolean language sql security definer stable set search_path = public as
     select 1 from public.coach_athletes ca
     where ca.coach_id = p_coach and ca.athlete_id = p_athlete and ca.status = 'active');
 $$;
-revoke all on function public.is_active_athlete_of(uuid, uuid) from public, authenticated;
+-- The assignments RLS policies call this function as the *invoking* user, so
+-- authenticated needs EXECUTE (a security-definer body still checks the caller's
+-- execute privilege). Keep anon locked out.
+revoke all on function public.is_active_athlete_of(uuid, uuid) from public;
+grant execute on function public.is_active_athlete_of(uuid, uuid) to authenticated;
 
 -- Claim an invite. The token IS the capability; the row is re-checked under a
 -- FOR UPDATE lock so an invite can never be double-claimed.
