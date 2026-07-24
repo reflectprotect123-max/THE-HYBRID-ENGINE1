@@ -112,6 +112,16 @@
   .exhdr .tr{color:var(--ink2);cursor:pointer}
   .exhdr .tr:hover{color:var(--danger)}
   .exhdr .tr svg{width:17px;height:17px;stroke:currentColor;stroke-width:1.7;fill:none}
+  /* chain-link connector between exercise letters → tap to superset (A1/A2) */
+  .exlink{height:34px;margin:-18px 0 0;display:flex;align-items:center;padding-left:15px;position:relative;z-index:3}
+  .exlink .chain{width:26px;height:26px;border-radius:50%;border:1.5px dashed #b9c1cc;background:var(--panel);color:var(--ink2);display:grid;place-items:center;cursor:pointer;position:relative;transition:transform .12s ease}
+  .exlink .chain::before,.exlink .chain::after{content:"";position:absolute;left:50%;transform:translateX(-50%);width:1.5px;height:10px;background:#c8cfd8}
+  .exlink .chain::before{top:-10px}
+  .exlink .chain::after{bottom:-10px}
+  .exlink .chain:hover{border-style:solid;border-color:var(--orange);color:var(--orange);transform:scale(1.08)}
+  .exlink .chain svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none}
+  .exlink.on .chain{border-style:solid;border-color:var(--orange);background:var(--orange);color:#fff}
+  .exlink.on .chain::before,.exlink.on .chain::after{background:var(--orange)}
 
   .exbody{display:grid;grid-template-columns:1fr 400px;gap:0}
   @media(max-width:1200px){.exbody{grid-template-columns:1fr}}
@@ -262,6 +272,15 @@
   ]};
   var CUR=0, WK=1;
 
+  // superset labels: a run of linked exercises shares a base letter → A1, A2, …; singles stay A, B, …
+  function letters(exs){
+    var out=[],groups=[];
+    exs.forEach(function(e,i){ if(i===0||!e.link) groups.push([i]); else groups[groups.length-1].push(i); });
+    var L=65;
+    groups.forEach(function(g){ var c=String.fromCharCode(L++); g.forEach(function(idx,j){ out[idx]=g.length>1?c+(j+1):c; }); });
+    return out;
+  }
+
   function summary(e){
     var repsI=e.cols.indexOf('Reps'), wI=e.cols.findIndex(function(c){return c.indexOf('Weight')===0;});
     if(repsI<0){var t=e.cols.indexOf('Time (min:sec)');return e.sets.length+' × '+(t>=0?e.sets[0][t]:'set');}
@@ -278,8 +297,8 @@
     document.getElementById('days').innerHTML=WEEK.days.map(function(s,i){return '<button class="day'+(i===CUR?' on':'')+'" data-act="day" data-i="'+i+'">'+(i+1)+'</button>';}).join('');
     var s=WEEK.days[CUR], pv=document.getElementById('preview');
     if(!s){pv.innerHTML='<div class="pvday">Day '+(CUR+1)+'</div><div class="microval" style="padding:8px 2px">Rest day — no session.</div>';return;}
-    var letter='A',rows='';
-    s.exercises.forEach(function(e){rows+='<div class="pvex"><span class="mk">'+letter+'</span><div><b>'+e.name+'</b><span>'+summary(e)+'</span></div></div>';letter=String.fromCharCode(letter.charCodeAt(0)+1);});
+    var lb=letters(s.exercises),rows='';
+    s.exercises.forEach(function(e,i){rows+='<div class="pvex"><span class="mk">'+lb[i]+'</span><div><b>'+e.name+'</b><span>'+summary(e)+'</span></div></div>';});
     pv.innerHTML='<div class="pvday">Day '+(CUR+1)+'</div>'+
       '<div class="pvsess"><span class="std">STD</span><b>'+s.title+'</b><span class="lk"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></span></div>'+rows;
   }
@@ -302,8 +321,9 @@
        '<span class="selbox" data-act="secmenu"><span>–</span><span class="cv">▾</span></span>'+
        '<span class="dots" data-act="secdots">⋯</span></div>';
 
+    var LB=letters(s.exercises);
     s.exercises.forEach(function(e,ei){
-      var letter=String.fromCharCode(65+ei);
+      var letter=LB[ei];
       var cols=e.cols;
       var tmpl='38px '+cols.map(function(){return '1fr';}).join(' ');
       h+='<div class="exc"><div class="exhdr"><span class="mk">'+letter+'</span>'+
@@ -328,6 +348,10 @@
               cols.map(function(c,ci){return '<input value="'+String(row[ci]===undefined?'':row[ci]).replace(/"/g,'&quot;')+'" placeholder="'+(PH[c]||'')+'" data-act="cell" data-e="'+ei+'" data-s="'+si+'" data-c="'+ci+'">';}).join('')+'</div>';}).join('')+'</div></div>'+
           '<div class="rxfoot"><button data-act="addset" data-e="'+ei+'">+ Add set</button><button data-act="delset" data-e="'+ei+'">– Remove set</button></div>'+
         '</div></div></div>';
+      if(ei<s.exercises.length-1){
+        var lk=!!s.exercises[ei+1].link;
+        h+='<div class="exlink'+(lk?' on':'')+'"><button class="chain" data-act="suplink" data-e="'+(ei+1)+'" title="'+(lk?'Unlink superset':'Link into a superset')+'"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></button></div>';
+      }
     });
     h+='<div class="exadd2"><button data-act="addex">+ Add exercise</button><button data-act="addblock">+ Add section</button></div>';
     el.innerHTML=h;
@@ -363,6 +387,7 @@
     var mi=ev.target.closest('.mmenu button'); if(mi){var mm=mi.closest('.mmenu');var fn=mm._pick;closeMenu();if(fn)fn(mi.dataset.v);return;}
     var el=ev.target.closest('[data-act]'); if(!el)return; var a=el.dataset.act, ei=+el.dataset.e;
     if(a==='day'){CUR=+el.dataset.i;render();}
+    else if(a==='suplink'){var xs=WEEK.days[CUR].exercises;xs[ei].link=!xs[ei].link;render();toast(xs[ei].link?'Linked into a superset':'Superset unlinked');}
     else if(a==='menuclose'){closeMenu();}
     else if(a==='progmenu'){openMenu(el,['SANDBOX – test – delete me','Hybrid Base — Block I','Off-season Strength','Fight Camp — 8wk','—SEP—','+ New program'],function(v){toast(v[0]==='+'?'New program':'Opened “'+v+'”');});}
     else if(a==='exmenu'){var e1=WEEK.days[CUR].exercises[ei];openMenu(el,['Back Squat','Front Squat','Box Squat','Romanian Deadlift with DB','Bench Press','Deadlift','—SEP—','Search exercise library…'],function(v){if(v.indexOf('Search')<0){e1.name=v;render();toast('Swapped to '+v);}},e1.name);}
