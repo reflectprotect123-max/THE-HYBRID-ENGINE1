@@ -401,6 +401,7 @@ async function main() {
     relativePath === 'netlify' || relativePath.startsWith('netlify/functions/') ||
     relativePath === 'node_modules' || relativePath.startsWith('node_modules/') ||
     relativePath === 'vendor' || relativePath.startsWith('vendor/') ||
+    relativePath === 'coach/vendor' || relativePath.startsWith('coach/vendor/') ||
     relativePath === 'checks' || relativePath.startsWith('checks/')
   ));
   const secretPatterns = [
