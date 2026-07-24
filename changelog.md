@@ -1,5 +1,26 @@
 # Changelog
 
+## Sync hardening — two devices never lose each other's work — 25 July 2026
+
+Cloud sync used to replace your whole workout/session list with whichever device
+synced last, so scheduling something on your phone and your laptop between syncs
+could quietly drop one side's days. Now it **merges record-by-record**:
+
+- **Workouts and sessions merge by id** instead of last-write-wins. Scheduled days
+  are unioned (you never lose a planned session), edits take the newer side, and
+  logged history is always kept.
+- **Deletions stick.** Deleting a session records a tombstone so a merge from an
+  older device can't resurrect it.
+- **The push side merges too**, so a save can't clobber a change another device
+  made since you last pulled.
+- **Settings → Cloud** now shows a live status line — last synced, how many devices
+  are on your account, and a **Sync now** button.
+- **Restore** asks for confirmation and tells you what's in the backup first; the
+  device registry and WHOOP samples stay device-local and never churn the sync.
+
+No data model or feature change; all six test suites green, including a new
+two-device merge + tombstone test.
+
 ## Matte Instrument — a visual upgrade across every screen — 25 July 2026
 
 A design pass that lifts the whole app without changing how anything works — same

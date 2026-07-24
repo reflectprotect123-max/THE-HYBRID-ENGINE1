@@ -144,7 +144,7 @@ function scheduleWorkoutOn(workoutId,key){
   const w=DB.workouts.find(x=>x.id===workoutId);if(!w)return;
   w.dates=Array.isArray(w.dates)?w.dates:[];
   if(!w.dates.includes(key))w.dates.push(key);
-  save();
+  stampWorkout(w);save();
 }
 function weekDays(){
   const now=new Date(),sun=new Date(now);sun.setDate(now.getDate()-now.getDay());
@@ -214,7 +214,7 @@ function calDay(key){
   openSheet(h);
 }
 function calStart(id){closeSheet();startWorkout(id);}
-function calUnschedule(id,key){const w=DB.workouts.find(x=>x.id===id);if(w){w.dates=(w.dates||[]).filter(k=>k!==key);save();}closeSheet();renderCalendar();}
+function calUnschedule(id,key){const w=DB.workouts.find(x=>x.id===id);if(w){w.dates=(w.dates||[]).filter(k=>k!==key);stampWorkout(w);save();}closeSheet();renderCalendar();}
 function calHist(key){closeSheet();openHistory(key);}
 function calAdd(key){closeSheet();SCHED_DATE=key;openAddSheet();}
 
@@ -559,7 +559,7 @@ function previewWorkout(){
   if(!WK.name.trim())WK.name='Untitled workout';
   if(!WK.blocks.some(b=>isCond(b)||blockExercises(b).length)){alert('Add at least one block with an exercise before previewing.');return;}
   const i=DB.workouts.findIndex(x=>x.id===WK.id);
-  const clean=JSON.parse(JSON.stringify(WK));
+  const clean=stampWorkout(JSON.parse(JSON.stringify(WK)));
   if(i>=0)DB.workouts[i]=clean;else DB.workouts.push(clean);
   EDIT_EXISTING=true;BUILDER_WID=WK.id;
   // refresh (or open) the live session for this workout — but never wipe logged sets
@@ -1072,10 +1072,12 @@ function tplMenu(id){
     '<button class="cancel" data-click="closeSheet">Cancel</button>');
 }
 function editWorkoutFromSheet(id){closeSheet();editWorkout(id);}
-function dupWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;const c=JSON.parse(JSON.stringify(w));c.id=uid();c.name=(w.name||'Session')+' (copy)';c.dates=[];DB.workouts.push(c);save();closeSheet();renderLibrary();}
+function dupWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;const c=stampWorkout(JSON.parse(JSON.stringify(w)));c.id=uid();c.name=(w.name||'Session')+' (copy)';c.dates=[];DB.workouts.push(c);save();closeSheet();renderLibrary();}
 function delWorkoutFromLib(id){
   const w=DB.workouts.find(x=>x.id===id);if(!w)return;
   if(!confirm('Delete "'+(w.name||'this session')+'"? This cannot be undone.'))return;
+  tombstoneId(id);
+  DB.sessions.filter(s=>s.workoutId===id&&s.status==='active').forEach(s=>tombstoneId(s.id));
   DB.workouts=DB.workouts.filter(x=>x.id!==id);
   DB.sessions=DB.sessions.filter(s=>!(s.workoutId===id&&s.status==='active'));
   if(CUR_SESSION&&!DB.sessions.find(s=>s.id===CUR_SESSION))CUR_SESSION=null;
@@ -1155,6 +1157,8 @@ function deleteCurrentWorkout(){
   const id=BUILDER_WID,w=DB.workouts.find(x=>x.id===id);
   if(!w)return;
   if(!confirm('Delete "'+(w.name||'this workout')+'"? This cannot be undone.'))return;
+  tombstoneId(id);
+  DB.sessions.filter(s=>s.workoutId===id&&s.status==='active').forEach(s=>tombstoneId(s.id));
   DB.workouts=DB.workouts.filter(x=>x.id!==id);
   DB.sessions=DB.sessions.filter(s=>!(s.workoutId===id&&s.status==='active'));
   if(CUR_SESSION&&!DB.sessions.find(s=>s.id===CUR_SESSION))CUR_SESSION=null;
@@ -1253,7 +1257,8 @@ const SUPABASE_URL='https://orysjncrksmdfabpuftd.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9yeXNqbmNya3NtZGZhYnB1ZnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTE4NzksImV4cCI6MjA5OTk4Nzg3OX0.GTMBfFtH5O6SikzHo75sXGIZoEhmuJ7TvXiACd7T078';
 const SB=(SUPABASE_URL&&SUPABASE_ANON_KEY&&window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
 const CHANGE_KEY=LS_KEY+'-changedAt';
-let cloudUser=null,cloudBusy=false,cloudError='',cloudTimer=null,cloudPending=false,lastSyncedFp=null;
+let cloudUser=null,cloudBusy=false,cloudError='',cloudTimer=null,cloudPending=false,lastSyncedFp=null,cloudSyncedAt=0;
+function agoLabel(ms){if(!ms)return 'not yet';const s=Math.max(0,Math.round((Date.now()-ms)/1000));if(s<60)return 'just now';const m=Math.round(s/60);if(m<60)return m+'m ago';const h=Math.round(m/60);if(h<24)return h+'h ago';return Math.round(h/24)+'d ago';}
 function cloudEnabled(){return !!SB}
 function localChangeAt(){return Number(localStorage.getItem(CHANGE_KEY))||0}
 function markLocalChange(at){try{localStorage.setItem(CHANGE_KEY,String(at||Date.now()))}catch(e){}}
@@ -1261,7 +1266,7 @@ function cloudFp(engine){try{
   // Include settings so profile/zone/progression/conditioning changes DO sync.
   // Exclude whoopDaily — it's device-local, re-derived per device, and would
   // otherwise churn the fingerprint on every WHOOP sample.
-  const st=Object.assign({},engine.settings||{});delete st.whoopDaily;
+  const st=Object.assign({},engine.settings||{});delete st.whoopDaily;delete st.devices;
   return JSON.stringify({w:engine.workouts||[],s:engine.sessions||[],st});
 }catch(e){return 'fp-'+Math.random()}}
 /* Merge two settings blobs without losing additive data: earned progression
@@ -1277,8 +1282,56 @@ function mergeSettings(base,winner){
   if(bc.length||wc.length){const seen=new Set(),m=[];bc.concat(wc).forEach(r=>{if(r&&r.id&&!seen.has(r.id)){seen.add(r.id);m.push(r);}});m.sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));out.conditioning=m.slice(-40);}
   const bl=base.lexicon||{},wl=winner.lexicon||{};
   if(bl.kw||bl.ex||wl.kw||wl.ex)out.lexicon={kw:Object.assign({},bl.kw,wl.kw),ex:Object.assign({},bl.ex,wl.ex)};
+  // deletion tombstones + device registry: union keeping the newest timestamp per id
+  const bd=base.deletedIds||{},wd=winner.deletedIds||{},dk=Object.keys(bd).concat(Object.keys(wd));
+  if(dk.length){const dd={};dk.forEach(k=>{dd[k]=Math.max(bd[k]||0,wd[k]||0);});
+    // cap: keep the 300 most-recent tombstones
+    const ks=Object.keys(dd);if(ks.length>300){ks.sort((a,b)=>dd[a]-dd[b]).slice(0,ks.length-300).forEach(k=>delete dd[k]);}
+    out.deletedIds=dd;}
+  const bv=base.devices||{},wv=winner.devices||{},vk=Object.keys(bv).concat(Object.keys(wv));
+  if(vk.length){const vv={};[...new Set(vk)].forEach(k=>{const a=bv[k]||{},b=wv[k]||{};vv[k]=(b.seen||0)>=(a.seen||0)?b:a;});out.devices=vv;}
   return out;
 }
+/* ---- record-level cloud merge: workouts & sessions are merged by id (not
+   last-write-wins), so two devices can schedule/log between syncs without
+   either side losing data. dates/days are unioned (additive — never drop a
+   scheduled day); name/blocks take the side with the newer per-record
+   updatedAt; deletions are honoured via tombstones so a merge can't resurrect
+   something you deleted. ---- */
+function uniqArr(a){return [...new Set((a||[]).filter(v=>v!=null))];}
+function mergeById(a,b,pick){
+  const map=new Map();
+  (a||[]).forEach(x=>{if(x&&x.id)map.set(x.id,x);});
+  (b||[]).forEach(y=>{if(!y||!y.id)return;const x=map.get(y.id);map.set(y.id,x?pick(x,y):y);});
+  return [...map.values()];
+}
+function pickWorkout(x,y){
+  const newer=(y.updatedAt||0)>=(x.updatedAt||0)?y:x;
+  return Object.assign({},newer,{
+    days:uniqArr((x.days||[]).concat(y.days||[])).sort((m,n)=>m-n),
+    dates:uniqArr((x.dates||[]).concat(y.dates||[])).sort()
+  });
+}
+function sessionScore(s){let n=0;(s.blocks||[]).forEach(b=>((b&&b.exercises)||[]).forEach(e=>(e.sets||[]).forEach(st=>{if(st&&st.done)n++;})));return (s.completedAt||s.startedAt||0)+n*1e6;}
+function pickSession(x,y){return sessionScore(y)>=sessionScore(x)?y:x;}
+function notTombstoned(t){t=t||{};return function(x){const d=t[x&&x.id];return !(d&&d>=(x.updatedAt||0));};}
+function mergeEngines(local,remote){
+  const settings=mergeSettings(remote.settings||{},local.settings||{}); // local scalar edits win; additive fields unioned
+  const t=settings.deletedIds||{};
+  const workouts=mergeById(local.workouts,remote.workouts,pickWorkout).filter(notTombstoned(t));
+  const sessions=mergeById(local.sessions,remote.sessions,pickSession).filter(notTombstoned(t));
+  return {workouts,sessions,settings};
+}
+/* stamp a workout as locally edited (drives newer-wins in a merge) */
+function stampWorkout(w){if(w&&typeof w==='object')w.updatedAt=Date.now();return w;}
+/* tombstone an id so a later merge from another device can't bring it back */
+function tombstoneId(id){if(!id)return;DB.settings=DB.settings||{};const t=Object.assign({},DB.settings.deletedIds);t[id]=Date.now();DB.settings.deletedIds=t;}
+/* this device's stable id + registry stamp (for the "synced across N devices" line) */
+function deviceId(){let d=null;try{d=localStorage.getItem(LS_KEY+'-deviceId');if(!d){d=uid()+uid();localStorage.setItem(LS_KEY+'-deviceId',d);}}catch(e){d=d||'local';}return d;}
+function stampDevice(){DB.settings=DB.settings||{};const v=Object.assign({},DB.settings.devices);const id=deviceId();const prev=v[id]||{};
+  // only refresh at most hourly so it never churns the sync fingerprint
+  if((Date.now()-(prev.seen||0))>36e5){v[id]={seen:Date.now()};DB.settings.devices=v;}}
+function deviceCount(){const v=(DB.settings&&DB.settings.devices)||{};const cut=Date.now()-30*864e5;return Object.keys(v).filter(k=>(v[k].seen||0)>=cut).length||1;}
 async function cloudInit(){
   if(!cloudEnabled())return;
   try{const {data}=await SB.auth.getSession();cloudUser=data&&data.session?data.session.user:null;if(cloudUser)await cloudReconcile();}
@@ -1300,21 +1353,20 @@ async function cloudReconcile(){
     const {data,error}=await SB.from('app_state').select('state,updated_at').eq('user_id',cloudUser.id).maybeSingle();
     if(error)throw error;
     const remote=data&&data.state&&data.state.hybridEngine?data.state.hybridEngine:null;
+    stampDevice();
     if(!remote){await cloudPushNow(true);}
+    else if(cloudFp(remote)===cloudFp(DB)){lastSyncedFp=cloudFp(DB);cloudSyncedAt=Date.now();}
     else{
-      const localEmpty=(DB.workouts.length===0&&DB.sessions.length===0);
-      if(cloudFp(remote)===cloudFp(DB)){lastSyncedFp=cloudFp(DB);}
-      else{
-        const remoteAt=data.updated_at?Date.parse(data.updated_at):0,localAt=localChangeAt();
-        if(localEmpty||remoteAt>=localAt){
-          // sanitize the pulled state (a second device / foreign backup may carry
-          // malformed blocks) while preserving our merged, additive settings
-          DB=sanitizeDB({workouts:remote.workouts||[],sessions:remote.sessions||[],settings:mergeSettings(DB.settings,remote.settings||{})});
-          try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}
-          markLocalChange(remoteAt||Date.now());lastSyncedFp=cloudFp(DB);
-          renderScreen(CURRENT);
-        }else{await cloudPushNow(true);}
-      }
+      // Record-level MERGE (not last-write-wins): union workouts/sessions by id so
+      // neither device loses scheduling or logged work. sanitize hardens a foreign
+      // or malformed pulled state.
+      const merged=mergeEngines(DB,remote);
+      DB=sanitizeDB(merged);
+      try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}
+      lastSyncedFp=cloudFp(DB);cloudSyncedAt=Date.now();
+      renderScreen(CURRENT);
+      // if the merge produced anything the remote doesn't already have, push it back
+      if(cloudFp(merged)!==cloudFp(remote))await cloudPushNow(true);
     }
   }catch(e){cloudError=String(e&&e.message||e);}
   cloudBusy=false;if(CURRENT==='settings')renderSettings();
@@ -1335,17 +1387,18 @@ async function cloudPushNow(force){
     // merge-preserve: keep any other keys already in this user's state row
     let existing={};
     try{const {data}=await SB.from('app_state').select('state').eq('user_id',cloudUser.id).maybeSingle();if(data&&data.state&&typeof data.state==='object')existing=data.state;}catch(e){}
-    // Keep the remote's additive data (another device's conditioning history,
-    // higher progression, learned words) while our local scalar edits win.
-    const exSettings=(existing&&existing.hybridEngine&&existing.hybridEngine.settings)||{};
-    const state=Object.assign({},existing,{hybridEngine:{workouts:DB.workouts,sessions:DB.sessions,settings:mergeSettings(exSettings,DB.settings)}});
+    // Record-level merge against whatever the remote already holds, so a push can
+    // never clobber another device's scheduling/logging that landed since we pulled.
+    const exEngine=(existing&&existing.hybridEngine)||{};
+    const state=Object.assign({},existing,{hybridEngine:mergeEngines(DB,exEngine)});
     const {error}=await SB.from('app_state').upsert({user_id:cloudUser.id,state},{onConflict:'user_id'});
     if(error)throw error;
-    lastSyncedFp=fp;cloudError='';
+    lastSyncedFp=fp;cloudSyncedAt=Date.now();cloudError='';
   }catch(e){cloudError=String(e&&e.message||e);}
   cloudBusy=false;if(CURRENT==='settings')renderSettings();
   if(cloudPending){cloudPending=false;queueCloudPush();}
 }
+function cloudSyncNow(){if(cloudEnabled()&&cloudUser){cloudReconcile();}else{alert('Sign in to sync across devices.');}}
 async function cloudSignIn(mode){
   if(!cloudEnabled())return alert('Cloud sync is not configured.');
   const email=(document.getElementById('cloudEmail')||{}).value||'',password=(document.getElementById('cloudPassword')||{}).value||'';
@@ -1375,7 +1428,7 @@ function exportData(){
   // Inside the installed app, blob downloads don't exist — hand the file to native.
   try{if(window.AndroidHR&&window.AndroidHR.saveFile){window.AndroidHR.saveFile('hybrid-engine-backup.json',text);return;}}catch(e){}
   const blob=new Blob([text],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hybrid-engine-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),0);}
-function importData(ev){const f=ev.target.files&&ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const p=JSON.parse(rd.result);const d=p.db||p;if(!d||!Array.isArray(d.workouts))throw new Error('Not a valid backup.');DB=sanitizeDB(d);save();renderSettings();alert('Backup imported.');}catch(e){alert('Import failed: '+(e&&e.message||e));}};rd.readAsText(f);}
+function importData(ev){const f=ev.target.files&&ev.target.files[0];if(!f){return;}const rd=new FileReader();rd.onload=()=>{try{const p=JSON.parse(rd.result);const d=p.db||p;if(!d||!Array.isArray(d.workouts))throw new Error('Not a valid backup.');const nW=d.workouts.length,nS=Array.isArray(d.sessions)?d.sessions.length:0;if(!confirm('Restore this backup ('+nW+' session'+(nW===1?'':'s')+', '+nS+' logged) onto THIS device? It replaces what’s here now. If you’re signed in, cloud sync will then merge it with your other devices.'))return;DB=sanitizeDB(d);save();renderSettings();alert('Backup restored.');}catch(e){alert('Import failed: '+(e&&e.message||e));}};rd.readAsText(f);}
 function resetLocal(){if(!confirm('Wipe all workouts and history on THIS device? Cloud data (if signed in) is not touched unless you then sync.'))return;DB={workouts:[],sessions:[],settings:{}};try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}renderSettings();}
 
 /* ---------- SETTINGS screen ---------- */
@@ -1384,7 +1437,11 @@ function renderSettings(){
   // Cloud panel
   let cloud;
   if(!cloudEnabled()){cloud='<div class="sc-meta">Cloud sync is not configured in this build.</div>';}
-  else if(cloudUser){cloud='<div class="sc-meta">Signed in as <b>'+esc(cloudUser.email||'')+'</b>'+(cloudBusy?' · syncing…':'')+'. Your workouts and history sync to every device you sign into.'+(cloudError?'<br><span style="color:var(--bad)">'+esc(cloudError)+'</span>':'')+'</div><button class="addbtn" style="margin-top:12px" data-click="cloudSignOut">Sign out</button>';}
+  else if(cloudUser){
+    const dn=deviceCount(),syncLine=cloudBusy?'Syncing…':('Last synced '+agoLabel(cloudSyncedAt));
+    cloud='<div class="sc-meta">Signed in as <b>'+esc(cloudUser.email||'')+'</b>. Your workouts and history sync to every device you sign into — changes from two devices now <b>merge</b> instead of overwriting.'+(cloudError?'<br><span style="color:var(--bad)">'+esc(cloudError)+'</span>':'')+'</div>'+
+      '<div class="syncrow"><span class="dot'+(cloudBusy?' busy':cloudError?' err':' ok')+'"></span><span>'+esc(syncLine)+'</span><span class="sep">·</span><span>'+dn+' device'+(dn===1?'':'s')+'</span><button class="syncnow" data-click="cloudSyncNow">Sync now</button></div>'+
+      '<button class="addbtn" style="margin-top:12px" data-click="cloudSignOut">Sign out</button>';}
   else{cloud='<div class="sc-meta">Sign in to sync your training across phone and laptop.</div><div class="field"><label>Email</label><input id="cloudEmail" type="email" autocomplete="email"></div><div class="field"><label>Password</label><input id="cloudPassword" type="password" autocomplete="current-password"></div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" data-click="cloudSignIn" data-args="[&quot;signin&quot;]">Sign in</button><button class="addbtn" style="flex:1;margin-top:0" data-click="cloudSignIn" data-args="[&quot;signup&quot;]">Create account</button></div><button class="markall" style="margin-top:10px" data-click="cloudResetPassword">Forgot password?</button>'+(cloudError?'<div class="sc-meta" style="margin-top:8px;color:var(--bad)">'+esc(cloudError)+'</div>':'');}
   // WHOOP panel
   let whoop;

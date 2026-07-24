@@ -520,6 +520,40 @@ await t('cloud: settings changes are in the sync fingerprint; mergeSettings neve
   if (r.condIds !== 'a,b') throw new Error('mergeSettings lost conditioning history: ' + r.condIds);
   if (r.lexKeys !== 'amrap,emom') throw new Error('mergeSettings lost learned lexicon: ' + r.lexKeys);
 });
+await t('cloud: record-level merge unions two-device scheduling, honours tombstones, device excluded from fp', async () => {
+  const r = await page.evaluate(() => {
+    // two devices scheduled the SAME workout on different days between syncs
+    const local = { workouts: [{ id: 'w1', name: 'Lower', days: [1], dates: ['2026-08-03'], updatedAt: 100 }], sessions: [{ id: 's1', workoutId: 'w1', status: 'completed', completedAt: 10, blocks: [] }], settings: {} };
+    const remote = { workouts: [{ id: 'w1', name: 'Lower', days: [4], dates: ['2026-08-05'], updatedAt: 90 }, { id: 'w2', name: 'Upper', days: [], dates: ['2026-08-06'], updatedAt: 50 }], sessions: [{ id: 's2', workoutId: 'w2', status: 'completed', completedAt: 20, blocks: [] }], settings: {} };
+    const m = mergeEngines(local, remote);
+    const w1 = m.workouts.find((w) => w.id === 'w1');
+    const out = {
+      keptBothWorkouts: m.workouts.map((w) => w.id).sort().join(','),
+      unionedDates: (w1.dates || []).slice().sort().join(','),
+      unionedDays: (w1.days || []).slice().sort().join(','),
+      keptBothSessions: m.sessions.map((s) => s.id).sort().join(','),
+    };
+    // tombstone must win over a remote copy that still has the record
+    const t = mergeEngines(
+      { workouts: [], sessions: [], settings: { deletedIds: { w2: 999 } } },
+      remote
+    );
+    out.tombstonedGone = !t.workouts.some((w) => w.id === 'w2');
+    // devices registry must NOT be in the fingerprint (else hourly stamps churn sync)
+    const A = { workouts: [], sessions: [] };
+    out.devExcluded = cloudFp(Object.assign({}, A, { settings: { devices: { d1: { seen: 1 } } } })) === cloudFp(Object.assign({}, A, { settings: {} }));
+    // ...but a deletion SHOULD change the fingerprint so it propagates
+    out.tombInFp = cloudFp(Object.assign({}, A, { settings: { deletedIds: { x: 1 } } })) !== cloudFp(Object.assign({}, A, { settings: {} }));
+    return out;
+  });
+  if (r.keptBothWorkouts !== 'w1,w2') throw new Error('merge dropped a workout: ' + r.keptBothWorkouts);
+  if (r.unionedDates !== '2026-08-03,2026-08-05') throw new Error('two-device scheduling lost a date: ' + r.unionedDates);
+  if (r.unionedDays !== '1,4') throw new Error('recurring days not unioned: ' + r.unionedDays);
+  if (r.keptBothSessions !== 's1,s2') throw new Error('merge dropped a logged session: ' + r.keptBothSessions);
+  if (!r.tombstonedGone) throw new Error('tombstone did not suppress a deleted workout (would resurrect)');
+  if (!r.devExcluded) throw new Error('devices registry leaked into the sync fingerprint (would churn)');
+  if (!r.tombInFp) throw new Error('a deletion is not in the fingerprint (would not propagate)');
+});
 await t('weekly zone targets: defaults + this-week banked minutes', async () => {
   const r = await page.evaluate(() => {
     DB.settings.zoneTargets = undefined; DB.settings.conditioning = [];
