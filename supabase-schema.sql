@@ -84,12 +84,24 @@ create table if not exists public.coach_athletes (
   accepted_at timestamptz
 );
 alter table public.coach_athletes enable row level security;
+-- A coach may only create *pending* invites (athlete_id null, status pending) and
+-- read/delete their own rows. There is deliberately NO coach UPDATE policy, so a
+-- coach cannot directly flip a row to status='active' with a victim athlete_id —
+-- activation happens only inside claim_invite (security definer, bypasses RLS).
 drop policy if exists ca_coach_all on public.coach_athletes;
-create policy ca_coach_all on public.coach_athletes for all
-  using (auth.uid() = coach_id) with check (auth.uid() = coach_id);
+drop policy if exists ca_coach_insert on public.coach_athletes;
+create policy ca_coach_insert on public.coach_athletes for insert
+  with check (auth.uid() = coach_id and athlete_id is null and status = 'pending');
+drop policy if exists ca_coach_select on public.coach_athletes;
+create policy ca_coach_select on public.coach_athletes for select using (auth.uid() = coach_id);
+drop policy if exists ca_coach_delete on public.coach_athletes;
+create policy ca_coach_delete on public.coach_athletes for delete using (auth.uid() = coach_id);
 drop policy if exists ca_athlete_read on public.coach_athletes;
 create policy ca_athlete_read on public.coach_athletes for select
   using (auth.uid() = athlete_id and status = 'active');
+-- An athlete can sever the link (revoke consent) at any time.
+drop policy if exists ca_athlete_unlink on public.coach_athletes;
+create policy ca_athlete_unlink on public.coach_athletes for delete using (auth.uid() = athlete_id);
 
 -- Consensual-link check (security definer). Standalone execute is revoked so it
 -- can't be used as a membership oracle; it is only called inside the policies
@@ -100,11 +112,10 @@ returns boolean language sql security definer stable set search_path = public as
     select 1 from public.coach_athletes ca
     where ca.coach_id = p_coach and ca.athlete_id = p_athlete and ca.status = 'active');
 $$;
--- The assignments RLS policies call this function as the *invoking* user, so
--- authenticated needs EXECUTE (a security-definer body still checks the caller's
--- execute privilege). Keep anon locked out.
-revoke all on function public.is_active_athlete_of(uuid, uuid) from public;
-grant execute on function public.is_active_athlete_of(uuid, uuid) to authenticated;
+-- Execute is revoked from everyone: the assignments/programs policies inline the
+-- consent check (below) rather than calling this, so no caller needs it and it
+-- can't be used as a relationship-enumeration oracle. Kept for reference/manual use.
+revoke all on function public.is_active_athlete_of(uuid, uuid) from public, authenticated;
 
 -- Claim an invite. The token IS the capability; the row is re-checked under a
 -- FOR UPDATE lock so an invite can never be double-claimed.
@@ -135,7 +146,10 @@ create table if not exists public.programs (
 alter table public.programs enable row level security;
 drop policy if exists pr_coach on public.programs;
 create policy pr_coach on public.programs for all
-  using (auth.uid() = coach_id) with check (auth.uid() = coach_id);
+  using (auth.uid() = coach_id)
+  with check (auth.uid() = coach_id and (coach_id = athlete_id or exists (
+    select 1 from public.coach_athletes ca
+    where ca.coach_id = programs.coach_id and ca.athlete_id = programs.athlete_id and ca.status = 'active')));
 drop policy if exists pr_athlete_read on public.programs;
 create policy pr_athlete_read on public.programs for select using (auth.uid() = athlete_id);
 
@@ -165,10 +179,14 @@ create unique index assignments_slot_uniq
 alter table public.assignments enable row level security;
 drop policy if exists as_insert on public.assignments;
 create policy as_insert on public.assignments for insert
-  with check (auth.uid() = coach_id and public.is_active_athlete_of(coach_id, athlete_id));
+  with check (auth.uid() = coach_id and (coach_id = athlete_id or exists (
+    select 1 from public.coach_athletes ca
+    where ca.coach_id = assignments.coach_id and ca.athlete_id = assignments.athlete_id and ca.status = 'active')));
 drop policy if exists as_update on public.assignments;
 create policy as_update on public.assignments for update using (auth.uid() = coach_id)
-  with check (auth.uid() = coach_id and public.is_active_athlete_of(coach_id, athlete_id));
+  with check (auth.uid() = coach_id and (coach_id = athlete_id or exists (
+    select 1 from public.coach_athletes ca
+    where ca.coach_id = assignments.coach_id and ca.athlete_id = assignments.athlete_id and ca.status = 'active')));
 drop policy if exists as_delete on public.assignments;
 create policy as_delete on public.assignments for delete using (auth.uid() = coach_id);
 drop policy if exists as_select_coach on public.assignments;

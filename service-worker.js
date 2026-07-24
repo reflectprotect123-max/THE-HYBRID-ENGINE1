@@ -1,5 +1,5 @@
 const CACHE_PREFIX='the-hybrid-engine-training-pwa-';
-const CACHE_NAME='the-hybrid-engine-training-pwa-v62-2026-07-26';
+const CACHE_NAME='the-hybrid-engine-training-pwa-v63-2026-07-26';
 const APP_SHELL = [
   './index.html',
   './app.js',
@@ -43,9 +43,10 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin === self.location.origin && requestUrl.pathname.startsWith('/.netlify/functions/')) return;
-  // The coach website is a separate origin; never let the athlete shell's SW
-  // intercept /coach navigations (the edge redirect must win). Bypass entirely.
-  if (requestUrl.origin === self.location.origin && requestUrl.pathname.startsWith('/coach')) return;
+  // The coach website is served in place at /coach/ (same origin). Bypass it so the
+  // athlete shell's SW never intercepts it — the coach app is served straight from the
+  // network. Scoped to the exact folder so a future '/coachX' app route isn't caught.
+  if (requestUrl.origin === self.location.origin && (requestUrl.pathname === '/coach' || requestUrl.pathname.startsWith('/coach/'))) return;
   if (event.request.mode === 'navigate') {
     if (requestUrl.pathname === '/privacy' || requestUrl.pathname === '/privacy.html') {
       event.respondWith(networkFirst(event.request, false));

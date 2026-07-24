@@ -1,5 +1,24 @@
 # Changelog
 
+## Full debug pass (six-agent review) — 26 July 2026
+
+A deep multi-agent review of both apps. Fixes for the real issues it surfaced:
+
+- **Sync safety.** A session finished with the checkmark now records an edit time, so
+  a rare two-device delete-vs-complete race can't drop a completed workout. Legacy
+  coach sessions can no longer linger in your cloud state, and a coach session you
+  delete stays deleted (it won't get re-pulled on the next sync).
+- **Long-press fixes.** Reschedule ("Move") now truly moves a recurring session instead
+  of quietly leaving it on both days. Fixed a case where, on some phones, the tap right
+  after a long-press could be swallowed.
+- **Coach site hardening.** A dirty-edit guard so a background refresh can't overwrite
+  work you haven't saved; a malformed cloud library can no longer white-screen the
+  editor; supersets now survive the trip to the phone; and double-tapping Publish can't
+  create duplicate calendar entries.
+- **Security.** Tightened the coach database rules (row-level security) so the coach↔athlete
+  link and program/assignment writes can't be forged by other accounts — see the one-time
+  SQL patch in the schema file.
+
 ## Long-press a session → Move / Delete — 26 July 2026
 
 - **Press and hold** any session card (Home or Library) to bring up a quick menu:

@@ -48,10 +48,39 @@
 
   var LIB = null;
 
+  // Coerce one session (a day) into a safe shape; anything unusable becomes a rest day (null).
+  function sanitizeSession(s) {
+    if (!s || typeof s !== 'object' || !Array.isArray(s.exercises)) return null;
+    s.title = typeof s.title === 'string' ? s.title : 'Session';
+    s.note = typeof s.note === 'string' ? s.note : '';
+    s.section = typeof s.section === 'string' ? s.section : 'Strength/Power';
+    s.exercises = s.exercises.filter(function (e) { return e && typeof e === 'object'; }).map(function (e) {
+      e.name = typeof e.name === 'string' ? e.name : '';
+      e.cols = (Array.isArray(e.cols) && e.cols.length) ? e.cols.filter(function (c) { return typeof c === 'string'; }) : ['Reps', 'Weight (lb)'];
+      if (!e.cols.length) e.cols = ['Reps', 'Weight (lb)'];
+      e.sets = (Array.isArray(e.sets) && e.sets.length) ? e.sets.map(function (r) { return Array.isArray(r) ? r : []; }) : [e.cols.map(function () { return ''; })];
+      e.cues = typeof e.cues === 'string' ? e.cues : '';
+      e.swaps = typeof e.swaps === 'string' ? e.swaps : 'No swaps added yet.';
+      e.pop = Array.isArray(e.pop) ? e.pop : [];
+      e.link = !!e.link;
+      return e;
+    });
+    return s.exercises.length ? s : null;
+  }
   function migrate(lib) {
     if (!lib || typeof lib !== 'object' || !Array.isArray(lib.programs) || !lib.programs.length) return { programs: [seedProgram()], sel: { p: 0, w: 0, d: 0 } };
-    lib.sel = lib.sel || { p: 0, w: 0, d: 0 };
-    lib.programs.forEach(function (p) { if (!Array.isArray(p.weeks) || !p.weeks.length) p.weeks = [emptyWeek()]; p.weeks.forEach(function (w) { if (!Array.isArray(w.days) || w.days.length !== 7) w.days = (w.days || []).concat([null, null, null, null, null, null, null]).slice(0, 7); }); });
+    lib.sel = (lib.sel && typeof lib.sel === 'object') ? lib.sel : { p: 0, w: 0, d: 0 };
+    lib.programs = lib.programs.filter(function (p) { return p && typeof p === 'object'; });
+    if (!lib.programs.length) return { programs: [seedProgram()], sel: { p: 0, w: 0, d: 0 } };
+    lib.programs.forEach(function (p) {
+      p.name = typeof p.name === 'string' ? p.name : 'Program';
+      if (!Array.isArray(p.weeks) || !p.weeks.length) p.weeks = [emptyWeek()];
+      p.weeks = p.weeks.map(function (w) {
+        if (!w || typeof w !== 'object' || !Array.isArray(w.days)) w = { days: [] };
+        w.days = w.days.concat([null, null, null, null, null, null, null]).slice(0, 7).map(sanitizeSession);
+        return w;
+      });
+    });
     clampSel(lib);
     return lib;
   }
@@ -68,9 +97,10 @@
   function day() { return week().days[LIB.sel.d]; }
   function setDay(s) { week().days[LIB.sel.d] = s; }
 
-  /* persist locally + push to cloud (debounced) */
-  var pushTimer = null;
-  function commit() { saveLocal(); if (cloudUser) { if (pushTimer) clearTimeout(pushTimer); pushTimer = setTimeout(pushLibrary, 900); } }
+  /* persist locally + push to cloud (debounced). _dirty tracks un-pushed local
+     edits so a background re-fetch can never clobber work you haven't saved up. */
+  var pushTimer = null, _dirty = false;
+  function commit() { _dirty = true; saveLocal(); if (cloudUser) { if (pushTimer) clearTimeout(pushTimer); pushTimer = setTimeout(pushLibrary, 900); } }
 
   /* ---------- labels + summary (superset A1/A2) ---------- */
   function letters(exs) {
@@ -216,36 +246,46 @@
   }
   /* seconds from "m:ss" / "mm:ss" */
   function secondsFrom(v) { v = String(v || ''); if (v.indexOf(':') < 0) { var n = parseInt(v, 10); return isNaN(n) ? '' : String(n); } var p = v.split(':'); var m = parseInt(p[0], 10) || 0, sec = parseInt(p[1], 10) || 0; return String(m * 60 + sec); }
-  /* map a coach session to a phone-shape workout via the emit contract */
-  function sessionToWorkout(sess) {
-    var exs = sess.exercises.map(function (e) {
-      var mode = E.measureToMode(e.cols);
-      var repsI = e.cols.indexOf('Reps'), timeI = e.cols.indexOf('Time (min:sec)'), rpeI = e.cols.indexOf('RPE');
-      var sets = e.sets.map(function (row) {
-        var target = repsI >= 0 ? row[repsI] : (timeI >= 0 ? secondsFrom(row[timeI]) : '');
-        var rpe = rpeI >= 0 ? row[rpeI] : '';
-        return E.newSet(target, rpe);
-      });
-      return E.newEx(e.name, mode, sets);
+  /* map a coach session to a phone-shape workout via the emit contract.
+     NOTE: the phone's set model is {t:targetReps/secs, rpe} — it has no target-LOAD
+     field, so prescribed weights aren't sent as targets (the athlete logs actual
+     load live, which is how the phone works). Reps/time/RPE + supersets transmit. */
+  function toPhoneEx(e) {
+    var mode = E.measureToMode(e.cols);
+    var repsI = e.cols.indexOf('Reps'), timeI = e.cols.indexOf('Time (min:sec)'), rpeI = e.cols.indexOf('RPE');
+    var sets = e.sets.map(function (row) {
+      var target = repsI >= 0 ? row[repsI] : (timeI >= 0 ? secondsFrom(row[timeI]) : '');
+      return E.newSet(target, rpeI >= 0 ? row[rpeI] : '');
     });
-    return E.newWorkout(sess.title, [E.newBlock(sess.section, exs, false)]);
+    return E.newEx(e.name, mode, sets);
   }
+  function sessionToWorkout(sess) {
+    // Group consecutive linked exercises into superset blocks (mirrors A1/A2 authoring).
+    var blocks = [], run = [];
+    var flush = function () { if (run.length) { blocks.push(E.newBlock(sess.section, run.map(toPhoneEx), run.length > 1)); run = []; } };
+    sess.exercises.forEach(function (e, i) { if (i > 0 && !e.link) flush(); run.push(e); });
+    flush();
+    if (!blocks.length) blocks.push(E.newBlock(sess.section, [E.newEx('', 'reps', [E.newSet()])], false));
+    return E.newWorkout(sess.title, blocks);
+  }
+  var _assigning = false;
   function doAssign() {
     var s = day(), err = document.getElementById('as-err'), date = (document.getElementById('as-date') || {}).value || todayISO();
     if (!SB || !cloudUser) { closeModal(); openAuth(); return; }
-    if (!s) { closeModal(); return; }
+    if (!s || _assigning) return;
     var snap;
     try { snap = E.assert(sessionToWorkout(s)); }
     catch (e) { if (err) err.textContent = 'Could not convert session: ' + e.message; return; }
-    if (err) err.textContent = 'Publishing…';
+    _assigning = true; if (err) err.textContent = 'Publishing…';
     var uidv = cloudUser.id;
     // idempotent self-assign for that date: clear any prior ad-hoc row on the date, then insert.
     SB.from('assignments').delete().eq('coach_id', uidv).eq('athlete_id', uidv).eq('scheduled_date', date).is('program_id', null).then(function () {
       return SB.from('assignments').insert({ coach_id: uidv, athlete_id: uidv, program_id: null, week_index: null, day_index: null, scheduled_date: date, session_snapshot: snap, status: 'assigned' });
     }).then(function (res) {
+      _assigning = false;
       if (res && res.error) { if (err) err.textContent = res.error.message; return; }
       closeModal(); toast('Published to your phone for ' + date);
-    }).catch(function (e) { if (err) err.textContent = String(e && e.message || e); });
+    }).catch(function (e) { _assigning = false; if (err) err.textContent = String(e && e.message || e); });
   }
 
   /* ---------- toast ---------- */
@@ -340,9 +380,14 @@
     cloudBusy = true; renderTop();
     SB.from('coach_library').select('library').eq('coach_id', cloudUser.id).maybeSingle().then(function (res) {
       cloudBusy = false;
-      if (!res.error && res.data && res.data.library && Array.isArray(res.data.library.programs) && res.data.library.programs.length) {
+      var hasRemote = !res.error && res.data && res.data.library && Array.isArray(res.data.library.programs) && res.data.library.programs.length;
+      if (hasRemote && !_dirty) {
+        // safe to adopt: no un-pushed local edits to lose
         LIB = migrate(res.data.library); saveLocal(); render(); toast('Loaded your cloud library');
-      } else { pushLibrary(); toast('Signed in — your library will sync'); renderTop(); }
+      } else {
+        // either no cloud copy yet, or we have un-pushed local edits — push local up
+        pushLibrary(); if (!hasRemote) toast('Signed in — your library will sync'); renderTop();
+      }
     }).catch(function () { cloudBusy = false; renderTop(); });
   }
   function pushLibrary() {
@@ -350,7 +395,7 @@
     cloudBusy = true; renderTop();
     SB.from('coach_library').upsert({ coach_id: cloudUser.id, library: LIB, updated_at: new Date().toISOString() }, { onConflict: 'coach_id' }).then(function (res) {
       cloudBusy = false; renderTop();
-      if (res.error) toast('Cloud save failed: ' + res.error.message);
+      if (res.error) toast('Cloud save failed: ' + res.error.message); else _dirty = false;
     }).catch(function (e) { cloudBusy = false; renderTop(); });
   }
   function cloudInit() {
@@ -360,7 +405,9 @@
       if (cloudUser) { renderTop(); afterSignIn(); }
     }).catch(function () {});
     SB.auth.onAuthStateChange(function (event, session) { cloudUser = session ? session.user : null; renderTop(); });
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && cloudUser) afterSignIn(); });
+    // On refocus, flush any un-pushed edits — but never re-adopt remote here (that
+    // would risk clobbering local edits mid-session). Cloud pull happens on load / sign-in.
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && cloudUser && _dirty) pushLibrary(); });
   }
 
   /* ---------- boot ---------- */

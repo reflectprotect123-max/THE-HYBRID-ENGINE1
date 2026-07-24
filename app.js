@@ -20,7 +20,7 @@ function sanitizeDB(d){
   const cleanBlock=b=>{b=(b&&typeof b==='object')?b:{};if(isCond(b)){delete b.exercises;return b;}b.exercises=arr(b.exercises).map(cleanEx);if(!b.exercises.length)b.exercises=[newEx()];return b;};
   const cleanBlocks=v=>{const bl=arr(v).map(cleanBlock);return bl;};
   return {
-    workouts:arr(d.workouts).map(w=>{w=(w&&typeof w==='object')?w:{};w.blocks=cleanBlocks(w.blocks);if(!w.id)w.id=uid();return w;}),
+    workouts:arr(d.workouts).map(w=>{w=(w&&typeof w==='object')?w:{};w.blocks=cleanBlocks(w.blocks);if(!w.id)w.id=uid();if('days' in w)w.days=arr(w.days).filter(n=>Number.isInteger(n)&&n>=0&&n<=6);if('dates' in w)w.dates=arr(w.dates).filter(k=>typeof k==='string');return w;}),
     sessions:arr(d.sessions).map(s=>{s=(s&&typeof s==='object')?s:{};s.blocks=cleanBlocks(s.blocks);if(!s.id)s.id=uid();return s;}),
     settings:(d.settings&&typeof d.settings==='object')?d.settings:{},
   };
@@ -283,8 +283,8 @@ function workoutChips(w){
   const mins=(w.blocks||[]).reduce((n,b)=>n+(isCond(b)?condBlockMinutes(b):(+b.minutes||0)),0);
   const exs=(w.blocks||[]).reduce((n,b)=>n+blockExercises(b).length,0);
   const hasCond=(w.blocks||[]).some(isCond);
-  const rpe=w.blocks.some(b=>blockExercises(b).some(e=>e.sets.some(s=>s.rpe)));
-  const tempo=w.blocks.some(b=>blockExercises(b).some(e=>e.tempo));
+  const rpe=(w.blocks||[]).some(b=>blockExercises(b).some(e=>e.sets.some(s=>s.rpe)));
+  const tempo=(w.blocks||[]).some(b=>blockExercises(b).some(e=>e.tempo));
   const chips=[];
   chips.push('<span class="chip gold">'+(mins?'~'+mins+' min':exs?exs+' exercises':'session')+'</span>');
   if(hasCond)chips.push('<span class="chip cond">♥ Conditioning</span>');
@@ -747,12 +747,12 @@ function conRunBlock(bi){
   CON.view='setup';CON.record=null;CON.error='';CON.info='';
   go('conditioning');
 }
-function toggleCompletion(bi,ei){const s=curSession();if(!s)return;const ex=s.blocks[bi].exercises[ei];const d=!ex.sets.every(st=>st.done);ex.sets.forEach(st=>st.done=d);save();renderSession();}
-function markSuperset(bi){const s=curSession();if(!s)return;s.blocks[bi].exercises.forEach(ex=>ex.sets.forEach(st=>st.done=true));save();renderSession();}
+function toggleCompletion(bi,ei){const s=curSession();if(!s)return;const ex=s.blocks[bi].exercises[ei];const d=!ex.sets.every(st=>st.done);ex.sets.forEach(st=>st.done=d);s.updatedAt=Date.now();save();renderSession();}
+function markSuperset(bi){const s=curSession();if(!s)return;s.blocks[bi].exercises.forEach(ex=>ex.sets.forEach(st=>st.done=true));s.updatedAt=Date.now();save();renderSession();}
 function finishSession(btn){
   const s=curSession();if(!s)return;
   const prs=detectPRs(s);
-  s.status='completed';s.completedAt=Date.now();s.date=ymd(new Date());
+  s.status='completed';s.completedAt=Date.now();s.date=ymd(new Date());s.updatedAt=Date.now();
   CUR_SESSION=null;LOG_LOC=null;
   save();
   RECAP=buildRecap(s,prs);
@@ -1194,9 +1194,14 @@ function cardMoveTo(id){
   const inp=document.getElementById('moveDate');const toKey=inp&&inp.value?inp.value:'';
   if(!toKey){closeSheet();return;}
   const today=ymd(new Date());
-  const from=(w.dates||[]).includes(today)?today:null;
-  const dates=(w.dates||[]).filter(k=>k!==from);dates.push(toKey);
-  w.dates=uniqArr(dates).sort();stampWorkout(w);
+  // the date this card represents: today if it's planned today, else its first one-off date
+  const from=plannedOn(w,today)?today:((w.dates&&w.dates[0])||today);
+  w.dates=uniqArr((w.dates||[]).filter(k=>k!==from).concat([toKey])).sort();
+  // if it recurred on the source weekday, drop that recurrence so it doesn't
+  // reappear on the old day (otherwise Move silently double-books)
+  const fromDow=dateKeyDow(from);
+  if((w.days||[]).includes(fromDow))w.days=(w.days||[]).filter(d=>d!==fromDow);
+  stampWorkout(w);
   if(w.origin==='coach'&&w.assignmentId)assignmentUpdateDate(w.assignmentId,toKey);
   save();closeSheet();renderScreen(CURRENT);toast('Moved to '+prettyDay(toKey));
 }
@@ -1221,10 +1226,13 @@ function assignmentDelete(aid){try{if(cloudEnabled()&&cloudUser)return Promise.r
 let _lpTimer=null,_lpId=null,_lpX=0,_lpY=0,_lpFired=false;
 function _lpClear(){if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}}
 document.addEventListener('pointerdown',e=>{
+  // clear any stale long-press flag FIRST — if a prior hold fired but the browser
+  // never sent the follow-up click, this stops it swallowing this fresh gesture.
+  _lpFired=false;_lpClear();
   const card=e.target.closest('.sessioncard[data-args]');if(!card){_lpId=null;return;}
   let id;try{id=JSON.parse(card.getAttribute('data-args'))[0];}catch(_){return;}
   if(!id||!DB.workouts.find(x=>x.id===id))return; // only real scheduled workouts (not the in-progress card)
-  _lpFired=false;_lpX=e.clientX;_lpY=e.clientY;_lpId=id;
+  _lpX=e.clientX;_lpY=e.clientY;_lpId=id;
   _lpClear();_lpTimer=setTimeout(()=>{_lpTimer=null;_lpFired=true;try{if(navigator.vibrate)navigator.vibrate(15);}catch(_){}cardMenu(_lpId);},450);
 },{passive:true});
 document.addEventListener('pointermove',e=>{if(_lpTimer&&(Math.abs(e.clientX-_lpX)>10||Math.abs(e.clientY-_lpY)>10))_lpClear();},{passive:true});
@@ -1550,10 +1558,15 @@ async function coachPull(){
   }catch(e){return false;}
   const live=new Map();rows.forEach(r=>live.set('coach:'+r.id,r));
   const started=wid=>DB.sessions.some(s=>s.workoutId===wid&&(s.status==='active'||hasLoggedWork(s)));
+  // a coach workout the user deleted locally must not be re-materialized just
+  // because the assignment row still exists (e.g. the remote delete didn't land).
+  const tomb=(DB.settings&&DB.settings.deletedIds)||{};
+  const deleted=(wid,r)=>{const d=tomb[wid];return d&&d>=(Date.parse(r.updated_at||'')||0);};
   let changed=false;
   const byId=new Map();DB.workouts.forEach(w=>{if(w&&w.origin==='coach')byId.set(w.id,w);});
   live.forEach((r,wid)=>{
     const cur=byId.get(wid);
+    if(deleted(wid,r))return; // respect a local delete until the assignment changes again
     if(!cur){DB.workouts.push(materializeAssignment(r));changed=true;}
     else if(!started(wid)&&String(cur._rev||'')!==String(r.updated_at||'')){
       const i=DB.workouts.indexOf(cur);if(i>=0){DB.workouts[i]=materializeAssignment(r);changed=true;}
@@ -1588,9 +1601,11 @@ async function cloudPushNow(force){
     try{const {data}=await SB.from('app_state').select('state').eq('user_id',cloudUser.id).maybeSingle();if(data&&data.state&&typeof data.state==='object')existing=data.state;}catch(e){}
     // Record-level merge against whatever the remote already holds, so a push can
     // never clobber another device's scheduling/logging that landed since we pulled.
-    const exEngine=(existing&&existing.hybridEngine)||{};
-    // never push coach materializations up to app_state — they're re-derived
-    // from the assignments table on every reconcile.
+    // never push coach materializations up to app_state — they're re-derived from
+    // the assignments table on every reconcile. Filter BOTH sides of the merge so
+    // that any legacy coach rows already in the remote blob get scrubbed too.
+    const rawEx=(existing&&existing.hybridEngine)||{};
+    const exEngine=Object.assign({},rawEx,{workouts:(rawEx.workouts||[]).filter(w=>!w||w.origin!=='coach')});
     const localForPush={workouts:DB.workouts.filter(w=>!w||w.origin!=='coach'),sessions:DB.sessions,settings:DB.settings};
     const state=Object.assign({},existing,{hybridEngine:mergeEngines(localForPush,exEngine)});
     const {error}=await SB.from('app_state').upsert({user_id:cloudUser.id,state},{onConflict:'user_id'});

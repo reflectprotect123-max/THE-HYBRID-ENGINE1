@@ -768,6 +768,22 @@ await t('long-press a session card opens Move / Delete / Cancel, and Delete remo
   const gone = await page.evaluate(() => DB.workouts.length === 0);
   if (!gone) throw new Error('delete did not remove the workout');
 });
+await t('Move on a recurring session reschedules without double-booking the old weekday', async () => {
+  await page.evaluate(() => { const dow = new Date().getDay(); DB.workouts = [{ id: 'recur1', name: 'Recur Test', days: [dow], dates: [], blocks: [{ id: uid(), heading: 'Squat', minutes: '', format: '', superset: false, exercises: [{ id: uid(), name: 'Back Squat', mode: 'reps_kg', tempo: '', rest: 120, sets: [{ t: '5', rpe: '8' }] }] }] }]; DB.sessions = []; save(); go('home'); });
+  const card = await page.$('#s-home .sessioncard[data-args]');
+  const box = await card.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up();
+  await page.click('#sheet [data-click="cardMove"]');
+  await page.waitForSelector('#moveDate', { timeout: 2000 });
+  const future = await page.evaluate(() => { const d = new Date(Date.now() + 9 * 864e5); return ymd(d); });
+  await page.$eval('#moveDate', (el, v) => { el.value = v; }, future);
+  await page.click('#sheet [data-click="cardMoveTo"]');
+  await page.waitForTimeout(150);
+  const st = await page.evaluate(() => { const w = DB.workouts[0]; const dow = new Date().getDay(); return { daysHasDow: (w.days || []).includes(dow), datesHasFuture: (w.dates || []).length === 1 }; });
+  if (st.daysHasDow) throw new Error('recurring weekday not removed → double-books');
+  if (!st.datesHasFuture) throw new Error('new date not added');
+});
 await t('a quick tap on a session card still starts it (long-press does not hijack taps)', async () => {
   await page.evaluate(() => { const today = ymd(new Date()); DB.workouts = [{ id: uid(), name: 'Tap Test', days: [], dates: [today], blocks: [{ id: uid(), heading: 'Squat', minutes: '', format: '', superset: false, exercises: [{ id: uid(), name: 'Back Squat', mode: 'reps_kg', tempo: '', rest: 120, sets: [{ t: '5', rpe: '8' }] }] }] }]; DB.sessions = []; save(); go('home'); });
   await page.click('#s-home .sessioncard[data-args]'); // fast click
