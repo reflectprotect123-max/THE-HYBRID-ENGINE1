@@ -183,7 +183,7 @@ function renderCalendar(){
     cells+='<div class="calcell'+(key===todayKey?' today':'')+((trained||planned)?' has':'')+'" data-click="calDay" data-args="[&quot;'+key+'&quot;]"><b>'+d+'</b><span class="cdots">'+dots+'</span></div>';
   }
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Calendar</div><h1 style="font-size:24px">'+esc(monthName)+'</h1></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Calendar</div><h1 class="screentitle">'+esc(monthName)+'</h1></div></div>'+
     '<div class="calnav"><button class="markall" data-click="calShift" data-args="[-1]">‹ Prev</button><button class="markall" data-click="calToday">Today</button><button class="markall" data-click="calShift" data-args="[1]">Next ›</button></div>'+
     '<div class="calgrid calhead">'+['S','M','T','W','T','F','S'].map(d=>'<div class="caldowh">'+d+'</div>').join('')+'</div>'+
     '<div class="calgrid">'+cells+'</div>'+
@@ -265,7 +265,7 @@ function renderHistory(){
   if(active.length)body+='<div class="card guidebar" style="margin-top:16px">A session from this day is still in progress — it will appear here once finished.</div>';
   if(!body)body='<div class="card empty"><div class="ei"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 11h16"/></svg></div><h3>A quiet day</h3><p>No training logged this day. Rest counts too — or start something from Home.</p></div>';
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">History</div><h1 style="font-size:24px">'+esc(prettyDay(HIST_DATE))+'</h1></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">History</div><h1 class="screentitle">'+esc(prettyDay(HIST_DATE))+'</h1></div></div>'+
     '<div class="histnav"><button class="markall" data-click="shiftHistory" data-args="[-1]">‹ Previous day</button><button class="markall" data-click="shiftHistory" data-args="[1]">Next day ›</button></div>'+
     body;
 }
@@ -604,6 +604,12 @@ function openSession(sessionId){CUR_SESSION=sessionId;go('training');}
 function curSession(){return DB.sessions.find(s=>s.id===CUR_SESSION)||null}
 function prettyDay(key){const p=String(key||'').split('-');if(p.length!==3)return key;const d=new Date(+p[0],+p[1]-1,+p[2]);return d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});}
 function prettyMeta(m){return esc(m).replace(/(RPE [^·]+)/g,'<i>$1</i>').replace(/(@[^ ·]+)/g,'<i>$1</i>')}
+/* Engraved stroke-SVG glyph set (currentColor, no OS emoji) — CSP-safe static markup. */
+function svgCheck(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4 10-11"/></svg>';}
+function svgRing(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>';}
+function svgTrophy(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3"/><path d="M17 6h3v1a3 3 0 0 1-3 3"/><path d="M9.5 15h5M12 13v2M9 19h6"/></svg>';}
+function svgMedal(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 3 6 8M15.5 3 18 8"/><circle cx="12" cy="15" r="6"/><path d="M9.5 15l1.7 1.7L14.5 13"/></svg>';}
+function svgDumbbell(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>';}
 /* ============ THE LOGGER (Mock A skeleton, on the real data model) ============
    The session view IS the logger: every exercise is a collapsed row with its
    live state; tapping one opens its per-set table in place (one open at a
@@ -619,7 +625,7 @@ function sessionLetters(s){
   return out;
 }
 function lgState(ex){const d=ex.sets.filter(st=>st.done).length,t=ex.sets.length;
-  return d===t&&t>0?'<span class="lgstat done">✓ done</span>':d>0?'<span class="lgstat part">'+d+'/'+t+'</span>':'<span class="lgstat">'+t+' set'+(t===1?'':'s')+'</span>';}
+  return d===t&&t>0?'<span class="lgstat done">'+svgCheck()+'done</span>':d>0?'<span class="lgstat part">'+d+'/'+t+'</span>':'<span class="lgstat">'+t+' set'+(t===1?'':'s')+'</span>';}
 function lgCols(mode){
   if(mode==='reps_kg'||mode==='amrap')return{h:['Set','Target','KG','Reps','RPE','✓'],g:'36px 50px 1fr 1fr 52px 46px'};
   if(mode==='reps_seconds')return{h:['Set','Target','Secs','Reps','RPE','✓'],g:'36px 50px 1fr 1fr 52px 46px'};
@@ -650,34 +656,37 @@ function lgOpenCard(s,b,ex,bi,ei,letter){
       '<div class="lgno">'+(si+1)+'</div>'+
       '<div class="lgtgt">'+esc(lgTarget(ex,st))+'</div>'+cells+
       '<input class="lgrpe" inputmode="decimal" placeholder="–" value="'+esc(st.felt)+'" data-input="setActual" data-args="['+si+',3,&quot;@value&quot;]" aria-label="RPE felt">'+
-      '<button class="lgtick" data-click="tickSet" data-args="['+si+']" aria-label="mark set done">'+(st.done?'✓':'○')+'</button></div>';
+      '<button class="lgtick" data-click="tickSet" data-args="['+si+']" aria-label="mark set done">'+(st.done?svgCheck():svgRing())+'</button></div>';
   }).join('');
   const meta=[(ex.tempo?'@'+esc(ex.tempo):''),(+ex.rest?'rest '+fmtRest(+ex.rest):'no rest')].filter(Boolean).join(' · ');
   const lastLine=last?'<div class="lglast">Last time · <b>'+esc(last.sets.map(st=>(st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @'+st.felt:'')).filter(x=>x.trim()).join(' · '))+'</b>'+(isLiftMode(ex.mode)?'<button class="markall" style="margin-left:auto" data-click="openExHist" data-args="[&quot;'+esc(ex.name)+'&quot;]">history ›</button>':'')+'</div>':'';
   return '<div class="lgx open" id="lgx'+bi+'-'+ei+'">'+
+    '<div class="lg-body">'+
     '<div class="lgtop"><button class="lgltr" data-click="openLogger" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button><span class="lgttl">'+esc(ex.name||'Exercise')+'</span><span class="lgmeta">'+meta+'</span></div>'+
-    head+rows+lastLine+
+    head+rows+
+    '</div>'+
+    lastLine+
     '</div>';
 }
 function renderSession(){
   const el=document.getElementById('s-training');const s=curSession();
-  if(!s){el.innerHTML='<div class="kicker">Training</div><h1 style="font-size:24px">No workout yet</h1><p class="sub">Build a workout first — then it runs here.</p><button class="addbtn" style="margin-top:16px" data-click="go" data-args="[&quot;builder&quot;]">Open the Builder</button>';return}
+  if(!s){el.innerHTML='<div class="card empty" style="margin-top:20px"><div class="ei">'+svgDumbbell()+'</div><div class="kicker">Training</div><h3>No workout yet</h3><p>Build a session first — then it runs here, set by set.</p><button class="addbtn solid" style="margin-top:14px;max-width:280px" data-click="go" data-args="[&quot;builder&quot;]">Open the Builder</button></div>';return}
   const letters=sessionLetters(s);
   let sdone=0,stot=0;
   s.blocks.forEach(b=>{if(isCond(b)){stot++;if(b.condResult)sdone++;}else blockExercises(b).forEach(e=>{stot+=e.sets.length;sdone+=e.sets.filter(st=>st.done).length;});});
   const spct=stot?Math.round(100*sdone/stot):0;
-  let body='';
+  let body='';let anyOpen=false;
   s.blocks.forEach((b,bi)=>{
     if(isCond(b)){body+=renderCondBlockRow(b,bi);return;}
     if(b.heading)body+='<div class="lgsec">'+esc(b.heading)+(b.superset?'<span class="lgss">superset · flows on</span>':'')+(b.format?'<span class="lgfmt">'+esc(b.format)+'</span>':'')+'</div>';
     blockExercises(b).forEach((ex,ei)=>{
       const open=LOG_LOC&&LOG_LOC.bi===bi&&LOG_LOC.ei===ei&&ex.mode!=='completion';
-      if(open){body+=lgOpenCard(s,b,ex,bi,ei,letters[bi][ei]);return;}
+      if(open){anyOpen=true;body+=lgOpenCard(s,b,ex,bi,ei,letters[bi][ei]);return;}
       const done=ex.sets.length&&ex.sets.every(st=>st.done);
       if(ex.mode==='completion'){
         body+='<div class="lgx'+(done?' donex':'')+'"><button class="lgcrow" data-click="toggleCompletion" data-args="['+bi+','+ei+']">'+
           '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
-          (done?'<span class="lgstat done">✓ done</span>':'<span class="lgstat">tap ✓</span>')+'</button></div>';
+          (done?'<span class="lgstat done">'+svgCheck()+'done</span>':'<span class="lgstat">tap'+svgCheck()+'</span>')+'</button></div>';
         return;
       }
       body+='<div class="lgx'+(done?' donex':'')+'"><button class="lgcrow" data-click="openLogger" data-args="['+bi+','+ei+']">'+
@@ -695,10 +704,10 @@ function renderSession(){
     ready='<div class="readyline"><i style="background:'+(t.color||'#847d73')+'"></i><b>'+rec+'% recovery</b><span>'+hint+'</span></div>';
   }
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 style="font-size:24px">'+esc(s.name||'Workout')+'</h1></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 class="screentitle">'+esc(s.name||'Workout')+'</h1></div></div>'+
     ready+
     '<div class="logprog"><div class="lpbar"><span style="width:'+spct+'%"></span></div><div class="lptext">'+sdone+' of '+stot+' done<em>'+spct+'%</em></div></div>'+
-    '<div id="sessBody">'+body+'</div>'+
+    '<div id="sessBody" class="loggerlist'+(anyOpen?' hasopen':'')+'">'+body+'</div>'+
     '<div class="completebar"><button class="bigbtn'+(allDone?' donestate':'')+'" data-click="finishSession" data-args="[&quot;@self&quot;]">'+(allDone?'Everything logged — finish ✓':'Mark session complete')+'</button></div>';
 }
 function condZoneName(key){const z=conZones().list.find(x=>x.key===key);return z?z.name:'Conditioning';}
@@ -794,8 +803,8 @@ function buildRecap(s,prs){
 function renderRecap(){
   const el=document.getElementById('s-recap');if(!el)return;
   const r=RECAP;
-  if(!r){el.innerHTML='<div class="kicker">Session</div><h1 style="font-size:24px">Nothing just finished</h1><p class="sub">Finish a session and its story lands here.</p><button class="addbtn" style="margin-top:16px" data-click="go" data-args="[&quot;home&quot;]">Home</button>';return;}
-  let h='<div class="recaphead"><div class="big">💪</div><h1>Session complete</h1><p>'+esc(r.name)+' · '+esc(prettyDay(r.date))+(r.dur?' · '+r.dur+' min':'')+'</p></div>';
+  if(!r){el.innerHTML='<div class="card empty" style="margin-top:20px"><div class="ei">'+svgMedal()+'</div><div class="kicker">Session</div><h3>Nothing just finished</h3><p>Finish a session and its story lands here — records, volume and zones.</p><button class="addbtn solid" style="margin-top:14px;max-width:280px" data-click="go" data-args="[&quot;home&quot;]">Back to Home</button></div>';return;}
+  let h='<div class="recaphead"><div class="big">'+svgMedal()+'</div><h1>Session complete</h1><p>'+esc(r.name)+' · '+esc(prettyDay(r.date))+(r.dur?' · '+r.dur+' min':'')+'</p></div>';
   h+='<div class="stats" style="margin-top:18px">'+
     '<div class="stat"><b>'+fmtK(r.vol)+'</b><span>kg volume</span></div>'+
     '<div class="stat"><b>'+r.done+'/'+r.tot+'</b><span>sets done</span></div>'+
@@ -804,7 +813,7 @@ function renderRecap(){
     h+='<div class="sec-head" style="margin-top:20px"><h2>Records</h2><span>'+r.prs.length+' new</span></div>';
     r.prs.forEach(p=>{
       const delta=p.prevE1!=null?' · +'+(Math.round((p.e1-p.prevE1)*10)/10)+' on your best':' · first benchmark';
-      h+='<div class="prcard" data-click="openExHist" data-args="[&quot;'+esc(p.name)+'&quot;]"><span class="tro">🏆</span><div class="t"><b>'+esc(p.name)+'</b><span>'+p.kg+'kg × '+p.reps+' · est 1RM '+(Math.round(p.e1*10)/10)+'kg'+delta+'</span></div><span class="chev">›</span></div>';
+      h+='<div class="prcard" data-click="openExHist" data-args="[&quot;'+esc(p.name)+'&quot;]"><span class="tro">'+svgTrophy()+'</span><div class="t"><b>'+esc(p.name)+'</b><span>'+p.kg+'kg × '+p.reps+' · est 1RM '+(Math.round(p.e1*10)/10)+'kg'+delta+'</span></div><span class="chev">›</span></div>';
     });
   }
   if(r.rpe.target!=null&&r.rpe.felt!=null){
@@ -829,7 +838,7 @@ function openExHist(name){EXH_NAME=String(name||'');EXH_BACK=(CURRENT==='history
 function renderExHist(){
   const el=document.getElementById('s-exhist');if(!el)return;
   const hist=exLogFor(EXH_NAME);
-  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;'+esc(EXH_BACK)+'&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Exercise history</div><h1 style="font-size:24px">'+esc(EXH_NAME||'Exercise')+'</h1></div></div>';
+  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;'+esc(EXH_BACK)+'&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Exercise history</div><h1 class="screentitle">'+esc(EXH_NAME||'Exercise')+'</h1></div></div>';
   if(!hist.length){
     el.innerHTML=h+'<div class="card empty" style="margin-top:16px"><h3>No lifts logged yet</h3><p>Log kg × reps for this movement and its story builds here — best set, estimated 1RM trend, every session.</p></div>';return;
   }
@@ -1131,7 +1140,7 @@ function renderBuilder(){
   }
   const el=document.getElementById('s-builder');
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" aria-label="Back to Library" data-click="go" data-args="[&quot;library&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder</div><h1 style="font-size:24px">Build your session</h1></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back to Library" data-click="go" data-args="[&quot;library&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder</div><h1 class="screentitle">Build your session</h1></div></div>'+
     '<p class="sub">Add blocks, add exercises, set modes, sets, reps &amp; RPE. Then hit “See how it looks”.</p>'+
     '<button class="addbtn" style="margin-top:14px" data-click="openImport">📋 Import from text or photo</button>'+
     '<div class="field" style="margin-top:18px"><label>Workout name</label><input id="wkName" value="'+esc(WK.name)+'" placeholder="e.g. Upper Pump — Day 1" data-input="setWkName" data-args="[&quot;@value&quot;]"></div>'+
@@ -1396,7 +1405,7 @@ function renderSettings(){
     '<div class="zonekey" style="margin-top:12px">'+zz.list.map(function(z){return '<div class="zk"><i style="background:'+z.color+'"></i><span class="n">'+z.name+'</span><span class="r">'+z.lo+'&ndash;'+(z.key==='high'?z.hi+'+':z.hi)+'</span></div>';}).join('')+'</div>'+
     '<div class="sc-meta" style="margin-top:8px">Max '+zz.max+' bpm'+recLine+'.</div>';
   el.innerHTML=
-    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Settings</div><h1 style="font-size:24px">Cloud, WHOOP &amp; data</h1></div></div>'+
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Settings</div><h1 class="screentitle">Cloud, WHOOP &amp; data</h1></div></div>'+
     '<div class="section"><div class="sec-head"><h2>Cloud sync</h2></div><div class="card" style="margin-top:10px;padding:14px">'+cloud+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>WHOOP</h2></div><div class="card" style="margin-top:10px;padding:14px">'+whoop+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>Training profile</h2></div><div class="card" style="margin-top:10px;padding:14px">'+profile+'</div></div>'+
@@ -2171,9 +2180,9 @@ function conSetupHtml(){
   // standalone conditioning lives under Library → wear the same tab strip
   let h=sess?'':libHeaderHtml('conditioning');
   if(sess){
-    h+='<div class="backrow"><button class="backbtn" aria-label="Back to workout" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(sess.name||'Workout')+' · conditioning</div><h1 style="font-size:24px">Zone session</h1></div></div>';
+    h+='<div class="backrow"><button class="backbtn" aria-label="Back to workout" data-click="go" data-args="[&quot;training&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(sess.name||'Workout')+' · conditioning</div><h1 class="screentitle">Zone session</h1></div></div>';
   }else{
-    h+='<h1 style="font-size:24px;margin-top:14px">Zone session</h1><p class="sub">Train by live heart rate. Zones adapt to your recovery — tune your profile in Settings.</p>';
+    h+='<h1 class="screentitle" style="margin-top:14px">Zone session</h1><p class="sub">Train by live heart rate. Zones adapt to your recovery — tune your profile in Settings.</p>';
   }
   if(rec!=null)h+='<div class="recpill"><b>Your recovery today</b><span class="v">'+rec+'%</span></div>';
   h+='<div class="card" style="margin-top:14px;padding:15px"><div class="lbl" style="color:var(--dim);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Today&rsquo;s heart-rate zones · max '+z.max+(z.adj>0?' · widened for '+z.rec+'% recovery':z.adj<0?' · eased for '+z.rec+'% recovery':'')+'</div>';
@@ -2257,7 +2266,7 @@ function conResultsHtml(rec){
   if(!rec)return conSetupHtml();
   const total=(rec.zsec.low||0)+(rec.zsec.mod||0)+(rec.zsec.high||0);
   const fN=CON_FORMATS[rec.fmt]?CON_FORMATS[rec.fmt].name:rec.fmt;
-  let h='<div class="rhead" style="display:flex;align-items:baseline;justify-content:space-between"><div><div class="kicker">Session complete</div><h1 style="font-size:24px">'+esc(fN)+(rec.sim?' · demo':'')+'</h1></div><span class="chip">'+conMmss(rec.dur)+'</span></div>';
+  let h='<div class="rhead" style="display:flex;align-items:baseline;justify-content:space-between"><div><div class="kicker">Session complete</div><h1 class="screentitle">'+esc(fN)+(rec.sim?' · demo':'')+'</h1></div><span class="chip">'+conMmss(rec.dur)+'</span></div>';
   if(!rec.sim&&CON.adaptFmt===rec.fmt&&CON.adaptDelta){
     const nextDesc=esc(conPrescDesc(rec.fmt,conPrescription(rec.fmt,true)));
     if(CON.adaptDelta>0)h+='<div class="adaptbar up">💪 <b>You adapted</b> — stepped up to Level '+CON.adaptLevel+'. Next time: '+nextDesc+'.</div>';
@@ -2583,7 +2592,7 @@ function impFixerHtml(iss){
 }
 function renderImport(){
   const el=document.getElementById('s-import');if(!el)return;
-  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;builder&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder · Import</div><h1 style="font-size:24px">Add a workout</h1></div></div>'+
+  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;builder&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder · Import</div><h1 class="screentitle">Add a workout</h1></div></div>'+
     '<p class="sub">Type it, paste it, or attach a photo/screenshot — any style, typos welcome. It asks only when a <b>meaning</b> is unclear; blank weights and reps just stay blank, like always.</p>'+
     '<textarea class="imp-src" id="impSrc" spellcheck="false" placeholder="e.g.&#10;Push Day&#10;Bench 4x8 @RPE8 rest 3min&#10;into 5 deadlifts&#10;10s dead hang rest 30s 2 rounds of that">'+esc(IMP.text)+'</textarea>'+
     '<div class="imp-inputs">'+

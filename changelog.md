@@ -1,5 +1,27 @@
 # Changelog
 
+## Matte Instrument — a visual upgrade across every screen — 25 July 2026
+
+A design pass that lifts the whole app without changing how anything works — same
+screens, same data, more premium.
+
+- **Real depth.** The surfaces were too close in tone, so cards sat flat. The
+  panel ladder is widened and the page ground dropped a notch, so cards actually
+  float; inputs are recessed wells; the open logger card lifts with a warm gold
+  key-light and a gold top-edge, and the other exercises quietly recede behind it.
+- **Gold owns the brand again.** "Done" states used to borrow the conditioning
+  green; they're now warm brass — so green means only heart-rate zones, and gold
+  carries the identity.
+- **Sharper type.** One locked exercise-name size (no more resize when a card
+  opens), tabular figures on every live KG/reps/RPE number so columns don't
+  jitter, and a proper hairline rule under the SET · TARGET · KG · REPS · RPE
+  header.
+- **Finish.** A consistent corner-radius scale so shapes rhyme, brushed-brass
+  badges and buttons, and a gentle accordion reveal when a set table opens
+  (respecting reduced-motion).
+
+All six test suites stay green; no behaviour, data, or feature changed.
+
 ## The Library Release — three tabs, a real Library, Home you can read at a glance — 25 July 2026
 
 The app reorganised around how you actually use it: a home you glance at, a place
