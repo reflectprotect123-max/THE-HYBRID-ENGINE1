@@ -1569,6 +1569,9 @@ async function cloudReconcile(){
     // Reconcile coach-assigned sessions regardless of whether app_state changed
     // (assignments live in their own table, outside the fingerprint above).
     await coachPull();
+    // who coaches me + publish my training digest (no-ops when unlinked)
+    await coachLinkLoad();
+    await publishFeed();
   }catch(e){cloudError=String(e&&e.message||e);}
   cloudBusy=false;if(CURRENT==='settings')renderSettings();
 }
@@ -1583,6 +1586,78 @@ function materializeAssignment(r){
   const w=Object.assign({},snap,{id:'coach:'+r.id,origin:'coach',assignmentId:r.id,_rev:r.updated_at||'',
     dates:r.scheduled_date?[r.scheduled_date]:(Array.isArray(snap.dates)?snap.dates:[])});
   return sanitizeDB({workouts:[w],sessions:[],settings:{}}).workouts[0];
+}
+/* ---------- coach link + athlete feed ----------
+   COACH_LINK is who (if anyone) coaches this athlete. When a link is active the
+   app publishes a bounded DIGEST of training to athlete_feed — never the whole
+   local blob, and never the raw HR traces. RLS lets only an actively-linked
+   coach read it, so unlinking revokes access with no extra step. Publishing is
+   fingerprinted so an unchanged digest costs nothing. */
+let COACH_LINK=null,_feedFp='';
+async function coachLinkLoad(){
+  if(!cloudEnabled()||!cloudUser){COACH_LINK=null;return null;}
+  try{
+    const {data,error}=await SB.from('coach_athletes')
+      .select('id,coach_id,label,accepted_at').eq('athlete_id',cloudUser.id).eq('status','active').maybeSingle();
+    COACH_LINK=(!error&&data)?data:null;
+  }catch(e){COACH_LINK=null;}
+  return COACH_LINK;
+}
+/* The digest: what a coach is allowed to see. Bounded to ~90 days and stripped
+   of anything bulky or private (HR point traces, notes, settings, lexicon). */
+function buildFeed(){
+  const cut=ymd(new Date(Date.now()-90*864e5));
+  const sessions=DB.sessions.filter(s=>s.status!=='active'&&s.date&&s.date>=cut).map(s=>{
+    let done=0,tot=0;(s.blocks||[]).forEach(b=>blockExercises(b).forEach(e=>(e.sets||[]).forEach(st=>{tot++;if(st.done)done++;})));
+    const r=sessionRpe(s);
+    return{id:s.id,date:s.date,name:s.name||'Session',status:s.status,
+      volumeKg:sessionVolume(s),setsDone:done,setsTotal:tot,
+      rpeTarget:r&&r.target!=null?r.target:null,rpeFelt:r&&r.felt!=null?r.felt:null,
+      minutes:(s.completedAt&&s.startedAt)?Math.round((s.completedAt-s.startedAt)/6e4):null,
+      exercises:(s.blocks||[]).flatMap(b=>blockExercises(b).map(e=>e.name).filter(Boolean)).slice(0,12)};
+  }).slice(-120);
+  /* conditioning: standalone records plus any embedded in a session. `hr` (the
+     full point trace) is deliberately dropped — it's large and adds nothing to
+     a review view. */
+  const slim=r=>({id:r.id,date:r.date,fmt:r.fmt,dur:r.dur,avg:r.avg,max:r.max,hrr:r.hrr,cal:r.cal,zsec:r.zsec});
+  const cond=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>r&&r.date>=cut).map(slim);
+  DB.sessions.forEach(s=>{if(s.date>=cut)(s.blocks||[]).forEach(b=>{if(isCond(b)&&b.condResult)cond.push(slim(b.condResult));});});
+  const whoop=(Array.isArray(DB.settings.whoopDaily)?DB.settings.whoopDaily:[]).filter(h=>h&&h.date>=cut);
+  return{v:1,updatedAt:Date.now(),sessions,conditioning:cond.slice(-120),whoop};
+}
+async function publishFeed(){
+  if(!cloudEnabled()||!cloudUser||!COACH_LINK)return false;
+  let feed;try{feed=buildFeed();}catch(e){return false;}
+  let fp;try{fp=JSON.stringify({s:feed.sessions,c:feed.conditioning,w:feed.whoop});}catch(e){return false;}
+  if(fp===_feedFp)return false;               // nothing changed since last push
+  try{
+    const {error}=await SB.from('athlete_feed')
+      .upsert({athlete_id:cloudUser.id,payload:feed,updated_at:new Date().toISOString()},{onConflict:'athlete_id'});
+    if(error)return false;
+    _feedFp=fp;return true;
+  }catch(e){return false;}
+}
+/* Enter an invite code from a coach. The token is the capability; claim_invite
+   is a security-definer RPC that activates the link exactly once. */
+async function coachClaim(){
+  const el=document.getElementById('coachCode');const code=((el&&el.value)||'').trim();
+  if(!code)return alert('Paste the invite code your coach gave you.');
+  if(!cloudEnabled()||!cloudUser)return alert('Sign in to cloud sync first — the link is tied to your account.');
+  try{
+    const {error}=await SB.rpc('claim_invite',{p_token:code});
+    if(error)throw error;
+    await coachLinkLoad();_feedFp='';await publishFeed();
+    renderSettings();toast('Connected to your coach');
+  }catch(e){alert('Could not use that code: '+(e&&e.message||e));}
+}
+async function coachUnlink(){
+  if(!COACH_LINK)return;
+  if(!confirm('Disconnect from your coach? They immediately lose access to your training.'))return;
+  try{
+    await SB.from('coach_athletes').delete().eq('id',COACH_LINK.id);
+    await SB.from('athlete_feed').delete().eq('athlete_id',cloudUser.id);
+    COACH_LINK=null;_feedFp='';renderSettings();toast('Disconnected');
+  }catch(e){alert('Could not disconnect: '+(e&&e.message||e));}
 }
 async function coachPull(){
   if(!cloudEnabled()||!cloudUser)return false;
@@ -1702,6 +1777,22 @@ function renderSettings(){
   if(!WHOOP.loaded){whoop='<div class="sc-meta">Checking WHOOP connection…</div>';}
   else if(!WHOOP.connected){whoop='<div class="sc-meta">'+(WHOOP.error?'<b>Can&rsquo;t reach WHOOP right now — it works from the live app.</b> ':'')+'Connect WHOOP to bring recovery, sleep and strain into Home.</div><a class="bigbtn" style="display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;margin-top:12px" href="'+WHOOP_ENDPOINTS.connect+'">Connect WHOOP</a>';}
   else{whoop='<div class="sc-meta">WHOOP connected'+(WHOOP.lastSyncAt?' · last sync '+esc(new Date(WHOOP.lastSyncAt).toLocaleString()):'')+'.</div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" data-click="syncWhoop">'+(WHOOP.busy?'Syncing…':'Sync now')+'</button><button class="addbtn" style="flex:1;margin-top:0" data-click="disconnectWhoop">Disconnect</button></div>';}
+  // Coach link. Deliberately explicit about what linking shares — the whole
+  // consent model (and its RLS) is only meaningful if the athlete knows.
+  let coachPanel;
+  if(!cloudEnabled()||!cloudUser){
+    coachPanel='<div class="sc-meta">Sign in to cloud sync above to connect a coach.</div>';
+  } else if(COACH_LINK){
+    coachPanel='<div class="sc-meta">Connected to your coach'+(COACH_LINK.label?' as <b>'+esc(COACH_LINK.label)+'</b>':'')+'.</div>'+
+      '<div class="sc-meta" style="margin-top:8px;color:var(--dim)">They can see your completed sessions, conditioning and WHOOP recovery. They cannot see your notes or settings, and cannot edit your log. Sessions they assign appear on your calendar.</div>'+
+      '<button class="addbtn" style="margin-top:12px;border-color:rgba(207,127,124,.5);color:var(--bad)" data-click="coachUnlink">Disconnect from coach</button>';
+  } else {
+    coachPanel='<div class="sc-meta">Got an invite code from a coach? Paste it here to connect.</div>'+
+      '<div class="sc-meta" style="margin-top:8px;color:var(--dim)">Connecting lets them see your completed sessions, conditioning and WHOOP recovery, and send you sessions. They can never see your notes or settings, or edit your log. You can disconnect at any time.</div>'+
+      '<div class="field" style="margin-top:12px"><label>Invite code</label><input id="coachCode" type="text" autocomplete="off" spellcheck="false" placeholder="paste code"></div>'+
+      '<button class="bigbtn" style="margin-top:10px" data-click="coachClaim">Connect to coach</button>';
+  }
+
   // Steps come from the phone, not WHOOP (its API has no step data). Only the
   // installed app has the sensor, so this row is absent in a plain browser.
   if(stepsBridge()){
@@ -1729,6 +1820,7 @@ function renderSettings(){
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Settings</div><h1 class="screentitle">Cloud, WHOOP &amp; data</h1></div></div>'+
     '<div class="section"><div class="sec-head"><h2>Cloud sync</h2></div><div class="card" style="margin-top:10px;padding:14px">'+cloud+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>WHOOP</h2></div><div class="card" style="margin-top:10px;padding:14px">'+whoop+'</div></div>'+
+    '<div class="section"><div class="sec-head"><h2>Coach</h2></div><div class="card" style="margin-top:10px;padding:14px">'+coachPanel+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>Training profile</h2></div><div class="card" style="margin-top:10px;padding:14px">'+profile+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>Gym setup</h2></div><div class="card" style="margin-top:10px;padding:14px">'+
       '<div class="sc-meta">Bar weight and the plates you own (kg per side). Powers the plate calculator in the logger.</div>'+

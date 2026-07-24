@@ -193,7 +193,130 @@
     el.innerHTML = h;
   }
 
-  function render() { renderTop(); renderNav(); renderEditor(); }
+  /* ---------- athletes (coach-side review) ----------
+     Reads each linked athlete's athlete_feed — the digest their app publishes.
+     Read-only by construction: RLS grants SELECT only, and only while the link
+     is active, so an athlete disconnecting removes this view's data instantly. */
+  var VIEW = 'library', ATHLETES = [], FEEDS = {}, ATH_SEL = null, ATH_BUSY = false;
+
+  function loadAthletes() {
+    if (!SB || !cloudUser) { ATHLETES = []; renderAthletes(); return; }
+    ATH_BUSY = true; renderAthletes();
+    SB.from('coach_athletes').select('id,athlete_id,label,status,invite_token,created_at')
+      .eq('coach_id', cloudUser.id).order('created_at', { ascending: true })
+      .then(function (res) {
+        ATH_BUSY = false;
+        ATHLETES = (res && !res.error && res.data) ? res.data : [];
+        renderAthletes();
+        ATHLETES.filter(function (a) { return a.status === 'active' && a.athlete_id; })
+          .forEach(function (a) { loadFeed(a.athlete_id); });
+      }).catch(function () { ATH_BUSY = false; renderAthletes(); });
+  }
+  function loadFeed(aid) {
+    SB.from('athlete_feed').select('payload,updated_at').eq('athlete_id', aid).maybeSingle()
+      .then(function (res) {
+        if (res && !res.error && res.data) FEEDS[aid] = res.data;
+        renderAthletes();
+      }).catch(function () {});
+  }
+  function inviteAthlete() {
+    if (!SB || !cloudUser) { openAuth(); return; }
+    var label = prompt('Name for this athlete (only you see it):', '');
+    if (label === null) return;
+    var token = (function () { try { return crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase(); } catch (e) { return String(Date.now()).slice(-10); } })();
+    SB.from('coach_athletes').insert({ coach_id: cloudUser.id, athlete_id: null, status: 'pending', invite_token: token, label: (label || '').trim() || null })
+      .then(function (res) {
+        if (res && res.error) { toast('Could not create invite: ' + res.error.message); return; }
+        loadAthletes(); toast('Invite created — share the code');
+      }).catch(function (e) { toast(String(e && e.message || e)); });
+  }
+  function revokeAthlete(id) {
+    if (!confirm('Remove this athlete? They stop appearing here and you lose access to their training.')) return;
+    SB.from('coach_athletes').delete().eq('id', id).then(function () { loadAthletes(); toast('Removed'); }).catch(function () {});
+  }
+  function fmtK(v) { v = Math.round(v); return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : String(v); }
+  function since(d) { if (!d) return ''; var n = Math.round((Date.now() - new Date(d).getTime()) / 864e5); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + 'd ago'; }
+
+  function athleteDetailHTML(a) {
+    var f = FEEDS[a.athlete_id], p = f && f.payload;
+    if (!p) return '<div class="microval">No training published yet — it appears once they log a session and sync.</div>';
+    var ss = (p.sessions || []).slice().reverse(), cond = (p.conditioning || []).slice().reverse(), wh = (p.whoop || []).slice().reverse();
+    var wk = Date.now() - 7 * 864e5;
+    var wkSess = ss.filter(function (x) { return new Date(x.date).getTime() >= wk; });
+    var vol = wkSess.reduce(function (n, x) { return n + (x.volumeKg || 0); }, 0);
+    var condMin = cond.filter(function (x) { return new Date(x.date).getTime() >= wk; }).reduce(function (n, x) { return n + Math.round((x.dur || 0) / 60); }, 0);
+    var lastW = wh[0];
+    var h = '<div class="ath-stats">' +
+      '<div class="ath-stat"><b>' + wkSess.length + '</b><span>sessions · 7d</span></div>' +
+      '<div class="ath-stat"><b>' + fmtK(vol) + '</b><span>kg volume · 7d</span></div>' +
+      '<div class="ath-stat"><b>' + condMin + '</b><span>cond. min · 7d</span></div>' +
+      '<div class="ath-stat"><b>' + (lastW && lastW.recovery != null ? lastW.recovery + '%' : '—') + '</b><span>last recovery</span></div>' +
+      '</div>';
+    h += '<div class="microlab" style="margin-top:18px">Recent sessions</div>';
+    h += ss.length ? ss.slice(0, 12).map(function (x) {
+      return '<div class="ath-row"><div><b>' + esc(x.name) + '</b><span>' + esc(x.date) + ' · ' + since(x.date) +
+        (x.exercises && x.exercises.length ? ' · ' + esc(x.exercises.slice(0, 3).join(', ')) : '') + '</span></div>' +
+        '<span class="ath-num">' + (x.volumeKg ? fmtK(x.volumeKg) + 'kg' : (x.setsDone + '/' + x.setsTotal)) + '</span></div>';
+    }).join('') : '<div class="microval">Nothing logged yet.</div>';
+    if (cond.length) {
+      h += '<div class="microlab" style="margin-top:18px">Conditioning &amp; runs</div>';
+      h += cond.slice(0, 10).map(function (x) {
+        var z = x.zsec || {}; var tot = (z.low || 0) + (z.mod || 0) + (z.high || 0);
+        return '<div class="ath-row"><div><b>' + esc(x.fmt || 'Session') + '</b><span>' + esc(x.date) + ' · ' + Math.round((x.dur || 0) / 60) + ' min' +
+          (x.avg ? ' · avg ' + x.avg + ' bpm' : '') + (tot ? ' · ' + Math.round(tot / 60) + ' min in zone' : '') + '</span></div>' +
+          '<span class="ath-num">' + (x.max ? x.max + ' max' : '') + '</span></div>';
+      }).join('');
+    }
+    if (wh.length) {
+      h += '<div class="microlab" style="margin-top:18px">WHOOP · last 14 days</div><div class="ath-wh">';
+      h += wh.slice(0, 14).reverse().map(function (x) {
+        var r = x.recovery == null ? null : x.recovery;
+        var col = r == null ? 'var(--line2)' : r >= 67 ? 'var(--ok)' : r >= 34 ? 'var(--warn)' : 'var(--danger)';
+        return '<div class="ath-whd" title="' + esc(x.date) + (r != null ? ' · ' + r + '%' : '') + '"><i style="height:' + (r == null ? 6 : Math.max(6, r)) + '%;background:' + col + '"></i></div>';
+      }).join('');
+      h += '</div>';
+    }
+    h += '<div class="microval" style="margin-top:14px;color:var(--faint)">Updated ' + since(f.updated_at) + ' · read-only</div>';
+    return h;
+  }
+
+  function renderAthletes() {
+    var el = document.getElementById('editor');
+    if (VIEW !== 'athletes') return;
+    var h = '<div class="ed-top"><h1>Athletes</h1><div class="grow"></div>' +
+      '<button class="assignbtn" data-act="invite"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Invite athlete</button></div>';
+    if (!cloudUser) { el.innerHTML = h + '<div class="c-field" style="margin-top:20px"><p>Sign in to manage athletes.</p></div>'; return; }
+    if (ATH_BUSY && !ATHLETES.length) { el.innerHTML = h + '<div class="microval" style="margin-top:20px">Loading…</div>'; return; }
+    if (!ATHLETES.length) {
+      el.innerHTML = h + '<div class="c-field" style="margin-top:20px"><p>No athletes yet. Create an invite and send them the code — they paste it into <b>Settings → Coach</b> in their app.</p></div>';
+      return;
+    }
+    var sel = ATH_SEL || (ATHLETES.find(function (a) { return a.status === 'active'; }) || ATHLETES[0]).id;
+    ATH_SEL = sel;
+    h += '<div class="ath-wrap">';
+    h += '<div class="ath-list">' + ATHLETES.map(function (a) {
+      var on = a.id === sel, pend = a.status !== 'active';
+      return '<button class="ath-card' + (on ? ' on' : '') + '" data-act="athsel" data-id="' + esc(a.id) + '">' +
+        '<b>' + esc(a.label || 'Athlete') + '</b>' +
+        '<span>' + (pend ? 'Invite pending' : 'Connected') + '</span>' +
+        (pend ? '<code class="ath-code">' + esc(a.invite_token) + '</code>' : '') + '</button>';
+    }).join('') + '</div>';
+    var a = ATHLETES.find(function (x) { return x.id === sel; });
+    h += '<div class="ath-detail">';
+    if (a && a.status !== 'active') {
+      h += '<h2 style="font-size:18px;font-weight:800">' + esc(a.label || 'Athlete') + '</h2>' +
+        '<div class="microval" style="margin-top:10px">Send them this code — they paste it into <b>Settings → Coach</b> in their app:</div>' +
+        '<div class="ath-bigcode">' + esc(a.invite_token) + '</div>' +
+        '<div class="microval">The code works once. Their training appears here after they connect and sync.</div>';
+    } else if (a) {
+      h += '<h2 style="font-size:18px;font-weight:800">' + esc(a.label || 'Athlete') + '</h2>' + athleteDetailHTML(a);
+    }
+    if (a) h += '<button class="rxsave" style="margin-top:20px" data-act="athdel" data-id="' + esc(a.id) + '">Remove athlete</button>';
+    h += '</div></div>';
+    el.innerHTML = h;
+  }
+
+  function render() { renderTop(); if (VIEW === 'athletes') { renderAthletes(); } else { renderNav(); renderEditor(); } }
 
   /* ---------- white dropdown menu ---------- */
   var menu = document.getElementById('menu');
@@ -296,13 +419,19 @@
   document.getElementById('rail').addEventListener('click', function (e) {
     var b = e.target.closest('.railbtn'); if (!b) return;
     document.querySelectorAll('.railbtn').forEach(function (x) { x.classList.toggle('on', x === b); });
-    if (b.dataset.nav !== 'library') toast(b.textContent.replace(/\s+/g, ' ').trim() + ' — coming in a later build');
+    var nav = b.dataset.nav;
+    if (nav === 'library') { VIEW = 'library'; render(); }
+    else if (nav === 'athletes') { VIEW = 'athletes'; render(); loadAthletes(); }
+    else toast(b.textContent.replace(/\s+/g, ' ').trim() + ' — coming in a later build');
   });
 
   /* ---------- clicks ---------- */
   document.addEventListener('click', function (ev) {
     var mi = ev.target.closest('.mmenu button'); if (mi) { var mm = mi.closest('.mmenu'); var fn = mm._pick; closeMenu(); if (fn) fn(mi.dataset.v); return; }
     var el = ev.target.closest('[data-act]'); if (!el) return; var a = el.dataset.act, ei = +el.dataset.e;
+    if (a === 'invite') { inviteAthlete(); return; }
+    if (a === 'athsel') { ATH_SEL = el.dataset.id; renderAthletes(); return; }
+    if (a === 'athdel') { revokeAthlete(el.dataset.id); return; }
     if (a === 'day') { LIB.sel.d = +el.dataset.i; commit(); render(); }
     else if (a === 'suplink') { var xs = day().exercises; xs[ei].link = !xs[ei].link; commit(); render(); toast(xs[ei].link ? 'Linked into a superset' : 'Superset unlinked'); }
     else if (a === 'menuclose') { closeMenu(); }

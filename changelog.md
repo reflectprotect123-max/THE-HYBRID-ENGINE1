@@ -1,5 +1,24 @@
 # Changelog
 
+## Coach ↔ athlete: connect another person — 26 July 2026
+
+You can now coach someone else — they keep their own account, their own app and
+their own WHOOP, and you get visibility into their training.
+
+- **Invite from the coach site.** Athletes → Invite athlete generates a one-time
+  code. They paste it into **Settings → Coach** in their app and the link goes live.
+- **Their training appears in Athletes**: sessions logged, conditioning and runs
+  (duration, avg/max HR, time in zone), and a 14-day WHOOP recovery strip, with
+  7-day totals up top. Read-only — a coach can look, never edit.
+- **What's shared is deliberately narrow.** Their app publishes a bounded digest
+  (last 90 days, no raw HR traces) to a dedicated table. A coach never gets access
+  to the athlete's own private state — notes, settings, gym setup and the learned
+  lexicon all stay theirs. The athlete's Settings screen spells this out before
+  they connect.
+- **The athlete is in control.** Disconnect at any time from Settings → Coach; the
+  coach's access is derived from the live link, so it dies instantly and the
+  published digest is deleted.
+
 ## Neon rings & zone bars + step counting — 26 July 2026
 
 - **Brighter rings.** The WHOOP recovery/strain arcs now glow properly — a tight

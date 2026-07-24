@@ -200,3 +200,47 @@ begin new.updated_at = now(); return new; end $$;
 drop trigger if exists trg_assignments_touch on public.assignments;
 create trigger trg_assignments_touch before insert or update on public.assignments
   for each row execute function public.touch_assignments();
+
+
+-- =====================================================================
+-- Athlete feed — the ONLY channel by which an athlete's training becomes
+-- visible to their coach. Deliberately NOT a coach-read policy on app_state:
+-- that blob is the athlete's whole private world (settings, notes, lexicon,
+-- gym setup). Instead the athlete's app publishes a bounded digest here and
+-- the coach reads only that.
+--
+-- Asymmetric by design: a linked coach can read their athlete's feed; an
+-- athlete can never read a coach's. Access is derived live from an ACTIVE
+-- link, so the moment an athlete unlinks (or the coach deletes the link) the
+-- coach's read dies with it — nothing to revoke separately.
+-- =====================================================================
+create table if not exists public.athlete_feed (
+  athlete_id uuid primary key references auth.users(id) on delete cascade,
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.athlete_feed enable row level security;
+
+-- the athlete owns their row outright
+drop policy if exists af_owner on public.athlete_feed;
+create policy af_owner on public.athlete_feed for all
+  using (auth.uid() = athlete_id) with check (auth.uid() = athlete_id);
+
+-- a coach may READ (never write) the feed of an athlete actively linked to them
+drop policy if exists af_coach_read on public.athlete_feed;
+create policy af_coach_read on public.athlete_feed for select
+  using (exists (
+    select 1 from public.coach_athletes ca
+    where ca.athlete_id = athlete_feed.athlete_id
+      and ca.coach_id = auth.uid()
+      and ca.status = 'active'));
+
+create or replace function public.touch_athlete_feed() returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end $$;
+drop trigger if exists trg_athlete_feed_touch on public.athlete_feed;
+create trigger trg_athlete_feed_touch before insert or update on public.athlete_feed
+  for each row execute function public.touch_athlete_feed();
+
+-- An athlete needs to see who coaches them (to show "coached by" and to unlink).
+-- ca_athlete_read already covers that. Coaches additionally need to mint invites,
+-- which ca_coach_insert covers. No further grants required.
