@@ -100,7 +100,7 @@ function go(id,btn){
   const LIB_SCREENS={library:1,builder:1,conditioning:1,progress:1,exhist:1};
   const navId=id==='logger'||id==='recap'?'training'
     :LIB_SCREENS[id]?'library'
-    :(id==='settings'||id==='history'||id==='import'||id==='calendar')?'home':id;
+    :(id==='history'||id==='import'||id==='calendar')?'home':id;
   const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
   if(navBtn)navBtn.classList.add('active');
   renderScreen(id);
@@ -228,7 +228,8 @@ function loggedSetSummary(ex,st){
   if(st.aVal)bits.push(st.aVal+(ex.mode==='seconds'||ex.mode==='reps_seconds'?'s':(ex.mode==='reps_kg'||ex.mode==='amrap'?'kg':'')));
   if(st.aVal2)bits.push('× '+st.aVal2);
   if(st.felt)bits.push('@RPE '+st.felt);
-  return bits.join(' ')||'✓';
+  const out=bits.join(' ')||'✓';
+  return st.note?out+' · “'+st.note+'”':out;
 }
 function renderHistory(){
   const el=document.getElementById('s-history');if(!el)return;
@@ -246,7 +247,7 @@ function renderHistory(){
         return;
       }
       b.exercises.forEach(ex=>{
-        const logged=ex.sets.filter(st=>st.done||st.aVal||st.aVal2||st.felt);
+        const logged=ex.sets.filter(st=>st.done||st.aVal||st.aVal2||st.felt||st.note);
         const allDone=ex.sets.length&&ex.sets.every(st=>st.done);
         const sum=logged.length?logged.map(st=>loggedSetSummary(ex,st)).join(' · '):'—';
         const lift=isLiftMode(ex.mode)&&ex.name;
@@ -342,8 +343,7 @@ function renderHome(){
   const cta=act?'<button class="bigbtn homecta" data-click="startToday">Resume '+esc(act.name||'session')+' →</button>'
     :todayW?'<button class="bigbtn homecta" data-click="startToday">Start today&rsquo;s session →</button>':'';
   el.innerHTML=
-    '<div class="homehead"><div><div class="kicker">Welcome back</div><h1>Train today</h1></div>'+
-      '<button class="gearbtn" aria-label="Settings" title="Settings" data-click="go" data-args="[&quot;settings&quot;]"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div>'+
+    '<div class="homehead"><div><div class="kicker">Welcome back</div><h1>Train today</h1></div></div>'+
     '<p class="sub">'+esc(sub)+'</p>'+
     cta+
     '<div class="weekhead"><span>This week</span><button class="weekcal" data-click="go" data-args="[&quot;calendar&quot;]">Calendar ›</button></div>'+
@@ -610,6 +610,9 @@ function svgRing(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle c
 function svgTrophy(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3"/><path d="M17 6h3v1a3 3 0 0 1-3 3"/><path d="M9.5 15h5M12 13v2M9 19h6"/></svg>';}
 function svgMedal(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 3 6 8M15.5 3 18 8"/><circle cx="12" cy="15" r="6"/><path d="M9.5 15l1.7 1.7L14.5 13"/></svg>';}
 function svgDumbbell(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>';}
+function svgNote(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>';}
+function svgSwap(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>';}
+function svgPlate(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="4" height="16" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/><path d="M7 12h10"/></svg>';}
 /* ============ THE LOGGER (Mock A skeleton, on the real data model) ============
    The session view IS the logger: every exercise is a collapsed row with its
    live state; tapping one opens its per-set table in place (one open at a
@@ -652,17 +655,26 @@ function lgOpenCard(s,b,ex,bi,ei,letter){
       cells='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="seconds">';
     else
       cells='<input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="reps">';
+    const noteOn=st.note||NOTE_OPEN[bi+'-'+ei+'-'+si];
+    const noteBtn='<button class="lgaffbtn'+(st.note?' has':'')+'" data-click="toggleNoteInput" data-args="['+si+']" aria-label="set note">'+svgNote()+(st.note?'<span class="lgnotetxt">'+esc(st.note)+'</span>':'')+'</button>';
+    const noteInput=noteOn?'<input class="lgnoteinput" maxlength="120" placeholder="note (e.g. belt, tweak)" value="'+esc(st.note||'')+'" data-input="setNote" data-args="['+si+',&quot;@value&quot;]" aria-label="set note text">':'';
+    const wKg=(ex.mode==='reps_kg'||ex.mode==='amrap')?(parseFloat(st.aVal)||0):0;
+    const plateBtn=wKg>0?'<button class="lgaffbtn" data-click="openPlateSheet" data-args="['+si+']" aria-label="plate breakdown">'+svgPlate()+'plates</button>':'';
     return '<div class="lgrow'+(st.done?' done':'')+'" style="grid-template-columns:'+cols.g+'">'+
       '<div class="lgno">'+(si+1)+'</div>'+
       '<div class="lgtgt">'+esc(lgTarget(ex,st))+'</div>'+cells+
       '<input class="lgrpe" inputmode="decimal" placeholder="–" value="'+esc(st.felt)+'" data-input="setActual" data-args="['+si+',3,&quot;@value&quot;]" aria-label="RPE felt">'+
-      '<button class="lgtick" data-click="tickSet" data-args="['+si+']" aria-label="mark set done">'+(st.done?svgCheck():svgRing())+'</button></div>';
+      '<button class="lgtick" data-click="tickSet" data-args="['+si+']" aria-label="mark set done">'+(st.done?svgCheck():svgRing())+'</button></div>'+
+      '<div class="lgaff">'+noteBtn+plateBtn+noteInput+'</div>';
   }).join('');
   const meta=[(ex.tempo?'@'+esc(ex.tempo):''),(+ex.rest?'rest '+fmtRest(+ex.rest):'no rest')].filter(Boolean).join(' · ');
-  const lastLine=last?'<div class="lglast">Last time · <b>'+esc(last.sets.map(st=>(st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @'+st.felt:'')).filter(x=>x.trim()).join(' · '))+'</b>'+(isLiftMode(ex.mode)?'<button class="markall" style="margin-left:auto" data-click="openExHist" data-args="[&quot;'+esc(ex.name)+'&quot;]">history ›</button>':'')+'</div>':'';
+  const lastLine=last?'<div class="lglast">Last time · <b>'+esc(last.sets.filter(Boolean).map(st=>(st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @'+st.felt:'')).filter(x=>x.trim()).join(' · '))+'</b>'+(isLiftMode(ex.mode)?'<button class="markall" style="margin-left:auto" data-click="openExHist" data-args="[&quot;'+esc(ex.name)+'&quot;]">history ›</button>':'')+'</div>':'';
   return '<div class="lgx open" id="lgx'+bi+'-'+ei+'">'+
     '<div class="lg-body">'+
-    '<div class="lgtop"><button class="lgltr" data-click="openLogger" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button><span class="lgttl">'+esc(ex.name||'Exercise')+'</span><span class="lgmeta">'+meta+'</span></div>'+
+    '<div class="lgtop"><button class="lgltr" data-click="openLogger" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button><span class="lgttl">'+esc(ex.name||'Exercise')+'</span>'+
+      '<button class="lgswap" data-click="openSwapSheet" aria-label="swap exercise">'+svgSwap()+'</button>'+
+      '<span class="lgmeta">'+meta+'</span></div>'+
+    (ex.swappedFrom?'<div class="lgswapped">swapped from '+esc(ex.swappedFrom)+'</div>':'')+
     head+rows+
     '</div>'+
     lastLine+
@@ -888,8 +900,8 @@ function lastTimeFor(name){
   const done=DB.sessions.filter(s=>s.status==='completed'||s.status==='incomplete').sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
   for(const s of done){for(const b of s.blocks){for(const ex of blockExercises(b)){
     if((ex.name||'').toLowerCase()===(name||'').toLowerCase()){
-      const logged=ex.sets.filter(st=>st.done&&(st.aVal||st.aVal2));
-      if(logged.length)return {date:s.date,sets:logged};
+      const sets=ex.sets.map(st=>(st.done&&(st.aVal||st.aVal2))?st:null);
+      if(sets.some(Boolean))return {date:s.date,sets};
     }}}}
   return null;
 }
@@ -921,7 +933,26 @@ function sessionAllDone(s){
 /* Legacy step-through logger retired — the accordion in renderSession replaced
    it. renderLoggerScreen kept as a alias so any stale go('logger') lands right. */
 function renderLoggerScreen(){renderSession();}
-function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];if(slot===1)st.aVal=val;else if(slot===2)st.aVal2=val;else if(slot===3)st.felt=val;save();}
+function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];if(slot===1)st.aVal=val;else if(slot===2)st.aVal2=val;else if(slot===3)st.felt=val;s.updatedAt=Date.now();save();}
+/* Per-set notes (set.note). NOTE_OPEN is transient UI: keys "bi-ei-si" with an open, empty editor. */
+let NOTE_OPEN={};
+function noteKey(si){return LOG_LOC?LOG_LOC.bi+'-'+LOG_LOC.ei+'-'+si:''}
+function toggleNoteInput(si){
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];
+  const k=noteKey(si);
+  if(st.note){delete st.note;delete NOTE_OPEN[k];s.updatedAt=Date.now();save();}      // filled → clear
+  else if(NOTE_OPEN[k])delete NOTE_OPEN[k];                    // open+empty → close
+  else NOTE_OPEN[k]=1;                                         // closed → open editor
+  renderSession();
+}
+function setNote(si,val){                                      // mutate + save, NO re-render (keeps focus)
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];
+  if(val&&val.trim())st.note=val;else delete st.note;
+  s.updatedAt=Date.now();
+  save();
+}
 function tickSet(si){
   const s=curSession();if(!s||!LOG_LOC)return;
   const b=s.blocks[LOG_LOC.bi],ex=b.exercises[LOG_LOC.ei],st=ex.sets[si];
@@ -929,10 +960,11 @@ function tickSet(si){
   if(st.done){
     // tick with blanks = "as prescribed": fill from last time + the target
     if(ex.mode==='reps_kg'||ex.mode==='amrap'){
-      if(!st.aVal){const last=lastTimeFor(ex.name);st.aVal=(last&&last.sets[si]&&last.sets[si].aVal)||(last&&last.sets[0]&&last.sets[0].aVal)||'';}
+      if(!st.aVal){const last=lastTimeFor(ex.name);const lf=last&&last.sets.find(Boolean);st.aVal=(last&&last.sets[si]&&last.sets[si].aVal)||(lf&&lf.aVal)||'';}
       if(!st.aVal2&&st.t&&st.t!=='max')st.aVal2=st.t;
     }else if(!st.aVal&&st.t&&st.t!=='max'){st.aVal=st.t;}
   }
+  s.updatedAt=Date.now();
   save();
   if(st.done&&CUR_REST>0)startRest(CUR_REST);
   // superset flow: finishing an exercise inside a superset block opens the next
@@ -994,6 +1026,59 @@ function resumeRest(){
 /* ---------- BUILDER ---------- */
 let WK={id:uid(),name:'',blocks:[newBlock()]},EDIT_EXISTING=false,openBlock=0;
 function refreshExNames(){const names=[...new Set(DB.workouts.flatMap(w=>w.blocks.flatMap(b=>blockExercises(b).map(e=>e.name).filter(Boolean))))];document.getElementById('exNames').innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join('');}
+/* ---------- EXERCISE SWAP (log time) ---------- */
+function swapNamePool(){
+  const set=new Set();
+  IMP_LIB_RAW.forEach(e=>set.add(e[0]));
+  const lex=(DB.settings.lexicon&&DB.settings.lexicon.ex)||{};
+  Object.keys(lex).forEach(k=>{if(lex[k]&&lex[k].name)set.add(lex[k].name);});
+  DB.workouts.concat(DB.sessions).forEach(w=>(w.blocks||[]).forEach(b=>blockExercises(b).forEach(e=>{if(e.name)set.add(e.name);})));
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+let SWAP_Q='';
+function openSwapSheet(){ SWAP_Q=''; renderSwapSheet(); }
+/* Keystroke handler: mutate SWAP_Q and refresh ONLY the results list so the
+   live <input> (focus + caret + IME) is never destroyed. Mirrors setNote. */
+function swapFilter(q){ SWAP_Q=q||''; const el=document.querySelector('#sheet .swaplist'); if(el)el.innerHTML=buildSwapList(); else renderSwapSheet(); }
+function buildSwapList(){
+  const q=SWAP_Q.trim().toLowerCase();
+  const pool=swapNamePool().filter(n=>!q||n.toLowerCase().includes(q)).slice(0,40);
+  const list=pool.map(n=>'<button class="bigopt swapopt" data-click="applySwap" data-args="[&quot;'+esc(n)+'&quot;]"><div><b>'+esc(n)+'</b></div></button>').join('');
+  const freetext=(SWAP_Q.trim()&&!pool.some(n=>n.toLowerCase()===q))
+    ?'<button class="bigopt swapopt" data-click="applySwap" data-args="[&quot;'+esc(SWAP_Q.trim())+'&quot;]"><div><b>Use &ldquo;'+esc(SWAP_Q.trim())+'&rdquo;</b><span>free text</span></div></button>':'';
+  return freetext+list;
+}
+function renderSwapSheet(){
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
+  openSheet('<div class="grab"></div><h3>Swap exercise</h3><p class="ssub">Replace &ldquo;'+esc(ex.name||'Exercise')+'&rdquo; — sets &amp; targets are kept.</p>'+
+    '<div class="field"><input class="swapsearch" autofocus placeholder="Search or type a name" value="'+esc(SWAP_Q)+'" data-input="swapFilter" data-args="[&quot;@value&quot;]" aria-label="search exercises"></div>'+
+    '<div class="swaplist">'+buildSwapList()+'</div>'+
+    '<button class="cancel" data-click="closeSheet">Cancel</button>');
+}
+function applySwap(name){
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
+  const from=ex.name||'';
+  if(name&&name!==from){ if(!ex.swappedFrom)ex.swappedFrom=from; ex.name=name; s.updatedAt=Date.now(); }
+  save(); closeSheet(); renderSession();
+}
+function openPlateSheet(si){
+  const s=curSession();if(!s||!LOG_LOC)return;
+  const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei],st=ex.sets[si];
+  const w=parseFloat(st.aVal)||0; if(!(w>0))return;
+  const g=gym(),bd=plateBreakdown(w,g.bar,g.plates);
+  const perTxt=bd.perSide.length?bd.perSide.join(' + '):'just the bar';
+  const maxP=g.plates[0]||25;
+  const CAP=40;const shown=bd.perSide.slice(0,CAP);
+  const pills=shown.map(p=>'<span class="platepill" style="height:'+Math.round(30+40*(p/maxP))+'px">'+p+'</span>').join('')+(bd.perSide.length>CAP?'<span class="platepill" style="height:30px">+'+(bd.perSide.length-CAP)+' more</span>':'');
+  const closest=bd.loadable?'':'<div class="sc-meta" style="margin-top:10px">Closest loadable: <b>'+bd.achievableKg+'kg</b> ('+(bd.delta>0?'+':'')+bd.delta+'kg)</div>';
+  openSheet('<div class="grab"></div><h3>'+w+' kg</h3><p class="ssub">Bar '+g.bar+'kg · load per side</p>'+
+    '<div class="platebar">'+(pills||'<span class="platenone">bar only</span>')+'</div>'+
+    '<div class="plateline"><b>Load per side:</b> '+esc(perTxt)+'</div>'+
+    closest+
+    '<button class="cancel" data-click="closeSheet">Close</button>');
+}
 let BUILDER_WID=null;
 /* ============================================================
    LIBRARY — one home for saved sessions, conditioning and progress,
@@ -1313,7 +1398,7 @@ function pickWorkout(x,y){
   });
 }
 function sessionScore(s){let n=0;(s.blocks||[]).forEach(b=>((b&&b.exercises)||[]).forEach(e=>(e.sets||[]).forEach(st=>{if(st&&st.done)n++;})));return (s.completedAt||s.startedAt||0)+n*1e6;}
-function pickSession(x,y){return sessionScore(y)>=sessionScore(x)?y:x;}
+function pickSession(x,y){const sx=sessionScore(x),sy=sessionScore(y);if(sy!==sx)return sy>sx?y:x;return (y.updatedAt||0)>=(x.updatedAt||0)?y:x;}
 function notTombstoned(t){t=t||{};return function(x){const d=t[x&&x.id];return !(d&&d>=(x.updatedAt||0));};}
 function mergeEngines(local,remote){
   const settings=mergeSettings(remote.settings||{},local.settings||{}); // local scalar edits win; additive fields unioned
@@ -1466,6 +1551,12 @@ function renderSettings(){
     '<div class="section"><div class="sec-head"><h2>Cloud sync</h2></div><div class="card" style="margin-top:10px;padding:14px">'+cloud+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>WHOOP</h2></div><div class="card" style="margin-top:10px;padding:14px">'+whoop+'</div></div>'+
     '<div class="section"><div class="sec-head"><h2>Training profile</h2></div><div class="card" style="margin-top:10px;padding:14px">'+profile+'</div></div>'+
+    '<div class="section"><div class="sec-head"><h2>Gym setup</h2></div><div class="card" style="margin-top:10px;padding:14px">'+
+      '<div class="sc-meta">Bar weight and the plates you own (kg per side). Powers the plate calculator in the logger.</div>'+
+      '<div class="field" style="max-width:160px"><label>Bar weight (kg)</label><input type="number" min="1" max="60" inputmode="decimal" value="'+gym().bar+'" data-change="setGym" data-args="[&quot;bar&quot;,&quot;@value&quot;]"></div>'+
+      '<div class="sc-meta" style="margin-top:12px">Plates available</div>'+
+      '<div class="daychips" style="margin-top:8px">'+GYM_STD.map(function(p){return '<button class="daychip'+(gym().plates.indexOf(p)>=0?' on':'')+'" data-click="setGym" data-args="[&quot;plate&quot;,&quot;'+p+'&quot;]">'+p+'</button>';}).join('')+'</div>'+
+    '</div></div>'+
     '<div class="section"><div class="sec-head"><h2>Your data</h2></div><div class="card" style="margin-top:10px;padding:14px"><div class="sc-meta">Everything is stored on this device and (if signed in) synced to the cloud.</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" data-click="exportData">Export backup</button><button class="addbtn" style="flex:1;min-width:120px;margin-top:0" data-click="triggerImport">Import backup</button></div><input id="importFile" type="file" accept="application/json,.json" style="display:none" data-change="importData" data-args="[&quot;@event&quot;]"><button class="addbtn" style="margin-top:10px;border-color:rgba(207,127,124,.5);color:var(--bad)" data-click="resetLocal">Reset local data</button></div></div>';
 }
 
@@ -1535,6 +1626,42 @@ function recordWhoopDaily(sample){
 function completedList(){
   return DB.sessions.filter(s=>(s.status==='completed'||s.status==='incomplete')&&s.completedAt)
     .sort((a,b)=>(a.completedAt||0)-(b.completedAt||0));
+}
+/* ---------- PLATE CALCULATOR (settings.gym) ---------- */
+const GYM_DEFAULT={bar:20,plates:[25,20,15,10,5,2.5,1.25]};
+const GYM_STD=[25,20,15,10,5,2.5,1.25];   // the full standard set the toggle row offers
+function gym(){
+  const g=(DB.settings&&DB.settings.gym)||{};
+  const bar=Number.isFinite(+g.bar)&&+g.bar>0?+g.bar:GYM_DEFAULT.bar;
+  const plates=Array.isArray(g.plates)?g.plates.slice().map(Number).filter(p=>p>0).sort((a,b)=>b-a):GYM_DEFAULT.plates.slice();
+  return {bar,plates};
+}
+function setGym(key,val){
+  const g=Object.assign({bar:GYM_DEFAULT.bar,plates:GYM_DEFAULT.plates.slice()},DB.settings.gym);
+  if(key==='bar'){const n=parseFloat(val);g.bar=(Number.isFinite(n)&&n>0)?n:GYM_DEFAULT.bar;}
+  else if(key==='plate'){const p=parseFloat(val);const cur=Array.isArray(g.plates)?g.plates.slice():GYM_DEFAULT.plates.slice();
+    const i=cur.indexOf(p); if(i>=0)cur.splice(i,1); else cur.push(p);
+    g.plates=cur.sort((a,b)=>b-a);}
+  DB.settings.gym=g; save();
+  if(CURRENT==='settings')renderSettings();
+}
+/* Greedy per-side breakdown; returns NEAREST loadable when not exact. */
+function plateBreakdown(totalKg,bar,plates){
+  totalKg=+totalKg; bar=+bar;
+  const av=(Array.isArray(plates)?plates:[]).map(Number).filter(p=>p>0).sort((a,b)=>b-a);
+  if(!(totalKg>0)||!(bar>=0)||!av.length){return {perSide:[],loadable:false,delta:0,achievableKg:bar||0};}
+  const perTarget=(totalKg-bar)/2;
+  if(perTarget<=0){const ach=bar;return {perSide:[],loadable:Math.abs(totalKg-bar)<1e-9,delta:+(ach-totalKg).toFixed(2),achievableKg:ach};}
+  const greedy=t=>{const out=[];let rem=t;for(const p of av){while(rem>=p-1e-9){out.push(p);rem=+(rem-p).toFixed(4);}}return out;};
+  const loFront=greedy(perTarget);
+  const loPer=loFront.reduce((a,b)=>a+b,0);
+  const step=av[av.length-1];             // smallest plate
+  const hiPer=loPer+step;                  // next loadable increment per side
+  const loTot=bar+loPer*2, hiTot=bar+hiPer*2;
+  const pickHi=Math.abs(hiTot-totalKg)<Math.abs(loTot-totalKg)-1e-9;
+  const per=pickHi?greedy(hiPer):loFront;
+  const ach=pickHi?hiTot:loTot;
+  return {perSide:per,loadable:Math.abs(ach-totalKg)<1e-9,delta:+(ach-totalKg).toFixed(2),achievableKg:+ach.toFixed(2)};
 }
 function sessionVolume(s){
   let v=0;s.blocks.forEach(b=>blockExercises(b).forEach(e=>{if(e.mode==='reps_kg'||e.mode==='amrap')e.sets.forEach(st=>{if(st.done){const kg=parseFloat(st.aVal),r=parseFloat(st.aVal2);if(Number.isFinite(kg)&&Number.isFinite(r))v+=kg*r;}})}));

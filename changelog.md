@@ -1,5 +1,24 @@
 # Changelog
 
+## Gym-floor kit + Settings in the bottom bar — 25 July 2026
+
+Small tools for the training floor, plus a nav tidy-up.
+
+- **Settings moved to the bottom bar** as a fourth tab (Home · Training · Library ·
+  Settings), so it's one tap from anywhere — the Home gear is gone.
+- **Plate calculator.** Tap the weight on any lift → a sheet shows what to load
+  per side of the bar ("92.5kg → 25 + 10 + 1.25") with a plate visual. Set your
+  bar weight and which plates you own in **Settings → Gym setup**; if a weight
+  isn't loadable it shows the nearest you can make.
+- **Per-set notes.** Jot a line on any set — "belt on", "left knee tweak",
+  "paused" — from the logger; it shows back up in that day's History.
+- **Swap an exercise mid-session.** Rack taken or feeling a niggle? Swap the
+  movement from the logger and keep your sets and targets; it remembers what it
+  was swapped from.
+
+All additive, on-device, and merged safely across devices; all six test suites
+green (four new tests). SW v60, versionCode 17 / 2.9.3.
+
 ## Sync hardening — two devices never lose each other's work — 25 July 2026
 
 Cloud sync used to replace your whole workout/session list with whichever device

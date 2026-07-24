@@ -281,10 +281,27 @@ await t('builder: day chips schedule the workout', async () => {
   const sub = await page.textContent('#s-home .sub');
   if (!/session in progress|session planned/i.test(sub)) throw new Error('sub=' + sub);
 });
-await t('nav is three tabs: Home · Training · Library', async () => {
+await t('nav is four tabs: Home · Training · Library · Settings', async () => {
   const navs = await page.$$eval('.navlink', (els) => els.map((e) => e.dataset.s));
-  if (navs.length !== 3 || navs.includes('logger')) throw new Error(navs.join(','));
-  if (navs.join(',') !== 'home,training,library') throw new Error('unexpected tabs: ' + navs.join(','));
+  if (navs.length !== 4 || navs.includes('logger')) throw new Error(navs.join(','));
+  if (navs.join(',') !== 'home,training,library,settings') throw new Error('unexpected tabs: ' + navs.join(','));
+  await page.click('.navlink[data-s="settings"]');
+  await page.waitForSelector('#s-settings.on', { timeout: 2000 });
+  const active = await page.$eval('.navlink[data-s="settings"]', (el) => el.classList.contains('active'));
+  if (!active) throw new Error('Settings tab not highlighted on Settings screen');
+  await page.evaluate(() => go('home'));
+});
+await t('plateBreakdown math: exact and nearest cases', async () => {
+  const r = await page.evaluate(() => {
+    const P = [25,20,15,10,5,2.5,1.25];
+    const a = plateBreakdown(100, 20, P);
+    const b = plateBreakdown(102.5, 20, P);
+    const c = plateBreakdown(101, 20, P);
+    return { a, b, c };
+  });
+  if (r.a.perSide.join(',') !== '25,15' || !r.a.loadable || r.a.delta !== 0) throw new Error('100 → ' + JSON.stringify(r.a));
+  if (r.b.perSide.join(',') !== '25,15,1.25' || !r.b.loadable) throw new Error('102.5 → ' + JSON.stringify(r.b));
+  if (r.c.loadable || r.c.achievableKg !== 100 || r.c.delta !== -1) throw new Error('101 → ' + JSON.stringify(r.c));
 });
 await t('Calendar: month grid, schedule a future day, planned dot shows', async () => {
   await page.evaluate(() => { CAL_VIEW = null; go('calendar'); });
@@ -659,6 +676,40 @@ await t('logger accordion: open, collapse, one-at-a-time', async () => {
   if (openCount !== 1) throw new Error('open cards=' + openCount);
   const training = await page.$eval('.navlink[data-s="training"]', (el) => el.classList.contains('active'));
   if (!training) throw new Error('Training tab not highlighted while logging');
+});
+await t('per-set note persists and shows in History', async () => {
+  await page.evaluate(() => { setNote(0, 'belt on'); });
+  const stored = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    return db.sessions.some((s) => s.blocks.some((b) => (b.exercises || []).some((e) => e.sets.some((st) => st.note === 'belt on'))));
+  });
+  if (!stored) throw new Error('note not persisted');
+  const day = await page.evaluate(() => { const s = curSession(); finishSession({ textContent: '', classList: { add() {} } }); return s.date; });
+  await page.evaluate((d) => { HIST_DATE = d; go('history'); }, day);
+  const body = await page.textContent('#s-history');
+  if (!/belt on/.test(body)) throw new Error('note not in History: ' + body.slice(0, 120));
+  await page.evaluate(() => go('home'));
+});
+await t('swap exercise mid-session: name changes, sets kept, swappedFrom set, still finishable', async () => {
+  await page.evaluate(() => {
+    const today = ymd(new Date());
+    DB.sessions = DB.sessions.filter((s) => s.status !== 'active'); CUR_SESSION = null;
+    DB.workouts = [{ id: uid(), name: 'Swaptest', days: [], dates: [today],
+      blocks: [{ id: uid(), heading: 'Main', superset: false, exercises: [{ id: uid(), name: 'Back squat', mode: 'reps_kg', rest: 60, sets: [{ t: '5', rpe: '8' }, { t: '5', rpe: '8' }] }] }] }];
+    save(); startWorkout(DB.workouts[0].id); openLogger(0, 0);
+    applySwap('Front squat');
+  });
+  const r = await page.evaluate(() => { const e = curSession().blocks[0].exercises[0]; return { name: e.name, from: e.swappedFrom, sets: e.sets.length }; });
+  if (r.name !== 'Front squat') throw new Error('name=' + r.name);
+  if (r.from !== 'Back squat') throw new Error('swappedFrom=' + r.from);
+  if (r.sets !== 2) throw new Error('sets lost: ' + r.sets);
+  const finished = await page.evaluate(() => {
+    curSession().blocks[0].exercises[0].sets.forEach((st) => st.done = true);
+    finishSession({ textContent: '', classList: { add() {} } });
+    return DB.sessions.some((s) => s.status === 'completed' && s.blocks[0].exercises[0].name === 'Front squat');
+  });
+  if (!finished) throw new Error('swapped session did not finish');
+  await page.evaluate(() => go('home'));
 });
 await t('hostile exercise/target text is escaped, never executed (XSS)', async () => {
   const executed = await page.evaluate(async () => {
