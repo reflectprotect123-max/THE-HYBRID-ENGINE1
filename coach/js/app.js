@@ -198,15 +198,54 @@
     modal.classList.add('on');
     var em = document.getElementById('au-email'); if (em) em.focus();
   }
+  function todayISO() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function openAssign() {
     var s = day();
+    if (!s) { modal.innerHTML = '<div class="card" style="position:relative"><button class="x" data-act="mclose">×</button><h2>Nothing to assign</h2><p class="sub">This day has no session yet — add one first.</p><div class="row"><button class="btn ghost" data-act="mclose">Close</button></div></div>'; modal.classList.add('on'); return; }
     modal.innerHTML = '<div class="card" style="position:relative"><button class="x" data-act="mclose">×</button>' +
-      '<h2>Assign to phone</h2><p class="sub">Publishes this session to an athlete\'s Hybrid Engine calendar.</p>' +
-      '<p style="color:var(--ink2);font-size:13px;line-height:1.6">' +
-      (s ? 'Ready to publish <b>' + esc(s.title) + '</b> (' + s.exercises.length + ' exercise' + (s.exercises.length === 1 ? '' : 's') + '). ' : 'This day has no session yet. ') +
-      'Cross-account publishing goes live once the coach schema is provisioned in Supabase and you\'ve connected an athlete — that\'s the next build step. The session already converts cleanly to the phone\'s format via the emit contract.</p>' +
-      '<div class="row"><button class="btn ghost" data-act="mclose">Got it</button></div></div>';
+      '<h2>Assign to phone</h2><p class="sub">Publishes <b>' + esc(s.title) + '</b> (' + s.exercises.length + ' exercise' + (s.exercises.length === 1 ? '' : 's') + ') to your Hybrid Engine calendar.</p>' +
+      (cloudUser
+        ? '<label>Date on the calendar</label><input id="as-date" type="date" value="' + todayISO() + '">' +
+          '<div class="err" id="as-err"></div>' +
+          '<div class="row"><button class="btn primary" data-act="doassign">Publish to my phone</button><button class="btn ghost" data-act="mclose">Cancel</button></div>' +
+          '<div class="muted">Appears on your phone next time it syncs. Requires the coach schema to be set up in Supabase.</div>'
+        : '<p style="color:var(--ink2);font-size:13px">Sign in first (same account as your phone) to publish sessions to your calendar.</p>' +
+          '<div class="row"><button class="btn primary" data-act="account">Sign in</button><button class="btn ghost" data-act="mclose">Cancel</button></div>') +
+      '</div>';
     modal.classList.add('on');
+  }
+  /* seconds from "m:ss" / "mm:ss" */
+  function secondsFrom(v) { v = String(v || ''); if (v.indexOf(':') < 0) { var n = parseInt(v, 10); return isNaN(n) ? '' : String(n); } var p = v.split(':'); var m = parseInt(p[0], 10) || 0, sec = parseInt(p[1], 10) || 0; return String(m * 60 + sec); }
+  /* map a coach session to a phone-shape workout via the emit contract */
+  function sessionToWorkout(sess) {
+    var exs = sess.exercises.map(function (e) {
+      var mode = E.measureToMode(e.cols);
+      var repsI = e.cols.indexOf('Reps'), timeI = e.cols.indexOf('Time (min:sec)'), rpeI = e.cols.indexOf('RPE');
+      var sets = e.sets.map(function (row) {
+        var target = repsI >= 0 ? row[repsI] : (timeI >= 0 ? secondsFrom(row[timeI]) : '');
+        var rpe = rpeI >= 0 ? row[rpeI] : '';
+        return E.newSet(target, rpe);
+      });
+      return E.newEx(e.name, mode, sets);
+    });
+    return E.newWorkout(sess.title, [E.newBlock(sess.section, exs, false)]);
+  }
+  function doAssign() {
+    var s = day(), err = document.getElementById('as-err'), date = (document.getElementById('as-date') || {}).value || todayISO();
+    if (!SB || !cloudUser) { closeModal(); openAuth(); return; }
+    if (!s) { closeModal(); return; }
+    var snap;
+    try { snap = E.assert(sessionToWorkout(s)); }
+    catch (e) { if (err) err.textContent = 'Could not convert session: ' + e.message; return; }
+    if (err) err.textContent = 'Publishing…';
+    var uidv = cloudUser.id;
+    // idempotent self-assign for that date: clear any prior ad-hoc row on the date, then insert.
+    SB.from('assignments').delete().eq('coach_id', uidv).eq('athlete_id', uidv).eq('scheduled_date', date).is('program_id', null).then(function () {
+      return SB.from('assignments').insert({ coach_id: uidv, athlete_id: uidv, program_id: null, week_index: null, day_index: null, scheduled_date: date, session_snapshot: snap, status: 'assigned' });
+    }).then(function (res) {
+      if (res && res.error) { if (err) err.textContent = res.error.message; return; }
+      closeModal(); toast('Published to your phone for ' + date);
+    }).catch(function (e) { if (err) err.textContent = String(e && e.message || e); });
   }
 
   /* ---------- toast ---------- */
@@ -230,6 +269,7 @@
     else if (a === 'mclose') { closeModal(); }
     else if (a === 'account') { openAuth(); }
     else if (a === 'assign') { openAssign(); }
+    else if (a === 'doassign') { doAssign(); }
     else if (a === 'signin') { doAuth('signin'); }
     else if (a === 'signup') { doAuth('signup'); }
     else if (a === 'signout') { doSignOut(); }

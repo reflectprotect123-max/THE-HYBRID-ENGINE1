@@ -1,3 +1,7 @@
 /.well-known/assetlinks.json  /.well-known/assetlinks.json  200
 /privacy /privacy.html 200
+# Coach website (Entity 2) lives on a SEPARATE Netlify site. Forward /coach/*
+# there so the athlete origin never serves it. Update the target host to your
+# coach site's real URL once it's created in Netlify.
+/coach/*  https://thehybridengine-coach.netlify.app/:splat  301!
 /* /index.html 200

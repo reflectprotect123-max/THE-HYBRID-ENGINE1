@@ -1352,7 +1352,11 @@ function cloudFp(engine){try{
   // Exclude whoopDaily — it's device-local, re-derived per device, and would
   // otherwise churn the fingerprint on every WHOOP sample.
   const st=Object.assign({},engine.settings||{});delete st.whoopDaily;delete st.devices;
-  return JSON.stringify({w:engine.workouts||[],s:engine.sessions||[],st});
+  // Coach-assigned workouts (origin:'coach') are pure local materializations of
+  // the authoritative `assignments` table — excluded from the fingerprint and
+  // the push so they never poison state.hybridEngine or churn sync.
+  const w=(engine.workouts||[]).filter(x=>!x||x.origin!=='coach');
+  return JSON.stringify({w,s:engine.sessions||[],st});
 }catch(e){return 'fp-'+Math.random()}}
 /* Merge two settings blobs without losing additive data: earned progression
    never regresses (max level per format), standalone conditioning history and
@@ -1453,9 +1457,55 @@ async function cloudReconcile(){
       // if the merge produced anything the remote doesn't already have, push it back
       if(cloudFp(merged)!==cloudFp(remote))await cloudPushNow(true);
     }
+    // Reconcile coach-assigned sessions regardless of whether app_state changed
+    // (assignments live in their own table, outside the fingerprint above).
+    await coachPull();
   }catch(e){cloudError=String(e&&e.message||e);}
   cloudBusy=false;if(CURRENT==='settings')renderSettings();
 }
+/* ---- coach assignments → local materializations (ADR-4/ADR-5) ----
+   Pull the athlete's current assignment set and reconcile it into DB.workouts
+   as origin:'coach' workouts (id = 'coach:'+assignmentId). ADD when absent;
+   UPDATE only when un-started and the row changed; REMOVE templates no longer
+   assigned unless a started/logged session still references them. Never touches
+   sessions, never pushes up. Silently no-ops if the table isn't provisioned. */
+function materializeAssignment(r){
+  const snap=(r.session_snapshot&&typeof r.session_snapshot==='object')?r.session_snapshot:{};
+  const w=Object.assign({},snap,{id:'coach:'+r.id,origin:'coach',assignmentId:r.id,_rev:r.updated_at||'',
+    dates:r.scheduled_date?[r.scheduled_date]:(Array.isArray(snap.dates)?snap.dates:[])});
+  return sanitizeDB({workouts:[w],sessions:[],settings:{}}).workouts[0];
+}
+async function coachPull(){
+  if(!cloudEnabled()||!cloudUser)return false;
+  let rows=null;
+  try{
+    const {data,error}=await SB.from('assignments')
+      .select('id,scheduled_date,session_snapshot,updated_at,status')
+      .eq('athlete_id',cloudUser.id).eq('status','assigned');
+    if(error)return false;rows=data||[];
+  }catch(e){return false;}
+  const live=new Map();rows.forEach(r=>live.set('coach:'+r.id,r));
+  const started=wid=>DB.sessions.some(s=>s.workoutId===wid&&(s.status==='active'||hasLoggedWork(s)));
+  let changed=false;
+  const byId=new Map();DB.workouts.forEach(w=>{if(w&&w.origin==='coach')byId.set(w.id,w);});
+  live.forEach((r,wid)=>{
+    const cur=byId.get(wid);
+    if(!cur){DB.workouts.push(materializeAssignment(r));changed=true;}
+    else if(!started(wid)&&String(cur._rev||'')!==String(r.updated_at||'')){
+      const i=DB.workouts.indexOf(cur);if(i>=0){DB.workouts[i]=materializeAssignment(r);changed=true;}
+    }
+  });
+  DB.workouts=DB.workouts.filter(w=>{
+    if(!w||w.origin!=='coach')return true;
+    if(live.has(w.id)||started(w.id))return true;
+    changed=true;return false;
+  });
+  if(changed){try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}renderScreen(CURRENT);}
+  return changed;
+}
+/* live-ish sync: when the app returns to the foreground, reconcile (this is
+   what pulls a freshly-assigned session onto the calendar without a reload). */
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&cloudEnabled()&&cloudUser&&!cloudBusy)cloudReconcile();});
 function queueCloudPush(){
   markLocalChange(Date.now());
   if(!cloudEnabled()||!cloudUser)return;
@@ -1475,7 +1525,10 @@ async function cloudPushNow(force){
     // Record-level merge against whatever the remote already holds, so a push can
     // never clobber another device's scheduling/logging that landed since we pulled.
     const exEngine=(existing&&existing.hybridEngine)||{};
-    const state=Object.assign({},existing,{hybridEngine:mergeEngines(DB,exEngine)});
+    // never push coach materializations up to app_state — they're re-derived
+    // from the assignments table on every reconcile.
+    const localForPush={workouts:DB.workouts.filter(w=>!w||w.origin!=='coach'),sessions:DB.sessions,settings:DB.settings};
+    const state=Object.assign({},existing,{hybridEngine:mergeEngines(localForPush,exEngine)});
     const {error}=await SB.from('app_state').upsert({user_id:cloudUser.id,state},{onConflict:'user_id'});
     if(error)throw error;
     lastSyncedFp=fp;cloudSyncedAt=Date.now();cloudError='';

@@ -1,5 +1,5 @@
 const CACHE_PREFIX='the-hybrid-engine-training-pwa-';
-const CACHE_NAME='the-hybrid-engine-training-pwa-v60-2026-07-25';
+const CACHE_NAME='the-hybrid-engine-training-pwa-v61-2026-07-26';
 const APP_SHELL = [
   './index.html',
   './app.js',
@@ -43,6 +43,9 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin === self.location.origin && requestUrl.pathname.startsWith('/.netlify/functions/')) return;
+  // The coach website is a separate origin; never let the athlete shell's SW
+  // intercept /coach navigations (the edge redirect must win). Bypass entirely.
+  if (requestUrl.origin === self.location.origin && requestUrl.pathname.startsWith('/coach')) return;
   if (event.request.mode === 'navigate') {
     if (requestUrl.pathname === '/privacy' || requestUrl.pathname === '/privacy.html') {
       event.respondWith(networkFirst(event.request, false));

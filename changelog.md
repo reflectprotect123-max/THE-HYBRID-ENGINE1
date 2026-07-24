@@ -1,5 +1,26 @@
 # Changelog
 
+## Coach website foundation + phone hooks — 26 July 2026
+
+The first real slice of the coach website (Entity 2) plus the phone-side plumbing
+so a coach-authored session can land on your calendar. No visible change to the
+phone app on its own — the hooks stay inert until you connect the coach site.
+
+- **Coach website (`/coach`).** A real, deployable local-first coach builder in the
+  TrainHeroic session-editor style: programs → weeks → days → sessions, prescription
+  tables with per-column measure types, supersets (chain-link A1/A2), Session Preview,
+  and Supabase sign-in that syncs your library to the cloud. Works fully offline.
+- **Emit contract.** A single, tested boundary (`coach/js/emit.js`) that converts coach
+  sessions to the phone's exact format and can never write a logged-result field into a
+  target — guarded by a dual-mode contract test against the real `sanitizeDB`.
+- **Assign to phone.** From the coach editor, publish a session to a date on your
+  calendar (self-coached: same account both ends).
+- **Phone consume.** The app now reconciles coach assignments on sync/foreground and
+  materializes them as calendar sessions, without ever clobbering in-progress logging
+  or pushing coach templates back up as your own data.
+- Groundwork: additive Supabase schema (coach_library, assignments, token-gated links),
+  service-worker `/coach` bypass, separate-site deploy config.
+
 ## Gym-floor kit + Settings in the bottom bar — 25 July 2026
 
 Small tools for the training floor, plus a nav tidy-up.
