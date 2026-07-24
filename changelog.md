@@ -1,5 +1,18 @@
 # Changelog
 
+## Neon rings & zone bars + step counting — 26 July 2026
+
+- **Brighter rings.** The WHOOP recovery/strain arcs now glow properly — a tight
+  core plus a wide bloom over a darkened track, so they read as lit rather than
+  just coloured.
+- **Bolder heart-rate zone bars.** Taller bars in true neon, each with its own
+  glow. The muted band inks are still used everywhere a zone is *read as data*
+  (charts, live gauge); the neon variants are only for the lit strips and dots.
+- **Steps today.** Shown on the WHOOP line and in Settings. Counted by your
+  phone's own pedometer — WHOOP's API carries no step data, so this is the free,
+  on-device source. Needs the new app version and a one-time "allow physical
+  activity" permission. Browser-only installs simply don't show it.
+
 ## Full debug pass (six-agent review) — 26 July 2026
 
 A deep multi-agent review of both apps. Fixes for the real issues it surfaced:

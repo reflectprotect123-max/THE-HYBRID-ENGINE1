@@ -17,7 +17,12 @@ import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -77,6 +82,7 @@ public class MainActivity extends Activity {
   private static final int REQ_BT_ON = 4;
   private static final int REQ_OCR = 5;
   private static final int REQ_MIC = 6;
+  private static final int REQ_STEPS = 7;
   private static final long SCAN_MS = 6000;
   private static final int MAX_RECONNECTS = 5;
 
@@ -162,6 +168,11 @@ public class MainActivity extends Activity {
     web.addJavascriptInterface(new HrBridge(), "AndroidHR");
     web.addJavascriptInterface(new OcrBridge(), "AndroidOCR");
     web.addJavascriptInterface(new VoiceBridge(), "AndroidVoice");
+    web.addJavascriptInterface(new StepsBridge(), "AndroidSteps");
+
+    sensors = (SensorManager) getSystemService(SENSOR_SERVICE);
+    if (sensors != null) stepSensor = sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+    startSteps();
 
     BluetoothManager bm = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
     if (bm != null) btAdapter = bm.getAdapter();
@@ -180,12 +191,75 @@ public class MainActivity extends Activity {
     if (web.canGoBack()) web.goBack(); else super.onBackPressed();
   }
 
-  @Override protected void onPause() { super.onPause(); CookieManager.getInstance().flush(); }
+  @Override protected void onResume() { super.onResume(); startSteps(); }
+
+  @Override protected void onPause() { super.onPause(); stopSteps(); CookieManager.getInstance().flush(); }
 
   @Override protected void onDestroy() {
     closeGatt();
     try { if (recognizer != null) recognizer.destroy(); } catch (Exception ignored) {}
     super.onDestroy();
+  }
+
+  /* ---------- step counter (on-device pedometer) ----------
+   * WHOOP's developer API exposes no step data, so steps come from the phone's
+   * own TYPE_STEP_COUNTER sensor. That sensor reports steps since BOOT, so to
+   * show "today" we persist a per-day baseline and subtract it. The baseline is
+   * re-taken on the first reading of a new local date, and also whenever the
+   * counter goes backwards (a reboot zeroes it). Costs no battery beyond what the
+   * hardware counter already does, and needs no network. */
+  private SensorManager sensors;
+  private Sensor stepSensor;
+  private float stepCounter = -1f;   // latest raw since-boot value, -1 = no reading yet
+  private static final String STEP_PREFS = "hybrid-steps";
+
+  private final SensorEventListener stepListener = new SensorEventListener() {
+    @Override public void onSensorChanged(SensorEvent e) {
+      if (e == null || e.values == null || e.values.length == 0) return;
+      stepCounter = e.values[0];
+    }
+    @Override public void onAccuracyChanged(Sensor s, int accuracy) { }
+  };
+
+  private boolean hasStepPerm() {
+    if (Build.VERSION.SDK_INT < 29) return true;   // ACTIVITY_RECOGNITION is runtime-gated from Q
+    return checkSelfPermission(android.Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED;
+  }
+
+  private void startSteps() {
+    if (stepSensor == null || !hasStepPerm()) return;
+    try { sensors.registerListener(stepListener, stepSensor, SensorManager.SENSOR_DELAY_NORMAL); } catch (Throwable ignored) { }
+  }
+  private void stopSteps() {
+    try { if (sensors != null) sensors.unregisterListener(stepListener); } catch (Throwable ignored) { }
+  }
+
+  /** Steps taken today, or -1 when unknown (no sensor, no permission, no reading yet). */
+  private int stepsToday() {
+    if (stepSensor == null || !hasStepPerm() || stepCounter < 0) return -1;
+    String today = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+    SharedPreferences sp = getSharedPreferences(STEP_PREFS, MODE_PRIVATE);
+    float base = sp.getFloat("base", -1f);
+    // new day, first ever reading, or the counter reset (reboot) -> rebase
+    if (!today.equals(sp.getString("day", "")) || base < 0 || stepCounter < base) {
+      base = stepCounter;
+      sp.edit().putString("day", today).putFloat("base", base).apply();
+    }
+    return Math.max(0, Math.round(stepCounter - base));
+  }
+
+  private class StepsBridge {
+    /** true once a pedometer exists AND permission is held. */
+    @JavascriptInterface public boolean available() { return stepSensor != null && hasStepPerm(); }
+    /** true when the hardware exists but the user hasn't granted permission yet. */
+    @JavascriptInterface public boolean needsPermission() { return stepSensor != null && !hasStepPerm(); }
+    @JavascriptInterface public int today() { return stepsToday(); }
+    @JavascriptInterface public void requestPermission() {
+      main.post(() -> {
+        if (stepSensor == null || hasStepPerm()) return;
+        if (Build.VERSION.SDK_INT >= 29) requestPermissions(new String[]{ android.Manifest.permission.ACTIVITY_RECOGNITION }, REQ_STEPS);
+      });
+    }
   }
 
   /* ---------- the JS bridge ---------- */
@@ -401,6 +475,11 @@ public class MainActivity extends Activity {
     if (code == REQ_MIC) {
       if (grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) { voiceWant = true; startRecognizer(); }
       else js("typeof impNativeVoiceErr==='function'&&impNativeVoiceErr('denied')");
+      return;
+    }
+    if (code == REQ_STEPS) {
+      if (grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) startSteps();
+      js("typeof nativeStepsReady==='function'&&nativeStepsReady()");
       return;
     }
     if (code != REQ_PERMS) return;

@@ -390,7 +390,7 @@ function todayZonesCardHtml(){
   const adj=z.adj>0?' · widened for '+z.rec+'%':z.adj<0?' · eased for '+z.rec+'%':'';
   let h='<div class="card zonescard" data-click="conNav" style="cursor:pointer" title="Start a zone session">'+
     '<div class="zc-head"><div><div class="zc-kicker">Today&rsquo;s heart-rate zones</div><div class="zc-sub">Max '+z.max+' bpm'+esc(adj)+'</div></div><span class="zc-go">Start ⚡</span></div>';
-  z.list.forEach(zz=>{h+='<div class="zrow"><span class="zdot" style="background:'+zz.color+';box-shadow:0 0 8px '+zz.color+'99"></span><span class="znm">'+zz.name+'</span><span class="zbar"><span class="zfill" style="background:linear-gradient(90deg,'+zz.color+'55,'+zz.color+')"></span></span><span class="zrng">'+zz.lo+'&ndash;'+(zz.key==='high'?zz.hi+'+':zz.hi)+'</span></div>';});
+  z.list.forEach(zz=>{const n=zz.neon||zz.color;h+='<div class="zrow"><span class="zdot" style="background:'+n+';box-shadow:0 0 6px '+n+',0 0 15px '+n+'cc"></span><span class="znm">'+zz.name+'</span><span class="zbar"><span class="zfill" style="background:linear-gradient(90deg,'+n+'aa,'+n+');box-shadow:0 0 9px '+n+',0 0 20px '+n+'88"></span></span><span class="zrng">'+zz.lo+'&ndash;'+(zz.key==='high'?zz.hi+'+':zz.hi)+'</span></div>';});
   h+='</div>';
   return h;
 }
@@ -509,6 +509,36 @@ function updateWhoopCard(){if(CURRENT==='home')renderHome();}
    picture; numbers and readiness only appear on request. */
 let WHOOP_OPEN=false;
 function toggleWhoopDetails(){WHOOP_OPEN=!WHOOP_OPEN;if(CURRENT==='home')renderHome();}
+
+/* ---------- steps (on-device pedometer) ----------
+   WHOOP's developer API carries no step data (its scopes are recovery, cycles,
+   sleep, workout, profile, body measurement), so steps come from the phone's own
+   hardware counter via the native wrapper. Web-only installs simply never show a
+   step figure — every reader below degrades to null rather than guessing. */
+function stepsBridge(){try{return window.AndroidSteps||null;}catch(e){return null;}}
+function stepsToday(){
+  const b=stepsBridge();if(!b)return null;
+  try{if(typeof b.available==='function'&&!b.available())return null;
+      const n=b.today();return (typeof n==='number'&&n>=0)?n:null;}catch(e){return null;}
+}
+function stepsNeedsPermission(){
+  const b=stepsBridge();if(!b)return false;
+  try{return typeof b.needsPermission==='function'?!!b.needsPermission():false;}catch(e){return false;}
+}
+function stepsAsk(){
+  const b=stepsBridge();if(!b)return;
+  try{if(typeof b.requestPermission==='function')b.requestPermission();}catch(e){}
+}
+/* re-render once the user answers the Android permission prompt */
+function nativeStepsReady(){if(CURRENT==='home')renderHome();}
+function fmtSteps(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k':String(n);}
+/* the " · Steps 8.4k" tail appended to the WHOOP detail line */
+function stepsSuffix(){
+  const n=stepsToday();
+  if(n!=null)return ' · Steps '+fmtSteps(n);
+  if(stepsNeedsPermission())return ' · Steps —';
+  return '';
+}
 const STRAIN_BLUE=PAL.zoneLow,RING_IDLE_COLOR=PAL.ringIdle;
 /* Neon ring palette — the recovery/strain rings glow in bright neon (brighter
    than the muted band colours used for text), per the athlete request. */
@@ -558,7 +588,7 @@ function whoopCardHtml(){
     } else {
       rings=whoopRings(neonRing(t),t.val==null?null:t.pct,strainPct,(t.val==null?'—':t.val+'%'));
       title='Recovery '+(t.val==null?'—':t.val+'%')+' · '+t.label+(strainPct!=null?' · Strain '+strainRaw.toFixed(1):'');
-      line='HRV '+(WHOOP.sample.hrvMs==null?'—':WHOOP.sample.hrvMs+' ms')+' · RHR '+(WHOOP.sample.restingHr==null?'—':WHOOP.sample.restingHr)+' · Sleep '+(WHOOP.sample.sleepPerformance==null?'—':WHOOP.sample.sleepPerformance+'%');
+      line='HRV '+(WHOOP.sample.hrvMs==null?'—':WHOOP.sample.hrvMs+' ms')+' · RHR '+(WHOOP.sample.restingHr==null?'—':WHOOP.sample.restingHr)+' · Sleep '+(WHOOP.sample.sleepPerformance==null?'—':WHOOP.sample.sleepPerformance+'%')+stepsSuffix();
     }
   }
   return '<div class="card whoopmini" id="whoopCard" style="cursor:pointer" data-click="toggleWhoopDetails" title="Show or hide WHOOP details">'+
@@ -1695,6 +1725,16 @@ function renderSettings(){
   if(!WHOOP.loaded){whoop='<div class="sc-meta">Checking WHOOP connection…</div>';}
   else if(!WHOOP.connected){whoop='<div class="sc-meta">'+(WHOOP.error?'<b>Can&rsquo;t reach WHOOP right now — it works from the live app.</b> ':'')+'Connect WHOOP to bring recovery, sleep and strain into Home.</div><a class="bigbtn" style="display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;margin-top:12px" href="'+WHOOP_ENDPOINTS.connect+'">Connect WHOOP</a>';}
   else{whoop='<div class="sc-meta">WHOOP connected'+(WHOOP.lastSyncAt?' · last sync '+esc(new Date(WHOOP.lastSyncAt).toLocaleString()):'')+'.</div><div style="display:flex;gap:8px;margin-top:12px"><button class="bigbtn" style="flex:1" data-click="syncWhoop">'+(WHOOP.busy?'Syncing…':'Sync now')+'</button><button class="addbtn" style="flex:1;margin-top:0" data-click="disconnectWhoop">Disconnect</button></div>';}
+  // Steps come from the phone, not WHOOP (its API has no step data). Only the
+  // installed app has the sensor, so this row is absent in a plain browser.
+  if(stepsBridge()){
+    const sn=stepsToday();
+    whoop+='<div class="sc-meta" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">'+
+      (sn!=null?'Steps today · <b>'+fmtSteps(sn)+'</b> — counted by this phone.'
+       :stepsNeedsPermission()?'Step counting needs permission to read physical activity.'
+       :'This phone has no step counter available.')+'</div>'+
+      (stepsNeedsPermission()?'<button class="addbtn" style="margin-top:10px" data-click="stepsAsk">Allow step counting</button>':'');
+  }
   // Training profile (drives conditioning HR zones)
   const prof=DB.settings.profile||{},zz=conZones();
   const methodLine=zz.method==='hrr'
@@ -2051,9 +2091,12 @@ function conZones(){
   lowTop=Math.max(floor+4,Math.min(lowTop,m-6));
   modTop=Math.max(lowTop+4,Math.min(modTop,m-2));
   return{floor,max:m,rest:rest||null,rec,adj:dMod,method,list:[
-    {key:'low', name:'Recovery',    color:PAL.zoneBlue,  lo:floor, hi:lowTop},
-    {key:'mod', name:'Conditioning',color:PAL.zoneGreen, lo:lowTop,hi:modTop},
-    {key:'high',name:'Overload',    color:PAL.zoneRed,   lo:modTop,hi:m}]};
+    // `color` is the semantic band ink (charts, gauge, donut — must stay legible
+    // against text); `neon` is the emissive variant used where a zone is drawn as
+    // a lit strip or dot rather than read as data.
+    {key:'low', name:'Recovery',    color:PAL.zoneBlue,  neon:PAL.neonStrain, lo:floor, hi:lowTop},
+    {key:'mod', name:'Conditioning',color:PAL.zoneGreen, neon:PAL.neonOk,     lo:lowTop,hi:modTop},
+    {key:'high',name:'Overload',    color:PAL.zoneRed,   neon:PAL.neonBad,    lo:modTop,hi:m}]};
 }
 function conZoneOf(bpm,z){z=z||conZones();return bpm<z.list[0].hi?z.list[0]:bpm<z.list[1].hi?z.list[1]:z.list[2];}
 function conMmss(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}

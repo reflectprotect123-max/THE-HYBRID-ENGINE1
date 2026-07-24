@@ -12,6 +12,10 @@
   <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"/>
   <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
   <uses-feature android:name="android.hardware.bluetooth_le" android:required="false"/>
+  <!-- Step counting reads the phone's own hardware pedometer. WHOOP's developer
+       API exposes no step data, so this is the free/on-device source. -->
+  <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
+  <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false"/>
 
   <application
       android:label="Hybrid Engine"
