@@ -12,8 +12,8 @@ android {
     applicationId 'com.hybridengine.app'   // same id as the old TWA → installs as an update
     minSdk 24
     targetSdk 35
-    versionCode 18                         // 18 = coach-assignment consume hooks (coachPull, /coach SW bypass)
-    versionName '2.9.4'
+    versionCode 19                         // 19 = long-press session card → Move / Delete
+    versionName '2.9.5'
   }
 
   signingConfigs {

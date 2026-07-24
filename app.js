@@ -1168,6 +1168,70 @@ function delWorkoutFromLib(id){
   if(CUR_SESSION&&!DB.sessions.find(s=>s.id===CUR_SESSION))CUR_SESSION=null;
   save();closeSheet();renderLibrary();
 }
+
+/* ---------- long-press a session card → Move / Delete / Cancel ----------
+   Works on any scheduled session card (Home, Library). Coach-assigned sessions
+   (origin:'coach') also update/remove the underlying assignment so a delete
+   doesn't just get re-pulled on the next sync. */
+function cardMenu(id){
+  const w=DB.workouts.find(x=>x.id===id);if(!w)return;
+  const coach=w.origin==='coach';
+  openSheet('<div class="grab"></div><h3>'+esc(w.name||'Session')+'</h3><p class="ssub">'+esc(tplSummary(w))+(coach?' · from your coach':'')+'</p>'+
+    '<button class="bigopt" data-click="cardMove" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">📅</span><div><b>Move</b><span>Reschedule to another day</span></div></button>'+
+    '<button class="bigopt" data-click="cardDelete" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">🗑️</span><div><b>Delete</b><span>'+(coach?'Removes the coach assignment too':'Remove this session')+'</span></div></button>'+
+    '<button class="cancel" data-click="closeSheet">Cancel</button>');
+}
+function cardMove(id){
+  const w=DB.workouts.find(x=>x.id===id);if(!w)return;
+  const cur=(w.dates&&w.dates[0])||ymd(new Date());
+  openSheet('<div class="grab"></div><h3>Move session</h3><p class="ssub">Pick a new day for &ldquo;'+esc(w.name||'Session')+'&rdquo;.</p>'+
+    '<input type="date" id="moveDate" value="'+esc(cur)+'" style="width:100%;padding:13px 14px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(255,255,255,.06);color:#fff;font:inherit;font-size:16px;margin-bottom:12px">'+
+    '<button class="bigopt" data-click="cardMoveTo" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">✅</span><div><b>Move here</b><span>Schedule it for the chosen day</span></div></button>'+
+    '<button class="cancel" data-click="closeSheet">Cancel</button>');
+}
+function cardMoveTo(id){
+  const w=DB.workouts.find(x=>x.id===id);if(!w)return;
+  const inp=document.getElementById('moveDate');const toKey=inp&&inp.value?inp.value:'';
+  if(!toKey){closeSheet();return;}
+  const today=ymd(new Date());
+  const from=(w.dates||[]).includes(today)?today:null;
+  const dates=(w.dates||[]).filter(k=>k!==from);dates.push(toKey);
+  w.dates=uniqArr(dates).sort();stampWorkout(w);
+  if(w.origin==='coach'&&w.assignmentId)assignmentUpdateDate(w.assignmentId,toKey);
+  save();closeSheet();renderScreen(CURRENT);toast('Moved to '+prettyDay(toKey));
+}
+function cardDelete(id){
+  const w=DB.workouts.find(x=>x.id===id);if(!w)return;
+  const coach=w.origin==='coach';
+  if(!confirm('Delete "'+(w.name||'this session')+'"?'+(coach?' This removes the coach assignment too.':' This cannot be undone.')))return;
+  const finish=()=>{
+    tombstoneId(id);
+    DB.sessions.filter(s=>s.workoutId===id&&s.status==='active').forEach(s=>tombstoneId(s.id));
+    DB.workouts=DB.workouts.filter(x=>x.id!==id);
+    DB.sessions=DB.sessions.filter(s=>!(s.workoutId===id&&s.status==='active'));
+    if(CUR_SESSION&&!DB.sessions.find(s=>s.id===CUR_SESSION))CUR_SESSION=null;
+    save();closeSheet();renderScreen(CURRENT);toast('Deleted');
+  };
+  if(coach&&w.assignmentId){assignmentDelete(w.assignmentId).then(finish);}else finish();
+}
+function assignmentUpdateDate(aid,toKey){try{if(cloudEnabled()&&cloudUser)SB.from('assignments').update({scheduled_date:toKey}).eq('id',aid).then(()=>{},()=>{});}catch(e){}}
+function assignmentDelete(aid){try{if(cloudEnabled()&&cloudUser)return Promise.resolve(SB.from('assignments').delete().eq('id',aid)).then(()=>{},()=>{});}catch(e){}return Promise.resolve();}
+
+/* long-press detection (touch + mouse hold); a moved finger or quick tap cancels */
+let _lpTimer=null,_lpId=null,_lpX=0,_lpY=0,_lpFired=false;
+function _lpClear(){if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}}
+document.addEventListener('pointerdown',e=>{
+  const card=e.target.closest('.sessioncard[data-args]');if(!card){_lpId=null;return;}
+  let id;try{id=JSON.parse(card.getAttribute('data-args'))[0];}catch(_){return;}
+  if(!id||!DB.workouts.find(x=>x.id===id))return; // only real scheduled workouts (not the in-progress card)
+  _lpFired=false;_lpX=e.clientX;_lpY=e.clientY;_lpId=id;
+  _lpClear();_lpTimer=setTimeout(()=>{_lpTimer=null;_lpFired=true;try{if(navigator.vibrate)navigator.vibrate(15);}catch(_){}cardMenu(_lpId);},450);
+},{passive:true});
+document.addEventListener('pointermove',e=>{if(_lpTimer&&(Math.abs(e.clientX-_lpX)>10||Math.abs(e.clientY-_lpY)>10))_lpClear();},{passive:true});
+document.addEventListener('pointerup',_lpClear,{passive:true});
+document.addEventListener('pointercancel',_lpClear,{passive:true});
+document.addEventListener('click',e=>{if(_lpFired){_lpFired=false;e.stopPropagation();e.preventDefault();}},true);
+document.addEventListener('contextmenu',e=>{if(e.target.closest('.sessioncard[data-args]'))e.preventDefault();});
 /* Create Session Template card → pick a kind, open the Builder on a fresh blank */
 function createSessionTemplate(){
   openSheet('<div class="grab"></div><h3>Create Session Template</h3><p class="ssub">A reusable session you can add to any day.</p>'+

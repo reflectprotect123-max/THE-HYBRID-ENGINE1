@@ -753,6 +753,27 @@ await t('mobile viewport: nav becomes the bottom bar', async () => {
   const pos = await page.$eval('.side', (el) => getComputedStyle(el).position);
   if (pos !== 'fixed') throw new Error('side position=' + pos);
 });
+await t('long-press a session card opens Move / Delete / Cancel, and Delete removes it', async () => {
+  await page.evaluate(() => { const today = ymd(new Date()); DB.workouts = [{ id: uid(), name: 'Press Test', days: [], dates: [today], blocks: [{ id: uid(), heading: 'Squat', minutes: '', format: '', superset: false, exercises: [{ id: uid(), name: 'Back Squat', mode: 'reps_kg', tempo: '', rest: 120, sets: [{ t: '5', rpe: '8' }] }] }] }]; save(); go('home'); });
+  const card = await page.$('#s-home .sessioncard[data-args]');
+  const box = await card.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(600); // hold past the 450ms long-press threshold
+  await page.mouse.up();
+  const sheet = await page.textContent('#sheet');
+  if (!/Move/.test(sheet) || !/Delete/.test(sheet) || !/Cancel/.test(sheet)) throw new Error('menu missing options: ' + sheet.slice(0, 80));
+  await page.click('#sheet [data-click="cardDelete"]'); // dialog auto-accepted by handler
+  await page.waitForTimeout(150);
+  const gone = await page.evaluate(() => DB.workouts.length === 0);
+  if (!gone) throw new Error('delete did not remove the workout');
+});
+await t('a quick tap on a session card still starts it (long-press does not hijack taps)', async () => {
+  await page.evaluate(() => { const today = ymd(new Date()); DB.workouts = [{ id: uid(), name: 'Tap Test', days: [], dates: [today], blocks: [{ id: uid(), heading: 'Squat', minutes: '', format: '', superset: false, exercises: [{ id: uid(), name: 'Back Squat', mode: 'reps_kg', tempo: '', rest: 120, sets: [{ t: '5', rpe: '8' }] }] }] }]; DB.sessions = []; save(); go('home'); });
+  await page.click('#s-home .sessioncard[data-args]'); // fast click
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  await page.evaluate(() => go('home'));
+});
 
 if (errors.length) {
   console.log('RUNTIME ERRORS:');

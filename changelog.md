@@ -1,5 +1,14 @@
 # Changelog
 
+## Long-press a session → Move / Delete — 26 July 2026
+
+- **Press and hold** any session card (Home or Library) to bring up a quick menu:
+  **Move** (reschedule to another day with a date picker), **Delete** (remove it),
+  or **Cancel**. A normal tap still starts the session — only a ~half-second hold
+  opens the menu, and a light haptic buzz confirms it.
+- Deleting a **coach-assigned** session also clears the underlying assignment, so it
+  doesn't reappear on the next sync; moving one reschedules the assignment too.
+
 ## Coach website foundation + phone hooks — 26 July 2026
 
 The first real slice of the coach website (Entity 2) plus the phone-side plumbing
