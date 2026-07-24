@@ -10,16 +10,14 @@ Supabase Dashboard → **SQL Editor → New query** → paste the whole of
 `app_state` table is untouched. This creates `coach_library`, `programs`,
 `assignments`, the coach↔athlete link, and the RLS policies.
 
-## 2. Create the coach Netlify site (5 min)
-Netlify → **Add new site → Import an existing project** → pick this same GitHub repo →
-set **Base directory = `coach`** → Deploy. (The base directory is what makes Netlify
-honour `coach/netlify.toml` and serve only the coach folder.)
+## 2. Open the coach site (0 min — it's already deployed)
+The coach site is served right off your existing site at **`/coach/`** — no second
+Netlify site needed. Once `main` deploys, open:
 
-Note the URL it gives you (e.g. `https://YOUR-COACH-SITE.netlify.app`), then:
-- In **`_redirects`** (repo root) change the `/coach/*` target host to that URL and
-  commit — so the athlete site forwards `/coach` to the coach site.
-- Supabase → **Authentication → URL Configuration** → add the coach site URL to
-  **Site URL** and **Redirect URLs** (so password reset / email links work there too).
+    https://thehybridengine1.netlify.app/coach/
+
+(The service worker bypasses `/coach`, and the coach files are real files that win
+over the app's SPA fallback, so the athlete shell never intercepts it.)
 
 ## 3. Sign in on both ends
 Open the coach site → account button (top-right) → **sign in with the same email +
