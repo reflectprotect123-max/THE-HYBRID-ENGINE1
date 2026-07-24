@@ -9,6 +9,33 @@
    history, WHOOP (server-side) and optional cloud sync.
    ============================================================ */
 
+/* ---------- palette bridge ----------
+   The stylesheet's :root is the SINGLE source of truth for colour. Everything
+   this file draws by hand (WHOOP rings, HR gauges, zone donuts, charts,
+   confetti) reads its colours from the same custom properties the CSS uses, so
+   a theme change can never desync the CSS chrome from the JS-painted visuals.
+   Each fallback mirrors the shipped token, so behaviour is identical if the
+   lookup ever fails. Read once at load (script is deferred → CSS is ready). */
+function cssVar(name,fallback){
+  try{const v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();return v||fallback;}
+  catch(e){return fallback;}
+}
+const PAL={
+  gold:cssVar('--gold','#c09358'), gold2:cssVar('--gold2','#e0bc87'),
+  text:cssVar('--text','#f5f1e9'), dim:cssVar('--dim','#847d73'),
+  blue:cssVar('--blue','#82a8e9'),
+  ok:cssVar('--ok','#9fc59b'), bad:cssVar('--bad','#cf7f7c'),
+  zoneLow:cssVar('--z-low','#5b8def'), zoneMod:cssVar('--z-mod','#cf9d4f'), zoneHigh:cssVar('--z-high','#e0524d'),
+  zoneBlue:cssVar('--zone-blue','#5b8def'), zoneGreen:cssVar('--zone-green','#33c07a'), zoneRed:cssVar('--zone-red','#e0524d'),
+  neonStrain:cssVar('--neon-strain','#33C4FF'), neonOk:cssVar('--neon-ok','#3DFF9E'),
+  neonWarn:cssVar('--neon-warn','#FFC24D'), neonBad:cssVar('--neon-bad','#FF5B57'),
+  ringIdle:cssVar('--ring-idle','rgba(255,255,255,.14)'),
+  trackSoft:cssVar('--track-soft','rgba(255,255,255,.06)'),
+  track:cssVar('--track','rgba(255,255,255,.08)'),
+  trackStrong:cssVar('--track-strong','rgba(255,255,255,.09)'),
+  surfaceRing:cssVar('--chart-dot-ring','#141312'),
+};
+
 /* ---------- persistence ---------- */
 const LS_KEY='hybrid-engine-v1';
 let DB={workouts:[],sessions:[],settings:{}};
@@ -433,7 +460,7 @@ const WHOOP_ENDPOINTS={status:'/.netlify/functions/integrations-status',connect:
 let WHOOP={loaded:false,connected:false,sample:null,lastSyncAt:null,busy:false,error:''};
 /* One visual language for the body: recovery bands share the conditioning
    zone palette (green=go, gold=steady, red=easy day). */
-function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null,color:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Strong',pct:r,val:r,color:'#9fc59b'};if(r>=34)return{cls:'watch',label:'Steady',pct:r,val:r,color:'#cf9d4f'};return{cls:'low',label:'Low',pct:r,val:r,color:'#e0524d'};}
+function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null,color:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Strong',pct:r,val:r,color:PAL.ok};if(r>=34)return{cls:'watch',label:'Steady',pct:r,val:r,color:PAL.zoneMod};return{cls:'low',label:'Low',pct:r,val:r,color:PAL.zoneHigh};}
 async function loadWhoop(){
   try{
     const r=await fetch(WHOOP_ENDPOINTS.status,{credentials:'same-origin',cache:'no-store'});
@@ -482,12 +509,15 @@ function updateWhoopCard(){if(CURRENT==='home')renderHome();}
    picture; numbers and readiness only appear on request. */
 let WHOOP_OPEN=false;
 function toggleWhoopDetails(){WHOOP_OPEN=!WHOOP_OPEN;if(CURRENT==='home')renderHome();}
-const STRAIN_BLUE='#5b8def',RING_IDLE_COLOR='rgba(255,255,255,.14)';
+const STRAIN_BLUE=PAL.zoneLow,RING_IDLE_COLOR=PAL.ringIdle;
 /* Neon ring palette — the recovery/strain rings glow in bright neon (brighter
    than the muted band colours used for text), per the athlete request. */
-const STRAIN_NEON='#33C4FF';
-const RING_NEON={'#9fc59b':'#3DFF9E','#cf9d4f':'#FFC24D','#e0524d':'#FF5B57'};
-function neonRing(c){return RING_NEON[c]||c;}
+const STRAIN_NEON=PAL.neonStrain;
+/* Keyed by the tone CLASS ('good'|'watch'|'low'), never by hex: a palette
+   change used to silently stop matching this map and leave the rings on the
+   old colours while the CSS chrome moved. */
+const RING_NEON={good:PAL.neonOk,watch:PAL.neonWarn,low:PAL.neonBad};
+function neonRing(tone){if(!tone)return null;return RING_NEON[tone.cls]||tone.color||null;}
 function whoopRings(recColor,recPct,strainPct,center){
   // Arc targets + colors feed CSS custom properties; the CSS animates each
   // arc up from 0. A null pct shows a faint full ring (idle/loading).
@@ -522,11 +552,11 @@ function whoopCardHtml(){
     const strainPct=Number.isFinite(strainRaw)?Math.max(0,Math.min(100,Math.round(strainRaw/21*100))):null;
     chip=whoopSettingsChip();
     if(!WHOOP_OPEN){
-      rings=whoopRings(neonRing(t.color),t.val==null?null:t.pct,strainPct,'');
+      rings=whoopRings(neonRing(t),t.val==null?null:t.pct,strainPct,'');
       title='WHOOP · today';
       line='Tap to show recovery, strain & readiness.';
     } else {
-      rings=whoopRings(neonRing(t.color),t.val==null?null:t.pct,strainPct,(t.val==null?'—':t.val+'%'));
+      rings=whoopRings(neonRing(t),t.val==null?null:t.pct,strainPct,(t.val==null?'—':t.val+'%'));
       title='Recovery '+(t.val==null?'—':t.val+'%')+' · '+t.label+(strainPct!=null?' · Strain '+strainRaw.toFixed(1):'');
       line='HRV '+(WHOOP.sample.hrvMs==null?'—':WHOOP.sample.hrvMs+' ms')+' · RHR '+(WHOOP.sample.restingHr==null?'—':WHOOP.sample.restingHr)+' · Sleep '+(WHOOP.sample.sleepPerformance==null?'—':WHOOP.sample.sleepPerformance+'%');
     }
@@ -713,7 +743,7 @@ function renderSession(){
   if(Number.isFinite(recRaw)){
     const rec=Math.round(recRaw),t=whoopTone(rec);
     const hint=rec<40?'take −1 RPE today and win anyway':rec>80?'green light — push the top sets':'steady — train as planned';
-    ready='<div class="readyline"><i style="background:'+(t.color||'#847d73')+'"></i><b>'+rec+'% recovery</b><span>'+hint+'</span></div>';
+    ready='<div class="readyline"><i style="background:'+(t.color||PAL.dim)+'"></i><b>'+rec+'% recovery</b><span>'+hint+'</span></div>';
   }
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;home&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">'+esc(prettyDay(s.date))+' · in progress</div><h1 class="screentitle">'+esc(s.name||'Workout')+'</h1></div></div>'+
@@ -864,7 +894,7 @@ function renderExHist(){
     const xl=rows.map(x=>{const p=String(x.date).split('-');return (+p[1])+'/'+(+p[2]);});
     const pts=rows.map(x=>Math.round(x.best.e1*10)/10);
     const lo=Math.floor(Math.min(...pts)*0.96),hi=Math.ceil(Math.max(...pts)*1.04);
-    h+=chartCard('Estimated 1RM','Epley · best set per session',chartLines([{name:'e1RM',color:'#e0bc87',pts}],xl,[lo,hi],'kg'));
+    h+=chartCard('Estimated 1RM','Epley · best set per session',chartLines([{name:'e1RM',color:PAL.gold2,pts}],xl,[lo,hi],'kg'));
   }
   h+='<div class="sec-head" style="margin-top:20px"><h2>Sessions</h2><span>latest first</span></div><div class="exh-list">';
   let run=0;
@@ -1185,7 +1215,7 @@ function cardMove(id){
   const w=DB.workouts.find(x=>x.id===id);if(!w)return;
   const cur=(w.dates&&w.dates[0])||ymd(new Date());
   openSheet('<div class="grab"></div><h3>Move session</h3><p class="ssub">Pick a new day for &ldquo;'+esc(w.name||'Session')+'&rdquo;.</p>'+
-    '<input type="date" id="moveDate" value="'+esc(cur)+'" style="width:100%;padding:13px 14px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(255,255,255,.06);color:#fff;font:inherit;font-size:16px;margin-bottom:12px">'+
+    '<input type="date" id="moveDate" class="dateinput" value="'+esc(cur)+'">'+
     '<button class="bigopt" data-click="cardMoveTo" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">✅</span><div><b>Move here</b><span>Schedule it for the chosen day</span></div></button>'+
     '<button class="cancel" data-click="closeSheet">Cancel</button>');
 }
@@ -1407,7 +1437,7 @@ function refreshRx(bi,ei){const el=document.getElementById('rxb'+bi+'e'+ei);if(e
 function toggleBlock(bi){openBlock=(openBlock===bi?-1:bi);renderBuilderBody();}
 
 /* ---------- confetti: light, no stats wall ---------- */
-function confetti(){const colors=['#c09358','#e0bc87','#82a8e9','#f5f1e9'];for(let i=0;i<36;i++){const c=document.createElement('div');c.className='confetti';c.style.left=(5+Math.random()*90)+'vw';c.style.background=colors[i%colors.length];c.style.animationDelay=(Math.random()*.5)+'s';c.style.transform='rotate('+(Math.random()*360)+'deg)';document.body.appendChild(c);setTimeout(()=>c.remove(),2200);}}
+function confetti(){const colors=[PAL.gold,PAL.gold2,PAL.blue,PAL.text];for(let i=0;i<36;i++){const c=document.createElement('div');c.className='confetti';c.style.left=(5+Math.random()*90)+'vw';c.style.background=colors[i%colors.length];c.style.animationDelay=(Math.random()*.5)+'s';c.style.transform='rotate('+(Math.random()*360)+'deg)';document.body.appendChild(c);setTimeout(()=>c.remove(),2200);}}
 
 /* ---------- Supabase cloud sync (namespaced under state.hybridEngine) ---------- */
 const SUPABASE_URL='https://orysjncrksmdfabpuftd.supabase.co';
@@ -1878,8 +1908,8 @@ function renderProgress(){
     const xl=rpeRows.map(x=>{const p=String(x.d.date).split('-');return (+p[1])+'/'+(+p[2]);});
     const vals=rpeRows.flatMap(x=>[x.r.target,x.r.felt]).filter(v=>v!=null);
     const lo=Math.max(0,Math.floor(Math.min(...vals)-1)),hi=Math.min(10,Math.ceil(Math.max(...vals)+1));
-    const series=[{name:'Planned',color:'#cf9d4f',pts:rpeRows.map(x=>x.r.target)},{name:'Felt',color:'#5b8def',pts:rpeRows.map(x=>x.r.felt)}];
-    const legend='<div class="legend"><span><i style="background:#cf9d4f"></i>Planned</span><span><i style="background:#5b8def"></i>Felt</span></div>';
+    const series=[{name:'Planned',color:PAL.zoneMod,pts:rpeRows.map(x=>x.r.target)},{name:'Felt',color:PAL.zoneBlue,pts:rpeRows.map(x=>x.r.felt)}];
+    const legend='<div class="legend"><span><i style="background:'+PAL.zoneMod+'"></i>Planned</span><span><i style="background:'+PAL.zoneBlue+'"></i>Felt</span></div>';
     rpeCard=chartCard('Planned vs felt RPE','last '+rpeRows.length+' sessions',chartLines(series,xl,[lo,hi],''),legend);
   }
   // WHOOP recovery (persisted daily history)
@@ -1887,7 +1917,7 @@ function renderProgress(){
   let recCard='';
   if(wd.length>=2){
     const xl=wd.map(h=>{const p=h.date.split('-');return (+p[1])+'/'+(+p[2]);});
-    recCard=chartCard('WHOOP recovery','last '+wd.length+' days',chartLines([{name:'Recovery',color:'#9fc59b',pts:wd.map(h=>h.recovery)}],xl,[0,100],'%'));
+    recCard=chartCard('WHOOP recovery','last '+wd.length+' days',chartLines([{name:'Recovery',color:PAL.ok,pts:wd.map(h=>h.recovery)}],xl,[0,100],'%'));
   }
   el.innerHTML=head+stats+volCard+progTopLifts()+rpeCard+recCard+progConditioningCards()+
     (rpeCard?'':'<div class="card guidebar" style="margin-top:16px"><b>Tip:</b> add target RPE in the Builder and log the RPE you felt — a planned-vs-felt trend appears here.</div>');
@@ -1902,7 +1932,7 @@ function progZoneBars(bk){
   let bars='';
   bk.forEach((b,i)=>{
     const cx=padL+slot*i+slot/2;let y=padT+innerH;
-    [['low','#5b8def'],['mod','#33c07a'],['high','#e0524d']].forEach(pair=>{
+    [['low',PAL.zoneBlue],['mod',PAL.zoneGreen],['high',PAL.zoneRed]].forEach(pair=>{
       const h=innerH*(b[pair[0]]/max);
       if(h>0.5){y-=h;bars+='<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+(y+1).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0.5,h-2).toFixed(1)+'" rx="2" fill="'+pair[1]+'"><title>Week of '+b.key+' · '+pair[0]+' '+Math.round(b[pair[0]])+' min</title></rect>';}
     });
@@ -1921,7 +1951,7 @@ function progConditioningCards(){
   cond.forEach(r=>{const k=ymd(weekStart(r.startedAt||Date.now()));if(bidx.has(k)){const b=buckets[bidx.get(k)],z=r.zsec||{};b.low+=(z.low||0)/60;b.mod+=(z.mod||0)/60;b.high+=(z.high||0)/60;}});
   if(buckets.some(b=>b.low+b.mod+b.high>0))
     out+=chartCard('Zone minutes by week','conditioning',progZoneBars(buckets),
-      '<div class="legend"><span><i style="background:#5b8def"></i>Recovery</span><span><i style="background:#33c07a"></i>Conditioning</span><span><i style="background:#e0524d"></i>Overload</span></div>');
+      '<div class="legend"><span><i style="background:'+PAL.zoneBlue+'"></i>Recovery</span><span><i style="background:'+PAL.zoneGreen+'"></i>Conditioning</span><span><i style="background:'+PAL.zoneRed+'"></i>Overload</span></div>');
   const earned=['intervals','tempo','steady'].map(k=>({k,lvl:conProgLevel(k)})).filter(x=>x.lvl>0);
   if(earned.length){
     let pc='<div class="card progcard"><div class="lbl2">Interval progression · earned from your sessions</div><div class="proglist">';
@@ -1934,10 +1964,10 @@ function progConditioningCards(){
     const xl=rows.map(r=>{const p=String(r.date).split('-');return (+p[1])+'/'+(+p[2]);});
     const hrr=rows.map(r=>Number.isFinite(r.hrr)?r.hrr:null);
     if(hrr.filter(v=>v!=null).length>=2)
-      out+=chartCard('HR recovery','60s drop after peak · higher is fitter',chartLines([{name:'HRR',color:'#9fc59b',pts:hrr}],xl,[0,Math.max(40,...hrr.filter(v=>v!=null))+10],' bpm'));
+      out+=chartCard('HR recovery','60s drop after peak · higher is fitter',chartLines([{name:'HRR',color:PAL.ok,pts:hrr}],xl,[0,Math.max(40,...hrr.filter(v=>v!=null))+10],' bpm'));
     const avg=rows.map(r=>r.avg||null),vals=avg.filter(v=>v!=null);
     if(vals.length>=2)
-      out+=chartCard('Average heart rate','per conditioning session',chartLines([{name:'Avg HR',color:'#5b8def',pts:avg}],xl,[Math.min(...vals)-8,Math.max(...vals)+8],' bpm'));
+      out+=chartCard('Average heart rate','per conditioning session',chartLines([{name:'Avg HR',color:PAL.zoneBlue,pts:avg}],xl,[Math.min(...vals)-8,Math.max(...vals)+8],' bpm'));
   }
   out=weeklyZoneTargetCard()+out;
   return out?'<div class="section" style="margin-top:24px;margin-bottom:-4px"><div class="sec-head"><h2>Conditioning</h2></div></div>'+out:'';
@@ -2021,9 +2051,9 @@ function conZones(){
   lowTop=Math.max(floor+4,Math.min(lowTop,m-6));
   modTop=Math.max(lowTop+4,Math.min(modTop,m-2));
   return{floor,max:m,rest:rest||null,rec,adj:dMod,method,list:[
-    {key:'low', name:'Recovery',    color:'#5b8def', lo:floor, hi:lowTop},
-    {key:'mod', name:'Conditioning',color:'#33c07a', lo:lowTop,hi:modTop},
-    {key:'high',name:'Overload',    color:'#e0524d', lo:modTop,hi:m}]};
+    {key:'low', name:'Recovery',    color:PAL.zoneBlue,  lo:floor, hi:lowTop},
+    {key:'mod', name:'Conditioning',color:PAL.zoneGreen, lo:lowTop,hi:modTop},
+    {key:'high',name:'Overload',    color:PAL.zoneRed,   lo:modTop,hi:m}]};
 }
 function conZoneOf(bpm,z){z=z||conZones();return bpm<z.list[0].hi?z.list[0]:bpm<z.list[1].hi?z.list[1]:z.list[2];}
 function conMmss(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
@@ -2392,12 +2422,12 @@ function thisWeekZoneMin(){
 }
 function zoneRing(color,frac){
   const r=26,C=2*Math.PI*r,len=Math.max(0,Math.min(1,frac||0))*C;
-  return '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="'+r+'" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>'+
+  return '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="'+r+'" fill="none" stroke="'+PAL.track+'" stroke-width="6"/>'+
     '<circle cx="32" cy="32" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="6" stroke-linecap="round" stroke-dasharray="'+len.toFixed(1)+' '+(C-len).toFixed(1)+'" transform="rotate(-90 32 32)"/></svg>';
 }
 function weeklyZoneTargetCard(){
   const t=zoneTargets(),w=thisWeekZoneMin();
-  const map={low:{n:'Recovery',c:'#5b8def'},mod:{n:'Conditioning',c:'#33c07a'},high:{n:'Overload',c:'#e0524d'}};
+  const map={low:{n:'Recovery',c:PAL.zoneBlue},mod:{n:'Conditioning',c:PAL.zoneGreen},high:{n:'Overload',c:PAL.zoneRed}};
   const cells=['low','mod','high'].map(k=>{
     const done=w[k],tgt=t[k],frac=tgt?done/tgt:0;
     return '<div class="ztcell"><div class="ztring">'+zoneRing(map[k].c,frac)+'<div class="ztc"><b>'+done+'</b><span>/'+tgt+'m</span></div></div><div class="ztn" style="color:'+map[k].c+'">'+map[k].n+'</div></div>';
@@ -2420,7 +2450,7 @@ function conArc(cx,cy,r,a0,a1){
   return 'M'+x0.toFixed(1)+' '+y0.toFixed(1)+' A'+r+' '+r+' 0 '+((a1-a0)>Math.PI?1:0)+' 1 '+x1.toFixed(1)+' '+y1.toFixed(1);
 }
 function conGaugeSvg(z){
-  const A0=Math.PI,A1=2*Math.PI;let s='<path d="'+conArc(100,100,82,A0,A1)+'" stroke="rgba(255,255,255,.09)" stroke-width="11" fill="none" stroke-linecap="round"/>';
+  const A0=Math.PI,A1=2*Math.PI;let s='<path d="'+conArc(100,100,82,A0,A1)+'" stroke="'+PAL.trackStrong+'" stroke-width="11" fill="none" stroke-linecap="round"/>';
   z.list.forEach(zz=>{
     const f0=Math.max(0,(zz.lo-z.floor)/(z.max-z.floor)),f1=Math.min(1,(zz.hi-z.floor)/(z.max-z.floor));
     s+='<path d="'+conArc(100,100,82,A0+(A1-A0)*f0,A0+(A1-A0)*f1)+'" stroke="'+zz.color+'" stroke-opacity=".22" stroke-width="10" fill="none"/>';
@@ -2478,7 +2508,7 @@ function conPaintLine(z){
     const zn=conZoneOf((pts[i]+pts[i-1])/2,z);
     s+='<line x1="'+X(i-1).toFixed(1)+'" y1="'+Y(pts[i-1]).toFixed(1)+'" x2="'+X(i).toFixed(1)+'" y2="'+Y(pts[i]).toFixed(1)+'" stroke="'+zn.color+'" stroke-width="2.4" stroke-linecap="round"/>';
   }
-  if(pts.length)s+='<circle cx="'+X(pts.length-1).toFixed(1)+'" cy="'+Y(pts[pts.length-1]).toFixed(1)+'" r="3.2" fill="'+conZoneOf(pts[pts.length-1],z).color+'" stroke="#141312" stroke-width="1.5"/>';
+  if(pts.length)s+='<circle cx="'+X(pts.length-1).toFixed(1)+'" cy="'+Y(pts[pts.length-1]).toFixed(1)+'" r="3.2" fill="'+conZoneOf(pts[pts.length-1],z).color+'" stroke="'+PAL.surfaceRing+'" stroke-width="1.5"/>';
   g.innerHTML=s;
 }
 function conPaintAll(){
@@ -2554,7 +2584,7 @@ function conLiveHtml(){
     '<div class="constatus" id="conStatus"></div>';
 }
 function conDonutSvg(zsec,total){
-  const C=2*Math.PI*46;let off=0,s='<circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="13"/>';
+  const C=2*Math.PI*46;let off=0,s='<circle cx="60" cy="60" r="46" fill="none" stroke="'+PAL.trackSoft+'" stroke-width="13"/>';
   conZones().list.forEach(zz=>{
     const sec=zsec[zz.key]||0;if(!sec||!total)return;
     const len=(sec/total)*C;
@@ -2566,7 +2596,7 @@ function conDonutSvg(zsec,total){
 function conResChartSvg(rec){
   const z=conZones();const m=rec.maxHr||z.max;
   const floor=Math.round(m*.5),lowTop=Math.round(m*.70),modTop=Math.round(m*.88);
-  const zoneAt=b=>b<lowTop?'#5b8def':b<modTop?'#33c07a':'#e0524d';
+  const zoneAt=b=>b<lowTop?PAL.zoneBlue:b<modTop?PAL.zoneGreen:PAL.zoneRed;
   const pts=rec.hr||[],n=pts.length;if(n<2)return'<div class="sc-meta">Not enough data for a graph.</div>';
   const lo=floor-8,hi=m+4;
   const X=i=>6+(310-6)*(i/(n-1)),Y=v=>10+(150-10-20)*(1-(v-lo)/(hi-lo));

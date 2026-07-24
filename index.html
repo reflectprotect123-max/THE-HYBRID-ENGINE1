@@ -45,6 +45,28 @@
   /* FINISH — 3-step radius scale so corners rhyme */
   --r-sm:10px; --r-md:14px; --r-lg:18px; --r-pill:999px;
   --r:18px;
+  /* HR zone aliases (kept with the rest of the palette, not orphaned mid-file) */
+  --z-low:#5b8def; --z-mod:#cf9d4f; --z-high:#e0524d;
+  /* NEON — the recovery/strain rings glow brighter than the muted band inks.
+     JS reads these; never hardcode a ring colour in app.js. */
+  --neon-strain:#33C4FF; --neon-ok:#3DFF9E; --neon-warn:#FFC24D; --neon-bad:#FF5B57;
+  --ring-idle:rgba(255,255,255,.14);
+  /* Unfilled arc/track fills behind rings, gauges and donuts, plus the ring the
+     chart's leading dot punches out of the card. The three track steps are the
+     exact values that were inline — a spec may collapse them to one. */
+  --track-soft:rgba(255,255,255,.06); --track:rgba(255,255,255,.08); --track-strong:rgba(255,255,255,.09);
+  --chart-dot-ring:#141312;
+  /* MOTION — durations + easings. Was 30 hand-inlined timings; these are the
+     canonical steps a design spec can retune in one place. */
+  --dur-fast:.12s; --dur-base:.15s; --dur-mid:.22s; --dur-slow:.3s;
+  --ease-standard:cubic-bezier(.22,.8,.2,1);
+  --ease-entrance:cubic-bezier(.22,.9,.24,1);
+  --ease-overshoot:cubic-bezier(.34,1.56,.64,1);
+  /* SPACE — 4px rhythm. No spacing scale existed; every margin was a literal. */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px;
+  /* TYPE — step scale + the variable-weight vocabulary actually in use. */
+  --fs-1:10px; --fs-2:11px; --fs-3:12px; --fs-4:13px; --fs-5:14px; --fs-6:16px; --fs-7:20px; --fs-8:26px;
+  --fw-reg:500; --fw-med:650; --fw-semi:750; --fw-bold:800; --fw-black:900;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{background:#050505;color-scheme:dark}
@@ -378,6 +400,9 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .sheet .datefield{display:flex;align-items:center;gap:10px;background:var(--panel3);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:14px}
 .sheet .datefield label{font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
 .sheet .datefield input{flex:1;background:none;border:none;color:var(--text);font:inherit;font-size:14px;color-scheme:dark}
+/* standalone date input (Move a session). Was a 9-property inline style in
+   app.js; lifted here verbatim so a design spec can actually reach it. */
+.sheet .dateinput{width:100%;padding:13px 14px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(255,255,255,.06);color:#fff;font:inherit;font-size:16px;margin-bottom:12px}
 .sheet .bigopt{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:var(--panel3);border:1px solid var(--line2);
   border-radius:14px;padding:15px;margin-bottom:10px;color:var(--text);cursor:pointer;transition:border-color .15s,transform .12s}
 .sheet .bigopt:active{transform:scale(.985)}
@@ -514,7 +539,7 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .chart .dot{stroke:#141312;stroke-width:1.5}
 
 /* ===== Conditioning: live HR zone training ===== */
-:root{--z-low:#5b8def;--z-mod:#cf9d4f;--z-high:#e0524d}
+/* (--z-low/--z-mod/--z-high now live in the main :root with the rest of the palette) */
 .recpill{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding:14px 16px;border-radius:14px;
   border:1px solid rgba(159,197,155,.28);background:linear-gradient(160deg,rgba(159,197,155,.10),rgba(159,197,155,.02))}
 .recpill b{font-size:13px;font-weight:650}
