@@ -125,7 +125,7 @@ function go(id,btn){
   // The logger is a detail view of Training — keep Training lit while logging.
   // Builder, Conditioning, Progress and exercise-history all live under Library now.
   const LIB_SCREENS={library:1,builder:1,conditioning:1,progress:1,exhist:1};
-  const navId=id==='logger'||id==='recap'?'training'
+  const navId=id==='recap'?'training'
     :LIB_SCREENS[id]?'library'
     :(id==='history'||id==='import'||id==='calendar')?'home':id;
   const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
@@ -143,12 +143,11 @@ async function acquireWake(){
 async function releaseWake(){
   try{if(window.AndroidHR&&window.AndroidHR.keepAwake)window.AndroidHR.keepAwake(false);}catch(e){}
   try{if(_wakeLock){const w=_wakeLock;_wakeLock=null;await w.release();}}catch(e){}}
-function updateWake(){(((CURRENT==='training'||CURRENT==='logger')&&curSession())||(CURRENT==='conditioning'&&CON.live))?acquireWake():releaseWake();}
+function updateWake(){((CURRENT==='training'&&curSession())||(CURRENT==='conditioning'&&CON.live))?acquireWake():releaseWake();}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')updateWake();});
 function renderScreen(id){
   if(id==='home')renderHome();
   else if(id==='training')renderTraining();
-  else if(id==='logger')renderLoggerScreen();
   else if(id==='library')renderLibrary();
   else if(id==='builder')renderBuilder();
   else if(id==='settings')renderSettings();
@@ -325,10 +324,6 @@ function sessionCardHtml(w,kicker,fn,id){
     '<h3>'+esc(w.name||'Session template')+'</h3>'+
     '<div class="sc-meta">'+esc((w.blocks||[]).map(b=>b.heading).filter(Boolean).join(' · '))+'</div>'+
     '<div class="sc-chips">'+workoutChips(w)+'</div></div>';
-}
-function daysLabel(w){
-  const names=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  return (w.days||[]).slice().sort().map(i=>names[i]).join(' & ');
 }
 function renderHome(){
   const el=document.getElementById('s-home');
@@ -601,7 +596,6 @@ function renderTraining(){
 }
 
 /* ---------- workout CRUD ---------- */
-function newWorkout(){WK=templateWorkout();BUILDER_WID=WK.id;EDIT_EXISTING=false;openBlock=-1;go('builder');}
 function editWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;WK=JSON.parse(JSON.stringify(w));BUILDER_WID=id;EDIT_EXISTING=true;openBlock=-1;go('builder');}
 function hasLoggedWork(s){return s&&s.blocks.some(b=>(isCond(b)&&b.condResult)||blockExercises(b).some(e=>e.sets.some(st=>st.done||st.aVal||st.aVal2||st.felt)));}
 /* Deep-clone a workout's blocks into a pristine session shape: strength sets
@@ -643,7 +637,6 @@ function previewWorkout(){
   LOG_LOC=null;
   go('training');
 }
-function saveWorkout(){previewWorkout();}
 
 /* ---------- start / open a live session ---------- */
 function startWorkout(workoutId){
@@ -807,7 +800,6 @@ function conRunBlock(bi){
   go('conditioning');
 }
 function toggleCompletion(bi,ei){const s=curSession();if(!s)return;const ex=s.blocks[bi].exercises[ei];const d=!ex.sets.every(st=>st.done);ex.sets.forEach(st=>st.done=d);s.updatedAt=Date.now();save();renderSession();}
-function markSuperset(bi){const s=curSession();if(!s)return;s.blocks[bi].exercises.forEach(ex=>ex.sets.forEach(st=>st.done=true));s.updatedAt=Date.now();save();renderSession();}
 function finishSession(btn){
   const s=curSession();if(!s)return;
   const prs=detectPRs(s);
@@ -972,26 +964,11 @@ function openLogger(bi,ei){
   if(LOG_LOC){const c=document.getElementById('lgx'+bi+'-'+ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
   updateWake();
 }
-function firstLoggable(s){
-  for(let bi=0;bi<s.blocks.length;bi++){const b=s.blocks[bi];if(isCond(b))continue;for(let ei=0;ei<blockExercises(b).length;ei++){if(!b.superset&&b.exercises[ei].mode!=='completion')return{bi,ei};}}
-  for(let bi=0;bi<s.blocks.length;bi++){if(!isCond(s.blocks[bi])&&blockExercises(s.blocks[bi]).length)return{bi,ei:0};}
-  return null;
-}
-/* Training is the one training destination; the logger is its detail
-   view, opened from an exercise row and stepped through in place. */
-function loggableList(s){
-  const out=[];
-  s.blocks.forEach((b,bi)=>{if(b.superset||isCond(b))return;b.exercises.forEach((ex,ei)=>{if(ex.mode!=='completion')out.push({bi,ei})})});
-  return out;
-}
 function exFinished(ex){return ex.sets.length>0&&ex.sets.every(st=>st.done)}
 function blockDone(b){return isCond(b)?!!b.condResult:(blockExercises(b).length>0&&blockExercises(b).every(exFinished));}
 function sessionAllDone(s){
   return s.blocks.length>0&&s.blocks.every(blockDone);
 }
-/* Legacy step-through logger retired — the accordion in renderSession replaced
-   it. renderLoggerScreen kept as a alias so any stale go('logger') lands right. */
-function renderLoggerScreen(){renderSession();}
 function setActual(si,slot,val){const s=curSession();if(!s||!LOG_LOC)return;const st=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei].sets[si];if(slot===1)st.aVal=val;else if(slot===2)st.aVal2=val;else if(slot===3)st.felt=val;s.updatedAt=Date.now();save();}
 /* Per-set notes (set.note). NOTE_OPEN is transient UI: keys "bi-ei-si" with an open, empty editor. */
 let NOTE_OPEN={};
@@ -1476,7 +1453,6 @@ const CHANGE_KEY=LS_KEY+'-changedAt';
 let cloudUser=null,cloudBusy=false,cloudError='',cloudTimer=null,cloudPending=false,lastSyncedFp=null,cloudSyncedAt=0;
 function agoLabel(ms){if(!ms)return 'not yet';const s=Math.max(0,Math.round((Date.now()-ms)/1000));if(s<60)return 'just now';const m=Math.round(s/60);if(m<60)return m+'m ago';const h=Math.round(m/60);if(h<24)return h+'h ago';return Math.round(h/24)+'d ago';}
 function cloudEnabled(){return !!SB}
-function localChangeAt(){return Number(localStorage.getItem(CHANGE_KEY))||0}
 function markLocalChange(at){try{localStorage.setItem(CHANGE_KEY,String(at||Date.now()))}catch(e){}}
 function cloudFp(engine){try{
   // Include settings so profile/zone/progression/conditioning changes DO sync.
@@ -1787,7 +1763,7 @@ function seedIfEmpty(){
     }
     return true;
   });
-  DB.settings.seedV=3;DB.settings.seeded=true;
+  DB.settings.seedV=3;
   try{localStorage.setItem(LS_KEY,JSON.stringify(DB))}catch(e){}
 }
 function currentWorkout(){const act=DB.sessions.find(s=>s.status==='active');if(act){const w=DB.workouts.find(x=>x.id===act.workoutId);if(w)return w;}return DB.workouts[0]||null;}
@@ -2045,7 +2021,6 @@ function conMaxHr(){
   const obs=parseInt(p.obsMaxHr,10)||0;
   return Math.max(est,obs);
 }
-function conProfile(){const p=DB.settings.profile||{};const age=parseInt(p.age,10)||30;return{age,maxHr:conMaxHr()};}
 /* Resting HR: manual override, else WHOOP's measured resting HR, else null. */
 function restingHr(){
   const p=DB.settings.profile||{};const manual=parseInt(p.restingHr,10)||0;

@@ -206,32 +206,8 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .bigbtn:hover{background:linear-gradient(180deg,#d0a66f,#bb8e52)}
 .bigbtn.donestate{background:var(--panel2);color:var(--ok);border-color:rgba(159,197,155,.46);box-shadow:none}
 
-/* ===== LOGGER ===== */
-.logmeta{margin-top:4px;color:var(--muted);font-size:12px}
-.logmeta i{font-style:normal;color:var(--gold2)}
-.setcard{margin-top:16px;padding:15px}
-.sethead{display:grid;grid-template-columns:34px 1fr 1fr 64px 40px;gap:8px;padding:0 0 9px;color:#9a938a;font-size:10.5px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}
-.settarget{margin-top:13px;margin-bottom:6px;color:var(--gold2);font-size:12px;font-weight:750;letter-spacing:-.01em}
 .exrow .chev{width:26px;height:26px;flex:0 0 auto;display:grid;place-items:center;color:var(--dim);font-size:24px;font-weight:400;line-height:1}
 .exrow.nav:hover .chev{color:var(--gold2)}
-.setrow{display:grid;grid-template-columns:34px 1fr 1fr 64px 40px;gap:8px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
-.setrow .n{display:grid;justify-items:center;gap:2px}
-.setrow .n b{color:var(--muted);font-size:13px;font-weight:900}
-.setrow .n small{color:var(--gold2);font-size:8.5px;font-weight:800;letter-spacing:.04em;white-space:nowrap}
-.setrow input{
-  width:100%;min-height:42px;padding:8px;border:1px solid var(--line2);border-radius:11px;
-  background:#0b0b0a;color:var(--text);font:inherit;text-align:center;outline:none;
-}
-.setrow input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(192,147,88,.11)}
-.setrow .rpein{border-color:rgba(224,188,135,.35)}
-.tick{
-  width:36px;height:36px;justify-self:end;border:2px solid var(--line2);border-radius:50%;
-  background:transparent;color:transparent;font-size:15px;font-weight:900;cursor:pointer;transition:.15s ease;
-}
-.setrow.done .tick{border-color:var(--gold);background:var(--gold);color:#17120c}
-.setrow.done input{opacity:.65}
-.lastbox{margin-top:12px;padding:11px 14px;color:var(--muted);font-size:12px}
-.lastbox b{color:var(--text)}
 .guidebar{
   margin-top:14px;padding:12px 14px;border-color:rgba(224,188,135,.3);background:rgba(192,147,88,.05);
   color:var(--muted);font-size:12px;line-height:1.55;
@@ -246,7 +222,6 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
   background:#0b0b0a;color:var(--text);font:inherit;outline:none;
 }
 .field input:focus,.field select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(192,147,88,.11)}
-.buildergrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .bsetrow{display:grid;grid-template-columns:52px 1fr 1fr;gap:8px;align-items:center;margin-top:8px}
 .bsetrow.nomode{grid-template-columns:52px 1fr}
 .bsetrow span{color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
@@ -256,10 +231,6 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .bsetrow .cmeta{color:var(--dim);font-size:11px}
 .stepbtn{flex:1;min-height:50px;border:0;background:transparent;color:var(--gold2);font:inherit;font-size:22px;font-weight:900;cursor:pointer}
 .stepbtn:hover{background:rgba(255,255,255,.035)}
-.rxpreview{margin-top:14px;padding:13px 15px;border-color:rgba(224,188,135,.3)}
-.rxpreview b{color:var(--gold2);font-size:16px;font-weight:900}
-.rxpreview p{margin-top:4px;color:var(--muted);font-size:12px}
-.newtag{display:inline-block;margin-left:7px;padding:2px 7px;border-radius:99px;background:var(--gold);color:#17120c;font-size:8.5px;font-weight:900;letter-spacing:.08em;vertical-align:middle}
 
 /* ===== Builder authoring ===== */
 .addbtn{margin-top:14px;width:100%;min-height:48px;border:1px dashed var(--line2);border-radius:13px;
@@ -323,8 +294,6 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
   .nav{flex-direction:row;width:100%;gap:2px}
   .navlink{flex:1;flex-direction:column;gap:4px;min-height:54px;padding:6px 2px;font-size:9.5px;justify-content:center;text-align:center}
   .navlink.active::before{left:50%;top:3px;transform:translateX(-50%);width:20px;height:2px}
-  .sethead{grid-template-columns:30px 1fr 1fr 54px 38px;gap:5px}
-  .setrow{grid-template-columns:30px 1fr 1fr 54px 38px;gap:5px}
   .restchip{top:10px;right:10px}
 }
 
@@ -496,9 +465,6 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .toast.on{opacity:1;transform:translate(-50%,0)}
 @media(min-width:761px){.toast{bottom:30px}}
 .stepbtn:active,.bexp:active,.bctrls button:active{transform:scale(.9)}
-/* Set-tick confirmation pop */
-@keyframes tickpop{0%{transform:scale(1)}45%{transform:scale(1.22)}100%{transform:scale(1)}}
-.setrow.done .tick{animation:tickpop .3s cubic-bezier(.34,1.56,.64,1)}
 /* Cards ease in a touch more richly */
 .screen.on{animation:fade .22s cubic-bezier(.22,.8,.2,1)}
 
@@ -828,13 +794,7 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 @keyframes implisten{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
 @media(prefers-reduced-motion:reduce){.imp-listen .dot{animation:none}}
 
-/* ===== Home quick actions + a11y focus ===== */
-.quickrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
-.quickact{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px;cursor:pointer;font:inherit;color:var(--text);text-align:left}
-.quickact .qi{font-size:18px;margin-bottom:5px}
-.quickact b{font-size:13.5px;font-weight:800;letter-spacing:-.01em}
-.quickact span:last-child{color:var(--dim);font-size:11px}
-.quickact:hover{border-color:rgba(224,188,135,.4)}
+/* ===== a11y focus ===== */
 button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[data-click]:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
 </style>
 </head>
@@ -875,7 +835,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   <main class="main">
     <section class="screen on" id="s-home"></section>
     <section class="screen" id="s-training"></section>
-    <section class="screen" id="s-logger"></section>
     <section class="screen" id="s-library"></section>
     <section class="screen" id="s-builder"></section>
     <section class="screen" id="s-settings"></section>

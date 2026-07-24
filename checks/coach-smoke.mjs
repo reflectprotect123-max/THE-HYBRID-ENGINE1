@@ -36,7 +36,7 @@ await page.goto(url, { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(400);
 
 await t('boots into the seeded program (name + 7 days + 2 exercises)', async () => {
-  if ((await page.textContent('#progname')).trim() !== 'SANDBOX – test – delete me') throw new Error('progname');
+  if ((await page.textContent('#progname')).trim() !== 'Sample Program') throw new Error('progname');
   if ((await page.$$('#days .day')).length !== 7) throw new Error('day count');
   if ((await page.$$('.exc')).length !== 2) throw new Error('exercise count');
 });

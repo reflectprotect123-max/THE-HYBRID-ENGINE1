@@ -9,7 +9,7 @@
   @font-face{font-family:'Inter';src:url('fonts/inter-var.woff2') format('woff2');font-weight:100 900;font-display:swap;font-style:normal}
   :root{
     --nav:#0f131b; --nav2:#171c26; --nav-line:rgba(255,255,255,.07);
-    --rail-ico:#8b93a1; --rail-on:#ffffff;
+    --rail-ico:#8b93a1;
     --orange:#ef8b3c; --orange-soft:rgba(239,139,60,.14);
     --beige:#efece4; --panelw:#f6f4ef; --panel:#ffffff; --panel2:#fbfaf6;
     --ink:#232830; --ink2:#5c636e; --faint:#98a0aa;
@@ -53,7 +53,6 @@
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{font-family:var(--ff);color:var(--ink);background:var(--beige);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
-  .tnum{font-variant-numeric:tabular-nums}
   ::-webkit-scrollbar{width:12px;height:12px}
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:8px;border:3px solid transparent;background-clip:padding-box}
@@ -77,7 +76,6 @@
   .tico{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:var(--nav-ico);cursor:pointer;position:relative;transition:background .15s,color .15s;background:none;border:none}
   .tico:hover{background:var(--nav2);color:var(--on-dark)}
   .tico svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.8;fill:none}
-  .tico .badge{position:absolute;top:4px;right:4px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--orange);color:var(--on-accent-deep);font-size:9px;font-weight:800;display:grid;place-items:center}
   .avatar{width:32px;height:32px;border-radius:50%;background:var(--nav-avatar);display:grid;place-items:center;color:var(--nav-avatar-ink);font-weight:700;font-size:12px;cursor:pointer;border:1px solid rgba(255,255,255,.12);font-family:inherit}
 
   .body{flex:1;min-height:0;display:grid;grid-template-columns:80px 300px 1fr}
@@ -264,7 +262,6 @@
   .card .x{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--faint);font-size:20px;cursor:pointer}
   .card .err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:1px}
   .card .muted{color:var(--faint);font-size:12px;margin-top:14px;text-align:center}
-  .card .muted a{color:var(--blue);cursor:pointer;text-decoration:none}
 
   @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style>

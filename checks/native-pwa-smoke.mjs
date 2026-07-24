@@ -163,7 +163,9 @@ async function run() {
       [/const LS_KEY='hybrid-engine-v1'/, 'local-first persistence key'],
       [/s-home/, 'Home screen'],
       [/s-training/, 'Training screen'],
-      [/s-logger/, 'Logger screen'],
+      // The legacy standalone logger screen was retired; the live logger is the
+      // accordion renderSession() paints into #s-training. Assert that instead.
+      [/loggerlist/, 'logger accordion'],
       [/s-builder/, 'Builder screen'],
       [/s-settings/, 'Settings screen'],
       [/restchip/, 'non-blocking rest chip'],

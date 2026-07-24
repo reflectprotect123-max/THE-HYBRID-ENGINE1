@@ -43,7 +43,7 @@
       dayM('Conditioning', 'Conditioning', [exM('Row', ['Time (min:sec)', 'Distance (meters)'], [['20:00', '']])]),
       null
     ] };
-    return { id: uid(), name: 'SANDBOX – test – delete me', weeks: [w1, emptyWeek(), emptyWeek(), emptyWeek()] };
+    return { id: uid(), name: 'Sample Program', weeks: [w1, emptyWeek(), emptyWeek(), emptyWeek()] };
   }
 
   var LIB = null;
