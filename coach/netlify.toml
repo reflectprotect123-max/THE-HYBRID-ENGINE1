@@ -1,0 +1,6 @@
+# Coach website (Entity 2) — deployed as a SEPARATE Netlify site from the same
+# repo. In the Netlify UI set this site's "Base directory" to `coach` so this
+# file is honored; publish is this folder itself.
+[build]
+  base = "coach"
+  publish = "."
