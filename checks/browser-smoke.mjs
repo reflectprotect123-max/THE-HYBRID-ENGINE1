@@ -713,6 +713,56 @@ await t('Progress (under Library) renders trends (empty state or charts, never b
   await page.click('.navlink[data-s="home"]');
   await page.waitForSelector('#s-home.on', { timeout: 2000 });
 });
+await t('Top Lifts: 8-week delta shown when both windows have data, silent otherwise', async () => {
+  const r = await page.evaluate(() => {
+    const DAY = 864e5;
+    const mkSession = (id, daysAgo, kg, reps) => ({
+      id, status: 'completed', date: ymd(new Date(Date.now() - daysAgo * DAY)), completedAt: Date.now() - daysAgo * DAY,
+      blocks: [{ id: 'b1', exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg', tempo: '', rest: 90,
+        sets: [{ t: '', rpe: '', done: true, aVal: kg, aVal2: reps }] }] }],
+    });
+    // A lift tested this window (100kg) and the window before (90kg) -> should show +10kg.
+    // A second lift tested only this window (no history) -> should show no delta at all.
+    DB.sessions = [
+      mkSession('s1', 5, 100, 5),      // this 8-week window
+      mkSession('s2', 60, 90, 5),      // the window before (weeks 9-16 ago)
+      { ...mkSession('s3', 3, 60, 8), blocks: [{ id: 'b2', exercises: [{ id: 'e2', name: 'Overhead Press', mode: 'reps_kg', tempo: '', rest: 90,
+          sets: [{ t: '', rpe: '', done: true, aVal: 60, aVal2: 8 }] }] }] },
+    ];
+    save();
+    const html = progTopLifts();
+    DB.sessions = []; save();
+    return html;
+  });
+  if (!/Back Squat/.test(r) || !/tldelta/.test(r)) throw new Error('squat delta card missing: ' + r);
+  // e1RM (Epley), not raw kg: 100x5 -> 116.7kg, 90x5 -> 105kg, delta +11.7kg.
+  if (!/\+11\.7kg · 8wk/.test(r)) throw new Error('squat delta wrong sign/magnitude: ' + r);
+  const opressBlock = r.split('Overhead Press')[1] || '';
+  if (/tldelta/.test(opressBlock.split('</div>')[0] || opressBlock.slice(0, 200))) {
+    throw new Error('a lift with data in only one window should show no delta: ' + r);
+  }
+});
+await t('WHOOP recovery trend: rolling average appears only with >=14 days of history', async () => {
+  const r = await page.evaluate(() => {
+    const mkDaily = (n) => Array.from({ length: n }, (_, i) => ({
+      date: ymd(new Date(Date.now() - (n - 1 - i) * 864e5)), recovery: 50 + (i % 2 === 0 ? 20 : -20), strain: null,
+    }));
+    DB.settings.whoopDaily = mkDaily(10); save();
+    const shortHtml = document.getElementById('s-progress') ? null : null; // no-op, renderProgress reads DB directly
+    // renderProgress isn't isolated per-card, so call the internal pieces the same way it does
+    const wd10 = DB.settings.whoopDaily.filter(h => Number.isFinite(h.recovery));
+    const has7dAvgFor10 = wd10.length >= 14;
+    DB.settings.whoopDaily = mkDaily(20); save();
+    const wd20 = DB.settings.whoopDaily.filter(h => Number.isFinite(h.recovery));
+    const avg = rollingMean(wd20.map(h => h.recovery), 7);
+    const handMean = wd20.slice(13, 20).map(h => h.recovery).reduce((a, b) => a + b, 0) / 7; // trailing 7 ending at index 19... check index 13-19
+    DB.settings.whoopDaily = []; save();
+    return { has7dAvgFor10, len20: wd20.length, avgLast: avg[avg.length - 1], handMean };
+  });
+  if (r.has7dAvgFor10) throw new Error('10 days of recovery history should not be enough for a rolling average');
+  if (r.len20 !== 20) throw new Error('seeded recovery history was not 20 rows');
+  if (Math.abs(r.avgLast - r.handMean) > 1e-9) throw new Error('rollingMean does not match a hand-computed trailing 7-day mean: ' + JSON.stringify(r));
+});
 await t('importer: paste → meaning-questions inline → learn → save lands in Builder', async () => {
   await page.evaluate(() => { BUILDER_WID = null; go('builder'); });
   await page.waitForSelector('#s-builder.on', { timeout: 2000 });

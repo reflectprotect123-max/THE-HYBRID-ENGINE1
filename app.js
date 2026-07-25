@@ -962,17 +962,46 @@ function renderExHist(){
   h+='</div>';
   el.innerHTML=h;
 }
-/* Top lifts card for Progress: best e1RM per movement, top 5. */
-function progTopLifts(){
+const WEEK_MS=7*864e5;
+/* Best e1RM per lift within [from, to) ms, keyed lowercase. Shared by the
+   current-best pass and the 8-week comparison so both read the same sets the
+   same way. */
+function bestE1rmByLift(fromMs,toMs){
   const names=new Map();
-  DB.sessions.filter(s=>s.status!=='active').forEach(s=>s.blocks.forEach(b=>blockExercises(b).forEach(e=>{
-    if(!isLiftMode(e.mode))return;const k=String(e.name||'').trim();if(!k)return;
-    e.sets.forEach(st=>{const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null){const cur=names.get(k.toLowerCase());if(!cur||e1>cur.e1)names.set(k.toLowerCase(),{name:k,e1,kg:+st.aVal,reps:+st.aVal2});}});
-  })));
-  const top=[...names.values()].sort((a,b)=>b.e1-a.e1).slice(0,5);
+  DB.sessions.filter(s=>s.status!=='active').forEach(s=>{
+    const t=Date.parse(s.date+'T12:00:00');
+    if(!Number.isFinite(t)||t<fromMs||t>=toMs)return;
+    s.blocks.forEach(b=>blockExercises(b).forEach(e=>{
+      if(!isLiftMode(e.mode))return;const k=String(e.name||'').trim();if(!k)return;
+      e.sets.forEach(st=>{const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null){const cur=names.get(k.toLowerCase());if(!cur||e1>cur.e1)names.set(k.toLowerCase(),{name:k,e1,kg:+st.aVal,reps:+st.aVal2});}});
+    }));
+  });
+  return names;
+}
+/* Top lifts card for Progress: best e1RM per movement, top 5, each with a
+   delta against the SAME lift's best 8-16 weeks ago. Compares two already-
+   trusted numbers across two windows - no new science, no invented constant.
+   The 8-week window is the owner's own testing cadence, not a derived one.
+   A lift missing from either window shows no delta rather than a fabricated
+   one (silent until confident). */
+function progTopLifts(){
+  const now=Date.now();
+  const cur=bestE1rmByLift(now-8*WEEK_MS,now+864e5);
+  const prev=bestE1rmByLift(now-16*WEEK_MS,now-8*WEEK_MS);
+  const top=[...cur.values()].sort((a,b)=>b.e1-a.e1).slice(0,5);
   if(!top.length)return '';
   let inner='';
-  top.forEach(t=>{inner+='<div class="toplift" data-click="openExHist" data-args="[&quot;'+esc(t.name)+'&quot;]"><b>'+esc(t.name)+'</b><span class="v">'+(Math.round(t.e1*10)/10)+'kg · '+t.kg+'×'+t.reps+'</span><span class="chev">›</span></div>';});
+  top.forEach(t=>{
+    const p=prev.get(t.name.toLowerCase());
+    let delta='';
+    if(p){
+      const d=Math.round((t.e1-p.e1)*10)/10;
+      const c=d>0.05?PAL.ok:d<-0.05?PAL.zoneRed:PAL.dim;
+      const label=Math.abs(d)<=0.05?'no change':((d>0?'+':'−')+Math.abs(d)+'kg');
+      delta='<span class="tldelta" style="color:'+c+'">'+esc(label)+' · 8wk</span>';
+    }
+    inner+='<div class="toplift" data-click="openExHist" data-args="[&quot;'+esc(t.name)+'&quot;]"><b>'+esc(t.name)+'</b><span class="v">'+(Math.round(t.e1*10)/10)+'kg · '+t.kg+'×'+t.reps+'</span>'+delta+'<span class="chev">›</span></div>';
+  });
   return '<div class="card chartcard" style="margin-top:14px"><div class="chart-head"><h2>Top lifts</h2><span class="csub">est 1RM · tap for history</span></div>'+inner+'</div>';
 }
 
@@ -2035,6 +2064,17 @@ function chartLines(series,xlabels,domain,unit){
   });
   return '<div class="chart"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Line chart">'+g+lab+paths+'</svg></div>';
 }
+/* Trailing mean over the last `win` points (fewer at the start of the series).
+   Plain arithmetic, not a model - used to smooth an already-trusted number,
+   not to derive a new one. */
+function rollingMean(vals,win){
+  const out=new Array(vals.length).fill(null);
+  for(let i=0;i<vals.length;i++){
+    const from=Math.max(0,i-win+1),slice=vals.slice(from,i+1).filter(v=>v!=null);
+    out[i]=slice.length?slice.reduce((a,b)=>a+b,0)/slice.length:null;
+  }
+  return out;
+}
 function fmtK(v){v=Math.round(v);return v>=1000?(v/1000).toFixed(v>=10000?0:1).replace(/\.0$/,'')+'k':String(v);}
 function chartCard(title,sub,inner,legend){return '<div class="card chartcard"><div class="chart-head"><h2>'+esc(title)+'</h2>'+(sub?'<span class="csub">'+esc(sub)+'</span>':'')+'</div>'+(legend||'')+inner+'</div>';}
 function renderProgress(){
@@ -2064,12 +2104,25 @@ function renderProgress(){
     const legend='<div class="legend"><span><i style="background:'+PAL.zoneMod+'"></i>Planned</span><span><i style="background:'+PAL.zoneBlue+'"></i>Felt</span></div>';
     rpeCard=chartCard('Planned vs felt RPE','last '+rpeRows.length+' sessions',chartLines(series,xl,[lo,hi],''),legend);
   }
-  // WHOOP recovery (persisted daily history)
-  const wd=(DB.settings.whoopDaily||[]).filter(h=>Number.isFinite(h.recovery)).slice(-14);
+  // WHOOP recovery (persisted daily history) - the full retained window, not
+  // just the last 14 days. 14 days of a score that bounces +-20 points night
+  // to night reads as noise, not a trend; showing everything WHOOP has given
+  // us (whoopDaily is already kept up to 120 days, app.js:1937) plus a rolling
+  // average is what actually answers "recovering better over time?".
+  const wd=(DB.settings.whoopDaily||[]).filter(h=>Number.isFinite(h.recovery));
   let recCard='';
   if(wd.length>=2){
     const xl=wd.map(h=>{const p=h.date.split('-');return (+p[1])+'/'+(+p[2]);});
-    recCard=chartCard('WHOOP recovery','last '+wd.length+' days',chartLines([{name:'Recovery',color:PAL.ok,pts:wd.map(h=>h.recovery)}],xl,[0,100],'%'));
+    const raw=wd.map(h=>h.recovery);
+    const series=[{name:'Recovery',color:PAL.ok,pts:raw}];
+    let legend='';
+    const RECOVERY_TREND_MIN_DAYS=14;   // fewer points than this and a 7-day mean is mostly edge effects
+    if(wd.length>=RECOVERY_TREND_MIN_DAYS){
+      const avg=rollingMean(raw,7);
+      series.push({name:'7-day avg',color:PAL.gold2,pts:avg});
+      legend='<div class="legend"><span><i style="background:'+PAL.ok+'"></i>Daily</span><span><i style="background:'+PAL.gold2+'"></i>7-day avg</span></div>';
+    }
+    recCard=chartCard('WHOOP recovery','last '+wd.length+' days',chartLines(series,xl,[0,100],'%'),legend);
   }
   el.innerHTML=head+stats+volCard+progTopLifts()+rpeCard+recCard+progConditioningCards()+
     (rpeCard?'':'<div class="card guidebar" style="margin-top:16px"><b>Tip:</b> add target RPE in the Builder and log the RPE you felt — a planned-vs-felt trend appears here.</div>');

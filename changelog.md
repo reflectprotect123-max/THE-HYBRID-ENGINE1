@@ -1,5 +1,21 @@
 # Changelog
 
+## Two trend cards: getting fitter, recovering over time — 27 July 2026
+
+- **Top Lifts now shows an 8-week delta.** Each of your top 5 lifts compares its
+  best estimated 1RM over the last 8 weeks against the 8 weeks before that —
+  `+5kg vs 8 weeks ago`, `no change`, or a drop. A lift you haven't tested heavy
+  in the last 16 weeks just shows nothing, rather than a made-up number.
+- **WHOOP recovery is now a real trend, not a fortnight of noise.** The chart
+  used to show only the last 14 days, which mostly just shows how much your
+  recovery bounces night to night. It now shows your full history (up to ~4
+  months) with a 7-day rolling-average line laid over the daily one, so you can
+  actually see whether it's trending up or down. The rolling line only appears
+  once you've got at least 14 days of data — before that it's just the raw
+  daily line, same as today.
+
+Both reuse numbers the app already trusts — no new tracking, no new science.
+
 ## Training model: correctness pass — 27 July 2026
 
 A full audit of the conditioning engine found that a number of its numbers were
