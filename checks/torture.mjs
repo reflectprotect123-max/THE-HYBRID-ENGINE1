@@ -37,35 +37,24 @@ await page.goto(base + '/', { waitUntil: 'networkidle' });
 
 /* ============ PART 1 — a full, realistic workout ============ */
 await t('build a full workout using all six modes + superset + schedule', async () => {
-  // The app no longer auto-seeds — construct a 6-block workout and open the Builder on it.
+  // Sessions are created via the importer now, not a manual Builder - construct
+  // the saved-workout shape directly (same shape the importer produces) and
+  // start it, exercising the same logger/runtime path this test is really for.
   await page.evaluate(() => {
-    WK = { id: uid(), name: '', days: [], dates: [], blocks: [
-      { id: uid(), heading: 'Warm-up', minutes: '8', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'seconds', tempo: '', rest: 0, sets: [{ t: '120', rpe: '' }] }] },
+    const today = new Date().getDay();
+    const w = { id: uid(), name: 'Break Test — Full Day', days: [today], dates: [], blocks: [
+      { id: uid(), heading: 'Warm-up', minutes: '8', format: '', superset: false, exercises: [{ id: uid(), name: 'Bike erg', mode: 'seconds', tempo: '', rest: 0, sets: [{ t: '120', rpe: '' }] }] },
       { id: uid(), heading: 'Prep', minutes: '', format: 'Superset', superset: true, exercises: [
-        { id: uid(), name: '', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '15', rpe: '' }] },
-        { id: uid(), name: '', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '10', rpe: '' }] }] },
-      { id: uid(), heading: 'Strength 1', minutes: '15', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 180, sets: [{ t: '8', rpe: '8' }, { t: '8', rpe: '8' }] }] },
-      { id: uid(), heading: 'Strength 2', minutes: '12', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 120, sets: [{ t: '10', rpe: '7' }] }] },
-      { id: uid(), heading: 'Finisher', minutes: '8', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'reps_kg', tempo: '', rest: 90, sets: [{ t: '40', rpe: '8' }] }] },
-      { id: uid(), heading: 'Cooldown', minutes: '5', format: '', superset: false, exercises: [{ id: uid(), name: '', mode: 'completion', tempo: '', rest: 0, sets: [{ t: '', rpe: '' }] }] }
+        { id: uid(), name: 'Band pull-apart', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '15', rpe: '' }] },
+        { id: uid(), name: 'Scap push-up', mode: 'reps', tempo: '', rest: 0, sets: [{ t: '10', rpe: '' }] }] },
+      { id: uid(), heading: 'Strength 1', minutes: '15', format: '', superset: false, exercises: [{ id: uid(), name: 'Incline Bench', mode: 'reps_kg', tempo: '30X1', rest: 180, sets: [{ t: '8', rpe: '8' }, { t: '8', rpe: '8' }] }] },
+      { id: uid(), heading: 'Strength 2', minutes: '12', format: '', superset: false, exercises: [{ id: uid(), name: 'Chin-up', mode: 'amrap', tempo: '', rest: 120, sets: [{ t: '10', rpe: '7' }] }] },
+      { id: uid(), heading: 'Finisher', minutes: '8', format: '', superset: false, exercises: [{ id: uid(), name: 'Farmer carry', mode: 'reps_seconds', tempo: '', rest: 90, sets: [{ t: '40', rpe: '8' }] }] },
+      { id: uid(), heading: 'Cooldown', minutes: '5', format: '', superset: false, exercises: [{ id: uid(), name: 'Stretch flow', mode: 'completion', tempo: '', rest: 0, sets: [{ t: '', rpe: '' }] }] }
     ] };
-    BUILDER_WID = WK.id; EDIT_EXISTING = false; openBlock = -1; go('builder');
+    DB.workouts.push(w); save();
+    startWorkout(w.id);
   });
-  await page.fill('#wkName', 'Break Test — Full Day');
-  const today = await page.evaluate(() => new Date().getDay());
-  await page.click(`#s-builder .daychip:nth-of-type(${today + 1})`);
-  // name every exercise & set modes across the blocks
-  await page.evaluate(() => {
-    WK.blocks[0].exercises[0].name = 'Bike erg';
-    WK.blocks[1].exercises[0].name = 'Band pull-apart';
-    WK.blocks[1].exercises[1].name = 'Scap push-up';
-    WK.blocks[2].exercises[0].name = 'Incline Bench'; WK.blocks[2].exercises[0].tempo = '30X1';
-    WK.blocks[3].exercises[0].name = 'Chin-up'; WK.blocks[3].exercises[0].mode = 'amrap';
-    WK.blocks[4].exercises[0].name = 'Farmer carry'; WK.blocks[4].exercises[0].mode = 'reps_seconds';
-    WK.blocks[5].exercises[0].name = 'Stretch flow';
-    renderBuilder();
-  });
-  await page.click('#s-builder .completebar .bigbtn');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
 });
 await t('log EVERY set of EVERY exercise like a real session', async () => {
@@ -133,23 +122,36 @@ await t('XSS: hostile names everywhere never execute', async () => {
   await page.waitForSelector('#s-training.on');
   await page.evaluate(() => { openLogger(0, 0); });
   await page.evaluate(() => { setActual(0, 1, '<img src=x onerror="window.__xss=1">'); tickSet(0); stopRest(); });
-  await page.evaluate(() => { editWorkout(DB.workouts[DB.workouts.length - 1].id); });
-  await page.waitForSelector('#s-builder.on');
+  await page.evaluate(() => { renderLibrary(); go('library'); });
+  await page.waitForSelector('#s-library.on');
   await page.waitForTimeout(400);
   const xss = await page.evaluate(() => window.__xss);
   if (xss) throw new Error('XSS EXECUTED');
-  await page.evaluate(() => { BUILDER_WID = DB.workouts[DB.workouts.length - 1].id; deleteCurrentWorkout(); });
+  await page.evaluate(() => {
+    const id = DB.workouts[DB.workouts.length - 1].id;
+    DB.workouts = DB.workouts.filter((x) => x.id !== id);
+    DB.sessions = DB.sessions.filter((s) => s.workoutId !== id);
+    CUR_SESSION = null; save();
+  });
 });
-await t('empty workout: delete every block, try to run it', async () => {
-  await page.evaluate(() => { WK = { id: uid(), name: 'Empty', blocks: [] }; BUILDER_WID = WK.id; EDIT_EXISTING = false; go('builder'); });
-  await page.click('#s-builder .completebar .bigbtn');
+await t('empty workout: zero blocks, try to run it', async () => {
+  await page.evaluate(() => {
+    const w = { id: uid(), name: 'Empty', days: [], dates: [], blocks: [] };
+    DB.workouts.push(w); save();
+    startWorkout(w.id);
+  });
   await page.waitForTimeout(300);
-  const state = await page.evaluate(() => ({ screen: CURRENT, sess: DB.sessions.filter((s) => s.name === 'Empty').length }));
-  // acceptable outcomes: refuses to leave builder, or session exists but can't be "all done"
+  const state = await page.evaluate(() => ({ sess: DB.sessions.filter((s) => s.name === 'Empty').length }));
+  // acceptable outcomes: no session, or a session that exists but can't be "all done"
   if (state.sess) {
-    const finishable = await page.evaluate(() => { const s = DB.sessions.find((x) => x.name === 'Empty' && x.status === 'active'); return s ? s.blocks.every((b) => b.exercises.every((e) => e.sets.every((st) => st.done))) && true : false; });
+    const finishable = await page.evaluate(() => { const s = DB.sessions.find((x) => x.name === 'Empty' && x.status === 'active'); return s ? sessionAllDone(s) : false; });
     if (finishable) throw new Error('empty session is instantly finishable (vacuous truth)');
   }
+  await page.evaluate(() => {
+    DB.workouts = DB.workouts.filter((w) => w.name !== 'Empty');
+    DB.sessions = DB.sessions.filter((s) => s.name !== 'Empty');
+    CUR_SESSION = null; save(); go('home');
+  });
 });
 await t('corrupted localStorage: garbage JSON boots clean', async () => {
   await page.evaluate(() => localStorage.setItem('hybrid-engine-v1', '{{{{not json'));
@@ -207,14 +209,21 @@ await t('absurd inputs: negative, huge, emoji, 10k-char name', async () => {
   const chip = await page.$eval('#restchip', (el) => el.classList.contains('show'));
   if (!chip) throw new Error('rest did not start for huge rest value');
   await page.click('#restchip');
-  await page.evaluate(() => { BUILDER_WID = DB.workouts[DB.workouts.length - 1].id; deleteCurrentWorkout(); });
+  await page.evaluate(() => {
+    const id = DB.workouts[DB.workouts.length - 1].id;
+    DB.workouts = DB.workouts.filter((x) => x.id !== id);
+    DB.sessions = DB.sessions.filter((s) => s.workoutId !== id);
+    CUR_SESSION = null; save();
+  });
 });
 await t('spam: 30 blocks, 50 sets, rapid tick/untick, rapid prev/next', async () => {
   await page.evaluate(() => {
-    WK = templateWorkout(); WK.name = 'Spam'; BUILDER_WID = WK.id; EDIT_EXISTING = false;
-    for (let i = 0; i < 30; i++) addBlock();
-    for (let i = 0; i < 47; i++) bumpSets(2, 0, 1);
-    previewWorkout();
+    const w = { id: uid(), name: 'Spam', days: [], dates: [], blocks: Array.from({ length: 30 }, () => newBlock()) };
+    // pad block[2]'s exercise to 50 sets (matches the old addBlock/bumpSets torture shape)
+    const ex = w.blocks[2].exercises[0];
+    ex.sets = Array.from({ length: 50 }, (_, i) => ({ t: ex.sets[0]?.t || '', rpe: ex.sets[0]?.rpe || '' }));
+    DB.workouts.push(w); save();
+    startWorkout(w.id);
   });
   await page.waitForSelector('#s-training.on');
   await page.evaluate(() => openLogger(2, 0));
@@ -223,7 +232,12 @@ await t('spam: 30 blocks, 50 sets, rapid tick/untick, rapid prev/next', async ()
   const db = await S();
   const spam = db.sessions.find((s) => s.name === 'Spam' && s.status === 'active');
   if (!spam) throw new Error('spam session lost');
-  await page.evaluate(() => { BUILDER_WID = DB.workouts.find((w) => w.name === 'Spam').id; deleteCurrentWorkout(); });
+  await page.evaluate(() => {
+    const id = DB.workouts.find((w) => w.name === 'Spam').id;
+    DB.workouts = DB.workouts.filter((x) => x.id !== id);
+    DB.sessions = DB.sessions.filter((s) => s.workoutId !== id);
+    CUR_SESSION = null; save();
+  });
 });
 await t('history navigation 400 days back and forth', async () => {
   await page.evaluate(() => openHistory(ymd(new Date())));

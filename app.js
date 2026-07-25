@@ -74,8 +74,22 @@ document.addEventListener('click',e=>{const el=e.target.closest('[data-click]');
 document.addEventListener('input',e=>{const el=e.target.closest('[data-input]');if(el)_hbRun(el,el.getAttribute('data-input'),e);});
 document.addEventListener('change',e=>{const el=e.target.closest('[data-change]');if(el)_hbRun(el,el.getAttribute('data-change'),e);});
 function noop(){}
-function setWkName(v){WK.name=v;}
 function triggerImport(){const el=document.getElementById('importFile');if(el)el.click();}
+
+/* ---- sheet/option icons: one stroke system, no emoji ---- */
+function _ico(p,sw){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+(sw||1.6)+'" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px">'+p+'</svg>';}
+function icoBarbell(){return _ico('<path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/>');}
+function icoHeart(){return _ico('<path d="M12 20s-7-4.4-7-9.4A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.6c0 5-7 9.4-7 9.4z"/>');}
+function icoTrash(){return _ico('<path d="M4 7h16M9 7V5h6v2M6.5 7l.8 12h9.4l.8-12M10.5 11v5M13.5 11v5"/>');}
+function icoCopy(){return _ico('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5.5A1.5 1.5 0 0 0 13.5 4H5.5A1.5 1.5 0 0 0 4 5.5v8A1.5 1.5 0 0 0 5.5 15"/>');}
+function icoCal(){return _ico('<rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3.5v4M15 3.5v4"/>');}
+function icoCheck(){return _ico('<path d="M4.5 12.5 9.5 17.5 19.5 7"/>',1.8);}
+function icoPlus(){return _ico('<path d="M12 5v14M5 12h14"/>',1.8);}
+function icoDoc(){return _ico('<path d="M6 3.5h7l5 5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M13 3.5V9h5M8.5 13h7M8.5 16.5h5"/>');}
+function icoMic(){return _ico('<rect x="9.5" y="3.5" width="5" height="10" rx="2.5"/><path d="M6 11.5a6 6 0 0 0 12 0M12 17.5V21"/>');}
+function icoCam(){return _ico('<path d="M4 8.5h3.2l1.4-2h6.8l1.4 2H20a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.2"/>');}
+function icoStop(){return _ico('<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>');}
+function icoLibrary(){return _ico('<path d="M5 4.5h3.4v15H5zM10.2 4.5h3.4v15h-3.4zM16.2 5.4l3.1.8-3.6 13.9-3.1-.8z"/>');}
 
 /* ---------- shared training model ---------- */
 const MODES={
@@ -123,8 +137,8 @@ function go(id,btn){
   if(scr){scr.classList.add('on');scr.classList.remove('anim');void scr.offsetWidth;scr.classList.add('anim');}
   document.querySelectorAll('.navlink').forEach(b=>b.classList.remove('active'));
   // The logger is a detail view of Training — keep Training lit while logging.
-  // Builder, Conditioning, Progress and exercise-history all live under Library now.
-  const LIB_SCREENS={library:1,builder:1,conditioning:1,progress:1,exhist:1};
+  // Conditioning, Progress and exercise-history all live under Library now.
+  const LIB_SCREENS={library:1,conditioning:1,progress:1,exhist:1};
   const navId=id==='recap'?'training'
     :LIB_SCREENS[id]?'library'
     :(id==='history'||id==='import'||id==='calendar')?'home':id;
@@ -149,7 +163,6 @@ function renderScreen(id){
   if(id==='home')renderHome();
   else if(id==='training')renderTraining();
   else if(id==='library')renderLibrary();
-  else if(id==='builder')renderBuilder();
   else if(id==='settings')renderSettings();
   else if(id==='history')renderHistory();
   else if(id==='progress')renderProgress();
@@ -227,14 +240,14 @@ function calDay(key){
       const canStart=key===todayKey,oneOff=(w.dates||[]).includes(key);
       let action=canStart?'<button class="tpadd" data-click="calStart" data-args="[&quot;'+esc(w.id)+'&quot;]">Start</button>':'';
       if(oneOff)action+='<button class="tpmenu" aria-label="Unschedule" title="Remove from this day" data-click="calUnschedule" data-args="[&quot;'+esc(w.id)+'&quot;,&quot;'+key+'&quot;]">✕</button>';
-      h+='<div class="bigopt" style="cursor:default"><span class="oi">'+(isCondWorkout(w)?'❤️':'🏋️')+'</span><div style="flex:1;min-width:0"><b>'+esc(w.name||'Untitled session')+'</b><span>'+esc(tplSummary(w))+'</span></div>'+action+'</div>';
+      h+='<div class="bigopt" style="cursor:default"><span class="oi">'+(isCondWorkout(w)?icoHeart():icoBarbell())+'</span><div style="flex:1;min-width:0"><b>'+esc(w.name||'Untitled session')+'</b><span>'+esc(tplSummary(w))+'</span></div>'+action+'</div>';
     });
   }
   if(trained.length){
     h+='<p class="ssub" style="margin-top:12px">Done</p>';
-    trained.forEach(s=>{h+='<button class="bigopt" data-click="calHist" data-args="[&quot;'+key+'&quot;]"><span class="oi">✅</span><div><b>'+esc(s.name||'Session')+'</b><span>'+(s.status==='incomplete'?'incomplete':'completed')+'</span></div></button>';});
+    trained.forEach(s=>{h+='<button class="bigopt" data-click="calHist" data-args="[&quot;'+key+'&quot;]"><span class="oi">'+icoCheck()+'</span><div><b>'+esc(s.name||'Session')+'</b><span>'+(s.status==='incomplete'?'incomplete':'completed')+'</span></div></button>';});
   }
-  if(key>=todayKey)h+='<button class="bigopt" data-click="calAdd" data-args="[&quot;'+key+'&quot;]"><span class="oi">＋</span><div><b>Add a session</b><span>Schedule strength or conditioning for this day</span></div></button>';
+  if(key>=todayKey)h+='<button class="bigopt" data-click="calAdd" data-args="[&quot;'+key+'&quot;]"><span class="oi">'+icoPlus()+'</span><div><b>Add a session</b><span>Schedule strength or conditioning for this day</span></div></button>';
   if(!planned.length&&!trained.length&&key<todayKey)h+='<p class="ssub">Nothing logged this day.</p>';
   h+='<button class="cancel" data-click="closeSheet">Close</button>';
   openSheet(h);
@@ -351,7 +364,7 @@ function renderHome(){
     cards+=sessionCardHtml(Object.assign({},w,{name:act.name||w.name}),'In progress · resume','openSession',act.id);
   }
   if(!wc){
-    cards+='<div class="card sessioncard" data-click="openAddSheet"><div class="sc-kicker">Start here</div><h3>No sessions yet</h3><div class="sc-meta">Tap + to build a session — strength or conditioning — and schedule it for today or a day ahead.</div><div class="sc-chips"><span class="chip gold">+ Add a session</span></div></div>';
+    cards+='<div class="card sessioncard" data-click="openAddSheet"><div class="sc-kicker">Start here</div><h3>No sessions yet</h3><div class="sc-meta">Import your first session from text, a photo or your voice — then schedule it for today or a day ahead.</div><div class="sc-chips"><span class="chip gold">+ Add a session</span></div></div>';
   } else {
     // Home shows what's on for TODAY (recurring or one-off scheduled). Templates
     // that aren't scheduled live in the Library, not on the front page.
@@ -361,7 +374,7 @@ function renderHome(){
       cards+=sessionCardHtml(w,'Today · '+workoutKind(w),'startWorkout',w.id);
     });
     if(!act&&!todayList.length){
-      cards+='<div class="card sessioncard empty-plan"><div class="sc-kicker">Nothing on today</div><h3>Rest day</h3><div class="sc-meta">Tap + to build a session or add one from your Library — schedule it for today or a day ahead.</div></div>';
+      cards+='<div class="card sessioncard empty-plan"><div class="sc-kicker">Nothing on today</div><h3>Rest day</h3><div class="sc-meta">Nothing scheduled. Add a session from your Library whenever you are ready.</div></div>';
     }
   }
   // the one dominant tap: resume the live session, or start today's scheduled workout
@@ -627,7 +640,6 @@ function renderTraining(){
 }
 
 /* ---------- workout CRUD ---------- */
-function editWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;WK=JSON.parse(JSON.stringify(w));BUILDER_WID=id;EDIT_EXISTING=true;openBlock=-1;go('builder');}
 function hasLoggedWork(s){return s&&s.blocks.some(b=>(isCond(b)&&b.condResult)||blockExercises(b).some(e=>e.sets.some(st=>st.done||st.aVal||st.aVal2||st.felt)));}
 /* Deep-clone a workout's blocks into a pristine session shape: strength sets
    cleared, conditioning blocks reset (no result yet). One helper so every
@@ -639,36 +651,6 @@ function freshSessionBlocks(blocks){
     return b;
   });
 }
-function previewWorkout(){
-  if(!WK.name.trim())WK.name='Untitled workout';
-  if(!WK.blocks.some(b=>isCond(b)||blockExercises(b).length)){alert('Add at least one block with an exercise before previewing.');return;}
-  const i=DB.workouts.findIndex(x=>x.id===WK.id);
-  const clean=stampWorkout(JSON.parse(JSON.stringify(WK)));
-  if(i>=0)DB.workouts[i]=clean;else DB.workouts.push(clean);
-  EDIT_EXISTING=true;BUILDER_WID=WK.id;
-  // refresh (or open) the live session for this workout — but never wipe logged sets
-  let s=DB.sessions.find(x=>x.workoutId===WK.id&&x.status==='active');
-  if(s&&!hasLoggedWork(s)){
-    s.name=clean.name;
-    s.blocks=freshSessionBlocks(clean.blocks);
-  }
-  save();
-  // Scheduled for a future day only (no recurring weekday, no date today)? Save it
-  // to the Calendar instead of starting a live session today.
-  const todayKey=ymd(new Date());
-  const futureOnly=!s&&Array.isArray(clean.dates)&&clean.dates.length&&!clean.dates.includes(todayKey)&&
-    !((clean.days||[]).includes(new Date().getDay()))&&clean.dates.every(k=>k>todayKey);
-  if(futureOnly){
-    LOG_LOC=null;
-    toast((clean.name||'Session')+' saved for '+prettyDay(clean.dates.slice().sort()[0]));
-    go('calendar');
-    return;
-  }
-  if(s)CUR_SESSION=s.id;else{CUR_SESSION=null;const w=DB.workouts.find(x=>x.id===WK.id);if(w){const ns={id:uid(),workoutId:w.id,name:w.name,date:ymd(new Date()),status:'active',startedAt:Date.now(),blocks:freshSessionBlocks(w.blocks)};DB.sessions.push(ns);CUR_SESSION=ns.id;save();}}
-  LOG_LOC=null;
-  go('training');
-}
-
 /* ---------- start / open a live session ---------- */
 function startWorkout(workoutId){
   const w=DB.workouts.find(x=>x.id===workoutId);if(!w)return;
@@ -765,7 +747,7 @@ function lgOpenCard(s,b,ex,bi,ei,letter){
 }
 function renderSession(){
   const el=document.getElementById('s-training');const s=curSession();
-  if(!s){el.innerHTML='<div class="card empty" style="margin-top:20px"><div class="ei">'+svgDumbbell()+'</div><div class="kicker">Training</div><h3>No workout yet</h3><p>Build a session first — then it runs here, set by set.</p><button class="addbtn solid" style="margin-top:14px;max-width:280px" data-click="go" data-args="[&quot;builder&quot;]">Open the Builder</button></div>';return}
+  if(!s){el.innerHTML='<div class="card empty" style="margin-top:20px"><div class="ei">'+svgDumbbell()+'</div><div class="kicker">Training</div><h3>Nothing to run yet</h3><p>Add a session from your Library and it plays out here, set by set.</p><button class="addbtn solid" style="margin-top:14px;max-width:280px" data-click="go" data-args="[&quot;library&quot;]">Open Library</button></div>';return}
   const letters=sessionLetters(s);
   let sdone=0,stot=0;
   s.blocks.forEach(b=>{if(isCond(b)){stot++;if(b.condResult)sdone++;}else blockExercises(b).forEach(e=>{stot+=e.sets.length;sdone+=e.sets.filter(st=>st.done).length;});});
@@ -1119,9 +1101,6 @@ function resumeRest(){
   else if(ends){try{localStorage.removeItem(REST_KEY)}catch(e){}}
 }
 
-/* ---------- BUILDER ---------- */
-let WK={id:uid(),name:'',blocks:[newBlock()]},EDIT_EXISTING=false,openBlock=0;
-function refreshExNames(){const names=[...new Set(DB.workouts.flatMap(w=>w.blocks.flatMap(b=>blockExercises(b).map(e=>e.name).filter(Boolean))))];document.getElementById('exNames').innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join('');}
 /* ---------- EXERCISE SWAP (log time) ---------- */
 function swapNamePool(){
   const set=new Set();
@@ -1175,7 +1154,6 @@ function openPlateSheet(si){
     closest+
     '<button class="cancel" data-click="closeSheet">Close</button>');
 }
-let BUILDER_WID=null;
 /* ============================================================
    LIBRARY — one home for saved sessions, conditioning and progress,
    styled after the athlete app: a LIBRARY title, a tab strip, a
@@ -1208,7 +1186,7 @@ function renderLibrary(){
       '<input placeholder="Search sessions" value="'+esc(LIB_QUERY)+'" data-input="libSearch" data-args="[&quot;@value&quot;]"></div>'+
     (SCHED_DATE?'<div class="card guidebar" style="margin-top:12px">Adding to <b>'+esc(prettyDay(SCHED_DATE))+'</b> — tap <b>Add</b> on a session below, or create a new one. <button class="markall" style="padding:0;margin-left:4px;color:var(--dim)" data-click="clearSchedDate">cancel</button></div>':'')+
     '<div class="libsec-title">My Sessions</div>'+
-    '<button class="tplcreate" data-click="createSessionTemplate"><span class="pl">+</span><div><b>Create Session Template</b><span>Build a reusable session — strength or conditioning</span></div></button>'+
+    '<button class="tplcreate" data-click="openImport"><span class="pl">'+icoDoc()+'</span><div><b>Import a session</b><span>Paste text, upload a photo, or speak it</span></div></button>'+
     '<div id="libList"></div>';
   renderLibList();
 }
@@ -1218,7 +1196,7 @@ function libListHtml(){
   const q=LIB_QUERY.trim().toLowerCase();
   let list=DB.workouts.slice();
   if(q)list=list.filter(w=>((w.name||'').toLowerCase().includes(q))||(w.blocks||[]).some(b=>blockExercises(b).some(e=>(e.name||'').toLowerCase().includes(q))));
-  if(!list.length)return '<div class="tplempty">'+(q?'No sessions match &ldquo;'+esc(LIB_QUERY)+'&rdquo;.':'No saved sessions yet — create one above.')+'</div>';
+  if(!list.length)return '<div class="tplempty">'+(q?'No sessions match &ldquo;'+esc(LIB_QUERY)+'&rdquo;.':'Nothing saved yet — import your first session above.')+'</div>';
   return list.map(tplRowHtml).join('');
 }
 function tplSummary(w){
@@ -1229,7 +1207,7 @@ function tplSummary(w){
 }
 function tplRowHtml(w){
   const id=esc(w.id);
-  return '<div class="tplrow"><div class="tpm" style="cursor:pointer" data-click="editWorkout" data-args="[&quot;'+id+'&quot;]"><b>'+esc(w.name||'Untitled session')+'</b><span>'+esc(tplSummary(w))+'</span></div>'+
+  return '<div class="tplrow"><div class="tpm"><b>'+esc(w.name||'Untitled session')+'</b><span>'+esc(tplSummary(w))+'</span></div>'+
     '<button class="tpadd" data-click="tpAdd" data-args="[&quot;'+id+'&quot;]">Add</button>'+
     '<button class="tpmenu" aria-label="More options" data-click="tplMenu" data-args="[&quot;'+id+'&quot;]">⋮</button></div>';
 }
@@ -1247,12 +1225,10 @@ function clearSchedDate(){SCHED_DATE=null;renderLibrary();}
 function tplMenu(id){
   const w=DB.workouts.find(x=>x.id===id);if(!w)return;
   openSheet('<div class="grab"></div><h3>'+esc(w.name||'Untitled session')+'</h3><p class="ssub">'+esc(tplSummary(w))+'</p>'+
-    '<button class="bigopt" data-click="editWorkoutFromSheet" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">✏️</span><div><b>Edit session</b><span>Change blocks, exercises &amp; targets</span></div></button>'+
-    '<button class="bigopt" data-click="dupWorkout" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">⧉</span><div><b>Duplicate</b><span>Make a copy to tweak</span></div></button>'+
-    '<button class="bigopt" data-click="delWorkoutFromLib" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">🗑️</span><div><b>Delete</b><span>Remove from your Library</span></div></button>'+
+    '<button class="bigopt" data-click="dupWorkout" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">'+icoCopy()+'</span><div><b>Duplicate</b><span>Make a copy to tweak</span></div></button>'+
+    '<button class="bigopt" data-click="delWorkoutFromLib" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">'+icoTrash()+'</span><div><b>Delete</b><span>Remove from your Library</span></div></button>'+
     '<button class="cancel" data-click="closeSheet">Cancel</button>');
 }
-function editWorkoutFromSheet(id){closeSheet();editWorkout(id);}
 function dupWorkout(id){const w=DB.workouts.find(x=>x.id===id);if(!w)return;const c=stampWorkout(JSON.parse(JSON.stringify(w)));c.id=uid();c.name=(w.name||'Session')+' (copy)';c.dates=[];DB.workouts.push(c);save();closeSheet();renderLibrary();}
 function delWorkoutFromLib(id){
   const w=DB.workouts.find(x=>x.id===id);if(!w)return;
@@ -1273,8 +1249,8 @@ function cardMenu(id){
   const w=DB.workouts.find(x=>x.id===id);if(!w)return;
   const coach=w.origin==='coach';
   openSheet('<div class="grab"></div><h3>'+esc(w.name||'Session')+'</h3><p class="ssub">'+esc(tplSummary(w))+(coach?' · from your coach':'')+'</p>'+
-    '<button class="bigopt" data-click="cardMove" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">📅</span><div><b>Move</b><span>Reschedule to another day</span></div></button>'+
-    '<button class="bigopt" data-click="cardDelete" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">🗑️</span><div><b>Delete</b><span>'+(coach?'Removes the coach assignment too':'Remove this session')+'</span></div></button>'+
+    '<button class="bigopt" data-click="cardMove" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">'+icoCal()+'</span><div><b>Move</b><span>Reschedule to another day</span></div></button>'+
+    '<button class="bigopt" data-click="cardDelete" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">'+icoTrash()+'</span><div><b>Delete</b><span>'+(coach?'Removes the coach assignment too':'Remove this session')+'</span></div></button>'+
     '<button class="cancel" data-click="closeSheet">Cancel</button>');
 }
 function cardMove(id){
@@ -1282,7 +1258,7 @@ function cardMove(id){
   const cur=(w.dates&&w.dates[0])||ymd(new Date());
   openSheet('<div class="grab"></div><h3>Move session</h3><p class="ssub">Pick a new day for &ldquo;'+esc(w.name||'Session')+'&rdquo;.</p>'+
     '<input type="date" id="moveDate" class="dateinput" value="'+esc(cur)+'">'+
-    '<button class="bigopt" data-click="cardMoveTo" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">✅</span><div><b>Move here</b><span>Schedule it for the chosen day</span></div></button>'+
+    '<button class="bigopt" data-click="cardMoveTo" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">'+icoCheck()+'</span><div><b>Move here</b><span>Schedule it for the chosen day</span></div></button>'+
     '<button class="cancel" data-click="closeSheet">Cancel</button>');
 }
 function cardMoveTo(id){
@@ -1336,20 +1312,10 @@ document.addEventListener('pointerup',_lpClear,{passive:true});
 document.addEventListener('pointercancel',_lpClear,{passive:true});
 document.addEventListener('click',e=>{if(_lpFired){_lpFired=false;e.stopPropagation();e.preventDefault();}},true);
 document.addEventListener('contextmenu',e=>{if(e.target.closest('.sessioncard[data-args]'))e.preventDefault();});
-/* Create Session Template card → pick a kind, open the Builder on a fresh blank */
-function createSessionTemplate(){
-  openSheet('<div class="grab"></div><h3>Create Session Template</h3><p class="ssub">A reusable session you can add to any day.</p>'+
-    '<button class="bigopt" data-click="createTemplateKind" data-args="[&quot;strength&quot;]"><span class="oi">🏋️</span><div><b>Strength session</b><span>Blocks, exercises, sets &amp; reps</span></div></button>'+
-    '<button class="bigopt" data-click="createTemplateKind" data-args="[&quot;conditioning&quot;]"><span class="oi">❤️</span><div><b>Conditioning session</b><span>Live heart-rate zone work</span></div></button>'+
-    '<button class="cancel" data-click="closeSheet">Cancel</button>');
-}
-function createTemplateKind(kind){closeSheet();newScheduledWorkout(kind,null);}
-
 /* ---------- bottom sheet + Home add flow ---------- */
 function openSheet(html){const el=document.getElementById('sheet');if(!el)return;el.innerHTML='<div class="sheet-scrim" data-click="closeSheet"></div><div class="sheet">'+html+'</div>';el.hidden=false;}
 /* Dismissing a sheet drops any pending schedule target so it can't leak onto a
-   later Library "Add". Flows that intentionally carry SCHED_DATE forward
-   (Add From Library) re-set it right after closing. */
+   later unrelated action (e.g. picking a session hours after tapping a Calendar day). */
 function closeSheet(){const el=document.getElementById('sheet');if(el){el.hidden=true;el.innerHTML='';}SCHED_DATE=null;}
 function toast(msg){
   let el=document.getElementById('toast');
@@ -1361,147 +1327,11 @@ function openAddSheet(){
   const d=SCHED_DATE||ymd(new Date());SCHED_DATE=d;
   openSheet('<div class="grab"></div><h3>Add a session</h3><p class="ssub">Schedule it for today or a day ahead.</p>'+
     '<div class="datefield"><label>Day</label><input type="date" min="'+ymd(new Date())+'" value="'+d+'" data-change="setSchedDate" data-args="[&quot;@value&quot;]"></div>'+
-    '<button class="bigopt" data-click="sheetCreateSession"><span class="oi">✍️</span><div><b>Create Session</b><span>Build a strength or conditioning session as you go</span></div></button>'+
-    '<button class="bigopt" data-click="sheetAddFromLibrary"><span class="oi">📚</span><div><b>Add From Library</b><span>Drop in one of your saved sessions</span></div></button>'+
+    '<button class="bigopt" data-click="sheetAddFromLibrary"><span class="oi">'+icoLibrary()+'</span><div><b>Add From Library</b><span>Drop in one of your saved sessions</span></div></button>'+
     '<button class="cancel" data-click="closeSheet">Cancel</button>');
 }
 function setSchedDate(v){if(v)SCHED_DATE=v;}
-function sheetCreateSession(){
-  const day=prettyDay(SCHED_DATE||ymd(new Date()));
-  openSheet('<div class="grab"></div><h3>Create Session</h3><p class="ssub">Adding to '+esc(day)+' — build it as you go.</p>'+
-    '<button class="bigopt" data-click="createKind" data-args="[&quot;strength&quot;]"><span class="oi">🏋️</span><div><b>Strength session</b><span>Blocks, exercises, sets &amp; reps</span></div></button>'+
-    '<button class="bigopt" data-click="createKind" data-args="[&quot;conditioning&quot;]"><span class="oi">❤️</span><div><b>Conditioning session</b><span>Live heart-rate zone work</span></div></button>'+
-    '<button class="cancel" data-click="closeSheet">Cancel</button>');
-}
-function createKind(kind){const date=SCHED_DATE||ymd(new Date());closeSheet();newScheduledWorkout(kind,date);}
 function sheetAddFromLibrary(){const d=SCHED_DATE;closeSheet();SCHED_DATE=d;LIB_TAB='sessions';go('library');}
-/* fresh blank session of the chosen kind, optionally scheduled on a date */
-function newScheduledWorkout(kind,date){
-  const dates=date?[date]:[];
-  const blocks=kind==='conditioning'
-    ?[newCondBlock()]
-    :[{id:uid(),heading:'Block 1',minutes:'',format:'',superset:false,exercises:[newEx()]}];
-  WK={id:uid(),name:'',days:[],dates:dates,blocks:blocks};
-  BUILDER_WID=WK.id;EDIT_EXISTING=false;openBlock=0;
-  go('builder');
-}
-
-function renderBuilder(){
-  refreshExNames();
-  const cw=currentWorkout();
-  if(!BUILDER_WID){
-    if(cw){WK=JSON.parse(JSON.stringify(cw));BUILDER_WID=cw.id;EDIT_EXISTING=true;openBlock=-1;}
-    else{BUILDER_WID=WK.id;}
-  }
-  const el=document.getElementById('s-builder');
-  el.innerHTML=
-    '<div class="backrow"><button class="backbtn" aria-label="Back to Library" data-click="go" data-args="[&quot;library&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder</div><h1 class="screentitle">Build your session</h1></div></div>'+
-    '<p class="sub">Add blocks, add exercises, set modes, sets, reps &amp; RPE. Then hit “See how it looks”.</p>'+
-    '<button class="addbtn" style="margin-top:14px" data-click="openImport">📋 Import from text or photo</button>'+
-    '<div class="field" style="margin-top:18px"><label>Workout name</label><input id="wkName" value="'+esc(WK.name)+'" placeholder="e.g. Upper Pump — Day 1" data-input="setWkName" data-args="[&quot;@value&quot;]"></div>'+
-    '<div class="field"><label>Train on</label><div class="daychips">'+[0,1,2,3,4,5,6].map(i=>'<button class="daychip'+((WK.days||[]).includes(i)?' on':'')+'" data-click="toggleDay" data-args="['+i+']">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]+'</button>').join('')+'</div></div>'+
-    '<div id="builderBody"></div>'+
-    '<div class="addrow"><button class="addbtn" data-click="addBlock">+ Add block</button><button class="addbtn cond" data-click="addCondBlock">♥ Add conditioning</button></div>'+
-    '<div class="completebar"><button class="bigbtn" data-click="previewWorkout">See how it looks →</button></div>'+
-    (EDIT_EXISTING&&DB.workouts.length?'<button class="markall" style="display:block;margin:16px auto 0;color:var(--bad)" data-click="deleteCurrentWorkout">Delete this workout</button>':'');
-  renderBuilderBody();
-}
-function deleteCurrentWorkout(){
-  const id=BUILDER_WID,w=DB.workouts.find(x=>x.id===id);
-  if(!w)return;
-  if(!confirm('Delete "'+(w.name||'this workout')+'"? This cannot be undone.'))return;
-  tombstoneId(id);
-  DB.sessions.filter(s=>s.workoutId===id&&s.status==='active').forEach(s=>tombstoneId(s.id));
-  DB.workouts=DB.workouts.filter(x=>x.id!==id);
-  DB.sessions=DB.sessions.filter(s=>!(s.workoutId===id&&s.status==='active'));
-  if(CUR_SESSION&&!DB.sessions.find(s=>s.id===CUR_SESSION))CUR_SESSION=null;
-  BUILDER_WID=null;EDIT_EXISTING=false;WK=templateWorkout();LOG_LOC=null;
-  save();go('home');
-}
-function renderBuilderBody(){
-  const box=document.getElementById('builderBody');if(!box)return;
-  box.innerHTML=WK.blocks.map((b,bi)=>{
-    const open=bi===openBlock;
-    if(isCond(b))return condBlockCard(b,bi,open);
-    return '<div class="bblock '+(open?'open':'')+'"><div class="bblock-head"><button class="bexp" data-click="toggleBlock" data-args="['+bi+']" aria-label="expand block">'+(open?'▾':'▸')+'</button><input class="bhead" value="'+esc(b.heading)+'" placeholder="Block name" data-input="editBlock" data-args="['+bi+',&quot;heading&quot;,&quot;@value&quot;]"><div class="bctrls"><button data-click="moveBlock" data-args="['+bi+',-1]" aria-label="move up">↑</button><button data-click="moveBlock" data-args="['+bi+',1]" aria-label="move down">↓</button><button class="del" data-click="delBlock" data-args="['+bi+']" aria-label="delete block">✕</button></div></div>'+
-      (open?
-        '<div class="brow2"><input class="bmin" value="'+esc(b.minutes)+'" placeholder="min" inputmode="numeric" data-input="editBlock" data-args="['+bi+',&quot;minutes&quot;,&quot;@value&quot;]"><input class="bfmt" value="'+esc(b.format)+'" placeholder="format — e.g. Every 2:30 × 4 sets" data-input="editBlock" data-args="['+bi+',&quot;format&quot;,&quot;@value&quot;]"><label class="bss"><input type="checkbox" '+(b.superset?'checked':'')+' data-change="toggleSS" data-args="['+bi+',&quot;@checked&quot;]"> Superset</label></div>'+
-        b.exercises.map((ex,ei)=>exCard(b,ex,bi,ei)).join('')+
-        '<button class="addbtn small" data-click="addEx" data-args="['+bi+']">+ Add exercise</button>'
-       :'<div class="bsummary" data-click="toggleBlock" data-args="['+bi+']">'+blockSummary(b)+'</div>')+
-    '</div>';
-  }).join('');
-}
-function blockSummary(b){const n=blockExercises(b).length;return n+' exercise'+(n===1?'':'s')+(b.minutes?' · '+esc(b.minutes)+' min':'')+(b.format?' · '+esc(b.format):'')}
-/* Conditioning block in the Builder: no exercises — pick a format and a target
-   zone. Runs by live heart rate inside the session. */
-function condBlockSummary(b){const f=CON_FORMATS[b.condFmt];return (f?f.name+' · '+f.desc:'Conditioning')+' · target '+condZoneName(b.targetZone);}
-function condBlockCard(b,bi,open){
-  const head='<div class="bblock-head"><button class="bexp" data-click="toggleBlock" data-args="['+bi+']" aria-label="expand block">'+(open?'▾':'▸')+'</button><input class="bhead" value="'+esc(b.heading)+'" placeholder="Conditioning" data-input="editBlock" data-args="['+bi+',&quot;heading&quot;,&quot;@value&quot;]"><span class="bkindtag">♥ HR</span><div class="bctrls"><button data-click="moveBlock" data-args="['+bi+',-1]" aria-label="move up">↑</button><button data-click="moveBlock" data-args="['+bi+',1]" aria-label="move down">↓</button><button class="del" data-click="delBlock" data-args="['+bi+']" aria-label="delete block">✕</button></div></div>';
-  if(!open)return '<div class="bblock cond">'+head+'<div class="bsummary" data-click="toggleBlock" data-args="['+bi+']">'+condBlockSummary(b)+'</div></div>';
-  let body='<div class="condbuild">';
-  body+='<div class="lbl2">Format</div><div class="fmtpick build">'+Object.keys(CON_FORMATS).map(k=>{const ff=CON_FORMATS[k];return '<button aria-pressed="'+(b.condFmt===k)+'" data-click="setCondFmt" data-args="['+bi+',&quot;'+k+'&quot;]">'+ff.name+'<small>'+ff.desc+'</small></button>';}).join('')+'</div>';
-  body+='<div class="lbl2" style="margin-top:12px">Target zone</div><div class="zonepick">'+conZones().list.map(z=>'<button aria-pressed="'+(b.targetZone===z.key)+'" data-click="setCondZone" data-args="['+bi+',&quot;'+z.key+'&quot;]"><i style="background:'+z.color+'"></i>'+z.name+'</button>').join('')+'</div>';
-  const ep=conPrescription(b.condFmt,true);
-  body+='<div class="prescline build"><span class="pd">'+esc(conPrescDesc(b.condFmt,ep))+'</span><span class="pnote">'+(ep.level>0?'earned · Level '+ep.level:'auto-progresses as you adapt')+'</span></div>';
-  body+='</div>';
-  return '<div class="bblock cond open">'+head+body+'</div>';
-}
-function setCondFmt(bi,k){if(CON_FORMATS[k])WK.blocks[bi].condFmt=k;renderBuilderBody();}
-function setCondZone(bi,k){WK.blocks[bi].targetZone=k;renderBuilderBody();}
-function addCondBlock(){WK.blocks.push(newCondBlock());openBlock=WK.blocks.length-1;renderBuilderBody();}
-/* Calmer cards: identical set targets collapse to one row; tempo/rest sit
-   behind a disclosure until an exercise actually uses them. */
-const VARY=new Set(),OPTS=new Set();
-function exKey(ex,bi,ei){return ex.id||bi+'-'+ei}
-function setsUniform(ex){return ex.sets.length>1&&ex.sets.every(s=>s.t===ex.sets[0].t&&s.rpe===ex.sets[0].rpe)}
-function exCard(b,ex,bi,ei){
-  const cfg=MODES[ex.mode]||MODES.reps_kg;
-  const key=exKey(ex,bi,ei);
-  const uniform=setsUniform(ex);
-  let setRows;
-  const amrap=ex.mode==='amrap';
-  const allCell=amrap?'<span class="cmeta">max reps</span>':'<input inputmode="numeric" value="'+esc(ex.sets[0].t)+'" placeholder="'+cfg.ph+'" data-input="editAllSets" data-args="['+bi+','+ei+',&quot;t&quot;,&quot;@value&quot;]">';
-  if(ex.mode==='completion'){
-    setRows='<div class="bsetrow nomode"><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+'</span><span class="cmeta">marked complete — no targets</span></div>';
-  } else if(uniform&&!VARY.has(key)){
-    setRows='<div class="bsetrow"><span>All sets</span>'+allCell+'<input class="rpe" inputmode="decimal" value="'+esc(ex.sets[0].rpe)+'" placeholder="RPE –" data-input="editAllSets" data-args="['+bi+','+ei+',&quot;rpe&quot;,&quot;@value&quot;]"></div>'+
-      '<button class="markall" style="margin-top:9px" data-click="varySets" data-args="['+bi+','+ei+']">vary per set →</button>';
-  } else {
-    setRows=ex.sets.map((s,si)=>'<div class="bsetrow"><span>Set '+(si+1)+'</span>'+(amrap?'<span class="cmeta">max reps</span>':'<input inputmode="numeric" value="'+esc(s.t)+'" placeholder="'+cfg.ph+'" data-input="editSet" data-args="['+bi+','+ei+','+si+',&quot;t&quot;,&quot;@value&quot;]">')+'<input class="rpe" inputmode="decimal" value="'+esc(s.rpe)+'" placeholder="RPE –" data-input="editSet" data-args="['+bi+','+ei+','+si+',&quot;rpe&quot;,&quot;@value&quot;]"></div>').join('')+
-      (uniform?'<button class="markall" style="margin-top:9px" data-click="unvarySets" data-args="['+bi+','+ei+']">← same for all sets</button>':'');
-  }
-  const showOpts=Boolean(ex.tempo)||Boolean(+ex.rest)||OPTS.has(key);
-  const modeRow=showOpts
-    ? '<div class="bex-grid"><select data-change="setMode" data-args="['+bi+','+ei+',&quot;@value&quot;]">'+MODEKEYS.map(m=>'<option value="'+m+'" '+(m===ex.mode?'selected':'')+'>'+MODES[m].label+'</option>').join('')+'</select><input value="'+esc(ex.tempo)+'" placeholder="tempo" data-input="editEx" data-args="['+bi+','+ei+',&quot;tempo&quot;,&quot;@value&quot;]"><input value="'+esc(ex.rest||'')+'" placeholder="rest s" inputmode="numeric" data-input="editEx" data-args="['+bi+','+ei+',&quot;rest&quot;,&quot;@value&quot;]"></div>'
-    : '<div class="bex-grid solo"><select data-change="setMode" data-args="['+bi+','+ei+',&quot;@value&quot;]">'+MODEKEYS.map(m=>'<option value="'+m+'" '+(m===ex.mode?'selected':'')+'>'+MODES[m].label+'</option>').join('')+'</select></div>'+
-      '<button class="markall" style="margin-top:9px" data-click="showExOpts" data-args="['+bi+','+ei+']">+ tempo · rest</button>';
-  return '<div class="bex"><div class="bex-head"><input class="bexname" list="exNames" value="'+esc(ex.name)+'" placeholder="Exercise name" data-input="editEx" data-args="['+bi+','+ei+',&quot;name&quot;,&quot;@value&quot;]"><button class="del" data-click="delEx" data-args="['+bi+','+ei+']" aria-label="remove">✕</button></div>'+
-    modeRow+
-    (ex.mode==='completion'?'':'<div class="bsteprow"><button class="stepbtn sm" data-click="bumpSets" data-args="['+bi+','+ei+',-1]">−</button><span>'+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+'</span><button class="stepbtn sm" data-click="bumpSets" data-args="['+bi+','+ei+',1]">+</button></div>')+
-    setRows+
-    '<div class="rxline" id="rxb'+bi+'e'+ei+'">'+esc(rxLine(ex))+'</div></div>';
-}
-function normTarget(v){v=String(v).trim();return /^m(ax)?$/i.test(v)?'max':v;}
-function editAllSets(bi,ei,k,v){const val=k==='t'?normTarget(v):v.trim();WK.blocks[bi].exercises[ei].sets.forEach(s=>s[k]=val);refreshRx(bi,ei);}
-function varySets(bi,ei){VARY.add(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
-function unvarySets(bi,ei){VARY.delete(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
-function showExOpts(bi,ei){OPTS.add(exKey(WK.blocks[bi].exercises[ei],bi,ei));renderBuilderBody();}
-function toggleDay(i){WK.days=WK.days||[];const ix=WK.days.indexOf(i);if(ix>=0)WK.days.splice(ix,1);else WK.days.push(i);renderBuilder();}
-function addBlock(){WK.blocks.push(newBlock());openBlock=WK.blocks.length-1;renderBuilderBody();}
-function delBlock(bi){if(!confirm('Delete this block?'))return;WK.blocks.splice(bi,1);if(openBlock===bi)openBlock=-1;else if(openBlock>bi)openBlock--;renderBuilderBody();}
-function moveBlock(bi,d){const j=bi+d;if(j<0||j>=WK.blocks.length)return;[WK.blocks[bi],WK.blocks[j]]=[WK.blocks[j],WK.blocks[bi]];if(openBlock===bi)openBlock=j;else if(openBlock===j)openBlock=bi;renderBuilderBody();}
-function editBlock(bi,k,v){WK.blocks[bi][k]=v;}
-function toggleSS(bi,v){WK.blocks[bi].superset=v;renderBuilderBody();}
-function addEx(bi){WK.blocks[bi].exercises.push(newEx());renderBuilderBody();}
-function delEx(bi,ei){WK.blocks[bi].exercises.splice(ei,1);if(!WK.blocks[bi].exercises.length)WK.blocks[bi].exercises.push(newEx());renderBuilderBody();}
-function setMode(bi,ei,m){WK.blocks[bi].exercises[ei].mode=m;renderBuilderBody();}
-function bumpSets(bi,ei,d){const ex=WK.blocks[bi].exercises[ei],n=Math.max(1,ex.sets.length+d);if(d>0)while(ex.sets.length<n)ex.sets.push({t:ex.sets[ex.sets.length-1]?.t||'',rpe:ex.sets[ex.sets.length-1]?.rpe||''});else ex.sets=ex.sets.slice(0,n);renderBuilderBody();}
-function editEx(bi,ei,k,v){WK.blocks[bi].exercises[ei][k]=v;refreshRx(bi,ei);}
-function editSet(bi,ei,si,k,v){WK.blocks[bi].exercises[ei].sets[si][k]=k==='t'?normTarget(v):v.trim();refreshRx(bi,ei);}
-function refreshRx(bi,ei){const el=document.getElementById('rxb'+bi+'e'+ei);if(el)el.textContent=rxLine(WK.blocks[bi].exercises[ei]);}
-function toggleBlock(bi){openBlock=(openBlock===bi?-1:bi);renderBuilderBody();}
-
 /* ---------- confetti: light, no stats wall ---------- */
 function confetti(){const colors=[PAL.gold,PAL.gold2,PAL.blue,PAL.text];for(let i=0;i<36;i++){const c=document.createElement('div');c.className='confetti';c.style.left=(5+Math.random()*90)+'vw';c.style.background=colors[i%colors.length];c.style.animationDelay=(Math.random()*.5)+'s';c.style.transform='rotate('+(Math.random()*360)+'deg)';document.body.appendChild(c);setTimeout(()=>c.remove(),2200);}}
 
@@ -3244,12 +3074,12 @@ function impFixerHtml(iss){
 }
 function renderImport(){
   const el=document.getElementById('s-import');if(!el)return;
-  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;builder&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Builder · Import</div><h1 class="screentitle">Add a workout</h1></div></div>'+
+  let h='<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;library&quot;]">←</button><div><div class="kicker" style="margin-bottom:3px">Import</div><h1 class="screentitle">Add a workout</h1></div></div>'+
     '<p class="sub">Type it, paste it, or attach a photo/screenshot — any style, typos welcome. It asks only when a <b>meaning</b> is unclear; blank weights and reps just stay blank, like always.</p>'+
     '<textarea class="imp-src" id="impSrc" spellcheck="false" placeholder="e.g.&#10;Push Day&#10;Bench 4x8 @RPE8 rest 3min&#10;into 5 deadlifts&#10;10s dead hang rest 30s 2 rounds of that">'+esc(IMP.text)+'</textarea>'+
     '<div class="imp-inputs">'+
-      '<button class="addbtn imp-in" data-click="impVoice">'+(IMP.listening?'⏹ Stop':'🎤 Say it')+'</button>'+
-      '<button class="addbtn imp-in" data-click="impPickPhoto">📷 Photo</button>'+
+      '<button class="addbtn imp-in" data-click="impVoice">'+(IMP.listening?icoStop()+' Stop':icoMic()+' Say it')+'</button>'+
+      '<button class="addbtn imp-in" data-click="impPickPhoto">'+icoCam()+' Photo</button>'+
     '</div>'+
     '<input type="file" id="impFile" accept="image/*" style="display:none" data-change="impPhoto" data-args="[&quot;@event&quot;]">'+
     (IMP.listening?'<div class="imp-listen"><span class="dot"></span>Listening… say your workout, then tap Stop.</div>':'')+
@@ -3282,7 +3112,7 @@ function impDraftHtml(){
   wk.issues.filter(i=>!i.resolved&&i.kind==='unreadable').forEach(iss=>{h+='<div class="card" style="margin-top:14px;padding:12px 14px">'+impIssueChip(iss)+impFixerHtml(iss)+'</div>';});
   if(wk.notes.length)h+='<div style="margin-top:12px;color:var(--dim);font-size:11.5px;line-height:1.6">'+wk.notes.map(esc).join('<br>')+'</div>';
   const ready=!pend.length||IMP.builtAnyway;
-  h+='<button class="bigbtn" style="margin-top:16px'+(ready?'':';opacity:.35;pointer-events:none')+'" data-click="impSave">'+(ready?'Save & open in Builder':'Save — '+pend.length+' to sort first')+'</button>';
+  h+='<button class="bigbtn" style="margin-top:16px'+(ready?'':';opacity:.35;pointer-events:none')+'" data-click="impSave">'+(ready?'Save to Library':'Save — '+pend.length+' to sort first')+'</button>';
   return h;
 }
 function impLexHtml(){
@@ -3336,7 +3166,8 @@ function impSave(){
   }))};
   DB.workouts.push(w);save();
   IMP.wk=null;IMP.text='';
-  editWorkout(w.id);
+  toast((w.name||'Session')+' saved to Library');
+  go('library');
 }
 /* ---- voice input: browser speech recognition → the same parser ---- */
 let IMP_REC=null,IMP_BASE='';

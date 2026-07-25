@@ -166,7 +166,7 @@ async function run() {
       // The legacy standalone logger screen was retired; the live logger is the
       // accordion renderSession() paints into #s-training. Assert that instead.
       [/loggerlist/, 'logger accordion'],
-      [/s-builder/, 'Builder screen'],
+      [/s-library/, 'Library screen'],
       [/s-settings/, 'Settings screen'],
       [/restchip/, 'non-blocking rest chip'],
       [/tickSet\(/, 'set completion ticks'],

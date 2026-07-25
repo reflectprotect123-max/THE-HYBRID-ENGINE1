@@ -231,56 +231,6 @@ await t('logger prefills last kg as placeholder next time', async () => {
   const ph = await page.$eval('#s-training .lgx.open .lgrow input', (el) => el.placeholder);
   if (ph !== '60') throw new Error('placeholder=' + ph);
 });
-await t('builder: uniform sets collapse to one "All sets" row', async () => {
-  await page.evaluate(() => { BUILDER_WID = null; go('builder'); });
-  await page.waitForSelector('#s-builder.on', { timeout: 2000 });
-  await page.click('#s-builder .bblock:nth-of-type(4) .bexp');
-  await page.waitForSelector('#s-builder .bblock:nth-of-type(4) .bex', { timeout: 2000 });
-  await page.click('#s-builder .bblock:nth-of-type(4) .addbtn.small');
-  const block = await page.$('#s-builder .bblock:nth-of-type(4)');
-  const txt = await block.textContent();
-  if (!/All sets/.test(txt)) throw new Error('no All sets row on fresh exercise');
-});
-await t('builder: "vary per set" expands to per-set rows', async () => {
-  const block = await page.$('#s-builder .bblock:nth-of-type(4)');
-  const vary = (await block.$$('.markall')).at(-1);
-  const label = await vary.textContent();
-  if (!/vary per set/.test(label)) throw new Error('toggle label=' + label);
-  await vary.click();
-  const rows = await page.$$eval('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .bsetrow', (els) => els.length);
-  if (rows < 3) throw new Error('rows=' + rows);
-});
-await t('builder: Max reps mode targets every set at max', async () => {
-  await page.selectOption('#s-builder .bblock:nth-of-type(4) .bex:last-of-type select', 'amrap');
-  const txt = await page.textContent('#s-builder .bblock:nth-of-type(4) .bex:last-of-type');
-  if (!/max reps/.test(txt)) throw new Error('no max-reps target cells');
-  const rx = await page.textContent('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .rxline');
-  if (!/× max/.test(rx)) throw new Error('rx=' + rx);
-});
-await t('builder: typing "max" as a single set target works', async () => {
-  await page.selectOption('#s-builder .bblock:nth-of-type(4) .bex:last-of-type select', 'reps_kg');
-  const input = await page.$('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .bsetrow input');
-  await input.fill('max');
-  const rx = await page.textContent('#s-builder .bblock:nth-of-type(4) .bex:last-of-type .rxline');
-  if (!/max/.test(rx)) throw new Error('rx=' + rx);
-});
-await t('builder: tempo/rest hidden behind disclosure when unused', async () => {
-  await page.click('#s-builder .bblock:nth-of-type(1) .bexp');
-  await page.waitForSelector('#s-builder .bblock:nth-of-type(1) .bex', { timeout: 2000 });
-  const txt = await page.textContent('#s-builder .bblock:nth-of-type(1) .bex');
-  if (!/\+ tempo · rest/.test(txt)) throw new Error('disclosure link missing (warm-up has rest 0)');
-});
-await t('builder: day chips schedule the workout', async () => {
-  const todayIdx = await page.evaluate(() => new Date().getDay());
-  await page.click(`#s-builder .daychip:nth-of-type(${todayIdx + 1})`);
-  const on = await page.$eval(`#s-builder .daychip:nth-of-type(${todayIdx + 1})`, (el) => el.classList.contains('on'));
-  if (!on) throw new Error('chip did not toggle');
-  await page.click('#s-builder .completebar .bigbtn');
-  await page.waitForSelector('#s-training.on', { timeout: 2000 });
-  await page.click('.navlink[data-s="home"]');
-  const sub = await page.textContent('#s-home .sub');
-  if (!/session in progress|session planned/i.test(sub)) throw new Error('sub=' + sub);
-});
 await t('nav is four tabs: Home · Training · Library · Settings', async () => {
   const navs = await page.$$eval('.navlink', (els) => els.map((e) => e.dataset.s));
   if (navs.length !== 4 || navs.includes('logger')) throw new Error(navs.join(','));
@@ -341,20 +291,21 @@ await t('scheduling: one-off-today CTA starts the session (not the builder)', as
   const started = await page.evaluate(() => { const s = curSession(); return !!(s && s.status === 'active' && s.name === 'One-off today'); });
   if (!started) throw new Error('one-off-today CTA did not start the session');
 });
-await t('scheduling: a future-dated Create Session does NOT start a today session', async () => {
+await t('scheduling: adding a saved session to a future day does NOT start a today session', async () => {
   const res = await page.evaluate(() => {
-    DB.sessions = DB.sessions.filter((s) => s.status !== 'active'); CUR_SESSION = null; save();
+    DB.sessions = DB.sessions.filter((s) => s.status !== 'active'); CUR_SESSION = null;
+    const w = { id: uid(), name: 'Next week lower', days: [], dates: [], blocks: [
+      { id: uid(), heading: 'Main', superset: false, exercises: [{ id: uid(), name: 'Squat', mode: 'reps_kg', tempo: '', rest: 90, sets: [{ t: '5', rpe: '8' }] }] },
+    ] };
+    DB.workouts.push(w); save();
     const fut = new Date(); fut.setDate(fut.getDate() + 6); const key = ymd(fut);
-    SCHED_DATE = key; createKind('strength');           // builds a blank workout dated in the future, opens builder
-    WK.name = 'Next week lower'; WK.blocks[0].exercises[0].name = 'Squat';
-    previewWorkout();                                    // "See how it looks"
+    scheduleWorkoutOn(w.id, key);                        // "Add" a saved session onto a future day
     const active = DB.sessions.filter((s) => s.status === 'active').length;
-    const saved = DB.workouts.find((w) => w.name === 'Next week lower');
-    return { screen: CURRENT, active, scheduled: !!(saved && (saved.dates || []).includes(key)) };
+    const saved = DB.workouts.find((x) => x.name === 'Next week lower');
+    return { active, scheduled: !!(saved && (saved.dates || []).includes(key)) };
   });
-  if (res.active !== 0) throw new Error('future Create Session wrongly started a today session');
+  if (res.active !== 0) throw new Error('scheduling a future session wrongly started a today session');
   if (!res.scheduled) throw new Error('future session not saved with its date');
-  if (res.screen !== 'calendar') throw new Error('did not land on the calendar; screen=' + res.screen);
 });
 await t('scheduling: cancelling the add sheet clears the pending date', async () => {
   const leaked = await page.evaluate(() => {
@@ -380,14 +331,14 @@ await t('scheduling: cancelling the add sheet clears the pending date', async ()
     save(); go('home');
   });
 });
-await t('Library: LIBRARY screen with Sessions/Conditioning/Progress tabs + Create card', async () => {
+await t('Library: LIBRARY screen with Sessions/Conditioning/Progress tabs + Import card', async () => {
   await page.click('.navlink[data-s="library"]');
   await page.waitForSelector('#s-library.on', { timeout: 2000 });
   const html = await page.$eval('#s-library', (el) => el.innerHTML);
   if (!/LIBRARY/.test(html)) throw new Error('LIBRARY title missing');
   const tabs = await page.$$eval('#s-library .libtab', (els) => els.map((e) => e.textContent));
   if (tabs.join(',') !== 'Sessions,Conditioning,Progress') throw new Error('lib tabs: ' + tabs.join(','));
-  if (!/Create Session Template/.test(html)) throw new Error('create card missing');
+  if (!/Import a session/.test(html)) throw new Error('import card missing');
   if (!(await page.$('#s-library .tplrow'))) throw new Error('no template row for the seeded session');
   const active = await page.$eval('.navlink[data-s="library"]', (el) => el.classList.contains('active'));
   if (!active) throw new Error('Library tab not highlighted');
@@ -431,15 +382,15 @@ await t('Conditioning: setup shows zones; demo session records live HR and saves
 });
 await t('hybrid session: strength + conditioning blocks run and persist in one workout', async () => {
   await page.evaluate(() => {
-    WK = templateWorkout(); WK.name = 'Hybrid Day';
-    WK.blocks = [
+    const w = templateWorkout(); w.name = 'Hybrid Day';
+    w.blocks = [
       { id: uid(), heading: 'Strength', minutes: '', format: '', superset: false,
         exercises: [{ id: uid(), name: 'Back squat', mode: 'reps_kg', tempo: '', rest: 60, sets: [{ t: '5', rpe: '8' }] }] },
       newCondBlock()
     ];
-    WK.blocks[1].condFmt = 'intervals';
-    BUILDER_WID = WK.id; EDIT_EXISTING = false; openBlock = -1;
-    previewWorkout();
+    w.blocks[1].condFmt = 'intervals';
+    DB.workouts.push(w); save();
+    startWorkout(w.id);
   });
   let html = await page.$eval('#s-training', (el) => el.innerHTML);
   if (!/condrow/.test(html)) throw new Error('conditioning row missing in the session');
@@ -468,7 +419,7 @@ await t('hybrid session: strength + conditioning blocks run and persist in one w
   await page.evaluate(() => {
     DB.sessions = DB.sessions.filter((s) => s.name !== 'Hybrid Day');
     DB.workouts = DB.workouts.filter((w) => w.name !== 'Hybrid Day');
-    CUR_SESSION = null; WK = templateWorkout(); BUILDER_WID = null; save(); go('home');
+    CUR_SESSION = null; save(); go('home');
   });
 });
 await t('interval progression: level-0 base unchanged; adaptation steps up; red recovery deloads today only', async () => {
@@ -763,10 +714,8 @@ await t('WHOOP recovery trend: rolling average appears only with >=14 days of hi
   if (r.len20 !== 20) throw new Error('seeded recovery history was not 20 rows');
   if (Math.abs(r.avgLast - r.handMean) > 1e-9) throw new Error('rollingMean does not match a hand-computed trailing 7-day mean: ' + JSON.stringify(r));
 });
-await t('importer: paste → meaning-questions inline → learn → save lands in Builder', async () => {
-  await page.evaluate(() => { BUILDER_WID = null; go('builder'); });
-  await page.waitForSelector('#s-builder.on', { timeout: 2000 });
-  await page.click('#s-builder [data-click="openImport"]');
+await t('importer: paste → meaning-questions inline → learn → save lands in Library', async () => {
+  await page.evaluate(() => openImport());
   await page.waitForSelector('#s-import.on', { timeout: 2000 });
   await page.fill('#impSrc', 'power primer 3x3\n-test 45s between sets');
   await page.click('[data-click="impRead"]');
@@ -797,11 +746,15 @@ await t('importer: paste → meaning-questions inline → learn → save lands i
   if (lex.ex['power primer']) throw new Error('section name wrongly learned as movement');
   const before = await page.evaluate(() => DB.workouts.length);
   await page.click('[data-click="impSave"]');
-  await page.waitForSelector('#s-builder.on', { timeout: 2000 });
-  const okSaved = await page.evaluate((b) => DB.workouts.length === b + 1 && WK.blocks.length >= 1, before);
-  if (!okSaved) throw new Error('imported workout did not land in Builder');
-  // cleanup: remove imported workout + learned lexicon so later steps are pristine
-  await page.evaluate(() => { deleteCurrentWorkout(); DB.settings.lexicon = { kw: {}, ex: {} }; save(); go('home'); });
+  await page.waitForSelector('#s-library.on', { timeout: 2000 });
+  const okSaved = await page.evaluate((b) => DB.workouts.length === b + 1, before);
+  if (!okSaved) throw new Error('imported workout did not land in Library');
+  // cleanup: remove imported workout (impSave always appends, so the last
+  // entry is the one just added) + learned lexicon so later steps are pristine
+  await page.evaluate((b) => {
+    DB.workouts = DB.workouts.slice(0, b);
+    DB.settings.lexicon = { kw: {}, ex: {} }; save(); go('home');
+  }, before);
 });
 await t('logger accordion: open, collapse, one-at-a-time', async () => {
   await page.click('.navlink[data-s="training"]');
@@ -860,16 +813,19 @@ await t('hostile exercise/target text is escaped, never executed (XSS)', async (
   const executed = await page.evaluate(async () => {
     window.__xss = 0;
     const evil = '<img src=x onerror="window.__xss=1">';
-    WK = templateWorkout(); WK.name = 'XSS'; BUILDER_WID = WK.id; EDIT_EXISTING = false; openBlock = 0;
-    WK.blocks[0].exercises[0].name = evil;
-    WK.blocks[0].exercises[0].tempo = evil;
-    WK.blocks[0].exercises[0].sets[0].t = evil;
-    renderBuilder();
-    startWorkout((DB.workouts.push(JSON.parse(JSON.stringify(WK))), DB.workouts[DB.workouts.length - 1]).id);
+    const w = templateWorkout(); w.name = 'XSS';
+    w.blocks[0].exercises[0].name = evil;
+    w.blocks[0].exercises[0].tempo = evil;
+    w.blocks[0].exercises[0].sets[0].t = evil;
+    DB.workouts.push(w); save();
+    renderLibrary();   // Library renders the saved workout's name/summary
+    startWorkout(w.id);
     openLogger(0, 0);
     await new Promise((r) => setTimeout(r, 200));
     const fired = window.__xss;
-    BUILDER_WID = DB.workouts[DB.workouts.length - 1].id; deleteCurrentWorkout();
+    DB.workouts = DB.workouts.filter((x) => x.id !== w.id);
+    DB.sessions = DB.sessions.filter((s) => s.workoutId !== w.id);
+    CUR_SESSION = null; save();
     return fired;
   });
   if (executed) throw new Error('XSS executed');
@@ -884,13 +840,19 @@ await t('corrupted localStorage (bad JSON and wrong types) boots clean', async (
   await page.evaluate(() => { localStorage.removeItem('hybrid-engine-v1'); });
   await page.reload({ waitUntil: 'networkidle' });
 });
-await t('empty workout cannot be previewed into a finishable session', async () => {
-  const stayed = await page.evaluate(() => {
-    WK = { id: uid(), name: 'Empty', blocks: [] }; BUILDER_WID = WK.id; EDIT_EXISTING = false; go('builder');
-    previewWorkout();
-    return CURRENT === 'builder' && !DB.sessions.some((s) => s.name === 'Empty');
+await t('a workout with zero blocks can never be a finishable session (vacuous truth guard)', async () => {
+  const res = await page.evaluate(() => {
+    const w = { id: uid(), name: 'Empty', days: [], dates: [], blocks: [] };
+    DB.workouts.push(w); save();
+    startWorkout(w.id);
+    const s = curSession();
+    const done = s ? sessionAllDone(s) : null;
+    DB.workouts = DB.workouts.filter((x) => x.id !== w.id);
+    DB.sessions = DB.sessions.filter((x) => x.workoutId !== w.id);
+    CUR_SESSION = null; save();
+    return { hasSession: !!s, done };
   });
-  if (!stayed) throw new Error('empty workout produced a session');
+  if (res.hasSession && res.done) throw new Error('a zero-block session is instantly finishable (vacuous truth)');
   await page.evaluate(() => go('home'));
 });
 await t('mobile viewport: nav becomes the bottom bar', async () => {

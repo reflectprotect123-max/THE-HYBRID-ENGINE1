@@ -1,5 +1,30 @@
 # Changelog
 
+## Remove the manual Builder; import is now the only way in — 27 July 2026
+
+The block-by-block session Builder is gone. Every session now starts the same
+way: paste it, photograph it, or say it, and the importer turns it into a
+saved session in your Library.
+
+- **"Create Session" is gone** from the Add sheet — the only option now is
+  Add From Library. **Library's create card is now "Import a session"**
+  instead of a blank template builder.
+- **Saving an import goes straight to your Library** with a confirmation
+  toast, instead of dropping you into an editor to review it block by block.
+- **A saved session can no longer be edited in place.** Duplicate it and
+  re-import the changed version, or delete and start over — the "Edit
+  session" option is gone from a session's menu.
+- **Every icon that used to be an emoji is now a matching stroke-drawn glyph**
+  — Home, the Calendar sheet, Library's menus, and the importer's mic/camera
+  buttons all switched together, so nothing looks mismatched.
+- Both empty-state screens (a fresh Library, a fresh Training tab) point at
+  Import/Library instead of a Builder that no longer exists.
+
+This was requested and built alongside a Claude Design visual pass (see the
+entry below) — the export had already made these decisions and this ships
+them into the real app, ported onto everything shipped since that export was
+taken (this session's bug fixes, the trend cards, and the design pass itself).
+
 ## Design pass from Claude Design: restrained type, flatter brass — 27 July 2026
 
 Imported a visual polish pass built in Claude Design (exported as a zip, since
