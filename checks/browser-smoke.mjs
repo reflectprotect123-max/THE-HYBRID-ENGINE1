@@ -894,6 +894,36 @@ await t('Planner structure: chain merges/splits supersets, add/move/delete, head
     delete window.__stashW2; delete window.__stashS2; save(); go('library');
   });
 });
+await t('Planner conditioning: ♥ adds a block, format+zone persist, live engine picks it up', async () => {
+  await page.evaluate(() => {
+    window.__stashW3 = DB.workouts; window.__stashS3 = DB.sessions;
+    DB.workouts = [{ id: 'plw3', name: 'Hybrid Day', days: [], dates: [], blocks: [
+      { id: 'hb1', heading: 'Main', minutes: '', format: '', superset: false, exercises: [
+        { id: 'he1', name: 'Squat', mode: 'reps_kg', tempo: '', rest: 180, sets: [{ t: '5', rpe: '8' }] }] }] }];
+    DB.sessions = []; save(); openPlanner('plw3');
+  });
+  await page.waitForSelector('#s-planner.on', { timeout: 2000 });
+  await page.click('#s-planner .planaddrow button:last-child'); // ♥ Conditioning
+  await page.waitForSelector('#plc1', { timeout: 2000 });
+  await page.click('#plc1 .daychip:text-is("Steady-state")');
+  await page.click('#plc1 .daychip:text-is("Overload")');
+  const blk = await page.evaluate(() => DB.workouts[0].blocks[1]);
+  if (blk.kind !== 'conditioning' || blk.condFmt !== 'steady' || blk.targetZone !== 'high') throw new Error(JSON.stringify(blk));
+  const preview = await page.textContent('#plc1 .plannote');
+  if (!/earned level/.test(preview)) throw new Error('no earned-level preview: ' + preview);
+  await page.evaluate(() => { scheduleWorkoutOn('plw3', ymd(new Date())); startWorkout('plw3'); });
+  await page.waitForSelector('#s-training .condrow', { timeout: 2000 });
+  await page.click('#s-training .condrow');
+  await page.waitForSelector('#s-conditioning.on', { timeout: 3000 });
+  const con = await page.evaluate(() => ({ fmt: CON.fmt, zone: CON.targetZone, sink: CON.sink.scope }));
+  if (con.fmt !== 'steady' || con.zone !== 'high' || con.sink !== 'session') throw new Error(JSON.stringify(con));
+  await page.evaluate(() => {
+    CON.sink = { scope: 'standalone' }; CON.view = 'setup';
+    DB.workouts = window.__stashW3; DB.sessions = window.__stashS3;
+    delete window.__stashW3; delete window.__stashS3;
+    CUR_SESSION = null; LOG_LOC = null; save(); go('library');
+  });
+});
 await t('Planner → Logger symbiosis: the authored plan drives the guided flow', async () => {
   await page.evaluate(() => { scheduleWorkoutOn('plw1', ymd(new Date())); startWorkout('plw1'); openLogger(0, 0); });
   await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });

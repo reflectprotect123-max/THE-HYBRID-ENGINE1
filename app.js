@@ -1328,12 +1328,12 @@ function openPlateSheet(si){
    same ±15s vocabulary as the live rest panel. Templates only:
    live sessions are deep clones and stay untouched.
    ============================================================ */
-let PLAN={wid:null,openLoc:null,custom:false};
+let PLAN={wid:null,openLoc:null,openCond:null,custom:false};
 function planW(){return DB.workouts.find(w=>w.id===PLAN.wid)||null}
-function openPlanner(wid,loc){PLAN={wid:wid,openLoc:loc||null,custom:false};go('planner');}
+function openPlanner(wid,loc){PLAN={wid:wid,openLoc:loc||null,openCond:null,custom:false};go('planner');}
 function planToggle(bi,ei){
   PLAN.openLoc=(PLAN.openLoc&&PLAN.openLoc.bi===bi&&PLAN.openLoc.ei===ei)?null:{bi,ei};
-  PLAN.custom=false;
+  PLAN.custom=false;PLAN.openCond=null;
   renderPlanner();
   if(PLAN.openLoc){const c=document.getElementById('plx'+bi+'-'+ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
 }
@@ -1487,6 +1487,45 @@ function planLink(bi,ei,cross){
   });
   PLAN.openLoc=null;renderPlanner();
 }
+/* ---- conditioning blocks: format + target zone, previewed at the athlete's
+   earned level (the engine autoregulates the actual session; the plan never
+   freezes a number the day would override) ---- */
+function planToggleCond(bi){PLAN.openCond=(PLAN.openCond===bi)?null:bi;PLAN.openLoc=null;renderPlanner();}
+function planAddCond(){
+  const w=planMutate(w2=>{w2.blocks.push(newCondBlock());});
+  if(!w)return;
+  PLAN.openCond=w.blocks.length-1;PLAN.openLoc=null;renderPlanner();
+  const c=document.getElementById('plc'+PLAN.openCond);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function planCondFmt(bi,key){planMutate(w=>{const b=w.blocks[bi];if(isCond(b)&&CON_FORMATS[key])b.condFmt=key;});renderPlanner();}
+function planCondZone(bi,key){planMutate(w=>{const b=w.blocks[bi];if(isCond(b))b.targetZone=key;});renderPlanner();}
+function planDelCond(bi){
+  const w=planW();if(!w||!isCond(w.blocks[bi]))return;
+  if(!confirm('Remove this conditioning block from the plan?'))return;
+  planMutate(w2=>{w2.blocks.splice(bi,1);});
+  PLAN.openCond=null;renderPlanner();
+}
+function planCondCard(w,b,bi){
+  const f=CON_FORMATS[b.condFmt]||CON_FORMATS.intervals;
+  const mins=condBlockMinutes(b);
+  const presc=conPrescDesc(b.condFmt,conPrescription(b.condFmt,true));
+  const fmtChips='<div class="planchips"><label>Format</label><div class="daychips">'+
+    Object.keys(CON_FORMATS).map(k=>'<button class="daychip'+(k===b.condFmt?' on':'')+'" data-click="planCondFmt" data-args="['+bi+',&quot;'+k+'&quot;]">'+CON_FORMATS[k].name+'</button>').join('')+
+    '</div></div>';
+  const zones=conZones().list;
+  const zoneChips='<div class="planchips"><label>Target zone</label><div class="daychips">'+
+    zones.map(z=>'<button class="daychip planzone'+(z.key===b.targetZone?' on':'')+'" style="'+(z.key===b.targetZone?'border-color:'+z.color+';color:'+z.color+';background:transparent':'')+'" data-click="planCondZone" data-args="['+bi+',&quot;'+z.key+'&quot;]">'+z.name+'</button>').join('')+
+    '</div></div>';
+  const preview='<div class="plannote" style="margin:12px 12px 0">At your earned level: <b style="color:var(--text)">'+esc(presc)+'</b>'+(mins?' · ~'+mins+' min':'')+' — the engine still eases it on a low-recovery day.</div>';
+  return '<div class="lgx open glog plan" id="plc'+bi+'">'+
+    '<div class="lg-body">'+
+    '<div class="lgtop"><button class="lgltr" data-click="planToggleCond" data-args="['+bi+']" aria-label="collapse">♥</button>'+
+      '<span class="lgttl">'+esc(f.name)+'</span>'+
+      '<span class="lgmeta">runs by heart rate</span></div>'+
+    fmtChips+zoneChips+preview+
+    '<div class="planctl"><button class="del" style="margin-left:auto" data-click="planDelCond" data-args="['+bi+']" aria-label="remove conditioning block">✕</button></div>'+
+    '</div></div>';
+}
 function planHeadEdit(bi){PLAN.editHead=bi;renderPlanner();}
 function planHeadInput(bi,v){planMutate(w=>{w.blocks[bi].heading=v;});} // keystroke: no re-render
 function planHeadChip(bi,v){planMutate(w=>{w.blocks[bi].heading=v;});PLAN.editHead=null;renderPlanner();}
@@ -1573,8 +1612,11 @@ function renderPlanner(){
   const seam=(bi,ei,cross,on)=>'<div class="planseam"><button class="'+(on?'on':'')+'" data-click="planLink" data-args="['+bi+','+ei+','+(cross?'true':'false')+']" aria-label="'+(on?'unlink superset here':'link into a superset')+'">'+icoLink()+'</button></div>';
   (w.blocks||[]).forEach((b,bi)=>{
     if(isCond(b)){
+      if(PLAN.openCond===bi){body+=planCondCard(w,b,bi);return;}
       const f=CON_FORMATS[b.condFmt];
-      body+='<div class="lgx"><div class="lgcrow" style="cursor:default"><span class="lgltr">♥</span><span class="lgcn"><b>'+esc(f?f.name:'Conditioning')+'</b><span>'+esc(conPrescDesc(b.condFmt)+' · target '+condZoneName(b.targetZone))+'</span></span><span class="lgstat">runs live</span></div></div>';
+      body+='<div class="lgx"><button class="lgcrow" data-click="planToggleCond" data-args="['+bi+']">'+
+        '<span class="lgltr">♥</span><span class="lgcn"><b>'+esc(f?f.name:'Conditioning')+'</b><span>'+esc(conPrescDesc(b.condFmt,conPrescription(b.condFmt,true))+' · target '+condZoneName(b.targetZone))+'</span></span>'+
+        '<span class="lgcar">›</span></button></div>';
       return;
     }
     if(PLAN.editHead===bi){
@@ -1597,7 +1639,8 @@ function renderPlanner(){
     const nb=w.blocks[bi+1];
     if(nb&&!isCond(nb)&&!isCond(b))body+=seam(bi,b.exercises.length-1,true,false); // cross-block seam: merge
   });
-  body+='<button class="addbtn planadd block" data-click="planAddBlock">＋ Block</button>';
+  body+='<div class="planaddrow"><button class="addbtn planadd block" data-click="planAddBlock">＋ Block</button>'+
+    '<button class="addbtn planadd block" data-click="planAddCond">♥ Conditioning</button></div>';
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;library&quot;]">←</button><div style="flex:1"><div class="kicker" style="margin-bottom:3px">Plan · edits save as you go</div>'+
     '<input class="planname" value="'+esc(w.name||'Session')+'" data-input="planName" data-args="[&quot;@value&quot;]" aria-label="session name"></div></div>'+

@@ -1,5 +1,17 @@
 # Changelog
 
+## Conditioning joins the Planner — 25 July 2026
+
+Sessions can finally carry conditioning again — authored in the same plan
+editor. **♥ Conditioning** (next to ＋ Block) drops an HR block into the
+session: pick a format (Steady-state · Intervals · Tempo · Custom · Free run)
+and a target zone (Recovery / Conditioning / Overload, shown in their zone
+colours). The card previews the prescription **at your earned level** — the
+plan never freezes a number, so the engine still progresses it as you adapt
+and eases it on a low-recovery day. In the workout it runs exactly as before:
+tap the row, train by live heart rate, and the result lands back in the
+session, History and Progress.
+
 ## Planner structure: shape the session, not just the numbers — 25 July 2026
 
 The plan editor now changes the session's shape too, still in the Logger's
