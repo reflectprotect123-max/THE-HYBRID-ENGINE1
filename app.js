@@ -364,7 +364,7 @@ function renderHome(){
     cards+=sessionCardHtml(Object.assign({},w,{name:act.name||w.name}),'In progress · resume','openSession',act.id);
   }
   if(!wc){
-    cards+='<div class="card sessioncard" data-click="openAddSheet"><div class="sc-kicker">Start here</div><h3>No sessions yet</h3><div class="sc-meta">Import your first session from text, a photo or your voice — then schedule it for today or a day ahead.</div><div class="sc-chips"><span class="chip gold">+ Add a session</span></div></div>';
+    cards+='<div class="card sessioncard" data-click="openImport"><div class="sc-kicker">Start here</div><h3>No sessions yet</h3><div class="sc-meta">Import your first session from text, a photo or your voice — then schedule it for today or a day ahead.</div><div class="sc-chips"><span class="chip gold">Import a session</span></div></div>';
   } else {
     // Home shows what's on for TODAY (recurring or one-off scheduled). Templates
     // that aren't scheduled live in the Library, not on the front page.
@@ -3192,7 +3192,7 @@ const IMP={text:'',wk:null,builtAnyway:false,ocrBusy:false,ocrMsg:'',photoUrl:''
 function openImport(){IMP.wk=null;IMP.builtAnyway=false;IMP.ocrMsg='';IMP.photoUrl='';go('import');}
 function impPending(){return IMP.wk?IMP.wk.issues.filter(i=>!i.resolved):[];}
 const IMP_MODE_LABEL={reps_kg:'Reps × kg',reps:'Reps',seconds:'Time',reps_seconds:'Reps × time',amrap:'Max reps',completion:'For time'};
-function impTargetStr(ex){
+function impTargetStr(ex,b){
   let s;
   if(ex.mode==='seconds')s=ex.sets+' × '+(ex.secs!=null?ex.secs+'s':'—');
   else if(ex.mode==='amrap')s=ex.sets+' × max reps';
@@ -3202,6 +3202,7 @@ function impTargetStr(ex){
   if(ex.eachSide)s+=' each side';
   if(ex.rpe)s+=' · @RPE '+ex.rpe;
   if(ex.rest)s+=' · rest '+(ex.rest%60===0&&ex.rest>=60?(ex.rest/60)+'min':ex.rest+'s');
+  else if(b&&!b.rest&&ex.mode!=='completion')s+=' · rest 1:30 (default)';
   return s;
 }
 function impIssueChip(iss){
@@ -3257,7 +3258,7 @@ function impDraftHtml(){
     const meta=[];if(b.format)meta.push(b.format);if(b.rest)meta.push('rest '+b.rest+'s');if(b.superset&&!b.format)meta.push('superset');
     h+='<div class="card" style="margin-top:14px;overflow:hidden"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:12px 14px 6px"><b style="font-size:13px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2)">'+esc(b.heading)+'</b><span style="font-size:11px;color:var(--dim)">'+esc(meta.join(' · '))+'</span></div>';
     b.exercises.forEach(e=>{
-      h+='<div style="padding:10px 14px;border-top:1px solid rgba(255,255,255,.04)"><div style="display:flex;align-items:flex-start;gap:10px"><div style="flex:1"><b style="font-size:14.5px;font-weight:750">'+(e.name?esc(e.name):'<span style="color:#d8a24a">Movement — name it below</span>')+'</b><p style="margin-top:2px;color:var(--muted);font-size:12px">'+esc(impTargetStr(e))+'</p></div><span class="chip">'+IMP_MODE_LABEL[e.mode]+'</span></div>';
+      h+='<div style="padding:10px 14px;border-top:1px solid rgba(255,255,255,.04)"><div style="display:flex;align-items:flex-start;gap:10px"><div style="flex:1"><b style="font-size:14.5px;font-weight:750">'+(e.name?esc(e.name):'<span style="color:#d8a24a">Movement — name it below</span>')+'</b><p style="margin-top:2px;color:var(--muted);font-size:12px">'+esc(impTargetStr(e,b))+'</p></div><span class="chip">'+IMP_MODE_LABEL[e.mode]+'</span></div>';
       wk.issues.forEach(iss=>{if(iss.ref===e)h+=iss.resolved?'<span class="imp-needs done">✓ sorted</span>':impIssueChip(iss)+impFixerHtml(iss);});
       h+='</div>';
     });
@@ -3302,7 +3303,9 @@ function impSave(){
   const w={id:uid(),name:wk.name,days:[],blocks:wk.blocks.map(b=>({
     id:uid(),heading:b.heading,minutes:'',format:b.format,superset:!!b.superset,
     exercises:b.exercises.map(e=>{
-      const rest=e.rest||b.rest||0;
+      // no rest written anywhere → default 90s for anything trainable; rest:0
+      // would make the guided logger silently skip its rest stage entirely
+      const rest=e.rest||b.rest||(e.mode==='completion'?0:90);
       const mkT=(i)=>{
         let t;
         if(e.mode==='seconds')t=e.secs!=null?String(e.secs):'';

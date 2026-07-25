@@ -790,6 +790,27 @@ await t('importer: paste → meaning-questions inline → learn → save lands i
     DB.settings.lexicon = { kw: {}, ex: {} }; save(); go('home');
   }, before);
 });
+await t('import without rest text defaults lifts to 90s, and the draft says so', async () => {
+  const r = await page.evaluate(() => {
+    const wk = impParse('Bench press 4x8\nPlank 3x30s');
+    const preview = impTargetStr(wk.blocks[0].exercises[0], wk.blocks[0]);
+    IMP.wk = wk; const before = DB.workouts.length;
+    impSave();
+    const w = DB.workouts[DB.workouts.length - 1];
+    const rests = w.blocks.flatMap((b) => b.exercises.map((e) => e.rest));
+    DB.workouts = DB.workouts.slice(0, before); save();
+    return { rests, preview };
+  });
+  if (!r.rests.every((x) => x === 90)) throw new Error('rests=' + JSON.stringify(r.rests));
+  if (!/rest 1:30 \(default\)/.test(r.preview)) throw new Error('draft preview missing default note: ' + r.preview);
+  await page.evaluate(() => go('home'));
+});
+await t('Home zero-state card opens the importer directly', async () => {
+  await page.evaluate(() => { window.__stashW = DB.workouts; DB.workouts = []; go('home'); });
+  await page.click('#s-home .sessioncard[data-click="openImport"]');
+  await page.waitForSelector('#s-import.on', { timeout: 2000 });
+  await page.evaluate(() => { DB.workouts = window.__stashW; delete window.__stashW; save(); go('home'); });
+});
 await t('logger accordion: open, collapse, one-at-a-time', async () => {
   await page.click('.navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });

@@ -1,5 +1,15 @@
 # Changelog
 
+## Two import fixes that feed the guided Logger — 25 July 2026
+
+- **Imports without rest now default to 1:30** instead of 0. Zero rest made
+  the new guided flow silently skip its rest stage; 90s is a floor you can
+  stretch live with the +15s button. The draft preview says
+  "rest 1:30 (default)" so nothing is hidden. Completion-style items
+  (mobility checklists) still get no rest.
+- **The Home "start here" card now opens the importer directly** — its copy
+  always promised that; it used to detour through the Add sheet.
+
 ## Guided set flow: the Logger coaches every set — 25 July 2026
 
 The open exercise is no longer a table of rows — it's a stage that walks you
