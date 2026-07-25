@@ -90,6 +90,7 @@ function icoMic(){return _ico('<rect x="9.5" y="3.5" width="5" height="10" rx="2
 function icoCam(){return _ico('<path d="M4 8.5h3.2l1.4-2h6.8l1.4 2H20a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.2"/>');}
 function icoStop(){return _ico('<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>');}
 function icoLibrary(){return _ico('<path d="M5 4.5h3.4v15H5zM10.2 4.5h3.4v15h-3.4zM16.2 5.4l3.1.8-3.6 13.9-3.1-.8z"/>');}
+function icoPencil(){return _ico('<path d="M4 20l.9-3.6L15.6 5.7a1.5 1.5 0 0 1 2.1 0l.6.6a1.5 1.5 0 0 1 0 2.1L7.6 19.1z"/><path d="M14 7.5l2.5 2.5"/>');}
 
 /* ---------- shared training model ---------- */
 const MODES={
@@ -138,7 +139,7 @@ function go(id,btn){
   document.querySelectorAll('.navlink').forEach(b=>b.classList.remove('active'));
   // The logger is a detail view of Training — keep Training lit while logging.
   // Conditioning, Progress and exercise-history all live under Library now.
-  const LIB_SCREENS={library:1,conditioning:1,progress:1,exhist:1};
+  const LIB_SCREENS={library:1,conditioning:1,progress:1,exhist:1,planner:1};
   const navId=id==='recap'?'training'
     :LIB_SCREENS[id]?'library'
     :(id==='history'||id==='import'||id==='calendar')?'home':id;
@@ -171,6 +172,7 @@ function renderScreen(id){
   else if(id==='recap')renderRecap();
   else if(id==='exhist')renderExHist();
   else if(id==='calendar')renderCalendar();
+  else if(id==='planner')renderPlanner();
 }
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
@@ -707,13 +709,17 @@ function lgTarget(ex,st){
    so that region is this formula's own linear extrapolation. */
 const AUTOREG={targetRpeCenter:8.5,pctPerRpePoint:2.5,missedFloorRpe:10.5,plateIncrement:2.5,stepKg:2.5};
 function roundToIncrement(v,inc){if(!inc)return v;return Math.max(0,Math.round(Math.round(v/inc)*inc*100)/100);}
-function verdictForRpe(rpe){
-  if(rpe<=5)return'way too light';
-  if(rpe<=6.5)return'too light';
-  if(rpe<=7.5)return'easy';
-  if(rpe<8.5)return'a touch under target';
-  if(rpe<=9)return'right on target';
-  if(rpe<=9.5)return'grindy';
+function verdictForRpe(rpe,center){
+  // judged relative to the set's own target RPE (bands match the old absolute
+  // wording at the default 8.5 center)
+  const d=rpe-(center==null?AUTOREG.targetRpeCenter:center);
+  if(rpe>=10)return'max effort'; // a 10 is a 10, whatever the target was
+  if(d<=-3.5)return'way too light';
+  if(d<=-2)return'too light';
+  if(d<=-1)return'easy';
+  if(d<0)return'a touch under target';
+  if(d<=0.5)return'right on target';
+  if(d<=1)return'grindy';
   return'max effort';
 }
 function repFloorOf(st){const m=String(st.t||'').match(/(\d+)/);return m?+m[1]:0;}
@@ -724,7 +730,7 @@ function computeSetAdjustment(reps,rpe,low,weight,center){
   const eff=missed?AUTOREG.missedFloorRpe:rpe;
   const newWeight=roundToIncrement(weight*(1+((center-eff)*AUTOREG.pctPerRpePoint)/100),AUTOREG.plateIncrement);
   const delta=Math.round((newWeight-weight)*100)/100;
-  return{delta,newWeight,verdict:missed?'missed the rep floor':verdictForRpe(rpe),cls:delta<0?'bad':'good'};
+  return{delta,newWeight,verdict:missed?'missed the rep floor':verdictForRpe(rpe,center),cls:delta<0?'bad':'good'};
 }
 /* ============ GUIDED SET FLOW ============
    The open exercise is a stage, not a table: one set at a time, big inputs,
@@ -1264,26 +1270,29 @@ function swapNamePool(){
   DB.workouts.concat(DB.sessions).forEach(w=>(w.blocks||[]).forEach(b=>blockExercises(b).forEach(e=>{if(e.name)set.add(e.name);})));
   return [...set].sort((a,b)=>a.localeCompare(b));
 }
-let SWAP_Q='';
-function openSwapSheet(){ SWAP_Q=''; renderSwapSheet(); }
+let SWAP_Q='',SWAP_APPLY='applySwap'; // which window[fn] a picked name goes to (logger swap vs planner rename)
+function openSwapSheet(){ SWAP_Q=''; SWAP_APPLY='applySwap'; renderSwapSheet(); }
 /* Keystroke handler: mutate SWAP_Q and refresh ONLY the results list so the
    live <input> (focus + caret + IME) is never destroyed. Mirrors setNote. */
 function swapFilter(q){ SWAP_Q=q||''; const el=document.querySelector('#sheet .swaplist'); if(el)el.innerHTML=buildSwapList(); else renderSwapSheet(); }
 function buildSwapList(){
   const q=SWAP_Q.trim().toLowerCase();
   const pool=swapNamePool().filter(n=>!q||n.toLowerCase().includes(q)).slice(0,40);
-  const list=pool.map(n=>'<button class="bigopt swapopt" data-click="applySwap" data-args="[&quot;'+esc(n)+'&quot;]"><div><b>'+esc(n)+'</b></div></button>').join('');
+  const list=pool.map(n=>'<button class="bigopt swapopt" data-click="'+SWAP_APPLY+'" data-args="[&quot;'+esc(n)+'&quot;]"><div><b>'+esc(n)+'</b></div></button>').join('');
   const freetext=(SWAP_Q.trim()&&!pool.some(n=>n.toLowerCase()===q))
-    ?'<button class="bigopt swapopt" data-click="applySwap" data-args="[&quot;'+esc(SWAP_Q.trim())+'&quot;]"><div><b>Use &ldquo;'+esc(SWAP_Q.trim())+'&rdquo;</b><span>free text</span></div></button>':'';
+    ?'<button class="bigopt swapopt" data-click="'+SWAP_APPLY+'" data-args="[&quot;'+esc(SWAP_Q.trim())+'&quot;]"><div><b>Use &ldquo;'+esc(SWAP_Q.trim())+'&rdquo;</b><span>free text</span></div></button>':'';
   return freetext+list;
+}
+function swapSheetHtml(title,sub){
+  return '<div class="grab"></div><h3>'+title+'</h3><p class="ssub">'+sub+'</p>'+
+    '<div class="field"><input class="swapsearch" autofocus placeholder="Search or type a name" value="'+esc(SWAP_Q)+'" data-input="swapFilter" data-args="[&quot;@value&quot;]" aria-label="search exercises"></div>'+
+    '<div class="swaplist">'+buildSwapList()+'</div>'+
+    '<button class="cancel" data-click="closeSheet">Cancel</button>';
 }
 function renderSwapSheet(){
   const s=curSession();if(!s||!LOG_LOC)return;
   const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
-  openSheet('<div class="grab"></div><h3>Swap exercise</h3><p class="ssub">Replace &ldquo;'+esc(ex.name||'Exercise')+'&rdquo; — sets &amp; targets are kept.</p>'+
-    '<div class="field"><input class="swapsearch" autofocus placeholder="Search or type a name" value="'+esc(SWAP_Q)+'" data-input="swapFilter" data-args="[&quot;@value&quot;]" aria-label="search exercises"></div>'+
-    '<div class="swaplist">'+buildSwapList()+'</div>'+
-    '<button class="cancel" data-click="closeSheet">Cancel</button>');
+  openSheet(swapSheetHtml('Swap exercise','Replace &ldquo;'+esc(ex.name||'Exercise')+'&rdquo; — sets &amp; targets are kept.'));
 }
 function applySwap(name){
   const s=curSession();if(!s||!LOG_LOC)return;
@@ -1307,6 +1316,198 @@ function openPlateSheet(si){
     '<div class="plateline"><b>Load per side:</b> '+esc(perTxt)+'</div>'+
     closest+
     '<button class="cancel" data-click="closeSheet">Close</button>');
+}
+/* ============================================================
+   THE PLANNER — "build it like you'll run it". Edits a saved
+   workout with the Logger's own surface: the same collapsed rows
+   (same rxLine summary you'll see mid-session), one exercise open
+   at a time, and the Logger's controls flipped from read to write —
+   the set dots become the set-count stepper, the 1-10 RPE slider
+   sets the target the autoregulation will center on, rest uses the
+   same ±15s vocabulary as the live rest panel. Templates only:
+   live sessions are deep clones and stay untouched.
+   ============================================================ */
+let PLAN={wid:null,openLoc:null,custom:false};
+function planW(){return DB.workouts.find(w=>w.id===PLAN.wid)||null}
+function openPlanner(wid,loc){PLAN={wid:wid,openLoc:loc||null,custom:false};go('planner');}
+function planToggle(bi,ei){
+  PLAN.openLoc=(PLAN.openLoc&&PLAN.openLoc.bi===bi&&PLAN.openLoc.ei===ei)?null:{bi,ei};
+  PLAN.custom=false;
+  renderPlanner();
+  if(PLAN.openLoc){const c=document.getElementById('plx'+bi+'-'+ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
+}
+function planEdit(id){
+  closeSheet();
+  const w=DB.workouts.find(x=>x.id===id);if(!w)return;
+  if(w.origin==='coach'){ // coach assignments aren't synced up — fork a private copy instead of silently editing in place
+    const c=stampWorkout(JSON.parse(JSON.stringify(w)));
+    c.id=uid();c.name=(w.name||'Session')+' (copy)';c.dates=[];delete c.origin;delete c.assignmentId;delete c._rev;
+    DB.workouts.push(c);save();openPlanner(c.id);return;
+  }
+  openPlanner(id);
+}
+function planMutate(fn){const w=planW();if(!w)return null;fn(w);stampWorkout(w);save();return w;}
+function planName(v){planMutate(w=>{w.name=v;});} // keystroke: no re-render, keeps focus
+/* uniform-value helpers: the simple chip/slider controls write ALL sets; a
+   per-set import ladder shows as "mixed" until deliberately overridden */
+function planUniformT(ex){const ts=ex.sets.map(st=>st.t||'');return ts.every(t=>t===ts[0])?ts[0]:null;}
+function planUniformRpe(ex){const rs=ex.sets.map(st=>st.rpe||'');return rs.every(r=>r===rs[0])?rs[0]:null;}
+const PLAN_REP_CHIPS=['3-5','5','6-8','8-10','8-12','12-15','max'];
+function planSetTarget(t){
+  planMutate(w=>{
+    const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
+    if(t==='max'){if(isLiftMode(ex.mode))ex.mode='amrap';}
+    else if(ex.mode==='amrap')ex.mode='reps_kg';
+    ex.sets.forEach(st=>{st.t=t;});
+  });
+  PLAN.custom=false;renderPlanner();
+}
+function planCustomToggle(){PLAN.custom=!PLAN.custom;renderPlanner();}
+function planCustomStep(which,dir){
+  planMutate(w=>{
+    const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
+    const st0=ex.sets[0]||{t:''};
+    let low=repFloorOf(st0)||8,high=+repTopOf(st0)||low;
+    if(which==='low')low=Math.max(1,low+dir);else high=Math.max(1,high+dir);
+    if(low>high){if(which==='low')high=low;else low=high;}
+    const t=low===high?String(low):low+'-'+high;
+    if(ex.mode==='amrap')ex.mode='reps_kg';
+    ex.sets.forEach(st=>{st.t=t;});
+  });
+  renderPlanner();
+}
+function planRpeInput(v){
+  const val=Math.max(1,Math.min(10,parseFloat(v)||8));
+  planMutate(w=>{w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei].sets.forEach(st=>{st.rpe=fmtRpe(val);});});
+  const o=document.getElementById('planRpeOut');if(o)o.textContent=fmtRpe(val); // slider drag: no re-render
+  const c=document.querySelector('.plannorpe');if(c)c.classList.remove('on');
+}
+function planRpeClear(){
+  planMutate(w=>{w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei].sets.forEach(st=>{st.rpe='';});});
+  renderPlanner();
+}
+function planRestStep(d){
+  planMutate(w=>{const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];ex.rest=Math.max(0,(+ex.rest||0)+d);});
+  renderPlanner();
+}
+function planBumpSets(d){
+  planMutate(w=>{
+    const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
+    if(d>0){const last=ex.sets[ex.sets.length-1]||{t:'',rpe:''};ex.sets.push({t:last.t||'',rpe:last.rpe||''});}
+    else if(ex.sets.length>1)ex.sets.pop();
+  });
+  renderPlanner();
+}
+function planTrackMode(m){
+  planMutate(w=>{
+    const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
+    const wasSec=ex.mode==='seconds'||ex.mode==='reps_seconds';
+    const isSec=m==='seconds';
+    if(wasSec!==isSec)ex.sets.forEach(st=>{st.t='';}); // units changed — old targets are meaningless
+    ex.mode=m;
+  });
+  renderPlanner();
+}
+function openPlanNameSheet(){
+  const w=planW();if(!w||!PLAN.openLoc)return;
+  const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
+  SWAP_Q='';SWAP_APPLY='applyPlanName';
+  openSheet(swapSheetHtml('Name exercise','Pick a movement for &ldquo;'+esc(ex.name||'Exercise')+'&rdquo; — targets are kept.'));
+}
+function applyPlanName(name){
+  planMutate(w=>{if(name)w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei].name=name;});
+  closeSheet();renderPlanner();
+}
+function planOpenCard(w,b,ex,bi,ei,letter){
+  const lift=isLiftMode(ex.mode);
+  const uT=planUniformT(ex),uR=planUniformRpe(ex);
+  const dots='<div class="glogdots plan">'+ex.sets.map(()=>'<span class="glogdot done"></span>').join('')+'</div>';
+  // sets stepper wrapping the dots — the logger's progress dots, made writable
+  const setsRow='<div class="glogfield"><label>Sets</label><div class="plandots">'+
+    '<button data-click="planBumpSets" data-args="[-1]" aria-label="one set fewer">−</button>'+dots+
+    '<button data-click="planBumpSets" data-args="[1]" aria-label="one set more">+</button></div>'+
+    '<span class="glogunit">'+ex.sets.length+'</span></div>';
+  // target reps: one-tap chips; import ladders read as "mixed" until overridden
+  let chips='';
+  const secsMode=ex.mode==='seconds'||ex.mode==='reps_seconds';
+  if(!secsMode){
+    chips='<div class="planchips"><label>Target reps</label><div class="daychips">'+
+      PLAN_REP_CHIPS.map(c=>{
+        const on=(c==='max')?(ex.mode==='amrap'):(uT===c);
+        return '<button class="daychip'+(on?' on':'')+'" data-click="planSetTarget" data-args="[&quot;'+c+'&quot;]">'+c+'</button>';
+      }).join('')+
+      (uT===null?'<button class="daychip on" data-click="planCustomToggle">mixed</button>':'')+
+      '<button class="daychip'+(PLAN.custom?' on':'')+'" data-click="planCustomToggle">custom</button>'+
+      '</div></div>';
+    if(PLAN.custom){
+      const st0=ex.sets[0]||{t:''};const low=repFloorOf(st0)||8,high=+repTopOf(st0)||low;
+      chips+='<div class="glogfield plancustom"><label>Range</label>'+
+        '<div class="glogstep"><button data-click="planCustomStep" data-args="[&quot;low&quot;,-1]">−</button><span class="planrest">'+low+'</span><button data-click="planCustomStep" data-args="[&quot;low&quot;,1]">+</button></div>'+
+        '<span class="glogunit">to</span>'+
+        '<div class="glogstep"><button data-click="planCustomStep" data-args="[&quot;high&quot;,-1]">−</button><span class="planrest">'+high+'</span><button data-click="planCustomStep" data-args="[&quot;high&quot;,1]">+</button></div></div>';
+    }
+  }else{
+    // seconds-based targets keep the same stepper vocabulary, 5s at a time
+    const secs=repFloorOf(ex.sets[0]||{t:''})||30;
+    chips='<div class="glogfield"><label>Target secs</label>'+
+      '<div class="glogstep"><button data-click="planSetTarget" data-args="[&quot;'+Math.max(5,secs-5)+'&quot;]">−</button><span class="planrest">'+secs+'s</span><button data-click="planSetTarget" data-args="[&quot;'+(secs+5)+'&quot;]">+</button></div></div>';
+  }
+  // target RPE — the flagship: the exact slider you rate sets with, now setting the target
+  const rpeVal=uR&&parseFloat(uR)?parseFloat(uR):8;
+  const rpePanel='<div class="glogrpe"><span class="glogeyebrow">Target effort · RPE</span>'+
+    '<b id="planRpeOut">'+(uR===null?'mixed':(uR===''?'—':fmtRpe(parseFloat(uR))))+'</b>'+
+    '<input type="range" id="planRpeSlider" min="1" max="10" step="0.5" value="'+rpeVal+'" data-input="planRpeInput" data-args="[&quot;@value&quot;]" aria-label="target RPE from 1 to 10">'+
+    '<div class="glogancs"><span>1 · barely felt it</span><span>10 · max effort</span></div>'+
+    '<button class="daychip plannorpe'+(uR===''?' on':'')+'" data-click="planRpeClear">no target — logger centers on 8.5</button></div>';
+  // rest — same ±15s vocabulary as the live rest panel
+  const restRow='<div class="glogfield"><label>Rest</label><div class="glogstep">'+
+    '<button data-click="planRestStep" data-args="[-15]" aria-label="15 seconds less rest">−</button>'+
+    '<span class="planrest">'+fmtRest(+ex.rest||0)+'</span>'+
+    '<button data-click="planRestStep" data-args="[15]" aria-label="15 seconds more rest">+</button></div>'+
+    '<span class="glogunit">'+((+ex.rest||0)===0?'no rest — flows on':'')+'</span></div>';
+  // track: how the logger will record it (legacy modes shown if present, never offered)
+  const tracks=[['reps_kg','kg × reps'],['reps','reps'],['seconds','seconds']];
+  if(ex.mode==='reps_seconds')tracks.push(['reps_seconds','secs × reps']);
+  if(ex.mode==='completion')tracks.push(['completion','tick off']);
+  const cur=ex.mode==='amrap'?'reps_kg':ex.mode;
+  const trackRow='<div class="planchips"><label>Track</label><div class="daychips">'+
+    tracks.map(t=>'<button class="daychip'+(cur===t[0]?' on':'')+'" data-click="planTrackMode" data-args="[&quot;'+t[0]+'&quot;]">'+t[1]+'</button>').join('')+'</div></div>';
+  return '<div class="lgx open glog plan" id="plx'+bi+'-'+ei+'">'+
+    '<div class="lg-body">'+
+    '<div class="lgtop"><button class="lgltr" data-click="planToggle" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button>'+
+      '<span class="lgttl">'+esc(ex.name||'Exercise')+'</span>'+
+      '<button class="lgswap" data-click="openPlanNameSheet" aria-label="rename exercise">'+icoPencil()+'</button>'+
+      '<span class="lgmeta">'+prettyMeta(rxLine(ex))+'</span></div>'+
+    setsRow+chips+rpePanel+restRow+trackRow+
+    '</div></div>';
+}
+function renderPlanner(){
+  const el=document.getElementById('s-planner');if(!el)return;
+  const w=planW();
+  if(!w){el.innerHTML='<div class="card empty" style="margin-top:20px"><div class="kicker">Plan</div><h3>Nothing to edit</h3><p>Pick a session in your Library.</p></div>';return;}
+  const letters=sessionLetters(w);
+  const active=DB.sessions.some(s=>s.workoutId===w.id&&s.status==='active');
+  let body='';
+  (w.blocks||[]).forEach((b,bi)=>{
+    if(isCond(b)){
+      const f=CON_FORMATS[b.condFmt];
+      body+='<div class="lgx"><div class="lgcrow" style="cursor:default"><span class="lgltr">♥</span><span class="lgcn"><b>'+esc(f?f.name:'Conditioning')+'</b><span>'+esc(conPrescDesc(b.condFmt)+' · target '+condZoneName(b.targetZone))+'</span></span><span class="lgstat">runs live</span></div></div>';
+      return;
+    }
+    if(b.heading)body+='<div class="lgsec">'+esc(b.heading)+(b.superset?'<span class="lgss">superset · flows on</span>':'')+(b.format?'<span class="lgfmt">'+esc(b.format)+'</span>':'')+'</div>';
+    blockExercises(b).forEach((ex,ei)=>{
+      if(PLAN.openLoc&&PLAN.openLoc.bi===bi&&PLAN.openLoc.ei===ei){body+=planOpenCard(w,b,ex,bi,ei,letters[bi][ei]);return;}
+      body+='<div class="lgx"><button class="lgcrow" data-click="planToggle" data-args="['+bi+','+ei+']">'+
+        '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
+        '<span class="lgcar">›</span></button></div>';
+    });
+  });
+  el.innerHTML=
+    '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;library&quot;]">←</button><div style="flex:1"><div class="kicker" style="margin-bottom:3px">Plan · edits save as you go</div>'+
+    '<input class="planname" value="'+esc(w.name||'Session')+'" data-input="planName" data-args="[&quot;@value&quot;]" aria-label="session name"></div></div>'+
+    (active?'<div class="plannote">A session in progress uses the previous plan — changes apply next time.</div>':'')+
+    '<div class="loggerlist'+(PLAN.openLoc?' hasopen':'')+'">'+body+'</div>'+
+    '<div class="completebar"><button class="bigbtn" data-click="go" data-args="[&quot;library&quot;]">Done</button></div>';
 }
 /* ============================================================
    LIBRARY — one home for saved sessions, conditioning and progress,
@@ -1379,6 +1580,7 @@ function clearSchedDate(){SCHED_DATE=null;renderLibrary();}
 function tplMenu(id){
   const w=DB.workouts.find(x=>x.id===id);if(!w)return;
   openSheet('<div class="grab"></div><h3>'+esc(w.name||'Untitled session')+'</h3><p class="ssub">'+esc(tplSummary(w))+'</p>'+
+    '<button class="bigopt" data-click="planEdit" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">'+icoPencil()+'</span><div><b>'+(w.origin==='coach'?'Duplicate &amp; edit':'Edit')+'</b><span>'+(w.origin==='coach'?'Coach plans stay as sent — tweak a private copy':'Targets, RPE, rest — with the logger’s own controls')+'</span></div></button>'+
     '<button class="bigopt" data-click="dupWorkout" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">'+icoCopy()+'</span><div><b>Duplicate</b><span>Make a copy to tweak</span></div></button>'+
     '<button class="bigopt" data-click="delWorkoutFromLib" data-args="[&quot;'+esc(id)+'&quot;]"><span class="oi">'+icoTrash()+'</span><div><b>Delete</b><span>Remove from your Library</span></div></button>'+
     '<button class="cancel" data-click="closeSheet">Cancel</button>');

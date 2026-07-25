@@ -811,6 +811,63 @@ await t('Home zero-state card opens the importer directly', async () => {
   await page.waitForSelector('#s-import.on', { timeout: 2000 });
   await page.evaluate(() => { DB.workouts = window.__stashW; delete window.__stashW; save(); go('home'); });
 });
+await t('Planner: Library ⋮ Edit opens the plan view with logger-identical rows', async () => {
+  await page.evaluate(() => {
+    window.__stashW = DB.workouts; window.__stashS = DB.sessions;
+    DB.workouts = [{ id: 'plw1', name: 'Push Day', days: [], dates: [], blocks: [
+      { id: 'plb1', heading: 'Main', minutes: '', format: '', superset: false, exercises: [
+        { id: 'ple1', name: 'Bench Press', mode: 'reps_kg', tempo: '', rest: 90, sets: [
+          { t: '5', rpe: '' }, { t: '5', rpe: '' }, { t: '5', rpe: '' }] },
+        { id: 'ple2', name: 'Incline DB Press', mode: 'reps_kg', tempo: '', rest: 90, sets: [
+          { t: '12', rpe: '8' }, { t: '10', rpe: '8' }, { t: '8', rpe: '8' }] }] }] }];
+    DB.sessions = []; save(); go('library');
+  });
+  await page.click('#s-library .tpmenu');
+  await page.waitForSelector('#sheet .bigopt', { timeout: 2000 });
+  await page.click('#sheet .bigopt:has-text("Edit")');
+  await page.waitForSelector('#s-planner.on', { timeout: 2000 });
+  const row = await page.textContent('#s-planner .lgcrow .lgcn');
+  const expected = await page.evaluate(() => rxLine(DB.workouts[0].blocks[0].exercises[0]));
+  if (!row.includes(expected.replace(/RPE /, 'RPE '))) throw new Error('planner row "' + row + '" lacks rxLine "' + expected + '"');
+});
+await t('Planner: dots stepper, rep chips, RPE slider and ±15s rest all write the template', async () => {
+  await page.click('#s-planner .lgcrow');
+  await page.waitForSelector('#s-planner .lgx.open.plan', { timeout: 2000 });
+  await page.click('#s-planner .plandots button:last-child'); // + one set
+  await page.click('#s-planner .daychip:text-is("6-8")');
+  await page.fill('#planRpeSlider', '8');
+  await page.click('#s-planner .glogfield:has(.planrest) button[data-args="[15]"]');
+  await page.click('#s-planner .glogfield:has(.planrest) button[data-args="[15]"]');
+  const ex = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts[0].blocks[0].exercises[0]);
+  if (ex.sets.length !== 4) throw new Error('sets=' + ex.sets.length);
+  if (!ex.sets.every((s) => s.t === '6-8' && s.rpe === '8')) throw new Error('sets=' + JSON.stringify(ex.sets));
+  if (ex.rest !== 120) throw new Error('rest=' + ex.rest);
+  if (Object.keys(ex.sets[0]).sort().join(',') !== 'rpe,t') throw new Error('set shape grew: ' + Object.keys(ex.sets[0]));
+  // an imported per-set ladder reads as "mixed" until deliberately overridden
+  await page.click('#s-planner .lgx:not(.open) .lgcrow');
+  await page.waitForSelector('#s-planner .lgx.open.plan', { timeout: 2000 });
+  const lit = await page.$$eval('#s-planner .planchips .daychip.on', (els) => els.map((e) => e.textContent).join(','));
+  if (!/mixed/.test(lit)) throw new Error('ladder not shown as mixed: ' + lit);
+});
+await t('Planner → Logger symbiosis: the authored plan drives the guided flow', async () => {
+  await page.evaluate(() => { scheduleWorkoutOn('plw1', ymd(new Date())); startWorkout('plw1'); openLogger(0, 0); });
+  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
+  const track = await page.textContent('#s-training .glogtrack');
+  if (!/SET 1 OF 4/.test(track) || !/6-8 @8/.test(track)) throw new Error('logger did not read the plan: ' + track);
+  await page.fill('#glogV1', '80'); await page.fill('#glogV2', '8');
+  await page.click('#s-training .glogfinish');
+  await page.fill('#glogRpeSlider', '8');
+  await page.click('#s-training .glogrpe .bigbtn');
+  await page.waitForSelector('#s-training .glogrest', { timeout: 2000 });
+  const hint = await page.textContent('#s-training .gloghint');
+  // felt 8 against an authored target of 8 → on target, hold weight
+  if (!/right on target/.test(hint) || !/hold weight/.test(hint)) throw new Error('verdict not centered on authored RPE: ' + hint);
+  await page.evaluate(() => {
+    stopRest(); DB.workouts = window.__stashW; DB.sessions = window.__stashS;
+    delete window.__stashW; delete window.__stashS;
+    CUR_SESSION = null; LOG_LOC = null; save(); go('home');
+  });
+});
 await t('logger accordion: open, collapse, one-at-a-time', async () => {
   await page.click('.navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });

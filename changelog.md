@@ -1,5 +1,31 @@
 # Changelog
 
+## The Planner: build it like you'll run it — 25 July 2026
+
+Saved sessions are editable again — not with the old dense Builder, but with
+the Logger's own surface. Library → ⋮ → **Edit** opens the session as the
+exact list you'll see mid-workout (same rows, same summaries), and tapping an
+exercise opens it with the Logger's controls flipped from read to write:
+
+- **Sets** are the set-progress dots with − / + around them.
+- **Target reps** are one-tap chips (3-5 · 5 · 6-8 · 8-10 · 8-12 · 12-15 ·
+  max), with a custom low/high stepper for oddballs. Imported per-set ladders
+  show as "mixed" until you deliberately override them.
+- **Target effort** is the same 1–10 RPE slider you rate sets with — what you
+  set here is what the weight autoregulation centers on. A "no target" chip
+  hands it back to the 8.5 default.
+- **Rest** steps in ±15s — the same vocabulary as the live rest timer.
+- **Track** picks kg × reps / reps / seconds. No weight field anywhere:
+  history and RPE own the weight.
+- Renaming an exercise uses the same search sheet as the mid-session swap.
+- Everything autosaves as you tap — no Save button, no draft state.
+- Coach-assigned plans stay as sent: Edit on those becomes "Duplicate & edit."
+- A session already in progress keeps the previous plan; changes apply next
+  time.
+- Set verdicts are now judged against the set's own target RPE ("right on
+  target" means *your* target, not always 8.5). A felt 10 always reads max
+  effort.
+
 ## Two import fixes that feed the guided Logger — 25 July 2026
 
 - **Imports without rest now default to 1:30** instead of 0. Zero rest made
