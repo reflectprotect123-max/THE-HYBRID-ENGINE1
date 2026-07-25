@@ -247,6 +247,31 @@ await t('spam: 30 blocks, 50 sets, rapid tick/untick, rapid prev/next', async ()
     CUR_SESSION = null; save();
   });
 });
+await t('planner hammer: rapid set-bumps + chain merge/split keep the shape sane', async () => {
+  await page.evaluate(() => {
+    DB.workouts.push({ id: 'torplan', name: 'TorPlan', days: [], dates: [], blocks: [
+      { id: uid(), heading: 'A', minutes: '', format: '', superset: false, exercises: [{ id: uid(), name: 'X', mode: 'reps_kg', tempo: '', rest: 60, sets: [{ t: '5', rpe: '' }] }] },
+      { id: uid(), heading: 'B', minutes: '', format: '', superset: false, exercises: [{ id: uid(), name: 'Y', mode: 'reps_kg', tempo: '', rest: 60, sets: [{ t: '5', rpe: '' }] }] }] });
+    save(); openPlanner('torplan', { bi: 0, ei: 0 });
+    for (let i = 0; i < 30; i++) planBumpSets(1);
+    for (let i = 0; i < 60; i++) planBumpSets(-1); // floor is 1, over-popping must be safe
+    for (let i = 0; i < 10; i++) {
+      planLink(0, 0, true);  // merge (no-ops once single block)
+      const b = DB.workouts.find((w) => w.id === 'torplan').blocks;
+      if (b[0] && b[0].superset) planLink(0, 0, false); // split back
+    }
+  });
+  const ok = await page.evaluate(() => {
+    const w = DB.workouts.find((x) => x.id === 'torplan');
+    const sane = sanitizeDB(JSON.parse(JSON.stringify(DB)));
+    const w2 = sane.workouts.find((x) => x.id === 'torplan');
+    const shapeOk = w.blocks.every((b) => b.exercises.every((e) => e.sets.length >= 1 && e.sets.every((st) => 't' in st && 'rpe' in st)));
+    const r = { shapeOk, survived: !!w2, blocks: w.blocks.length };
+    DB.workouts = DB.workouts.filter((x) => x.id !== 'torplan'); save(); go('home');
+    return r;
+  });
+  if (!ok.shapeOk || !ok.survived) throw new Error(JSON.stringify(ok));
+});
 await t('history navigation 400 days back and forth', async () => {
   await page.evaluate(() => openHistory(ymd(new Date())));
   await page.evaluate(() => { for (let i = 0; i < 400; i++) shiftHistory(-1); for (let i = 0; i < 400; i++) shiftHistory(1); });

@@ -91,6 +91,7 @@ function icoCam(){return _ico('<path d="M4 8.5h3.2l1.4-2h6.8l1.4 2H20a1 1 0 0 1 
 function icoStop(){return _ico('<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>');}
 function icoLibrary(){return _ico('<path d="M5 4.5h3.4v15H5zM10.2 4.5h3.4v15h-3.4zM16.2 5.4l3.1.8-3.6 13.9-3.1-.8z"/>');}
 function icoPencil(){return _ico('<path d="M4 20l.9-3.6L15.6 5.7a1.5 1.5 0 0 1 2.1 0l.6.6a1.5 1.5 0 0 1 0 2.1L7.6 19.1z"/><path d="M14 7.5l2.5 2.5"/>');}
+function icoLink(){return _ico('<path d="M9.5 12h5M8.5 8.5H7a3.5 3.5 0 0 0 0 7h1.5M15.5 8.5H17a3.5 3.5 0 0 1 0 7h-1.5"/>');}
 
 /* ---------- shared training model ---------- */
 const MODES={
@@ -1354,6 +1355,7 @@ function planUniformT(ex){const ts=ex.sets.map(st=>st.t||'');return ts.every(t=>
 function planUniformRpe(ex){const rs=ex.sets.map(st=>st.rpe||'');return rs.every(r=>r===rs[0])?rs[0]:null;}
 const PLAN_REP_CHIPS=['3-5','5','6-8','8-10','8-12','12-15','max'];
 function planSetTarget(t){
+  if(!PLAN.openLoc)return;
   planMutate(w=>{
     const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
     if(t==='max'){if(isLiftMode(ex.mode))ex.mode='amrap';}
@@ -1364,6 +1366,7 @@ function planSetTarget(t){
 }
 function planCustomToggle(){PLAN.custom=!PLAN.custom;renderPlanner();}
 function planCustomStep(which,dir){
+  if(!PLAN.openLoc)return;
   planMutate(w=>{
     const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
     const st0=ex.sets[0]||{t:''};
@@ -1377,20 +1380,24 @@ function planCustomStep(which,dir){
   renderPlanner();
 }
 function planRpeInput(v){
+  if(!PLAN.openLoc)return;
   const val=Math.max(1,Math.min(10,parseFloat(v)||8));
   planMutate(w=>{w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei].sets.forEach(st=>{st.rpe=fmtRpe(val);});});
   const o=document.getElementById('planRpeOut');if(o)o.textContent=fmtRpe(val); // slider drag: no re-render
   const c=document.querySelector('.plannorpe');if(c)c.classList.remove('on');
 }
 function planRpeClear(){
+  if(!PLAN.openLoc)return;
   planMutate(w=>{w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei].sets.forEach(st=>{st.rpe='';});});
   renderPlanner();
 }
 function planRestStep(d){
+  if(!PLAN.openLoc)return;
   planMutate(w=>{const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];ex.rest=Math.max(0,(+ex.rest||0)+d);});
   renderPlanner();
 }
 function planBumpSets(d){
+  if(!PLAN.openLoc)return;
   planMutate(w=>{
     const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
     if(d>0){const last=ex.sets[ex.sets.length-1]||{t:'',rpe:''};ex.sets.push({t:last.t||'',rpe:last.rpe||''});}
@@ -1399,6 +1406,7 @@ function planBumpSets(d){
   renderPlanner();
 }
 function planTrackMode(m){
+  if(!PLAN.openLoc)return;
   planMutate(w=>{
     const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];
     const wasSec=ex.mode==='seconds'||ex.mode==='reps_seconds';
@@ -1414,7 +1422,77 @@ function openPlanNameSheet(){
   SWAP_Q='';SWAP_APPLY='applyPlanName';
   openSheet(swapSheetHtml('Name exercise','Pick a movement for &ldquo;'+esc(ex.name||'Exercise')+'&rdquo; — targets are kept.'));
 }
+/* ---- structure: add / remove / reorder / chain / headings ---- */
+function planAddEx(bi){
+  const w=planMutate(w2=>{w2.blocks[bi].exercises.push(newEx());});
+  if(!w)return;
+  PLAN.openLoc={bi,ei:w.blocks[bi].exercises.length-1};PLAN.custom=false;
+  renderPlanner();openPlanNameSheet(); // first tap of a new exercise is choosing the movement
+}
+function planAddBlock(){
+  const w=planMutate(w2=>{const nb=newBlock();nb.heading='Main';w2.blocks.push(nb);});
+  if(!w)return;
+  PLAN.openLoc={bi:w.blocks.length-1,ei:0};PLAN.custom=false;
+  renderPlanner();openPlanNameSheet();
+}
+function planDelEx(){
+  const w=planW();if(!w||!PLAN.openLoc)return;
+  const {bi,ei}=PLAN.openLoc,b=w.blocks[bi],ex=b.exercises[ei];
+  if(!confirm('Remove "'+(ex.name||'this exercise')+'" from the plan?'))return;
+  planMutate(w2=>{
+    const b2=w2.blocks[bi];
+    b2.exercises.splice(ei,1);
+    if(!b2.exercises.length)w2.blocks.splice(bi,1);
+    else if(b2.exercises.length<2)b2.superset=false;
+  });
+  PLAN.openLoc=null;renderPlanner();
+}
+function planMoveEx(dir){
+  const w=planW();if(!w||!PLAN.openLoc)return;
+  const {bi,ei}=PLAN.openLoc,b=w.blocks[bi],ex=b.exercises[ei];
+  planMutate(w2=>{
+    const b2=w2.blocks[bi],e2=b2.exercises[ei];
+    const inRange=dir<0?ei>0:ei<b2.exercises.length-1;
+    if(inRange){b2.exercises.splice(ei,1);b2.exercises.splice(ei+dir,0,e2);return;}
+    // hop the block boundary into the neighbouring strength block
+    let nb=bi+dir;while(nb>=0&&nb<w2.blocks.length&&isCond(w2.blocks[nb]))nb+=dir;
+    if(nb<0||nb>=w2.blocks.length)return;
+    b2.exercises.splice(ei,1);
+    if(dir<0)w2.blocks[nb].exercises.push(e2);else w2.blocks[nb].exercises.unshift(e2);
+    if(!b2.exercises.length)w2.blocks.splice(bi,1);
+    else if(b2.exercises.length<2)b2.superset=false;
+  });
+  // follow the moved exercise wherever it landed
+  const w3=planW();
+  w3.blocks.forEach((bb,i)=>{(bb.exercises||[]).forEach((e3,j)=>{if(e3.id===ex.id)PLAN.openLoc={bi:i,ei:j};});});
+  renderPlanner();
+  const c=document.getElementById('plx'+PLAN.openLoc.bi+'-'+PLAN.openLoc.ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+/* One chain per seam. In-block unlit → the block becomes a superset; lit →
+   split at that seam. Across a block boundary → merge the next block in. */
+function planLink(bi,ei,cross){
+  planMutate(w=>{
+    const b=w.blocks[bi];
+    if(cross){
+      const nb=w.blocks[bi+1];if(!nb||isCond(nb)||isCond(b))return;
+      b.exercises=b.exercises.concat(nb.exercises||[]);
+      b.superset=true;
+      w.blocks.splice(bi+1,1);
+    }else if(!b.superset)b.superset=b.exercises.length>1;
+    else{
+      const rest=b.exercises.splice(ei+1);
+      b.superset=b.exercises.length>1;
+      w.blocks.splice(bi+1,0,{id:uid(),heading:b.heading,minutes:'',format:b.format||'',superset:rest.length>1,exercises:rest});
+    }
+  });
+  PLAN.openLoc=null;renderPlanner();
+}
+function planHeadEdit(bi){PLAN.editHead=bi;renderPlanner();}
+function planHeadInput(bi,v){planMutate(w=>{w.blocks[bi].heading=v;});} // keystroke: no re-render
+function planHeadChip(bi,v){planMutate(w=>{w.blocks[bi].heading=v;});PLAN.editHead=null;renderPlanner();}
+function planHeadDone(){PLAN.editHead=null;renderPlanner();}
 function applyPlanName(name){
+  if(!PLAN.openLoc){closeSheet();return;}
   planMutate(w=>{if(name)w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei].name=name;});
   closeSheet();renderPlanner();
 }
@@ -1472,13 +1550,17 @@ function planOpenCard(w,b,ex,bi,ei,letter){
   const cur=ex.mode==='amrap'?'reps_kg':ex.mode;
   const trackRow='<div class="planchips"><label>Track</label><div class="daychips">'+
     tracks.map(t=>'<button class="daychip'+(cur===t[0]?' on':'')+'" data-click="planTrackMode" data-args="[&quot;'+t[0]+'&quot;]">'+t[1]+'</button>').join('')+'</div></div>';
+  const ctl='<div class="planctl">'+
+    '<button data-click="planMoveEx" data-args="[-1]" aria-label="move exercise up">↑</button>'+
+    '<button data-click="planMoveEx" data-args="[1]" aria-label="move exercise down">↓</button>'+
+    '<button class="del" data-click="planDelEx" aria-label="remove exercise">✕</button></div>';
   return '<div class="lgx open glog plan" id="plx'+bi+'-'+ei+'">'+
     '<div class="lg-body">'+
     '<div class="lgtop"><button class="lgltr" data-click="planToggle" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button>'+
       '<span class="lgttl">'+esc(ex.name||'Exercise')+'</span>'+
       '<button class="lgswap" data-click="openPlanNameSheet" aria-label="rename exercise">'+icoPencil()+'</button>'+
       '<span class="lgmeta">'+prettyMeta(rxLine(ex))+'</span></div>'+
-    setsRow+chips+rpePanel+restRow+trackRow+
+    setsRow+chips+rpePanel+restRow+trackRow+ctl+
     '</div></div>';
 }
 function renderPlanner(){
@@ -1488,20 +1570,34 @@ function renderPlanner(){
   const letters=sessionLetters(w);
   const active=DB.sessions.some(s=>s.workoutId===w.id&&s.status==='active');
   let body='';
+  const seam=(bi,ei,cross,on)=>'<div class="planseam"><button class="'+(on?'on':'')+'" data-click="planLink" data-args="['+bi+','+ei+','+(cross?'true':'false')+']" aria-label="'+(on?'unlink superset here':'link into a superset')+'">'+icoLink()+'</button></div>';
   (w.blocks||[]).forEach((b,bi)=>{
     if(isCond(b)){
       const f=CON_FORMATS[b.condFmt];
       body+='<div class="lgx"><div class="lgcrow" style="cursor:default"><span class="lgltr">♥</span><span class="lgcn"><b>'+esc(f?f.name:'Conditioning')+'</b><span>'+esc(conPrescDesc(b.condFmt)+' · target '+condZoneName(b.targetZone))+'</span></span><span class="lgstat">runs live</span></div></div>';
       return;
     }
-    if(b.heading)body+='<div class="lgsec">'+esc(b.heading)+(b.superset?'<span class="lgss">superset · flows on</span>':'')+(b.format?'<span class="lgfmt">'+esc(b.format)+'</span>':'')+'</div>';
+    if(PLAN.editHead===bi){
+      body+='<div class="planhead"><input value="'+esc(b.heading||'')+'" data-input="planHeadInput" data-args="['+bi+',&quot;@value&quot;]" aria-label="block heading">'+
+        ['Warm-up','Main','Accessory'].map(h=>'<button class="daychip" data-click="planHeadChip" data-args="['+bi+',&quot;'+h+'&quot;]">'+h+'</button>').join('')+
+        '<button class="daychip on" data-click="planHeadDone">✓</button></div>';
+    }else{
+      body+='<div class="lgsec plansec" data-click="planHeadEdit" data-args="['+bi+']">'+esc(b.heading||'Block')+(b.superset?'<span class="lgss">superset · flows on</span>':'')+(b.format?'<span class="lgfmt">'+esc(b.format)+'</span>':'')+'</div>';
+    }
     blockExercises(b).forEach((ex,ei)=>{
-      if(PLAN.openLoc&&PLAN.openLoc.bi===bi&&PLAN.openLoc.ei===ei){body+=planOpenCard(w,b,ex,bi,ei,letters[bi][ei]);return;}
-      body+='<div class="lgx"><button class="lgcrow" data-click="planToggle" data-args="['+bi+','+ei+']">'+
-        '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
-        '<span class="lgcar">›</span></button></div>';
+      if(PLAN.openLoc&&PLAN.openLoc.bi===bi&&PLAN.openLoc.ei===ei){body+=planOpenCard(w,b,ex,bi,ei,letters[bi][ei]);}
+      else{
+        body+='<div class="lgx"><button class="lgcrow" data-click="planToggle" data-args="['+bi+','+ei+']">'+
+          '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
+          '<span class="lgcar">›</span></button></div>';
+      }
+      if(ei<b.exercises.length-1)body+=seam(bi,ei,false,!!b.superset); // in-block seam
     });
+    body+='<button class="addbtn planadd" data-click="planAddEx" data-args="['+bi+']">＋ Exercise</button>';
+    const nb=w.blocks[bi+1];
+    if(nb&&!isCond(nb)&&!isCond(b))body+=seam(bi,b.exercises.length-1,true,false); // cross-block seam: merge
   });
+  body+='<button class="addbtn planadd block" data-click="planAddBlock">＋ Block</button>';
   el.innerHTML=
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;library&quot;]">←</button><div style="flex:1"><div class="kicker" style="margin-bottom:3px">Plan · edits save as you go</div>'+
     '<input class="planname" value="'+esc(w.name||'Session')+'" data-input="planName" data-args="[&quot;@value&quot;]" aria-label="session name"></div></div>'+

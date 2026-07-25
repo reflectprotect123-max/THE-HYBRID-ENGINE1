@@ -849,6 +849,51 @@ await t('Planner: dots stepper, rep chips, RPE slider and ±15s rest all write t
   const lit = await page.$$eval('#s-planner .planchips .daychip.on', (els) => els.map((e) => e.textContent).join(','));
   if (!/mixed/.test(lit)) throw new Error('ladder not shown as mixed: ' + lit);
 });
+await t('Planner structure: chain merges/splits supersets, add/move/delete, heading chips', async () => {
+  await page.evaluate(() => {
+    window.__stashW2 = DB.workouts; window.__stashS2 = DB.sessions;
+    DB.workouts = [{ id: 'plw2', name: 'Struct Day', days: [], dates: [], blocks: [
+      { id: 'sb1', heading: 'Pair', minutes: '', format: '', superset: false, exercises: [
+        { id: 'se1', name: 'Bench', mode: 'reps_kg', tempo: '', rest: 120, sets: [{ t: '10', rpe: '8' }] }] },
+      { id: 'sb2', heading: 'Pair2', minutes: '', format: '', superset: false, exercises: [
+        { id: 'se2', name: 'Row', mode: 'reps_kg', tempo: '', rest: 120, sets: [{ t: '10', rpe: '8' }] }] }] }];
+    DB.sessions = []; save(); openPlanner('plw2');
+  });
+  await page.waitForSelector('#s-planner.on', { timeout: 2000 });
+  // cross-block chain → one superset block
+  await page.click('#s-planner .planseam button');
+  let blocks = await page.evaluate(() => DB.workouts[0].blocks.map((b) => ({ n: b.exercises.length, ss: !!b.superset })));
+  if (blocks.length !== 1 || !blocks[0].ss || blocks[0].n !== 2) throw new Error('merge failed: ' + JSON.stringify(blocks));
+  // lit chain → split back apart
+  await page.click('#s-planner .planseam button.on');
+  blocks = await page.evaluate(() => DB.workouts[0].blocks.map((b) => ({ n: b.exercises.length, ss: !!b.superset })));
+  if (blocks.length !== 2 || blocks.some((b) => b.ss)) throw new Error('split failed: ' + JSON.stringify(blocks));
+  // + Exercise auto-opens the name sheet; free-text names it
+  await page.click('#s-planner .planadd:not(.block)');
+  await page.waitForSelector('#sheet .swapsearch', { timeout: 2000 });
+  await page.fill('#sheet .swapsearch', 'Pallof Press Iso');
+  await page.click('#sheet .swapopt');
+  await page.waitForSelector('#s-planner .lgx.open.plan', { timeout: 2000 });
+  let names = await page.evaluate(() => DB.workouts[0].blocks[0].exercises.map((e) => e.name));
+  if (names[1] !== 'Pallof Press Iso') throw new Error('add+name failed: ' + names);
+  // move it up, then delete it
+  await page.click('#s-planner .planctl button:first-child');
+  names = await page.evaluate(() => DB.workouts[0].blocks[0].exercises.map((e) => e.name));
+  if (names[0] !== 'Pallof Press Iso') throw new Error('move failed: ' + names);
+  await page.click('#s-planner .planctl .del');
+  names = await page.evaluate(() => DB.workouts[0].blocks[0].exercises.map((e) => e.name));
+  if (names.length !== 1 || names[0] !== 'Bench') throw new Error('delete failed: ' + names);
+  // heading chips
+  await page.click('#s-planner .plansec');
+  await page.waitForSelector('#s-planner .planhead input', { timeout: 2000 });
+  await page.click('#s-planner .planhead .daychip:text-is("Warm-up")');
+  const head = await page.evaluate(() => DB.workouts[0].blocks[0].heading);
+  if (head !== 'Warm-up') throw new Error('heading chip failed: ' + head);
+  await page.evaluate(() => {
+    DB.workouts = window.__stashW2; DB.sessions = window.__stashS2;
+    delete window.__stashW2; delete window.__stashS2; save(); go('library');
+  });
+});
 await t('Planner → Logger symbiosis: the authored plan drives the guided flow', async () => {
   await page.evaluate(() => { scheduleWorkoutOn('plw1', ymd(new Date())); startWorkout('plw1'); openLogger(0, 0); });
   await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });

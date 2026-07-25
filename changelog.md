@@ -1,5 +1,21 @@
 # Changelog
 
+## Planner structure: shape the session, not just the numbers — 25 July 2026
+
+The plan editor now changes the session's shape too, still in the Logger's
+visual language:
+
+- **Chain link between exercises.** One tap on the link between two rows makes
+  them a superset ("flows on" — A→B with no rest, rest after the pair, exactly
+  how the Logger runs it). Tap a lit link to split them apart. Linking across
+  two sections merges them into one pair.
+- **＋ Exercise / ＋ Block** — a new exercise opens straight into the movement
+  search (same sheet as the mid-session swap), pre-set to 3 sets @ 1:30 rest.
+- **↑ ↓ ✕ on the open card** move an exercise (hopping section boundaries at
+  the edges) or remove it. Emptied sections clean themselves up.
+- **Tap a section heading** to rename it — type anything, or one-tap
+  Warm-up / Main / Accessory.
+
 ## The Planner: build it like you'll run it — 25 July 2026
 
 Saved sessions are editable again — not with the old dense Builder, but with

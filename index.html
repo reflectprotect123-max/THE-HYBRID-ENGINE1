@@ -702,6 +702,18 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .planname:focus{border-bottom-color:var(--gold-line)}
 .plannote{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel2);color:var(--dim);font-size:12px}
 .plancustom{padding-top:8px}
+.planseam{display:flex;justify-content:center;margin:2px 0}
+.planseam button{display:flex;align-items:center;justify-content:center;width:34px;height:26px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--dim);cursor:pointer}
+.planseam button svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round}
+.planseam button.on{border-color:var(--gold-line);background:var(--gold-wash);color:var(--gold2)}
+.planctl{display:flex;gap:8px;padding:12px 12px 0}
+.planctl button{width:44px;min-height:40px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel2);color:var(--muted);font:inherit;font-size:15px;font-weight:800;cursor:pointer}
+.planctl .del{margin-left:auto;color:var(--dim)}
+.planadd{margin-top:8px}
+.planadd.block{margin-top:14px}
+.planhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:16px}
+.planhead input{flex:1;min-width:120px;min-height:38px;border:1px solid var(--gold-line);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--text);font:inherit;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:0 10px;outline:none}
+.plansec{cursor:pointer}
 .lgaff{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 12px 0}
 .lgaffbtn{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:4px 9px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel2);color:var(--dim);font:inherit;font-size:11px;font-weight:700;cursor:pointer;transition:.15s ease}
 .lgaffbtn svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.8;fill:none}
