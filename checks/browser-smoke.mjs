@@ -123,7 +123,7 @@ await t('superset block is labeled "flows on" (auto-advance chain)', async () =>
   const label = await page.textContent('#s-training .lgsec .lgss');
   if (!/flows on/.test(label)) throw new Error(label);
 });
-await t('logger accordion opens on a strength row with prescribed rest', async () => {
+await t('guided stage opens on a strength row: dots, tracker, weight+reps, Finish Set', async () => {
   const rows = await page.$$('#s-training .lgcrow');
   let clicked = false;
   for (const row of rows) {
@@ -131,18 +131,50 @@ await t('logger accordion opens on a strength row with prescribed rest', async (
     if (/rest/.test(txt) && /RPE|reps/.test(txt)) { await row.click(); clicked = true; break; }
   }
   if (!clicked) throw new Error('no row with prescribed rest');
-  await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
-  const head = await page.$$eval('#s-training .lgx.open .lgth', (els) => els.map((e) => e.textContent));
-  if (!head.includes('KG') || !head.includes('Target')) throw new Error(head.join(','));
+  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
+  const track = await page.textContent('#s-training .glogtrack');
+  if (!/SET 1 OF/.test(track)) throw new Error('tracker=' + track);
+  if (!(await page.$('#glogV1')) || !(await page.$('#glogV2'))) throw new Error('weight/reps inputs missing');
+  if (!(await page.$('#s-training .glogdot.active'))) throw new Error('no active set dot');
+  if (!(await page.$('#s-training .glogfinish'))) throw new Error('no Finish Set button');
 });
-await t('logging a set autosaves and starts the rest chip', async () => {
-  const inputs = await page.$$('#s-training .lgx.open .lgrow input');
-  await inputs[0].fill('60'); await inputs[1].fill('12'); await inputs[2].fill('8');
-  await page.click('#s-training .lgx.open .lgrow .lgtick');
+await t('Finish Set → RPE slider (1–10) → Confirm logs the set and starts the rest chip', async () => {
+  await page.fill('#glogV1', '60'); await page.fill('#glogV2', '12');
+  await page.click('#s-training .glogfinish');
+  await page.waitForSelector('#glogRpeSlider', { timeout: 2000 });
+  const range = await page.$eval('#glogRpeSlider', (el) => el.min + '-' + el.max + '/' + el.step);
+  if (range !== '1-10/0.5') throw new Error('slider range=' + range);
+  await page.fill('#glogRpeSlider', '8');
+  if ((await page.textContent('#glogRpeOut')) !== '8') throw new Error('readout did not track slider');
+  await page.click('#s-training .glogrpe .bigbtn');
   await page.waitForSelector('#restchip.show', { timeout: 2000 });
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
   const ok = saved.sessions.some((s) => s.blocks.some((b) => b.exercises.some((e) => e.sets.some((st) => st.done && st.aVal === '60' && st.felt === '8'))));
   if (!ok) throw new Error('set not persisted');
+});
+await t('per-set autoregulation moved the next set\'s weight (percentage of current, plate-rounded)', async () => {
+  // target RPE 7, felt 8 → (7−8) × 2.5% of 60 = −1.5 → 58.5 → rounds to 57.5 on 2.5 kg plates
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
+  const ex = saved.sessions.flatMap((s) => s.blocks).flatMap((b) => b.exercises || []).find((e) => e.sets.some((st) => st.done && st.aVal === '60'));
+  if (!ex) throw new Error('logged exercise not found');
+  const next = ex.sets[1];
+  if (next.aVal !== '57.5') throw new Error('next set weight=' + next.aVal);
+  const hint = await page.textContent('#s-training .gloghint');
+  if (!/57\.5 kg/.test(hint)) throw new Error('hint=' + hint);
+  if (!(await page.$('#s-training .glogrest'))) throw new Error('in-stage rest panel missing');
+});
+await t('rest +15s extends the clock; Skip Rest advances to the next set', async () => {
+  const secsOf = (s) => { const m = s.trim().match(/(\d+):(\d+)/); return m ? +m[1] * 60 + +m[2] : NaN; };
+  const before = secsOf(await page.textContent('#glogClock'));
+  await page.click('#s-training .glogrestbtns button:first-child');
+  const after = secsOf(await page.textContent('#glogClock'));
+  if (!(after > before + 10)) throw new Error('+15s did not extend: ' + before + '→' + after);
+  await page.click('#s-training .glogrestbtns button:last-child');
+  await page.waitForSelector('#s-training .glogfinish', { timeout: 2000 });
+  const track = await page.textContent('#s-training .glogtrack');
+  if (!/SET 2 OF/.test(track)) throw new Error('did not advance: ' + track);
+  // re-arm a rest for the reload-persistence tests below
+  await page.evaluate(() => startRest(120));
 });
 await t('no add/remove-set steppers in the logger (mock-exact)', async () => {
   if (await page.$('#s-training .bsteprow')) throw new Error('stepper present');
@@ -227,9 +259,11 @@ await t('logger prefills last kg as placeholder next time', async () => {
   for (const row of rows) {
     if (/rest 3:00/.test(await row.textContent())) { await row.click(); break; }
   }
-  await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
-  const ph = await page.$eval('#s-training .lgx.open .lgrow input', (el) => el.placeholder);
-  if (ph !== '60') throw new Error('placeholder=' + ph);
+  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
+  const v = await page.$eval('#glogV1', (el) => el.value);
+  if (v !== '60') throw new Error('prefill=' + v);
+  const lastLine = await page.textContent('#s-training .gloglast');
+  if (!/60 kg × 12 @ RPE 8/.test(lastLine)) throw new Error('last-time line=' + lastLine);
 });
 await t('nav is four tabs: Home · Training · Library · Settings', async () => {
   const navs = await page.$$eval('.navlink', (els) => els.map((e) => e.dataset.s));
@@ -808,6 +842,40 @@ await t('swap exercise mid-session: name changes, sets kept, swappedFrom set, st
   });
   if (!finished) throw new Error('swapped session did not finish');
   await page.evaluate(() => go('home'));
+});
+await t('superset pair flows A→B with no rest, rests after the pair, then round 2 on A', async () => {
+  await page.waitForTimeout(800); // the swap test's finishSession schedules go('recap') at +650ms — let it land first
+  await page.evaluate(() => {
+    const today = ymd(new Date());
+    DB.sessions = DB.sessions.filter((s) => s.status !== 'active'); CUR_SESSION = null;
+    DB.workouts = [{ id: uid(), name: 'Pairtest', days: [], dates: [today],
+      blocks: [{ id: uid(), heading: 'Superset', superset: true, exercises: [
+        { id: uid(), name: 'Bench', mode: 'reps_kg', rest: 120, sets: [{ t: '10', rpe: '8' }, { t: '10', rpe: '8' }] },
+        { id: uid(), name: 'Row', mode: 'reps_kg', rest: 120, sets: [{ t: '10', rpe: '8' }, { t: '10', rpe: '8' }] }] }] }];
+    save(); startWorkout(DB.workouts[0].id); openLogger(0, 0);
+  });
+  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
+  const logOne = async (kg) => {
+    await page.fill('#glogV1', kg); await page.fill('#glogV2', '10');
+    await page.click('#s-training .glogfinish');
+    await page.fill('#glogRpeSlider', '8.5');
+    await page.click('#s-training .glogrpe .bigbtn');
+  };
+  await logOne('60'); // A1 confirmed → B opens immediately, NO rest inside the pair
+  const openA = await page.textContent('#s-training .lgx.open .lgttl');
+  if (openA !== 'Row') throw new Error('did not flow to B, open=' + openA);
+  if (await page.$('#s-training .glogrest')) throw new Error('rest ran inside the pair');
+  await logOne('40'); // B1 confirmed → pair complete → rest
+  await page.waitForSelector('#s-training .glogrest', { timeout: 2000 });
+  await page.click('#s-training .glogrestbtns button:last-child'); // skip
+  await page.waitForSelector('#s-training .glogfinish', { timeout: 2000 });
+  const openB = await page.textContent('#s-training .lgx.open .lgttl');
+  const track = await page.textContent('#s-training .glogtrack');
+  if (openB !== 'Bench' || !/SET 2 OF/.test(track)) throw new Error('round 2 landed on ' + openB + ' / ' + track);
+  await page.evaluate(() => {
+    DB.workouts = []; DB.sessions = DB.sessions.filter((s) => s.status !== 'active');
+    CUR_SESSION = null; LOG_LOC = null; save(); go('home');
+  });
 });
 await t('hostile exercise/target text is escaped, never executed (XSS)', async () => {
   const executed = await page.evaluate(async () => {

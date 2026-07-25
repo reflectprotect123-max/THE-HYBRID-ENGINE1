@@ -66,13 +66,17 @@ await t('log EVERY set of EVERY exercise like a real session', async () => {
         const ex = b.exercises[ei];
         if (b.superset || ex.mode === 'completion') { ex.sets.forEach((st) => (st.done = true)); continue; }
         openLogger(bi, ei);
+        // drive the guided flow the way a thumb would: values → Finish → RPE → Confirm.
+        // Dispatch real input events so setActual persists values across re-renders.
+        const type = (id, val) => { const el = document.getElementById(id); if (el) { el.value = val; el.dispatchEvent(new Event('input', { bubbles: true })); } };
         for (let si = 0; si < ex.sets.length; si++) {
-          setActual(si, 1, String(40 + si * 5));
-          if (ex.mode === 'reps_kg' || ex.mode === 'amrap' || ex.mode === 'reps_seconds') setActual(si, 2, String(12 - si));
-          setActual(si, 3, String(7 + si * 0.5));
-          tickSet(si);
+          type('glogV1', String(40 + si * 5));
+          type('glogV2', String(12 - si));
+          glogFinishSet();
+          glogRpeInput(String(7 + si * 0.5));
+          glogConfirmSet();
+          stopRest();
         }
-        stopRest();
       }
     }
     save();
@@ -121,7 +125,7 @@ await t('XSS: hostile names everywhere never execute', async () => {
   await page.evaluate((id) => startWorkout(DB.workouts[DB.workouts.length - 1].id), 0);
   await page.waitForSelector('#s-training.on');
   await page.evaluate(() => { openLogger(0, 0); });
-  await page.evaluate(() => { setActual(0, 1, '<img src=x onerror="window.__xss=1">'); tickSet(0); stopRest(); });
+  await page.evaluate(() => { const st = curSession().blocks[0].exercises[0].sets[0]; st.aVal = '<img src=x onerror="window.__xss=1">'; st.done = true; save(); renderSession(); stopRest(); });
   await page.evaluate(() => { renderLibrary(); go('library'); });
   await page.waitForSelector('#s-library.on');
   await page.waitForTimeout(400);
@@ -205,7 +209,11 @@ await t('absurd inputs: negative, huge, emoji, 10k-char name', async () => {
   });
   await page.waitForSelector('#s-training.on');
   await page.evaluate(() => openLogger(0, 0));
-  await page.evaluate(() => { setActual(0, 1, '-100'); setActual(0, 2, '999999999'); setActual(0, 3, 'emoji🔥'); tickSet(0); });
+  await page.evaluate(() => {
+    const type = (id, val) => { const el = document.getElementById(id); if (el) { el.value = val; el.dispatchEvent(new Event('input', { bubbles: true })); } };
+    type('glogV1', '-100'); type('glogV2', '999999999');
+    glogFinishSet(); glogRpeInput('emoji🔥'); glogConfirmSet();
+  });
   const chip = await page.$eval('#restchip', (el) => el.classList.contains('show'));
   if (!chip) throw new Error('rest did not start for huge rest value');
   await page.click('#restchip');
@@ -227,7 +235,7 @@ await t('spam: 30 blocks, 50 sets, rapid tick/untick, rapid prev/next', async ()
   });
   await page.waitForSelector('#s-training.on');
   await page.evaluate(() => openLogger(2, 0));
-  await page.evaluate(() => { for (let i = 0; i < 40; i++) tickSet(i % 50); stopRest(); });
+  await page.evaluate(() => { for (let i = 0; i < 40; i++) { glogFinishSet(); glogRpeInput(String((i % 10) || 5)); glogConfirmSet(); stopRest(); } });
   await page.evaluate(() => { for (let i = 0; i < 60; i++) openLogger(i % 5, 0); });
   const db = await S();
   const spam = db.sessions.find((s) => s.name === 'Spam' && s.status === 'active');

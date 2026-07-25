@@ -1,5 +1,33 @@
 # Changelog
 
+## Guided set flow: the Logger coaches every set — 25 July 2026
+
+The open exercise is no longer a table of rows — it's a stage that walks you
+through one set at a time, and the weight now moves itself between sets.
+
+- **Finish Set → RPE slider → Confirm Set.** Big weight (±2.5 kg stepper) and
+  reps inputs, then a full 1–10 RPE slider (0.5 steps) — no more typing RPE
+  into a tiny box.
+- **The weight autoregulates after every confirmed set.** Each RPE point away
+  from the 8.5 target moves the next set's weight by 2.5% of the current
+  weight, rounded to 2.5 kg plates (rates from the Tuchscherer/Helms
+  RPE-to-%1RM chart; below RPE 6 is linear extrapolation — no published chart
+  data exists there). Missing the rep floor counts as worse than true failure.
+  A set with its own target RPE (e.g. "@7") autoregulates around that instead.
+- **The verdict is spelled out** after every set — "That set was easy —
+  +2.5 kg for Set 3 (100 kg)." — and the new weight is already filled in.
+- **Last time, per set.** Each set shows what you did on the same set last
+  session ("100 kg × 8 @ RPE 7.5"), not one summary line for the exercise.
+- **Rest runs in the stage** with a countdown, progress bar, **+15s** and
+  **Skip Rest** — and auto-advances to the next set when it hits zero. The
+  floating chip still mirrors it everywhere else in the app.
+- **Set dots** across the top of the card show done / current / remaining.
+- **Supersets pair properly:** A → B with no rest inside the pair, rest after
+  the pair, then back to A for the next round — set by set, not
+  exercise by exercise.
+- When an exercise is finished, the card offers **"Next: …"** to jump
+  straight to the next unfinished lift.
+
 ## Remove the manual Builder; import is now the only way in — 27 July 2026
 
 The block-by-block session Builder is gone. Every session now starts the same

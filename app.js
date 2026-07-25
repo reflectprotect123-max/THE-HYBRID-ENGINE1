@@ -671,7 +671,6 @@ function prettyDay(key){const p=String(key||'').split('-');if(p.length!==3)retur
 function prettyMeta(m){return esc(m).replace(/(RPE [^·]+)/g,'<i>$1</i>').replace(/(@[^ ·]+)/g,'<i>$1</i>')}
 /* Engraved stroke-SVG glyph set (currentColor, no OS emoji) — CSP-safe static markup. */
 function svgCheck(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4 10-11"/></svg>';}
-function svgRing(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>';}
 function svgTrophy(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3"/><path d="M17 6h3v1a3 3 0 0 1-3 3"/><path d="M9.5 15h5M12 13v2M9 19h6"/></svg>';}
 function svgMedal(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 3 6 8M15.5 3 18 8"/><circle cx="12" cy="15" r="6"/><path d="M9.5 15l1.7 1.7L14.5 13"/></svg>';}
 function svgDumbbell(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>';}
@@ -694,55 +693,155 @@ function sessionLetters(s){
 }
 function lgState(ex){const d=ex.sets.filter(st=>st.done).length,t=ex.sets.length;
   return d===t&&t>0?'<span class="lgstat done">'+svgCheck()+'done</span>':d>0?'<span class="lgstat part">'+d+'/'+t+'</span>':'<span class="lgstat">'+t+' set'+(t===1?'':'s')+'</span>';}
-function lgCols(mode){
-  if(mode==='reps_kg'||mode==='amrap')return{h:['Set','Target','KG','Reps','RPE','✓'],g:'36px 50px 1fr 1fr 52px 46px'};
-  if(mode==='reps_seconds')return{h:['Set','Target','Secs','Reps','RPE','✓'],g:'36px 50px 1fr 1fr 52px 46px'};
-  if(mode==='seconds')return{h:['Set','Target','Secs','RPE','✓'],g:'36px 56px 1fr 60px 46px'};
-  return{h:['Set','Target','Reps','RPE','✓'],g:'36px 56px 1fr 60px 46px'}; // reps
-}
 function lgTarget(ex,st){
   if(ex.mode==='amrap')return 'max'+(st.rpe?' @'+st.rpe:'');
   const t=st.t==='max'?'max':(st.t||'—');
   return t+(st.rpe?' @'+st.rpe:'');
 }
+/* ============ PER-SET AUTOREGULATION ============
+   The weight moves after EVERY confirmed set, as a percentage of the current
+   working weight — a flat kg jump would mean the same correction for a 60kg
+   squat as a 200kg one. ~2.5% per RPE point is the rate of change in the
+   Tuchscherer/Helms RPE-to-%1RM chart (anchors: 8 reps @RPE8 ≈ 74%1RM,
+   5 @RPE8 ≈ 81%, 5 @RPE9 ≈ 84%). Below RPE 6 no chart data is published,
+   so that region is this formula's own linear extrapolation. */
+const AUTOREG={targetRpeCenter:8.5,pctPerRpePoint:2.5,missedFloorRpe:10.5,plateIncrement:2.5,stepKg:2.5};
+function roundToIncrement(v,inc){if(!inc)return v;return Math.max(0,Math.round(Math.round(v/inc)*inc*100)/100);}
+function verdictForRpe(rpe){
+  if(rpe<=5)return'way too light';
+  if(rpe<=6.5)return'too light';
+  if(rpe<=7.5)return'easy';
+  if(rpe<8.5)return'a touch under target';
+  if(rpe<=9)return'right on target';
+  if(rpe<=9.5)return'grindy';
+  return'max effort';
+}
+function repFloorOf(st){const m=String(st.t||'').match(/(\d+)/);return m?+m[1]:0;}
+function repTopOf(st){const r=String(st.t||'').match(/(\d+)\s*[-–]\s*(\d+)/);if(r)return r[2];const m=String(st.t||'').match(/(\d+)/);return m?m[1]:'';}
+function rpeCenterOf(st){const ns=String(st.rpe||'').match(/\d+(?:\.\d+)?/g);if(ns&&ns.length)return ns.reduce((a,x)=>a+ +x,0)/ns.length;return AUTOREG.targetRpeCenter;}
+function computeSetAdjustment(reps,rpe,low,weight,center){
+  const missed=low>0&&reps<low;
+  const eff=missed?AUTOREG.missedFloorRpe:rpe;
+  const newWeight=roundToIncrement(weight*(1+((center-eff)*AUTOREG.pctPerRpePoint)/100),AUTOREG.plateIncrement);
+  const delta=Math.round((newWeight-weight)*100)/100;
+  return{delta,newWeight,verdict:missed?'missed the rep floor':verdictForRpe(rpe),cls:delta<0?'bad':'good'};
+}
+/* ============ GUIDED SET FLOW ============
+   The open exercise is a stage, not a table: one set at a time, big inputs,
+   Finish Set → RPE slider (1–10) → Confirm Set, which logs the set, moves the
+   next set's weight by the formula above, and runs the rest timer in place.
+   Supersets flow A→B with no rest, then rest after the pair. GLOG is
+   transient UI state only — every confirmed value lands on the session's set
+   objects, so history, PRs and the recap are untouched. */
+let GLOG={phase:'input',rpe:7.5,hint:null,after:null};
+function glogReset(){GLOG={phase:'input',rpe:7.5,hint:null,after:null};}
+function glogCurSet(ex){return ex.sets.findIndex(st=>!st.done);}
+function fmtRpe(v){return String(Math.round(v*10)/10);}
+function glogVal1Prefill(ex,si){
+  const st=ex.sets[si];
+  if(st.aVal)return st.aVal;
+  for(let i=si-1;i>=0;i--)if(ex.sets[i].aVal)return ex.sets[i].aVal;
+  if(isLiftMode(ex.mode)){
+    const last=lastTimeFor(ex.name);
+    if(last){const ls=(last.sets[si]&&last.sets[si].aVal)?last.sets[si]:last.sets.find(x=>x&&x.aVal);if(ls)return ls.aVal;}
+    return'';
+  }
+  return st.t&&st.t!=='max'?st.t:'';
+}
+function glogVal2Prefill(ex,si){
+  const st=ex.sets[si];
+  if(st.aVal2)return st.aVal2;
+  for(let i=si-1;i>=0;i--)if(ex.sets[i].aVal2)return ex.sets[i].aVal2;
+  return repTopOf(st);
+}
+function glogLastLine(ex,si){
+  const last=lastTimeFor(ex.name);if(!last)return'';
+  const ls=last.sets[si];if(!ls||(!ls.aVal&&!ls.aVal2))return'';
+  let v;
+  if(isLiftMode(ex.mode))v=(ls.aVal||'—')+' kg × '+(ls.aVal2||'—');
+  else if(ex.mode==='reps_seconds')v=(ls.aVal||'—')+'s × '+(ls.aVal2||'—');
+  else if(ex.mode==='seconds')v=(ls.aVal||'—')+'s';
+  else v=(ls.aVal||'—')+' reps';
+  return v+(ls.felt?' @ RPE '+ls.felt:'');
+}
+function glogLoggedList(ex){
+  const items=ex.sets.map((st,i)=>{
+    if(!st.done)return'';
+    let line='Set '+(i+1)+' — ';
+    if(isLiftMode(ex.mode))line+=(st.aVal||'—')+' kg × '+(st.aVal2||'—');
+    else if(ex.mode==='reps_seconds')line+=(st.aVal||'—')+'s × '+(st.aVal2||'—');
+    else if(ex.mode==='seconds')line+=(st.aVal||'—')+'s';
+    else line+=(st.aVal||'—')+' reps';
+    if(st.felt)line+=' @ RPE '+st.felt;
+    return'<li>'+esc(line)+'</li>';
+  }).filter(Boolean);
+  return items.length?'<ul class="gloglog">'+items.join('')+'</ul>':'';
+}
+/* Next unfinished loggable exercise in the whole session, after (bi,ei), wrapping. */
+function glogNextLoc(s,bi,ei){
+  const flat=[];
+  s.blocks.forEach((b,bj)=>{if(isCond(b))return;blockExercises(b).forEach((e,ej)=>{if(e.mode!=='completion'&&!exFinished(e))flat.push({bi:bj,ei:ej,name:e.name||'Exercise'});});});
+  if(!flat.length)return null;
+  return flat.find(x=>x.bi>bi||(x.bi===bi&&x.ei>ei))||flat[0];
+}
 function lgOpenCard(s,b,ex,bi,ei,letter){
-  const cols=lgCols(ex.mode),last=lastTimeFor(ex.name);
-  CUR_REST=+ex.rest||0;
-  const head='<div class="lghead"><span class="thead-cols" style="display:grid;grid-template-columns:'+cols.g+';gap:6px">'+cols.h.map(c=>'<span class="lgth">'+c+'</span>').join('')+'</span></div>';
-  const rows=ex.sets.map((st,si)=>{
-    const kgPh=last&&last.sets[si]&&last.sets[si].aVal?esc(last.sets[si].aVal):'kg';
-    let cells='';
-    if(ex.mode==='reps_kg'||ex.mode==='amrap')
-      cells='<input inputmode="decimal" placeholder="'+kgPh+'" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="kg"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]" aria-label="reps">';
-    else if(ex.mode==='reps_seconds')
-      cells='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="seconds"><input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal2)+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]" aria-label="reps">';
-    else if(ex.mode==='seconds')
-      cells='<input inputmode="numeric" placeholder="secs" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="seconds">';
-    else
-      cells='<input inputmode="numeric" placeholder="reps" value="'+esc(st.aVal)+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="reps">';
+  const lift=isLiftMode(ex.mode);
+  const si=glogCurSet(ex);
+  const meta=[(ex.tempo?'@'+esc(ex.tempo):''),(+ex.rest?'rest '+fmtRest(+ex.rest):'no rest')].filter(Boolean).join(' · ');
+  const dots='<div class="glogdots">'+ex.sets.map((st,i)=>'<span class="glogdot'+(st.done?' done':(i===si?' active':''))+'"></span>').join('')+'</div>';
+  const hint=GLOG.hint?'<p class="gloghint '+GLOG.hint.cls+'">'+esc(GLOG.hint.txt)+'</p>':'';
+  let body='';
+  if(si>=0){
+    const st=ex.sets[si];
+    body+='<div class="glogtrack">SET '+(si+1)+' OF '+ex.sets.length+'<em>target '+esc(lgTarget(ex,st))+'</em></div>';
+    const lastLine=glogLastLine(ex,si);
+    if(lastLine)body+='<div class="gloglast"><span>Last time</span><b>'+esc(lastLine)+'</b>'+(lift?'<button class="markall" style="margin-left:auto" data-click="openExHist" data-args="[&quot;'+esc(ex.name)+'&quot;]">history ›</button>':'')+'</div>';
+    if(lift){
+      body+='<div class="glogfield"><label>Weight</label><div class="glogstep">'+
+        '<button data-click="glogStepW" data-args="['+si+',-1]" aria-label="minus '+AUTOREG.stepKg+' kg">−</button>'+
+        '<input id="glogV1" inputmode="decimal" value="'+esc(glogVal1Prefill(ex,si))+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="kg">'+
+        '<button data-click="glogStepW" data-args="['+si+',1]" aria-label="plus '+AUTOREG.stepKg+' kg">+</button></div><span class="glogunit">kg</span></div>'+
+        '<div class="glogfield"><label>Reps</label><input id="glogV2" class="glogreps" inputmode="numeric" value="'+esc(glogVal2Prefill(ex,si))+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]" aria-label="reps"></div>';
+    }else if(ex.mode==='reps_seconds'){
+      body+='<div class="glogfield"><label>Secs</label><input id="glogV1" class="glogreps" inputmode="numeric" value="'+esc(glogVal1Prefill(ex,si))+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="seconds"></div>'+
+        '<div class="glogfield"><label>Reps</label><input id="glogV2" class="glogreps" inputmode="numeric" value="'+esc(glogVal2Prefill(ex,si))+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]" aria-label="reps"></div>';
+    }else{
+      body+='<div class="glogfield"><label>'+(ex.mode==='seconds'?'Secs':'Reps')+'</label><input id="glogV1" class="glogreps" inputmode="numeric" value="'+esc(glogVal1Prefill(ex,si))+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="'+(ex.mode==='seconds'?'seconds':'reps')+'"></div>';
+    }
     const noteOn=st.note||NOTE_OPEN[bi+'-'+ei+'-'+si];
     const noteBtn='<button class="lgaffbtn'+(st.note?' has':'')+'" data-click="toggleNoteInput" data-args="['+si+']" aria-label="set note">'+svgNote()+(st.note?'<span class="lgnotetxt">'+esc(st.note)+'</span>':'')+'</button>';
     const noteInput=noteOn?'<input class="lgnoteinput" maxlength="120" placeholder="note (e.g. belt, tweak)" value="'+esc(st.note||'')+'" data-input="setNote" data-args="['+si+',&quot;@value&quot;]" aria-label="set note text">':'';
-    const wKg=(ex.mode==='reps_kg'||ex.mode==='amrap')?(parseFloat(st.aVal)||0):0;
+    const wKg=lift?(parseFloat(st.aVal)||0):0;
     const plateBtn=wKg>0?'<button class="lgaffbtn" data-click="openPlateSheet" data-args="['+si+']" aria-label="plate breakdown">'+svgPlate()+'plates</button>':'';
-    return '<div class="lgrow'+(st.done?' done':'')+'" style="grid-template-columns:'+cols.g+'">'+
-      '<div class="lgno">'+(si+1)+'</div>'+
-      '<div class="lgtgt">'+esc(lgTarget(ex,st))+'</div>'+cells+
-      '<input class="lgrpe" inputmode="decimal" placeholder="–" value="'+esc(st.felt)+'" data-input="setActual" data-args="['+si+',3,&quot;@value&quot;]" aria-label="RPE felt">'+
-      '<button class="lgtick" data-click="tickSet" data-args="['+si+']" aria-label="mark set done">'+(st.done?svgCheck():svgRing())+'</button></div>'+
-      '<div class="lgaff">'+noteBtn+plateBtn+noteInput+'</div>';
-  }).join('');
-  const meta=[(ex.tempo?'@'+esc(ex.tempo):''),(+ex.rest?'rest '+fmtRest(+ex.rest):'no rest')].filter(Boolean).join(' · ');
-  const lastLine=last?'<div class="lglast">Last time · <b>'+esc(last.sets.filter(Boolean).map(st=>(st.aVal||'')+(st.aVal2?'×'+st.aVal2:'')+(st.felt?' @'+st.felt:'')).filter(x=>x.trim()).join(' · '))+'</b>'+(isLiftMode(ex.mode)?'<button class="markall" style="margin-left:auto" data-click="openExHist" data-args="[&quot;'+esc(ex.name)+'&quot;]">history ›</button>':'')+'</div>':'';
-  return '<div class="lgx open" id="lgx'+bi+'-'+ei+'">'+
+    body+='<div class="lgaff">'+noteBtn+plateBtn+noteInput+'</div>';
+    if(GLOG.phase==='rpe'){
+      body+='<div class="glogrpe"><span class="glogeyebrow">How hard was that? · RPE</span>'+
+        '<b id="glogRpeOut">'+fmtRpe(GLOG.rpe)+'</b>'+
+        '<input type="range" id="glogRpeSlider" min="1" max="10" step="0.5" value="'+GLOG.rpe+'" data-input="glogRpeInput" data-args="[&quot;@value&quot;]" aria-label="RPE from 1 to 10">'+
+        '<div class="glogancs"><span>1 · barely felt it</span><span>10 · max effort</span></div>'+
+        '<button class="bigbtn" data-click="glogConfirmSet">Confirm Set</button></div>';
+    }else if(GLOG.phase==='rest'){
+      body+='<div class="glogrest"><span class="glogeyebrow">Rest</span><div id="glogClock">0:00</div>'+
+        '<div class="glogbar"><span id="glogBar"></span></div>'+
+        '<div class="glogrestbtns"><button data-click="addRest" data-args="[15]">+15s</button><button data-click="stopRest">Skip Rest</button></div></div>';
+    }else{
+      body+='<div class="glogact"><button class="bigbtn glogfinish" data-click="glogFinishSet">Finish Set</button></div>';
+    }
+    body+=hint;
+  }else{
+    body+='<div class="glogdone">'+svgCheck()+'All '+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+' logged</div>'+hint;
+    const nx=glogNextLoc(s,bi,ei);
+    if(nx)body+='<div class="glogact"><button class="bigbtn" data-click="openLogger" data-args="['+nx.bi+','+nx.ei+']">Next: '+esc(nx.name)+' ›</button></div>';
+  }
+  body+=glogLoggedList(ex);
+  return '<div class="lgx open glog" id="lgx'+bi+'-'+ei+'">'+
     '<div class="lg-body">'+
     '<div class="lgtop"><button class="lgltr" data-click="openLogger" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button><span class="lgttl">'+esc(ex.name||'Exercise')+'</span>'+
       '<button class="lgswap" data-click="openSwapSheet" aria-label="swap exercise">'+svgSwap()+'</button>'+
       '<span class="lgmeta">'+meta+'</span></div>'+
     (ex.swappedFrom?'<div class="lgswapped">swapped from '+esc(ex.swappedFrom)+'</div>':'')+
-    head+rows+
+    dots+body+
     '</div>'+
-    lastLine+
     '</div>';
 }
 function renderSession(){
@@ -786,6 +885,7 @@ function renderSession(){
     '<div class="logprog"><div class="lpbar"><span style="width:'+spct+'%"></span></div><div class="lptext">'+sdone+' of '+stot+' done<em>'+spct+'%</em></div></div>'+
     '<div id="sessBody" class="loggerlist'+(anyOpen?' hasopen':'')+'">'+body+'</div>'+
     '<div class="completebar"><button class="bigbtn'+(allDone?' donestate':'')+'" data-click="finishSession" data-args="[&quot;@self&quot;]">'+(allDone?'Everything logged — finish ✓':'Mark session complete')+'</button></div>';
+  if(restEnds)paintRest(); // freshly-rendered in-stage rest panel shows the live clock at once
 }
 function condZoneName(key){const z=conZones().list.find(x=>x.key===key);return z?z.name:'Conditioning';}
 function renderCondBlockRow(b,bi){
@@ -988,7 +1088,7 @@ function progTopLifts(){
 }
 
 /* ---------- LOGGER state + helpers (accordion lives in renderSession) ---------- */
-let CUR_REST=0,LOG_LOC=null;
+let LOG_LOC=null;
 function lastTimeFor(name){
   const done=DB.sessions.filter(s=>s.status==='completed'||s.status==='incomplete').sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
   for(const s of done){for(const b of s.blocks){for(const ex of blockExercises(b)){
@@ -998,10 +1098,11 @@ function lastTimeFor(name){
     }}}}
   return null;
 }
-/* Toggle an exercise's inline table open/closed (one open at a time). */
+/* Toggle an exercise's guided stage open/closed (one open at a time). */
 function openLogger(bi,ei){
   const s=curSession();if(!s)return;
   LOG_LOC=(LOG_LOC&&LOG_LOC.bi===bi&&LOG_LOC.ei===ei)?null:{bi,ei};
+  glogReset();
   if(CURRENT!=='training')go('training');else renderSession();
   if(LOG_LOC){const c=document.getElementById('lgx'+bi+'-'+ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
   updateWake();
@@ -1031,29 +1132,61 @@ function setNote(si,val){                                      // mutate + save,
   s.updatedAt=Date.now();
   save();
 }
-function tickSet(si){
+/* ---------- guided set flow handlers ---------- */
+function glogStepW(si,dir){
+  const el=document.getElementById('glogV1');if(!el)return;
+  const nv=Math.max(0,Math.round(((parseFloat(el.value)||0)+dir*AUTOREG.stepKg)*100)/100);
+  el.value=nv;
+  setActual(si,1,String(nv));
+}
+function glogFinishSet(){
+  if(!curSession()||!LOG_LOC)return;
+  GLOG.phase='rpe';renderSession();
+}
+function glogRpeInput(v){
+  GLOG.rpe=Math.max(1,Math.min(10,parseFloat(v)||7.5));
+  const o=document.getElementById('glogRpeOut');if(o)o.textContent=fmtRpe(GLOG.rpe);
+}
+function glogConfirmSet(){
   const s=curSession();if(!s||!LOG_LOC)return;
-  const b=s.blocks[LOG_LOC.bi],ex=b.exercises[LOG_LOC.ei],st=ex.sets[si];
-  st.done=!st.done;
-  if(st.done){
-    // tick with blanks = "as prescribed": fill from last time + the target
-    if(ex.mode==='reps_kg'||ex.mode==='amrap'){
-      if(!st.aVal){const last=lastTimeFor(ex.name);const lf=last&&last.sets.find(Boolean);st.aVal=(last&&last.sets[si]&&last.sets[si].aVal)||(lf&&lf.aVal)||'';}
-      if(!st.aVal2&&st.t&&st.t!=='max')st.aVal2=st.t;
-    }else if(!st.aVal&&st.t&&st.t!=='max'){st.aVal=st.t;}
+  const bi=LOG_LOC.bi,ei=LOG_LOC.ei,b=s.blocks[bi],ex=b.exercises[ei];
+  const si=glogCurSet(ex);if(si<0)return;
+  const st=ex.sets[si],lift=isLiftMode(ex.mode);
+  const v1=document.getElementById('glogV1'),v2=document.getElementById('glogV2');
+  if(v1)st.aVal=String(v1.value||'').trim();
+  if(v2)st.aVal2=String(v2.value||'').trim();
+  st.felt=fmtRpe(GLOG.rpe);
+  st.done=true;
+  const isFinal=si>=ex.sets.length-1;
+  GLOG.hint=null;
+  if(lift){
+    const weight=parseFloat(st.aVal);
+    if(weight>0){
+      const adj=computeSetAdjustment(parseInt(st.aVal2,10)||0,GLOG.rpe,repFloorOf(st),weight,rpeCenterOf(st));
+      const dtxt=adj.delta>0?'+'+adj.delta+' kg':adj.delta<0?adj.delta+' kg':'hold weight';
+      const lead=adj.verdict==='missed the rep floor'?'That set missed the rep floor':'That set was '+adj.verdict;
+      GLOG.hint={txt:lead+' — '+dtxt+' for '+(isFinal?'next session':'Set '+(si+2))+' ('+adj.newWeight+' kg).',cls:adj.cls};
+      if(!isFinal&&!ex.sets[si+1].done&&!ex.sets[si+1].aVal)ex.sets[si+1].aVal=String(adj.newWeight);
+    }
   }
+  GLOG.rpe=7.5;GLOG.phase='input';
+  // where the flow goes next, and whether rest sits in between
+  let restSec=0,next=null;
+  if(b.superset){
+    let nx=-1;
+    for(let j=ei+1;j<b.exercises.length;j++)if(!exFinished(b.exercises[j])){nx=j;break;}
+    if(nx>=0)next={bi,ei:nx};                    // inside the pair: flow on, no rest
+    else{                                        // pair complete: rest, then next round
+      restSec=+ex.rest||0;
+      for(let j=0;j<b.exercises.length;j++)if(!exFinished(b.exercises[j])){next={bi,ei:j};break;}
+    }
+  }else if(!exFinished(ex)){restSec=+ex.rest||0;next={bi,ei};}
   s.updatedAt=Date.now();
   save();
-  if(st.done&&CUR_REST>0)startRest(CUR_REST);
-  // superset flow: finishing an exercise inside a superset block opens the next
-  if(st.done&&exFinished(ex)){
-    if(b.superset){
-      const nxt=b.exercises.findIndex((e2,j)=>j!==LOG_LOC.ei&&!exFinished(e2));
-      LOG_LOC=nxt>=0?{bi:LOG_LOC.bi,ei:nxt}:null;
-    }else LOG_LOC=null;
-  }
+  if(restSec>0&&next){startRest(restSec);GLOG.after=next;GLOG.phase='rest';}
+  else if(next&&(next.bi!==bi||next.ei!==ei)){LOG_LOC=next;GLOG.hint=null;}
   renderSession();
-  if(LOG_LOC){const c=document.getElementById('lgx'+LOG_LOC.bi+'-'+LOG_LOC.ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  const c=document.getElementById('lgx'+LOG_LOC.bi+'-'+LOG_LOC.ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});
 }
 
 /* ---------- rest timer: auto-starts on ✓, survives reload, vibrates at zero ---------- */
@@ -1085,7 +1218,21 @@ function paintRest(){
   const m=Math.floor(left/60),s=String(left%60).padStart(2,'0');
   const cl=document.getElementById('restclock');if(cl)cl.textContent=m+':'+s;
   const arc=document.getElementById('restarc');
-  if(arc){const C=2*Math.PI*19,frac=restTotal>0?Math.max(0,Math.min(1,left/restTotal)):0;arc.style.strokeDasharray=C.toFixed(1);arc.style.strokeDashoffset=(C*(1-frac)).toFixed(1);}
+  const frac=restTotal>0?Math.max(0,Math.min(1,left/restTotal)):0;
+  if(arc){const C=2*Math.PI*19;arc.style.strokeDasharray=C.toFixed(1);arc.style.strokeDashoffset=(C*(1-frac)).toFixed(1);}
+  // in-stage rest panel (guided logger) mirrors the same clock
+  const gc=document.getElementById('glogClock');if(gc)gc.textContent=m+':'+s;
+  const gb=document.getElementById('glogBar');if(gb)gb.style.width=(frac*100).toFixed(1)+'%';
+}
+/* +N seconds onto a running rest — persists, and reschedules the native buzz. */
+function addRest(sec){
+  if(!restEnds)return;
+  restEnds+=sec*1000;
+  const left=Math.ceil((restEnds-Date.now())/1000);
+  if(left>restTotal)restTotal=left;
+  try{localStorage.setItem(REST_KEY,String(restEnds));localStorage.setItem(REST_TOT_KEY,String(restTotal))}catch(e){}
+  try{if(window.AndroidHR&&window.AndroidHR.scheduleBuzz)window.AndroidHR.scheduleBuzz(Math.max(0,restEnds-Date.now()));}catch(e){}
+  paintRest();
 }
 function stopRest(clear){
   clearInterval(restIv);restIv=null;restEnds=0;restTotal=0;
@@ -1094,6 +1241,13 @@ function stopRest(clear){
     try{if(window.AndroidHR&&window.AndroidHR.cancelBuzz)window.AndroidHR.cancelBuzz();}catch(e){}
   }
   const c=document.getElementById('restchip');if(c)c.classList.remove('show');
+  // guided flow: rest over (elapsed, skipped, or chip-tapped) → advance the stage
+  if(clear!==false&&GLOG.phase==='rest'){
+    const nx=GLOG.after;
+    GLOG.after=null;GLOG.phase='input';GLOG.rpe=7.5;
+    if(nx&&LOG_LOC&&(nx.bi!==LOG_LOC.bi||nx.ei!==LOG_LOC.ei)){LOG_LOC=nx;GLOG.hint=null;}
+    if(CURRENT==='training')renderSession();
+  }
 }
 function resumeRest(){
   const ends=Number(localStorage.getItem(REST_KEY))||0;

@@ -645,24 +645,50 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .sheet .swapopt{margin-bottom:8px}
 @media(prefers-reduced-motion:reduce){.lgswap{transition:none}}
 .lgmeta{flex:0 0 auto;font-size:11px;color:var(--dim);font-weight:700;font-variant-numeric:tabular-nums}
-.lghead{padding:8px 12px 2px;margin-bottom:2px;border-bottom:1px solid var(--line)}
-.lgth{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#9a938a;text-align:center;padding:4px 0}
-.lgth:first-child{text-align:left;padding-left:2px}
-.lgrow{display:grid;gap:6px;align-items:center;padding:3px 12px}
-.lgno{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:var(--r-sm);font-size:13px;font-weight:850;font-variant-numeric:tabular-nums;color:var(--muted);border:1px solid var(--line2);background:var(--panel2);box-shadow:var(--brass-edge)}
-.lgrow.done .lgno{background:var(--done-bg);border-color:var(--done-line);color:var(--done-ink)}
-.lgtgt{display:flex;align-items:center;justify-content:center;min-height:48px;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);text-align:center}
-.lgrow input{width:100%;min-width:0;min-height:48px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--text);text-align:center;font:inherit;font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em;outline:none}
-.lgrow input:focus{border-color:var(--gold);box-shadow:var(--well-inset),0 0 0 3px rgba(192,147,88,.14)}
-.lgrow input::placeholder{color:var(--dim);font-weight:500}
-.lgrow.done input{border-color:var(--done-line);opacity:.9}
-.lgrow input.lgrpe{border-color:rgba(224,188,135,.3)}
-.lgtick{display:flex;align-items:center;justify-content:center;min-height:48px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--dim);font-size:15px;font-weight:800;font-family:inherit;cursor:pointer}
-.lgtick svg{width:18px;height:18px;stroke:currentColor;stroke-width:2;fill:none}
-.lgrow.done .lgtick{background:var(--done-bg);border-color:var(--done-line);color:var(--done-ink);box-shadow:none}
-.lglast{display:flex;align-items:center;gap:6px;padding:10px 12px 12px;font-size:11.5px;color:var(--dim)}
-.lglast b{color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lgaff{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:0 12px 8px}
+/* ===== Guided set flow: dots, tracker, stage fields, RPE slider, in-place rest ===== */
+.lgx.glog .lg-body{padding-bottom:12px}
+.glogdots{display:flex;gap:6px;padding:10px 12px 0}
+.glogdot{flex:1;max-width:34px;height:4px;border-radius:2px;background:var(--line2)}
+.glogdot.active{background:var(--gold);opacity:.55}
+.glogdot.done{background:var(--gold2)}
+.glogtrack{display:flex;align-items:baseline;gap:8px;padding:12px 12px 0;font-size:12px;font-weight:850;letter-spacing:.12em;color:var(--muted);font-variant-numeric:tabular-nums}
+.glogtrack em{font-style:normal;letter-spacing:.02em;color:var(--dim);font-weight:700;margin-left:auto;text-transform:none}
+.gloglast{display:flex;align-items:center;gap:8px;padding:6px 12px 0;font-size:11.5px;color:var(--dim)}
+.gloglast span{text-transform:uppercase;letter-spacing:.1em;font-size:10px;font-weight:800;flex:0 0 auto}
+.gloglast b{color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.glogfield{display:flex;align-items:center;gap:10px;padding:10px 12px 0}
+.glogfield label{flex:0 0 62px;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9a938a}
+.glogstep{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--well);box-shadow:var(--well-inset)}
+.glogstep button{width:48px;min-height:48px;border:none;background:var(--panel2);color:var(--gold2);font:inherit;font-size:20px;font-weight:800;cursor:pointer}
+.glogstep button:active{background:var(--panel)}
+.glogstep input{width:84px;min-height:48px;border:none;border-left:1px solid var(--line);border-right:1px solid var(--line);background:transparent;color:var(--text);text-align:center;font:inherit;font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;outline:none}
+.glogunit{color:var(--dim);font-weight:800;font-size:12px}
+.glogreps{width:110px;min-height:48px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--text);text-align:center;font:inherit;font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;outline:none}
+.glogreps:focus,.glogstep input:focus{border-color:var(--gold)}
+.glogact{padding:12px 12px 0}
+.glogact .bigbtn{margin:0}
+.glogeyebrow{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#9a938a}
+.glogrpe{margin:12px 12px 0;padding:14px;border:1px solid var(--gold-line);border-radius:var(--r-md);background:var(--panel2);display:flex;flex-direction:column;gap:8px}
+.glogrpe b{font-size:34px;line-height:1;color:var(--gold2);font-variant-numeric:tabular-nums}
+.glogrpe input[type=range]{width:100%;accent-color:var(--gold2);height:28px;margin:0;background:transparent}
+.glogancs{display:flex;justify-content:space-between;font-size:11px;color:var(--dim)}
+.glogrest{margin:12px 12px 0;padding:16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel2);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.glogrest .glogeyebrow{color:var(--gold2)}
+#glogClock{font-size:36px;line-height:1;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+.glogbar{width:100%;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.glogbar span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));width:100%;transition:width .5s linear}
+.glogrestbtns{display:flex;gap:8px;width:100%}
+.glogrestbtns button{flex:1;min-height:44px;border:1px solid var(--line2);border-radius:var(--r-sm);background:var(--panel);color:var(--muted);font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.glogrestbtns button:active{transform:scale(.98)}
+.gloghint{margin:12px 12px 0;padding:12px 14px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--panel2);font-size:13px;font-weight:700;line-height:1.45}
+.gloghint.good{color:var(--done-ink);border-color:var(--done-line)}
+.gloghint.bad{color:var(--bad);border-color:rgba(207,127,124,.45)}
+.gloglog{list-style:none;margin:12px 0 0;padding:0 12px;display:flex;flex-direction:column;gap:4px}
+.gloglog li{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.glogdone{display:flex;align-items:center;gap:8px;margin:12px 12px 0;color:var(--done-ink);font-weight:800;font-size:13px}
+.glogdone svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none}
+@media(prefers-reduced-motion:reduce){.glogbar span{transition:none}}
+.lgaff{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 12px 0}
 .lgaffbtn{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:4px 9px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel2);color:var(--dim);font:inherit;font-size:11px;font-weight:700;cursor:pointer;transition:.15s ease}
 .lgaffbtn svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.8;fill:none}
 .lgaffbtn.has{border-color:var(--gold-line);background:var(--gold-wash);color:var(--gold2)}
