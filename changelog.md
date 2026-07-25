@@ -1,5 +1,35 @@
 # Changelog
 
+## Design pass from Claude Design: restrained type, flatter brass — 27 July 2026
+
+Imported a visual polish pass built in Claude Design (exported as a zip, since
+this environment can't complete the interactive `/design-login` handshake the
+live sync needs). CSS only — no structure changed:
+
+- Display type pulled down in weight with tighter tracking; numbers everywhere
+  (stats, HR, e1RM, RPE) get consistent tabular-figure treatment.
+- Micro-labels (kickers, section heads) quieter and wider instead of shouting
+  in gold.
+- Cards, stats and sheets get one soft top-down light source instead of
+  layered gradients.
+- Brass buttons/FAB matte instead of glossy — one highlight hairline, no amber
+  bloom.
+- The zone/ring neon glow is toned down a step (still legible, less candy).
+- Empty states get more breathing room.
+
+**One thing caught and fixed before this shipped:** the exported HTML had
+silently dropped the `#s-builder` screen container and the `#exNames`
+autocomplete datalist — invisible until populated by JS, so the design tool's
+export pruned them as "unused" markup. Both are read directly by `app.js`
+(`renderBuilder()`, `refreshExNames()`); either missing would have crashed the
+Builder screen outright. Neither was applied — verified by screenshotting the
+Builder open with an exercise added, no console errors, before shipping.
+
+Also present in the export but **not applied**: an icon-system pass in
+`app.js` swapping emoji glyphs for a matching set of stroke SVGs. Real design
+work, but out of scope for this pass (index.html only) — a candidate for a
+follow-up.
+
 ## Two trend cards: getting fitter, recovering over time — 27 July 2026
 
 - **Top Lifts now shows an 8-week delta.** Each of your top 5 lifts compares its

@@ -794,6 +794,103 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 @keyframes implisten{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
 @media(prefers-reduced-motion:reduce){.imp-listen .dot{animation:none}}
 
+/* =====================================================================
+   PREMIUM PASS — restrained weights, one light source, flatter brass.
+   Overrides only: nothing above is deleted, so structure is untouched.
+   ===================================================================== */
+:root{
+  --shadow-card:0 1px 0 rgba(255,255,255,.028) inset,0 14px 34px -18px rgba(0,0,0,.9);
+  --lift-open:0 22px 48px -20px rgba(0,0,0,.9),0 0 0 1px rgba(224,188,135,.16),inset 0 1px 0 rgba(255,255,255,.045);
+  --brass:linear-gradient(180deg,#c8a06d,#b0854e);
+  --line:rgba(255,255,255,.065);--line2:rgba(255,255,255,.1);
+}
+body{background:radial-gradient(120% 60% at 50% -20%,rgba(192,147,88,.055),transparent 70%),var(--bg);letter-spacing:-.005em}
+
+/* Display type: Inter reads cheap above ~700. Pull weight down, tracking in. */
+h1,.screentitle,.recaphead h1,.empty h3,.sheet h3,.sessioncard h3,.exrow .t b,.lgcn b,.lgttl,
+.livetop .znow,.tplcreate b,.tplrow .tpm b,.sheet .bigopt b{font-weight:640;letter-spacing:-.025em}
+h1,.screentitle,.recaphead h1{letter-spacing:-.038em}
+.stat b,.livemid .m b,.livetop .clockbox b,.donutwrap .dctxt b,.congauge .gbpm b,.recpill .v,
+.prescline .pd,.zwrow .t,.zlist .zi .t,.exh-row .e,.toplift .v,.prcard .t span{font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.congauge .gbpm b{font-weight:560;letter-spacing:-.045em}
+
+/* Micro-labels: quieter, wider, never shouting in gold */
+.kicker,.sc-kicker,.libsec-title,.lgsec,.field label,.stat span,.zc-kicker,.weekhead span,
+.condbuild .lbl2,.ztcard .lbl2,.progcard .lbl2,.imp-lex .lh,.livemid .m span,.donutwrap .dctxt span{
+  font-weight:560;letter-spacing:.2em;font-size:9.5px}
+.kicker,.sc-kicker{color:rgba(224,188,135,.72)}
+.sec-head h2,.chart-head h2{font-weight:600;letter-spacing:.18em;font-size:11px;color:rgba(224,188,135,.78)}
+.brand b{font-weight:600;letter-spacing:.3em}
+.brand small{letter-spacing:.22em;color:#7d766c}
+.mark{font-weight:650;letter-spacing:.14em;border-color:rgba(224,188,135,.4);background:rgba(192,147,88,.07)}
+
+/* Surfaces: one soft light from above, no double gradients */
+.card,.stat,.lgx,.chartcard,.tplrow,.recpill,.con-note,.rpegap,.prescline,.bblock{
+  background:var(--panel);box-shadow:var(--shadow-card)}
+.card,.chartcard,.tplrow,.stat{border-radius:16px}
+.sessioncard::after{background:radial-gradient(circle at 92% -10%,rgba(192,147,88,.09),transparent 52%)}
+.side{background:linear-gradient(180deg,rgba(17,17,16,.92),rgba(9,9,8,.92))}
+
+/* Brass: matte, not shiny. One highlight hairline, no amber bloom. */
+.bigbtn,.addbtn.solid,.tplrow .tpadd,.imp-fixer .frow button{
+  background:var(--brass);border-color:rgba(200,160,109,.85);color:#1b1409;font-weight:640;letter-spacing:.005em;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 1px 2px rgba(0,0,0,.45)}
+.bigbtn:hover,.addbtn.solid:hover{background:linear-gradient(180deg,#d1ab78,#b98e55);border-color:rgba(214,175,124,.9)}
+.fab{background:var(--brass);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -10px rgba(0,0,0,.9),0 0 0 1px rgba(224,188,135,.24)}
+.wd.today b{background:rgba(192,147,88,.9);color:#17120c;box-shadow:none;font-weight:600}
+.navlink.active::before{box-shadow:none;background:var(--gold2);opacity:.9}
+.navlink.active{background:linear-gradient(180deg,rgba(192,147,88,.07),transparent)}
+.navlink{font-weight:560}
+.logprog .lpbar span{background:var(--gold)}
+
+/* Icon slots: drawn glyphs sit in a calm brass well */
+.sheet .bigopt .oi,.tplcreate .pl,.empty .ei{
+  background:rgba(192,147,88,.09);border:1px solid rgba(224,188,135,.2);color:var(--gold2);box-shadow:none}
+.sheet .bigopt .oi svg,.tplcreate .pl svg{width:20px;height:20px}
+.sheet .bigopt{background:rgba(255,255,255,.022);border-color:var(--line);border-radius:15px}
+.sheet .bigopt:hover{border-color:rgba(224,188,135,.32)}
+.addbtn.imp-in svg{width:17px;height:17px;vertical-align:-3px;margin-right:5px}
+
+/* Sheet + toast: deeper, quieter chrome */
+.sheet{border-radius:24px 24px 0 0;background:#151412;box-shadow:0 -20px 60px -20px rgba(0,0,0,.95)}
+.sheet .grab{background:rgba(255,255,255,.14)}
+.sheet-scrim{background:rgba(4,4,4,.62)}
+.sheet h3{font-size:18px}
+.sheet .ssub,.tplrow .tpm span,.tplcreate span,.sheet .bigopt span{color:#8b8479}
+.toast{background:#191816;border-color:var(--line2);font-weight:550;border-radius:14px}
+
+/* Chips + pills: hairline, low weight */
+.chip,.daychip,.lgsec .lgss,.bkindtag,.pgrow .lv,.imp-needs{font-weight:560;letter-spacing:.1em}
+.chip{border-color:var(--line2)}
+
+/* Body copy */
+.sub,.sc-meta,.empty p,.exrow .t span,.sidenote{font-weight:450;color:var(--muted)}
+.sidenote{background:rgba(255,255,255,.018);border-color:var(--line)}
+
+/* Empty states: give them room, they are the first thing new users meet */
+.empty{padding:46px 22px}
+.empty .ei{width:56px;height:56px;border-radius:18px}
+.empty h3{font-size:19px}
+.tplempty{padding:38px 16px;font-size:13px;color:var(--dim)}
+
+/* Inputs: recessed, calm focus */
+.field input,.field select,.libsearch,.imp-src{background:var(--well);box-shadow:var(--well-inset)}
+.field input:focus,.field select:focus{box-shadow:var(--well-inset),0 0 0 3px rgba(192,147,88,.1)}
+
+/* Neon → lit metal: keep the zone hues legible, drop the candy glow */
+.zonescard .zfill{filter:saturate(.82) brightness(.92)}
+.zonescard .zbar{height:8px}
+.ringx,.ringx-in{filter:drop-shadow(0 0 3px var(--oc,transparent)) saturate(1.05) brightness(1)}
+.ringx-in{filter:drop-shadow(0 0 3px var(--ic,transparent))}
+.cd.done{box-shadow:none}
+.zonetime .ztbar .zt,.zwbar span{filter:saturate(.85)}
+
+/* Primary brass: one step deeper, less plastic */
+.bigbtn,.addbtn.solid,.imp-fixer .frow button{background:linear-gradient(180deg,#bd9463,#a67c48);border-color:rgba(186,148,99,.8)}
+.bigbtn:hover,.addbtn.solid:hover{background:linear-gradient(180deg,#c69e6d,#ae8450)}
+.tplrow .tpadd{background:linear-gradient(180deg,#bd9463,#a67c48)}
+.fab{background:linear-gradient(180deg,#c19768,#a87e49)}
+
 /* ===== a11y focus ===== */
 button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[data-click]:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
 </style>
