@@ -304,7 +304,11 @@ function workoutKind(w){
   const conditioning=w.blocks.some(b=>isCond(b)||blockExercises(b).some(e=>e.mode==='seconds'||e.mode==='reps_seconds'));
   return [strength?'Strength':'',conditioning?'Conditioning':''].filter(Boolean).join(' + ')||'Session';
 }
-function condBlockMinutes(b){const f=CON_FORMATS[b&&b.condFmt];if(!f||b.condFmt==='free')return 0;try{return Math.round(f.build(conPrescription(b.condFmt)).reduce((n,p)=>n+(p.dur||0),0)/60);}catch(e){return 0;}}
+/* Planned length of a conditioning block, for the workout card chip.
+   `ignoreDaily` matters: this is the PLAN, so it must not move because today's
+   WHOOP recovery happens to be low. A session you wrote last week was showing a
+   different length depending on the day you looked at it. */
+function condBlockMinutes(b){const f=CON_FORMATS[b&&b.condFmt];if(!f||b.condFmt==='free')return 0;try{return Math.round(f.build(conPrescription(b.condFmt,true)).reduce((n,p)=>n+(p.dur||0),0)/60);}catch(e){return 0;}}
 function workoutChips(w){
   const mins=(w.blocks||[]).reduce((n,b)=>n+(isCond(b)?condBlockMinutes(b):(+b.minutes||0)),0);
   const exs=(w.blocks||[]).reduce((n,b)=>n+blockExercises(b).length,0);
@@ -433,10 +437,10 @@ function rpeGapInfo(){
   return null;
 }
 function readinessCardHtml(){
-  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
-  const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
+  const rec=todayRecovery();
   const g=rpeGapInfo();
   if(rec==null&&!g)return '';
+  const band=recoveryBand(rec);
   const parts=[];
   if(rec!=null)parts.push('Recovery '+rec+'%');
   if(g){
@@ -444,8 +448,8 @@ function readinessCardHtml(){
     parts.push('last session '+s);
   }
   let advice;
-  if((g&&g.gap>=1)||(rec!=null&&rec<34))advice='Pull back today — cap the top sets about one RPE lower.';
-  else if((rec==null||rec>=67)&&(!g||g.gap<=0.25))advice='Green light — train as planned, with room to push the top sets.';
+  if((g&&g.gap>=1)||band==='low')advice='Pull back today — cap the top sets about one RPE lower.';
+  else if((rec==null||band==='good')&&(!g||g.gap<=0.25))advice='Green light — train as planned, with room to push the top sets.';
   else advice='Train as planned today.';
   return '<div class="card guidebar" id="readinessCard"><b>Readiness:</b> '+esc(parts.join(' · '))+'. '+esc(advice)+'</div>';
 }
@@ -453,9 +457,36 @@ function readinessCardHtml(){
 /* ---------- WHOOP (server-side via Netlify functions) ---------- */
 const WHOOP_ENDPOINTS={status:'/.netlify/functions/integrations-status',connect:'/.netlify/functions/whoop-connect',sync:'/.netlify/functions/whoop-sync',disconnect:'/.netlify/functions/integrations-disconnect'};
 let WHOOP={loaded:false,connected:false,sample:null,lastSyncAt:null,busy:false,error:''};
+/* The ONE definition of the recovery bands. These are WHOOP's own published
+   cut-points (green >=67, yellow 34-66, red <34) and we consume WHOOP's score,
+   so they are the correct ones to use. Four different pairs used to be scattered
+   across this file (67/34 here, 40/80 in the zone engine, 34/67 in the readiness
+   card, 40/80 again in the in-session hint), which is why Home could say "green
+   light" while the live screen still said "steady". Everything reads this now. */
+const RECOVERY_BANDS={good:67,watch:34};
+/* Standalone conditioning records kept locally. Progression reads its history
+   through this list, so it must be long enough that the cap never becomes the
+   thing deciding whether you progress. */
+const CON_RETENTION=200;
+function recoveryBand(v){
+  // Guard the null/''/undefined cases explicitly — Number(null) is 0, which is
+  // finite, so a missing score would otherwise read as "low recovery" and tell
+  // the athlete to pull back purely because WHOOP hadn't synced.
+  if(v==null||v==='')return null;
+  const n=Number(v);
+  if(!Number.isFinite(n))return null;
+  const r=Math.max(0,Math.min(100,Math.round(n)));
+  return r>=RECOVERY_BANDS.good?'good':r>=RECOVERY_BANDS.watch?'watch':'low';
+}
+/* Today's WHOOP recovery as a rounded number, or null. Single accessor so a
+   changed data shape breaks in one place instead of eleven. */
+function todayRecovery(){
+  const n=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
+  return Number.isFinite(n)?Math.round(n):null;
+}
 /* One visual language for the body: recovery bands share the conditioning
    zone palette (green=go, gold=steady, red=easy day). */
-function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null,color:null};const r=Math.max(0,Math.min(100,Math.round(n)));if(r>=67)return{cls:'good',label:'Strong',pct:r,val:r,color:PAL.ok};if(r>=34)return{cls:'watch',label:'Steady',pct:r,val:r,color:PAL.zoneMod};return{cls:'low',label:'Low',pct:r,val:r,color:PAL.zoneHigh};}
+function whoopTone(v){const n=Number(v);if(!Number.isFinite(n))return{cls:'',label:'No score yet',pct:0,val:null,color:null};const r=Math.max(0,Math.min(100,Math.round(n)));const b=recoveryBand(r);if(b==='good')return{cls:'good',label:'Strong',pct:r,val:r,color:PAL.ok};if(b==='watch')return{cls:'watch',label:'Steady',pct:r,val:r,color:PAL.zoneMod};return{cls:'low',label:'Low',pct:r,val:r,color:PAL.zoneHigh};}
 async function loadWhoop(){
   try{
     const r=await fetch(WHOOP_ENDPOINTS.status,{credentials:'same-origin',cache:'no-store'});
@@ -761,10 +792,10 @@ function renderSession(){
   const allDone=sessionAllDone(s);
   // readiness where you're working: recovery % + what it means for today
   let ready='';
-  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
-  if(Number.isFinite(recRaw)){
-    const rec=Math.round(recRaw),t=whoopTone(rec);
-    const hint=rec<40?'take −1 RPE today and win anyway':rec>80?'green light — push the top sets':'steady — train as planned';
+  const rec=todayRecovery();
+  if(rec!=null){
+    const t=whoopTone(rec),band=recoveryBand(rec);
+    const hint=band==='low'?'take −1 RPE today and win anyway':band==='good'?'green light — push the top sets':'steady — train as planned';
     ready='<div class="readyline"><i style="background:'+(t.color||PAL.dim)+'"></i><b>'+rec+'% recovery</b><span>'+hint+'</span></div>';
   }
   el.innerHTML=
@@ -1475,9 +1506,19 @@ function mergeSettings(base,winner){
   base=base||{};winner=winner||{};
   const out=Object.assign({},base,winner);
   const bp=base.conProgress||{},wp=winner.conProgress||{},pk=new Set([...Object.keys(bp),...Object.keys(wp)]);
-  if(pk.size){const cp={};pk.forEach(k=>{const a=(bp[k]&&bp[k].level|0)||0,b=(wp[k]&&wp[k].level|0)||0;cp[k]=Object.assign({},(b>=a?wp[k]:bp[k])||{},{level:Math.max(a,b)});});out.conProgress=cp;}
+  // Take the higher level, but the HIGHER miss count too. Taking `miss` from
+  // whichever side won on level meant two devices could each bank a miss and
+  // neither deload ever fired - progression only ever ratcheted up.
+  if(pk.size){const cp={};pk.forEach(k=>{
+    const a=(bp[k]&&bp[k].level|0)||0,b=(wp[k]&&wp[k].level|0)||0;
+    const am=(bp[k]&&bp[k].miss|0)||0,bm=(wp[k]&&wp[k].miss|0)||0;
+    cp[k]=Object.assign({},(b>=a?wp[k]:bp[k])||{},{level:Math.max(a,b),miss:Math.max(am,bm)});
+  });out.conProgress=cp;}
+  // Retention raised from 40. conAdapt reads its HRR history through this list,
+  // so a low cap meant a high-volume athlete silently progressed differently
+  // from a low-volume one for reasons that had nothing to do with physiology.
   const bc=Array.isArray(base.conditioning)?base.conditioning:[],wc=Array.isArray(winner.conditioning)?winner.conditioning:[];
-  if(bc.length||wc.length){const seen=new Set(),m=[];bc.concat(wc).forEach(r=>{if(r&&r.id&&!seen.has(r.id)){seen.add(r.id);m.push(r);}});m.sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));out.conditioning=m.slice(-40);}
+  if(bc.length||wc.length){const seen=new Set(),m=[];bc.concat(wc).forEach(r=>{if(r&&r.id&&!seen.has(r.id)){seen.add(r.id);m.push(r);}});m.sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));out.conditioning=m.slice(-CON_RETENTION);}
   const bl=base.lexicon||{},wl=winner.lexicon||{};
   if(bl.kw||bl.ex||wl.kw||wl.ex)out.lexicon={kw:Object.assign({},bl.kw,wl.kw),ex:Object.assign({},bl.ex,wl.ex)};
   // deletion tombstones + device registry: union keeping the newest timestamp per id
@@ -1619,7 +1660,9 @@ function buildFeed(){
   /* conditioning: standalone records plus any embedded in a session. `hr` (the
      full point trace) is deliberately dropped — it's large and adds nothing to
      a review view. */
-  const slim=r=>({id:r.id,date:r.date,fmt:r.fmt,dur:r.dur,avg:r.avg,max:r.max,hrr:r.hrr,cal:r.cal,zsec:r.zsec});
+  // `sim` must survive: without it a coach cannot tell a demo run from a real
+  // session. `cal` is gone with the fabricated calorie estimate.
+  const slim=r=>({id:r.id,date:r.date,fmt:r.fmt,dur:r.dur,avg:r.avg,max:r.max,hrr:r.hrr,hrrWin:r.hrrWin,zsec:r.zsec,sim:r.sim||undefined});
   const cond=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>r&&r.date>=cut).map(slim);
   DB.sessions.forEach(s=>{if(s.date>=cut)(s.blocks||[]).forEach(b=>{if(isCond(b)&&b.condResult)cond.push(slim(b.condResult));});});
   const whoop=(Array.isArray(DB.settings.whoopDaily)?DB.settings.whoopDaily:[]).filter(h=>h&&h.date>=cut);
@@ -2122,13 +2165,24 @@ function restingHr(){
   const w=WHOOP.sample?parseInt(WHOOP.sample.restingHr,10):0;
   return w>0?w:null;
 }
-/* Remember a new observed max whenever a live beat exceeds the estimate. */
-function conNoteMax(bpm){
-  if(!Number.isFinite(bpm)||bpm<100||bpm>240)return;
+/* Remember a new observed max — but only on corroborated evidence.
+   This used to raise the stored max from a SINGLE live beat, which meant one
+   BLE artefact permanently shifted every zone boundary for good. A strap
+   dropout or a spurious 210bpm reading would silently re-zone the athlete.
+   Now the session's third-highest sample is used (a trimmed max), committed
+   once at finish rather than live, so a lone spike can never move it. */
+const OBS_MAX_CORROBORATION=3;      // Nth-highest sample must clear the estimate
+function conObservedMax(samples){
+  const beats=(samples||[]).map(s=>s&&s.bpm).filter(b=>Number.isFinite(b)&&b>=100&&b<=240).sort((a,b)=>b-a);
+  return beats.length>=OBS_MAX_CORROBORATION?beats[OBS_MAX_CORROBORATION-1]:null;
+}
+function conCommitObservedMax(samples){
   const p=Object.assign({},DB.settings.profile);
   if(parseInt(p.maxHr,10)>0)return;       // respect an explicit tested max — don't auto-raise
+  const trimmed=conObservedMax(samples);
+  if(trimmed==null)return;
   const cur=parseInt(p.obsMaxHr,10)||0;
-  if(bpm>cur&&bpm>conMaxHr()-1){p.obsMaxHr=bpm;DB.settings.profile=p;save();}
+  if(trimmed>cur&&trimmed>conMaxHr()-1){p.obsMaxHr=trimmed;DB.settings.profile=p;save();}
 }
 /* Three dynamic bands (Recovery / Conditioning / Overload = blue / green / red).
    Thresholds are computed on Heart-Rate Reserve (Karvonen: resting + pct*(max-resting))
@@ -2137,13 +2191,21 @@ function conNoteMax(bpm){
    WHOOP recovery, asymmetrically like Morpheus: a low-recovery day broadens blue
    and drops red so "hard" arrives sooner and protects you; a high-recovery day
    expands green and lifts the overload line so you can safely push. */
+/* PROVISIONAL — the daily re-zoning shifts below have no published basis.
+   Morpheus publishes the *direction* of its recovery-driven zone adjustment
+   (low recovery broadens the easy band and lowers the hard boundary) but has
+   never published the magnitudes, and there is no peer-reviewed validation of
+   the approach. These numbers are ours, they are guesses, and they are labelled
+   as such here and in the "Why these numbers" settings panel. They stay only
+   because the direction is defensible; the sizes are not. */
+const REZONE_PROVISIONAL={lowOnRed:+0.03,modOnRed:-0.05,lowOnGreen:-0.03,modOnGreen:+0.04};
 function conZones(){
   const m=conMaxHr(),rest=restingHr();
-  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
-  const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
-  // asymmetric daily re-zoning on Morpheus's 80/40 recovery bands
+  const rec=todayRecovery();
+  const band=recoveryBand(rec);
   let dLow=0,dMod=0;
-  if(rec!=null){ if(rec<40){dLow=+0.03;dMod=-0.05;} else if(rec>80){dLow=-0.03;dMod=+0.04;} }
+  if(band==='low'){dLow=REZONE_PROVISIONAL.lowOnRed;dMod=REZONE_PROVISIONAL.modOnRed;}
+  else if(band==='good'){dLow=REZONE_PROVISIONAL.lowOnGreen;dMod=REZONE_PROVISIONAL.modOnGreen;}
   let floor,lowTop,modTop,method;
   if(rest&&rest>0&&rest<m-20){
     const R=m-rest;method='hrr';
@@ -2217,24 +2279,22 @@ function setCustomFmt(key,val){
 function isProgressedFmt(k){return k==='steady'||k==='intervals'||k==='tempo';}
 function conPickFmt(f){if(CON_FORMATS[f]){CON.fmt=f;if(CURRENT==='conditioning')renderConditioning();}}
 
-/* ---- Autoregulated interval progression (the Morpheus model) ----
-   Two coupled loops: an earned baseline `level` per format that climbs only when
-   a session's metrics show real adaptation (conAdapt), and a daily readiness gate
-   that scales today's prescription by WHOOP recovery on the same 80/40 bands the
-   zones use. Everything is shown and explained; nothing changes silently. */
+/* ---- Autoregulated interval progression ----
+   An earned baseline `level` per format that climbs when a session shows real
+   adaptation (conAdapt), plus a daily gate that eases today's prescription on a
+   low-recovery day. Everything is shown and explained; nothing changes silently.
+   The step sizes here are PROVISIONAL - see the "Why these numbers" panel. */
 function conProgLevel(fmtKey){const cp=DB.settings.conProgress||{};const f=cp[fmtKey];return f&&Number.isFinite(f.level)?Math.max(0,f.level|0):0;}
 function conPrescription(fmtKey,ignoreDaily){
-  if(fmtKey==='free'){const rr=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
-    return{level:0,dailyAdj:0,rec:Number.isFinite(rr)?Math.round(rr):null,note:'open-ended'};}
+  if(fmtKey==='free')return{level:0,dailyAdj:0,rec:todayRecovery(),note:'open-ended'};
   const fmt=CON_FORMATS[fmtKey]||CON_FORMATS.intervals;const base=fmtKey==='custom'?customFmtBase():(fmt.base||{});
   const level=isProgressedFmt(fmtKey)?conProgLevel(fmtKey):0;
   const p={};
   if(fmtKey==='custom'){
     p.rounds=base.rounds;p.work=base.work;p.rest=base.rest;
-    const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
-    const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
+    const rec=todayRecovery();
     let dailyAdj=0;
-    if(rec!=null&&!ignoreDaily&&rec<40){dailyAdj=-1;if(p.rounds>3)p.rounds--;else p.rest+=10;}
+    if(rec!=null&&!ignoreDaily&&recoveryBand(rec)==='low'){dailyAdj=-1;if(p.rounds>3)p.rounds--;else p.rest+=10;}
     p.level=0;p.dailyAdj=dailyAdj;p.rec=rec;
     p.note=dailyAdj<0?'eased today'+(rec!=null?' for '+rec+'% recovery':''):'your format';
     return p;
@@ -2251,23 +2311,29 @@ function conPrescription(fmtKey,ignoreDaily){
     }
     p.rounds=rounds;p.work=work;p.rest=rest;
   }
-  // daily readiness gate — Morpheus 80/40. Red deloads TODAY without touching the
-  // earned baseline; green serves the full earned level.
-  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
-  const rec=Number.isFinite(recRaw)?Math.round(recRaw):null;
+  // Daily readiness gate. A low-recovery day eases TODAY without touching the
+  // earned baseline.
+  //
+  // Two bugs fixed here:
+  //  - The round-drop used to be gated on `level>0`, so a level-0 athlete on 25%
+  //    recovery got no deload at all. The least-adapted athlete received the
+  //    least protection, which is exactly backwards.
+  //  - There used to be a `rec>80` branch that set dailyAdj=1 and changed no
+  //    numbers whatsoever, while the UI told you your session had been adjusted
+  //    for strong recovery. It hadn't. We don't have an evidence-based basis for
+  //    scaling a session UP on a good day, so we no longer claim to.
+  const rec=todayRecovery();
   let dailyAdj=0;
-  if(rec!=null&&!ignoreDaily){
-    if(rec<40){dailyAdj=-1;
-      if(fmtKey==='steady')p.minutes=Math.max(10,p.minutes-5);
-      else if(p.rounds>3&&level>0)p.rounds=p.rounds-1;
-      else p.rest=(p.rest||0)+10;
-    }else if(rec>80){dailyAdj=1;}
+  if(rec!=null&&!ignoreDaily&&recoveryBand(rec)==='low'){
+    dailyAdj=-1;
+    if(fmtKey==='steady')p.minutes=Math.max(10,p.minutes-5);
+    else if(p.rounds>3)p.rounds=p.rounds-1;
+    else p.rest=(p.rest||0)+10;
   }
   p.level=level;p.dailyAdj=dailyAdj;p.rec=rec;
   let note='';
   if(level>0)note='Level '+level;
   if(dailyAdj<0)note=(note?note+' · ':'')+'eased today'+(rec!=null?' for '+rec+'% recovery':'');
-  else if(dailyAdj>0&&level>0)note=note+' · strong recovery';
   p.note=note;
   return p;
 }
@@ -2282,18 +2348,29 @@ function conAdapt(rec){
   if(!rec||rec.sim)return 0;
   const fmtKey=rec.fmt;if(!CON_FORMATS[fmtKey]||!isProgressedFmt(fmtKey))return 0;
   const z=rec.zsec||{low:0,mod:0,high:0};
-  const total=Math.max(1,rec.dur||0);
+  // Denominator fix. This used to divide banked target-zone seconds by the TOTAL
+  // session duration - warm-up, every rest interval and the cool-down included.
+  // Base intervals are only ~19% actual work, so clearing a 45% bar required the
+  // heart rate to stay elevated THROUGH the rests: the test rewarded failing to
+  // recover, which is close to the opposite of adaptation. Now the denominator is
+  // the time actually spent working, so the ratio means what its name says.
+  const zoned=(z.low||0)+(z.mod||0)+(z.high||0);
+  const total=Math.max(1,zoned||rec.dur||0);
   const workSec=fmtKey==='steady'?((z.low||0)+(z.mod||0)):((z.mod||0)+(z.high||0));
-  const frac=fmtKey==='steady'?0.6:0.45;
+  const frac=fmtKey==='steady'?0.6:0.45;   // PROVISIONAL
   const onTarget=workSec/total>=frac;
-  const overcooked=(z.high||0)/total>0.6;
-  // HR recovery holding vs the median of recent same-format sessions
-  const hist=allCondRecords().filter(r=>!r.sim&&r.fmt===fmtKey&&r.id!==rec.id).slice(-3);
-  const hrrs=hist.map(r=>r.hrr).filter(v=>Number.isFinite(v));
-  let hrrOk=true;
-  if(rec.hrr!=null&&hrrs.length){const sorted=hrrs.slice().sort((a,b)=>a-b);const med=sorted[Math.floor(sorted.length/2)];hrrOk=rec.hrr>=med-1;}
-  const recRaw=WHOOP.sample?Number(WHOOP.sample.recoveryScore):NaN;
-  const notRed=!Number.isFinite(recRaw)||recRaw>=40;
+  const overcooked=(z.high||0)/total>0.6;  // PROVISIONAL
+  // HR recovery holding vs the median of recent same-format sessions.
+  // The old tolerance was 1bpm, far inside HRR's day-to-day noise, so this gate
+  // fired close to randomly. Until the noise floor is established from the
+  // literature (see the plan's open-research list) HRR does not gate progression
+  // at all - it is recorded and displayed, and nothing more.
+  const hrrOk=true;
+  // Use the recovery captured WITH the session, not whatever WHOOP says right
+  // now. Re-processing or a late sync used to change the verdict retroactively.
+  // Older records predate rec.rec; fall back to today's value for those only.
+  const sessionRec=Number.isFinite(rec.rec)?rec.rec:todayRecovery();
+  const notRed=sessionRec==null||recoveryBand(sessionRec)!=='low';
   const cp=Object.assign({},DB.settings.conProgress);
   const cur=cp[fmtKey]||{level:0,miss:0};
   let level=cur.level|0,miss=cur.miss|0,delta=0;
@@ -2450,7 +2527,7 @@ function conSample(bpm){
   }
   CON.lastT=t;
   CON.samples.push({t,bpm});
-  CON.avgSum+=bpm;CON.avgN++;if(bpm>CON.max){CON.max=bpm;conNoteMax(bpm);}CON.lastBpm=bpm;
+  CON.avgSum+=bpm;CON.avgN++;if(bpm>CON.max)CON.max=bpm;CON.lastBpm=bpm;
   conPaintHr(bpm);
 }
 function conAbort(){
@@ -2462,8 +2539,39 @@ function conAbort(){
   if(sink.scope==='session'&&DB.sessions.find(x=>x.id===sink.sid)){CUR_SESSION=sink.sid;go('training');return;}
   renderConditioning();updateWake();
 }
+/* Heart-rate recovery, honestly measured.
+   HRR60 is a real marker (Cole et al. 1999) but it is defined as the drop over a
+   SPECIFIC interval. The old code walked BACKWARDS from the 60s mark until it
+   found any non-null sample, so the window silently collapsed to anywhere from
+   2s to 60s and the result was labelled "60s" regardless. On steady and free
+   sessions the peak usually lands in the cool-down, so the window ran off the
+   end entirely. Now: the sample must actually exist near the 60s mark, the
+   window actually used is recorded alongside the value, and if there is no
+   usable sample we return null instead of a number that means nothing. */
+const HRR_WINDOW_SEC=60, HRR_TOLERANCE_SEC=6;
+function conHrr(ds){
+  const pts=ds&&ds.pts||[],every=ds&&ds.every||2;
+  let peakI=-1;
+  pts.forEach((b,i)=>{if(b!=null&&(peakI<0||b>pts[peakI]))peakI=i;});
+  if(peakI<0)return{hrr:null,win:null};
+  const want=peakI+Math.round(HRR_WINDOW_SEC/every);
+  const tol=Math.max(1,Math.round(HRR_TOLERANCE_SEC/every));
+  let bestI=-1;
+  for(let d=0;d<=tol;d++){
+    if(want-d>peakI&&pts[want-d]!=null){bestI=want-d;break;}
+    if(want+d<pts.length&&pts[want+d]!=null){bestI=want+d;break;}
+  }
+  if(bestI<0)return{hrr:null,win:null};
+  return{hrr:Math.max(0,pts[peakI]-pts[bestI]),win:(bestI-peakI)*every};
+}
+const CON_MAX_POINTS=2700;
 function conDownsample(samples,dur){
-  const every=2,n=Math.max(1,Math.min(Math.ceil(dur/every)+1,2700));
+  // Widen the bin rather than clamp the index. The old version fixed every=2s
+  // and clamped i to n-1, so on a session longer than ~90 minutes EVERY later
+  // sample folded into the final bin - real data loss, silently. Now the bin
+  // size grows to fit, so the trace always spans the whole session.
+  const every=Math.max(2,Math.ceil(Math.max(0,dur)/(CON_MAX_POINTS-1))*1);
+  const n=Math.max(1,Math.min(Math.ceil(dur/every)+1,CON_MAX_POINTS));
   const sum=new Array(n).fill(0),cnt=new Array(n).fill(0);
   samples.forEach(s=>{const i=Math.max(0,Math.min(n-1,Math.floor(s.t/every)));sum[i]+=s.bpm;cnt[i]++;});
   return{every,pts:sum.map((v,i)=>cnt[i]?Math.round(v/cnt[i]):null)};
@@ -2474,17 +2582,19 @@ function conFinish(){
   conCleanupBle();
   const dur=Math.min(Math.round((Date.now()-CON.startedAt)/1000),3*3600);
   if(!CON.avgN){CON.view='setup';CON.error='No heart-rate data was received, so nothing was saved.';renderConditioning();updateWake();return;}
+  conCommitObservedMax(CON.samples);
   const z=conZones(),ds=conDownsample(CON.samples,dur);
   const zsec={low:0,mod:0,high:0};
   ds.pts.forEach(b=>{if(b!=null)zsec[conZoneOf(b,z).key]+=ds.every;});
-  // HR recovery: peak, then how far it fell 60s later
-  let peakI=0;ds.pts.forEach((b,i)=>{if(b!=null&&(ds.pts[peakI]==null||b>ds.pts[peakI]))peakI=i;});
-  let after=null;for(let i=Math.min(ds.pts.length-1,peakI+Math.round(60/ds.every));i>peakI&&after==null;i--)after=ds.pts[i];
-  const hrr=(ds.pts[peakI]!=null&&after!=null)?Math.max(0,ds.pts[peakI]-after):null;
+  const hrrInfo=conHrr(ds);
   const avg=Math.round(CON.avgSum/CON.avgN);
-  const cal=Math.max(0,Math.round((dur/60)*((avg*0.62-55)*0.12+7)));
   const rec={id:uid(),date:ymd(new Date()),startedAt:CON.startedAt,dur,fmt:CON.fmt,maxHr:z.max,
-    every:ds.every,hr:ds.pts,zsec,max:CON.max,avg,hrr,cal,sim:CON.ble.sim||undefined};
+    every:ds.every,hr:ds.pts,zsec,max:CON.max,avg,hrr:hrrInfo.hrr,hrrWin:hrrInfo.win,
+    // Context captured AT THE TIME, so a record can be re-scored later without
+    // guessing. conAdapt used to re-read today's live WHOOP sample, which meant
+    // a late sync silently changed the verdict on an already-finished session.
+    rec:todayRecovery(),restHr:z.rest,zoneMethod:z.method,targetZone:CON.targetZone||null,
+    sim:CON.ble.sim||undefined};
   const sink=CON.sink||{scope:'standalone'};
   let persisted=false;
   if(sink.scope==='session'){
@@ -2496,7 +2606,7 @@ function conFinish(){
   }
   if(!persisted){ // standalone (the Conditioning tab) — the original path, unchanged
     const list=Array.isArray(DB.settings.conditioning)?DB.settings.conditioning.slice():[];
-    list.push(rec);DB.settings.conditioning=list.slice(-40);
+    list.push(rec);DB.settings.conditioning=list.slice(-CON_RETENTION);
     save();CON.sink={scope:'standalone'};
   }
   // autoregulated progression: let this session's metrics move the earned baseline
@@ -2520,8 +2630,17 @@ function allCondRecords(){
   DB.sessions.forEach(s=>{if(s.status==='active')return;(s.blocks||[]).forEach(b=>{if(isCond(b)&&b.condResult)fromSess.push(Object.assign({},b.condResult,{date:b.condResult.date||s.date}));});});
   return legacy.concat(fromSess);
 }
-/* --- weekly zone-time targets (Morpheus: bank time in each zone each week) --- */
-function zoneTargets(){const t=DB.settings.zoneTargets||{};return{low:parseInt(t.low,10)||60,mod:parseInt(t.mod,10)||45,high:parseInt(t.high,10)||12};}
+/* --- weekly zone time ---
+   zoneTargets() lived here and returned {low:60, mod:45, high:12} weekly
+   minutes. Those numbers were invented, nothing ever wrote them, and every
+   athlete was scored against the same three constants. They were also wrong on
+   their own terms: 60/45/12 is a 51/38/10 split, where the system being
+   imitated publishes roughly 75-85 / 15-25 / 8-10 - nearly twice as much
+   moderate work as it prescribes, which is the "threshold trap" distribution
+   the polarized-training literature argues against.
+   A target is only meaningful for someone doing enough conditioning sessions to
+   HAVE a distribution. Rather than swap one unearned number for another, the
+   target is gone; the card now reports what you actually banked. */
 function thisWeekZoneMin(){
   const k=ymd(weekStart(Date.now())),out={low:0,mod:0,high:0};
   allCondRecords().filter(r=>!r.sim).forEach(r=>{
@@ -2531,19 +2650,21 @@ function thisWeekZoneMin(){
   });
   return{low:Math.round(out.low),mod:Math.round(out.mod),high:Math.round(out.high)};
 }
-function zoneRing(color,frac){
-  const r=26,C=2*Math.PI*r,len=Math.max(0,Math.min(1,frac||0))*C;
-  return '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="'+r+'" fill="none" stroke="'+PAL.track+'" stroke-width="6"/>'+
-    '<circle cx="32" cy="32" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="6" stroke-linecap="round" stroke-dasharray="'+len.toFixed(1)+' '+(C-len).toFixed(1)+'" transform="rotate(-90 32 32)"/></svg>';
-}
+/* Minutes banked in each zone this week, as a share of the week's total.
+   Descriptive only - it reports, it does not judge you against a target. */
 function weeklyZoneTargetCard(){
-  const t=zoneTargets(),w=thisWeekZoneMin();
+  const w=thisWeekZoneMin(),tot=w.low+w.mod+w.high;
+  if(tot<=0)return '';
   const map={low:{n:'Recovery',c:PAL.zoneBlue},mod:{n:'Conditioning',c:PAL.zoneGreen},high:{n:'Overload',c:PAL.zoneRed}};
-  const cells=['low','mod','high'].map(k=>{
-    const done=w[k],tgt=t[k],frac=tgt?done/tgt:0;
-    return '<div class="ztcell"><div class="ztring">'+zoneRing(map[k].c,frac)+'<div class="ztc"><b>'+done+'</b><span>/'+tgt+'m</span></div></div><div class="ztn" style="color:'+map[k].c+'">'+map[k].n+'</div></div>';
+  const bar=['low','mod','high'].map(k=>{
+    const pct=(w[k]/tot)*100;
+    return pct>0?'<span style="width:'+pct.toFixed(1)+'%;background:'+map[k].c+'"></span>':'';
   }).join('');
-  return '<div class="card ztcard"><div class="lbl2">This week in zone · target minutes</div><div class="ztgrid">'+cells+'</div></div>';
+  const rows=['low','mod','high'].map(k=>
+    '<div class="zwrow"><i style="background:'+map[k].c+'"></i><span class="n">'+map[k].n+'</span><span class="t">'+w[k]+'m</span></div>'
+  ).join('');
+  return '<div class="card ztcard"><div class="lbl2">This week in zone · '+tot+' min total</div>'+
+    '<div class="zwbar">'+bar+'</div><div class="zwlist">'+rows+'</div></div>';
 }
 function conDone(){
   const sink=CON.sink||{scope:'standalone'};
@@ -2704,9 +2825,24 @@ function conDonutSvg(zsec,total){
   });
   return s;
 }
+/* Rebuild the bands a stored session was ACTUALLY scored against.
+   This used to hard-code .5/.70/.88 of max HR regardless of how the session was
+   zoned, so an HRR/Karvonen-zoned session was redrawn against %HRmax lines it
+   never used - past sessions were retro-coloured against the wrong model.
+   Records now carry `zoneMethod` and `restHr`; older ones fall back to %HRmax,
+   which is what they were drawn with before, so nothing shifts under you. */
+function conRecBands(rec){
+  const m=rec.maxHr||conMaxHr();
+  const rest=Number.isFinite(rec.restHr)?rec.restHr:null;
+  if(rec.zoneMethod==='hrr'&&rest&&rest>0&&rest<m-20){
+    const R=m-rest;
+    return{m,floor:Math.round(rest+R*0.30),lowTop:Math.round(rest+R*0.60),modTop:Math.round(rest+R*0.85)};
+  }
+  return{m,floor:Math.round(m*.5),lowTop:Math.round(m*.70),modTop:Math.round(m*.88)};
+}
 function conResChartSvg(rec){
-  const z=conZones();const m=rec.maxHr||z.max;
-  const floor=Math.round(m*.5),lowTop=Math.round(m*.70),modTop=Math.round(m*.88);
+  const b0=conRecBands(rec),m=b0.m;
+  const floor=b0.floor,lowTop=b0.lowTop,modTop=b0.modTop;
   const zoneAt=b=>b<lowTop?PAL.zoneBlue:b<modTop?PAL.zoneGreen:PAL.zoneRed;
   const pts=rec.hr||[],n=pts.length;if(n<2)return'<div class="sc-meta">Not enough data for a graph.</div>';
   const lo=floor-8,hi=m+4;
@@ -2733,12 +2869,18 @@ function conResultsHtml(rec){
   conZones().list.forEach(zz=>{h+='<div class="zi"><i style="background:'+zz.color+'"></i><span class="n">'+zz.name+'</span><span class="t">'+conMmss(rec.zsec[zz.key]||0)+'</span></div>';});
   h+='</div></div></div>';
   h+='<div class="card chartcard" style="margin-top:14px"><div class="chart-head"><h2>Heart rate</h2><span class="csub">whole session · colored by zone</span></div>'+conResChartSvg(rec)+'</div>';
+  // The "est calories" stat is gone. It was a Keytel (2005) equation with its
+  // bodyweight, age and sex terms deleted and replaced by literals - and there
+  // is no bodyweight anywhere in the data model to restore them from. It was a
+  // fabricated number, and it was being published to coaches.
+  const hrrLbl=rec.hrr!=null?('hr recovery · '+(rec.hrrWin||60)+'s'):'hr recovery';
   h+='<div class="stats stats2">'+
     '<div class="stat"><b>'+(rec.max||'—')+'</b><span>max hr</span></div>'+
     '<div class="stat"><b>'+(rec.avg||'—')+'</b><span>avg hr</span></div>'+
-    '<div class="stat hrr"><b>'+(rec.hrr!=null?'▼ '+rec.hrr:'—')+'</b><span>hr recovery · 60s</span></div>'+
-    '<div class="stat"><b>'+(rec.cal!=null?rec.cal:'—')+'</b><span>est calories</span></div></div>';
-  h+='<p class="con-hint">HR recovery = how far your heart rate dropped in the 60s after your peak — a real conditioning-fitness marker.</p>';
+    '<div class="stat hrr"><b>'+(rec.hrr!=null?'▼ '+rec.hrr:'—')+'</b><span>'+hrrLbl+'</span></div></div>';
+  h+='<p class="con-hint">'+(rec.hrr!=null
+      ? 'HR recovery = how far your heart rate dropped in the '+(rec.hrrWin||60)+'s after your peak — a real conditioning-fitness marker.'
+      : 'HR recovery needs a clean minute of data after your peak — this session didn\'t have one, so it isn\'t shown.')+'</p>';
   const inSession=(CON.sink||{}).scope==='session';
   h+='<button class="bigbtn" style="margin-top:14px" data-click="conDone">'+(inSession?'Back to workout ✓':'Done')+'</button>';
   return h;

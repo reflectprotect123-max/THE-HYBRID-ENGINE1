@@ -1,5 +1,64 @@
 # Changelog
 
+## Training model: correctness pass — 27 July 2026
+
+A full audit of the conditioning engine found that a number of its numbers were
+invented rather than derived, and that several behaved differently from what the
+app said they did. This release fixes what was outright wrong and removes what
+could not be justified. No new model yet — that comes next.
+
+**Fixed — these were affecting your training:**
+
+- **Low-recovery days now ease the session for everyone.** The deload was gated
+  on having already earned a progression level, so a brand-new athlete on 25%
+  recovery got the full prescription. The least-adapted athlete was getting the
+  least protection.
+- **High-recovery days no longer claim an adjustment they never made.** That
+  branch changed a label and nothing else. There's no evidence base for scaling a
+  session up on a good day, so the app no longer pretends there is.
+- **Progression is judged on your working time, not the whole session.** The
+  on-target test divided by total session length — warm-up, every rest and the
+  cool-down included. Since base intervals are only about a fifth actual work,
+  passing it required your heart rate to stay high *through the rests*, which is
+  close to the opposite of adapting.
+- **One stray heartbeat can no longer re-zone you.** A single spurious reading
+  used to raise your stored max HR permanently, shifting every zone boundary. It
+  now takes corroboration across several beats, committed at the end of a session.
+- **HR recovery is honest about what it measured.** It used to hunt backwards
+  from the 60-second mark for any usable reading and label whatever it found
+  "60s" — sometimes measuring a 2-second window. It now reports the window it
+  actually used, and shows nothing when there isn't a clean one. Because it was
+  unreliable, it no longer influences progression; it's recorded and displayed.
+- **A finished session keeps its own verdict.** Progression read whatever WHOOP
+  said at that moment, so a late sync could change the outcome of a workout you'd
+  already completed. Sessions now store the recovery, resting HR and zone method
+  they were actually run with.
+- **Sessions longer than about 90 minutes keep their whole heart-rate trace.**
+  Everything past that point was being folded into a single final data point.
+- **A planned session shows the same length every day.** Its duration was being
+  recalculated through today's recovery, so a plan you wrote last week appeared
+  to change on its own.
+- **Two devices can no longer both lose track of an eased week**, and past
+  sessions are redrawn against the zones they were actually scored with rather
+  than a fixed set they may never have used.
+- **Your coach can tell a demo run from a real one again.**
+
+**Removed:**
+
+- **The weekly zone-minute targets (60 / 45 / 12).** Those numbers were invented,
+  nothing ever set them, and every athlete was measured against the same three
+  constants. They were also wrong on their own terms — that split puts almost
+  twice as much moderate work in the week as the polarized-training evidence
+  supports. The card now simply reports the minutes you banked in each zone.
+- **The estimated calorie figure.** It was a published equation with its
+  bodyweight, age and sex terms deleted and replaced with fixed numbers, and
+  there's no bodyweight anywhere in the app to put back. It was being shown to
+  you and sent to your coach.
+
+**Still provisional:** the daily zone-shift percentages have a defensible
+*direction* but no published basis for their size. They're now labelled as
+guesses in the code rather than presented as fact.
+
 ## Coach ↔ athlete: connect another person — 26 July 2026
 
 You can now coach someone else — they keep their own account, their own app and

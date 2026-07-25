@@ -571,19 +571,114 @@ await t('cloud: record-level merge unions two-device scheduling, honours tombsto
   if (!r.devExcluded) throw new Error('devices registry leaked into the sync fingerprint (would churn)');
   if (!r.tombInFp) throw new Error('a deletion is not in the fingerprint (would not propagate)');
 });
-await t('weekly zone targets: defaults + this-week banked minutes', async () => {
+await t('Stage 0 fixes: HRR window, downsample coverage, corroborated max, one recovery band', async () => {
   const r = await page.evaluate(() => {
-    DB.settings.zoneTargets = undefined; DB.settings.conditioning = [];
-    const t = zoneTargets();
+    const out = {};
+
+    // --- HRR must be a real 60s window, or null. It must never silently
+    //     shrink and still call itself "60s".
+    const every = 2;
+    const clean = new Array(60).fill(null).map((_, i) => (i === 5 ? 180 : 120));
+    out.cleanHrr = conHrr({ every, pts: clean });          // peak at i=5, +60s = i=35
+    // Gap case: peak, then nothing anywhere near the 60s mark.
+    const gappy = new Array(60).fill(null); gappy[5] = 180;
+    out.gappyHrr = conHrr({ every, pts: gappy });
+    // No data at all.
+    out.emptyHrr = conHrr({ every, pts: [] });
+
+    // --- Downsampling must span the whole session, not fold the tail into the
+    //     final bin. A 3-hour session at 2s would need 5400 points; the cap is
+    //     2700, so `every` must widen instead of the index clamping.
+    const dur = 3 * 3600;
+    const samples = [];
+    for (let t2 = 0; t2 <= dur; t2 += 30) samples.push({ t: t2, bpm: 100 + (t2 > dur / 2 ? 40 : 0) });
+    const ds = conDownsample(samples, dur);
+    out.dsEvery = ds.every;
+    out.dsSpans = ds.every * (ds.pts.length - 1) >= dur - ds.every;
+    // The late-session 140bpm samples must land in late bins, not all in the last one.
+    const lastIdx = ds.pts.length - 1;
+    const highIdxs = ds.pts.map((v, i) => (v === 140 ? i : -1)).filter((i) => i >= 0);
+    out.highSpread = highIdxs.length > 10 && highIdxs[0] < lastIdx - 10;
+
+    // --- Observed max needs corroboration: a single spike must not count.
+    out.spikeIgnored = conObservedMax([{ bpm: 210 }, { bpm: 120 }, { bpm: 118 }]) === 118;
+    out.sustainedTaken = conObservedMax([{ bpm: 200 }, { bpm: 199 }, { bpm: 198 }, { bpm: 120 }]) === 198;
+    out.tooFewIsNull = conObservedMax([{ bpm: 200 }, { bpm: 190 }]) === null;
+
+    // --- One definition of the recovery bands, everywhere.
+    out.bands = [recoveryBand(90), recoveryBand(67), recoveryBand(50), recoveryBand(34), recoveryBand(10), recoveryBand(null)];
+    out.toneAgrees = whoopTone(67).cls === 'good' && whoopTone(66).cls === 'watch' && whoopTone(33).cls === 'low';
+    return out;
+  });
+
+  if (r.cleanHrr.hrr !== 60 || r.cleanHrr.win !== 60) throw new Error('HRR60 on clean data wrong: ' + JSON.stringify(r.cleanHrr));
+  if (r.gappyHrr.hrr !== null) throw new Error('HRR returned a number with no sample near 60s: ' + JSON.stringify(r.gappyHrr));
+  if (r.emptyHrr.hrr !== null) throw new Error('HRR on empty data should be null');
+  if (r.dsEvery <= 2) throw new Error('downsample did not widen the bin for a 3h session: every=' + r.dsEvery);
+  if (!r.dsSpans) throw new Error('downsampled trace does not span the session (tail folded into last bin)');
+  if (!r.highSpread) throw new Error('late-session samples collapsed into the final bins');
+  if (!r.spikeIgnored) throw new Error('a single artefact beat still raises the observed max');
+  if (!r.sustainedTaken) throw new Error('a corroborated high max was not accepted');
+  if (!r.tooFewIsNull) throw new Error('observed max accepted fewer than 3 corroborating samples');
+  if (r.bands.join(',') !== 'good,good,watch,watch,low,') throw new Error('recovery bands wrong: ' + r.bands.join(','));
+  if (!r.toneAgrees) throw new Error('whoopTone disagrees with recoveryBand — the bands have drifted apart again');
+});
+await t('Stage 0 fixes: deload reaches level-0, plan length is recovery-independent, adapt uses stored recovery', async () => {
+  const r = await page.evaluate(() => {
+    const out = {};
+    const savedWhoop = WHOOP.sample;
+    DB.settings.conProgress = {}; save();
+
+    // B1: a level-0 athlete on low recovery must still get eased.
+    WHOOP.sample = { recoveryScore: 25 };
+    const p0 = conPrescription('intervals');
+    out.level0Eased = p0.dailyAdj === -1 && p0.rounds < CON_FORMATS.intervals.base.rounds;
+
+    // B2: a high-recovery day must not claim an adjustment it didn't make.
+    WHOOP.sample = { recoveryScore: 95 };
+    const pHigh = conPrescription('intervals');
+    const pNone = conPrescription('intervals', true);
+    out.greenHonest = pHigh.dailyAdj === 0 && pHigh.rounds === pNone.rounds && !/strong recovery/i.test(pHigh.note || '');
+
+    // B8: the planned length of a block must not move with today's recovery.
+    const blk = { kind: 'conditioning', condFmt: 'intervals' };
+    WHOOP.sample = { recoveryScore: 25 };
+    const lowMin = condBlockMinutes(blk);
+    WHOOP.sample = { recoveryScore: 95 };
+    const highMin = condBlockMinutes(blk);
+    out.planStable = lowMin === highMin && lowMin > 0;
+
+    // B13: conAdapt must read the recovery stored ON the record.
+    DB.settings.conProgress = {}; save();
+    WHOOP.sample = { recoveryScore: 95 };   // today says "great"
+    const rec = { id: 'x1', fmt: 'intervals', dur: 600, zsec: { low: 60, mod: 300, high: 40 }, rec: 20 };
+    const delta = conAdapt(rec);            // ...but the session was run at 20%
+    out.usedStoredRecovery = delta !== 1;
+
+    WHOOP.sample = savedWhoop; DB.settings.conProgress = {}; save();
+    return out;
+  });
+  if (!r.level0Eased) throw new Error('B1: a level-0 athlete on 25% recovery got no deload');
+  if (!r.greenHonest) throw new Error('B2: a high-recovery day still claims an adjustment it does not make');
+  if (!r.planStable) throw new Error('B8: planned block length changes with today\'s recovery');
+  if (!r.usedStoredRecovery) throw new Error('B13: conAdapt used today\'s recovery instead of the session\'s');
+});
+await t('weekly zone time: banked minutes are reported, with no invented target', async () => {
+  const r = await page.evaluate(() => {
+    DB.settings.conditioning = [];
     const now = Date.now();
     DB.settings.conditioning = [{ id: 'z1', sim: false, startedAt: now, date: ymd(new Date()), zsec: { low: 600, mod: 900, high: 120 } }];
     save();
     const w = thisWeekZoneMin();
+    const html = weeklyZoneTargetCard();
     DB.settings.conditioning = []; save();
-    return { t, w };
+    return { w, html, hasTargets: typeof window.zoneTargets === 'function' };
   });
-  if (r.t.low !== 60 || r.t.mod !== 45 || r.t.high !== 12) throw new Error('zone target defaults wrong: ' + JSON.stringify(r.t));
   if (r.w.low !== 10 || r.w.mod !== 15 || r.w.high !== 2) throw new Error('this-week zone minutes wrong: ' + JSON.stringify(r.w));
+  // The fabricated 60/45/12 weekly targets are gone and must not come back.
+  if (r.hasTargets) throw new Error('zoneTargets() is back — the invented 60/45/12 weekly targets must stay deleted');
+  if (/\/\d+m/.test(r.html)) throw new Error('zone card is still rendering a "/Nm" target: ' + r.html);
+  if (!/27 min total/.test(r.html)) throw new Error('zone card did not report the banked total: ' + r.html);
 });
 await t('conditioning: custom format builds from settings; free run is open-ended', async () => {
   const r = await page.evaluate(() => {
