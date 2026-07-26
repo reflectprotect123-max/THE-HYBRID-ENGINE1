@@ -139,6 +139,12 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .ctlbtn.del{margin-left:auto;color:#cf7f7c;border-color:rgba(207,127,124,.3)}
 .ctlbtn.del:hover{border-color:#cf7f7c;color:#cf7f7c}
 
+/* the chain between two cards — unlit is a hint, lit means "flows on" */
+.planseam{display:flex;justify-content:center;padding:3px 0}
+.planseam button{width:38px;height:28px;border-radius:var(--r-pill);border:1px solid var(--line);background:var(--panel2);color:var(--dim);display:grid;place-items:center;transition:.15s ease}
+.planseam button:hover{border-color:rgba(224,188,135,.45);color:var(--gold2)}
+.planseam button.on{color:var(--gold2);border-color:var(--gold-line);background:var(--gold-wash)}
+.planseam svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none}
 .superwrap{margin-top:10px;padding-left:12px;border-left:3px solid var(--gold)}
 .superlabel{color:var(--muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-top:14px}
 .lgx.cond{border-color:rgba(51,192,122,.26)}
@@ -261,10 +267,23 @@ function render(){
   B.forEach(function(b,bi){
     out+='<div class="sec"><h2>'+esc(b.h)+'</h2><span>'+esc(b.mins)+'</span></div>';
     if(b.cond){out+=condCard(b,bi);return;}
-    var rows=b.ex.map(function(x,ei){return card(x,bi,ei)}).join('');
+    // a seam sits between every pair of adjacent cards: lit = they flow together
+    var rows=b.ex.map(function(x,ei){
+      return card(x,bi,ei)+(ei<b.ex.length-1?seam(bi,ei,false,!!b.ss):'');
+    }).join('');
     out+=b.ss?'<div class="superwrap"><div class="superlabel">Superset · flows on</div>'+rows+'</div>':rows;
+    // and one across the boundary into the next strength block, to merge them
+    var nb=B[bi+1];
+    if(nb&&!nb.cond)out+=seam(bi,b.ex.length-1,true,false);
   });
   document.getElementById('session').innerHTML=out;
+}
+function seam(bi,ei,cross,on){
+  return '<div class="planseam"><button class="'+(on?'on':'')+'" data-link="'+bi+','+ei+','+(cross?1:0)+'" '+
+    'title="'+(on?'split them apart':'chain into a superset')+'" '+
+    'aria-label="'+(on?'split the superset here':'chain into a superset')+'">'+
+    '<svg viewBox="0 0 24 24"><path d="M9 12h6M8 8.5 5.5 11a3.5 3.5 0 0 0 5 5L13 13.5M16 15.5l2.5-2.5a3.5 3.5 0 0 0-5-5L11 10.5"/></svg>'+
+  '</button></div>';
 }
 function card(x,bi,ei){
   var open=OPEN.b===bi&&OPEN.e===ei;
@@ -341,6 +360,22 @@ document.addEventListener('click',function(e){
     var tmp=ex[ei];ex[ei]=ex[ni];ex[ni]=tmp;OPEN={b:bi,e:ni};render();return;}
   if(t=e.target.closest('[data-del]')){var a=args(t,'del'),bi=+a[0];
     B[bi].ex.splice(+a[1],1);if(!B[bi].ex.length)B.splice(bi,1);OPEN={b:-1,e:-1};render();return;}
+  /* Same three moves the phone's planLink makes (app.js): across a boundary
+     merges the next block in; an unlit in-block seam turns the block into a
+     superset; a lit one splits the block at that seam. */
+  if(t=e.target.closest('[data-link]')){
+    var a=args(t,'link'),bi=+a[0],ei=+a[1],cross=+a[2],b=B[bi];
+    if(cross){
+      var nb=B[bi+1];if(!nb||nb.cond||b.cond)return;
+      b.ex=b.ex.concat(nb.ex||[]);b.ss=true;B.splice(bi+1,1);
+    }else if(!b.ss){b.ss=b.ex.length>1;}
+    else{
+      var rest=b.ex.splice(ei+1);
+      b.ss=b.ex.length>1;
+      B.splice(bi+1,0,{h:b.h,mins:b.mins,ss:rest.length>1,ex:rest});
+    }
+    OPEN={b:-1,e:-1};render();return;
+  }
   if(t=e.target.closest('[data-pick]')){PICK=args(t,'pick').map(Number);openPick();return;}
   if(t=e.target.closest('.opt')){
     B[PICK[0]].ex[PICK[1]].n=t.getAttribute('data-name');closePick();render();return;}
