@@ -7,8 +7,10 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23141311'/><text x='50' y='72' font-size='64' font-family='Georgia,serif' font-weight='900' fill='%23c09358' text-anchor='middle'>H</text></svg>">
 <style>
 /* ============================================================
-   CONCEPT v2 — the coach builder is the phone Planner, wide.
-   One bar. One column. The Logger's own cards and controls.
+   CONCEPT v3 — the coach builder is the phone Planner, wide.
+   One bar. One column. Every card opens; one at a time.
+   On the phone a card takes the whole screen; on a laptop there
+   is room, so it expands in place and the session stays visible.
    Tokens are the athlete app's (:root in /index.html), untouched.
    ============================================================ */
 @font-face{font-family:'Inter';src:url('../fonts/inter-var.woff2') format('woff2');font-weight:100 900;font-display:swap;font-style:normal}
@@ -24,7 +26,6 @@
   --brass-edge:inset 0 1px 0 rgba(255,255,255,.14),0 1px 0 rgba(0,0,0,.35);
   --shadow-card:0 12px 34px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.018);
   --lift-open:0 18px 40px rgba(0,0,0,.5),0 0 0 1px rgba(224,188,135,.22),inset 0 1px 0 rgba(255,255,255,.05);
-  --ok:#9fc59b;
   --zone-blue:#5b8def; --zone-green:#33c07a; --zone-red:#e0524d;
   --r-sm:10px; --r-md:14px; --r-pill:999px;
 }
@@ -32,6 +33,7 @@
 html,body{margin:0;padding:0}
 body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
 
 /* ---------- one bar ---------- */
 .topbar{height:60px;background:var(--panel3);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 22px;position:sticky;top:0;z-index:40}
@@ -50,7 +52,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .avatar{width:32px;height:32px;border-radius:50%;background:var(--brass-grad);box-shadow:var(--brass-edge);border:1px solid var(--gold-line);display:grid;place-items:center;color:var(--gold2);font-weight:800;font-size:12px}
 
 /* ---------- one column ---------- */
-.page{max-width:640px;margin:0 auto;padding:34px 20px 110px}
+.page{max-width:660px;margin:0 auto;padding:34px 20px 120px}
 .kicker{font-size:10px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:rgba(224,188,135,.72)}
 .ttl{font-size:27px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin:4px 0 22px}
 .sec{display:flex;align-items:baseline;gap:10px;margin:26px 0 0}
@@ -58,8 +60,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .sec span{color:var(--dim);font-size:11px}
 
 /* the Logger card */
-.lgx{position:relative;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);margin-top:10px;box-shadow:var(--shadow-card)}
-.lgx:hover{border-color:rgba(224,188,135,.3)}
+.lgx{position:relative;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);margin-top:10px;box-shadow:var(--shadow-card);transition:border-color .15s ease}
+.lgx:not(.open):hover{border-color:rgba(224,188,135,.3)}
 .lgcrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:0 14px;min-height:60px}
 .lgltr{flex:0 0 auto;min-width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);background:var(--brass-grad);box-shadow:var(--brass-edge);color:var(--gold2);font-size:12px;font-weight:850;border:1px solid var(--gold-line)}
 .lgcn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -69,17 +71,23 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .lgcar{flex:0 0 auto;color:var(--dim);font-size:13px}
 .lgx.open{border-color:transparent;box-shadow:var(--lift-open)}
 .lgx.open::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:var(--r-md) var(--r-md) 0 0;z-index:2}
-.lg-body{padding:2px 16px 18px}
+.lg-body{padding:2px 16px 18px;animation:reveal .26s cubic-bezier(.22,.9,.24,1)}
+@keyframes reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* the name is the movement picker */
+.namebtn{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:16px;font-weight:800;letter-spacing:-.01em;padding:0;color:var(--text);max-width:100%}
+.namebtn .pen{color:var(--dim);font-size:12px;flex:0 0 auto}
+.namebtn:hover{color:var(--gold2)}
+.namebtn:hover .pen{color:var(--gold2)}
 
 /* controls — the phone planner's, one per row */
 .f{display:flex;align-items:center;gap:14px;margin-top:14px}
 .f>label{flex:0 0 96px;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9a938a}
 .step{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--well);box-shadow:var(--well-inset)}
 .step button{width:44px;min-height:44px;background:var(--panel2);color:var(--gold2);font-size:19px;font-weight:800}
-.step .val{min-width:72px;display:grid;place-items:center;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;padding:0 10px}
+.step button:hover{background:#242320}
+.step .val{min-width:76px;display:grid;place-items:center;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;padding:0 10px}
 .dots{display:flex;gap:6px;align-items:center;padding:0 12px}
-.dot{width:26px;height:4px;border-radius:2px;background:rgba(255,255,255,.14)}
-.dot.done{background:var(--gold)}
+.dot{width:24px;height:4px;border-radius:2px;background:var(--gold)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{padding:7px 12px;border:1px solid var(--line2);border-radius:var(--r-pill);color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase}
 .chip:hover{border-color:rgba(224,188,135,.4)}
@@ -89,23 +97,41 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .chip.e-med.on{border-color:var(--zone-green);color:var(--zone-green);background:transparent}
 .chip.e-hard.on{border-color:var(--zone-red);color:var(--zone-red);background:transparent}
 
-/* effort slider — the same panel the phone uses */
 .rpe{margin-top:16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel2);padding:13px 16px}
 .rpe small{display:block;font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
 .rpe b{display:block;font-size:30px;font-weight:800;color:var(--gold2);margin:1px 0 4px;font-variant-numeric:tabular-nums}
 .rpe input[type=range]{width:100%;accent-color:var(--gold)}
 .rpe .ancs{display:flex;justify-content:space-between;color:var(--dim);font-size:11px;margin-top:3px}
 
-/* superset rail, exactly as the phone draws it */
+/* card footer: move / remove, mirroring the phone's ↑↓✕ */
+.cardctl{display:flex;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.ctlbtn{width:42px;height:38px;border:1px solid var(--line2);border-radius:var(--r-sm);color:var(--muted);display:grid;place-items:center;font-size:14px}
+.ctlbtn:hover{border-color:rgba(224,188,135,.4);color:var(--gold2)}
+.ctlbtn.del{margin-left:auto;color:#cf7f7c;border-color:rgba(207,127,124,.3)}
+.ctlbtn.del:hover{border-color:#cf7f7c;color:#cf7f7c}
+
 .superwrap{margin-top:10px;padding-left:12px;border-left:3px solid var(--gold)}
 .superlabel{color:var(--muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-top:14px}
-
 .lgx.cond{border-color:rgba(51,192,122,.26)}
 .lgx.cond .lgltr{color:var(--zone-green)}
+.lgx.cond.open{border-color:transparent}
 
 .addrow{display:flex;gap:10px;margin-top:18px}
 .addbtn{flex:1;min-height:46px;border:1px dashed var(--line2);border-radius:var(--r-md);color:var(--gold2);font-size:13px;font-weight:750}
 .addbtn:hover{border-color:rgba(224,188,135,.4)}
+
+/* movement picker */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;padding:12vh 20px;z-index:60}
+.scrim.on{display:flex}
+.sheet{width:100%;max-width:460px;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:0 30px 70px rgba(0,0,0,.6);padding:18px}
+.sheet h3{margin:0 0 3px;font-size:16px;font-weight:800}
+.sheet p{margin:0 0 14px;color:var(--dim);font-size:12px}
+.sheet input{width:100%;min-height:46px;padding:0 14px;border:1px solid var(--line2);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--text);font:inherit;font-size:15px;outline:none}
+.sheet input:focus{border-color:var(--gold-line)}
+.opts{margin-top:12px;max-height:280px;overflow:auto}
+.opt{display:block;width:100%;text-align:left;padding:11px 12px;border-radius:var(--r-sm);color:var(--text);font-size:14px;font-weight:600}
+.opt:hover{background:var(--panel2);color:var(--gold2)}
+.opt small{display:block;color:var(--dim);font-size:11px;font-weight:500;margin-top:1px}
 
 @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style>
@@ -128,86 +154,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 <main class="page">
   <div class="kicker">Week 2 · Day 1 · saves as you go</div>
   <h1 class="ttl">Lower + Engine</h1>
-
-  <div class="sec"><h2>Main</h2><span>18 min</span></div>
-
-  <!-- open card: the phone planner card, given desktop width -->
-  <section class="lgx open">
-    <div class="lgcrow">
-      <span class="lgltr">A</span>
-      <span class="lgcn"><b>Back Squat</b><span>4 × <i id="sumReps">5</i> · <i>RPE <span id="sumRpe">8</span></i> · rest <span id="sumRest">3:00</span></span></span>
-    </div>
-    <div class="lg-body">
-      <div class="f">
-        <label>Sets</label>
-        <div class="step"><button>−</button>
-          <span class="dots"><span class="dot done"></span><span class="dot done"></span><span class="dot done"></span><span class="dot done"></span></span>
-        <button>+</button></div>
-      </div>
-      <div class="f" style="align-items:flex-start">
-        <label style="padding-top:9px">Target reps</label>
-        <div class="chips" id="repChips">
-          <button class="chip">3-5</button><button class="chip on">5</button><button class="chip">6-8</button>
-          <button class="chip">8-10</button><button class="chip">8-12</button><button class="chip">12-15</button><button class="chip">max</button>
-        </div>
-      </div>
-      <div class="f">
-        <label>Rest</label>
-        <div class="step"><button>−</button><span class="val">3:00</span><button>+</button></div>
-      </div>
-      <div class="rpe">
-        <small>Target effort · RPE</small>
-        <b id="rpeOut">8</b>
-        <input type="range" min="1" max="10" step="0.5" value="8" id="rpeSlider" aria-label="target RPE 1 to 10">
-        <div class="ancs"><span>1 · barely felt it</span><span>10 · max effort</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="lgx">
-    <button class="lgcrow">
-      <span class="lgltr">B</span>
-      <span class="lgcn"><b>Romanian Deadlift</b><span>3 × 8-10 · <i>RPE 7.5</i> · rest 2:00</span></span>
-      <span class="lgcar">›</span>
-    </button>
-  </section>
-
-  <div class="sec"><h2>Accessory</h2><span>10 min</span></div>
-  <div class="superwrap">
-    <div class="superlabel">Superset · flows on</div>
-    <section class="lgx">
-      <button class="lgcrow"><span class="lgltr">C1</span><span class="lgcn"><b>DB Bench Press</b><span>3 × 8-12 · <i>RPE 8</i> · flows on</span></span><span class="lgcar">›</span></button>
-    </section>
-    <section class="lgx">
-      <button class="lgcrow"><span class="lgltr">C2</span><span class="lgcn"><b>Chest-Supported Row</b><span>3 × 10-12 · <i>RPE 8</i> · rest 1:30</span></span><span class="lgcar">›</span></button>
-    </section>
-  </div>
-
-  <div class="sec"><h2>Finisher</h2><span>heart rate</span></div>
-  <section class="lgx cond">
-    <div class="lgcrow">
-      <span class="lgltr">♥</span>
-      <span class="lgcn"><b>Intervals</b><span id="condSum">8×30s / 90s · <i>Medium · RPE 5-7</i></span></span>
-    </div>
-    <div class="lg-body">
-      <div class="f" style="align-items:flex-start">
-        <label style="padding-top:9px">Format</label>
-        <div class="chips">
-          <button class="chip">Steady</button><button class="chip on">Intervals</button>
-          <button class="chip">Tempo</button><button class="chip">Free run</button>
-        </div>
-      </div>
-      <div class="f" style="align-items:flex-start">
-        <label style="padding-top:9px">Effort</label>
-        <div class="chips" id="effChips">
-          <button class="chip e-easy">Easy<i>RPE 3-4</i></button>
-          <button class="chip e-med on">Medium<i>RPE 5-7</i></button>
-          <button class="chip e-hard">Hard<i>RPE 8-9.5</i></button>
-        </div>
-      </div>
-    </div>
-  </section>
-
+  <div id="session"></div>
   <div class="addrow">
     <button class="addbtn">＋ Exercise</button>
     <button class="addbtn">＋ Block</button>
@@ -215,25 +162,161 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   </div>
 </main>
 
+<div class="scrim" id="scrim">
+  <div class="sheet">
+    <h3>Choose a movement</h3>
+    <p>Search the library, or type any name.</p>
+    <input id="q" placeholder="Search or type a name" autocomplete="off">
+    <div class="opts" id="opts"></div>
+  </div>
+</div>
+
 <script>
 (function(){
-  function group(id,fn){var el=document.getElementById(id);if(!el)return;el.addEventListener('click',function(e){
-    var b=e.target.closest('.chip');if(!b)return;
-    el.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on')});
-    b.classList.add('on');if(fn)fn(b);
-  });}
-  group('repChips',function(b){document.getElementById('sumReps').textContent=b.textContent.trim();});
-  var band={'Easy':'RPE 3-4','Medium':'RPE 5-7','Hard':'RPE 8-9.5'};
-  group('effChips',function(b){
-    var n=b.childNodes[0].textContent.trim();
-    document.getElementById('condSum').innerHTML='8×30s / 90s · <i>'+n+' · '+band[n]+'</i>';
+/* ---- the session, as the coach's data model ---- */
+var REPS=['3-5','5','6-8','8-10','8-12','12-15','max'];
+var LIB=['Back Squat','Front Squat','Romanian Deadlift','Conventional Deadlift','Barbell Hip Thrust',
+ 'DB Bench Press','Barbell Bench Press','Incline DB Press','Chest-Supported Row','Barbell Row',
+ 'Weighted Pull-up','Overhead Press','Walking Lunge','Bulgarian Split Squat','Farmer Carry','Plank'];
+var EFF={Easy:'RPE 3-4',Medium:'RPE 5-7',Hard:'RPE 8-9.5'};
+
+var B=[
+ {h:'Main',mins:'18 min',ex:[
+   {n:'Back Squat',sets:4,reps:'5',rpe:8,rest:180},
+   {n:'Romanian Deadlift',sets:3,reps:'8-10',rpe:7.5,rest:120}]},
+ {h:'Accessory',mins:'10 min',ss:true,ex:[
+   {n:'DB Bench Press',sets:3,reps:'8-12',rpe:8,rest:0},
+   {n:'Chest-Supported Row',sets:3,reps:'10-12',rpe:8,rest:90}]},
+ {h:'Finisher',mins:'heart rate',cond:true,fmt:'Intervals',eff:'Medium'}
+];
+var OPEN={b:0,e:0}, PICK=null;
+
+/* An imported or hand-typed target that isn't one of the presets still gets a
+   chip of its own, lit — never a row where nothing looks chosen. */
+function repChips(cur){return REPS.indexOf(cur)>=0?REPS:REPS.concat([cur])}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function rest(s){return s?Math.floor(s/60)+':'+String(s%60).padStart(2,'0'):'flows on'}
+/* Letters run A, B, C… across the whole session; a superset pair shares one
+   letter as A1/A2 — the same scheme the phone uses. */
+function letters(){
+  var map={},n=0;
+  B.forEach(function(b,bi){
+    if(b.cond)return;
+    if(b.ss){var L=String.fromCharCode(65+n++);b.ex.forEach(function(x,ei){map[bi+'-'+ei]=L+(ei+1)});}
+    else b.ex.forEach(function(x,ei){map[bi+'-'+ei]=String.fromCharCode(65+n++)});
   });
-  var sl=document.getElementById('rpeSlider');
-  sl.addEventListener('input',function(){
-    var v=String(Math.round(sl.value*10)/10);
+  return map;
+}
+var LTR={};
+function letter(bi,ei){return LTR[bi+'-'+ei]||'?'}
+function summary(x){return x.sets+' × <i>'+esc(x.reps)+'</i> · <i>RPE '+x.rpe+'</i> · '+(x.rest?'rest '+rest(x.rest):'flows on')}
+
+/* ---- render ---- */
+function render(){
+  LTR=letters();
+  var out='';
+  B.forEach(function(b,bi){
+    out+='<div class="sec"><h2>'+esc(b.h)+'</h2><span>'+esc(b.mins)+'</span></div>';
+    if(b.cond){out+=condCard(b,bi);return;}
+    var rows=b.ex.map(function(x,ei){return card(x,bi,ei)}).join('');
+    out+=b.ss?'<div class="superwrap"><div class="superlabel">Superset · flows on</div>'+rows+'</div>':rows;
+  });
+  document.getElementById('session').innerHTML=out;
+}
+function card(x,bi,ei){
+  var open=OPEN.b===bi&&OPEN.e===ei;
+  var head='<button class="lgcrow" data-open="'+bi+','+ei+'">'+
+    '<span class="lgltr">'+letter(bi,ei)+'</span>'+
+    '<span class="lgcn"><b>'+esc(x.n)+'</b><span>'+summary(x)+'</span></span>'+
+    '<span class="lgcar">'+(open?'▴':'›')+'</span></button>';
+  if(!open)return '<section class="lgx">'+head+'</section>';
+  var openHead='<div class="lgcrow">'+
+    '<span class="lgltr">'+letter(bi,ei)+'</span>'+
+    '<span class="lgcn"><button class="namebtn" data-pick="'+bi+','+ei+'">'+esc(x.n)+'<span class="pen">✎</span></button>'+
+      '<span>'+summary(x)+'</span></span>'+
+    '<button class="lgcar" data-open="'+bi+','+ei+'" aria-label="collapse">▴</button></div>';
+  var dots='';for(var i=0;i<x.sets;i++)dots+='<span class="dot"></span>';
+  return '<section class="lgx open">'+openHead+'<div class="lg-body">'+
+    '<div class="f"><label>Sets</label><div class="step">'+
+      '<button data-sets="'+bi+','+ei+',-1">−</button><span class="dots">'+dots+'</span><button data-sets="'+bi+','+ei+',1">+</button></div></div>'+
+    '<div class="f" style="align-items:flex-start"><label style="padding-top:9px">Target reps</label><div class="chips">'+
+      repChips(x.reps).map(function(r){return '<button class="chip'+(r===x.reps?' on':'')+'" data-reps="'+bi+','+ei+','+esc(r)+'">'+esc(r)+'</button>'}).join('')+
+    '</div></div>'+
+    '<div class="f"><label>Rest</label><div class="step">'+
+      '<button data-rest="'+bi+','+ei+',-15">−</button><span class="val">'+rest(x.rest)+'</span><button data-rest="'+bi+','+ei+',15">+</button></div></div>'+
+    '<div class="rpe"><small>Target effort · RPE</small><b id="rpeOut">'+x.rpe+'</b>'+
+      '<input type="range" min="1" max="10" step="0.5" value="'+x.rpe+'" id="rpeSlider" aria-label="target RPE 1 to 10">'+
+      '<div class="ancs"><span>1 · barely felt it</span><span>10 · max effort</span></div></div>'+
+    '<div class="cardctl">'+
+      '<button class="ctlbtn" data-move="'+bi+','+ei+',-1" aria-label="move up">↑</button>'+
+      '<button class="ctlbtn" data-move="'+bi+','+ei+',1" aria-label="move down">↓</button>'+
+      '<button class="ctlbtn del" data-del="'+bi+','+ei+'" aria-label="remove">✕</button></div>'+
+    '</div></section>';
+}
+function condCard(b,bi){
+  var open=OPEN.b===bi;
+  var sum='8×30s / 90s · <i>'+b.eff+' · '+EFF[b.eff]+'</i>';
+  if(!open)return '<section class="lgx cond"><button class="lgcrow" data-open="'+bi+',0">'+
+    '<span class="lgltr">♥</span><span class="lgcn"><b>'+esc(b.fmt)+'</b><span>'+sum+'</span></span><span class="lgcar">›</span></button></section>';
+  return '<section class="lgx cond open"><div class="lgcrow">'+
+    '<span class="lgltr">♥</span><span class="lgcn"><b>'+esc(b.fmt)+'</b><span>'+sum+'</span></span>'+
+    '<button class="lgcar" data-open="'+bi+',0" aria-label="collapse">▴</button></div><div class="lg-body">'+
+    '<div class="f" style="align-items:flex-start"><label style="padding-top:9px">Format</label><div class="chips">'+
+      ['Steady','Intervals','Tempo','Free run'].map(function(f){return '<button class="chip'+(f===b.fmt?' on':'')+'" data-fmt="'+bi+','+f+'">'+f+'</button>'}).join('')+
+    '</div></div>'+
+    '<div class="f" style="align-items:flex-start"><label style="padding-top:9px">Effort</label><div class="chips">'+
+      ['Easy','Medium','Hard'].map(function(e){return '<button class="chip e-'+e.slice(0,4).toLowerCase()+(e===b.eff?' on':'')+'" data-eff="'+bi+','+e+'">'+e+'<i>'+EFF[e]+'</i></button>'}).join('')+
+    '</div></div></div></section>';
+}
+
+/* ---- interaction ---- */
+function args(el,k){return el.getAttribute('data-'+k).split(',')}
+document.addEventListener('click',function(e){
+  var t;
+  if(t=e.target.closest('[data-open]')){var a=args(t,'open'),bi=+a[0],ei=+a[1];
+    if(OPEN.b===bi&&OPEN.e===ei){OPEN={b:-1,e:-1};}else{OPEN={b:bi,e:ei};}
+    render();return;}
+  if(t=e.target.closest('[data-sets]')){var a=args(t,'sets'),x=B[+a[0]].ex[+a[1]];
+    x.sets=Math.max(1,Math.min(10,x.sets+ +a[2]));render();return;}
+  if(t=e.target.closest('[data-reps]')){var a=args(t,'reps');B[+a[0]].ex[+a[1]].reps=a[2];render();return;}
+  if(t=e.target.closest('[data-rest]')){var a=args(t,'rest'),x=B[+a[0]].ex[+a[1]];
+    x.rest=Math.max(0,Math.min(600,x.rest+ +a[2]));render();return;}
+  if(t=e.target.closest('[data-fmt]')){var a=args(t,'fmt');B[+a[0]].fmt=a[1];render();return;}
+  if(t=e.target.closest('[data-eff]')){var a=args(t,'eff');B[+a[0]].eff=a[1];render();return;}
+  if(t=e.target.closest('[data-move]')){var a=args(t,'move'),bi=+a[0],ei=+a[1],d=+a[2],ex=B[bi].ex;
+    var ni=ei+d;if(ni<0||ni>=ex.length)return;
+    var tmp=ex[ei];ex[ei]=ex[ni];ex[ni]=tmp;OPEN={b:bi,e:ni};render();return;}
+  if(t=e.target.closest('[data-del]')){var a=args(t,'del'),bi=+a[0];
+    B[bi].ex.splice(+a[1],1);if(!B[bi].ex.length)B.splice(bi,1);OPEN={b:-1,e:-1};render();return;}
+  if(t=e.target.closest('[data-pick]')){PICK=args(t,'pick').map(Number);openPick();return;}
+  if(t=e.target.closest('.opt')){
+    B[PICK[0]].ex[PICK[1]].n=t.getAttribute('data-name');closePick();render();return;}
+  if(e.target.id==='scrim')closePick();
+});
+document.addEventListener('input',function(e){
+  if(e.target.id==='rpeSlider'){
+    var v=Math.round(e.target.value*10)/10, x=B[OPEN.b].ex[OPEN.e];
+    x.rpe=v;
     document.getElementById('rpeOut').textContent=v;
-    document.getElementById('sumRpe').textContent=v;
-  });
+    var s=document.querySelector('.lgx.open .lgcn span');if(s)s.innerHTML=summary(x);
+    return;
+  }
+  if(e.target.id==='q')fillOpts(e.target.value);
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closePick();});
+
+function openPick(){var s=document.getElementById('scrim');s.classList.add('on');
+  var q=document.getElementById('q');q.value='';fillOpts('');q.focus();}
+function closePick(){document.getElementById('scrim').classList.remove('on');}
+function fillOpts(q){
+  q=(q||'').trim().toLowerCase();
+  var list=LIB.filter(function(n){return !q||n.toLowerCase().indexOf(q)>=0});
+  var html=list.map(function(n){return '<button class="opt" data-name="'+esc(n)+'">'+esc(n)+'</button>'}).join('');
+  if(q&&!list.some(function(n){return n.toLowerCase()===q}))
+    html='<button class="opt" data-name="'+esc(q)+'">Use “'+esc(q)+'”<small>not in the library — add it anyway</small></button>'+html;
+  document.getElementById('opts').innerHTML=html||'<button class="opt" data-name="'+esc(q)+'">Use “'+esc(q)+'”</button>';
+}
+render();
 })();
 </script>
 </body>
