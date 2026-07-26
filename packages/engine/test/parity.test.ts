@@ -2,17 +2,16 @@
  * Where the port drifted from the vanilla app.
  *
  * The golden vectors pin the functions the harvester could reach; these are the
- * ones it could not — the guided-logger prefills, zone banking, and the two
- * merge/import paths that only run at the edges. Every expectation here was
- * read off the corresponding function in the root `app.js`, which remains the
- * specification and the rollback path.
+ * ones it could not — the guided-logger prefills, zone banking, and the merge
+ * paths that only run at the edges. Every expectation here was read off the
+ * corresponding function in the root `app.js`, which remains the specification
+ * and the rollback path.
  */
 import { describe, expect, it } from 'vitest';
 import { prefillPrimary, prefillSecondary } from '../src/logger';
 import { repFloorOf, repTopOf } from '../src/autoreg';
 import { conZones, zoneSeconds } from '../src/hr';
 import { mergeEngines } from '../src/db';
-import { impParse, impToWorkout } from '../src/importer';
 import type { EngineDB, Exercise, LoggedSet, Session } from '../src/types';
 
 const ex = (name: string, sets: LoggedSet[]): Exercise<LoggedSet> => ({
@@ -125,16 +124,5 @@ describe('merge does not admit holes', () => {
       settings: {},
     };
     expect(mergeEngines(local, remote).workouts[0].dates).toEqual(['2026-01-01']);
-  });
-});
-
-describe('import → workout', () => {
-  it('a movement the importer could not name still gets a name', () => {
-    // "Strength 5x5" parses to a heading plus a placeholder exercise with no
-    // name. app.js impSave writes 'Movement' there; an empty name renders as a
-    // blank row and is invisible to every history lookup, which key on name.
-    const r = impParse('Strength 5x5');
-    const w = impToWorkout(r, () => 'id');
-    expect(w.blocks[0].exercises[0].name).toBe('Movement');
   });
 });

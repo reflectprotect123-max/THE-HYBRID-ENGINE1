@@ -33,15 +33,14 @@ sub-grid step and is written to stand out in review.
 
 | What | How | Result |
 |---|---|---|
-| Engine matches the shipped app | 1,296 golden vectors harvested from the live `app.js` in a real browser (`checks/golden-vectors.mjs`) | 82 tests pass |
+| Engine matches the shipped app | 1,262 golden vectors harvested from the live `app.js` in a real browser (`checks/golden-vectors.mjs`) | 69 tests pass |
 | Engine matches it where the vectors DON'T reach | `packages/engine/test/parity.test.ts` — one test per divergence found by reading the port against `app.js`, each citing the line it was read off | included above |
 | Sync rules | `packages/engine/test/cloud.test.ts` — assignment reconcile, push/pull merge, coach digest bounds | included above |
 | The coach→athlete boundary | `packages/engine/test/emit.test.ts` — every forbidden set key is refused | included above |
-| The importer | `packages/engine/test/importer.test.ts` — 19 harvested parse cases plus the lexicon | included above |
 | The coach's pure model | `apps/coach/test/model.test.ts` — mode inference, target coercion, malformed libraries | 14 tests pass |
-| React apps actually run | `checks/react-smoke.mjs` serves the built output and drives both apps in Chromium | 26 checks pass |
+| React apps actually run | `checks/react-smoke.mjs` serves the built output and drives both apps in Chromium | 23 checks pass |
 | **The publish directory works** | `checks/deploy-smoke.mjs` serves `apps/web/dist` with Netlify's own precedence and boots both apps under the real CSP | 13 checks pass |
-| **The mobile app builds** | `pnpm --filter @hybrid/mobile bundle` — Metro + Hermes, for real | 1,422 modules |
+| **The mobile app builds** | `pnpm --filter @hybrid/mobile bundle` — Metro + Hermes, for real | 1,413 modules |
 | **Nobody can impersonate a user** | `checks/supabase-auth.mjs` mints tokens against a fixture secret and attacks the verifier with them, the public anon key included | 11 attacks repelled |
 | Types | `pnpm -r typecheck` across all six packages | clean |
 | The vanilla app still works | the six original suites | all pass |
@@ -73,17 +72,17 @@ is how a silent behaviour change gets shipped.
   cannot read. The migration route is Supabase sync, or Settings → export a
   backup on the web and import it on the phone.
 
-## The four native bridges
+## The native bridges
 
 The old `native/android-app/MainActivity.java` (649 lines) hung four
 `@JavascriptInterface` objects on `window`. `apps/mobile/src/native/capabilities.ts`
-replaces them:
+replaces the ones the product still has a use for:
 
 | Old bridge | React Native replacement |
 |---|---|
 | `AndroidHR` — BLE scan/connect/notify, keepAwake, saveFile, scheduleBuzz | `react-native-ble-plx` (HR service `0x180D`), `expo-keep-awake`, `expo-notifications` |
-| `AndroidOCR` — ML Kit text recognition | `@react-native-ml-kit/text-recognition` via `recogniseText()`, on-device; falls back to the Import screen's paste box |
-| `AndroidVoice` — SpeechRecognizer | `@react-native-voice/voice` via `startDictation()`/`stopDictation()`, partials included; falls back to the keyboard |
+| `AndroidOCR` — ML Kit text recognition | **Nothing to port.** It existed only to feed the workout importer, which the athlete apps no longer have. |
+| `AndroidVoice` — SpeechRecognizer | **Nothing to port.** Same: it dictated into the importer, and nothing else asks for the microphone. |
 | `AndroidSteps` — hardware step counter | **Not ported, deliberately.** Expo's `Pedometer.getStepCountAsync` is iOS-only, so it returned null unconditionally on the only platform this ships to; Android can only be *subscribed* to, which needs a foreground service and its own persistence to mean "today". Nothing in the product consumes a step count — no engine field, no screen, no calculation — so the honest absence beats a service feeding a number nobody reads. See the note in `src/native/capabilities.ts` for what implementing it would cost. |
 
 ## Cloud, WHOOP and the coach loop
@@ -112,21 +111,18 @@ Stated plainly, because a green build is not a finished migration.
    CI runs, and it is not optional: this app spent the entire migration unable
    to bundle while `tsc` stayed green, because TypeScript resolves through
    pnpm's symlinks happily and Metro does not. What has NOT happened is
-   `eas build` (no Expo account wired) or any execution on a device. **BLE,
-   notifications, ML Kit and dictation are unverified against real hardware**
-   and cannot be verified any other way.
+   `eas build` (no Expo account wired) or any execution on a device. **BLE and
+   notifications are unverified against real hardware** and cannot be verified
+   any other way.
 2. **No sync path has touched a real Supabase project.** Every rule is unit
    tested against fixtures and the UI is driven in a browser, but no request has
    been made: not a sign-in, not a push, not an assignment. The first real
    round-trip is the next thing to do, and it is the one that finds schema and
    RLS mismatches.
-3. **Photo OCR is Android-only.** The parser is shared, but on the web the
-   Photo button explains that rather than doing it — the ML Kit model ships
-   with the native app. Dictation works on the web through the Web Speech API
-   (Chromium).
-4. **The mobile app now carries all twelve screens** — the same set as web.
-   What still differs is the *capabilities* behind them, per point 3.
-5. **The web is cut over.** `netlify.toml` publishes `apps/web/dist` with the
+3. **The mobile app carries the same screens as web.** What still differs is
+   the *capabilities* behind them: BLE heart rate is native-only, and the web
+   falls back to Web Bluetooth where the browser has it.
+4. **The web is cut over.** `netlify.toml` publishes `apps/web/dist` with the
    coach app folded in at `/coach/`. The pre-React `index.html` and `app.js`
    remain in the tree as the rollback path. See **Deploying** below.
 

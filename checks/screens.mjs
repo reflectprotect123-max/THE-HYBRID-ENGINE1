@@ -7,7 +7,7 @@
  * instead of by reading a diff and imagining the result.
  *
  * The seed matters as much as the harness. An app screenshotted with an empty
- * store shows twelve empty states, which is the one thing a design pass must
+ * store shows nothing but empty states, which is the one thing a design pass must
  * NOT be tuned against — every screen looks calm when there is nothing in it.
  * So this seeds eight weeks of plausible training: logged sessions with real
  * set data, conditioning with HR traces, a WHOOP reading, and PR-worthy lifts.
@@ -189,7 +189,6 @@ function buildSeed() {
         })),
         updatedAt: now,
       },
-      lexicon: {},
     },
     /*
      * WHOOP state is never persisted — it is fetched from the Netlify functions
@@ -216,10 +215,9 @@ const SHOTS = [
   ['05-history', '/history', null],
   ['06-progress', '/progress', null],
   ['07-calendar', '/calendar', null],
-  ['08-import', '/import', null],
-  ['09-settings', '/settings', null],
-  ['10-planner', '/planner/w1', null],
-  ['11-logger', '/log/0/0', null],
+  ['08-settings', '/settings', null],
+  ['09-planner', '/planner/w1', null],
+  ['10-logger', '/log/0/0', null],
 ];
 
 let chromium;

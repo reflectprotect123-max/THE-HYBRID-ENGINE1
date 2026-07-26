@@ -154,7 +154,6 @@ export function Home() {
       <div className="flex flex-wrap gap-1">
         <Button onClick={() => nav('/history')}>History</Button>
         <Button onClick={() => nav('/calendar')}>Calendar</Button>
-        <Button onClick={() => nav('/import')}>Import a workout</Button>
         <Button onClick={() => nav('/conditioning')}>Conditioning</Button>
       </div>
 

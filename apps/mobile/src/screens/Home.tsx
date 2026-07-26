@@ -126,7 +126,6 @@ export function HomeScreen() {
         <Btn onPress={() => nav.navigate('Conditioning')}>Conditioning</Btn>
         <Btn onPress={() => nav.navigate('History')}>History</Btn>
         <Btn onPress={() => nav.navigate('Calendar')}>Calendar</Btn>
-        <Btn onPress={() => nav.navigate('Import')}>Import</Btn>
       </View>
 
       <SectionHead title="Last 7 days" />

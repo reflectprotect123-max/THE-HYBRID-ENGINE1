@@ -19,7 +19,6 @@ import { LibraryScreen } from './screens/Library';
 import { ProgressScreen } from './screens/Progress';
 import { HistoryScreen } from './screens/History';
 import { CalendarScreen } from './screens/Calendar';
-import { ImportScreen } from './screens/Import';
 import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { ConditioningScreen } from './screens/Conditioning';
@@ -39,8 +38,8 @@ import { ConditioningScreen } from './screens/Conditioning';
  */
 
 /* Named so a stack screen can send you back to a SPECIFIC tab. Without this
-   `navigate('Tabs')` only ever lands on whichever tab was last open, which is
-   how a freshly imported session appeared to vanish. */
+   `navigate('Tabs')` only ever lands on whichever tab was last open, rather
+   than on the one holding the thing you just did. */
 export type TabParams = {
   Home: undefined;
   Train: undefined;
@@ -57,7 +56,6 @@ export type RootStackParams = {
   Conditioning: undefined;
   History: undefined;
   Calendar: undefined;
-  Import: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParams>();
@@ -129,7 +127,6 @@ export function App() {
               <Stack.Screen name="Conditioning" component={ConditioningScreen} />
               <Stack.Screen name="History" component={HistoryScreen} />
               <Stack.Screen name="Calendar" component={CalendarScreen} />
-              <Stack.Screen name="Import" component={ImportScreen} />
             </Stack.Navigator>
               </NavigationContainer>
             </RestProvider>

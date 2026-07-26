@@ -206,56 +206,6 @@ const vectors = await page.evaluate(() => {
     { label: 'empty', out: mergeEngines({ workouts: [], sessions: [], settings: {} }, JSON.parse(JSON.stringify(dbA))) }
   ];
 
-  /* ---------- importer ----------
-     Real-shaped workout text: whiteboard shorthand, ladders, supersets,
-     coaching prose, typos, and a photo-OCR-style run-together block. The
-     parser's job is to be forgiving, so the vectors have to be messy. */
-  DB = { workouts: [], sessions: [], settings: {} };
-  const IMP_CASES = [
-    'Back squat 5x5 @rpe8',
-    'Squat 5x5\nRDL 3x8 rpe7\nrest 120',
-    'Lower A\nA1) Back squat 5x5 @8\nA2) RDL 3x10\nB) Walking lunge 3x12 each side',
-    'Warm-up\nBike 5 min\nMain\nDeadlift 3x3 @9\nAccessories\nPlank 3x45s',
-    '18-16-14-12-10\nWall ball\nCal row',
-    'EMOM 12\nBurpee 8\nKb swing 12',
-    'AMRAP 20\n5 pull ups\n10 push ups\n15 air squats',
-    'Then 3 rounds\nFarmer carry 40m\nSled push 20m',
-    'Bench press 8,8,6,6 @ 80kg',
-    'Squat 5x5\ntest 90',
-    'Notes: keep the bar close and brace before you descend',
-    'Front squats 4x6 rpe 7\nStimulus: this should feel fast\nDo not go to failure',
-    'Deadlift 5x3\ninto Circuit\nRow 500m\nBurpees 15',
-    'Sqaut 5x5',
-    'Strength 5x5\nRomanian deadlifts 3x8',
-    'Rest day',
-    '',
-    'Cardio of choice 30 min',
-    'Weighted pull up 4x6 each side @rpe 8 rest 180',
-  ];
-  out.impParse = IMP_CASES.map((text) => {
-    const r = impParse(text);
-    return {
-      in: text,
-      out: {
-        name: r.name,
-        notes: r.notes,
-        issues: r.issues.map((i) => ({ kind: i.kind, word: i.word, raw: i.raw, name: i.name, fuzzy: !!i.fuzzy, text: i.text })),
-        blocks: r.blocks.map((b) => ({
-          heading: b.heading, format: b.format, rounds: b.rounds, rest: b.rest, superset: b.superset,
-          exercises: b.exercises.map((e) => ({
-            name: e.name, mode: e.mode, rpe: e.rpe, rest: e.rest, eachSide: e.eachSide,
-            sets: e.sets, reps: e.reps, secs: e.secs, kg: e.kg, range: e.range, varied: e.varied
-          }))
-        }))
-      }
-    };
-  });
-
-  out.impLookup = [
-    'squat', 'squats', 'back squat', 'rdl', 'sqaut', 'bnech press', 'deadlift', 'deads',
-    'wall ball', 'cardio of choice', 'assault bike', 'nonsense movement here', '', 'plank', 'planks'
-  ].map((p) => ({ in: p, out: impLookup(p) }));
-
   /* ---------- constants that carry meaning ---------- */
   out.constants = {
     AUTOREG: AUTOREG,

@@ -162,9 +162,14 @@ export interface Settings {
   conditioning?: CondResult[];
   customFmt?: { rounds?: number | string; work?: number | string; rest?: number | string };
   /**
-   * What the importer has been taught. `kw` maps a word to a meaning (a
-   * habitual typo → 'rest'); `ex` maps an alias to a real movement, which is
-   * why its values are objects and not strings.
+   * The shorthand the vanilla app's importer has been taught — `kw` maps a word
+   * to a meaning, `ex` an alias to a real movement, which is why its values are
+   * objects and not strings.
+   *
+   * Nothing in this package reads or writes it. It is declared because `app.js`
+   * at the repo root still owns that feature and syncs into the SAME cloud
+   * blob, so it is live data belonging to another client, and `mergeSettings`
+   * has to carry it rather than drop it.
    */
   lexicon?: { kw?: Record<string, string>; ex?: Record<string, { name: string; mode: ModeKey }> };
   deletedIds?: Record<string, number>;

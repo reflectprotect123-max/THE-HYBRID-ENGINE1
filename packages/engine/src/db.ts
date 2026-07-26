@@ -171,6 +171,12 @@ export function mergeSettings(base: Settings = {}, winner: Settings = {}): Setti
     out.conditioning = m.slice(-CON_RETENTION);
   }
 
+  // The importer's learned shorthand. This package has no importer — `app.js`
+  // at the repo root does, and it syncs into the same blob — so the field is
+  // foreign data that has to be UNIONED and not taken from a side. Letting a
+  // winner clobber it would both discard what the other client learned and
+  // leave two devices swapping the field back and forth on every sync, each
+  // push changing the fingerprint the other one just settled on.
   const bl = base.lexicon || {};
   const wl = winner.lexicon || {};
   if (bl.kw || bl.ex || wl.kw || wl.ex) {
