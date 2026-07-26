@@ -1,6 +1,6 @@
 import { fetchWhoopSnapshot, isWhoopUnauthorized, mergeWhoopToken, refreshWhoopToken, tokenNeedsRefresh, verifyWhoopWebhook, whoopErrorResponse, whoopWebhookEventKey } from './_lib/whoop.mjs';
 import { connectNetlifyBlobs, getJson, setJson } from './_lib/store.mjs';
-import { loadToken, saveToken, sidForProvider, syncRecord } from './_lib/oauth.mjs';
+import { loadToken, ownersForProvider, saveToken, syncRecord } from './_lib/oauth.mjs';
 import { json, method } from './_lib/http.mjs';
 
 const SUPPORTED_EVENTS = new Set(['workout.updated', 'workout.deleted', 'sleep.updated', 'sleep.deleted', 'recovery.updated', 'recovery.deleted']);
@@ -24,38 +24,38 @@ function rawBody(event) {
   }
 }
 
-async function tokenSavedByAnotherSync(sid, currentToken) {
+async function tokenSavedByAnotherSync(owner, currentToken) {
   try {
-    const latest = await loadToken('whoop', sid);
+    const latest = await loadToken('whoop', owner);
     return latest?.access_token && latest.access_token !== currentToken?.access_token ? latest : null;
   } catch {
     return null;
   }
 }
 
-async function refreshWithoutDiscardingRotation(sid, currentToken) {
-  const alreadyRefreshed = await tokenSavedByAnotherSync(sid, currentToken);
+async function refreshWithoutDiscardingRotation(owner, currentToken) {
+  const alreadyRefreshed = await tokenSavedByAnotherSync(owner, currentToken);
   if (alreadyRefreshed && !tokenNeedsRefresh(alreadyRefreshed)) return alreadyRefreshed;
   try {
     const refreshed = await refreshWhoopToken(currentToken.refresh_token);
     const nextToken = mergeWhoopToken(currentToken, refreshed);
-    await saveToken('whoop', sid, nextToken);
+    await saveToken('whoop', owner, nextToken);
     return nextToken;
   } catch (error) {
-    const savedByAnotherSync = await tokenSavedByAnotherSync(sid, currentToken);
+    const savedByAnotherSync = await tokenSavedByAnotherSync(owner, currentToken);
     if (savedByAnotherSync) return savedByAnotherSync;
     throw error;
   }
 }
 
-async function fetchSnapshotForSession(sid, initialToken) {
+async function fetchSnapshotForOwner(owner, initialToken) {
   let token = initialToken;
-  if (tokenNeedsRefresh(token) && token.refresh_token) token = await refreshWithoutDiscardingRotation(sid, token);
+  if (tokenNeedsRefresh(token) && token.refresh_token) token = await refreshWithoutDiscardingRotation(owner, token);
   try {
     return await fetchWhoopSnapshot(token.access_token);
   } catch (error) {
     if (!isWhoopUnauthorized(error) || !token.refresh_token) throw error;
-    token = await refreshWithoutDiscardingRotation(sid, token);
+    token = await refreshWithoutDiscardingRotation(owner, token);
     return fetchWhoopSnapshot(token.access_token);
   }
 }
@@ -86,19 +86,23 @@ export async function handler(event, context) {
     const eventKey = whoopWebhookEventKey(payload, raw);
     const dedupeKey = `webhook:event:whoop:${eventKey}`;
     if (await getJson(dedupeKey)) return json({ ok: true, duplicate: true });
-    const sid = await sidForProvider('whoop', userId);
+    /*
+     * One WHOOP account can be held by more than one local owner — a browser
+     * session and the same person's signed-in phone are different owners by
+     * design (see _lib/identity.mjs). Every one of them is refreshed, because a
+     * webhook that only reached whichever surface connected most recently would
+     * leave the other showing yesterday's recovery with no way to tell.
+     */
+    const owners = await ownersForProvider('whoop', userId);
     const work = (async () => {
-      if (!sid) {
-        await markProcessed(dedupeKey, payload);
-        return;
+      for (const owner of owners) {
+        const token = await loadToken('whoop', owner);
+        // A stale index entry (revoked, disconnected elsewhere) is skipped
+        // rather than failing the whole event for the owners that are live.
+        if (!token) continue;
+        const snapshot = await fetchSnapshotForOwner(owner, token);
+        await syncRecord('whoop', owner, snapshot);
       }
-      const token = await loadToken('whoop', sid);
-      if (!token) {
-        await markProcessed(dedupeKey, payload);
-        return;
-      }
-      const snapshot = await fetchSnapshotForSession(sid, token);
-      await syncRecord('whoop', sid, snapshot);
       await markProcessed(dedupeKey, payload);
     })();
     if (typeof context?.waitUntil === 'function') {

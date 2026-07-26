@@ -101,9 +101,11 @@ async function main() {
     'netlify/functions/_lib/config.mjs',
     'netlify/functions/_lib/crypto.mjs',
     'netlify/functions/_lib/http.mjs',
+    'netlify/functions/_lib/identity.mjs',
     'netlify/functions/_lib/oauth.mjs',
     'netlify/functions/_lib/session.mjs',
     'netlify/functions/_lib/store.mjs',
+    'netlify/functions/_lib/supabase.mjs',
     'netlify/functions/_lib/whoop.mjs',
     'netlify/functions/whoop-connect.mjs',
     'netlify/functions/whoop-callback.mjs',
@@ -128,6 +130,8 @@ async function main() {
   const crypto = sources.get('netlify/functions/_lib/crypto.mjs') || '';
   const session = sources.get('netlify/functions/_lib/session.mjs') || '';
   const store = sources.get('netlify/functions/_lib/store.mjs') || '';
+  const identity = sources.get('netlify/functions/_lib/identity.mjs') || '';
+  const supabase = sources.get('netlify/functions/_lib/supabase.mjs') || '';
   const connect = sources.get('netlify/functions/whoop-connect.mjs') || '';
   const callback = sources.get('netlify/functions/whoop-callback.mjs') || '';
   const sync = sources.get('netlify/functions/whoop-sync.mjs') || '';
@@ -283,7 +287,11 @@ async function main() {
       /q\.state/,
       /!pending|!code|invalid_oauth_response/,
       /invalid_oauth_state/,
-      /pending\.sid/,
+      // `pending.owner`, was `pending.sid` — see the note on the identity
+      // mapping check further down. The pending record still carries a sid and
+      // still enforces it for browser authorizations; it is simply no longer
+      // the thing tokens are keyed by.
+      /pending\.owner/,
     ]),
     'WHOOP callback rejects missing/unknown OAuth state or code',
   );
@@ -363,25 +371,134 @@ async function main() {
       /saveToken\(\s*['"]whoop['"]/.test(webhook),
     'webhook WHOOP sync persists the rotated refresh-token response',
   );
+  /*
+   * Was: `sessionFromEvent(event)`. The property being asserted is that
+   * disconnect acts on the CALLER'S OWN records and nobody else's, and that is
+   * unchanged — what changed is that a caller can now prove who it is two ways.
+   * `ownerFromEvent` resolves both (cookie for a browser, verified Supabase
+   * token for the app) and is the only way either handler learns an owner, so
+   * pinning the cookie helper by name would now assert the transport rather
+   * than the boundary.
+   */
   check(
     /method\(\s*event\s*,\s*\[['"]POST['"]\]\s*\)/.test(disconnect) &&
-      /sessionFromEvent\s*\(\s*event\s*\)/.test(disconnect) &&
+      /ownerFromEvent\s*\(\s*event\s*\)/.test(disconnect) &&
       /removeToken\(/.test(disconnect),
-    'disconnect is POST-only, session-scoped, and removes local WHOOP records',
+    'disconnect is POST-only, owner-scoped, and removes local WHOOP records',
   );
   check(
     /revokeWhoopToken\s*\(/.test(disconnect) || /revoke(?:UserOauthAccess|OauthAccess|ProviderToken)\s*\(/i.test(disconnect),
     'WHOOP disconnect revokes provider access before local deletion',
     'the boundary contract requires provider revocation, not only local token removal',
   );
-  check(/saveToken/.test(callback) && /pending\.sid/.test(callback) && /providerUserId/.test(callback), 'WHOOP callback maps provider identity to the initiating session');
-  check(/sidForProvider/.test(webhook) && /payload\??\.user_id/.test(webhook), 'WHOOP webhook maps provider user IDs back to a session');
+  /*
+   * Was: `pending.sid`. Same assertion — the tokens are filed under whoever
+   * STARTED the authorization and never under whoever happened to arrive at the
+   * callback — but the pending record now names that party `owner`, because for
+   * a native authorization it is a verified Supabase user and there is no sid
+   * to speak of. `pending.sid` still exists and is still enforced for browser
+   * authorizations; it is just no longer the thing tokens are keyed by.
+   */
+  check(/saveToken/.test(callback) && /pending\.owner/.test(callback) && /providerUserId/.test(callback), 'WHOOP callback maps provider identity to the initiating owner');
+  /*
+   * Was: `sidForProvider`. Same assertion — an inbound webhook is resolved from
+   * WHOOP's user id to local records rather than trusting anything in the
+   * payload — but the index is now a LIST. One person legitimately holds two
+   * grants for one WHOOP account (a browser session and their signed-in phone
+   * are different owners by design), and a single-valued index silently pointed
+   * every webhook at whichever surface connected last.
+   */
+  check(/ownersForProvider/.test(webhook) && /payload\??\.user_id/.test(webhook), 'WHOOP webhook maps provider user IDs back to every owner holding that grant');
 
+  /* ------------------------------------------------------------------ *
+   * The native identity path.
+   *
+   * A phone hands WHOOP's consent screen to the system browser, which has its
+   * own cookie jar — so the `hybrid_sid` cookie the callback sets is written
+   * where the app can never read it. Everything below asserts the replacement:
+   * a WHOOP connection is filed under a SERVER-VERIFIED Supabase user, and the
+   * cookie path is untouched underneath it.
+   * ------------------------------------------------------------------ */
+  check(
+    hasAll(identity, [
+      /export\s+async\s+function\s+ownerFromEvent/,
+      /verifySupabaseAccessToken/,
+      /sessionFromEvent/,
+      /u:/,
+    ]),
+    'identity resolves an owner from either a verified Supabase token or the session cookie',
+  );
+  check(
+    !/catch[\s\S]{0,160}sessionFromEvent/.test(identity),
+    'a rejected bearer token is never downgraded to an anonymous cookie session',
+    'a downgrade would hand a forged token whatever connection the cookie riding alongside it owned',
+  );
+  check(
+    hasAll(supabase, [
+      /ALGORITHMS\s*=\s*new Set\(\[['"]HS256['"]/,
+      /claims\.iss !== expectedIssuer/,
+      /includes\(['"]authenticated['"]\)/,
+      /claims\.role !== ['"]authenticated['"]/,
+      /now >= exp/,
+      /timingSafeEqual\(/,
+      /UUID\.test\(userId\)/,
+    ]),
+    'Supabase token verification pins algorithm, issuer, audience, role, expiry and subject',
+    'signature alone is not enough: the PUBLIC anon key is a JWT signed with the same secret',
+  );
+  check(
+    !/console\.(?:log|error|warn|info|debug)/.test(supabase) && !/console\.(?:log|error|warn|info|debug)/.test(identity),
+    'the identity layer never logs a credential',
+  );
+  check(
+    hasAll(connect, [
+      /client === ['"]native['"]/,
+      /ownerFromEvent/,
+      /identity\.kind !== ['"]user['"]/,
+      /authorizeUrl/,
+      /NATIVE_RETURN_URL/,
+    ]),
+    'native connect is JSON, requires a verified Supabase user, and never anonymous',
+    'a browser navigation cannot carry an Authorization header, and a token in the query string leaks',
+  );
+  check(
+    /NATIVE_RETURN_URL\s*=\s*['"][a-z][a-z0-9+.-]*:\/\//.test(config) && /NATIVE_RETURN_URL/.test(callback),
+    'the callback returns a native authorization to a fixed app URL scheme',
+    'the destination comes from the pending record we wrote, never from the request',
+  );
+
+  if (await fileExists('apps/mobile/src/cloud/whoop.tsx')) {
+    const mobile = await readText('apps/mobile/src/cloud/whoop.tsx');
+    check(
+      hasAll(mobile || '', [
+        /authorization['"]?\s*:\s*['"]Bearer /,
+        /client=native/,
+        /getInitialURL/,
+      ]),
+      'the native client authenticates with a bearer token and handles the return deep link',
+    );
+    check(
+      !/credentials:\s*['"]include['"]/.test(mobile || ''),
+      'the native client no longer relies on a cookie the system browser holds',
+    );
+    check(
+      !/openURL\((?:fnUrl\()?FN\.whoopConnect/.test(mobile || ''),
+      'the native client asks the server to start the authorization before opening a browser',
+      'handing whoop-connect straight to the OS is what produced a connection the app could never see',
+    );
+  }
+
+  // SUPABASE_URL/SUPABASE_JWT_SECRET are additive and are what the NATIVE app's
+  // identity rests on. They are listed here for the same reason the four above
+  // are: an integration whose deployment steps are not written down is an
+  // integration that works only on the machine it was built on.
   const requiredEnv = [
     'APP_BASE_URL',
     'APP_SESSION_SECRET',
     'WHOOP_CLIENT_ID',
     'WHOOP_CLIENT_SECRET',
+    'SUPABASE_URL',
+    'SUPABASE_JWT_SECRET',
   ];
   for (const name of requiredEnv) {
     check(new RegExp(`process\\.env\\.${name}\\b`).test(config), `server reads required environment variable ${name}`);
@@ -399,7 +516,12 @@ async function main() {
 
   const staticFiles = await walkTextFiles(appRoot, (relativePath) => (
     relativePath === 'netlify' || relativePath.startsWith('netlify/functions/') ||
-    relativePath === 'node_modules' || relativePath.startsWith('node_modules/') ||
+    // ANY node_modules, not only the root one. A workspace package has its own,
+    // and Vite's dep pre-bundling cache lives inside it — none of it is
+    // published (the publish directory is apps/web/dist) and all of it is
+    // gitignored, but the scanner used to walk straight into it and read a
+    // minified copy of supabase-js as if it were a browser-facing file.
+    relativePath === 'node_modules' || relativePath.endsWith('/node_modules') || relativePath.includes('node_modules/') ||
     relativePath === 'vendor' || relativePath.startsWith('vendor/') ||
     relativePath === 'coach/vendor' || relativePath.startsWith('coach/vendor/') ||
     relativePath === 'checks' || relativePath.startsWith('checks/')
@@ -467,6 +589,9 @@ async function main() {
   process.env.APP_BASE_URL = 'https://thehybridengine1.netlify.app';
   process.env.WHOOP_CLIENT_ID = 'contract-client-id';
   process.env.WHOOP_CLIENT_SECRET = 'contract-test-secret';
+  process.env.APP_SESSION_SECRET = 'contract-session-secret';
+  process.env.SUPABASE_URL = 'https://contract-project.supabase.co';
+  process.env.SUPABASE_JWT_SECRET = 'contract-supabase-jwt-secret';
   try {
     const moduleUrl = `${pathToFileURL(join(appRoot, 'netlify/functions/_lib/whoop.mjs')).href}?whoop-contract=${Date.now()}`;
     const whoopRuntime = await import(moduleUrl);
@@ -496,6 +621,111 @@ async function main() {
     );
   } catch (error) {
     fail('WHOOP helper runtime contract', error instanceof Error ? error.message : String(error));
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Runtime: the native identity path.
+   *
+   * These are the assertions that would have caught the original bug, and the
+   * ones that keep its replacement honest. They run the real modules — nothing
+   * here is a regex over source.
+   * ------------------------------------------------------------------ */
+  try {
+    const suffix = `whoop-contract=${Date.now()}`;
+    const load = (relativePath) => import(`${pathToFileURL(join(appRoot, relativePath)).href}?${suffix}`);
+    const supabaseRuntime = await load('netlify/functions/_lib/supabase.mjs');
+    const identityRuntime = await load('netlify/functions/_lib/identity.mjs');
+    const sessionRuntime = await load('netlify/functions/_lib/session.mjs');
+    const oauthRuntime = await load('netlify/functions/_lib/oauth.mjs');
+
+    const b64u = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const signHs256 = (input, secret) => createHmac('sha256', secret).update(input).digest('base64url');
+    const jwt = (claims, { secret = 'contract-supabase-jwt-secret', header = { alg: 'HS256', typ: 'JWT' } } = {}) => {
+      const input = `${b64u(header)}.${b64u(claims)}`;
+      return `${input}.${signHs256(input, secret)}`;
+    };
+    const seconds = Math.floor(Date.now() / 1000);
+    const USER_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+    const claimsFor = (overrides = {}) => ({
+      sub: USER_ID,
+      iss: 'https://contract-project.supabase.co/auth/v1',
+      aud: 'authenticated',
+      role: 'authenticated',
+      iat: seconds - 60,
+      exp: seconds + 3600,
+      ...overrides,
+    });
+    const bearerEvent = (token, cookie) => ({ headers: { authorization: `Bearer ${token}`, ...(cookie ? { cookie } : {}) } });
+    const rejects = async (token, label) => {
+      try {
+        await supabaseRuntime.verifySupabaseAccessToken(token);
+        fail(`Supabase token verification rejects ${label}`, 'the token was accepted');
+      } catch (error) {
+        check(error?.status === 401, `Supabase token verification rejects ${label}`, error?.code || '');
+      }
+    };
+
+    const goodToken = jwt(claimsFor());
+    const verified = await supabaseRuntime.verifySupabaseAccessToken(goodToken);
+    check(verified.userId === USER_ID, 'a valid Supabase access token resolves to its subject');
+
+    const owner = await identityRuntime.ownerFromEvent(bearerEvent(goodToken));
+    check(owner.kind === 'user' && owner.owner === `u:${USER_ID}` && owner.userId === USER_ID, 'a bearer-authenticated request is attributed to that Supabase user');
+
+    // The cookie path, byte-identical to before: this is the assertion that
+    // already-connected web athletes are not quietly disconnected.
+    const cookieSid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const cookie = sessionRuntime.sessionCookie(cookieSid).split(';')[0];
+    const cookieOwner = await identityRuntime.ownerFromEvent({ headers: { cookie } });
+    check(cookieOwner.kind === 'browser' && cookieOwner.owner === cookieSid, 'a cookie-only request keeps its existing session-keyed owner');
+
+    // Precedence: a token wins over a cookie, and a BAD token loses to nothing.
+    const bothOwner = await identityRuntime.ownerFromEvent(bearerEvent(goodToken, cookie));
+    check(bothOwner.owner === `u:${USER_ID}`, 'a request carrying both credentials is attributed to the signed-in user');
+    try {
+      await identityRuntime.ownerFromEvent(bearerEvent(jwt(claimsFor(), { secret: 'not-the-secret' }), cookie));
+      fail('a forged bearer token is not downgraded to the cookie session', 'the request was accepted as a browser session');
+    } catch (error) {
+      check(error?.status === 401, 'a forged bearer token is not downgraded to the cookie session', error?.code || '');
+    }
+
+    try {
+      await identityRuntime.ownerFromEvent({ headers: { authorization: 'Bearer not-a-jwt', cookie } });
+      fail('a malformed Authorization header is not treated as anonymous', 'the request was accepted as a browser session');
+    } catch (error) {
+      check(error?.status === 401, 'a malformed Authorization header is not treated as anonymous', error?.code || '');
+    }
+
+    await rejects(jwt(claimsFor(), { secret: 'not-the-secret' }), 'a forged signature');
+    await rejects(jwt(claimsFor({ exp: seconds - 3600, iat: seconds - 7200 })), 'an expired token');
+    await rejects(jwt(claimsFor(), { header: { alg: 'none', typ: 'JWT' } }), 'an unsigned "alg: none" token');
+    await rejects(jwt(claimsFor({ iss: 'https://someone-elses-project.supabase.co/auth/v1' })), 'a token from another issuer');
+    await rejects(jwt(claimsFor({ aud: 'anon' })), 'a token for the wrong audience');
+    await rejects(jwt(claimsFor({ sub: 'not-a-uuid' })), 'a token whose subject is not a user id');
+    // The exact shape of the PUBLIC anon key from packages/config: same secret,
+    // same signature, no business being treated as a person.
+    await rejects(jwt({ iss: 'supabase', ref: 'contract-project', role: 'anon', iat: seconds - 60, exp: seconds + 3600 }), 'the public anon key');
+    await rejects(jwt(claimsFor({ role: 'service_role' })), 'a service-role key');
+
+    // OAuth state. A tampered state string resolves to no pending record at
+    // all, which is the `null` case; the rest are the rules that record is
+    // judged by, exercised without a Netlify Blobs context.
+    const now = Date.now();
+    const browserPending = { owner: cookieSid, kind: 'browser', sid: cookieSid, createdAt: now };
+    check(oauthRuntime.pendingIsUsable(browserPending, cookieSid, now)?.owner === cookieSid, 'a browser authorization completes in the browser that started it');
+    check(oauthRuntime.pendingIsUsable(browserPending, 'some-other-session', now) === null, 'a state redeemed from a different browser is rejected');
+    check(oauthRuntime.pendingIsUsable(null, cookieSid, now) === null, 'a tampered or unknown state is rejected');
+    check(oauthRuntime.pendingIsUsable({ ...browserPending, createdAt: now - 11 * 60 * 1000 }, cookieSid, now) === null, 'an expired OAuth state is rejected');
+    check(oauthRuntime.pendingIsUsable({ ...browserPending, createdAt: now + 60 * 1000 }, cookieSid, now) === null, 'an OAuth state created in the future is rejected');
+    check(await oauthRuntime.consumePending('whoop', '', cookieSid) === null, 'an empty OAuth state never reaches the store');
+    const nativePending = { owner: `u:${USER_ID}`, kind: 'native', sid: null, createdAt: now };
+    check(oauthRuntime.pendingIsUsable(nativePending, undefined, now)?.owner === `u:${USER_ID}`, 'a native authorization is attributed without a cookie');
+    check(oauthRuntime.pendingIsUsable(nativePending, 'any-callback-session', now)?.owner === `u:${USER_ID}`, 'a native authorization does not depend on the callback browser');
+    // Records written by the previous design must still complete, or every
+    // authorization in flight during the deploy breaks.
+    check(oauthRuntime.pendingIsUsable({ sid: cookieSid, createdAt: now }, cookieSid, now)?.owner === cookieSid, 'an in-flight pre-deploy OAuth state still completes');
+  } catch (error) {
+    fail('native identity runtime contract', error instanceof Error ? error.message : String(error));
   }
 
   if (failures.length) {

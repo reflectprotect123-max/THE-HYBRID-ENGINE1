@@ -1,25 +1,74 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Linking } from 'react-native';
-import { FN, SITE_ORIGIN } from '@hybrid/config';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { FN, SITE_ORIGIN, SUPABASE } from '@hybrid/config';
 import { ymd, type WhoopSample } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { useSync } from './sync';
+import { storage } from '../store/storage';
 
 /*
  * WHOOP, native edition.
  *
  * The client never touches WHOOP directly — the OAuth tokens live server-side
- * in the existing Netlify functions, and this only talks to those. On the web
- * that means same-origin fetches with no key. A phone has no origin, so the two
- * things that change here are both consequences of that:
+ * in the Netlify functions, and this only talks to those.
  *
- *  1. Every function URL must be ABSOLUTE.
- *  2. "Connect" cannot be a `window.location` assignment, because there is no
- *     address bar to redirect. It hands the URL to the OS instead.
+ * WHAT USED TO BE WRONG, and why no amount of client-side work could fix it:
+ * the functions identified a connection purely by the signed `hybrid_sid`
+ * cookie they set. "Connect" handed the consent URL to the SYSTEM browser,
+ * which has its own cookie jar — so the callback dutifully set the cookie on a
+ * browser this app can never read from, and every request the app made arrived
+ * with no cookie at all and was answered as a brand-new anonymous session. The
+ * connection was real and permanently invisible.
+ *
+ * The fix is server-side and is an identity change, not a transport change: a
+ * WHOOP connection is now filed under the SUPABASE USER, and this app proves
+ * who it is with the Supabase access token it already holds for cloud sync.
+ * The system browser is still where consent happens (it has to be — that is
+ * where the athlete can see the address bar), but it no longer needs to carry
+ * an identity, because the server wrote the identity down before the browser
+ * was ever opened.
+ *
+ * Two consequences follow, and they are the only things that differ from web:
+ *
+ *  1. Every function URL must be ABSOLUTE — a phone has no origin.
+ *  2. Every call carries `Authorization: Bearer <supabase access token>`.
  */
 
 /* SITE_ORIGIN now lives in @hybrid/config alongside FN — a second copy of a
    deployment URL is exactly the mistake that package exists to prevent. */
 const fnUrl = (path: string) => (/^https?:/i.test(path) ? path : SITE_ORIGIN + path);
+
+/*
+ * A SECOND, read-only Supabase client.
+ *
+ * The signed-in session lives in MMKV under gotrue's own key, and cloud sync
+ * (./sync) owns the client that refreshes it. This instance exists only to READ
+ * that session, so `autoRefreshToken` is off: two refresh loops rotating the
+ * same refresh token is precisely how an athlete gets silently signed out. It
+ * shares the storage key, so gotrue's own lock serialises the two instances,
+ * and it sees whatever the sync client has already refreshed.
+ */
+const auth: SupabaseClient | null = (() => {
+  try {
+    if (!SUPABASE.url || !SUPABASE.anonKey) return null;
+    return createClient(SUPABASE.url, SUPABASE.anonKey, {
+      auth: { storage, persistSession: true, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const accessToken = async (): Promise<string | null> => {
+  if (!auth) return null;
+  try {
+    const { data } = await auth.auth.getSession();
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+};
 
 export interface WhoopState {
   loaded: boolean;
@@ -39,23 +88,28 @@ interface WhoopCtx extends WhoopState {
 
 const Ctx = createContext<WhoopCtx | null>(null);
 
+const SIGN_IN_FIRST = 'Sign in to cloud sync first — WHOOP is linked to your account, not to this phone.';
+
 /*
- * `credentials: 'include'` rather than 'same-origin': the functions identify a
- * connection purely by the signed `hybrid_sid` cookie they set, and from a
- * phone every one of these calls is cross-origin, where 'same-origin' would
- * strip it. React Native's fetch is backed by the platform HTTP stack, so that
- * cookie is stored and replayed by the OS without any work here.
- *
  * `cache: 'no-store'` is a no-op on RN's fetch, so freshness is asked for with
  * a header the function layer honours and a cache-busting param.
+ *
+ * Cookies are deliberately NOT sent. They were the bug: a cookie the app can
+ * set is not the cookie the system browser held, and asking for one back only
+ * ever produced a fresh anonymous session. Identity is the bearer token now.
  */
-const get = async (url: string, init?: RequestInit) => {
-  const u = fnUrl(url);
+const call = async (path: string, init?: RequestInit) => {
+  const u = fnUrl(path);
   const bust = (u.includes('?') ? '&' : '?') + '_=' + Date.now();
+  const token = await accessToken();
   const r = await fetch(u + bust, {
-    credentials: 'include',
-    headers: { accept: 'application/json', 'cache-control': 'no-store' },
     ...init,
+    headers: {
+      accept: 'application/json',
+      'cache-control': 'no-store',
+      ...(token ? { authorization: 'Bearer ' + token } : {}),
+      ...((init?.headers as Record<string, string> | undefined) || {}),
+    },
   });
   if (!r.ok) throw new Error('Request failed (' + r.status + ')');
   return r.json();
@@ -63,6 +117,10 @@ const get = async (url: string, init?: RequestInit) => {
 
 export function WhoopProvider({ children }: { children: ReactNode }) {
   const { update, setWhoop } = useDb();
+  // WhoopProvider is mounted INSIDE SyncProvider (see App.tsx). Reading the
+  // signed-in user here is what makes the WHOOP card correct itself the moment
+  // someone signs in, instead of waiting for the next cold start.
+  const { user } = useSync();
   const [s, setS] = useState<WhoopState>({
     loaded: false,
     connected: false,
@@ -119,7 +177,7 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
       busyRef.current = true;
       setS((p) => ({ ...p, busy: true }));
       try {
-        const d = await get(FN.whoopSync);
+        const d = await call(FN.whoopSync);
         if (d.connected === false) throw new Error('WHOOP is not connected.');
         if (d.normalized) apply(d.normalized as WhoopSample);
         setS((p) => ({ ...p, lastSyncAt: new Date().toISOString(), error: '' }));
@@ -137,7 +195,7 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const d = await get(FN.integrationsStatus);
+      const d = await call(FN.integrationsStatus);
       const connected = !!d.whoop?.connected;
       const sample = (d.whoop?.normalized ?? null) as WhoopSample | null;
       apply(sample);
@@ -160,50 +218,79 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
     }
   }, [apply, sync]);
 
+  // Re-ask on mount and whenever the signed-in identity changes: the connection
+  // belongs to the account, so a different account is a different answer.
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+  }, [refresh, user?.id]);
 
   /*
-   * Coming back from the browser is the moment a connection becomes real, and
-   * nothing in the app is told about it — so the returning foreground event is
-   * the trigger for re-asking the server what it now knows.
+   * Coming back from the browser is the moment a connection becomes real.
+   *
+   * The callback redirects to this app's own URL scheme, which is the only way
+   * the system browser can hand control back. `status` is the server's fixed
+   * outcome word — read it for the message, then ask the server what it now
+   * knows rather than believing the URL.
+   *
+   * getInitialURL covers the cold-start case: on a low-memory device the OS may
+   * have killed the app while the athlete was on WHOOP's consent screen, and
+   * the deep link then arrives as the launch URL with no event to listen for.
    */
-  useEffect(() => {
-    const sub = Linking.addEventListener('url', () => {
+  const handleReturn = useCallback(
+    (url: string | null) => {
+      if (!url) return;
+      const status = /[?&]status=([a-z_]+)/i.exec(url)?.[1] || '';
+      if (status === 'denied') setS((p) => ({ ...p, error: 'WHOOP authorization was cancelled.' }));
+      else if (status === 'error') setS((p) => ({ ...p, error: 'WHOOP could not be connected. Please try again.' }));
+      else if (status === 'connected') setS((p) => ({ ...p, error: '' }));
       void refresh();
+    },
+    [refresh],
+  );
+
+  useEffect(() => {
+    const sub = Linking.addEventListener('url', ({ url }) => handleReturn(url));
+    void Linking.getInitialURL().then((url) => {
+      if (url && /[?&]status=/.test(url)) handleReturn(url);
     });
     return () => sub.remove();
-  }, [refresh]);
+  }, [handleReturn]);
 
   const value = useMemo<WhoopCtx>(
     () => ({
       ...s,
       /*
-       * Hand the URL to the OS, not to a fetch.
+       * Ask the server to start an authorization, THEN open the browser.
        *
-       * The web app assigns `window.location.href` because WHOOP's consent
-       * screen has to be rendered where the user can see and trust the address
-       * bar — an XHR would only get an opaque redirect. Native has no location
-       * to assign, so the equivalent is Linking.openURL, which opens the URL in
-       * the system browser; WHOOP redirects back to the function's callback,
-       * which sets the session cookie and lands on the site.
+       * The order matters and is the whole fix. The request carries the
+       * Supabase token, so by the time WHOOP's consent screen appears the
+       * server has already written down which account this authorization
+       * belongs to, keyed by a single-use `state`. The browser only has to come
+       * back — it does not have to be recognised.
        */
       connect: () => {
-        void Linking.openURL(fnUrl(FN.whoopConnect)).catch((e) =>
-          setS((p) => ({ ...p, error: String((e as Error)?.message || e) })),
-        );
+        void (async () => {
+          setS((p) => ({ ...p, busy: true, error: '' }));
+          try {
+            if (!(await accessToken())) throw new Error(SIGN_IN_FIRST);
+            const d = await call(FN.whoopConnect + '?client=native');
+            const authorizeUrl = typeof d?.authorizeUrl === 'string' ? d.authorizeUrl : '';
+            // Only ever hand the OS an https URL from our own server.
+            if (!/^https:\/\//i.test(authorizeUrl)) throw new Error('WHOOP is unavailable right now.');
+            await Linking.openURL(authorizeUrl);
+          } catch (e) {
+            setS((p) => ({ ...p, error: String((e as Error)?.message || e) }));
+          } finally {
+            setS((p) => ({ ...p, busy: false }));
+          }
+        })();
       },
       sync,
       refresh,
       disconnect: async () => {
         setS((p) => ({ ...p, busy: true }));
         try {
-          await fetch(fnUrl(FN.integrationsDisconnect) + '?provider=whoop', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'cache-control': 'no-store' },
-          });
+          await call(FN.integrationsDisconnect + '?provider=whoop', { method: 'POST' });
         } catch {
           /* already gone, or offline — refresh below tells the truth either way */
         }

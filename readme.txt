@@ -70,12 +70,30 @@ WHOOP deployment
   (production: https://thehybridengine1.netlify.app).
 - Set APP_SESSION_SECRET to a new random secret; keep it server-only.
 - Set WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET in Netlify environment variables.
+- Set SUPABASE_URL to the project URL (the same one in packages/config, e.g.
+  https://orysjncrksmdfabpuftd.supabase.co). Public; it is only used to pin the
+  expected token issuer and to fetch the published signing keys.
+- Set SUPABASE_JWT_SECRET to the project's JWT secret (Supabase Dashboard ->
+  Project Settings -> API -> JWT Settings). Keep it server-only; it never
+  appears in a client bundle. Only needed while the project still signs tokens
+  with the legacy HS256 secret; projects migrated to asymmetric signing keys
+  are verified from the published JWKS and need SUPABASE_URL alone.
+- Both Supabase variables are REQUIRED FOR THE ANDROID/iOS APP and unused by
+  the browser. The phone hands WHOOP's consent screen to the system browser,
+  which has a separate cookie jar, so a session cookie can never identify it;
+  the app authenticates with its Supabase access token instead and the server
+  verifies that token here. Without these two variables the app's WHOOP calls
+  fail loudly with supabase_auth_unconfigured; the web flow is unaffected.
 - Register https://thehybridengine1.netlify.app/.netlify/functions/whoop-callback
   as the WHOOP redirect URL.
 - Register https://thehybridengine1.netlify.app/.netlify/functions/whoop-webhook
   as the WHOOP webhook URL.
 - Privacy policy URL: https://thehybridengine1.netlify.app/privacy.html
 - Rotate any WHOOP secret that was ever pasted into chat, source, or a ZIP.
+- Nothing extra is registered with WHOOP for the phone: the redirect URL above
+  is still the only one. Once the callback has the tokens it bounces the system
+  browser to hybridengine://whoop (apps/mobile/app.json -> expo.scheme), which
+  is what returns the athlete to the app.
 - After deploy, open Settings → WHOOP → Connect, then Sync.
 
 The server stores encrypted provider tokens in Netlify Blobs. The browser and

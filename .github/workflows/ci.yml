@@ -126,13 +126,19 @@ jobs:
       # built bundles as well as the source, because a credential baked in at
       # build time exists nowhere in the tree.
       #
+      # supabase-auth mints tokens against a local fixture secret and attacks
+      # the verifier with them. It is here rather than beside the unit tests
+      # because a regression in it is not a failing feature — it is anyone who
+      # copied the public anon key out of a client bundle being handed a
+      # logged-in identity.
+      #
       # browser-smoke, torture and coach-smoke drive the pre-React vanilla app,
       # which is still in the tree as the rollback path but is no longer what
       # deploys. golden-vectors regenerates fixtures rather than asserting.
       - name: Contract + security suites (no network)
         run: |
           set -o pipefail
-          for check in emit-contract pentest native-pwa-smoke supabase-contract whoop-contract whoop-deployment-smoke; do
+          for check in emit-contract pentest native-pwa-smoke supabase-contract whoop-contract whoop-deployment-smoke supabase-auth; do
             echo "::group::checks/$check.mjs"
             node "checks/$check.mjs" 2>&1 | tee "$RUNNER_TEMP/$check.log"
             echo "::endgroup::"
