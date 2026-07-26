@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { LibProvider, useLib } from './store';
 import { CoachCloudProvider, useCoachCloud } from './cloud';
 import { Editor } from './Editor';
-import { emptyWeek, fmtLabel, isCond, newSession, type CoachSession } from './model';
-import { BRASS, Chip, Field, GHOST, IconDown, IconRest, IconUp, MICRO, WELL } from './ui';
+import { fmtLabel, isCond, newSession, type CoachSession } from './model';
+import { BRASS, Chip, Field, GHOST, IconCheck, IconDown, IconRest, IconUp, MICRO, WELL } from './ui';
 
 /*
  * The coach builder. Laptop-only by design: the athlete's phone is the logger,
@@ -37,7 +37,7 @@ export function App() {
 /* ------------------------------------------------------------------ shell -- */
 
 function Shell() {
-  const { lib, day, setDay, select, update } = useLib();
+  const { lib, day, setDay, select, addWeek } = useLib();
   const prog = lib.programs[lib.sel.p];
   const week = prog.weeks[lib.sel.w];
   const [publishing, setPublishing] = useState(false);
@@ -49,14 +49,8 @@ function Shell() {
         week={lib.sel.w}
         weeks={prog.weeks.length}
         written={written}
-        onPrev={() => select({ w: Math.max(0, lib.sel.w - 1) })}
-        onNext={() =>
-          update((d) => {
-            const p = d.programs[d.sel.p];
-            d.sel.w += 1;
-            if (!p.weeks[d.sel.w]) p.weeks[d.sel.w] = emptyWeek();
-          })
-        }
+        onSelect={(w) => select({ w })}
+        onCreate={addWeek}
       />
 
       <TopBar programme={prog.name} />
@@ -94,23 +88,37 @@ function Shell() {
  * 05-coach-02. The rail carries the mark and the one navigation axis above the
  * week board: which week you are in. The card's Home/Athletes/Library/Analytics
  * buttons are deliberately NOT here — this app has no such screens, and a rail
- * full of controls that do nothing is worse than a short one. The two week
- * controls are the app's existing ones, unchanged down to their labels: `next
- * week` still creates the week when it does not exist yet.
+ * full of controls that do nothing is worse than a short one.
+ *
+ * Three honest gestures, three controls:
+ *  - the chevrons STEP, and only within weeks that exist. `onSelect` clamps in
+ *    the store and writes nothing to disk — looking is not authoring.
+ *  - stepping past the last week is a different act, so the down-chevron
+ *    becomes the kit's dashed add treatment (03-shared-01 `.addbtn`) reading
+ *    "＋ New week" when that is what the press would do.
+ *  - the big numeral opens a week list (05-coach-06 `.c-menu`), because
+ *    reaching week 9 of 12 should not cost eight presses.
  */
 function Rail({
   week,
   weeks,
   written,
-  onPrev,
-  onNext,
+  onSelect,
+  onCreate,
 }: {
   week: number;
   weeks: number;
   written: number;
-  onPrev: () => void;
-  onNext: () => void;
+  onSelect: (w: number) => void;
+  onCreate: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const numRef = useRef<HTMLButtonElement>(null);
+  const atLast = week >= weeks - 1;
+  const close = () => {
+    setOpen(false);
+    numRef.current?.focus();
+  };
   const step =
     'grid h-4 w-8 place-items-center rounded-sm text-dim transition-colors duration-150 ' +
     'hover:bg-panel2 hover:text-gold2 disabled:pointer-events-none disabled:opacity-30';
@@ -127,18 +135,42 @@ function Rail({
       <span className="my-1 h-px w-6 bg-line" />
 
       <span className={MICRO}>Week</span>
-      <button className={step} onClick={onPrev} disabled={week === 0} aria-label="previous week">
+      <button className={step} onClick={() => onSelect(week - 1)} disabled={week === 0} aria-label="previous week">
         <IconUp />
       </button>
-      <span className="num text-8 leading-none font-[800] text-gold2">{week + 1}</span>
-      <button
-        className={step}
-        onClick={onNext}
-        aria-label="next week"
-        title="Next week — created if it does not exist yet"
-      >
-        <IconDown />
-      </button>
+
+      {/* The numeral is the "which week" control: it opens the week list. */}
+      <span className="relative">
+        <button
+          ref={numRef}
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`week ${week + 1} of ${weeks} — choose a week`}
+          className="num rounded-sm px-0.5 text-8 leading-none font-[800] text-gold2 transition-colors duration-150 hover:bg-panel2"
+        >
+          {week + 1}
+        </button>
+        {open ? <WeekMenu count={weeks} current={week} onPick={(w) => { onSelect(w); close(); }} onClose={close} /> : null}
+      </span>
+
+      {atLast ? (
+        <button
+          onClick={onCreate}
+          aria-label="new week"
+          title={`Add week ${weeks + 1} to the programme`}
+          className="flex w-8 flex-col items-center gap-0.5 rounded-sm border border-dashed border-line2 py-0.5 text-dim transition-colors duration-150 hover:border-gold-line hover:text-gold2"
+        >
+          <span className="text-5 leading-none" aria-hidden="true">
+            ＋
+          </span>
+          <span className="text-1 leading-none font-[800] tracking-[.04em] uppercase">New week</span>
+        </button>
+      ) : (
+        <button className={step} onClick={() => onSelect(week + 1)} aria-label="next week">
+          <IconDown />
+        </button>
+      )}
       <span className="num text-1 text-dim">of {weeks}</span>
 
       <span className="mt-auto h-px w-6 bg-line" />
@@ -148,6 +180,75 @@ function Rail({
       </span>
       <span className={MICRO}>Days</span>
     </aside>
+  );
+}
+
+/**
+ * The week list — 05-coach-06's `.c-menu` (panel2 on line2, lifted, option rows
+ * with the gold ✓ on the current one), anchored to the rail's numeral and
+ * floating over the week board. Picking a week NAVIGATES; it can never create
+ * one — the "＋ New week" control below the numeral is the only creator.
+ *
+ * Escape closes it, same pattern as the Editor's Picker: the handler lives on
+ * the menu itself so it dies with the component, and focus starts inside (on
+ * the current week) so the key has somewhere to land. Arrow keys walk the list.
+ */
+function WeekMenu({
+  count,
+  current,
+  onPick,
+  onClose,
+}: {
+  count: number;
+  current: number;
+  onPick: (w: number) => void;
+  onClose: () => void;
+}) {
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onClose();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const items = Array.from(e.currentTarget.querySelectorAll('button'));
+      const i = items.indexOf(document.activeElement as HTMLButtonElement);
+      items[e.key === 'ArrowDown' ? Math.min(items.length - 1, i + 1) : Math.max(0, i - 1)]?.focus();
+    }
+  };
+
+  return (
+    <>
+      {/* Click-away, same as the Picker's backdrop — transparent because this is
+          a menu, not a modal. */}
+      <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden="true" />
+      <div
+        role="menu"
+        aria-label="choose a week"
+        onKeyDown={onKeyDown}
+        className="absolute top-0 left-full z-50 ml-1 max-h-[50vh] w-19 overflow-y-auto rounded-md border border-line2 bg-panel2 p-0.5 shadow-lift"
+      >
+        {Array.from({ length: count }, (_, i) => (
+          <button
+            key={i}
+            role="menuitem"
+            autoFocus={i === current}
+            aria-current={i === current}
+            onClick={() => onPick(i)}
+            className={
+              'flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left text-4 transition-colors duration-150 hover:bg-panel3 hover:text-gold2 ' +
+              (i === current ? 'font-[750] text-gold2' : 'text-text')
+            }
+          >
+            <span className="flex-1">
+              Week <span className="num">{i + 1}</span>
+            </span>
+            {i === current ? <IconCheck /> : null}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 

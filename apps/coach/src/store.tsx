@@ -22,6 +22,7 @@ interface Ctx {
   day: CoachSession | null;
   setDay: (s: CoachSession | null) => void;
   select: (patch: Partial<CoachLib['sel']>) => void;
+  addWeek: () => void;
 }
 
 const C = createContext<Ctx | null>(null);
@@ -47,17 +48,31 @@ export function LibProvider({ children }: { children: ReactNode }) {
   const ref = useRef(lib);
   ref.current = lib;
 
-  const update = useCallback<Ctx['update']>((fn) => {
+  /*
+   * Two mutation paths, split on one question: did the coach WRITE something?
+   *
+   * `update` is for edits — it persists, because "saves as you go" is a promise
+   * about the coach's work. `look` is for the selection only: which week and day
+   * the coach is viewing is not work, and persisting it made looking at a week
+   * indistinguishable from creating one. A pure navigation therefore changes
+   * React state and nothing on disk; the selection still reaches storage
+   * piggybacked on the next real edit, and `migrateLib` clamps whatever was last
+   * written, so a reload lands somewhere valid either way.
+   */
+  const apply = useCallback((fn: (draft: CoachLib) => void | false, persist: boolean) => {
     const draft: CoachLib = structuredClone(ref.current);
     if (fn(draft) === false) return;
     ref.current = draft;
     setLib(draft);
+    if (!persist) return;
     try {
       localStorage.setItem(COACH_LS_KEY, JSON.stringify(draft));
     } catch {
       /* private mode — the session still edits, it just won't survive a reload */
     }
   }, []);
+
+  const update = useCallback<Ctx['update']>((fn) => apply(fn, true), [apply]);
 
   const value = useMemo<Ctx>(() => {
     const prog = lib.programs[lib.sel.p];
@@ -71,14 +86,28 @@ export function LibProvider({ children }: { children: ReactNode }) {
         update((d) => {
           d.programs[d.sel.p].weeks[d.sel.w].days[d.sel.d] = s;
         }),
+      /*
+       * Navigation, and ONLY navigation. The old version wrote an emptyWeek
+       * whenever the selection pointed past the end, which made "look at week
+       * 4" and "create week 4" the same gesture. Now it clamps instead: a
+       * selection can only land on a week that already exists, and creating
+       * one is `addWeek`, an explicit different act.
+       */
       select: (patch) =>
-        update((d) => {
+        apply((d) => {
           Object.assign(d.sel, patch);
           const p = d.programs[d.sel.p];
-          if (!p.weeks[d.sel.w]) p.weeks[d.sel.w] = emptyWeek();
+          d.sel.w = Math.max(0, Math.min(p.weeks.length - 1, d.sel.w | 0));
+          d.sel.d = Math.max(0, Math.min(6, d.sel.d | 0));
+        }, false),
+      addWeek: () =>
+        update((d) => {
+          const p = d.programs[d.sel.p];
+          p.weeks.push(emptyWeek());
+          d.sel.w = p.weeks.length - 1;
         }),
     };
-  }, [lib, update]);
+  }, [lib, apply, update]);
 
   return <C.Provider value={value}>{children}</C.Provider>;
 }

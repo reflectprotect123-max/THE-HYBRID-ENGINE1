@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { isWarmup, ymd, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useLib } from './store';
 import { useCoachCloud } from './cloud';
@@ -60,6 +60,20 @@ export function Editor({
   const [date, setDate] = useState(() => ymd(new Date()));
 
   /*
+   * Which delete control, if any, is ARMED — waiting for a confirming second
+   * press because the delete it describes would destroy the whole day, not
+   * just the thing under the pointer. Keyed by control ('b2', 'e1-0') so only
+   * the pressed control changes face. It reverts on its own after a few
+   * seconds: an armed destructive button left behind is a trap.
+   */
+  const [armed, setArmed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!armed) return;
+    const id = setTimeout(() => setArmed(null), 4000);
+    return () => clearTimeout(id);
+  }, [armed]);
+
+  /*
    * The editor stays mounted across a day switch (it only unmounts for a rest
    * day), so per-session state has to be reset explicitly. Otherwise Day 2 opens
    * showing "Valid — 2 blocks ready to send" left over from Day 1, and an open
@@ -74,6 +88,7 @@ export function Editor({
     setOpen({ b: 0, e: 0 });
     setPick(null);
     setMsg('');
+    setArmed(null);
   }
 
   if (!day) return null;
@@ -101,6 +116,7 @@ export function Editor({
   const removeThenPrune = (fn: (sess: CoachSession) => void) => {
     setOpen(null);
     setPick(null);
+    setArmed(null);
     update((d) => {
       const slot = d.programs[d.sel.p].weeks[d.sel.w];
       const target = slot.days[d.sel.d];
@@ -110,6 +126,34 @@ export function Editor({
       if (!target.blocks.length) slot.days[d.sel.d] = null;
     });
   };
+
+  /** Would this delete, after the pruning above, leave the day with nothing? */
+  const destroysDay = (fn: (sess: CoachSession) => void) => {
+    const probe = structuredClone(s);
+    fn(probe);
+    return probe.blocks.filter((b) => isCond(b) || b.ex.length).length === 0;
+  };
+
+  /**
+   * The gate in front of `removeThenPrune`. The pruning itself is correct — a
+   * day with nothing in it IS a rest day — but entering it must not be silent:
+   * removing the last exercise also discards the title, the note and the
+   * heading. So a delete that would do that arms the control instead
+   * (`--color-bad`, reading "Delete session?"), and only a second press within
+   * a few seconds goes through. Ordinary deletes stay one tap.
+   */
+  const requestRemove = (key: string, fn: (sess: CoachSession) => void) => {
+    if (armed !== key && destroysDay(fn)) {
+      setArmed(key);
+      return;
+    }
+    removeThenPrune(fn);
+  };
+
+  /** The armed face of a delete control — shared by both delete sites. */
+  const ARMED_BTN =
+    'inline-flex h-4 items-center rounded-md border border-bad/60 bg-bad/10 px-1 text-2 font-[800] ' +
+    'tracking-[.08em] uppercase text-bad transition-colors duration-150 hover:bg-bad/20';
 
   /**
    * Validate first, always — a session that cannot cross the emit contract must
@@ -185,13 +229,24 @@ export function Editor({
                     <span className={MICRO}>min</span>
                   </>
                 )}
-                <button
-                  onClick={() => removeThenPrune((d) => void d.blocks.splice(bi, 1))}
-                  aria-label="remove block"
-                  className="grid h-4 w-4 place-items-center rounded-md border border-line2 text-3 text-dim transition-colors duration-150 hover:border-bad/50 hover:text-bad"
-                >
-                  ✕
-                </button>
+                {armed === 'b' + bi ? (
+                  <button
+                    onClick={() => requestRemove('b' + bi, (d) => void d.blocks.splice(bi, 1))}
+                    aria-label="confirm — delete the whole session"
+                    title="This is the last block. Deleting it makes this a rest day and discards the title and note."
+                    className={ARMED_BTN}
+                  >
+                    Delete session?
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => requestRemove('b' + bi, (d) => void d.blocks.splice(bi, 1))}
+                    aria-label="remove block"
+                    className="grid h-4 w-4 place-items-center rounded-md border border-line2 text-3 text-dim transition-colors duration-150 hover:border-bad/50 hover:text-bad"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
               {isCond(b) ? (
@@ -238,7 +293,11 @@ export function Editor({
                             [arr[ei], arr[j]] = [arr[j], arr[ei]];
                           })
                         }
-                        onDelete={() => removeThenPrune((d) => void (d.blocks[bi] as CoachBlock).ex.splice(ei, 1))}
+                        deleteArmed={armed === 'e' + bi + '-' + ei}
+                        armedClass={ARMED_BTN}
+                        onDelete={() =>
+                          requestRemove('e' + bi + '-' + ei, (d) => void (d.blocks[bi] as CoachBlock).ex.splice(ei, 1))
+                        }
                       />
                       {ei < b.ex.length - 1 ? (
                         <Seam
@@ -464,6 +523,8 @@ function ExCard({
   onCue,
   onMove,
   onDelete,
+  deleteArmed,
+  armedClass,
 }: {
   ex: CoachEx;
   letter: string;
@@ -477,6 +538,9 @@ function ExCard({
   onCue: (v: string) => void;
   onMove: (dir: 1 | -1) => void;
   onDelete: () => void;
+  /** True when this card's delete would destroy the day and awaits a confirming press. */
+  deleteArmed: boolean;
+  armedClass: string;
 }) {
   const COLS = 'grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)_40px]';
   const CELL =
@@ -640,9 +704,20 @@ function ExCard({
           <Ctl onClick={() => onMove(1)} label="move down">
             ↓
           </Ctl>
-          <Ctl onClick={onDelete} label="remove" danger>
-            ✕
-          </Ctl>
+          {deleteArmed ? (
+            <button
+              onClick={onDelete}
+              aria-label="confirm — delete the whole session"
+              title="This is the last exercise. Deleting it makes this a rest day and discards the title and note."
+              className={armedClass}
+            >
+              Delete session?
+            </button>
+          ) : (
+            <Ctl onClick={onDelete} label="remove" danger>
+              ✕
+            </Ctl>
+          )}
         </div>
       </div>
     </section>
