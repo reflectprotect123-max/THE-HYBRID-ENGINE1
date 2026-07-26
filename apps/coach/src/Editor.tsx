@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { isWarmup, ymd, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useLib } from './store';
 import { useCoachCloud } from './cloud';
@@ -21,6 +21,7 @@ import {
   type CoachEx,
   type CoachSession,
 } from './model';
+import { ADD, BRASS, Field, IconCheck, IconLink, IconRight, IconSend, IconUp, Ltr, MICRO, WELL } from './ui';
 
 /*
  * The session editor.
@@ -31,6 +32,13 @@ import {
  *
  * Set targets are TYPED, not chipped. Chips could not express "8-12", a ladder,
  * or a warm-up, and every set that didn't fit the chips had to be worked around.
+ *
+ * The layout is two columns on a wide screen: the session itself on the left,
+ * and a sticky sidecar on the right holding the two things that are true of the
+ * whole session rather than of one exercise — the coach's instructions
+ * (design/cards/05-coach-04) and delivery (05-coach-01's `.c-assign`). On a
+ * laptop that turns a 660px ribbon of content into a page that uses the machine
+ * it runs on.
  */
 export function Editor({
   publishing,
@@ -132,180 +140,228 @@ export function Editor({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="text-2 font-[750] uppercase tracking-[.14em] text-dim">
-        Week {lib.sel.w + 1} · Day {lib.sel.d + 1} · saves as you go
-      </div>
-
-      <input
-        value={s.title}
-        onChange={(e) => edit((d) => void (d.title = e.target.value))}
-        spellCheck={false}
-        aria-label="session name"
-        className="w-full rounded-md border border-transparent bg-transparent text-8 font-[800] outline-none hover:border-line focus:border-gold-line"
-      />
-
-      <label className="block rounded-lg border border-line bg-panel p-2 shadow-card">
-        <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">
-          Coach instructions · travels with the session
-        </span>
-        <textarea
-          value={s.note}
-          onChange={(e) => edit((d) => void (d.note = e.target.value))}
-          placeholder="Anything the athlete should read before starting…"
-          rows={2}
-          className="mt-1 w-full resize-y rounded-md border border-line bg-well px-1 py-1 text-4 outline-none focus:border-gold-line"
-        />
-      </label>
-
-      {s.blocks.map((b, bi) => (
-        <section key={bi}>
-          <div className="mb-1 flex items-center gap-1">
-            <input
-              value={b.h}
-              onChange={(e) => edit((d) => void (d.blocks[bi].h = e.target.value))}
-              spellCheck={false}
-              aria-label="block name"
-              className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-0.5 text-5 font-[750] outline-none hover:border-line focus:border-gold-line"
-            />
-            {isCond(b) ? (
-              <span className="text-3 text-dim">heart rate</span>
-            ) : (
-              <input
-                value={b.mins}
-                onChange={(e) => edit((d) => void ((d.blocks[bi] as CoachBlock).mins = e.target.value))}
-                placeholder="mins"
-                aria-label="block duration"
-                className="num w-8 rounded-md border border-line bg-well px-0.5 py-0.5 text-center text-3 outline-none focus:border-gold-line"
-              />
-            )}
-            <button
-              onClick={() => removeThenPrune((d) => void d.blocks.splice(bi, 1))}
-              aria-label="remove block"
-              className="h-4 rounded-md border border-line2 px-1 text-3 text-dim hover:text-bad"
-            >
-              ✕
-            </button>
-          </div>
-
-          {isCond(b) ? (
-            <CondCard
-              fmt={b.fmt}
-              eff={b.eff}
-              open={open?.b === bi}
-              summary={condSummary(b)}
-              label={fmtLabel(b.fmt)}
-              onToggle={() => setOpen(open?.b === bi ? null : { b: bi, e: 0 })}
-              onFmt={(v) => edit((d) => void ((d.blocks[bi] as never as { fmt: CondFmtKey }).fmt = v))}
-              onEff={(v) => edit((d) => void ((d.blocks[bi] as never as { eff: EffortKey }).eff = v))}
-            />
-          ) : (
-            <div className={b.ss ? 'rounded-lg border border-gold-line/40 bg-gold-wash/40 p-1' : undefined}>
-              {b.ex.map((ex, ei) => (
-                <div key={ex.id}>
-                  <ExCard
-                    ex={ex}
-                    letter={LTR[bi + '-' + ei] || '?'}
-                    open={open?.b === bi && open?.e === ei}
-                    onToggle={() => setOpen(open?.b === bi && open?.e === ei ? null : { b: bi, e: ei })}
-                    onPick={() => setPick({ b: bi, e: ei })}
-                    onSet={(si, key, v) =>
-                      edit((d) => void ((d.blocks[bi] as CoachBlock).ex[ei].sets[si][key] = v))
-                    }
-                    onAddSet={() => edit((d) => void (d.blocks[bi] as CoachBlock).ex[ei].sets.push(newSet()))}
-                    onDelSet={(si) => edit((d) => void (d.blocks[bi] as CoachBlock).ex[ei].sets.splice(si, 1))}
-                    onRest={(delta) =>
-                      edit((d) => {
-                        const e2 = (d.blocks[bi] as CoachBlock).ex[ei];
-                        e2.rest = Math.max(0, Math.min(3600, e2.rest + delta));
-                      })
-                    }
-                    onCue={(v) => edit((d) => void ((d.blocks[bi] as CoachBlock).ex[ei].cue = v))}
-                    onMove={(dir) =>
-                      edit((d) => {
-                        const arr = (d.blocks[bi] as CoachBlock).ex;
-                        const j = ei + dir;
-                        if (j < 0 || j >= arr.length) return;
-                        [arr[ei], arr[j]] = [arr[j], arr[ei]];
-                      })
-                    }
-                    onDelete={() => removeThenPrune((d) => void (d.blocks[bi] as CoachBlock).ex.splice(ei, 1))}
-                  />
-                  {ei < b.ex.length - 1 ? (
-                    <Seam
-                      on={b.ss}
-                      onClick={() => edit((d) => void ((d.blocks[bi] as CoachBlock).ss = !(d.blocks[bi] as CoachBlock).ss))}
-                    />
-                  ) : null}
-                </div>
-              ))}
-              <button
-                onClick={() => edit((d) => void (d.blocks[bi] as CoachBlock).ex.push(newEx()))}
-                className="mt-1 h-4 rounded-md border border-dashed border-line2 px-1.5 text-3 font-[650] text-muted hover:border-gold-line hover:text-gold2"
-              >
-                ＋ Exercise
-              </button>
-            </div>
-          )}
-        </section>
-      ))}
-
-      <div className="flex flex-wrap gap-1">
-        <AddBtn onClick={() => edit((d) => void d.blocks.push(newBlock('New block')))}>＋ Block</AddBtn>
-        <AddBtn onClick={() => edit((d) => void d.blocks.push(newCond()))}>♥ Conditioning</AddBtn>
-      </div>
-
-      <div className="mt-2 border-t border-line pt-2">
-        <div className="flex flex-wrap items-center gap-1">
-          {cloud.user ? (
-            <>
-              <select
-                value={athlete}
-                onChange={(e) => setAthlete(e.target.value)}
-                aria-label="athlete"
-                className="h-6 rounded-md border border-line bg-well px-1 text-4 text-text outline-none focus:border-gold-line"
-              >
-                {cloud.athletes.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                aria-label="scheduled date"
-                className="num h-6 rounded-md border border-line bg-well px-1 text-4 text-text outline-none focus:border-gold-line"
-              />
-              <button
-                onClick={() => void publish()}
-                disabled={publishing}
-                className="h-6 rounded-md px-2.5 text-5 font-[650] text-[#1b1509] shadow-brass [background:var(--brass)] disabled:opacity-40"
-              >
-                {publishing ? 'Sending…' : 'Send to athlete'}
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={validate}
-              className="h-6 rounded-md px-2.5 text-5 font-[650] text-[#1b1509] shadow-brass [background:var(--brass)]"
-            >
-              Validate &amp; publish
-            </button>
-          )}
+    <div className="mx-auto grid w-full max-w-[1240px] gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+      {/* ------------------------------------------------ the session itself */}
+      <div className="min-w-0">
+        <div className={MICRO}>
+          Week {lib.sel.w + 1} · Day {lib.sel.d + 1} · saves as you go
         </div>
-        {msg ? <p className="mt-1 text-4 text-muted">{msg}</p> : null}
-        {!cloud.user ? (
-          <p className="mt-1 text-3 text-dim">
-            Sign in to send this to an athlete. Until then it stays on this machine — validation still runs, so you
-            know it would cross the boundary cleanly.
-          </p>
-        ) : null}
+
+        <input
+          value={s.title}
+          onChange={(e) => edit((d) => void (d.title = e.target.value))}
+          spellCheck={false}
+          aria-label="session name"
+          className="mt-0.5 w-full rounded-md border border-transparent bg-transparent px-0.5 py-0.5 text-8 font-[800] tracking-[-.02em] outline-none transition-colors duration-150 hover:border-line2 focus:border-gold-line focus:bg-well"
+        />
+
+        <div className="mt-2 flex flex-col gap-2">
+          {s.blocks.map((b, bi) => (
+            <section key={bi}>
+              {/* The block heading is an input that still reads as a heading —
+                  no edit mode to enter or leave. From the concept mock's
+                  `.sech`, which is the answer this repo already reached. */}
+              <div className="mb-1 flex items-center gap-1">
+                <input
+                  value={b.h}
+                  onChange={(e) => edit((d) => void (d.blocks[bi].h = e.target.value))}
+                  spellCheck={false}
+                  aria-label="block name"
+                  size={Math.max(6, Math.min(28, b.h.length + 1))}
+                  className="min-w-0 rounded-sm border border-transparent bg-transparent px-0.5 py-0.5 text-3 font-[800] tracking-[.14em] text-gold2 uppercase outline-none transition-colors duration-150 hover:border-line2 focus:border-gold-line focus:bg-well"
+                />
+                <span className="h-px flex-1 bg-line" />
+                {isCond(b) ? (
+                  <span className={MICRO}>Heart rate</span>
+                ) : (
+                  <>
+                    <input
+                      value={b.mins}
+                      onChange={(e) => edit((d) => void ((d.blocks[bi] as CoachBlock).mins = e.target.value))}
+                      placeholder="—"
+                      aria-label="block duration"
+                      className={WELL + ' num h-4 w-6 px-0.5 text-center text-3'}
+                    />
+                    <span className={MICRO}>min</span>
+                  </>
+                )}
+                <button
+                  onClick={() => removeThenPrune((d) => void d.blocks.splice(bi, 1))}
+                  aria-label="remove block"
+                  className="grid h-4 w-4 place-items-center rounded-md border border-line2 text-3 text-dim transition-colors duration-150 hover:border-bad/50 hover:text-bad"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {isCond(b) ? (
+                <CondCard
+                  fmt={b.fmt}
+                  eff={b.eff}
+                  open={open?.b === bi}
+                  summary={condSummary(b)}
+                  label={fmtLabel(b.fmt)}
+                  onToggle={() => setOpen(open?.b === bi ? null : { b: bi, e: 0 })}
+                  onFmt={(v) => edit((d) => void ((d.blocks[bi] as never as { fmt: CondFmtKey }).fmt = v))}
+                  onEff={(v) => edit((d) => void ((d.blocks[bi] as never as { eff: EffortKey }).eff = v))}
+                />
+              ) : (
+                /* A chained block gets the concept mock's gold rail rather than
+                   a tinted box: at this width a filled panel behind four cards
+                   reads as a container, and the rail reads as "these flow on". */
+                <div className={b.ss ? 'border-l-2 border-gold pl-2' : undefined}>
+                  {b.ex.map((ex, ei) => (
+                    <div key={ex.id}>
+                      <ExCard
+                        ex={ex}
+                        letter={LTR[bi + '-' + ei] || '?'}
+                        open={open?.b === bi && open?.e === ei}
+                        onToggle={() => setOpen(open?.b === bi && open?.e === ei ? null : { b: bi, e: ei })}
+                        onPick={() => setPick({ b: bi, e: ei })}
+                        onSet={(si, key, v) =>
+                          edit((d) => void ((d.blocks[bi] as CoachBlock).ex[ei].sets[si][key] = v))
+                        }
+                        onAddSet={() => edit((d) => void (d.blocks[bi] as CoachBlock).ex[ei].sets.push(newSet()))}
+                        onDelSet={(si) => edit((d) => void (d.blocks[bi] as CoachBlock).ex[ei].sets.splice(si, 1))}
+                        onRest={(delta) =>
+                          edit((d) => {
+                            const e2 = (d.blocks[bi] as CoachBlock).ex[ei];
+                            e2.rest = Math.max(0, Math.min(3600, e2.rest + delta));
+                          })
+                        }
+                        onCue={(v) => edit((d) => void ((d.blocks[bi] as CoachBlock).ex[ei].cue = v))}
+                        onMove={(dir) =>
+                          edit((d) => {
+                            const arr = (d.blocks[bi] as CoachBlock).ex;
+                            const j = ei + dir;
+                            if (j < 0 || j >= arr.length) return;
+                            [arr[ei], arr[j]] = [arr[j], arr[ei]];
+                          })
+                        }
+                        onDelete={() => removeThenPrune((d) => void (d.blocks[bi] as CoachBlock).ex.splice(ei, 1))}
+                      />
+                      {ei < b.ex.length - 1 ? (
+                        <Seam
+                          on={b.ss}
+                          onClick={() =>
+                            edit((d) => void ((d.blocks[bi] as CoachBlock).ss = !(d.blocks[bi] as CoachBlock).ss))
+                          }
+                        />
+                      ) : null}
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => edit((d) => void (d.blocks[bi] as CoachBlock).ex.push(newEx()))}
+                    className={ADD + ' mt-1 h-5 text-3'}
+                  >
+                    ＋ Exercise
+                  </button>
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-1">
+          <button onClick={() => edit((d) => void d.blocks.push(newBlock('New block')))} className={ADD}>
+            ＋ Block
+          </button>
+          <button onClick={() => edit((d) => void d.blocks.push(newCond()))} className={ADD}>
+            ♥ Conditioning
+          </button>
+        </div>
       </div>
+
+      {/* --------------------------------------------- session-level sidecar */}
+      <aside className="min-w-0">
+        <div className="flex flex-col gap-3 xl:sticky xl:top-3">
+          {/* 05-coach-04 — the label sits on the border, so the note reads as a
+              named part of the session rather than a stray text box. */}
+          <Field label="Coach instructions">
+            <textarea
+              value={s.note}
+              onChange={(e) => edit((d) => void (d.note = e.target.value))}
+              placeholder="Anything the athlete should read before starting…"
+              aria-label="coach instructions"
+              rows={4}
+              className={WELL + ' w-full resize-y px-1 py-1 text-4 leading-relaxed'}
+            />
+            <p className="mt-1 text-2 text-dim">Travels with the session to the athlete's phone.</p>
+          </Field>
+
+          <Glance sess={s} />
+
+          <Field label="Deliver">
+            <div className="flex flex-col gap-1">
+              {cloud.user ? (
+                <>
+                  <label className={MICRO + ' block'} htmlFor="rx-athlete">
+                    Athlete
+                  </label>
+                  <select
+                    id="rx-athlete"
+                    value={athlete}
+                    onChange={(e) => setAthlete(e.target.value)}
+                    aria-label="athlete"
+                    className={WELL + ' h-5 w-full px-1 text-4'}
+                  >
+                    {cloud.athletes.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label className={MICRO + ' mt-1 block'} htmlFor="rx-date">
+                    Scheduled date
+                  </label>
+                  <input
+                    id="rx-date"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    aria-label="scheduled date"
+                    className={WELL + ' num h-5 w-full px-1 text-4'}
+                  />
+
+                  <button onClick={() => void publish()} disabled={publishing} className={BRASS + ' mt-1 w-full'}>
+                    <IconSend />
+                    {publishing ? 'Sending…' : 'Send to athlete'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={validate} className={BRASS + ' w-full'}>
+                    Validate &amp; publish
+                  </button>
+                  <p className="text-2 leading-relaxed text-dim">
+                    Sign in to send this to an athlete. Until then it stays on this machine — validation still runs, so
+                    you know it would cross the boundary cleanly.
+                  </p>
+                </>
+              )}
+
+              {/* 03-shared-03's toast, inline rather than floating: a floating
+                  toast would have to dismiss itself, and that is behaviour. */}
+              {msg ? (
+                <p
+                  role="status"
+                  className={
+                    'mt-1 rounded-md border bg-panel2 px-1.5 py-1 text-3 font-[650] shadow-card ' +
+                    (/^(Could not|Sign in)/.test(msg) ? 'border-warn/40 text-warn' : 'border-done-line/50 text-done-ink')
+                  }
+                >
+                  {msg}
+                </p>
+              ) : null}
+            </div>
+          </Field>
+        </div>
+      </aside>
 
       {pick ? (
         <Picker
+          current={(s.blocks[pick.b] as CoachBlock).ex[pick.e]?.name || ''}
           onClose={() => setPick(null)}
           onPick={(name) => {
             edit((d) => void ((d.blocks[pick.b] as CoachBlock).ex[pick.e].name = name));
@@ -317,39 +373,84 @@ export function Editor({
   );
 }
 
-function AddBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+/**
+ * What the coach has actually written, counted. Read-only and derived — it
+ * makes no store call and adds no interaction; it is the kit's `.stat` trio
+ * (three tabular numerals over micro-labels) doing the job a desktop tool's
+ * sidecar exists for: telling you the shape of the thing without scrolling it.
+ */
+function Glance({ sess }: { sess: CoachSession }) {
+  let movements = 0;
+  let sets = 0;
+  let mins = 0;
+  let hr = 0;
+  for (const b of sess.blocks) {
+    if (isCond(b)) {
+      hr += 1;
+      continue;
+    }
+    const m = parseInt(b.mins, 10);
+    if (Number.isFinite(m)) mins += m;
+    movements += b.ex.length;
+    for (const e of b.ex) sets += e.sets.length;
+  }
+
+  const stat = 'rounded-md border border-line bg-panel3 px-1 py-1 text-center';
   return (
-    <button
-      onClick={onClick}
-      className="h-5 rounded-md border border-dashed border-line2 px-2 text-4 font-[650] text-muted hover:border-gold-line hover:text-gold2"
-    >
-      {children}
-    </button>
+    <Field label="Session">
+      <div className="grid grid-cols-3 gap-1">
+        <div className={stat}>
+          <b className="num block text-7 font-[900]">{movements}</b>
+          <span className={MICRO}>Movements</span>
+        </div>
+        <div className={stat}>
+          <b className="num block text-7 font-[900]">{sets}</b>
+          <span className={MICRO}>Sets</span>
+        </div>
+        <div className={stat}>
+          <b className="num block text-7 font-[900]">{hr}</b>
+          <span className={MICRO}>HR</span>
+        </div>
+      </div>
+      <p className="mt-1 text-2 text-dim">
+        {mins
+          ? `${sess.blocks.length} blocks · about ${mins} min of programmed work.`
+          : `${sess.blocks.length} block${sess.blocks.length === 1 ? '' : 's'}. Give a block a duration and it shows up here.`}
+      </p>
+    </Field>
   );
 }
 
-/** The chain button between two cards. Clicking it makes them one superset. */
+/**
+ * The chain between two cards — 05-coach-05's `.c-chain`: dashed and quiet when
+ * they are separate, solid brass when they flow on, with the connector running
+ * behind it so the pair reads as one column of work.
+ */
 function Seam({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
-    <div className="relative h-2">
-      <span className="absolute inset-x-0 top-1/2 h-px bg-line" />
+    <div className="relative flex h-4 items-center justify-center">
+      <span aria-hidden="true" className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line2" />
       <button
         onClick={onClick}
         title={on ? 'split them apart' : 'chain into a superset'}
         aria-label={on ? 'split the superset here' : 'chain into a superset'}
         className={
-          'absolute top-1/2 left-1/2 grid h-3 w-3 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill border text-2 ' +
-          (on ? 'border-gold-line bg-gold-wash text-gold2' : 'border-line2 bg-panel text-dim hover:text-muted')
+          'relative grid h-3 w-3 place-items-center rounded-pill border transition-colors duration-150 ' +
+          (on
+            ? 'border-gold text-[#1b1509] [background:var(--brass)]'
+            : 'border-dashed border-line2 bg-panel2 text-muted hover:border-gold-line hover:text-gold2')
         }
       >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M9 12h6M8 8.5 5.5 11a3.5 3.5 0 0 0 5 5L13 13.5M16 15.5l2.5-2.5a3.5 3.5 0 0 0-5-5L11 10.5" />
-        </svg>
+        <IconLink />
       </button>
     </div>
   );
 }
 
+/**
+ * 05-coach-05. A grey header band carrying the letter chip, the movement name
+ * and the set count; a prescription table beneath it when the card is open.
+ */
 function ExCard({
   ex,
   letter,
@@ -377,47 +478,75 @@ function ExCard({
   onMove: (dir: 1 | -1) => void;
   onDelete: () => void;
 }) {
+  const COLS = 'grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)_40px]';
+  const CELL =
+    'num w-full border-l border-line bg-transparent px-1 py-1 text-5 font-[750] outline-none ' +
+    'placeholder:font-[500] placeholder:text-dim focus:bg-gold-wash ' +
+    'focus:shadow-[inset_0_0_0_1px_var(--color-gold)] focus-visible:outline-offset-0';
+
   if (!open) {
     return (
-      <section className="rounded-lg border border-line bg-panel shadow-card">
-        <button onClick={onToggle} className="flex w-full items-center gap-1.5 p-1.5 text-left">
+      <section className="overflow-hidden rounded-md border border-line bg-panel shadow-card transition-colors duration-150 hover:border-line2">
+        <button onClick={onToggle} className="flex w-full items-center gap-1 bg-panel2 px-1.5 py-1 text-left">
           <Ltr>{letter}</Ltr>
           <span className="min-w-0 flex-1">
             <b className="block truncate text-5 font-[750]">{ex.name || 'Exercise'}</b>
-            <span className="num block truncate text-3 text-dim">{summary(ex)}</span>
+            <span className="num mt-0.5 block truncate text-3 text-muted">{summary(ex)}</span>
           </span>
-          <span className="text-6 text-dim">›</span>
+          <span className="num shrink-0 text-3 font-[750] text-dim">{ex.sets.length} sets</span>
+          <span className="shrink-0 text-dim" aria-hidden="true">
+            <IconRight />
+          </span>
         </button>
       </section>
     );
   }
 
   return (
-    <section className="rounded-lg border border-gold-line bg-panel shadow-lift">
-      <div className="flex items-center gap-1.5 p-1.5">
+    <section className="overflow-hidden rounded-md border border-gold-line bg-panel shadow-lift">
+      <div className="flex items-center gap-1 border-b border-line bg-panel2 px-1.5 py-1">
         <Ltr>{letter}</Ltr>
         <span className="min-w-0 flex-1">
-          <button onClick={onPick} className="flex items-center gap-0.5 text-5 font-[750] hover:text-gold2">
-            {ex.name || 'Exercise'}
-            <span className="text-3 text-dim">✎</span>
+          {/* 05-coach-05's `.c-namewrap`: the name IS the movement picker. */}
+          <button
+            onClick={onPick}
+            className="flex w-full items-center gap-1 rounded-sm border border-line2 bg-panel3 px-1 py-0.5 text-left transition-colors duration-150 hover:border-gold-line"
+          >
+            <b className="min-w-0 flex-1 truncate text-5 font-[750]">{ex.name || 'Exercise'}</b>
+            <span className="shrink-0 text-3 text-dim" aria-hidden="true">
+              ✎
+            </span>
           </button>
-          <span className="num block truncate text-3 text-dim">{summary(ex)}</span>
+          <span className="num mt-0.5 block truncate text-3 text-muted">{summary(ex)}</span>
         </span>
-        <button onClick={onToggle} aria-label="collapse" className="text-6 text-dim hover:text-text">
-          ▴
+        <button
+          onClick={onToggle}
+          aria-label="collapse"
+          className="grid h-4 w-4 shrink-0 place-items-center rounded-sm text-dim transition-colors duration-150 hover:bg-panel3 hover:text-text"
+        >
+          <IconUp />
         </button>
       </div>
 
-      <div className="border-t border-line p-2">
-        <Row label="Sets & reps">
-          <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2 p-2">
+        <div>
+          <div className={MICRO + ' mb-1'}>Prescription</div>
+          <div className="overflow-hidden rounded-sm border border-line bg-panel">
+            <div className={COLS + ' border-b border-line bg-panel2'}>
+              <div className={MICRO + ' px-1 py-1'}>Set</div>
+              <div className={MICRO + ' border-l border-line px-1 py-1'}>Target</div>
+              <div className={MICRO + ' border-l border-line px-1 py-1'}>RPE</div>
+              <div className="border-l border-line" />
+            </div>
+
             {ex.sets.map((st, si) => {
               const w = isWarmup(st);
               return (
-                <div key={si} className="flex items-center gap-1">
+                <div key={si} className={COLS + ' border-b border-line ' + (w ? 'bg-gold-wash/60' : '')}>
                   <span
                     className={
-                      'num w-8 shrink-0 text-3 font-[650] ' + (w ? 'text-gold2' : 'text-dim')
+                      'num flex items-center px-1 text-2 font-[800] tracking-[.1em] uppercase ' +
+                      (w ? 'text-gold2' : 'text-dim')
                     }
                   >
                     {w ? 'Warm' : 'Set ' + (si + 1)}
@@ -427,63 +556,84 @@ function ExCard({
                     onChange={(e) => onSet(si, 't', e.target.value)}
                     placeholder="reps"
                     aria-label={`target for set ${si + 1}`}
-                    className="num h-4 w-14 rounded-md border border-line bg-well px-1 text-center text-4 outline-none focus:border-gold-line"
+                    className={CELL + (w ? ' text-muted' : ' text-text')}
                   />
                   <input
                     value={st.rpe}
                     onChange={(e) => onSet(si, 'rpe', e.target.value)}
                     placeholder={w ? '—' : 'RPE'}
                     aria-label={`target RPE for set ${si + 1}`}
-                    className="num h-4 w-12 rounded-md border border-line bg-well px-1 text-center text-4 outline-none focus:border-gold-line"
+                    className={CELL + (w ? ' text-dim' : ' text-gold2')}
                   />
                   {ex.sets.length > 1 ? (
                     <button
                       onClick={() => onDelSet(si)}
                       aria-label={`remove set ${si + 1}`}
-                      className="h-4 w-4 rounded-md text-3 text-dim hover:text-bad"
+                      className="grid place-items-center border-l border-line text-3 text-dim transition-colors duration-150 hover:bg-bad/10 hover:text-bad"
                     >
                       ✕
                     </button>
                   ) : (
-                    <span className="h-4 w-4" />
+                    <span className="border-l border-line" />
                   )}
                 </div>
               );
             })}
+
             <button
               onClick={onAddSet}
-              className="h-4 w-fit rounded-md border border-dashed border-line2 px-1 text-3 text-muted hover:border-gold-line hover:text-gold2"
+              className="w-full px-1 py-1 text-3 font-[650] text-muted transition-colors duration-150 hover:bg-panel2 hover:text-gold2"
             >
               ＋ Add set
             </button>
-            <p className="max-w-[52ch] text-3 text-dim">
-              Type what the athlete should hit — <b className="text-muted">8</b>,{' '}
-              <b className="text-muted">8-12</b>, <b className="text-muted">max</b>. Start with{' '}
-              <b className="text-muted">W</b> for a warm-up (<b className="text-muted">W</b> or{' '}
-              <b className="text-muted">W10</b>). A different number per set makes a ladder.
-            </p>
           </div>
-        </Row>
 
-        <Row label="Rest">
-          <div className="flex items-center gap-1">
-            <Step onClick={() => onRest(-15)}>−</Step>
-            <span className="num w-10 text-center text-4 font-[750]">{fmtRest(ex.rest)}</span>
-            <Step onClick={() => onRest(15)}>+</Step>
+          <p className="mt-1 max-w-[68ch] text-3 text-dim">
+            Type what the athlete should hit — <b className="text-muted">8</b>, <b className="text-muted">8-12</b>,{' '}
+            <b className="text-muted">max</b>. Start with <b className="text-muted">W</b> for a warm-up (
+            <b className="text-muted">W</b> or <b className="text-muted">W10</b>). A different number per set makes a
+            ladder.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-start gap-2">
+          <div>
+            <div className={MICRO + ' mb-1'}>Rest</div>
+            <div className="inline-flex items-stretch overflow-hidden rounded-md border border-line bg-well shadow-well">
+              <button
+                onClick={() => onRest(-15)}
+                aria-label="less rest"
+                className="w-5 text-6 font-[800] text-gold2 transition-colors duration-150 hover:bg-panel2"
+              >
+                −
+              </button>
+              <span className="num grid min-w-10 place-items-center px-1 text-5 font-[800]">{fmtRest(ex.rest)}</span>
+              <button
+                onClick={() => onRest(15)}
+                aria-label="more rest"
+                className="w-5 text-6 font-[800] text-gold2 transition-colors duration-150 hover:bg-panel2"
+              >
+                +
+              </button>
+            </div>
           </div>
-        </Row>
 
-        <Row label="Note for the athlete">
-          <textarea
-            value={ex.cue}
-            onChange={(e) => onCue(e.target.value)}
-            rows={2}
-            placeholder="Cues, or a prescribed load — the athlete reads this on the card."
-            className="w-full resize-y rounded-md border border-line bg-well px-1 py-1 text-4 outline-none focus:border-gold-line"
-          />
-        </Row>
+          <div className="min-w-0 flex-1">
+            <label className={MICRO + ' mb-1 block'} htmlFor={'cue-' + ex.id}>
+              Note for the athlete
+            </label>
+            <textarea
+              id={'cue-' + ex.id}
+              value={ex.cue}
+              onChange={(e) => onCue(e.target.value)}
+              rows={2}
+              placeholder="Cues, or a prescribed load — the athlete reads this on the card."
+              className={WELL + ' w-full resize-y px-1 py-1 text-4'}
+            />
+          </div>
+        </div>
 
-        <div className="mt-1.5 flex justify-end gap-1 border-t border-line pt-1.5">
+        <div className="flex justify-end gap-1 border-t border-line pt-1">
           <Ctl onClick={() => onMove(-1)} label="move up">
             ↑
           </Ctl>
@@ -519,19 +669,26 @@ function CondCard({
   onEff: (v: EffortKey) => void;
 }) {
   return (
-    <section className={'rounded-lg border bg-panel shadow-card ' + (open ? 'border-gold-line' : 'border-line')}>
-      <button onClick={onToggle} className="flex w-full items-center gap-1.5 p-1.5 text-left">
-        <Ltr>♥</Ltr>
+    <section
+      className={
+        'overflow-hidden rounded-md border bg-panel shadow-card ' + (open ? 'border-zone-green/40' : 'border-line')
+      }
+    >
+      <button onClick={onToggle} className="flex w-full items-center gap-1 bg-panel2 px-1.5 py-1 text-left">
+        <Ltr cond>♥</Ltr>
         <span className="min-w-0 flex-1">
           <b className="block text-5 font-[750]">{label}</b>
-          <span className="block truncate text-3 text-dim">{sum}</span>
+          <span className="block truncate text-3 text-muted">{sum}</span>
         </span>
-        <span className="text-6 text-dim">{open ? '▴' : '›'}</span>
+        <span className="shrink-0 text-dim" aria-hidden="true">
+          {open ? <IconUp /> : <IconRight />}
+        </span>
       </button>
 
       {open ? (
-        <div className="border-t border-line p-2">
-          <Row label="Format">
+        <div className="flex flex-col gap-2 border-t border-line p-2">
+          <div>
+            <div className={MICRO + ' mb-1'}>Format</div>
             <div className="flex flex-wrap gap-1">
               {COND_FORMATS.map(([k, name]) => (
                 <Pill key={k} on={k === fmt} onClick={() => onFmt(k)}>
@@ -539,57 +696,104 @@ function CondCard({
                 </Pill>
               ))}
             </div>
-          </Row>
-          <Row label="Effort">
+          </div>
+          <div>
+            <div className={MICRO + ' mb-1'}>Effort</div>
             <div className="flex flex-wrap gap-1">
               {EFFORTS.map(([k, name, band]) => (
-                <Pill key={k} on={k === eff} onClick={() => onEff(k)}>
+                <Pill key={k} on={k === eff} onClick={() => onEff(k)} zone={k}>
                   {name}
-                  <i className="ml-0.5 text-2 not-italic opacity-70">{band}</i>
+                  <i className="ml-0.5 text-1 font-[650] not-italic opacity-70">{band}</i>
                 </Pill>
               ))}
             </div>
-          </Row>
+          </div>
         </div>
       ) : null}
     </section>
   );
 }
 
-function Picker({ onClose, onPick }: { onClose: () => void; onPick: (n: string) => void }) {
+/**
+ * The movement picker. The sheet is the concept mock's; the option rows are
+ * 05-coach-06's `.c-menu`, which is the one place in this app where a
+ * menu-shaped list actually exists.
+ */
+function Picker({ current, onClose, onPick }: { current: string; onClose: () => void; onPick: (n: string) => void }) {
   const [q, setQ] = useState('');
   const list = LIBRARY.filter((n) => !q || n.toLowerCase().includes(q.toLowerCase()));
+
+  /*
+   * Escape closes it. Declaring role="dialog" aria-modal="true" is a promise to
+   * anyone using a keyboard or a screen reader that this behaves like a modal,
+   * and a modal you can only leave by clicking the backdrop does not. The
+   * backdrop click stays for the mouse; this is the other half.
+   *
+   * Bound on the wrapper rather than the document so it dies with the component
+   * — a stray listener that closes a picker that is no longer open is its own
+   * small bug.
+   */
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-3" onClick={onClose}>
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <div
+      className="fixed inset-0 z-40 flex items-start justify-center bg-black/60 p-3 pt-12"
+      onClick={onClose}
+      onKeyDown={onKeyDown}
+    >
       <div
-        className="w-full max-w-[420px] rounded-lg border border-line2 bg-panel p-2 shadow-lift"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose a movement"
+        className="w-full max-w-[460px] rounded-md border border-line2 bg-panel p-2 shadow-lift"
         onClick={(e) => e.stopPropagation()}
       >
+        <h2 className="text-6 font-[800]">Choose a movement</h2>
+        <p className="mt-0.5 text-3 text-dim">Search the library, or type any name.</p>
         <input
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search movements, or type your own"
-          className="h-5 w-full rounded-md border border-line bg-well px-1 text-4 outline-none focus:border-gold-line"
+          aria-label="search movements"
+          className={WELL + ' mt-1 h-5 w-full px-1.5 text-4'}
         />
-        <ul className="mt-1 max-h-[50vh] overflow-y-auto">
-          {list.map((n) => (
-            <li key={n}>
-              <button onClick={() => onPick(n)} className="w-full rounded-md px-1 py-1 text-left text-4 hover:bg-panel2">
-                {n}
-              </button>
-            </li>
-          ))}
+        <ul className="mt-1 max-h-[46vh] overflow-y-auto">
           {q && !list.includes(q) ? (
             <li>
               <button
                 onClick={() => onPick(q)}
-                className="w-full rounded-md px-1 py-1 text-left text-4 text-gold2 hover:bg-panel2"
+                className="w-full rounded-sm px-1 py-1 text-left text-4 font-[650] text-gold2 hover:bg-panel2"
               >
                 Use “{q}”
+                <span className="block text-2 font-[500] text-dim">not in the library — add it anyway</span>
               </button>
             </li>
           ) : null}
+          {list.map((n) => {
+            const on = n === current;
+            return (
+              <li key={n}>
+                <button
+                  onClick={() => onPick(n)}
+                  aria-current={on}
+                  className={
+                    'flex w-full items-center gap-1 rounded-sm px-1 py-1 text-left text-4 hover:bg-panel2 hover:text-gold2 ' +
+                    (on ? 'font-[750] text-gold2' : '')
+                  }
+                >
+                  <span className="min-w-0 flex-1 truncate">{n}</span>
+                  {on ? <IconCheck /> : null}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>
@@ -598,42 +802,37 @@ function Picker({ onClose, onPick }: { onClose: () => void; onPick: (n: string) 
 
 /* --- small shared bits --- */
 
-function Ltr({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="num grid h-4 min-w-4 shrink-0 place-items-center rounded-sm border border-gold-line bg-gold-wash px-0.5 text-3 font-[800] text-gold2">
-      {children}
-    </span>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-1.5 flex flex-wrap items-start gap-1.5">
-      <label className="w-20 shrink-0 pt-0.5 text-2 font-[750] uppercase tracking-[.14em] text-dim">{label}</label>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
-}
-
-function Step({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="h-4 w-4 rounded-md border border-line2 bg-panel2 text-5 font-[750] text-muted hover:text-text"
-    >
-      {children}
-    </button>
-  );
-}
-
-function Pill({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+/**
+ * 03-shared-02's chip. The effort variants take the HR zone inks the concept
+ * mock gives them — those colours are meaning-bearing, so easy/medium/hard read
+ * the same here as they do on the athlete's zone bars.
+ */
+function Pill({
+  on,
+  onClick,
+  children,
+  zone,
+}: {
+  on: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  zone?: EffortKey;
+}) {
+  const lit =
+    zone === 'easy'
+      ? 'border-zone-blue bg-zone-blue/10 text-zone-blue'
+      : zone === 'medium'
+        ? 'border-zone-green bg-zone-green/10 text-zone-green'
+        : zone === 'hard'
+          ? 'border-zone-red bg-zone-red/10 text-zone-red'
+          : 'border-done-line bg-done-bg text-done-ink';
   return (
     <button
       onClick={onClick}
       aria-pressed={on}
       className={
-        'h-4 rounded-pill border px-1.5 text-3 font-[650] ' +
-        (on ? 'border-done-line bg-done-bg text-done-ink' : 'border-line2 bg-panel2 text-muted hover:text-text')
+        'inline-flex h-4 items-center rounded-pill border px-1.5 text-2 font-[750] tracking-[.06em] uppercase transition-colors duration-150 ' +
+        (on ? lit : 'border-line2 bg-panel2 text-muted hover:border-gold-line hover:text-gold2')
       }
     >
       {children}
@@ -657,7 +856,8 @@ function Ctl({
       onClick={onClick}
       aria-label={label}
       className={
-        'h-4 w-4 rounded-md border border-line2 text-3 ' + (danger ? 'text-dim hover:text-bad' : 'text-muted hover:text-text')
+        'grid h-4 w-5 place-items-center rounded-sm border border-line2 text-3 transition-colors duration-150 ' +
+        (danger ? 'text-dim hover:border-bad/50 hover:text-bad' : 'text-muted hover:border-gold-line hover:text-gold2')
       }
     >
       {children}
