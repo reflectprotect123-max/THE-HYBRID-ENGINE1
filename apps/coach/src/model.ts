@@ -137,6 +137,184 @@ export function emptyLib(): CoachLib {
 
 export const isCond = (b: AnyBlock): b is CoachCond => (b as CoachCond).kind === 'cond';
 
+/* ---------- reading what is already on disk ----------
+   A working coach has a library in localStorage under the SAME key, written by
+   the vanilla builder. Some of it predates the blocks model entirely — a flat
+   `exercises` array with spreadsheet-style `cols`/`sets` rows. Dropping that on
+   the floor would mean the migration silently ate someone's programme, so it is
+   read forward here rather than assumed away. */
+
+const s0 = (v: unknown, dflt = '') => (typeof v === 'string' ? v : dflt);
+
+/** Old measure columns that carried a unit, so a load keeps its unit in the cue. */
+const OLD_UNITS: Record<string, string> = {
+  'Weight (kg)': 'kg',
+  'Weight (lb)': 'lb',
+  'Weight (% 1RM)': '%',
+};
+
+function secondsFrom(v: unknown): string {
+  const raw = String(v || '');
+  if (!raw.includes(':')) {
+    const n = parseInt(raw, 10);
+    return Number.isNaN(n) ? '' : String(n);
+  }
+  const q = raw.split(':');
+  return String((parseInt(q[0], 10) || 0) * 60 + (parseInt(q[1], 10) || 0));
+}
+
+interface OldEx {
+  name?: string;
+  cues?: string;
+  cols?: string[];
+  sets?: unknown[][];
+  link?: boolean;
+}
+
+/**
+ * One pre-blocks exercise → the current shape.
+ *
+ * A prescribed LOAD has no field of its own in the athlete's model (a set is
+ * exactly {t, rpe}), so any weight column is folded into the cue as words. That
+ * is the same route a coach uses to prescribe a load today, so the athlete
+ * reads it in exactly the same place.
+ */
+function migrateExercise(e: OldEx): CoachEx {
+  const cols = Array.isArray(e.cols) ? e.cols : [];
+  const rows = Array.isArray(e.sets) ? e.sets : [];
+  const repsI = cols.indexOf('Reps');
+  const timeI = cols.indexOf('Time (min:sec)');
+  const rpeI = cols.indexOf('RPE');
+  let wI = -1;
+  cols.forEach((c, i) => {
+    if (wI < 0 && String(c).startsWith('Weight')) wI = i;
+  });
+
+  let sets = rows.map((row) => {
+    const r = Array.isArray(row) ? row : [];
+    const t = repsI >= 0 ? r[repsI] : timeI >= 0 ? secondsFrom(r[timeI]) : '';
+    return newSet(String(t ?? ''), rpeI >= 0 ? String(r[rpeI] ?? '') : '');
+  });
+  if (!sets.length) sets = [newSet()];
+
+  let cue = s0(e.cues);
+  if (wI >= 0) {
+    const loads = rows
+      .map((r) => (Array.isArray(r) ? String(r[wI] ?? '') : ''))
+      .filter((v) => v && v !== '—');
+    if (loads.length) {
+      const uniqL = Array.from(new Set(loads));
+      const unit = OLD_UNITS[cols[wI]] || '';
+      cue = (cue ? cue + '\n' : '') + 'Prescribed load: ' + (uniqL.length === 1 ? uniqL[0] : loads.join(' / ')) + unit;
+    }
+  }
+
+  return { id: uid(), name: s0(e.name), sets, rest: 90, cue };
+}
+
+/** A pre-blocks session: consecutive `link`ed exercises become one superset. */
+function migrateSession(raw: unknown): CoachSession | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const s = raw as CoachSession & { exercises?: OldEx[]; section?: string };
+  if (Array.isArray(s.blocks)) return s;
+  if (!Array.isArray(s.exercises)) return null;
+
+  const blocks: AnyBlock[] = [];
+  let run: OldEx[] = [];
+  const head = s0(s.section, 'Main');
+  const flush = () => {
+    if (run.length) {
+      blocks.push(newBlock(head, run.map(migrateExercise), run.length > 1));
+      run = [];
+    }
+  };
+  s.exercises.forEach((e, i) => {
+    if (i > 0 && !e.link) flush();
+    run.push(e);
+  });
+  flush();
+  if (!blocks.length) return null;
+  return { title: s0(s.title, 'Session'), note: s0(s.note), blocks };
+}
+
+/** Coerce one session into a safe shape. Anything unusable becomes a rest day. */
+export function sanitizeSession(raw: unknown): CoachSession | null {
+  const sess = migrateSession(raw);
+  if (!sess) return null;
+  sess.title = s0(sess.title, 'Session');
+  sess.note = s0(sess.note);
+  sess.blocks = (Array.isArray(sess.blocks) ? sess.blocks : [])
+    .map((b0): AnyBlock => {
+      // Read the stored block through an index signature, not the union: the
+      // whole point is that this data may not match the shape, and narrowing on
+      // a claim it makes about itself would skip the validation.
+      const b = (b0 && typeof b0 === 'object' ? b0 : {}) as Record<string, unknown>;
+      if (b.kind === 'cond') {
+        const fmt = b.fmt as CondFmtKey;
+        const eff = b.eff as EffortKey;
+        return {
+          kind: 'cond',
+          h: s0(b.h, 'Finisher'),
+          fmt: COND_FORMATS.some((f) => f[0] === fmt) ? fmt : 'intervals',
+          eff: EFFORTS.some((f) => f[0] === eff) ? eff : 'medium',
+        };
+      }
+      return {
+        h: s0(b.h, 'Main'),
+        mins: s0(b.mins),
+        ss: !!b.ss,
+        ex: (Array.isArray(b.ex) ? (b.ex as CoachEx[]) : [])
+          .filter((e): e is CoachEx => !!e && typeof e === 'object')
+          .map((e) => {
+            const r = parseInt(String(e.rest), 10);
+            const sets = (Array.isArray(e.sets) ? e.sets : []).map((st) =>
+              newSet(s0((st as CoachSet)?.t), s0((st as CoachSet)?.rpe)),
+            );
+            return {
+              id: e.id || uid(),
+              name: s0(e.name),
+              cue: s0(e.cue),
+              rest: Number.isFinite(r) && r >= 0 ? Math.min(r, 3600) : 90,
+              sets: sets.length ? sets : [newSet()],
+            };
+          }),
+      };
+    })
+    .filter((b) => isCond(b) || b.ex.length);
+  return sess.blocks.length ? sess : null;
+}
+
+/** Read a whole stored library forward, clamping the selection to what exists. */
+export function migrateLib(raw: unknown): CoachLib {
+  const lib = raw as CoachLib | null;
+  if (!lib || typeof lib !== 'object' || !Array.isArray(lib.programs) || !lib.programs.length) return emptyLib();
+
+  const programs = lib.programs
+    .filter((p): p is CoachProgram => !!p && typeof p === 'object')
+    .map((p) => ({
+      id: p.id || uid(),
+      name: s0(p.name, 'Programme'),
+      weeks: (Array.isArray(p.weeks) && p.weeks.length ? p.weeks : [emptyWeek()]).map((w) => ({
+        days: (Array.isArray(w?.days) ? w.days : [])
+          .concat([null, null, null, null, null, null, null])
+          .slice(0, 7)
+          .map(sanitizeSession),
+      })),
+    }));
+  if (!programs.length) return emptyLib();
+
+  const sel = lib.sel && typeof lib.sel === 'object' ? lib.sel : { p: 0, w: 0, d: 0 };
+  const p = Math.max(0, Math.min(programs.length - 1, sel.p | 0));
+  return {
+    programs,
+    sel: {
+      p,
+      w: Math.max(0, Math.min(programs[p].weeks.length - 1, sel.w | 0)),
+      d: Math.max(0, Math.min(6, sel.d | 0)),
+    },
+  };
+}
+
 /** The letter shown on each card. A superset block shares one letter: A1, A2. */
 export function letters(s: CoachSession): Record<string, string> {
   const out: Record<string, string> = {};

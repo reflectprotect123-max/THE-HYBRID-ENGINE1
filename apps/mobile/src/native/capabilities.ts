@@ -29,10 +29,18 @@ export interface HeartRateMonitor {
 const HR_SERVICE = '0000180d-0000-1000-8000-00805f9b34fb';
 const HR_CHARACTERISTIC = '00002a37-0000-1000-8000-00805f9b34fb';
 
+/* The slice of react-native-ble-plx this file uses. Declared locally so the
+   module can be imported lazily without dragging its types in eagerly. */
+interface BleManagerLike {
+  destroy(): void;
+  startDeviceScan(uuids: string[] | null, opts: unknown, cb: (err: unknown, device: unknown) => void): void;
+  stopDeviceScan(): void;
+}
+
 export function createHeartRateMonitor(): HeartRateMonitor {
   // Imported lazily: react-native-ble-plx needs a custom native build, and a
   // top-level import would crash Expo Go before the app could explain why.
-  let manager: { destroy(): void; startDeviceScan: (...a: unknown[]) => void; stopDeviceScan(): void } | null = null;
+  let manager: BleManagerLike | null = null;
   let stopped = false;
 
   return {
@@ -40,17 +48,9 @@ export function createHeartRateMonitor(): HeartRateMonitor {
       stopped = false;
       try {
         const { BleManager } = (await import('react-native-ble-plx')) as unknown as {
-          BleManager: new () => never;
+          BleManager: new () => BleManagerLike;
         };
-        const m = new BleManager() as unknown as {
-          destroy(): void;
-          startDeviceScan(
-            uuids: string[] | null,
-            opts: unknown,
-            cb: (err: unknown, device: unknown) => void,
-          ): void;
-          stopDeviceScan(): void;
-        };
+        const m = new BleManager();
         manager = m;
 
         m.startDeviceScan([HR_SERVICE], null, async (err, device) => {

@@ -3,6 +3,7 @@ import {
   COACH_LS_KEY,
   emptyLib,
   emptyWeek,
+  migrateLib,
   type CoachLib,
   type CoachSession,
 } from './model';
@@ -25,21 +26,17 @@ interface Ctx {
 
 const C = createContext<Ctx | null>(null);
 
+/**
+ * Read whatever is on disk. Same localStorage key as the vanilla builder, so a
+ * coach who already has programmes opens this app and finds them — including
+ * ones written before the blocks model existed, which `migrateLib` reads
+ * forward rather than discarding.
+ */
 function load(): CoachLib {
   try {
     const raw = localStorage.getItem(COACH_LS_KEY);
     if (!raw) return emptyLib();
-    const lib = JSON.parse(raw) as CoachLib;
-    // Clamp the selection: a library edited on another device may have fewer
-    // programmes or weeks than this one last pointed at.
-    if (!lib.programs?.length) return emptyLib();
-    lib.sel = lib.sel || { p: 0, w: 0, d: 0 };
-    lib.sel.p = Math.max(0, Math.min(lib.programs.length - 1, lib.sel.p | 0));
-    const p = lib.programs[lib.sel.p];
-    if (!p.weeks?.length) p.weeks = [emptyWeek()];
-    lib.sel.w = Math.max(0, Math.min(p.weeks.length - 1, lib.sel.w | 0));
-    lib.sel.d = Math.max(0, Math.min(6, lib.sel.d | 0));
-    return lib;
+    return migrateLib(JSON.parse(raw));
   } catch {
     return emptyLib();
   }
