@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   CON_FORMATS,
   conAdapt,
@@ -8,6 +9,7 @@ import {
   conZoneOf,
   conZones,
   fmtClock,
+  isCond,
   paramsFor,
   pushCondHistory,
   uid,
@@ -33,16 +35,71 @@ import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '
  * Chromium-only; the native app uses a proper BLE stack. Where neither is
  * available the session still runs on the clock and simply banks no zone time,
  * which is honest — as opposed to inventing a heart rate.
+ *
+ * A run reached from a session's conditioning block carries that block in the
+ * query string, so the result lands ON the block rather than in the standalone
+ * history. It rides in the URL rather than in router state so a reload mid-run
+ * still knows where the result belongs.
  */
+
+/*
+ * A live run outlives the screen, exactly as it did on the vanilla app's
+ * module-level CON object.
+ *
+ * Held in component state, one tap on the nav bar — to glance at Home, or at
+ * the session you are running this for — unmounted the screen and silently
+ * threw away the run, the clock and every heart-rate sample banked so far. The
+ * clock and the sampling therefore live out here and keep running while the
+ * screen is away; the component only draws them.
+ *
+ * Deliberately not persisted: a run is over when the tab is, and resuming an
+ * hours-old run from storage would bank time nobody trained.
+ */
+const RUN: {
+  live: boolean;
+  fmt: CondFmtKey;
+  startedAt: number;
+  elapsed: number;
+  bpm: number | null;
+  samples: HrSample[];
+  timer: number | null;
+  /** The mounted screen, when there is one, so beats reach the ring. */
+  onBpm: ((n: number) => void) | null;
+} = { live: false, fmt: 'intervals', startedAt: 0, elapsed: 0, bpm: null, samples: [], timer: null, onBpm: null };
+
+function runTick() {
+  const t = Math.floor((Date.now() - RUN.startedAt) / 1000);
+  RUN.elapsed = t;
+  if (RUN.bpm != null) RUN.samples.push({ t, bpm: RUN.bpm });
+}
+
 export function Conditioning() {
-  const { hr, settings, whoop, update } = useDb();
-  const [fmt, setFmt] = useState<CondFmtKey>('intervals');
-  const [live, setLive] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [bpm, setBpm] = useState<number | null>(null);
-  const samples = useRef<HrSample[]>([]);
-  const startedAt = useRef(0);
+  const { hr, settings, whoop, activeSession, update } = useDb();
+  const [params] = useSearchParams();
+  const sinkBid = params.get('block') || '';
+  const sinkBi = Number(params.get('bi'));
+  const [fmt, setFmtState] = useState<CondFmtKey>(RUN.fmt);
+  const [live, setLive] = useState(RUN.live);
+  const [elapsed, setElapsed] = useState(RUN.live ? RUN.elapsed : 0);
+  const [bpm, setBpm] = useState<number | null>(RUN.live ? RUN.bpm : null);
   const [result, setResult] = useState<CondResult | null>(null);
+
+  const setFmt = (k: CondFmtKey) => {
+    RUN.fmt = k;
+    setFmtState(k);
+  };
+
+  // Beats arrive on the module's strap subscription and are handed to whichever
+  // screen is mounted. Reading them through a dependency instead tore the 1s
+  // tick down and rebuilt it before it could fire, for any strap notifying
+  // faster than once a second — the clock froze at 0:00 and not one sample was
+  // banked, for exactly the athletes who own the hardware.
+  useEffect(() => {
+    RUN.onBpm = setBpm;
+    return () => {
+      RUN.onBpm = null;
+    };
+  }, []);
 
   const zones = useMemo(() => conZones(hr), [hr]);
   const rx = useMemo(() => conPrescription(fmt, { settings, whoop }), [fmt, settings, whoop]);
@@ -58,31 +115,41 @@ export function Conditioning() {
     return null;
   }, [phases, elapsed]);
 
+  // Redraw only. The banking itself is RUN's timer, which does not stop when
+  // this screen does.
   useEffect(() => {
     if (!live) return;
-    const iv = window.setInterval(() => {
-      const t = Math.floor((Date.now() - startedAt.current) / 1000);
-      setElapsed(t);
-      if (bpm != null) samples.current.push({ t, bpm });
-    }, 1000);
+    const iv = window.setInterval(() => setElapsed(RUN.elapsed), 500);
     return () => window.clearInterval(iv);
-  }, [live, bpm]);
+  }, [live]);
 
   const zone = bpm == null ? null : conZoneOf(bpm, zones);
 
   function start() {
-    samples.current = [];
-    startedAt.current = Date.now();
+    if (RUN.timer) window.clearInterval(RUN.timer);
+    RUN.samples = [];
+    RUN.bpm = null;
+    RUN.startedAt = Date.now();
+    RUN.elapsed = 0;
+    RUN.live = true;
+    RUN.timer = window.setInterval(runTick, 1000);
+    setBpm(null);
     setElapsed(0);
     setResult(null);
     setLive(true);
-    void connectStrap(setBpm);
+    void connectStrap((n) => {
+      RUN.bpm = n;
+      RUN.onBpm?.(n);
+    });
   }
 
   function finish() {
+    if (RUN.timer) window.clearInterval(RUN.timer);
+    RUN.timer = null;
+    RUN.live = false;
     setLive(false);
-    const dur = Math.max(1, elapsed);
-    const trace = conDownsample(samples.current, dur);
+    const dur = Math.max(1, RUN.elapsed);
+    const trace = conDownsample(RUN.samples, dur);
     const zsec = zoneSeconds(trace, zones);
     const rec: CondResult = {
       id: uid(),
@@ -91,7 +158,7 @@ export function Conditioning() {
       zsec,
       dur,
       rec: zones.rec,
-      startedAt: startedAt.current,
+      startedAt: RUN.startedAt,
       hrr: conHrr(trace).hrr,
       trace,
     };
@@ -100,8 +167,22 @@ export function Conditioning() {
     update((draft) => {
       const { conProgress } = conAdapt(rec, draft.settings);
       draft.settings.conProgress = conProgress;
-      draft.settings.conditioning = pushCondHistory(draft.settings, rec);
       draft.settings.updatedAt = Date.now();
+
+      // A run started from a session belongs to that session's block. Banking
+      // it in the standalone history instead left the block forever unlogged:
+      // the session could never reach 100%, "Start conditioning" kept offering
+      // work already done, and the recap showed none of it. Match by block id
+      // first so an edited or reordered session still lands on the right one.
+      const ds = activeSession ? draft.sessions.find((x) => x.id === activeSession.id) : undefined;
+      let cb = ds && sinkBid ? ds.blocks.find((b) => b.id === sinkBid) : undefined;
+      if (ds && !isCond(cb)) cb = ds.blocks[sinkBi];
+      if (ds && isCond(cb)) {
+        cb.condResult = rec;
+        ds.updatedAt = Date.now();
+        return;
+      }
+      draft.settings.conditioning = pushCondHistory(draft.settings, rec);
     });
   }
 

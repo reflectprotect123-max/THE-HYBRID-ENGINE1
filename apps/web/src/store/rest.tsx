@@ -38,9 +38,32 @@ const readNum = (k: string) => {
   }
 };
 
+const forget = () => {
+  try {
+    localStorage.removeItem(REST_KEY);
+    localStorage.removeItem(REST_TOT_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+};
+
+/**
+ * What is left of a persisted rest. A rest that lapsed while the app was closed
+ * is finished, not due: read back as a live end time it re-arms the zero-buzz —
+ * so opening the app the morning after a session vibrates the phone — and
+ * leaves the 250ms tick running for the life of the tab.
+ */
+const resume = (): { ends: number; total: number } => {
+  const ends = readNum(REST_KEY);
+  if (ends > Date.now()) return { ends, total: readNum(REST_TOT_KEY) };
+  if (ends) forget();
+  return { ends: 0, total: 0 };
+};
+
 export function RestProvider({ children }: { children: ReactNode }) {
-  const [ends, setEnds] = useState<number>(() => readNum(REST_KEY));
-  const [total, setTotal] = useState<number>(() => readNum(REST_TOT_KEY));
+  const [resumed] = useState(resume);
+  const [ends, setEnds] = useState<number>(resumed.ends);
+  const [total, setTotal] = useState<number>(resumed.total);
   const [now, setNow] = useState(() => Date.now());
   const buzzed = useRef(false);
 
@@ -54,15 +77,21 @@ export function RestProvider({ children }: { children: ReactNode }) {
   }, [ends]);
 
   // Fire once at zero, then clear. `buzzed` guards the interval firing twice
-  // across the boundary.
+  // across the boundary. Dropping the end time is part of finishing: left in
+  // place it keeps the tick alive and waits to buzz again on the next reload.
   useEffect(() => {
-    if (!ends || running || buzzed.current) return;
-    buzzed.current = true;
-    try {
-      navigator.vibrate?.([200, 100, 200]);
-    } catch {
-      /* no vibration on this device */
+    if (!ends || running) return;
+    if (!buzzed.current) {
+      buzzed.current = true;
+      try {
+        navigator.vibrate?.([200, 100, 200]);
+      } catch {
+        /* no vibration on this device */
+      }
     }
+    setEnds(0);
+    setTotal(0);
+    forget();
   }, [ends, running]);
 
   const persist = (endsAt: number, tot: number) => {
@@ -101,13 +130,8 @@ export function RestProvider({ children }: { children: ReactNode }) {
   const stop = useCallback(() => {
     setEnds(0);
     setTotal(0);
-    buzzed.current = false;
-    try {
-      localStorage.removeItem(REST_KEY);
-      localStorage.removeItem(REST_TOT_KEY);
-    } catch {
-      /* nothing to clear */
-    }
+    buzzed.current = true; // skipped, not elapsed — no buzz owed
+    forget();
   }, []);
 
   const value = useMemo<RestCtx>(

@@ -163,7 +163,13 @@ export function Training() {
                   {condEffort(b).name} · RPE {condEffortRpe(condEffort(b))} · {condEffort(b).cue}
                 </p>
                 {!b.condResult ? (
-                  <Button className="mt-1.5 w-full" onClick={() => nav('/conditioning')}>
+                  <Button
+                    className="mt-1.5 w-full"
+                    // The block travels with the navigation: without it the run
+                    // finishes into the standalone history and this block never
+                    // reads as done.
+                    onClick={() => nav(`/conditioning?block=${encodeURIComponent(b.id || '')}&bi=${bi}`)}
+                  >
                     Start conditioning
                   </Button>
                 ) : null}

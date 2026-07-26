@@ -5,6 +5,7 @@ import { SyncProvider } from './cloud/sync';
 import { WhoopProvider } from './cloud/whoop';
 import { BottomNav } from './components/BottomNav';
 import { RestChip } from './components/RestChip';
+import { SaveAlert } from './components/SaveAlert';
 import { Home } from './screens/Home';
 import { Training } from './screens/Training';
 import { Logger } from './screens/Logger';
@@ -14,7 +15,6 @@ import { Conditioning } from './screens/Conditioning';
 import { History } from './screens/History';
 import { Progress } from './screens/Progress';
 import { Calendar } from './screens/Calendar';
-import { Import } from './screens/Import';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
 
@@ -34,6 +34,9 @@ import { Settings } from './screens/Settings';
 export function App() {
   return (
     <DbProvider>
+      {/* Above the router: a failed write has to reach the logger and the plan
+          editor too, and both sit outside the shell. */}
+      <SaveAlert />
       <SyncProvider>
         <WhoopProvider>
           <RestProvider>
@@ -49,7 +52,6 @@ export function App() {
                   <Route path="/history" element={<History />} />
                   <Route path="/progress" element={<Progress />} />
                   <Route path="/calendar" element={<Calendar />} />
-                  <Route path="/import" element={<Import />} />
                   <Route path="/recap/:id" element={<Recap />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

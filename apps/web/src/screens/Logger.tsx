@@ -11,6 +11,7 @@ import {
   isCond,
   isLiftMode,
   isWarmup,
+  MAX_KG,
   nextLoggerLocation,
   plateBreakdown,
   prefillPrimary,
@@ -40,9 +41,15 @@ import { Button, Card, Kicker, LetterChip, Meter, cx } from '../ui';
  * timer in place.
  *
  * All transient stage state (`phase`, the dialled RPE, the hint) lives in React
- * state, NOT on the session. Every confirmed value lands on the session's set
- * objects, so history, PRs and the recap are untouched by how the stage happens
- * to be rendered.
+ * state, NOT on the session. Every value the athlete types lands on the
+ * session's set objects as it is typed, so history, PRs and the recap are
+ * untouched by how the stage happens to be rendered — and so nothing typed is
+ * ever only in a component.
+ *
+ * Which exercise is on the stage lives in the URL, not in state. Two sources of
+ * truth for the same thing means the address bar can name one exercise while
+ * the screen shows another, and a reload mid-session then throws the athlete
+ * back to the first movement of the workout.
  */
 
 type Phase = 'input' | 'rpe' | 'rest';
@@ -55,7 +62,9 @@ export function Logger() {
   const { activeSession, sessions, update } = useDb();
   const rest = useRest();
 
-  const [loc, setLoc] = useState({ bi, ei });
+  // `replace`, so the back arrow still leaves the stage for the session list
+  // rather than walking back through every exercise the flow moved through.
+  const goTo = (l: { bi: number; ei: number }) => nav(`/log/${l.bi}/${l.ei}`, { replace: true });
   const [phase, setPhase] = useState<Phase>('input');
   const [rpe, setRpe] = useState(7.5);
   const [hint, setHint] = useState<{ txt: string; cls: 'good' | 'bad' } | null>(null);
@@ -65,15 +74,15 @@ export function Logger() {
   const [platesOpen, setPlatesOpen] = useState(false);
 
   const s = activeSession;
-  const block = s?.blocks[loc.bi];
-  const ex = block && !isCond(block) ? blockExercises(block as StrengthBlock<LoggedSet>)[loc.ei] : undefined;
+  const block = s?.blocks[bi];
+  const ex = block && !isCond(block) ? blockExercises(block as StrengthBlock<LoggedSet>)[ei] : undefined;
   const si = ex ? curSetIndex(ex) : -1;
   const st = ex && si >= 0 ? ex.sets[si] : undefined;
   const lift = !!ex && isLiftMode(ex.mode);
 
   // Prefill when the set under the cursor changes — not on every render, or a
   // keystroke would be overwritten by the prefill that produced it.
-  const setKey = `${loc.bi}-${loc.ei}-${si}`;
+  const setKey = `${bi}-${ei}-${si}`;
   const lastKey = useRef('');
   useEffect(() => {
     if (!ex || si < 0 || lastKey.current === setKey) return;
@@ -91,7 +100,7 @@ export function Logger() {
 
   const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);
   const letters = useMemo(() => (s ? sessionLetters(s) : {}), [s]);
-  const next = useMemo(() => (s ? nextLoggerLocation(s, loc.bi, loc.ei) : null), [s, loc]);
+  const next = useMemo(() => (s ? nextLoggerLocation(s, bi, ei) : null), [s, bi, ei]);
 
   if (!s || !block || isCond(block) || !ex) {
     return (
@@ -107,7 +116,30 @@ export function Logger() {
     );
   }
 
-  const letter = letters[loc.bi]?.[loc.ei] ?? '?';
+  const letter = letters[bi]?.[ei] ?? '?';
+
+  /*
+   * Every keystroke lands on the set, not just in component state.
+   *
+   * The vanilla app wrote through on input for a reason: stepping off the stage
+   * to check the session list, the phone reclaiming the tab between sets, or a
+   * reload, must not cost the number already typed. `prefillPrimary` reads
+   * `aVal` back first, so the round trip is lossless. Sanitising still happens
+   * on confirm — what is half-typed is not yet a claim about what was lifted.
+   */
+  function writeVal(slot: 1 | 2, val: string) {
+    if (slot === 1) setV1(val);
+    else setV2(val);
+    if (!s || si < 0) return;
+    update((draft) => {
+      const ds = draft.sessions.find((x) => x.id === s.id);
+      const dst = ds && (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei]?.sets?.[si];
+      if (!ds || !dst) return false;
+      if (slot === 1) dst.aVal = val;
+      else dst.aVal2 = val;
+      ds.updatedAt = Date.now();
+    });
+  }
 
   // Declared as a function statement, so the early return above does not narrow
   // `s` inside it — re-assert what the closure actually depends on.
@@ -119,8 +151,8 @@ export function Logger() {
     update((draft) => {
       const ds = draft.sessions.find((x) => x.id === s!.id);
       if (!ds) return false;
-      const db = ds.blocks[loc.bi] as StrengthBlock<LoggedSet>;
-      const dex = db.exercises[loc.ei];
+      const db = ds.blocks[bi] as StrengthBlock<LoggedSet>;
+      const dex = db.exercises[ei];
       const dst = dex.sets[si];
 
       // Sanitise on the way IN. Refusing to propagate Infinity was not enough:
@@ -164,16 +196,16 @@ export function Logger() {
 
     // Read the flow decision off the session as it will be after the write.
     const after = structuredClone(s);
-    const ab = after.blocks[loc.bi] as StrengthBlock<LoggedSet>;
-    ab.exercises[loc.ei].sets[si].done = true;
-    const { next: dest, restSec } = advanceAfterSet(after, loc.bi, loc.ei);
+    const ab = after.blocks[bi] as StrengthBlock<LoggedSet>;
+    ab.exercises[ei].sets[si].done = true;
+    const { next: dest, restSec } = advanceAfterSet(after, bi, ei);
 
     if (restSec > 0 && dest) {
       rest.start(restSec);
       setPhase('rest');
-      if (dest.bi !== loc.bi || dest.ei !== loc.ei) setLoc(dest);
-    } else if (dest && (dest.bi !== loc.bi || dest.ei !== loc.ei)) {
-      setLoc(dest);
+      if (dest.bi !== bi || dest.ei !== ei) goTo(dest);
+    } else if (dest && (dest.bi !== bi || dest.ei !== ei)) {
+      goTo(dest);
       setHint(null);
       setPhase('input');
     } else {
@@ -182,8 +214,12 @@ export function Logger() {
   }
 
   function stepWeight(dir: 1 | -1) {
-    const cur = parseFloat(v1) || 0;
-    setV1(String(Math.max(0, Math.round((cur + dir * AUTOREG.stepKg) * 100) / 100)));
+    // parseFloat('1e309') is Infinity, and `|| 0` lets it straight through:
+    // the field then read "Infinity" and the plate breakdown was asked to load
+    // a bar with it.
+    const cur = parseFloat(v1);
+    const from = Number.isFinite(cur) ? cur : 0;
+    writeVal(1, String(Math.max(0, Math.min(MAX_KG, Math.round((from + dir * AUTOREG.stepKg) * 100) / 100))));
   }
 
   const meta = [ex.tempo ? '@' + ex.tempo : '', Number(ex.rest) ? 'rest ' + fmtRest(ex.rest) : 'no rest']
@@ -254,22 +290,22 @@ export function Logger() {
                       label="Weight"
                       unit="kg"
                       value={v1}
-                      onChange={setV1}
+                      onChange={(v) => writeVal(1, v)}
                       onStep={stepWeight}
                       inputMode="decimal"
                     />
-                    <PlainField label="Reps" value={v2} onChange={setV2} inputMode="numeric" />
+                    <PlainField label="Reps" value={v2} onChange={(v) => writeVal(2, v)} inputMode="numeric" />
                   </>
                 ) : ex.mode === 'reps_seconds' ? (
                   <>
-                    <PlainField label="Secs" value={v1} onChange={setV1} inputMode="numeric" />
-                    <PlainField label="Reps" value={v2} onChange={setV2} inputMode="numeric" />
+                    <PlainField label="Secs" value={v1} onChange={(v) => writeVal(1, v)} inputMode="numeric" />
+                    <PlainField label="Reps" value={v2} onChange={(v) => writeVal(2, v)} inputMode="numeric" />
                   </>
                 ) : (
                   <PlainField
                     label={ex.mode === 'seconds' ? 'Secs' : 'Reps'}
                     value={v1}
-                    onChange={setV1}
+                    onChange={(v) => writeVal(1, v)}
                     inputMode="numeric"
                   />
                 )}
@@ -282,7 +318,7 @@ export function Logger() {
                     update((draft) => {
                       const ds = draft.sessions.find((x) => x.id === s.id);
                       if (!ds) return false;
-                      (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>).exercises[loc.ei].sets[si].note = txt;
+                      (ds.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets[si].note = txt;
                     })
                   }
                   weightKg={lift ? parseFloat(v1) || 0 : 0}
@@ -355,7 +391,7 @@ export function Logger() {
           <Button
             className="flex-1"
             onClick={() => {
-              setLoc({ bi: next.bi, ei: next.ei });
+              goTo(next);
               setPhase('input');
               setHint(null);
             }}
@@ -532,13 +568,17 @@ function Affordances({
       </div>
 
       {noteOpen ? (
+        // Written through on change, like the weight and reps beside it. Saving
+        // on blur alone lost the note whenever the field did not get a chance to
+        // blur — a reload, the phone reclaiming the tab, or the on-screen
+        // keyboard's Done key.
         <input
           autoFocus
-          defaultValue={note}
+          value={note}
+          onChange={(e) => onNote(e.target.value)}
           maxLength={120}
           placeholder="note (e.g. belt, tweak)"
           aria-label="set note text"
-          onBlur={(e) => onNote(e.target.value)}
           className="mt-1 h-5 w-full rounded-md border border-line bg-well px-1 text-4 outline-none focus:border-gold-line"
         />
       ) : null}

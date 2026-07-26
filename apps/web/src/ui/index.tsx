@@ -113,14 +113,20 @@ export function Empty({ title, body, action }: { title: string; body?: string; a
   );
 }
 
-/** The superset/exercise marker. A pair shares one letter: A1, A2. */
+/**
+ * The superset/exercise marker. A pair shares one letter: A1, A2.
+ *
+ * Only the logger's chip is a control. Everywhere else the chip sits INSIDE the
+ * button that opens the exercise, and a button nested in a button is invalid
+ * HTML — React rejects the nesting outright, and a screen reader is left
+ * announcing two controls where the athlete sees one label.
+ */
 export function LetterChip({ letter, onClick }: { letter: string; onClick?: () => void }) {
+  const cls =
+    'num grid h-4 min-w-4 shrink-0 place-items-center rounded-sm border border-gold-line bg-gold-wash px-0.5 text-3 font-[800] text-gold2';
+  if (!onClick) return <span className={cls}>{letter}</span>;
   return (
-    <button
-      onClick={onClick}
-      aria-label={onClick ? 'back to session' : undefined}
-      className="num grid h-4 min-w-4 shrink-0 place-items-center rounded-sm border border-gold-line bg-gold-wash px-0.5 text-3 font-[800] text-gold2"
-    >
+    <button onClick={onClick} aria-label="back to session" className={cls}>
       {letter}
     </button>
   );
