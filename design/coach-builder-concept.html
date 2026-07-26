@@ -67,8 +67,12 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .kicker{font-size:10px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:rgba(224,188,135,.72)}
 .ttl{font-size:27px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin:4px 0 22px}
 .sec{display:flex;align-items:baseline;gap:10px;margin:26px 0 0}
-.sec h2{margin:0;font-size:12.5px;font-weight:850;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
 .sec span{color:var(--dim);font-size:11px}
+/* an editable heading that stays a heading: no border until you reach for it */
+.sech{margin:0;padding:2px 6px;width:auto;min-width:40px;max-width:340px;border:1px solid transparent;border-radius:6px;background:transparent;
+  font:inherit;font-size:12.5px;font-weight:850;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2);outline:none}
+.sech:hover{border-color:var(--line2)}
+.sech:focus{border-color:var(--gold-line);background:var(--well);box-shadow:var(--well-inset)}
 
 /* the Logger card */
 .lgx{position:relative;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);margin-top:10px;box-shadow:var(--shadow-card);transition:border-color .15s ease}
@@ -145,8 +149,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .planseam button:hover{border-color:rgba(224,188,135,.45);color:var(--gold2)}
 .planseam button.on{color:var(--gold2);border-color:var(--gold-line);background:var(--gold-wash)}
 .planseam svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none}
-.superwrap{margin-top:10px;padding-left:12px;border-left:3px solid var(--gold)}
-.superlabel{color:var(--muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-top:14px}
+.superwrap{margin-top:12px;padding-left:12px;border-left:3px solid var(--gold)}
 .lgx.cond{border-color:rgba(51,192,122,.26)}
 .lgx.cond .lgltr{color:var(--zone-green)}
 .lgx.cond.open{border-color:transparent}
@@ -229,7 +232,7 @@ var B=[
 var OPEN={b:0,e:0}, PICK=null;
 
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-function rest(s){return s?Math.floor(s/60)+':'+String(s%60).padStart(2,'0'):'flows on'}
+function rest(s){return s?Math.floor(s/60)+':'+String(s%60).padStart(2,'0'):'none'}
 /* Letters run A, B, C… across the whole session; a superset pair shares one
    letter as A1/A2 — the same scheme the phone uses. */
 function letters(){
@@ -257,7 +260,9 @@ function summary(x){
   var rpes=x.sets.map(function(st){return st.rpe==null?'':String(st.rpe).trim()}).filter(Boolean);
   if(rpes.length){var ur=uniq(rpes);
     rx+=' · <i>RPE '+(ur.length===1?ur[0]:rpes[0]+'→'+rpes[rpes.length-1])+'</i>';}
-  return rx+' · '+(x.rest?'rest '+rest(x.rest):'flows on');
+  // rxLine omits rest when it is zero rather than captioning it — a solo
+  // exercise with no rest is not "flowing on" to anything
+  return rx+(x.rest?' · rest '+rest(x.rest):'');
 }
 
 /* ---- render ---- */
@@ -265,13 +270,20 @@ function render(){
   LTR=letters();
   var out='';
   B.forEach(function(b,bi){
-    out+='<div class="sec"><h2>'+esc(b.h)+'</h2><span>'+esc(b.mins)+'</span></div>';
+    // the heading is an input that looks like a heading until you touch it —
+    // no edit mode to enter or leave, and splitting a block leaves you able to
+    // rename the copy on the spot
+    out+='<div class="sec">'+
+      '<input class="sech" value="'+esc(b.h)+'" data-h="'+bi+'" spellcheck="false" aria-label="block name">'+
+      '<span>'+esc(b.mins)+'</span></div>';
     if(b.cond){out+=condCard(b,bi);return;}
     // a seam sits between every pair of adjacent cards: lit = they flow together
     var rows=b.ex.map(function(x,ei){
       return card(x,bi,ei)+(ei<b.ex.length-1?seam(bi,ei,false,!!b.ss):'');
     }).join('');
-    out+=b.ss?'<div class="superwrap"><div class="superlabel">Superset · flows on</div>'+rows+'</div>':rows;
+    // the gold rail and the A1/A2 letters already say "these flow together" —
+    // the label was saying it a third time
+    out+=b.ss?'<div class="superwrap">'+rows+'</div>':rows;
     // and one across the boundary into the next strength block, to merge them
     var nb=B[bi+1];
     if(nb&&!nb.cond)out+=seam(bi,b.ex.length-1,true,false);
@@ -393,6 +405,10 @@ document.addEventListener('input',function(e){
     // crossing the warm-up line is the one edit that changes the row itself
     if(isWarmup(st)!==wasWarm)paintWarm(e.target,isWarmup(st));
   }
+  if(e.target.classList.contains('sech')){
+    B[+e.target.getAttribute('data-h')].h=e.target.value;   // keystroke: no re-render
+    return;
+  }
   if(e.target.classList.contains('setr')){
     var a=e.target.getAttribute('data-r').split(',');
     B[+a[0]].ex[+a[1]].sets[+a[2]].rpe=e.target.value;
@@ -421,7 +437,7 @@ function focusSet(bi,ei,si){
 }
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape')closePick();
-  if(e.key==='Enter'&&e.target.classList.contains('sett')){e.target.blur();}
+  if(e.key==='Enter'&&(e.target.classList.contains('sett')||e.target.classList.contains('setr')||e.target.classList.contains('sech'))){e.target.blur();}
 });
 /* Deliberately NO re-render on blur. The model is already current from the
    input handler, and rebuilding the list mid-interaction destroys the field
