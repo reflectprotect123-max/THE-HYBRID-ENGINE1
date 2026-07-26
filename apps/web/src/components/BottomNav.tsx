@@ -8,8 +8,9 @@ import { cx } from '../ui';
  */
 const TABS = [
   { to: '/', label: 'Home', icon: HomeIcon },
-  { to: '/training', label: 'Training', icon: TrainIcon },
+  { to: '/training', label: 'Train', icon: TrainIcon },
   { to: '/library', label: 'Library', icon: LibIcon },
+  { to: '/progress', label: 'Progress', icon: ChartIcon },
   { to: '/settings', label: 'Settings', icon: CogIcon },
 ];
 
@@ -19,7 +20,7 @@ export function BottomNav() {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[560px] border-t border-line bg-panel3/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-5">
         {TABS.map(({ to, label, icon: Icon }) => (
           <li key={to}>
             <NavLink
@@ -66,6 +67,9 @@ function TrainIcon({ lit }: { lit?: boolean }) {
 }
 function LibIcon({ lit }: { lit?: boolean }) {
   return S('M5 4.5h3.4v15H5zM10.2 4.5h3.4v15h-3.4zM16.2 5.4l3.1.8-3.6 13.9-3.1-.8z', lit);
+}
+function ChartIcon({ lit }: { lit?: boolean }) {
+  return S('M4 19.5h16M7 16V9.5M12 16V5.5M17 16v-4', lit);
 }
 function CogIcon({ lit }: { lit?: boolean }) {
   return S(

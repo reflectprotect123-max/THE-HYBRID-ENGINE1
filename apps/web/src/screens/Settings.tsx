@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { conMaxHr, conZones, restingHr, type Profile } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { useSync } from '../cloud/sync';
+import { useWhoop } from '../cloud/whoop';
 import { Button, Card, Kicker, ScreenTitle, SectionHead } from '../ui';
 
 /*
@@ -90,6 +92,9 @@ export function Settings() {
         ) : null}
       </Card>
 
+      <CloudCard />
+      <WhoopCard />
+
       <SectionHead title="Your data" />
       <Card className="flex flex-col gap-1">
         <p className="num text-4 text-muted">
@@ -101,6 +106,133 @@ export function Settings() {
         <p className="text-3 text-dim">
           A plain JSON file with everything on this device. Keeping one is worth the ten seconds.
         </p>
+      </Card>
+    </>
+  );
+}
+
+function CloudCard() {
+  const { enabled, user, busy, error, syncedAt, signIn, signUp, signOut, syncNow } = useSync();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [msg, setMsg] = useState('');
+  const [working, setWorking] = useState(false);
+
+  if (!enabled) return null;
+
+  const go = async (fn: (e: string, p: string) => Promise<string | null>) => {
+    setWorking(true);
+    setMsg((await fn(email, password)) || '');
+    setWorking(false);
+  };
+
+  return (
+    <>
+      <SectionHead title="Cloud sync" />
+      <Card>
+        {user ? (
+          <>
+            <p className="text-4 text-muted">
+              Signed in as <b className="text-text">{user.email}</b>
+            </p>
+            <p className="mt-0.5 text-3 text-dim">
+              {busy
+                ? 'Syncing…'
+                : syncedAt
+                  ? 'Last synced ' + new Date(syncedAt).toLocaleTimeString()
+                  : 'Not synced yet this session.'}
+            </p>
+            {error ? <p className="mt-1 text-3 text-bad">{error}</p> : null}
+            <div className="mt-1.5 flex gap-1">
+              <Button onClick={() => void syncNow()} disabled={busy}>
+                Sync now
+              </Button>
+              <Button variant="quiet" onClick={() => void signOut()}>
+                Sign out
+              </Button>
+            </div>
+            <p className="mt-1 text-3 text-dim">
+              Devices merge by record rather than overwriting, so logging on your phone and scheduling on a laptop
+              between syncs will not cost you either one.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-4 text-muted">Sign in to sync across devices and receive sessions from a coach.</p>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              autoComplete="email"
+              placeholder="email"
+              aria-label="email"
+              className="mt-1 h-5 w-full rounded-md border border-line bg-well px-1 text-4 outline-none focus:border-gold-line"
+            />
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              autoComplete="current-password"
+              placeholder="password"
+              aria-label="password"
+              className="mt-1 h-5 w-full rounded-md border border-line bg-well px-1 text-4 outline-none focus:border-gold-line"
+            />
+            {msg ? <p className="mt-1 text-3 text-warn">{msg}</p> : null}
+            <div className="mt-1.5 flex gap-1">
+              <Button variant="brass" disabled={working} onClick={() => void go(signIn)}>
+                Sign in
+              </Button>
+              <Button disabled={working} onClick={() => void go(signUp)}>
+                Create account
+              </Button>
+            </div>
+          </>
+        )}
+      </Card>
+    </>
+  );
+}
+
+function WhoopCard() {
+  const { connected, sample, busy, error, lastSyncAt, connect, sync, disconnect } = useWhoop();
+  return (
+    <>
+      <SectionHead title="WHOOP" />
+      <Card>
+        {connected ? (
+          <>
+            <p className="text-4 text-muted">
+              Connected
+              {sample?.recoveryScore != null ? (
+                <>
+                  {' '}· today&apos;s recovery <b className="text-gold2">{Math.round(Number(sample.recoveryScore))}%</b>
+                </>
+              ) : ' · no reading yet today'}
+            </p>
+            {lastSyncAt ? (
+              <p className="mt-0.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</p>
+            ) : null}
+            <div className="mt-1.5 flex gap-1">
+              <Button onClick={() => void sync()} disabled={busy}>
+                {busy ? 'Pulling…' : 'Pull now'}
+              </Button>
+              <Button variant="quiet" onClick={() => void disconnect()}>
+                Disconnect
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-4 text-muted">
+              Connect WHOOP and your zones re-tune to the day: a low-recovery morning widens the easy band and pulls
+              the hard line down.
+            </p>
+            <Button variant="brass" className="mt-1.5" onClick={connect}>
+              Connect WHOOP
+            </Button>
+          </>
+        )}
+        {error ? <p className="mt-1 text-3 text-dim">{error}</p> : null}
       </Card>
     </>
   );

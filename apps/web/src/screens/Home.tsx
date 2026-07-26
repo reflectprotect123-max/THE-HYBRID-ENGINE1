@@ -150,6 +150,14 @@ export function Home() {
         </ul>
       </Card>
 
+      <SectionHead title="Elsewhere" />
+      <div className="flex flex-wrap gap-1">
+        <Button onClick={() => nav('/history')}>History</Button>
+        <Button onClick={() => nav('/calendar')}>Calendar</Button>
+        <Button onClick={() => nav('/import')}>Import a workout</Button>
+        <Button onClick={() => nav('/conditioning')}>Conditioning</Button>
+      </div>
+
       <SectionHead title="Last 7 days" />
       <Card className="num flex items-baseline gap-2">
         <div>

@@ -17,6 +17,8 @@ export * from './hr';
 export * from './conditioning';
 export * from './session';
 export * from './logger';
+export * from './importer';
 export * from './db';
+export * from './cloud';
 export * from './storage';
 export * as emit from './emit';

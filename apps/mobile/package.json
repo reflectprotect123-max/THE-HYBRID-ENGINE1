@@ -3,7 +3,7 @@
   "version": "2.14.0",
   "private": true,
   "main": "index.js",
-  "//": "Expo SDK 54 — RN 0.81 on React 19, so the whole monorepo stays on one React major. SDK 52 predates React 19 and would have forced a second React version into the workspace.",
+  "//": "Expo SDK 54 \u2014 RN 0.81 on React 19, so the whole monorepo stays on one React major. SDK 52 predates React 19 and would have forced a second React version into the workspace.",
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",
@@ -12,9 +12,10 @@
     "build:aab": "eas build --platform android --profile production",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"mobile is verified on a device — see checks/README\" && exit 0"
+    "test": "echo \"mobile is verified on a device \u2014 see checks/README\" && exit 0"
   },
   "dependencies": {
+    "@hybrid/config": "workspace:*",
     "@hybrid/design": "workspace:*",
     "@hybrid/engine": "workspace:*",
     "@react-navigation/bottom-tabs": "^7.4.0",

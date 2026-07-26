@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LibProvider, useLib } from './store';
+import { CoachCloudProvider } from './cloud';
 import { Editor } from './Editor';
 import { emptyWeek, newSession } from './model';
 
@@ -11,7 +12,9 @@ import { emptyWeek, newSession } from './model';
 export function App() {
   return (
     <LibProvider>
-      <Shell />
+      <CoachCloudProvider>
+        <Shell />
+      </CoachCloudProvider>
     </LibProvider>
   );
 }

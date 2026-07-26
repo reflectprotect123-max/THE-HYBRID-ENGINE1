@@ -253,12 +253,115 @@ await t('a weight of 1e309 cannot poison the record', async () => {
   assert(Number.isFinite(Number(stored)), 'a non-finite weight reached storage: ' + stored);
 });
 
-await t('History shows the finished work', async () => {
+await t('finishing a session lands on the recap, with the numbers', async () => {
   await page.goto(base + '/training', { waitUntil: 'networkidle' });
   await page.click('button:has-text("Finish session")');
+  await page.waitForURL(/\/recap\//);
+  await page.waitForSelector('text=Volume', { timeout: 5000 }).catch(() => {});
+  const txt = await page.textContent('body');
+  assert(
+    /Volume/.test(txt) && /Working sets/.test(txt),
+    'recap stats missing at ' + page.url() + ' — body: ' + txt.slice(0, 200),
+  );
+  // The warm-up must not be counted as a working set.
+  assert(!/Working sets[\s\S]{0,40}\b3\b/.test(txt), 'warm-up appears to have been counted as working');
+});
+
+await t('History shows the finished work', async () => {
   await page.goto(base + '/history', { waitUntil: 'networkidle' });
   const txt = await page.textContent('body');
   assert(/Lower A/.test(txt), 'finished session missing from History');
+});
+
+await t('Progress renders trends without a chart library', async () => {
+  await page.goto(base + '/progress', { waitUntil: 'networkidle' });
+  const txt = await page.textContent('body');
+  assert(/Weekly volume|Top lifts|Not enough logged/.test(txt), 'Progress rendered nothing: ' + txt.slice(0, 200));
+});
+
+await t('Calendar marks a trained day differently from a planned one', async () => {
+  await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
+  await page.waitForSelector('text=trained');
+  const trained = await page.$$('[title="trained"]');
+  assert(trained.length >= 1, 'the session logged above should mark today as trained');
+});
+
+await t('Settings offers cloud sign-in and a WHOOP connect', async () => {
+  await page.goto(base + '/settings', { waitUntil: 'networkidle' });
+  await page.waitForSelector('text=Cloud sync');
+  const txt = await page.textContent('body');
+  assert(/Sign in/.test(txt), 'no sign-in control');
+  assert(/Connect WHOOP/.test(txt), 'no WHOOP connect control');
+  // The functions are not served here, so the status call fails. That must
+  // degrade to "not connected", never to a broken screen.
+  assert(/Karvonen|percent of max/.test(txt), 'zone summary missing after a failed WHOOP status call');
+});
+
+/* ---------- importer ---------- */
+
+await t('the importer parses pasted whiteboard shorthand', async () => {
+  await page.goto(base + '/import', { waitUntil: 'networkidle' });
+  await page.fill('textarea[aria-label="workout text"]', 'Lower B\nA1) Back squat 5x5 @8\nA2) RDL 3x10\nrest 120');
+  await page.waitForSelector('text=Lower B');
+  const txt = await page.textContent('body');
+  assert(/Back squat/.test(txt), 'squat not recognised');
+  assert(/Romanian deadlift/.test(txt), 'RDL alias not resolved to its canonical name');
+  assert(/superset/.test(txt), 'A1/A2 did not become a superset');
+});
+
+await t('an unknown movement asks rather than guessing silently', async () => {
+  await page.fill('textarea[aria-label="workout text"]', 'Zercher goodmorning 3x8');
+  await page.waitForSelector('text=Not in the library');
+});
+
+await t('teaching it a movement sticks', async () => {
+  await page.click('button:has-text("Yes — remember it")');
+  const learned = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    return db.settings.lexicon?.ex || {};
+  });
+  assert(Object.keys(learned).length >= 1, 'nothing was learned: ' + JSON.stringify(learned));
+});
+
+await t('an imported workout saves to the Library', async () => {
+  await page.fill('textarea[aria-label="workout text"]', 'Lower B\nBack squat 5x5 @8\nRDL 3x10');
+  await page.waitForSelector('button:has-text("Save to Library")');
+  await page.click('button:has-text("Save to Library")');
+  await page.waitForURL(/\/library/);
+  const txt = await page.textContent('body');
+  assert(/Lower B/.test(txt), 'imported workout not in the Library');
+});
+
+/* ---------- planner ---------- */
+
+await t('the plan editor edits a target and it persists', async () => {
+  await page.click('button:has-text("Lower B")');
+  await page.click('button:has-text("Edit")');
+  await page.waitForURL(/\/planner\//);
+  await page.waitForSelector('input[aria-label="target for set 1"]');
+  await page.fill('input[aria-label="target for set 1"]', 'W10');
+  await page.fill('input[aria-label="target for set 2"]', '3');
+  const stored = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const w = db.workouts.find((x) => x.name === 'Lower B');
+    return w.blocks[0].exercises[0].sets.slice(0, 2).map((s) => s.t);
+  });
+  assert(stored[0] === 'W10' && stored[1] === '3', 'targets not saved: ' + JSON.stringify(stored));
+});
+
+await t('a coach-assigned session is read-only in the plan editor', async () => {
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.workouts.push({
+      id: 'coach:zz', origin: 'coach', assignmentId: 'zz', name: 'Coach Session', updatedAt: 1,
+      blocks: [{ id: 'b', heading: 'Main', exercises: [{ id: 'e', name: 'Bench', mode: 'reps_kg', rest: 90, sets: [{ t: '5', rpe: '8' }] }] }],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/planner/coach:zz', { waitUntil: 'networkidle' });
+  await page.waitForSelector('text=read-only');
+  const ro = await page.getAttribute('input[aria-label="session name"]', 'readonly');
+  assert(ro !== null, 'a coach session must not be locally editable');
 });
 
 /* ---------- coach app ---------- */
@@ -280,10 +383,47 @@ await t('a session can be authored and validates against the emit contract', asy
   await page.fill('input[aria-label="target for set 1"]', 'W10');
   await page.fill('input[aria-label="target for set 2"]', '5');
   await page.fill('input[aria-label="target RPE for set 2"]', '8');
+  // Signed out, publish degrades to validate-only — the coach still learns
+  // whether the session would cross the boundary cleanly.
   await page.click('button:has-text("Validate & publish")');
-  await page.waitForSelector('text=validated against the athlete contract');
+  await page.waitForSelector('text=ready to send');
   const txt = await page.textContent('body');
   assert(!/Could not convert/.test(txt), 'emit contract rejected a valid session: ' + txt.slice(0, 300));
+  assert(/Sign in to send this to an athlete/.test(txt), 'signed-out state should explain what is missing');
+});
+
+await t('a logger-owned field in the coach library cannot reach an athlete', async () => {
+  // Corrupt the stored library directly — the UI cannot produce this shape.
+  // The conversion copies only `t` and `rpe`, and the loader rebuilds sets
+  // through newSet, so the field is stripped twice over before the contract
+  // ever sees it. Publishing must therefore still succeed, with the injected
+  // value gone rather than carried.
+  await page.evaluate(() => {
+    const lib = JSON.parse(localStorage.getItem('hybrid-coach-v1'));
+    lib.programs[0].weeks[0].days[0].blocks[0].ex[0].sets[0].aVal = '999';
+    localStorage.setItem('hybrid-coach-v1', JSON.stringify(lib));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('button:has-text("Validate & publish")');
+  await page.click('button:has-text("Validate & publish")');
+  await page.waitForSelector('text=ready to send');
+
+  // The loader rebuilds every set through newSet, so the in-memory model is
+  // already clean — but the corrupted blob is still on disk until something
+  // writes. Any edit heals it, so make one and check the store.
+  //
+  // It must be a DIFFERENT value: React suppresses onChange when the value is
+  // unchanged, so re-filling the existing text writes nothing and this would
+  // silently assert against the stale blob.
+  await page.fill('input[aria-label="block name"]', 'Main block');
+  const stripped = await page.evaluate(() => {
+    const lib = JSON.parse(localStorage.getItem('hybrid-coach-v1'));
+    return Object.keys(lib.programs[0].weeks[0].days[0].blocks[0].ex[0].sets[0]).sort();
+  });
+  assert(
+    JSON.stringify(stripped) === JSON.stringify(['rpe', 't']),
+    'a planned set must be exactly {t,rpe} after load, got: ' + JSON.stringify(stripped),
+  );
 });
 
 await t('the superset seam chains two cards into one unit', async () => {

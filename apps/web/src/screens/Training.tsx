@@ -66,6 +66,9 @@ export function Training() {
       ds.completedAt = Date.now();
       ds.updatedAt = Date.now();
     });
+    // Straight to the recap: the moment after finishing is the only time
+    // anyone actually reads what they just did.
+    nav(`/recap/${activeSession.id}`);
   }
 
   if (!activeSession) {

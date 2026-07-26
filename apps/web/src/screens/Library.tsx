@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   blockExercises,
   isCond,
@@ -22,6 +23,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * you were given.
  */
 export function Library() {
+  const nav = useNavigate();
   const { db, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
 
@@ -33,7 +35,7 @@ export function Library() {
     update((draft) => {
       draft.workouts.push(w);
     });
-    setOpen(w.id);
+    nav(`/planner/${w.id}`);
   }
 
   function toggleDay(id: string, d: number) {
@@ -92,9 +94,14 @@ export function Library() {
                 {open === w.id ? (
                   <>
                     <WorkoutDetail w={w} />
-                    <Button className="mt-1.5" size="sm" onClick={() => removeWorkout(w.id)}>
-                      Delete session
-                    </Button>
+                    <div className="mt-1.5 flex gap-1">
+                      <Button size="sm" variant="brass" onClick={() => nav(`/planner/${w.id}`)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" onClick={() => removeWorkout(w.id)}>
+                        Delete session
+                      </Button>
+                    </div>
                   </>
                 ) : null}
               </Card>
@@ -120,6 +127,9 @@ export function Library() {
                     <p className="num mt-0.5 text-3 text-dim">for {(w.dates || []).join(', ')}</p>
                   ) : null}
                   <WorkoutDetail w={w} />
+                  <Button size="sm" className="mt-1.5" onClick={() => nav(`/planner/${w.id}`)}>
+                    View
+                  </Button>
                 </Card>
               </li>
             ))}

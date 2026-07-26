@@ -161,7 +161,12 @@ export interface Settings {
   conProgress?: Record<string, ProgressState>;
   conditioning?: CondResult[];
   customFmt?: { rounds?: number | string; work?: number | string; rest?: number | string };
-  lexicon?: { kw?: Record<string, string>; ex?: Record<string, string> };
+  /**
+   * What the importer has been taught. `kw` maps a word to a meaning (a
+   * habitual typo → 'rest'); `ex` maps an alias to a real movement, which is
+   * why its values are objects and not strings.
+   */
+  lexicon?: { kw?: Record<string, string>; ex?: Record<string, { name: string; mode: ModeKey }> };
   deletedIds?: Record<string, number>;
   devices?: Record<string, { seen?: number; name?: string }>;
   whoopDaily?: unknown;

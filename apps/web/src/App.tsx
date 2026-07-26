@@ -1,14 +1,21 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { DbProvider } from './store/db';
 import { RestProvider } from './store/rest';
+import { SyncProvider } from './cloud/sync';
+import { WhoopProvider } from './cloud/whoop';
 import { BottomNav } from './components/BottomNav';
 import { RestChip } from './components/RestChip';
 import { Home } from './screens/Home';
 import { Training } from './screens/Training';
 import { Logger } from './screens/Logger';
 import { Library } from './screens/Library';
+import { Planner } from './screens/Planner';
 import { Conditioning } from './screens/Conditioning';
 import { History } from './screens/History';
+import { Progress } from './screens/Progress';
+import { Calendar } from './screens/Calendar';
+import { Import } from './screens/Import';
+import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
 
 /*
@@ -18,33 +25,43 @@ import { Settings } from './screens/Settings';
  * that system had to fake.
  *
  * The Logger and the plan editor are full-screen by design — they sit OUTSIDE
- * the shell so nothing competes with the set in front of you. That is why they
- * are not nested under the chrome route.
+ * the shell so nothing competes with the work in front of you, which is why
+ * they are not nested under the chrome route.
+ *
+ * Provider order matters: Sync and WHOOP both read the DB, and Sync writes to
+ * it on a pull, so DbProvider has to be outermost.
  */
 export function App() {
   return (
     <DbProvider>
-      <RestProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/log/:bi/:ei" element={<Logger />} />
-            <Route element={<Shell />}>
-              <Route path="/" element={<Home />} />
-              <Route path="/training" element={<Training />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/conditioning" element={<Conditioning />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </RestProvider>
+      <SyncProvider>
+        <WhoopProvider>
+          <RestProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/log/:bi/:ei" element={<Logger />} />
+                <Route path="/planner/:id" element={<Planner />} />
+                <Route element={<Shell />}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/training" element={<Training />} />
+                  <Route path="/library" element={<Library />} />
+                  <Route path="/conditioning" element={<Conditioning />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/progress" element={<Progress />} />
+                  <Route path="/calendar" element={<Calendar />} />
+                  <Route path="/import" element={<Import />} />
+                  <Route path="/recap/:id" element={<Recap />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </RestProvider>
+        </WhoopProvider>
+      </SyncProvider>
     </DbProvider>
   );
 }
-
-import { Outlet } from 'react-router-dom';
 
 function Shell() {
   return (

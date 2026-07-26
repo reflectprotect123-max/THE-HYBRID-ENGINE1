@@ -11,6 +11,7 @@
     "test": "echo \"web e2e lives in checks/\" && exit 0"
   },
   "dependencies": {
+    "@hybrid/config": "workspace:*",
     "@hybrid/design": "workspace:*",
     "@hybrid/engine": "workspace:*",
     "@supabase/supabase-js": "^2.110.8",

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { isWarmup, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useLib } from './store';
+import { useCoachCloud } from './cloud';
 import {
   COND_FORMATS,
   EFFORTS,
@@ -39,9 +40,12 @@ export function Editor({
   setPublishing: (b: boolean) => void;
 }) {
   const { lib, day, update } = useLib();
+  const cloud = useCoachCloud();
   const [open, setOpen] = useState<{ b: number; e: number } | null>({ b: 0, e: 0 });
   const [pick, setPick] = useState<{ b: number; e: number } | null>(null);
   const [msg, setMsg] = useState('');
+  const [athlete, setAthlete] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   if (!day) return null;
   const s = day;
@@ -55,15 +59,32 @@ export function Editor({
       fn(target);
     });
 
-  function publish() {
-    setPublishing(true);
+  /**
+   * Validate first, always — a session that cannot cross the emit contract must
+   * fail here, in front of the coach who can fix it, rather than on a phone.
+   */
+  function validate() {
     try {
       const snap = assertPublishable(s);
-      setMsg(`Ready to publish — ${snap.blocks.length} blocks validated against the athlete contract.`);
+      setMsg(`Valid — ${snap.blocks.length} block${snap.blocks.length === 1 ? '' : 's'} ready to send.`);
+      return true;
     } catch (e) {
       setMsg('Could not convert session: ' + (e as Error).message);
+      return false;
     }
+  }
+
+  async function publish() {
+    if (!validate()) return;
+    const to = athlete || cloud.user?.id || '';
+    if (!to) {
+      setMsg('Sign in to send this to an athlete.');
+      return;
+    }
+    setPublishing(true);
+    const err = await cloud.publish(s, to, date);
     setPublishing(false);
+    setMsg(err || `Sent to ${cloud.athletes.find((a) => a.id === to)?.label || 'athlete'} for ${date}.`);
   }
 
   return (
@@ -190,15 +211,53 @@ export function Editor({
         <AddBtn onClick={() => edit((d) => void d.blocks.push(newCond()))}>♥ Conditioning</AddBtn>
       </div>
 
-      <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
-        <button
-          onClick={publish}
-          disabled={publishing}
-          className="h-6 rounded-md px-2.5 text-5 font-[650] text-[#1b1509] shadow-brass [background:var(--brass)] disabled:opacity-40"
-        >
-          Validate &amp; publish
-        </button>
-        {msg ? <p className="text-4 text-muted">{msg}</p> : null}
+      <div className="mt-2 border-t border-line pt-2">
+        <div className="flex flex-wrap items-center gap-1">
+          {cloud.user ? (
+            <>
+              <select
+                value={athlete}
+                onChange={(e) => setAthlete(e.target.value)}
+                aria-label="athlete"
+                className="h-6 rounded-md border border-line bg-well px-1 text-4 text-text outline-none focus:border-gold-line"
+              >
+                {cloud.athletes.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                aria-label="scheduled date"
+                className="num h-6 rounded-md border border-line bg-well px-1 text-4 text-text outline-none focus:border-gold-line"
+              />
+              <button
+                onClick={() => void publish()}
+                disabled={publishing}
+                className="h-6 rounded-md px-2.5 text-5 font-[650] text-[#1b1509] shadow-brass [background:var(--brass)] disabled:opacity-40"
+              >
+                {publishing ? 'Sending…' : 'Send to athlete'}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={validate}
+              className="h-6 rounded-md px-2.5 text-5 font-[650] text-[#1b1509] shadow-brass [background:var(--brass)]"
+            >
+              Validate &amp; publish
+            </button>
+          )}
+        </div>
+        {msg ? <p className="mt-1 text-4 text-muted">{msg}</p> : null}
+        {!cloud.user ? (
+          <p className="mt-1 text-3 text-dim">
+            Sign in to send this to an athlete. Until then it stays on this machine — validation still runs, so you
+            know it would cross the boundary cleanly.
+          </p>
+        ) : null}
       </div>
 
       {pick ? (

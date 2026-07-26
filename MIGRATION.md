@@ -6,6 +6,7 @@ workspace sharing a single engine.
 ## What exists now
 
 ```
+packages/config     Supabase + function endpoints, one source for all apps
 packages/engine     pure TypeScript. No DOM, no globals, no storage.
 packages/design     tokens → Tailwind (web) + NativeWind (native), 8px grid
 apps/web            athlete PWA — React 19 + Vite + Tailwind v4
@@ -29,9 +30,12 @@ sub-grid step and is written to stand out in review.
 
 | What | How | Result |
 |---|---|---|
-| Engine matches the shipped app | 1,262 golden vectors harvested from the live `app.js` in a real browser (`checks/golden-vectors.mjs`), asserted by `packages/engine/test/golden.test.ts` | 33 tests pass |
-| React apps actually run | `checks/react-smoke.mjs` serves the built output and drives both apps in Chromium | 15 checks pass |
-| Types | `pnpm -r typecheck` across all five packages | clean |
+| Engine matches the shipped app | 1,296 golden vectors harvested from the live `app.js` in a real browser (`checks/golden-vectors.mjs`) | 71 tests pass |
+| Sync rules | `packages/engine/test/cloud.test.ts` — assignment reconcile, push/pull merge, coach digest bounds | included above |
+| The coach→athlete boundary | `packages/engine/test/emit.test.ts` — every forbidden set key is refused | included above |
+| The importer | `packages/engine/test/importer.test.ts` — 19 harvested parse cases plus the lexicon | included above |
+| React apps actually run | `checks/react-smoke.mjs` serves the built output and drives both apps in Chromium | 26 checks pass |
+| Types | `pnpm -r typecheck` across all six packages | clean |
 | The vanilla app still works | the six original suites | all pass |
 | CSP | built HTML contains zero inline `<script>`; `checks/pentest.mjs` still holds | 22 attacks, 0 findings |
 
@@ -69,6 +73,23 @@ replaces them:
 | `AndroidVoice` — SpeechRecognizer | not yet ported — see below |
 | `AndroidSteps` — hardware step counter | `expo-sensors` Pedometer |
 
+## Cloud, WHOOP and the coach loop
+
+Wired and building; the rules are unit-tested, the network paths are not.
+
+- **Auth + sync** (`apps/web/src/cloud/sync.tsx`): pull merges by record, push
+  merges against whatever the remote already holds, coach materialisations are
+  stripped from both sides of the push, assignments reconcile separately, and
+  the coach digest publishes only when a link is active.
+- **WHOOP** (`apps/web/src/cloud/whoop.tsx`): status/sync/disconnect through the
+  existing Netlify functions; connect is a full-page redirect because the OAuth
+  handshake has to happen in the address bar. A failed status call degrades to
+  "not connected" — the smoke test asserts the screen still works.
+- **Coach publishing** (`apps/coach/src/cloud.tsx`): writes a session SNAPSHOT
+  to `assignments`, idempotent per athlete/date. Signed out, the button
+  degrades to validate-only so a coach still learns whether the session would
+  cross the boundary cleanly.
+
 ## What is NOT done
 
 Stated plainly, because a green build is not a finished migration.
@@ -78,24 +99,27 @@ Stated plainly, because a green build is not a finished migration.
    typecheck` passes; `eas build --platform android --profile preview` has not
    been attempted. **BLE, notifications and the pedometer are unverified against
    real hardware** — they cannot be verified any other way.
-2. **The importer is not ported.** The `IMP_*` parser family, photo OCR and
-   voice input all still live only in `app.js`. The parser is pure logic and
-   belongs in `packages/engine`; OCR and voice are platform modules.
-3. **Screens not yet rebuilt:** Planner/plan editor, Calendar, Recap, Import,
-   and the Progress charts. History carries the 8-week lift delta; the rest of
-   Progress does not exist in React yet.
-4. **Cloud sync is not wired into the React apps.** `mergeEngines`, tombstones
-   and `cloudFp` are ported and tested, but nothing calls them — there is no
-   Supabase client, no auth, and no WHOOP integration in `apps/web` yet.
+2. **No sync path has touched a real Supabase project.** Every rule is unit
+   tested against fixtures and the UI is driven in a browser, but no request has
+   been made: not a sign-in, not a push, not an assignment. The first real
+   round-trip is the next thing to do, and it is the one that finds schema and
+   RLS mismatches.
+3. **Photo OCR is Android-only.** The parser is shared, but on the web the
+   Photo button explains that rather than doing it — the ML Kit model ships
+   with the native app. Dictation works on the web through the Web Speech API
+   (Chromium).
+4. **The mobile app has three screens.** Home, Training, Logger and Settings.
+   Conditioning, Library, History, Progress, Calendar, Import and Recap exist
+   on web only.
 5. **Nothing is deployed.** `netlify.toml` still publishes the repo root, so the
    live site is unchanged. Cutting over means building the apps in CI and
    publishing `apps/web/dist` with `apps/coach/dist` at `/coach/`.
 
 ## Before cutting over
 
-- Wire Supabase auth + sync into `apps/web`, and diff a real synced account
-  old-vs-new against the same seeded DB.
-- Port the importer, then the remaining screens.
+- Sign in against the real project and drive one full loop: coach publishes →
+  athlete pulls the assignment → athlete logs it → coach sees the digest. Then
+  diff a real synced account old-vs-new against the same seeded DB.
 - Build the Android app on EAS with the **existing keystore** and
   `applicationId com.hybridengine.app` at a versionCode above 27 — get any of
   those wrong and current users get a second app icon instead of an update.
