@@ -7,13 +7,47 @@
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.supabase.co; worker-src 'self'; manifest-src 'self'; form-action 'self'
   Cache-Control: no-cache, no-store, must-revalidate
 
-/service-worker.js
-  Cache-Control: no-cache, no-store, must-revalidate
+# The `/*` block above sets `no-store` on everything, which is right for the
+# documents and the workers below and WRONG for the build output. When this file
+# was written the site was buildless — a handful of hand-named files where
+# never-cache was simply correct. It now serves ~6 MB of content-hashed bundles,
+# and `no-store` means a phone re-downloads all of them on every launch. On gym
+# wifi that is the difference between the app opening and the app not opening.
+#
+# Netlify applies every matching rule and the more specific path wins, so these
+# override the `/*` Cache-Control while leaving its security headers intact.
 
+# Vite content-hashes these filenames, so a given URL's bytes can never change —
+# which is exactly the condition `immutable` requires. A new build emits new
+# filenames and the old entries simply age out.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/coach/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# NOT hashed — `inter-var.woff2`, `icon-192.png`. A year would strand a changed
+# icon, so these get a week: long enough to matter, short enough to fix.
+/fonts/*
+  Cache-Control: public, max-age=604800
+
+/icons/*
+  Cache-Control: public, max-age=604800
+
+# Everything below must never be cached. The two workers decide what every
+# other request does, so a stale one is unrecoverable from the server side;
+# index.html is the SPA shell that points at the current hashed bundles, and
+# caching it is how you pin a browser to a deleted build.
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate
 
-/manifest.json
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/service-worker.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/manifest.webmanifest
   Cache-Control: no-cache, no-store, must-revalidate
 
 /privacy.html

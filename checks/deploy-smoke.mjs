@@ -211,6 +211,30 @@ await t('the new Workbox worker is present', async () => {
   assert((await fetch(base + '/sw.js')).status === 200, '/sw.js missing');
 });
 
+await t('hashed bundles are cacheable and the workers are not', async () => {
+  /*
+   * The `/*` rule in _headers is `no-store`, which was correct when the site
+   * was a handful of hand-named files and is wrong now that it serves ~6 MB of
+   * content-hashed build output — a phone would re-download all of it on every
+   * launch. The override only works because Netlify lets a more specific path
+   * win, so this asserts the override actually took, in both directions.
+   */
+  const html = await (await fetch(base + '/')).text();
+  const bundle = (html.match(/(?:href|src)="(\/assets\/[^"]+)"/) || [])[1];
+  assert(bundle, 'the built HTML referenced no /assets/ file at all');
+
+  const cc = (await fetch(base + bundle)).headers.get('cache-control') || '';
+  assert(/immutable/.test(cc) && /max-age=\d{5,}/.test(cc), bundle + ' is not cacheable: ' + (cc || '(none)'));
+
+  // The other direction matters just as much: a cached service worker is
+  // unrecoverable from the server, because it decides what every later request
+  // does. Same for the shell that names the current bundles.
+  for (const p of ['/sw.js', '/service-worker.js', '/index.html', '/']) {
+    const h = (await fetch(base + p)).headers.get('cache-control') || '';
+    assert(/no-store/.test(h), p + ' is cacheable and must not be: ' + (h || '(none)'));
+  }
+});
+
 /* ---- and it has to actually run ---- */
 let chromium;
 try {
