@@ -24,3 +24,6 @@ dist/
 apps/*/src/**/*.js
 apps/*/src/**/*.js.map
 apps/*/vite.config.js
+
+# Screenshot output from checks/screens.mjs — regenerated, never committed.
+.screens/
