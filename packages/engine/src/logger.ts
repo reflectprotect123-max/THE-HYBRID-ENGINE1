@@ -1,5 +1,5 @@
-import { isWarmup } from './autoreg';
-import { blockExercises, exLogFor, isCond, isLiftMode } from './session';
+import { isWarmup, repTopOf } from './autoreg';
+import { blockExercises, isCond, isLiftMode } from './session';
 import type { Exercise, LoggedSet, Session } from './types';
 
 /*
@@ -82,6 +82,32 @@ export function targetLine(ex: Exercise<LoggedSet>, st: LoggedSet): string {
 }
 
 /**
+ * The last session that logged this movement, with its sets left at their
+ * ORIGINAL indices — a hole for anything unlogged.
+ *
+ * Positional, deliberately: set 3 prefills from set 3 of last time. The
+ * compacted history `exLogFor` returns has warm-ups and gaps squeezed out, so
+ * reading it by index silently walks the athlete onto a heavier set.
+ */
+function lastTimeFor(name: string, sessions: Session[]): (LoggedSet | null)[] | null {
+  const key = String(name || '').toLowerCase();
+  const done = sessions
+    .filter((s) => s.status === 'completed' || s.status === 'incomplete')
+    .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+
+  for (const s of done) {
+    for (const b of s.blocks) {
+      for (const e of blockExercises<LoggedSet>(b)) {
+        if (String(e.name || '').toLowerCase() !== key) continue;
+        const sets = e.sets.map((st) => (st.done && (st.aVal || st.aVal2) ? st : null));
+        if (sets.some(Boolean)) return sets;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * What to put in the primary field before the athlete types.
  *
  * ONLY prefills from a set of the same kind. Carrying a 40kg warm-up into the
@@ -95,7 +121,7 @@ export function prefillPrimary(ex: Exercise<LoggedSet>, si: number, sessions: Se
   if (st.aVal) return st.aVal;
 
   const warm = isWarmup(st);
-  const same = (x: LoggedSet | undefined) => !!x && isWarmup(x) === warm;
+  const same = (x: LoggedSet | null | undefined) => !!x && isWarmup(x) === warm;
 
   for (let i = si - 1; i >= 0; i--) {
     const p = ex.sets[i];
@@ -103,15 +129,12 @@ export function prefillPrimary(ex: Exercise<LoggedSet>, si: number, sessions: Se
   }
 
   if (isLiftMode(ex.mode)) {
-    const hist = exLogFor(ex.name, sessions);
-    const last = hist[hist.length - 1];
+    const last = lastTimeFor(ex.name, sessions);
     if (last) {
-      // History stores only completed working sets, so anything found here is
-      // already a like-for-like comparison.
-      const at = last.sets[si];
-      if (at && at.kg) return String(at.kg);
-      const ls = last.sets.find((x) => x && x.kg);
-      if (ls) return String(ls.kg);
+      const at = last[si];
+      if (at && at.aVal && same(at)) return at.aVal;
+      const ls = last.find((x) => x && x.aVal && same(x));
+      if (ls && ls.aVal) return ls.aVal;
     }
     return '';
   }
@@ -119,15 +142,21 @@ export function prefillPrimary(ex: Exercise<LoggedSet>, si: number, sessions: Se
   return st.t && st.t !== 'max' ? st.t : '';
 }
 
-/** Reps field prefill: the planned target, unless it is a range or 'max'. */
+/**
+ * Reps field prefill: what was done on an earlier set of this exercise, else
+ * the top of the planned target. Reps carry forward because they are the thing
+ * an athlete repeats — unlike load, they are not kind-sensitive, so a warm-up's
+ * count is a fine starting point for the next set.
+ */
 export function prefillSecondary(ex: Exercise<LoggedSet>, si: number): string {
   const st = ex.sets[si];
   if (!st) return '';
   if (st.aVal2) return st.aVal2;
-  const t = String(st.t || '');
-  if (!t || t === 'max') return '';
-  const m = t.match(/\d+/);
-  return m ? m[0] : '';
+  for (let i = si - 1; i >= 0; i--) {
+    const p = ex.sets[i];
+    if (p && p.aVal2) return p.aVal2;
+  }
+  return repTopOf(st.t);
 }
 
 /** Completed sets across a whole session, for the top-of-stage progress bar. */

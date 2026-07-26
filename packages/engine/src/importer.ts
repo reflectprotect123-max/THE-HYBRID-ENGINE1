@@ -460,7 +460,10 @@ export function impToWorkout(r: ImpResult, uid: () => string) {
       if (e.eachSide) cue.push('each side');
       return {
         id: uid(),
-        name: e.name,
+        // The heading-with-scheme branch leaves the name for the athlete to
+        // fill in. Storing it empty renders a blank row and hides the exercise
+        // from every history lookup, all of which key on name.
+        name: e.name || 'Movement',
         mode: e.mode,
         tempo: '',
         rest: e.rest || b.rest || 90,

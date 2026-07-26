@@ -189,11 +189,18 @@ export function conDownsample(samples: HrSample[], dur: number): Downsampled {
   return { every, pts: sum.map((v, i) => (cnt[i] ? Math.round(v / cnt[i]) : null)) };
 }
 
-/** Seconds banked per zone across a trace. */
+/**
+ * Seconds banked per zone across a trace.
+ *
+ * Every recorded beat is banked, including one under the floor — `conZoneOf`
+ * puts those in Recovery, which is what warm-up and cool-down time is. Dropping
+ * them would shrink the denominator `conAdapt` divides by and hand out levels
+ * for sessions that did not earn them.
+ */
 export function zoneSeconds(ds: Downsampled, z: Zones): Record<ZoneKey, number> {
   const out: Record<ZoneKey, number> = { low: 0, mod: 0, high: 0 };
   ds.pts.forEach((b) => {
-    if (b == null || b < z.floor) return;
+    if (b == null) return;
     out[zoneKeyOf(b, z)] += ds.every;
   });
   return out;

@@ -75,8 +75,13 @@ export function ymd(d: Date): string {
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
 }
 
+/**
+ * De-duplicate, dropping holes. A legacy blob can carry `null` in a workout's
+ * days/dates, and the merge that unions them runs before any sanitize on the
+ * push path — so a hole kept here is written straight back to the cloud.
+ */
 export function uniqArr<T>(a: T[]): T[] {
-  return Array.from(new Set(a));
+  return Array.from(new Set((a || []).filter((v) => v != null)));
 }
 
 export function clamp(n: number, lo: number, hi: number): number {

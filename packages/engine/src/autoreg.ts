@@ -79,9 +79,25 @@ export function computeSetAdjustment(
 /**
  * The rep floor a target implies. "5" → 5; "8-10" → 8; "max"/"" → 0 (no floor,
  * so nothing can be "missed").
+ *
+ * The FIRST number written, not the smallest one present: a coach who writes
+ * "10-8" means ten and accepts eight, and taking the minimum there would score
+ * a set that missed by two reps as having made it — which adds load.
  */
 export function repFloorOf(t: string | undefined): number {
-  const ns = String(t || '').match(/\d+(?:\.\d+)?/g);
-  if (!ns || !ns.length) return 0;
-  return Math.min(...ns.map(Number));
+  const m = String(t || '').match(/(\d+)/);
+  return m ? +m[1] : 0;
+}
+
+/**
+ * The rep target to offer back. The TOP of a range, because a range is written
+ * as the ambition with the floor after it — the athlete aims at 10 of "8-10".
+ * "5" → "5"; "max"/"" → "" (nothing to suggest).
+ */
+export function repTopOf(t: string | undefined): string {
+  const s = String(t || '');
+  const r = s.match(/(\d+)\s*[-–]\s*(\d+)/);
+  if (r) return r[2];
+  const m = s.match(/(\d+)/);
+  return m ? m[1] : '';
 }
