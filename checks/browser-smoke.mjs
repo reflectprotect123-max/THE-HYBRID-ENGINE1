@@ -147,7 +147,12 @@ await t('Finish Set → RPE slider (1–10) → Confirm logs the set and starts 
   await page.fill('#glogRpeSlider', '8');
   if ((await page.textContent('#glogRpeOut')) !== '8') throw new Error('readout did not track slider');
   await page.click('#s-logger .glogrpe .bigbtn');
-  await page.waitForSelector('#restchip.show', { timeout: 2000 });
+  // the rest chip is created, but suppressed while the stage draws its own
+  // rest panel — it would otherwise sit on top of the weight input
+  await page.waitForSelector('#restchip.show', { timeout: 2000, state: 'attached' });
+  if (!(await page.$('#s-logger .glogrest'))) throw new Error('in-stage rest panel missing');
+  const chipHidden = await page.$eval('#restchip', (el) => getComputedStyle(el).display === 'none');
+  if (!chipHidden) throw new Error('floating rest chip overlaps the stage');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
   const ok = saved.sessions.some((s) => s.blocks.some((b) => b.exercises.some((e) => e.sets.some((st) => st.done && st.aVal === '60' && st.felt === '8'))));
   if (!ok) throw new Error('set not persisted');
@@ -961,7 +966,8 @@ await t('Conditioning effort ↔ RPE: legacy zones map, felt rating saves and fe
   await page.evaluate(() => { conFeltInput('9'); conFeltSave(); });
   const out = await page.evaluate(() => ({ felt: DB.sessions[0].blocks[0].condResult.felt, gap: rpeGapInfo() }));
   if (out.felt !== '9') throw new Error('felt RPE not persisted onto the block: ' + JSON.stringify(out));
-  if (!out.gap || Math.abs(out.gap.gap - 3) > 0.001) throw new Error('conditioning gap missing from readiness: ' + JSON.stringify(out.gap));
+  // scored against the BAND that was shown (Medium = RPE 5-7), so 9 is 2 over
+  if (!out.gap || Math.abs(out.gap.gap - 2) > 0.001) throw new Error('conditioning gap wrong: ' + JSON.stringify(out.gap));
   const verdict = await page.textContent('#s-conditioning .guidebar');
   if (!/RPE 9/.test(verdict) || !/harder than medium/.test(verdict)) throw new Error('no target-vs-felt verdict: ' + verdict);
   await page.evaluate(() => {
@@ -1030,6 +1036,7 @@ await t('Planner → Logger symbiosis: the authored plan drives the guided flow'
   });
 });
 await t('logger is full screen: a row opens the stage, back returns to the session', async () => {
+  await page.evaluate(() => { if (!DB.sessions.some((s) => s.status === 'active')) startWorkout(DB.workouts[0].id); });
   await page.click('.navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
   const rows = await page.$$('#s-training .lgcrow');

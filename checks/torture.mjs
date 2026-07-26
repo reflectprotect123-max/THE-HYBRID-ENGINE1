@@ -218,7 +218,11 @@ await t('absurd inputs: negative, huge, emoji, 10k-char name', async () => {
   });
   const chip = await page.$eval('#restchip', (el) => el.classList.contains('show'));
   if (!chip) throw new Error('rest did not start for huge rest value');
-  await page.click('#restchip');
+  // an absurd rest is clamped to an hour rather than running forever
+  const total = await page.evaluate(() => restTotal);
+  if (!(total > 0 && total <= 3600)) throw new Error('rest not clamped: ' + total);
+  // the chip is suppressed while the stage shows its own rest panel, so stop it directly
+  await page.evaluate(() => stopRest());
   await page.evaluate(() => {
     const id = DB.workouts[DB.workouts.length - 1].id;
     DB.workouts = DB.workouts.filter((x) => x.id !== id);

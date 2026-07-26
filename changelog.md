@@ -1,5 +1,58 @@
 # Changelog
 
+## Debug pass: eleven real bugs, three of them data loss — 26 July 2026
+
+A full audit across sync, resilience, refactor correctness, dead code and
+mobile layout. What it found and what changed:
+
+**Data loss**
+- **A conditioning run could be deleted by cloud sync.** The merge score
+  counted only completed *sets*, so a session whose work was a run scored zero,
+  lost the merge to the server's copy, and had its whole HR record erased on the
+  next sync. Conditioning results now count as work, and every write onto a
+  session stamps it.
+- **A felt-RPE rating was dropped by every sync**, both for session-embedded
+  and standalone records — the latter because records were unioned by id
+  first-past-the-post with the server as the base. They are now merged per
+  record.
+- **Storage-full failures went silent after the first one.** The warning
+  latched once and the only other signal was hidden on every phone, so the
+  logger kept drawing ticks for sets that would vanish on reload. It now warns
+  again and always toasts.
+
+**Correctness**
+- **Tapping the Training tab started a session — of the wrong workout.**
+  Viewing the tab created one from the first saved workout rather than today's,
+  and marking that phantom complete left a second, hollow record for the same
+  day. Only starting a workout creates a session now.
+- **`1e309` in the weight box poisoned the record permanently** — stored, copied
+  to the next set, then rendered as `Infinity` in the recap, exercise history
+  and Progress (which threw real SVG errors). Non-finite input is refused on the
+  way in, and every computed weight is clamped.
+- **Easy/Medium/Hard was scored against a point, not the band it showed you.**
+  Rating a run 7 against "Medium · RPE 5-7" read as *"ran harder than medium"*
+  and told Readiness to pull back. Anything inside the band is now on target.
+- **The plan editor's letter chip did nothing** (and told screen readers it
+  collapsed the card), the Logger showed **two identical "next exercise"
+  buttons**, and that footer button could point at the exercise you were already
+  on — discarding a rating you had just dialled in.
+- An absurd `rest` value could strand the timer at `Infinity:NaN` across
+  reloads. Rest is clamped to an hour.
+
+**Mobile**
+- **You could not raise a custom rep range on a small phone.** The `+` buttons
+  rendered 13.6px wide and the second was clipped off-screen entirely; they are
+  44×48 and fully visible now.
+- **The back button collapsed to a 19px sliver** with a long session name — the
+  one control that gets you out of a live logging screen. It no longer shrinks.
+- **The floating rest chip sat on top of the weight input**, so a tap meant to
+  edit the weight killed the rest timer. It is suppressed while the stage shows
+  its own rest panel.
+- A long unbroken name no longer scrolls the page sideways.
+
+Also: the coach digest now carries conditioning effort/target/felt, and the
+Progress tip stopped pointing at the Builder, which was removed months ago.
+
 ## The plan editor is full screen too — 26 July 2026
 
 The Logger and the plan editor are meant to be one surface in two modes, so

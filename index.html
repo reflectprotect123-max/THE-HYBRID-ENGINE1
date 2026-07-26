@@ -121,7 +121,8 @@ body{
 .kicker{color:var(--gold2);font-size:11px;font-weight:800;letter-spacing:.19em;text-transform:uppercase;margin-bottom:7px}
 h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-weight:850}
 /* Screen title — retires the ad-hoc inline font-size:24px h1 overrides */
-.screentitle{font-size:clamp(22px,4.2vw,28px);font-weight:800;letter-spacing:-.03em;line-height:1.08}
+.screentitle{font-size:clamp(22px,4.2vw,28px);font-weight:800;letter-spacing:-.03em;line-height:1.08;overflow-wrap:anywhere;min-width:0}
+.sec-head h2,.recaphead p,.kicker{overflow-wrap:anywhere;min-width:0}
 .sub{margin-top:8px;color:var(--muted);font-size:13px;line-height:1.55}
 .card{
   border:1px solid var(--line);border-radius:var(--r-lg);
@@ -137,6 +138,7 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
   font-variant-numeric:tabular-nums;cursor:pointer;
 }
 .restchip.show{display:inline-flex;animation:fade .18s ease}
+.restchip.show.hidden-stage{display:none}
 .restchip .restring{position:relative;width:44px;height:44px;flex:0 0 auto}
 .restchip .restring svg{width:44px;height:44px;transform:rotate(-90deg)}
 .restchip .restring circle{fill:none;stroke-width:3.5}
@@ -177,7 +179,7 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 
 /* ===== SESSION (day view) ===== */
 .backrow{display:flex;align-items:center;gap:10px;margin-bottom:16px}
-.backbtn{display:grid;place-items:center;width:38px;height:38px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel2);color:var(--text);cursor:pointer;font-size:17px}
+.backbtn{flex:0 0 38px;display:grid;place-items:center;width:38px;height:38px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel2);color:var(--text);cursor:pointer;font-size:17px}
 .section{margin-top:26px}
 .sec-head{display:flex;align-items:baseline;gap:10px}
 .sec-head h2{font-size:15px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2)}
@@ -668,7 +670,7 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .sheet .swaplist{max-height:44vh;overflow-y:auto;margin-top:10px;-webkit-overflow-scrolling:touch}
 .sheet .swapopt{margin-bottom:8px}
 @media(prefers-reduced-motion:reduce){.lgswap{transition:none}}
-.lgmeta{flex:0 0 auto;font-size:11px;color:var(--dim);font-weight:700;font-variant-numeric:tabular-nums}
+.lgmeta{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--dim);font-weight:700;font-variant-numeric:tabular-nums}
 /* ===== Guided set flow: dots, tracker, stage fields, RPE slider, in-place rest ===== */
 .lgx.glog .lg-body{padding-bottom:12px}
 .glogdots{display:flex;gap:6px;padding:10px 12px 0}
@@ -726,6 +728,15 @@ body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .planname:focus{border-bottom-color:var(--gold-line)}
 .plannote{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel2);color:var(--dim);font-size:12px}
 .plancustom{padding-top:8px}
+/* Two 3-part steppers plus a label need ~364px; an iPhone SE gives the row 288,
+   and .glogstep's overflow:hidden was clipping the second + button clean off
+   the screen — you could not raise a custom rep range at all. Let the row wrap
+   and stop the steppers from being squeezed below a tappable width. */
+.plancustom{flex-wrap:wrap;row-gap:8px}
+.plancustom label{flex:0 0 100%}
+.plancustom .glogstep{flex:0 0 auto;min-width:0}
+.plancustom .glogstep button{width:44px;flex:0 0 44px}
+.plancustom .glogstep input{width:56px}
 .planseam{display:flex;justify-content:center;margin:2px 0}
 .planseam button{display:flex;align-items:center;justify-content:center;width:34px;height:26px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--dim);cursor:pointer}
 .planseam button svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round}

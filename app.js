@@ -57,9 +57,19 @@ let _storageWarned=false;
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(DB));flashSaved();}catch(e){flashSaveFailed(e);}if(typeof queueCloudPush==='function')queueCloudPush();}
 let savedTimer=null;
 function flashSaved(){const el=document.getElementById('sideStatus');if(!el)return;el.textContent='Saved ✓';clearTimeout(savedTimer);savedTimer=setTimeout(()=>{if(el)el.textContent='Saved locally'},1200)}
+/* The only non-alert signal lives in .sidenote, which is display:none on every
+   phone — so once _storageWarned latched, every subsequent lost set was totally
+   silent while the logger kept drawing ticks for work that would vanish on
+   reload. Warn again if it has been a while, and always show a toast. */
+let _storageWarnedAt=0;
 function flashSaveFailed(e){
   const el=document.getElementById('sideStatus');if(el){el.textContent='⚠ Not saved — storage full';}
-  if(!_storageWarned){_storageWarned=true;try{alert('This device’s storage is full, so your latest changes could not be saved locally. Export a backup (Settings → Export) or sign in to cloud sync, then clear space.');}catch(x){}}
+  try{toast('⚠ Not saved — this device’s storage is full');}catch(x){}
+  const now=Date.now();
+  if(!_storageWarned||now-_storageWarnedAt>60000){
+    _storageWarned=true;_storageWarnedAt=now;
+    try{alert('This device’s storage is full, so your latest changes could not be saved locally. Export a backup (Settings → Export) or sign in to cloud sync, then clear space.');}catch(x){}
+  }
 }
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -150,6 +160,7 @@ function go(id,btn){
   const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
   if(navBtn)navBtn.classList.add('active');
   renderScreen(id);
+  syncRestChip();
   updateWake();
   window.scrollTo({top:0});
 }
@@ -459,8 +470,8 @@ function rpeGapInfo(){
     // it is rated on the same slider, so the gap means the same thing
     s.blocks.forEach(b=>{
       if(!isCond(b)||!b.condResult)return;
-      const t=parseFloat(b.condResult.targetRpe),f=parseFloat(b.condResult.felt);
-      if(Number.isFinite(t)&&Number.isFinite(f))gaps.push(f-t);
+      const g=condEffortGap(CON_EFFORTS[b.condResult.effort]||condEffort(b.condResult),b.condResult.felt);
+      if(g!=null&&b.condResult.targetRpe!=null)gaps.push(g);
     });
     if(gaps.length)return{gap:gaps.reduce((a,b)=>a+b,0)/gaps.length,date:s.date,n:gaps.length};
   }
@@ -651,8 +662,14 @@ function whoopCardHtml(){
 }
 
 /* ---------- TRAINING (the mock's session day view) ---------- */
+/* Viewing the Training tab must never CREATE a session. ensureSession() falls
+   back to DB.workouts[0] when nothing is scheduled, so merely tapping the tab
+   used to start an arbitrary workout — and marking that phantom complete left
+   a second, hollow record for the same day. Only startWorkout() creates now;
+   here we just adopt one that is already running. */
 function renderTraining(){
-  ensureSession();
+  const act=DB.sessions.find(x=>x.status==='active');
+  if(act)CUR_SESSION=act.id;
   renderSession();
 }
 
@@ -723,7 +740,23 @@ function lgTarget(ex,st){
    5 @RPE8 ≈ 81%, 5 @RPE9 ≈ 84%). Below RPE 6 no chart data is published,
    so that region is this formula's own linear extrapolation. */
 const AUTOREG={targetRpeCenter:8.5,pctPerRpePoint:2.5,missedFloorRpe:10.5,plateIncrement:2.5,stepKg:2.5};
-function roundToIncrement(v,inc){if(!inc)return v;return Math.max(0,Math.round(Math.round(v/inc)*inc*100)/100);}
+/* A weight of 1e309 parses to Infinity, sails past a `>0` guard, and used to be
+   written to the next set as the string "Infinity" — poisoning the record, the
+   recap, exercise history, and the Progress chart (niceMax(Infinity) -> NaN).
+   Anything non-finite or absurd is refused here, at the one place every
+   computed weight passes through. */
+const MAX_KG=2000;
+function saneKg(v){const n=parseFloat(v);return Number.isFinite(n)&&n>0?Math.min(n,MAX_KG):0;}
+/* Keep what was typed when it is a sane number, drop it when it is not. Empty
+   stays empty — a blank field is a legitimate "did not record this". */
+function sanNumStr(v){
+  const raw=String(v==null?'':v).trim();
+  if(!raw)return '';
+  const n=parseFloat(raw);
+  if(!Number.isFinite(n))return '';
+  return String(Math.max(0,Math.min(n,1e6)));
+}
+function roundToIncrement(v,inc){if(!Number.isFinite(v))return 0;if(!inc)return Math.max(0,v);return Math.max(0,Math.min(MAX_KG,Math.round(Math.round(v/inc)*inc*100)/100));}
 function verdictForRpe(rpe,center){
   // judged relative to the set's own target RPE (bands match the old absolute
   // wording at the default 8.5 center)
@@ -803,7 +836,11 @@ function glogNextLoc(s,bi,ei){
   const flat=[];
   s.blocks.forEach((b,bj)=>{if(isCond(b))return;blockExercises(b).forEach((e,ej)=>{if(e.mode!=='completion'&&!exFinished(e))flat.push({bi:bj,ei:ej,name:e.name||'Exercise'});});});
   if(!flat.length)return null;
-  return flat.find(x=>x.bi>bi||(x.bi===bi&&x.ei>ei))||flat[0];
+  // never point at the current location: the full-screen footer would re-enter
+  // it and glogReset() would silently discard a rating already dialled in
+  const rest=flat.filter(x=>x.bi!==bi||x.ei!==ei);
+  if(!rest.length)return null;
+  return rest.find(x=>x.bi>bi||(x.bi===bi&&x.ei>ei))||rest[0];
 }
 function lgOpenCard(s,b,ex,bi,ei,letter){
   const lift=isLiftMode(ex.mode);
@@ -851,8 +888,7 @@ function lgOpenCard(s,b,ex,bi,ei,letter){
     body+=hint;
   }else{
     body+='<div class="glogdone">'+svgCheck()+'All '+ex.sets.length+' set'+(ex.sets.length===1?'':'s')+' logged</div>'+hint;
-    const nx=glogNextLoc(s,bi,ei);
-    if(nx)body+='<div class="glogact"><button class="bigbtn" data-click="openLogger" data-args="['+nx.bi+','+nx.ei+']">Next: '+esc(nx.name)+' ›</button></div>';
+    // the full-screen footer already carries the next exercise — no second copy
   }
   body+=glogLoggedList(ex);
   return '<div class="lgx open glog" id="lgx'+bi+'-'+ei+'">'+
@@ -1164,6 +1200,7 @@ function renderLogger(){
     (nx?'<button class="addbtn" data-click="openLogger" data-args="['+nx.bi+','+nx.ei+']">'+esc(nx.name)+' ›</button>':'')+
     '</div>';
   el.innerHTML=head+lgOpenCard(s,b,ex,LOG_LOC.bi,LOG_LOC.ei,letters[LOG_LOC.bi][LOG_LOC.ei])+foot;
+  syncRestChip();
   if(restEnds)paintRest();
 }
 function exFinished(ex){return ex.sets.length>0&&ex.sets.every(st=>st.done)}
@@ -1212,14 +1249,17 @@ function glogConfirmSet(){
   const si=glogCurSet(ex);if(si<0)return;
   const st=ex.sets[si],lift=isLiftMode(ex.mode);
   const v1=document.getElementById('glogV1'),v2=document.getElementById('glogV2');
-  if(v1)st.aVal=String(v1.value||'').trim();
-  if(v2)st.aVal2=String(v2.value||'').trim();
+  // Sanitise on the way IN. Stopping Infinity from propagating was not enough:
+  // "1e309" stored verbatim still parses back to Infinity everywhere it is read
+  // (recap, exercise history, the Progress chart), and survives every reload.
+  if(v1)st.aVal=lift?sanNumStr(v1.value):String(v1.value||'').trim();
+  if(v2)st.aVal2=sanNumStr(v2.value);
   st.felt=fmtRpe(GLOG.rpe);
   st.done=true;
   const isFinal=si>=ex.sets.length-1;
   GLOG.hint=null;
   if(lift){
-    const weight=parseFloat(st.aVal);
+    const weight=saneKg(st.aVal);
     if(weight>0){
       const adj=computeSetAdjustment(parseInt(st.aVal2,10)||0,GLOG.rpe,repFloorOf(st),weight,rpeCenterOf(st));
       const dtxt=adj.delta>0?'+'+adj.delta+' kg':adj.delta<0?adj.delta+' kg':'hold weight';
@@ -1253,6 +1293,10 @@ const REST_KEY=LS_KEY+'-rest-ends',REST_TOT_KEY=LS_KEY+'-rest-total';
 let restIv=null,restEnds=0,restTotal=0;
 function startRest(sec){
   stopRest(false);
+  // a rest of Infinity (bad import / coach snapshot) never expires and survives
+  // every reload, leaving the stage stuck with no Finish Set button
+  sec=Number.isFinite(+sec)?Math.max(0,Math.min(3600,+sec)):0;
+  if(!sec)return;
   restTotal=sec;restEnds=Date.now()+sec*1000;
   try{localStorage.setItem(REST_KEY,String(restEnds));localStorage.setItem(REST_TOT_KEY,String(sec))}catch(e){}
   // native buzz keeps time even if the WebView throttles JS with the screen off
@@ -1261,8 +1305,16 @@ function startRest(sec){
 }
 function showRestChip(){
   const chip=document.getElementById('restchip');
-  chip.classList.add('show');paintRest();
+  chip.classList.add('show');paintRest();syncRestChip();
   restIv=setInterval(tickRestTimer,500);
+}
+/* The floating chip is for when you have left the stage. On the full-screen
+   logger the stage draws its own rest panel, and the fixed chip sat on top of
+   the session title and — scrolled down at 320px — directly over the weight
+   input, so a tap meant to edit the weight killed the rest timer instead. */
+function syncRestChip(){
+  const chip=document.getElementById('restchip');if(!chip)return;
+  chip.classList.toggle('hidden-stage',CURRENT==='logger'&&GLOG.phase==='rest');
 }
 function tickRestTimer(){
   const left=Math.ceil((restEnds-Date.now())/1000);
@@ -1515,13 +1567,13 @@ function openPlanNameSheet(){
 function planAddEx(bi){
   const w=planMutate(w2=>{w2.blocks[bi].exercises.push(newEx());});
   if(!w)return;
-  PLAN.openLoc={bi,ei:w.blocks[bi].exercises.length-1};PLAN.custom=false;
+  PLAN.openLoc={bi,ei:w.blocks[bi].exercises.length-1};PLAN.custom=false;PLAN.openCond=null;
   go('planedit');openPlanNameSheet(); // first tap of a new exercise is choosing the movement
 }
 function planAddBlock(){
   const w=planMutate(w2=>{const nb=newBlock();nb.heading='Main';w2.blocks.push(nb);});
   if(!w)return;
-  PLAN.openLoc={bi:w.blocks.length-1,ei:0};PLAN.custom=false;
+  PLAN.openLoc={bi:w.blocks.length-1,ei:0};PLAN.custom=false;PLAN.openCond=null;
   go('planedit');openPlanNameSheet();
 }
 function planDelEx(){
@@ -1615,7 +1667,7 @@ function planCondCard(w,b,bi){
   const preview='<div class="plannote" style="margin:8px 12px 0">At your earned level: <b style="color:var(--text)">'+esc(presc)+'</b>'+(mins?' · ~'+mins+' min':'')+' — the engine still eases it on a low-recovery day.</div>';
   return '<div class="lgx open glog plan" id="plc'+bi+'">'+
     '<div class="lg-body">'+
-    '<div class="lgtop"><button class="lgltr" data-click="planToggleCond" data-args="['+bi+']" aria-label="collapse">♥</button>'+
+    '<div class="lgtop"><button class="lgltr" data-click="closePlanEdit" aria-label="back to plan">♥</button>'+
       '<span class="lgttl">'+esc(f.name)+'</span>'+
       '<span class="lgmeta">runs by heart rate</span></div>'+
     fmtChips+effChips+effNote+preview+
@@ -1691,7 +1743,7 @@ function planOpenCard(w,b,ex,bi,ei,letter){
     '<button class="del" data-click="planDelEx" aria-label="remove exercise">✕</button></div>';
   return '<div class="lgx open glog plan" id="plx'+bi+'-'+ei+'">'+
     '<div class="lg-body">'+
-    '<div class="lgtop"><button class="lgltr" data-click="planToggle" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button>'+
+    '<div class="lgtop"><button class="lgltr" data-click="closePlanEdit" aria-label="back to plan">'+letter+'</button>'+
       '<span class="lgttl">'+esc(ex.name||'Exercise')+'</span>'+
       '<button class="lgswap" data-click="openPlanNameSheet" aria-label="rename exercise">'+icoPencil()+'</button>'+
       '<span class="lgmeta">'+prettyMeta(rxLine(ex))+'</span></div>'+
@@ -1779,7 +1831,7 @@ function sampleWorkout(){
     sets:sets.map(t=>({t:String(t),rpe:rpe==null?'':String(rpe)}))});
   const blk=(heading,superset,exercises)=>({id:uid(),heading,minutes:'',format:'',superset:!!superset,exercises});
   const cond=Object.assign(newCondBlock(),{heading:'Finisher — bike',condFmt:'intervals',effort:'medium',targetZone:'mod'});
-  return stampWorkout({id:uid(),name:SAMPLE_NAME,days:[],dates:[],blocks:[
+  return stampWorkout({id:uid(),name:SAMPLE_NAME,sample:true,days:[],dates:[],blocks:[
     blk('Warm-up',false,[
       ex('Assault Bike','seconds',60,[180]),
       ex('Band Pull-apart','reps',45,[15,15])]),
@@ -1797,7 +1849,7 @@ function sampleWorkout(){
 /* Idempotent: tapping it twice re-uses the saved sample rather than piling up
    copies, and just re-schedules it for today. */
 function loadSample(){
-  let w=DB.workouts.find(x=>x.name===SAMPLE_NAME);
+  let w=DB.workouts.find(x=>x.sample||x.name===SAMPLE_NAME);
   if(!w){w=sampleWorkout();DB.workouts.push(w);save();}
   const date=ymd(new Date());
   scheduleWorkoutOn(w.id,date);
@@ -2006,7 +2058,12 @@ function mergeSettings(base,winner){
   // so a low cap meant a high-volume athlete silently progressed differently
   // from a low-volume one for reasons that had nothing to do with physiology.
   const bc=Array.isArray(base.conditioning)?base.conditioning:[],wc=Array.isArray(winner.conditioning)?winner.conditioning:[];
-  if(bc.length||wc.length){const seen=new Set(),m=[];bc.concat(wc).forEach(r=>{if(r&&r.id&&!seen.has(r.id)){seen.add(r.id);m.push(r);}});m.sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));out.conditioning=m.slice(-CON_RETENTION);}
+  // Union by id, but MERGE each record rather than taking whichever side was
+   // seen first: a rating added locally to a record the server already knows
+   // about used to be discarded, because `base` (the remote) won every tie.
+  if(bc.length||wc.length){const by=new Map();
+    bc.concat(wc).forEach(r=>{if(!r||!r.id)return;const prev=by.get(r.id);by.set(r.id,prev?Object.assign({},prev,r):r);});
+    const m=Array.from(by.values());m.sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));out.conditioning=m.slice(-CON_RETENTION);}
   const bl=base.lexicon||{},wl=winner.lexicon||{};
   if(bl.kw||bl.ex||wl.kw||wl.ex)out.lexicon={kw:Object.assign({},bl.kw,wl.kw),ex:Object.assign({},bl.ex,wl.ex)};
   // deletion tombstones + device registry: union keeping the newest timestamp per id
@@ -2039,7 +2096,10 @@ function pickWorkout(x,y){
     dates:uniqArr((x.dates||[]).concat(y.dates||[])).sort()
   });
 }
-function sessionScore(s){let n=0;(s.blocks||[]).forEach(b=>((b&&b.exercises)||[]).forEach(e=>(e.sets||[]).forEach(st=>{if(st&&st.done)n++;})));return (s.completedAt||s.startedAt||0)+n*1e6;}
+/* A finished conditioning block IS logged work. Counting only sets meant a
+   session whose only work was a run scored zero, lost the merge to the remote
+   copy, and had its whole HR record deleted on the next sync. */
+function sessionScore(s){let n=0;(s.blocks||[]).forEach(b=>{if(b&&b.condResult){n++;return;}((b&&b.exercises)||[]).forEach(e=>(e.sets||[]).forEach(st=>{if(st&&st.done)n++;}));});return (s.completedAt||s.startedAt||0)+n*1e6;}
 function pickSession(x,y){const sx=sessionScore(x),sy=sessionScore(y);if(sy!==sx)return sy>sx?y:x;return (y.updatedAt||0)>=(x.updatedAt||0)?y:x;}
 function notTombstoned(t){t=t||{};return function(x){const d=t[x&&x.id];return !(d&&d>=(x.updatedAt||0));};}
 function mergeEngines(local,remote){
@@ -2150,7 +2210,10 @@ function buildFeed(){
      a review view. */
   // `sim` must survive: without it a coach cannot tell a demo run from a real
   // session. `cal` is gone with the fabricated calorie estimate.
-  const slim=r=>({id:r.id,date:r.date,fmt:r.fmt,dur:r.dur,avg:r.avg,max:r.max,hrr:r.hrr,hrrWin:r.hrrWin,zsec:r.zsec,sim:r.sim||undefined});
+  const slim=r=>({id:r.id,date:r.date,fmt:r.fmt,dur:r.dur,avg:r.avg,max:r.max,hrr:r.hrr,hrrWin:r.hrrWin,zsec:r.zsec,
+    // planned-vs-felt for conditioning, the same contract the lifting side publishes
+    effort:r.effort||undefined,targetRpe:r.targetRpe==null?undefined:r.targetRpe,felt:r.felt||undefined,
+    sim:r.sim||undefined});
   const cond=(Array.isArray(DB.settings.conditioning)?DB.settings.conditioning:[]).filter(r=>r&&r.date>=cut).map(slim);
   DB.sessions.forEach(s=>{if(s.date>=cut)(s.blocks||[]).forEach(b=>{if(isCond(b)&&b.condResult)cond.push(slim(b.condResult));});});
   const whoop=(Array.isArray(DB.settings.whoopDaily)?DB.settings.whoopDaily:[]).filter(h=>h&&h.date>=cut);
@@ -2584,7 +2647,7 @@ function renderProgress(){
     recCard=chartCard('WHOOP recovery','last '+wd.length+' days',chartLines(series,xl,[0,100],'%'),legend);
   }
   el.innerHTML=head+stats+volCard+progTopLifts()+rpeCard+recCard+progConditioningCards()+
-    (rpeCard?'':'<div class="card guidebar" style="margin-top:16px"><b>Tip:</b> add target RPE in the Builder and log the RPE you felt — a planned-vs-felt trend appears here.</div>');
+    (rpeCard?'':'<div class="card guidebar" style="margin-top:16px"><b>Tip:</b> add a target RPE in the plan editor and log the RPE you felt — a planned-vs-felt trend appears here.</div>');
 }
 /* --- conditioning trends (real sessions; demos excluded) --- */
 function progZoneBars(bk){
@@ -2777,6 +2840,18 @@ function condEffort(b){
   return CON_EFFORTS[ZONE_TO_EFFORT[b&&b.targetZone]]||CON_EFFORTS.medium;
 }
 function condEffortRpe(e){return fmtRpe(e.rpe[0])+'-'+fmtRpe(e.rpe[1]);}
+/* How far a felt rating sits OUTSIDE the band it was given. The chip promises a
+   range ("Medium · RPE 5-7"), so anything inside that range is on target and
+   scores 0. Judging against the centre instead meant a 7 against Medium — the
+   top of its own band — read as "ran harder than medium" and told Readiness to
+   pull back tomorrow. Sign is kept: + is harder than asked, - is easier. */
+function condEffortGap(e,felt){
+  const f=parseFloat(felt);
+  if(!e||!Number.isFinite(f))return null;
+  if(f>e.rpe[1])return f-e.rpe[1];
+  if(f<e.rpe[0])return f-e.rpe[0];
+  return 0;
+}
 function condEffortLine(b){const e=condEffort(b);return e.name+' · RPE '+condEffortRpe(e);}
 function conMmss(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
 function setProfile(key,val){
@@ -3156,7 +3231,7 @@ function conFinish(){
     // find the block by id first (survives reordering/edits), then by index
     let b=s&&sink.bid&&s.blocks.find(x=>x.id===sink.bid);
     if(!isCond(b))b=s&&s.blocks[sink.bi];
-    if(isCond(b)){b.condResult=rec;save();persisted=true;}
+    if(isCond(b)){b.condResult=rec;s.updatedAt=Date.now();save();persisted=true;}
   }
   if(!persisted){ // standalone (the Conditioning tab) — the original path, unchanged
     const list=Array.isArray(DB.settings.conditioning)?DB.settings.conditioning.slice():[];
@@ -3192,7 +3267,7 @@ function conFeltSave(){
   // re-edited session still lands on the right block
   let saved=false;
   DB.sessions.forEach(s=>(s.blocks||[]).forEach(b=>{
-    if(isCond(b)&&b.condResult&&b.condResult.id===r.id){b.condResult=r;saved=true;}}));
+    if(isCond(b)&&b.condResult&&b.condResult.id===r.id){b.condResult=r;s.updatedAt=Date.now();saved=true;}}));
   if(!saved){
     const list=Array.isArray(DB.settings.conditioning)?DB.settings.conditioning.slice():[];
     const i=list.findIndex(x=>x.id===r.id);
@@ -3474,9 +3549,9 @@ function conResultsHtml(rec){
     const e=CON_EFFORTS[rec.effort]||condEffort(rec);
     const rated=rec.felt!=null&&rec.felt!=='';
     if(rated&&!CON.feltEdit){
-      const gap=parseFloat(rec.felt)-rec.targetRpe;
+      const gap=condEffortGap(e,rec.felt);
       const low=e.name.toLowerCase();
-      const verdict=gap>=1?'that ran harder than '+low:gap<=-1?'that ran easier than '+low+' — you had more in you':'right on '+low;
+      const verdict=gap>0.5?'that ran harder than '+low:gap<-0.5?'that ran easier than '+low+' — you had more in you':'right on '+low;
       h+='<div class="card guidebar" style="margin-top:14px"><b>Felt effort:</b> RPE '+esc(rec.felt)+
         ' against a '+esc(e.name)+' target of RPE '+condEffortRpe(e)+' — '+esc(verdict)+
         '. <button class="daychip" data-click="conFeltEdit">change</button></div>';
