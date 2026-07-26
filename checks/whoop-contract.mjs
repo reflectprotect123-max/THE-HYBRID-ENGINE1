@@ -492,6 +492,13 @@ async function main() {
   // identity rests on. They are listed here for the same reason the four above
   // are: an integration whose deployment steps are not written down is an
   // integration that works only on the machine it was built on.
+  //
+  // "required" here means the server reads it and the docs name it — NOT that
+  // every deployment must set a value. SUPABASE_JWT_SECRET is only consulted on
+  // the HS256 branch, and this project signs ES256 (Settings -> JWT Keys shows
+  // ECC P-256 as current), so it is deliberately unset in production. What must
+  // stay true is that the variable remains documented, because a project that
+  // has NOT migrated still needs it and would otherwise fail with no clue why.
   const requiredEnv = [
     'APP_BASE_URL',
     'APP_SESSION_SECRET',

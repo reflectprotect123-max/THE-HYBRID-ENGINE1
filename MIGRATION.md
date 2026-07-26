@@ -145,13 +145,16 @@ terminal:
   to Supabase and appear in the coach view.
 - Only once that EAS build has shipped and been verified, retire
   `native/android-app/`.
-- **Set `SUPABASE_JWT_SECRET` in the Netlify environment.** WHOOP on mobile now
-  proves identity with a Supabase access token instead of a cookie the system
-  browser owns (see `netlify/functions/_lib/supabase.mjs`), and that token has
-  to be verified server-side. `SUPABASE_URL` is already set; the secret comes
-  from Supabase → Project Settings → API → JWT Settings and cannot be guessed.
-  Until it is set, bearer requests fail with `supabase_auth_unconfigured` and
-  the web flow is unaffected.
+- ~~Set `SUPABASE_JWT_SECRET`~~ — **not needed, and deliberately unset.** WHOOP
+  on mobile proves identity with a Supabase access token rather than a cookie
+  the system browser owns (`netlify/functions/_lib/supabase.mjs`), and that
+  token is verified server-side. This project's current signing key is **ECC
+  (P-256)** — Settings → JWT Keys — with the legacy HS256 key demoted to
+  "previous". Asymmetric keys publish their public half at
+  `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`, which the verifier fetches
+  itself, so `SUPABASE_URL` (already set) is the whole configuration. The HS256
+  branch is retained for a project that has not migrated; it is unreachable
+  here.
 
 ## Deploying
 

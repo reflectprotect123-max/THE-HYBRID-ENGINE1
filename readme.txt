@@ -73,13 +73,14 @@ WHOOP deployment
 - Set SUPABASE_URL to the project URL (the same one in packages/config, e.g.
   https://orysjncrksmdfabpuftd.supabase.co). Public; it is only used to pin the
   expected token issuer and to fetch the published signing keys.
-- Set SUPABASE_JWT_SECRET to the project's JWT secret (Supabase Dashboard ->
-  Project Settings -> API -> JWT Settings). Keep it server-only; it never
-  appears in a client bundle. Only needed while the project still signs tokens
-  with the legacy HS256 secret; projects migrated to asymmetric signing keys
-  are verified from the published JWKS and need SUPABASE_URL alone.
-- Both Supabase variables are REQUIRED FOR THE ANDROID/iOS APP and unused by
-  the browser. The phone hands WHOOP's consent screen to the system browser,
+- SUPABASE_JWT_SECRET is NOT NEEDED for this project and is deliberately unset.
+  Settings -> JWT Keys shows the current signing key as ECC (P-256), i.e. ES256,
+  with the legacy HS256 key demoted to "previous". Asymmetric keys publish their
+  public half at <SUPABASE_URL>/auth/v1/.well-known/jwks.json, which the server
+  fetches on its own, so SUPABASE_URL alone is sufficient. The variable is still
+  read, and the HS256 branch still works, for a project that has not migrated —
+  set it only if Settings -> JWT Keys shows HS256 as the CURRENT key.
+- SUPABASE_URL is REQUIRED FOR THE ANDROID/iOS APP and unused by the browser. The phone hands WHOOP's consent screen to the system browser,
   which has a separate cookie jar, so a session cookie can never identify it;
   the app authenticates with its Supabase access token instead and the server
   verifies that token here. Without these two variables the app's WHOOP calls
