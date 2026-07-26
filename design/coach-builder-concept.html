@@ -12,6 +12,17 @@
    On the phone a card takes the whole screen; on a laptop there
    is room, so it expands in place and the session stays visible.
    Tokens are the athlete app's (:root in /index.html), untouched.
+
+   WARM-UP SETS: typing W (or W10) in a set's target marks it a warm-up. It is
+   encoded in `t` rather than as a new key, because a planned set's shape is
+   contractual — checks/emit-contract.mjs and checks/browser-smoke.mjs both
+   assert it is exactly {t,rpe} — and `t` is already free text parsed by
+   pattern, where `max` likewise carries behaviour. When this reaches the real
+   app, isWarmup() sets MUST be skipped by: the weight autoregulation
+   (computeSetAdjustment / glogConfirmSet), volume + avg-RPE stats
+   (sessionVolume / sessionRpe) and PR detection (detectPRs). A warm-up that
+   drags the working weight down or registers a PR is the whole point of the
+   flag.
    ============================================================ */
 @font-face{font-family:'Inter';src:url('../fonts/inter-var.woff2') format('woff2');font-weight:100 900;font-display:swap;font-style:normal}
 :root{
@@ -89,10 +100,16 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 /* typed set rows — one target per set, so a ladder is just four boxes */
 .setlist{display:flex;flex-direction:column;gap:8px;min-width:0}
 .setrow{display:flex;align-items:center;gap:10px}
-.setn{flex:0 0 46px;color:var(--dim);font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
-.sett{width:132px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--text);font:inherit;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;outline:none}
-.sett:focus{border-color:var(--gold-line);box-shadow:var(--well-inset),0 0 0 3px rgba(192,147,88,.13)}
-.sett::placeholder{color:var(--dim);font-weight:600;font-size:14px}
+.setn{flex:0 0 52px;color:var(--dim);font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.sett,.setr{min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--text);font:inherit;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;outline:none}
+.sett{width:112px}
+.setr{width:78px;font-size:15px;color:var(--gold2)}
+.sett:focus,.setr:focus{border-color:var(--gold-line);box-shadow:var(--well-inset),0 0 0 3px rgba(192,147,88,.13)}
+.sett::placeholder,.setr::placeholder{color:var(--dim);font-weight:600;font-size:13px}
+/* a warm-up recedes, so the working sets are what the eye lands on */
+.setrow.warm .setn{color:var(--gold2);opacity:.75}
+.setrow.warm .sett{color:var(--muted);border-style:dashed}
+.setrow.warm .setr{opacity:.45}
 .setx{width:30px;height:30px;border-radius:50%;color:var(--dim);font-size:12px;display:grid;place-items:center;flex:0 0 auto}
 .setx:hover{color:#cf7f7c;background:rgba(207,127,124,.1)}
 .setx.ghost{pointer-events:none}
@@ -193,7 +210,7 @@ var EFF={Easy:'RPE 3-4',Medium:'RPE 5-7',Hard:'RPE 8-9.5'};
 
 /* Sets are the phone's own shape: one {t,rpe} per set (app.js newSet/newEx),
    so a ladder like 12/10/8/8 is native rather than a translation. */
-function S(list,rpe){return list.map(function(t){return {t:String(t),rpe:rpe}})}
+function S(list,rpe){return list.map(function(t){return {t:String(t),rpe:String(rpe)}})}
 var B=[
  {h:'Main',mins:'18 min',ex:[
    {n:'Back Squat',sets:S([5,5,5,5],8),rest:180},
@@ -222,16 +239,20 @@ var LTR={};
 function letter(bi,ei){return LTR[bi+'-'+ei]||'?'}
 /* Mirrors the phone's rxLine (app.js:128) exactly: uniform targets collapse to
    "4 × 5", a ladder spells out "4 × 12/10/8/8", and RPE reads "8" or "7→9". */
+/* One predicate the whole app can share: a target starting with W is a warm-up.
+   Bare "W" = work up as you like; "W10" = a warm-up of 10, and repFloorOf still
+   reads the 10 out of it unchanged. */
+function isWarmup(st){return /^\s*w/i.test(st&&st.t||'')}
 function uniq(a){return a.filter(function(v,i){return a.indexOf(v)===i})}
 function summary(x){
   var vals=x.sets.map(function(st){return st.t||'—'}), u=uniq(vals);
   var rx=x.sets.length+' × <i>'+esc(u.length===1?u[0]:vals.join('/'))+'</i>';
-  var rpes=x.sets.map(function(st){return st.rpe}).filter(function(v){return v||v===0});
+  // stringify: a seeded 8 and a typed "8" must not read as two different RPEs
+  var rpes=x.sets.map(function(st){return st.rpe==null?'':String(st.rpe).trim()}).filter(Boolean);
   if(rpes.length){var ur=uniq(rpes);
     rx+=' · <i>RPE '+(ur.length===1?ur[0]:rpes[0]+'→'+rpes[rpes.length-1])+'</i>';}
   return rx+' · '+(x.rest?'rest '+rest(x.rest):'flows on');
 }
-function rpeOf(x){return x.sets.length?x.sets[0].rpe:8}
 
 /* ---- render ---- */
 function render(){
@@ -258,9 +279,13 @@ function card(x,bi,ei){
       '<span>'+summary(x)+'</span></span>'+
     '<button class="lgcar" data-open="'+bi+','+ei+'" aria-label="collapse">▴</button></div>';
   var rows=x.sets.map(function(st,si){
-    return '<div class="setrow"><span class="setn">Set '+(si+1)+'</span>'+
+    var w=isWarmup(st);
+    return '<div class="setrow'+(w?' warm':'')+'">'+
+      '<span class="setn">'+(w?'Warm':'Set '+(si+1))+'</span>'+
       '<input class="sett" value="'+esc(st.t)+'" data-t="'+bi+','+ei+','+si+'" '+
-        'inputmode="numeric" placeholder="reps" aria-label="target for set '+(si+1)+'">'+
+        'placeholder="reps" aria-label="target for set '+(si+1)+'">'+
+      '<input class="setr" value="'+esc(st.rpe==null?'':st.rpe)+'" data-r="'+bi+','+ei+','+si+'" '+
+        'placeholder="'+(w?'—':'RPE')+'" aria-label="target RPE for set '+(si+1)+'">'+
       (x.sets.length>1?'<button class="setx" data-delset="'+bi+','+ei+','+si+'" aria-label="remove set '+(si+1)+'">✕</button>':'<span class="setx ghost"></span>')+
     '</div>';
   }).join('');
@@ -268,13 +293,10 @@ function card(x,bi,ei){
     '<div class="f" style="align-items:flex-start"><label style="padding-top:11px">Sets &amp; reps</label>'+
       '<div class="setlist">'+rows+
         '<button class="addset" data-addset="'+bi+','+ei+'">＋ Add set</button>'+
-        '<p class="setshint">Type anything the athlete should hit — <b>8</b>, <b>8-12</b>, <b>max</b>. A different number per set makes a ladder.</p>'+
+        '<p class="setshint">Type what the athlete should hit — <b>8</b>, <b>8-12</b>, <b>max</b>. Start with <b>W</b> for a warm-up (<b>W</b> or <b>W10</b>). A different number per set makes a ladder.</p>'+
       '</div></div>'+
     '<div class="f"><label>Rest</label><div class="step">'+
       '<button data-rest="'+bi+','+ei+',-15">−</button><span class="val">'+rest(x.rest)+'</span><button data-rest="'+bi+','+ei+',15">+</button></div></div>'+
-    '<div class="rpe"><small>Target effort · RPE</small><b id="rpeOut">'+rpeOf(x)+'</b>'+
-      '<input type="range" min="1" max="10" step="0.5" value="'+rpeOf(x)+'" id="rpeSlider" aria-label="target RPE 1 to 10">'+
-      '<div class="ancs"><span>1 · barely felt it</span><span>10 · max effort</span></div></div>'+
     '<div class="cardctl">'+
       '<button class="ctlbtn" data-move="'+bi+','+ei+',-1" aria-label="move up">↑</button>'+
       '<button class="ctlbtn" data-move="'+bi+','+ei+',1" aria-label="move down">↓</button>'+
@@ -306,7 +328,7 @@ document.addEventListener('click',function(e){
     render();return;}
   if(t=e.target.closest('[data-addset]')){var a=args(t,'addset'),x=B[+a[0]].ex[+a[1]];
     // copy the last set forward, exactly as the phone's planBumpSets does
-    var last=x.sets[x.sets.length-1]||{t:'',rpe:8};
+    var last=x.sets[x.sets.length-1]||{t:'',rpe:''};
     x.sets.push({t:last.t,rpe:last.rpe});render();focusSet(+a[0],+a[1],x.sets.length-1);return;}
   if(t=e.target.closest('[data-delset]')){var a=args(t,'delset'),x=B[+a[0]].ex[+a[1]];
     if(x.sets.length>1)x.sets.splice(+a[2],1);render();return;}
@@ -325,18 +347,20 @@ document.addEventListener('click',function(e){
   if(e.target.id==='scrim')closePick();
 });
 document.addEventListener('input',function(e){
-  if(e.target.id==='rpeSlider'){
-    var v=Math.round(e.target.value*10)/10, x=B[OPEN.b].ex[OPEN.e];
-    x.sets.forEach(function(st){st.rpe=v});
-    document.getElementById('rpeOut').textContent=v;
-    var s=document.querySelector('.lgx.open .lgcn span');if(s)s.innerHTML=summary(x);
-    return;
-  }
   if(e.target.id==='q'){fillOpts(e.target.value);return;}
+  // keystroke: no re-render, keeps focus — the pattern app.js:1492 uses
   if(e.target.classList.contains('sett')){
-    // keystroke: no re-render, keeps focus — the pattern app.js:1492 uses
     var a=e.target.getAttribute('data-t').split(',');
-    B[+a[0]].ex[+a[1]].sets[+a[2]].t=e.target.value;
+    var st=B[+a[0]].ex[+a[1]].sets[+a[2]];
+    var wasWarm=isWarmup(st);
+    st.t=e.target.value;
+    paintSummary();
+    // crossing the warm-up line is the one edit that changes the row itself
+    if(isWarmup(st)!==wasWarm)paintWarm(e.target,isWarmup(st));
+  }
+  if(e.target.classList.contains('setr')){
+    var a=e.target.getAttribute('data-r').split(',');
+    B[+a[0]].ex[+a[1]].sets[+a[2]].rpe=e.target.value;
     paintSummary();
   }
 });
@@ -345,6 +369,17 @@ function paintSummary(){
   var x=B[OPEN.b]&&B[OPEN.b].ex&&B[OPEN.b].ex[OPEN.e];if(!x)return;
   var el=document.querySelector('.lgx.open .lgcn > span');if(el)el.innerHTML=summary(x);
 }
+/* Retag a single row in place. A full render here would blow away the field
+   being typed into — the same trap the blur re-render fell into. */
+function paintWarm(input,warm){
+  var row=input.closest('.setrow');if(!row)return;
+  row.classList.toggle('warm',warm);
+  var n=row.querySelector('.setn');
+  if(n)n.textContent=warm?'Warm':'Set '+(idxOf(input)+1);
+  var r=row.querySelector('.setr');
+  if(r)r.placeholder=warm?'—':'RPE';
+}
+function idxOf(input){return +input.getAttribute('data-t').split(',')[2]}
 function focusSet(bi,ei,si){
   var el=document.querySelector('[data-t="'+bi+','+ei+','+si+'"]');
   if(el){el.focus();el.select();}
