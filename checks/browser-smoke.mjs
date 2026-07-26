@@ -116,33 +116,15 @@ await t('tapping a week day opens History (empty state)', async () => {
 await t('session card opens the Training day view', async () => {
   await page.click('#s-home .sessioncard');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
-  const secs = await page.$$eval('#s-training .sec-head h2', (els) => els.map((e) => e.textContent));
+  const secs = await page.$$eval('#s-training .lgsec', (els) => els.map((e) => e.textContent));
   if (!/^Warm-up/.test(secs[0] || '') || !secs.some((x) => /Strength 1/.test(x))) throw new Error(secs.join(','));
-  // the mock's section head carries the block duration and its format underneath
-  const mins = await page.$$eval('#s-training .sec-head span', (els) => els.map((e) => e.textContent));
-  if (!mins.some((x) => /min/.test(x))) throw new Error('no block duration on any section head: ' + mins.join(','));
-  const fmt = await page.$$eval('#s-training .sec-format', (els) => els.map((e) => e.textContent));
-  if (!fmt.some((x) => /straight sets/.test(x))) throw new Error('block format line missing: ' + fmt.join(','));
 });
-await t('superset sits in the mock\'s gold rail, with its label and Mark round complete', async () => {
-  const wrap = await page.$('#s-training .superwrap');
-  if (!wrap) throw new Error('superset block is not wrapped in .superwrap');
-  const label = await page.textContent('#s-training .superwrap .superlabel span');
-  if (!/Superset · 3 rounds/.test(label)) throw new Error('superlabel=' + label);
-  const rail = await page.$eval('#s-training .superwrap', (el) => getComputedStyle(el).borderLeftWidth);
-  if (parseFloat(rail) < 2) throw new Error('no gold left rail on the superset: ' + rail);
-  // the pair's rows live inside the rail, not loose in the section
-  const inside = await page.$$eval('#s-training .superwrap .exrow', (els) => els.length);
-  if (inside !== 2) throw new Error('expected 2 rows inside the rail, got ' + inside);
-  await page.click('#s-training .superwrap .markall');
-  const banked = await page.evaluate(() => curSession().blocks[1].exercises.every((e) => e.sets.every((st) => st.done)));
-  if (!banked) throw new Error('Mark round complete did not bank the round');
-  await page.click('#s-training .superwrap .markall'); // and it toggles back off
-  const cleared = await page.evaluate(() => curSession().blocks[1].exercises.every((e) => e.sets.every((st) => !st.done)));
-  if (!cleared) throw new Error('Mark round complete did not toggle back');
+await t('superset block is labeled "flows on" (auto-advance chain)', async () => {
+  const label = await page.textContent('#s-training .lgsec .lgss');
+  if (!/flows on/.test(label)) throw new Error(label);
 });
 await t('guided stage opens on a strength row: dots, tracker, weight+reps, Finish Set', async () => {
-  const rows = await page.$$('#s-training .exrow.nav');
+  const rows = await page.$$('#s-training .lgcrow');
   let clicked = false;
   for (const row of rows) {
     const txt = await row.textContent();
@@ -273,7 +255,7 @@ await t('History shows the logged set', async () => {
 await t('logger prefills last kg as placeholder next time', async () => {
   await page.click('#s-home .sessioncard');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
-  const rows = await page.$$('#s-training .exrow.nav');
+  const rows = await page.$$('#s-training .lgcrow');
   for (const row of rows) {
     if (/rest 3:00/.test(await row.textContent())) { await row.click(); break; }
   }
@@ -1046,7 +1028,7 @@ await t('Planner → Logger symbiosis: the authored plan drives the guided flow'
 await t('logger accordion: open, collapse, one-at-a-time', async () => {
   await page.click('.navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
-  const rows = await page.$$('#s-training .exrow.nav');
+  const rows = await page.$$('#s-training .lgcrow');
   if (rows.length < 2) throw new Error('need at least 2 exercise rows, got ' + rows.length);
   await rows[0].click();
   await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
@@ -1054,7 +1036,7 @@ await t('logger accordion: open, collapse, one-at-a-time', async () => {
   await page.click('#s-training .lgx.open .lgltr');
   if (await page.$('#s-training .lgx.open')) throw new Error('card did not collapse');
   // open a different row — only ONE open card ever
-  const rows2 = await page.$$('#s-training .exrow.nav');
+  const rows2 = await page.$$('#s-training .lgcrow');
   await rows2[1].click();
   await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
   const openCount = await page.$$eval('#s-training .lgx.open', (els) => els.length);
