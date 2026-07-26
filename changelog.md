@@ -1,5 +1,25 @@
 # Changelog
 
+## Training goes back to the design mock — 26 July 2026
+
+The session list had drifted off the mock into dense list rows. It's now the
+mock's treatment again, component for component:
+
+- **Exercise cards** are the quiet card from the mock — name, prescription
+  line, chevron. The letter chip and the "4 SETS" endcap that had crept onto
+  the left and right are gone. A card you've started shows the design kit's
+  own `2/4` readout instead, and a finished one shows the filled gold tick.
+- **Supersets** sit inside the gold left rail again, with their own
+  `SUPERSET · 3 ROUNDS` label and a **Mark round complete** that banks the
+  whole pair in one tap (tap it again to clear the round).
+- **Section headers** are gold caps carrying the block's duration
+  (`MAIN  18 min`) with its format underneath (`4 working sets · straight
+  sets`) — both were being dropped on the floor before.
+
+The guided set flow you get when you tap a card is unchanged. The sample
+session now carries block durations and formats too, so it shows the whole
+treatment rather than half of it.
+
 ## A sample session, one tap away — 26 July 2026
 
 Trying the Logger no longer starts with importing something. **Load a sample

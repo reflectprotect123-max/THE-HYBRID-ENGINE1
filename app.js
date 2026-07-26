@@ -871,23 +871,38 @@ function renderSession(){
   s.blocks.forEach(b=>{if(isCond(b)){stot++;if(b.condResult)sdone++;}else blockExercises(b).forEach(e=>{stot+=e.sets.length;sdone+=e.sets.filter(st=>st.done).length;});});
   const spct=stot?Math.round(100*sdone/stot):0;
   let body='';let anyOpen=false;
+  /* The session list is the design mock's, component for component: a gold
+     section head carrying the block's duration with its format underneath,
+     quiet exercise cards (name, prescription, chevron) and nothing else, and a
+     superset wrapped in the gold left rail with its own label and a one-tap
+     "Mark round complete". The only addition to the mock's preview treatment is
+     the done/total readout the design kit's logger accordion uses, because
+     this list is live and has to show what you've already banked. */
   s.blocks.forEach((b,bi)=>{
     if(isCond(b)){body+=renderCondBlockRow(b,bi);return;}
-    if(b.heading)body+='<div class="lgsec">'+esc(b.heading)+(b.superset?'<span class="lgss">superset · flows on</span>':'')+(b.format?'<span class="lgfmt">'+esc(b.format)+'</span>':'')+'</div>';
+    const head='<div class="sec-head"><h2>'+esc(b.heading||'Block')+'</h2>'+
+      (b.minutes?'<span>'+esc(b.minutes)+' min</span>':'')+'</div>'+
+      (b.format?'<div class="sec-format">'+esc(b.format)+'</div>':'');
+    let rows='';
     blockExercises(b).forEach((ex,ei)=>{
       const open=LOG_LOC&&LOG_LOC.bi===bi&&LOG_LOC.ei===ei&&ex.mode!=='completion';
-      if(open){anyOpen=true;body+=lgOpenCard(s,b,ex,bi,ei,letters[bi][ei]);return;}
-      const done=ex.sets.length&&ex.sets.every(st=>st.done);
+      if(open){anyOpen=true;rows+=lgOpenCard(s,b,ex,bi,ei,letters[bi][ei]);return;}
+      const tot=ex.sets.length,dn=ex.sets.filter(st=>st.done).length,done=tot>0&&dn===tot;
+      const t='<div class="t"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></div>';
       if(ex.mode==='completion'){
-        body+='<div class="lgx'+(done?' donex':'')+'"><button class="lgcrow" data-click="toggleCompletion" data-args="['+bi+','+ei+']">'+
-          '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
-          (done?'<span class="lgstat done">'+svgCheck()+'done</span>':'<span class="lgstat">tap'+svgCheck()+'</span>')+'</button></div>';
+        rows+='<div class="card exrow'+(done?' done':'')+'" data-click="toggleCompletion" data-args="['+bi+','+ei+']" role="button" tabindex="0">'+t+'<div class="st">✓</div></div>';
         return;
       }
-      body+='<div class="lgx'+(done?' donex':'')+'"><button class="lgcrow" data-click="openLogger" data-args="['+bi+','+ei+']">'+
-        '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
-        lgState(ex)+'<span class="lgcar">›</span></button></div>';
+      const endcap=done?'<div class="st">✓</div>'
+        :dn?'<div class="prog">'+dn+'/'+tot+'</div>'
+        :'<div class="chev" aria-hidden="true">›</div>';
+      rows+='<div class="card exrow nav'+(done?' done':'')+'" data-click="openLogger" data-args="['+bi+','+ei+']" role="button" tabindex="0">'+t+endcap+'</div>';
     });
+    if(b.superset){
+      rows='<div class="superwrap"><div class="superlabel"><span>'+esc(b.format||'Superset')+'</span>'+
+        '<button class="markall" data-click="markRound" data-args="['+bi+']">Mark round complete</button></div>'+rows+'</div>';
+    }
+    body+='<div class="section">'+head+rows+'</div>';
   });
   const allDone=sessionAllDone(s);
   // readiness where you're working: recovery % + what it means for today
@@ -931,6 +946,15 @@ function conRunBlock(bi){
   CON.fmt=(b.condFmt&&CON_FORMATS[b.condFmt])?b.condFmt:'intervals';
   CON.view='setup';CON.record=null;CON.error='';CON.info='';
   go('conditioning');
+}
+/* the mock's superset affordance: one tap banks (or un-banks) the whole pair */
+function markRound(bi){
+  const s=curSession();if(!s)return;
+  const b=s.blocks[bi];if(!b||isCond(b))return;
+  const exs=blockExercises(b);if(!exs.length)return;
+  const all=exs.every(e=>e.sets.length&&e.sets.every(st=>st.done));
+  exs.forEach(e=>e.sets.forEach(st=>{st.done=!all;}));
+  s.updatedAt=Date.now();save();renderSession();
 }
 function toggleCompletion(bi,ei){const s=curSession();if(!s)return;const ex=s.blocks[bi].exercises[ei];const d=!ex.sets.every(st=>st.done);ex.sets.forEach(st=>st.done=d);s.updatedAt=Date.now();save();renderSession();}
 function finishSession(btn){
@@ -1706,19 +1730,21 @@ const SAMPLE_NAME='Sample Session';
 function sampleWorkout(){
   const ex=(name,mode,rest,sets,rpe)=>({id:uid(),name,mode,tempo:'',rest,
     sets:sets.map(t=>({t:String(t),rpe:rpe==null?'':String(rpe)}))});
-  const blk=(heading,superset,exercises)=>({id:uid(),heading,minutes:'',format:'',superset:!!superset,exercises});
+  // minutes and format are what the section head renders — a sample with them
+  // blank would show the Training screen with half its furniture missing
+  const blk=(heading,minutes,format,superset,exercises)=>({id:uid(),heading,minutes,format,superset:!!superset,exercises});
   const cond=Object.assign(newCondBlock(),{heading:'Finisher — bike',condFmt:'intervals',effort:'medium',targetZone:'mod'});
   return stampWorkout({id:uid(),name:SAMPLE_NAME,days:[],dates:[],blocks:[
-    blk('Warm-up',false,[
+    blk('Warm-up','6','',false,[
       ex('Assault Bike','seconds',60,[180]),
       ex('Band Pull-apart','reps',45,[15,15])]),
-    blk('Main',false,[
+    blk('Main','18','4 working sets · straight sets',false,[
       ex('Back Squat','reps_kg',180,[5,5,5,5],8),
       ex('Romanian Deadlift','reps_kg',120,['8-10','8-10','8-10'],7.5)]),
-    blk('Accessory',true,[
+    blk('Accessory','10','Superset · 3 rounds',true,[
       ex('Dumbbell Bench Press','reps_kg',0,['8-12','8-12','8-12'],8),
       ex('Chest-Supported Row','reps_kg',90,['10-12','10-12','10-12'],8)]),
-    blk('Finisher',false,[
+    blk('Finisher','6','3 rounds',false,[
       ex('Plank','seconds',60,[45,45,45]),
       ex('Push-ups','amrap',0,[''],9)]),
     cond]});
