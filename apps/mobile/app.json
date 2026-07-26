@@ -23,7 +23,6 @@
         "android.permission.VIBRATE",
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.RECORD_AUDIO"
       ]
     },
