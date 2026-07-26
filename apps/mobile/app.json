@@ -2,6 +2,8 @@
   "expo": {
     "name": "Hybrid Engine",
     "slug": "hybrid-engine",
+    "//owner": "The project lives under the ths1s-team ORGANISATION, not a personal account. Without this, EAS resolves the build against whichever account the token belongs to and fails to find the project.",
+    "owner": "ths1s-team",
     "version": "2.14.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
