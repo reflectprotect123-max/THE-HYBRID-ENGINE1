@@ -35,60 +35,90 @@ await page.evaluate(() => localStorage.clear());
 await page.goto(url, { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(400);
 
-await t('boots into the seeded program (name + 7 days + 2 exercises)', async () => {
+await t('boots into the seeded program (name + 7 day pills + the day-1 session)', async () => {
   if ((await page.textContent('#progname')).trim() !== 'Sample Program') throw new Error('progname');
   if ((await page.$$('#days .day')).length !== 7) throw new Error('day count');
-  if ((await page.$$('.exc')).length !== 2) throw new Error('exercise count');
+  const cards = await page.$$('.lgx');
+  if (cards.length < 4) throw new Error('expected the seeded session cards, got ' + cards.length);
+  const heads = await page.$$eval('.sech', (els) => els.map((e) => e.value));
+  if (heads[0] !== 'Main') throw new Error('headings: ' + heads.join(','));
 });
 await t('day pills mark days that have sessions', async () => {
   const has = await page.$$eval('#days .day', (els) => els.map((e) => e.classList.contains('has')));
-  // seeded: days 1,2,4,6 have sessions (indices 0,1,3,5)
-  if (!(has[0] && has[1] && !has[2] && has[3] && !has[4] && has[5] && !has[6])) throw new Error(has.join(','));
+  // seeded: days 1, 4 and 6 carry sessions (indices 0, 3, 5)
+  if (!(has[0] && !has[1] && !has[2] && has[3] && !has[4] && has[5] && !has[6])) throw new Error(has.join(','));
 });
 await t('switching to a rest day shows the empty-session state', async () => {
   await page.click('#days .day[data-i="2"]');
   const body = await page.textContent('#editor');
   if (!/Add a session to this day/.test(body)) throw new Error('no empty state: ' + body.slice(0, 60));
-  await page.click('#days .day[data-i="0"]'); // back to day 1
+  await page.click('#days .day[data-i="0"]');
 });
-await t('chain-link builds a superset (A/B -> A1/A2)', async () => {
-  await page.click('.exlink .chain');
-  const mks = await page.$$eval('.exhdr .mk', (els) => els.map((e) => e.textContent));
-  if (mks[0] !== 'A1' || mks[1] !== 'A2') throw new Error(mks.join(','));
-  await page.click('.exlink .chain'); // unlink
-  const mks2 = await page.$$eval('.exhdr .mk', (els) => els.map((e) => e.textContent));
-  if (mks2[0] !== 'A' || mks2[1] !== 'B') throw new Error('unlink: ' + mks2.join(','));
+await t('letters run across the session, and a chain builds a superset', async () => {
+  const before = await page.$$eval('.lgltr', (els) => els.map((e) => e.textContent).join(' '));
+  if (before.indexOf('A B') !== 0) throw new Error('letters do not run across the session: ' + before);
+  await page.click('.planseam button');           // chain Main's pair
+  const after = await page.$$eval('.lgltr', (els) => els.map((e) => e.textContent).join(' '));
+  if (after.indexOf('A1 A2') !== 0) throw new Error('chain did not build a superset: ' + after);
+  if (!(await page.$('.superwrap'))) throw new Error('no superset rail');
+  await page.click('.planseam button.on');        // and split it back
+  const back = await page.$$eval('.lgltr', (els) => els.map((e) => e.textContent).join(' '));
+  if (back.indexOf('A B') !== 0) throw new Error('split did not restore: ' + back);
 });
-await t('metric dropdown opens with the full measure list', async () => {
-  await page.click('.rxth .c[data-c="1"]'); // Weight (lb) column header
-  await page.waitForSelector('.mmenu', { timeout: 1500 });
-  const opts = await page.$$eval('.mmenu button', (els) => els.map((e) => e.textContent));
-  if (opts.length !== 14 || opts[0] !== 'Reps' || !opts.includes('Calories (cal)')) throw new Error(opts.join(','));
-  await page.click('.mmenu button[data-v="Weight (kg)"]');
-  const hdr = await page.textContent('.rxth .c[data-c="1"]');
-  if (!/Weight \(kg\)/.test(hdr)) throw new Error('header not relabeled: ' + hdr);
+await t('typing a target persists, and W marks the set a warm-up', async () => {
+  await page.click('[data-act="open"][data-b="0"][data-e="0"]');
+  await page.waitForSelector('.lgx.open .setrow', { timeout: 1500 });
+  const warm = await page.$$eval('.setrow.warm', (els) => els.length);
+  if (warm !== 2) throw new Error('seeded warm-ups not flagged: ' + warm);
+  const box = await page.$('[data-act="st"][data-b="0"][data-e="0"][data-s="2"]');
+  await box.click({ clickCount: 3 });
+  await box.type('6');
+  await page.waitForTimeout(60);
+  const val = await page.evaluate(() => window.__coach.LIB.programs[0].weeks[0].days[0].blocks[0].ex[0].sets[2].t);
+  if (val !== '6') throw new Error('target not in the model: ' + val);
+  const ls = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-coach-v1')).programs[0].weeks[0].days[0].blocks[0].ex[0].sets[2].t);
+  if (ls !== '6') throw new Error('target not in localStorage: ' + ls);
+  // and typing a W retags the row live, without a re-render
+  const box2 = await page.$('[data-act="st"][data-b="0"][data-e="0"][data-s="3"]');
+  await box2.click({ clickCount: 3 });
+  await box2.type('W8');
+  await page.waitForTimeout(60);
+  const warm2 = await page.$$eval('.setrow.warm', (els) => els.length);
+  if (warm2 !== 3) throw new Error('W did not retag the row: ' + warm2);
+  await box2.click({ clickCount: 3 });
+  await box2.type('5');
+  await page.waitForTimeout(60);
 });
-await t('editing a prescription cell persists to localStorage', async () => {
-  const input = await page.$('.rxr input[data-e="0"][data-s="0"][data-c="0"]');
-  await input.click({ clickCount: 3 });
-  await input.type('7');
-  await page.waitForTimeout(50);
-  const val = await page.evaluate(() => window.__coach.LIB.programs[0].weeks[0].days[0].exercises[0].sets[0][0]);
-  if (val !== '7') throw new Error('not persisted: ' + val);
-  const ls = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-coach-v1')).programs[0].weeks[0].days[0].exercises[0].sets[0][0]);
-  if (ls !== '7') throw new Error('not in localStorage: ' + ls);
+await t('the published snapshot carries rest, cue, RPE, superset and conditioning', async () => {
+  await page.fill('[data-act="cue"][data-b="0"][data-e="0"]', 'Work up to 120kg.');
+  const snap = await page.evaluate(() => window.__coach.snapshot());
+  const b0 = snap.blocks[0], e0 = b0.exercises[0];
+  if (e0.rest !== 180) throw new Error('rest not carried: ' + e0.rest);          // was hardcoded 90
+  if (e0.cue !== 'Work up to 120kg.') throw new Error('cue not carried: ' + e0.cue);
+  if (b0.minutes !== '18 min') throw new Error('block minutes not carried: ' + b0.minutes);
+  if (Object.keys(e0.sets[0]).sort().join(',') !== 'rpe,t') throw new Error('set shape grew: ' + Object.keys(e0.sets[0]));
+  if (e0.sets[0].t !== 'W10') throw new Error('warm-up target not carried: ' + e0.sets[0].t);
+  if (e0.sets[3].rpe !== '8') throw new Error('per-set RPE not carried: ' + e0.sets[3].rpe);
+  const ss = snap.blocks.filter((b) => b.superset)[0];
+  if (!ss || ss.exercises.length !== 2) throw new Error('superset not carried');
+  const cond = snap.blocks.filter((b) => b.kind === 'conditioning')[0];
+  if (!cond) throw new Error('conditioning block never emitted');
+  if (cond.condFmt !== 'intervals' || cond.effort !== 'medium' || cond.targetZone !== 'mod') throw new Error('conditioning: ' + JSON.stringify(cond));
+  if (snap.note !== 'Belt optional. Honest bar speed on all five.') throw new Error('coach note not carried: ' + snap.note);
 });
 await t('adding an exercise grows the session', async () => {
-  const before = (await page.$$('.exc')).length;
+  const before = (await page.$$('.lgx')).length;
   await page.click('[data-act="addex"]');
-  if ((await page.$$('.exc')).length !== before + 1) throw new Error('exercise not added');
+  await page.waitForTimeout(80);
+  await page.click('[data-act="mclose"]').catch(() => {});   // the movement picker opens with it
+  if ((await page.$$('.lgx')).length !== before + 1) throw new Error('exercise not added');
 });
 await t('week selector switches weeks', async () => {
   await page.click('[data-act="wkmenu"]');
   await page.waitForSelector('.mmenu', { timeout: 1500 });
   await page.click('.mmenu button[data-v="Week 2"]');
   if (!/Week 2/.test(await page.textContent('#wklabel'))) throw new Error('week label');
-  const body = await page.textContent('#editor'); // week 2 day 1 is empty
+  const body = await page.textContent('#editor');
   if (!/Add a session to this day/.test(body)) throw new Error('week2 not empty');
 });
 await t('account modal opens (sign-in gate present)', async () => {

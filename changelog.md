@@ -1,5 +1,39 @@
 # Changelog
 
+## The coach site is the Planner, and publishing stops losing things — 26 July 2026
+
+The coach builder is rebuilt in the app's own language: one top bar, one column
+of the phone's cards opening in place, in the same dark/brass system the
+athlete uses. What you author on the laptop now looks like what gets run on the
+phone — because it is the same card.
+
+**Authoring**
+- **Reps and RPE are typed, per set.** A ladder is just different numbers —
+  `12 / 10 / 8 / 8` — and the summary line reads exactly as the phone renders
+  it. Rest steps in ±15s. Block headings are editable in place.
+- **`W` marks a warm-up.** Type `W` or `W10` and the set becomes a warm-up: the
+  row recedes, and on the phone it is skipped by the weight autoregulation, by
+  volume and average-RPE, and by PR detection. A warm-up at RPE 4 used to tell
+  the engine to add weight; a heavy warm-up single could register as a PR.
+- **Supersets are built by chaining two cards**, using the phone's own rules —
+  so a coach can't author a shape the logger runs differently.
+- **Conditioning is a block**, authored as format + Easy/Medium/Hard.
+
+**Publishing — what used to be silently dropped**
+Rest was hardcoded to 90 seconds. Tempo was always empty. A "Conditioning"
+section published as an ordinary strength block, so the heart-rate engine never
+engaged. Coach instructions and exercise cues were authored, stored, and then
+thrown away at the boundary. All of it travels now, and there's a test that
+publishes a session and reads it back through the athlete's own code to prove
+it.
+
+**Prescribed load** has no field in the phone's set model — RPE prescribes
+effort and the athlete's history picks the kilos. A coach who wants to name a
+number writes it in the exercise note, which the athlete now reads on the card.
+Old libraries migrate automatically: sessions become blocks, columns become
+per-set targets, and any weights already typed are folded into that note rather
+than lost.
+
 ## Debug pass: eleven real bugs, three of them data loss — 26 July 2026
 
 A full audit across sync, resilience, refactor correctness, dead code and

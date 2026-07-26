@@ -21,6 +21,9 @@
   var MODES = ['reps_kg', 'amrap', 'seconds', 'reps_seconds', 'reps', 'completion'];
   var COND_FORMATS = ['steady', 'intervals', 'tempo', 'custom', 'free'];
   var ZONES = ['low', 'mod', 'high'];
+  // effort names, and the zone each one holds — the phone derives one from the
+  // other, so emitting both keeps a legacy reader working either way
+  var EFFORTS = { easy: 'low', medium: 'mod', hard: 'high' };
   // set fields the phone logger owns — the coach app must never write them
   var FORBIDDEN_SET_KEYS = ['aVal', 'aVal2', 'felt', 'done', 'note'];
   var LB_TO_KG = 0.45359237;
@@ -33,25 +36,42 @@
 
   function newSet(target, rpe) { return { t: s(target), rpe: s(rpe) }; }
 
-  function newEx(name, mode, sets) {
+  /* rest, tempo and cue used to be hardcoded here, which meant a coach could
+     author them and the athlete would never receive them. They are arguments
+     now. `cue` is also where a prescribed LOAD lives: the phone's set model is
+     {t,rpe} with no target-weight field, so a coach naming a number writes it
+     into the cue and the athlete reads it on the card. */
+  function newEx(name, mode, sets, opts) {
     if (MODES.indexOf(mode) < 0) mode = 'reps_kg';
-    return {
-      id: uid(), name: s(name), mode: mode, tempo: '', rest: 90,
+    opts = opts || {};
+    var rest = parseInt(opts.rest, 10);
+    if (!isFinite(rest) || rest < 0) rest = 90;
+    var ex = {
+      id: uid(), name: s(name), mode: mode, tempo: s(opts.tempo), rest: Math.min(rest, 3600),
       sets: (sets && sets.length) ? sets : [newSet(), newSet(), newSet()]
     };
+    if (s(opts.cue)) ex.cue = s(opts.cue);
+    return ex;
   }
 
-  function newBlock(heading, exercises, superset) {
+  function newBlock(heading, exercises, superset, opts) {
+    opts = opts || {};
     return {
-      id: uid(), heading: s(heading) || 'Block', minutes: '', format: '',
+      id: uid(), heading: s(heading) || 'Block', minutes: s(opts.minutes), format: s(opts.format),
       superset: !!superset, exercises: (exercises && exercises.length) ? exercises : [newEx()]
     };
   }
 
-  function newCondBlock(heading, condFmt, targetZone, minutes) {
+  /* Takes an effort (easy/medium/hard) and emits BOTH it and the zone it holds,
+     matching the phone's own newCondBlock. Passing a bare zone still works. */
+  function newCondBlock(heading, condFmt, effortOrZone, minutes) {
     if (COND_FORMATS.indexOf(condFmt) < 0) condFmt = 'intervals';
-    if (ZONES.indexOf(targetZone) < 0) targetZone = 'mod';
-    return { id: uid(), kind: 'conditioning', heading: s(heading) || 'Conditioning', condFmt: condFmt, targetZone: targetZone, minutes: s(minutes) };
+    var effort = null, zone = null, k = String(effortOrZone || '').toLowerCase();
+    if (EFFORTS[k]) { effort = k; zone = EFFORTS[k]; }
+    else if (ZONES.indexOf(k) >= 0) { zone = k; for (var e in EFFORTS) if (EFFORTS[e] === k) effort = e; }
+    else { effort = 'medium'; zone = 'mod'; }
+    return { id: uid(), kind: 'conditioning', heading: s(heading) || 'Conditioning',
+      condFmt: condFmt, effort: effort, targetZone: zone, minutes: s(minutes) };
   }
 
   function newWorkout(name, blocks, extra) {
@@ -87,6 +107,7 @@
       if (b.kind === 'conditioning') {
         if (COND_FORMATS.indexOf(b.condFmt) < 0) throw new Error('emit: block ' + bi + ' bad condFmt "' + b.condFmt + '"');
         if (ZONES.indexOf(b.targetZone) < 0) throw new Error('emit: block ' + bi + ' bad targetZone "' + b.targetZone + '"');
+        if (b.effort != null && !EFFORTS[b.effort]) throw new Error('emit: block ' + bi + ' bad effort "' + b.effort + '"');
         return;
       }
       (b.exercises || []).forEach(function (e, ei) {
@@ -103,7 +124,7 @@
   }
 
   window.HybridEmit = {
-    MODES: MODES, COND_FORMATS: COND_FORMATS, ZONES: ZONES,
+    MODES: MODES, COND_FORMATS: COND_FORMATS, ZONES: ZONES, EFFORTS: EFFORTS,
     FORBIDDEN_SET_KEYS: FORBIDDEN_SET_KEYS, LB_TO_KG: LB_TO_KG,
     uid: uid,
     newSet: newSet, newEx: newEx, newBlock: newBlock, newCondBlock: newCondBlock, newWorkout: newWorkout,

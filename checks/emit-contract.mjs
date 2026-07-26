@@ -99,7 +99,22 @@ const out = await page.evaluate(() => {
   try { const bw = E.newWorkout('x', [E.newBlock('b', [E.newEx('x', 'reps', [E.newSet('5')])])]); bw.blocks[0].exercises[0].sets[0].aVal = '99'; E.assert(bw); }
   catch (e) { badField = true; }
 
+  /* rest, tempo and the cue used to be hardcoded at the emit boundary, so a
+     coach could author them and the athlete would never receive them. */
+  const rich = E.newEx('Squat', 'reps_kg', [E.newSet('5', '8')], { rest: 180, tempo: '30X1', cue: 'Work up to 120kg.' });
+  const plain = E.newEx('Squat', 'reps_kg', [E.newSet('5', '8')]);
+  const hardBlock = E.newCondBlock('Finisher', 'intervals', 'hard', '');
+  const zoneBlock = E.newCondBlock('Finisher', 'intervals', 'mod', '');
+  let badEffort = false;
+  try { E.assert({ blocks: [{ kind: 'conditioning', condFmt: 'intervals', targetZone: 'mod', effort: 'nonsense' }] }); }
+  catch (e) { badEffort = true; }
+
   return {
+    rich: { rest: rich.rest, tempo: rich.tempo, cue: rich.cue },
+    plain: { rest: plain.rest, tempo: plain.tempo, hasCue: 'cue' in plain },
+    hardBlock: { effort: hardBlock.effort, zone: hardBlock.targetZone },
+    zoneBlock: { effort: zoneBlock.effort, zone: zoneBlock.targetZone },
+    badEffort,
     name: cw.name,
     origin: cw.origin,
     assignmentId: cw.assignmentId,
@@ -130,6 +145,18 @@ t('set keeps ONLY target fields {t,rpe} — no logger fields', () => {
   assert(out.setT === '60' && out.setRpe === '8', 'target lost t=' + out.setT + ' rpe=' + out.setRpe);
   const extra = out.setKeys.filter((k) => k !== 't' && k !== 'rpe');
   assert(extra.length === 0, 'set gained non-target keys: ' + extra.join(','));
+});
+t('emit carries rest, tempo and the coach cue — none are hardcoded', () => {
+  assert(out.rich.rest === 180, 'rest not carried: ' + out.rich.rest);
+  assert(out.rich.tempo === '30X1', 'tempo not carried: ' + out.rich.tempo);
+  assert(out.rich.cue === 'Work up to 120kg.', 'cue not carried: ' + out.rich.cue);
+  assert(out.plain.rest === 90 && out.plain.tempo === '' && !out.plain.hasCue,
+    'defaults changed: ' + JSON.stringify(out.plain));
+});
+t('emit maps an effort to its zone, and rejects a bogus one', () => {
+  assert(out.hardBlock.effort === 'hard' && out.hardBlock.zone === 'high', 'effort/zone: ' + JSON.stringify(out.hardBlock));
+  assert(out.zoneBlock.effort === 'medium' && out.zoneBlock.zone === 'mod', 'a bare zone should still work: ' + JSON.stringify(out.zoneBlock));
+  assert(out.badEffort, 'assert accepted a bogus effort');
 });
 t('conditioning block survives with valid enums', () => {
   assert(out.condKind === 'conditioning', 'cond kind lost');
