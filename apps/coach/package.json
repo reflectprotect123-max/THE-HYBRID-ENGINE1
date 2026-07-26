@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"coach e2e lives in checks/\" && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
     "@hybrid/config": "workspace:*",
@@ -26,6 +26,7 @@
     "@vitejs/plugin-react": "^5.0.2",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.3",
-    "vite": "^7.1.5"
+    "vite": "^7.1.5",
+    "vitest": "^3.2.4"
   }
 }

@@ -23,7 +23,7 @@ export function App() {
    RLS policies give a coach no way to attach themselves to an athlete, so the
    athlete typing the code is the consent step. */
 function AccountBar() {
-  const { enabled, user, invites, signIn, signUp, signOut, createInvite, revokeInvite } = useCoachCloud();
+  const { enabled, user, invites, loadError, signIn, signUp, signOut, createInvite, revokeInvite } = useCoachCloud();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [label, setLabel] = useState('');
@@ -101,6 +101,7 @@ function AccountBar() {
             </button>
           </div>
           {msg ? <p className="mt-1 text-3 text-muted">{msg}</p> : null}
+          {loadError ? <p className="mt-1 text-3 text-warn">{loadError}</p> : null}
           {invites.length ? (
             <ul className="mt-1.5 flex flex-col gap-0.5 border-t border-line pt-1.5">
               {invites.map((i) => (
@@ -109,7 +110,10 @@ function AccountBar() {
                     {i.token}
                   </span>
                   <span className="flex-1 text-3 text-muted">{i.label || 'unnamed'} · not claimed yet</span>
-                  <button onClick={() => void revokeInvite(i.id)} className="text-3 text-dim hover:text-bad">
+                  <button
+                    onClick={async () => setMsg((await revokeInvite(i.id)) || 'Invite revoked.')}
+                    className="text-3 text-dim hover:text-bad"
+                  >
                     revoke
                   </button>
                 </li>

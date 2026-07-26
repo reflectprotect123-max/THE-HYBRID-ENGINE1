@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { isWarmup, type CondFmtKey, type EffortKey } from '@hybrid/engine';
+import { isWarmup, ymd, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useLib } from './store';
 import { useCoachCloud } from './cloud';
 import {
@@ -45,7 +45,28 @@ export function Editor({
   const [pick, setPick] = useState<{ b: number; e: number } | null>(null);
   const [msg, setMsg] = useState('');
   const [athlete, setAthlete] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // The coach's LOCAL day. toISOString() is UTC, so a coach east of Greenwich
+  // would open the app in the morning and be offered yesterday's date — and one
+  // west of it, tomorrow's. `scheduled_date` is the day the athlete sees the
+  // session on, so that off-by-one lands the session on the wrong day.
+  const [date, setDate] = useState(() => ymd(new Date()));
+
+  /*
+   * The editor stays mounted across a day switch (it only unmounts for a rest
+   * day), so per-session state has to be reset explicitly. Otherwise Day 2 opens
+   * showing "Valid — 2 blocks ready to send" left over from Day 1, and an open
+   * card index that means something different in the new session. The athlete
+   * and the date are deliberately NOT reset: publishing a whole week to one
+   * athlete is the normal case.
+   */
+  const selKey = lib.sel.p + '/' + lib.sel.w + '/' + lib.sel.d;
+  const [lastSel, setLastSel] = useState(selKey);
+  if (lastSel !== selKey) {
+    setLastSel(selKey);
+    setOpen({ b: 0, e: 0 });
+    setPick(null);
+    setMsg('');
+  }
 
   if (!day) return null;
   const s = day;
@@ -58,6 +79,29 @@ export function Editor({
       if (!target) return false;
       fn(target);
     });
+
+  /**
+   * A delete, followed by the same pruning `sanitizeSession` applies on load.
+   *
+   * Without it the two disagree: the editor is happy to keep a block with no
+   * exercises, or a session with no blocks, but the loader drops both — so the
+   * coach carries on typing a title and a note into something a reload will
+   * throw away without a word. The published shape disagrees too: emit.newBlock
+   * substitutes a nameless blank exercise for an empty block, so the athlete
+   * receives a phantom card the coach never wrote.
+   */
+  const removeThenPrune = (fn: (sess: CoachSession) => void) => {
+    setOpen(null);
+    setPick(null);
+    update((d) => {
+      const slot = d.programs[d.sel.p].weeks[d.sel.w];
+      const target = slot.days[d.sel.d];
+      if (!target) return false;
+      fn(target);
+      target.blocks = target.blocks.filter((b) => isCond(b) || b.ex.length);
+      if (!target.blocks.length) slot.days[d.sel.d] = null;
+    });
+  };
 
   /**
    * Validate first, always — a session that cannot cross the emit contract must
@@ -136,7 +180,7 @@ export function Editor({
               />
             )}
             <button
-              onClick={() => edit((d) => void d.blocks.splice(bi, 1))}
+              onClick={() => removeThenPrune((d) => void d.blocks.splice(bi, 1))}
               aria-label="remove block"
               className="h-4 rounded-md border border-line2 px-1 text-3 text-dim hover:text-bad"
             >
@@ -185,7 +229,7 @@ export function Editor({
                         [arr[ei], arr[j]] = [arr[j], arr[ei]];
                       })
                     }
-                    onDelete={() => edit((d) => void (d.blocks[bi] as CoachBlock).ex.splice(ei, 1))}
+                    onDelete={() => removeThenPrune((d) => void (d.blocks[bi] as CoachBlock).ex.splice(ei, 1))}
                   />
                   {ei < b.ex.length - 1 ? (
                     <Seam

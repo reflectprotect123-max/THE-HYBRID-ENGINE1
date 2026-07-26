@@ -29,7 +29,10 @@ interface CoachCloud {
   /** Pending invites this coach has created but nobody has claimed yet. */
   invites: { id: string; token: string; label: string | null }[];
   createInvite: (label: string) => Promise<string | null>;
-  revokeInvite: (id: string) => Promise<void>;
+  /** Returns null on success, or a message to show. */
+  revokeInvite: (id: string) => Promise<string | null>;
+  /** Why the athlete/invite lists are empty, when it is not simply "they are". */
+  loadError: string | null;
 }
 
 const Ctx = createContext<CoachCloud | null>(null);
@@ -46,6 +49,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [athletes, setAthletes] = useState<{ id: string; label: string }[]>([]);
   const [invites, setInvites] = useState<{ id: string; token: string; label: string | null }[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!client) return;
@@ -56,28 +60,42 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
 
   const refreshAthletes = useCallback(async () => {
     if (!client || !user) return;
-    const { data, error } = await client
-      .from('coach_athletes')
-      .select('athlete_id,label')
-      .eq('coach_id', user.id)
-      .eq('status', 'active');
-    if (error) return;
 
+    // Two independent reads. They used to be chained, so a failure on the first
+    // returned early and the invite list was never set at all — a coach whose
+    // athlete query was refused saw "No pending invites" and lost the code their
+    // athlete needs, with nothing on screen to say a read had failed.
+    //
     // Pending invites come back on the same policy (ca_coach_select covers all
     // of this coach's rows), so one extra read keeps the codes visible until
     // they are claimed.
-    const { data: pend } = await client
-      .from('coach_athletes')
-      .select('id,invite_token,label')
-      .eq('coach_id', user.id)
-      .eq('status', 'pending');
-    setInvites((pend || []).map((r) => ({ id: r.id as string, token: r.invite_token as string, label: (r.label as string) ?? null })));
-    const rows = (data || [])
-      .filter((r) => r.athlete_id)
-      .map((r) => ({ id: r.athlete_id as string, label: (r.label as string) || 'Athlete' }));
+    const [act, pend] = await Promise.all([
+      client.from('coach_athletes').select('athlete_id,label').eq('coach_id', user.id).eq('status', 'active'),
+      client.from('coach_athletes').select('id,invite_token,label').eq('coach_id', user.id).eq('status', 'pending'),
+    ]);
+
+    if (!pend.error) {
+      setInvites(
+        (pend.data || []).map((r) => ({
+          id: r.id as string,
+          token: r.invite_token as string,
+          label: (r.label as string) ?? null,
+        })),
+      );
+    }
+
     // A coach can always assign to themselves — it is how you try a session
-    // before giving it to anyone, and it needs no invitation to exist.
+    // before giving it to anyone, and it needs no invitation to exist. That
+    // entry stands even when the read fails, so publishing still works.
+    const rows = act.error
+      ? []
+      : (act.data || [])
+          .filter((r) => r.athlete_id)
+          .map((r) => ({ id: r.athlete_id as string, label: (r.label as string) || 'Athlete' }));
     setAthletes([{ id: user.id, label: 'Myself' }, ...rows]);
+
+    const err = act.error || pend.error;
+    setLoadError(err ? 'Could not read your athletes: ' + err.message : null);
   }, [user]);
 
   useEffect(() => {
@@ -99,14 +117,17 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       try {
         // Idempotent for that athlete/date: clear any prior ad-hoc row before
         // inserting, so publishing twice does not give someone the same session
-        // twice on one day.
-        await client
+        // twice on one day. A refused delete has to stop the publish — carrying
+        // on would insert a SECOND row for the day and the athlete would open
+        // their calendar to two copies of the session.
+        const clear = await client
           .from('assignments')
           .delete()
           .eq('coach_id', user.id)
           .eq('athlete_id', athleteId)
           .eq('scheduled_date', date)
           .is('program_id', null);
+        if (clear.error) return 'Could not replace the existing assignment: ' + clear.error.message;
 
         const { error } = await client.from('assignments').insert({
           coach_id: user.id,
@@ -133,6 +154,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       user,
       athletes,
       invites,
+      loadError,
       refreshAthletes,
       publish,
       /*
@@ -160,10 +182,16 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
         await refreshAthletes();
         return null;
       },
+      /*
+       * A revoke that the server refuses used to look identical to one that
+       * worked: the code stayed on screen and nothing was said, so the coach
+       * believed a live invite had been withdrawn when it had not.
+       */
       revokeInvite: async (id) => {
-        if (!client || !user) return;
-        await client.from('coach_athletes').delete().eq('id', id).eq('coach_id', user.id);
+        if (!client || !user) return 'Sign in first.';
+        const { error } = await client.from('coach_athletes').delete().eq('id', id).eq('coach_id', user.id);
         await refreshAthletes();
+        return error ? 'Could not revoke that invite: ' + error.message : null;
       },
       signIn: async (email, password) => {
         if (!client) return 'Cloud is not configured.';
@@ -182,7 +210,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
         setUser(null);
       },
     }),
-    [user, athletes, invites, refreshAthletes, publish],
+    [user, athletes, invites, loadError, refreshAthletes, publish],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -146,6 +146,23 @@ export const isCond = (b: AnyBlock): b is CoachCond => (b as CoachCond).kind ===
 
 const s0 = (v: unknown, dflt = '') => (typeof v === 'string' ? v : dflt);
 
+/**
+ * A set target read back off disk.
+ *
+ * `t` and `rpe` are contractually strings, but a stored library does not have to
+ * agree: the vanilla builder's setM() coerced with String(), so anything it
+ * wrote through a numeric path — and anything hand-written or imported — can
+ * carry `{t: 5, rpe: 8}`. Treating those as "not a string, therefore blank"
+ * silently empties every set in the programme, which is the one outcome the
+ * migration exists to prevent. Objects and arrays still become '' — they are
+ * junk, not a target.
+ */
+const sVal = (v: unknown): string =>
+  typeof v === 'string' ? v
+  : typeof v === 'number' ? (Number.isFinite(v) ? String(v) : '')
+  : typeof v === 'boolean' ? String(v)
+  : '';
+
 /** Old measure columns that carried a unit, so a load keeps its unit in the cue. */
 const OLD_UNITS: Record<string, string> = {
   'Weight (kg)': 'kg',
@@ -268,7 +285,7 @@ export function sanitizeSession(raw: unknown): CoachSession | null {
           .map((e) => {
             const r = parseInt(String(e.rest), 10);
             const sets = (Array.isArray(e.sets) ? e.sets : []).map((st) =>
-              newSet(s0((st as CoachSet)?.t), s0((st as CoachSet)?.rpe)),
+              newSet(sVal((st as CoachSet)?.t), sVal((st as CoachSet)?.rpe)),
             );
             return {
               id: e.id || uid(),
@@ -379,11 +396,27 @@ export function sessionToWorkout(sess: CoachSession): Workout<PlannedSet> {
   return emit.newWorkout(sess.title, blocks, sess.note ? { note: sess.note } : undefined);
 }
 
+/**
+ * Which logger the athlete's phone opens for this movement.
+ *
+ * The coach never picks a mode — it is inferred from what they wrote, exactly
+ * as the vanilla builder's toPhoneEx did. Hardcoding reps_kg here meant a
+ * 60-second plank asked the athlete for a weight and a rep count, and `max`
+ * gave them a fixed-rep set instead of an AMRAP.
+ *
+ * The `> 30` test is what separates a duration from a rep count: nobody writes
+ * a bare "45" meaning forty-five reps, and nobody holds a plank for 8 seconds.
+ * `max` wins over it, because an AMRAP is about the count either way.
+ */
 function toAthleteEx(e: CoachEx) {
+  const sets = e.sets || [];
+  const allSecs = sets.length > 0 && sets.every((st) => /^\s*\d+\s*$/.test(String(st.t)) && parseInt(String(st.t), 10) > 30);
+  const anyMax = sets.some((st) => /^\s*max\s*$/i.test(String(st.t)));
+  const mode = anyMax ? 'amrap' : allSecs ? 'seconds' : 'reps_kg';
   return emit.newEx(
     e.name,
-    'reps_kg',
-    e.sets.map((st) => emit.newSet(st.t, st.rpe)),
+    mode,
+    sets.map((st) => emit.newSet(st.t, st.rpe)),
     { rest: e.rest, cue: e.cue },
   );
 }
