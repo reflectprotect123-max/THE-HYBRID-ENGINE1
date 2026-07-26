@@ -173,8 +173,13 @@ jobs:
             --non-interactive \
             $wait_flag
 
-      # The key must not outlive the job even on failure.
+      # The key must not outlive the job even on failure — hence always().
+      #
+      # But always() also fires on the path where the EXPO_TOKEN gate skipped
+      # everything, and on THAT path checkout never ran, so apps/mobile does not
+      # exist. A `working-directory` that is missing fails before the command
+      # starts, which turned a deliberate, clearly-announced skip into a red
+      # build. Hence the second clause, and the absolute path rather than a cwd.
       - name: Shred the staged key
-        if: always()
-        working-directory: apps/mobile
-        run: rm -f release.keystore credentials.json
+        if: always() && steps.signing.outcome != 'skipped'
+        run: rm -f "$GITHUB_WORKSPACE/apps/mobile/release.keystore" "$GITHUB_WORKSPACE/apps/mobile/credentials.json"
