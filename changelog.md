@@ -1,5 +1,20 @@
 # Changelog
 
+## A sample session, one tap away — 26 July 2026
+
+Trying the Logger no longer starts with importing something. **Load a sample
+session** sits under Import in the Library (and as *Or load a sample* on the
+Home zero-state card): one tap saves a full demo workout, schedules it for
+today, and drops you on Home ready to start it.
+
+It's built to exercise everything the Logger does — a timed warm-up and a
+plain rep count, straight kg × reps at RPE 8 (the weight-autoregulation path),
+a rep range, a superset pair that flows A→B and rests after the pair, a 45s
+hold, a max-reps set, and a Medium conditioning block to finish. Nothing about
+it is special-cased: it's an ordinary saved session, so you can edit it in the
+Planner, reschedule it or delete it like any other, and tapping the button
+again just re-uses the one you already have instead of piling up copies.
+
 ## One effort word: Easy · Medium · Hard — 26 July 2026
 
 Conditioning is authored in the same language as everything else you lift. A

@@ -965,6 +965,47 @@ await t('Conditioning effort ↔ RPE: legacy zones map, felt rating saves and fe
     CON.sink = { scope: 'standalone' }; CON.view = 'setup'; CON.record = null; save(); go('library');
   });
 });
+await t('Sample session: one tap loads a full demo workout that drives the Logger', async () => {
+  await page.evaluate(() => {
+    window.__stashW5 = DB.workouts; window.__stashS5 = DB.sessions;
+    DB.workouts = []; DB.sessions = []; CUR_SESSION = null; save(); go('library');
+  });
+  await page.waitForSelector('#s-library.on', { timeout: 2000 });
+  await page.click('#s-library .tplcreate:has-text("Load a sample session")');
+  await page.waitForSelector('#s-home.on', { timeout: 2000 });
+  const one = await page.evaluate(() => ({
+    n: DB.workouts.length,
+    today: DB.workouts.filter(w => plannedOn(w, ymd(new Date()))).length,
+    modes: DB.workouts[0].blocks.filter(b => !isCond(b)).flatMap(b => b.exercises.map(e => e.mode)),
+    superset: DB.workouts[0].blocks.some(b => b.superset),
+    effort: (DB.workouts[0].blocks.filter(isCond)[0] || {}).effort
+  }));
+  if (one.n !== 1 || one.today !== 1) throw new Error('sample not saved/scheduled: ' + JSON.stringify(one));
+  if (!one.superset || one.effort !== 'medium') throw new Error('sample missing superset/conditioning: ' + JSON.stringify(one));
+  for (const m of ['seconds', 'reps', 'reps_kg', 'amrap']) {
+    if (!one.modes.includes(m)) throw new Error('sample does not cover the ' + m + ' logger shape: ' + JSON.stringify(one.modes));
+  }
+  // tapping it again re-uses the saved sample instead of piling up copies
+  await page.evaluate(() => go('library'));
+  await page.waitForSelector('#s-library.on', { timeout: 2000 });
+  await page.click('#s-library .tplcreate:has-text("Load a sample session")');
+  const again = await page.evaluate(() => DB.workouts.length);
+  if (again !== 1) throw new Error('second tap duplicated the sample: ' + again);
+  // and it is an ordinary session all the way into the guided logger
+  await page.evaluate(() => startWorkout(DB.workouts[0].id));
+  await page.waitForSelector('#s-training .condrow', { timeout: 2000 });
+  const body = await page.textContent('#s-training #sessBody');
+  if (!/Back Squat/.test(body)) throw new Error('sample rows missing from Training: ' + body.slice(0, 300));
+  if (!/RPE 8/.test(body)) throw new Error('sample RPE target not shown: ' + body.slice(0, 300));
+  if (!/max/.test(body)) throw new Error('sample max-reps set not shown: ' + body.slice(0, 300));
+  await page.evaluate(() => openLogger(1, 0));
+  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
+  await page.evaluate(() => {
+    DB.workouts = window.__stashW5; DB.sessions = window.__stashS5;
+    delete window.__stashW5; delete window.__stashS5;
+    CUR_SESSION = null; LOG_LOC = null; save(); go('library');
+  });
+});
 await t('Planner → Logger symbiosis: the authored plan drives the guided flow', async () => {
   await page.evaluate(() => { scheduleWorkoutOn('plw1', ymd(new Date())); startWorkout('plw1'); openLogger(0, 0); });
   await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });

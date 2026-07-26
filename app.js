@@ -86,6 +86,7 @@ function icoCal(){return _ico('<rect x="4" y="5.5" width="16" height="15" rx="2"
 function icoCheck(){return _ico('<path d="M4.5 12.5 9.5 17.5 19.5 7"/>',1.8);}
 function icoPlus(){return _ico('<path d="M12 5v14M5 12h14"/>',1.8);}
 function icoDoc(){return _ico('<path d="M6 3.5h7l5 5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M13 3.5V9h5M8.5 13h7M8.5 16.5h5"/>');}
+function icoSpark(){return _ico('<path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.4l-1.9-5.6L4.5 10.9 10.1 9z"/><path d="M18.5 3.5v3M20 5h-3"/>');}
 function icoMic(){return _ico('<rect x="9.5" y="3.5" width="5" height="10" rx="2.5"/><path d="M6 11.5a6 6 0 0 0 12 0M12 17.5V21"/>');}
 function icoCam(){return _ico('<path d="M4 8.5h3.2l1.4-2h6.8l1.4 2H20a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.2"/>');}
 function icoStop(){return _ico('<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>');}
@@ -369,7 +370,9 @@ function renderHome(){
     cards+=sessionCardHtml(Object.assign({},w,{name:act.name||w.name}),'In progress · resume','openSession',act.id);
   }
   if(!wc){
-    cards+='<div class="card sessioncard" data-click="openImport"><div class="sc-kicker">Start here</div><h3>No sessions yet</h3><div class="sc-meta">Import your first session from text, a photo or your voice — then schedule it for today or a day ahead.</div><div class="sc-chips"><span class="chip gold">Import a session</span></div></div>';
+    // the chips are the two ways in: import your own, or take the demo for a
+    // drive. The inner button wins the delegated click over the card itself.
+    cards+='<div class="card sessioncard" data-click="openImport"><div class="sc-kicker">Start here</div><h3>No sessions yet</h3><div class="sc-meta">Import your first session from text, a photo or your voice — then schedule it for today or a day ahead.</div><div class="sc-chips"><span class="chip gold">Import a session</span><button class="chip" data-click="loadSample">Or load a sample</button></div></div>';
   } else {
     // Home shows what's on for TODAY (recurring or one-off scheduled). Templates
     // that aren't scheduled live in the Library, not on the front page.
@@ -1691,6 +1694,46 @@ function libHeaderHtml(active){
   return '<div class="libhead"><div class="kicker">Your collection</div></div>'+
     '<h1 style="font-size:26px;letter-spacing:.08em">LIBRARY</h1>'+libTabStrip(active);
 }
+/* ---------- SAMPLE SESSION ----------
+   One tap gives you a full workout to drive the Logger with, so testing it no
+   longer starts with importing something. It deliberately covers every shape
+   the Logger renders: a seconds warm-up, straight kg×reps with an RPE target
+   (the weight-autoregulation path), a rep RANGE, a superset pair (A→B with no
+   rest, rest after the pair), a timed hold, a max set, and a conditioning
+   block on the effort scale. Nothing downstream special-cases it — it is an
+   ordinary saved session you can edit in the Planner or delete like any other. */
+const SAMPLE_NAME='Sample Session';
+function sampleWorkout(){
+  const ex=(name,mode,rest,sets,rpe)=>({id:uid(),name,mode,tempo:'',rest,
+    sets:sets.map(t=>({t:String(t),rpe:rpe==null?'':String(rpe)}))});
+  const blk=(heading,superset,exercises)=>({id:uid(),heading,minutes:'',format:'',superset:!!superset,exercises});
+  const cond=Object.assign(newCondBlock(),{heading:'Finisher — bike',condFmt:'intervals',effort:'medium',targetZone:'mod'});
+  return stampWorkout({id:uid(),name:SAMPLE_NAME,days:[],dates:[],blocks:[
+    blk('Warm-up',false,[
+      ex('Assault Bike','seconds',60,[180]),
+      ex('Band Pull-apart','reps',45,[15,15])]),
+    blk('Main',false,[
+      ex('Back Squat','reps_kg',180,[5,5,5,5],8),
+      ex('Romanian Deadlift','reps_kg',120,['8-10','8-10','8-10'],7.5)]),
+    blk('Accessory',true,[
+      ex('Dumbbell Bench Press','reps_kg',0,['8-12','8-12','8-12'],8),
+      ex('Chest-Supported Row','reps_kg',90,['10-12','10-12','10-12'],8)]),
+    blk('Finisher',false,[
+      ex('Plank','seconds',60,[45,45,45]),
+      ex('Push-ups','amrap',0,[''],9)]),
+    cond]});
+}
+/* Idempotent: tapping it twice re-uses the saved sample rather than piling up
+   copies, and just re-schedules it for today. */
+function loadSample(){
+  let w=DB.workouts.find(x=>x.name===SAMPLE_NAME);
+  if(!w){w=sampleWorkout();DB.workouts.push(w);save();}
+  const date=ymd(new Date());
+  scheduleWorkoutOn(w.id,date);
+  SCHED_DATE=null;
+  toast(SAMPLE_NAME+' added to '+prettyDay(date)+' — tap it to start logging');
+  go('home');
+}
 function renderLibrary(){
   const el=document.getElementById('s-library');if(!el)return;
   LIB_TAB='sessions';
@@ -1700,6 +1743,7 @@ function renderLibrary(){
     (SCHED_DATE?'<div class="card guidebar" style="margin-top:12px">Adding to <b>'+esc(prettyDay(SCHED_DATE))+'</b> — tap <b>Add</b> on a session below, or create a new one. <button class="markall" style="padding:0;margin-left:4px;color:var(--dim)" data-click="clearSchedDate">cancel</button></div>':'')+
     '<div class="libsec-title">My Sessions</div>'+
     '<button class="tplcreate" data-click="openImport"><span class="pl">'+icoDoc()+'</span><div><b>Import a session</b><span>Paste text, upload a photo, or speak it</span></div></button>'+
+    '<button class="tplcreate" data-click="loadSample"><span class="pl">'+icoSpark()+'</span><div><b>Load a sample session</b><span>A full demo workout — try the Logger without importing anything</span></div></button>'+
     '<div id="libList"></div>';
   renderLibList();
 }
