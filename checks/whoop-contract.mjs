@@ -90,7 +90,7 @@ async function main() {
   const requiredFiles = [
     'netlify.toml',
     'package.json',
-    'package-lock.json',
+    'pnpm-lock.yaml',
     '_redirects',
     '_headers',
     'readme.txt',
