@@ -37,9 +37,16 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg}'],
         navigateFallback: '/index.html',
-        // Supabase must never be served from cache — a stale session or a stale
-        // sync response is worse than an offline error.
-        navigateFallbackDenylist: [/^\/\.netlify\//],
+        navigateFallbackDenylist: [
+          // Serverless functions are never a navigation.
+          /^\/\.netlify\//,
+          // THE COACH SITE IS A DIFFERENT APP AT THE SAME ORIGIN. Without this
+          // the athlete shell's service worker answers every /coach/ navigation
+          // with the athlete's index.html, and the builder simply never loads
+          // for anyone who has opened the athlete app first. The old hand-rolled
+          // service worker carried the same bypass; it is not optional.
+          /^\/coach(\/|$)/,
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/[a-z0-9-]+\.supabase\.co\/.*/i,

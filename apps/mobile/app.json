@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Hybrid Engine",
+    "slug": "hybrid-engine",
+    "version": "2.14.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#070706",
+    "scheme": "hybridengine",
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "//": "applicationId, versionCode and the signing keystore must match the existing native/android-app build or Play treats this as a NEW app and current users get a second icon instead of an update.",
+      "package": "com.hybridengine.app",
+      "versionCode": 28,
+      "minSdkVersion": 24,
+      "targetSdkVersion": 35,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#070706"
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.VIBRATE",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.hybridengine.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Connects to your heart-rate strap so conditioning can be run by heart rate.",
+        "NSMotionUsageDescription": "Reads the phone's step counter for daily activity."
+      }
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "neverForLocation": true,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "Connects to your heart-rate strap so conditioning can be run by heart rate."
+        }
+      ],
+      "expo-notifications"
+    ]
+  }
+}

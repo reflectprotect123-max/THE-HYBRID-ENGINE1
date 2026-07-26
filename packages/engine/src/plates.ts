@@ -1,3 +1,5 @@
+import { MAX_KG } from './constants';
+
 /**
  * What to actually put on the bar.
  *
@@ -20,11 +22,15 @@ export function plateBreakdown(totalKg: number, bar: number, plates: number[]): 
   const b = Number(bar);
   const av = (Array.isArray(plates) ? plates : [])
     .map(Number)
-    .filter((p) => p > 0)
+    .filter((p) => Number.isFinite(p) && p > 0)
     .sort((x, y) => y - x);
 
-  if (!(total > 0) || !(b >= 0) || !av.length) {
-    return { perSide: [], loadable: false, delta: 0, achievableKg: b || 0 };
+  // `Infinity > 0` is true, so a `> 0` guard alone lets a non-finite load reach
+  // the greedy loop below — which then pushes plates forever and takes the whole
+  // app down with "Invalid array length". This is reachable from a live input
+  // field: "1e309" parses to Infinity. Refuse anything unloadable up front.
+  if (!Number.isFinite(total) || !Number.isFinite(b) || total > MAX_KG || !(total > 0) || !(b >= 0) || !av.length) {
+    return { perSide: [], loadable: false, delta: 0, achievableKg: Number.isFinite(b) ? b || 0 : 0 };
   }
 
   const perTarget = (total - b) / 2;

@@ -129,6 +129,25 @@ describe('plate maths', () => {
       expect(plateBreakdown(v.total, v.bar, v.plates), JSON.stringify({ t: v.total, b: v.bar })).toEqual(v.out);
     }
   });
+
+  it('refuses a non-finite load instead of looping forever', () => {
+    // "1e309" parses to Infinity and is typeable into the logger's weight
+    // field. The greedy loop has no upper bound, so without the guard this
+    // allocates until the tab dies with "Invalid array length" — taking the
+    // athlete's live session with it.
+    const plates = [25, 20, 15, 10, 5, 2.5, 1.25];
+    for (const bad of [Infinity, -Infinity, NaN, 1e309, MAX_KG + 1]) {
+      const r = plateBreakdown(bad, 20, plates);
+      expect(r.perSide, String(bad)).toEqual([]);
+      expect(r.loadable, String(bad)).toBe(false);
+      expect(Number.isFinite(r.achievableKg), String(bad)).toBe(true);
+    }
+    expect(plateBreakdown(100, Infinity, plates).perSide).toEqual([]);
+    // The guard must not have changed anything that was already loadable:
+    // 100kg on a 20kg bar is 40 a side, greedy from the heaviest plate.
+    expect(plateBreakdown(100, 20, plates).perSide).toEqual([25, 15]);
+    expect(plateBreakdown(100, 20, plates).loadable).toBe(true);
+  });
 });
 
 describe('conditioning effort', () => {

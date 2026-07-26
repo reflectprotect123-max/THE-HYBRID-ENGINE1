@@ -16,6 +16,7 @@ export * from './plates';
 export * from './hr';
 export * from './conditioning';
 export * from './session';
+export * from './logger';
 export * from './db';
 export * from './storage';
 export * as emit from './emit';
