@@ -38,6 +38,10 @@ import type { RootStackParams } from '../App';
  * all shared. What differs is only presentation and the platform affordances:
  * the screen is kept awake while the session is live, and rest fires a real
  * scheduled notification rather than hoping a JS timer survives the pocket.
+ *
+ * The number fields are `h-[56px]` and not `h-7`: 7 is not on the theme's 8px
+ * spacing scale, so `h-7` fell through to Tailwind's default 1.75rem = 28px and
+ * clipped a 34px (`text-9`) figure top and bottom on a real screen.
  */
 type Props = NativeStackScreenProps<RootStackParams, 'Logger'>;
 type Phase = 'input' | 'rpe' | 'rest';
@@ -108,7 +112,10 @@ export function LoggerScreen({ route, navigation }: Props) {
       // Sanitised on the way in — "1e309" stored verbatim parses back to
       // Infinity everywhere it is later read, and survives every restart.
       dst.aVal = lift ? sanNumStr(v1) : String(v1 || '').trim();
-      dst.aVal2 = sanNumStr(v2);
+      // Only write the second field when this mode HAS one, or when something
+      // was actually typed. Writing it unconditionally blanks a previously
+      // logged value on every mode that renders a single input.
+      if (v2 !== '' || dex.mode === 'reps_kg' || dex.mode === 'reps_seconds') dst.aVal2 = sanNumStr(v2);
       dst.felt = fmtRpe(rpe);
       dst.done = true;
 
@@ -165,6 +172,9 @@ export function LoggerScreen({ route, navigation }: Props) {
   return (
     <ScrollView
       className="flex-1 bg-bg"
+      // Without this the keypad eats the first tap on Finish Set — the button
+      // you press after typing a weight, every single set.
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ padding: 16, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }}
     >
       <View className="flex-row items-start gap-1">
@@ -252,7 +262,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                         onChangeText={setV1}
                         keyboardType="decimal-pad"
                         accessibilityLabel="kg"
-                        className="h-7 flex-1 rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                        className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 font-black text-text"
                         placeholderTextColor="#847d73"
                         placeholder="kg"
                       />
@@ -270,7 +280,29 @@ export function LoggerScreen({ route, navigation }: Props) {
                       onChangeText={setV2}
                       keyboardType="number-pad"
                       accessibilityLabel="reps"
-                      className="mt-0.5 h-7 rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                    />
+                  </>
+                ) : ex.mode === 'reps_seconds' ? (
+                  /* Two fields, like the web app: this mode records BOTH, and
+                     collapsing it to one box labelled "Reps" wrote the seconds
+                     into the reps field and lost the other half of the set. */
+                  <>
+                    <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Secs</Text>
+                    <TextInput
+                      value={v1}
+                      onChangeText={setV1}
+                      keyboardType="number-pad"
+                      accessibilityLabel="seconds"
+                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                    />
+                    <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Reps</Text>
+                    <TextInput
+                      value={v2}
+                      onChangeText={setV2}
+                      keyboardType="number-pad"
+                      accessibilityLabel="reps"
+                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
                     />
                   </>
                 ) : (
@@ -282,7 +314,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                       value={v1}
                       onChangeText={setV1}
                       keyboardType="number-pad"
-                      className="mt-0.5 h-7 rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
                     />
                   </>
                 )}

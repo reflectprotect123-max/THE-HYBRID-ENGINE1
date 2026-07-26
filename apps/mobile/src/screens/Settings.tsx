@@ -7,6 +7,41 @@ import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
 import { isPersistent } from '../store/storage';
 
+/*
+ * Declared at MODULE scope, not inside SettingsScreen.
+ *
+ * A component defined in a render body is a new component TYPE on every render,
+ * so React unmounts and remounts it rather than updating it. Each of these
+ * fields writes to the store on every keystroke, which re-renders the screen —
+ * which threw the TextInput away and took the keyboard and the caret with it
+ * after every single character. The three numbers that drive the whole HR model
+ * were effectively untypeable.
+ */
+function Field({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: unknown;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <View className="mt-2">
+      <Text className="text-2 font-bold uppercase tracking-widest text-dim">{label}</Text>
+      <TextInput
+        value={String(value ?? '')}
+        onChangeText={onChange}
+        keyboardType="number-pad"
+        className="mt-0.5 h-5 rounded-md border border-line bg-well px-1 text-5 font-bold text-text"
+      />
+      <Text className="mt-0.5 text-3 text-dim">{hint}</Text>
+    </View>
+  );
+}
+
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { db, hr, whoop, update, saveFailed } = useDb();
@@ -19,22 +54,12 @@ export function SettingsScreen() {
       draft.settings.updatedAt = Date.now();
     });
 
-  const Field = ({ label, hint, value, onChange }: { label: string; hint: string; value: unknown; onChange: (v: string) => void }) => (
-    <View className="mt-2">
-      <Text className="text-2 font-bold uppercase tracking-widest text-dim">{label}</Text>
-      <TextInput
-        value={String(value ?? '')}
-        onChangeText={onChange}
-        keyboardType="number-pad"
-        className="mt-0.5 h-5 rounded-md border border-line bg-well px-1 text-5 font-bold text-text"
-      />
-      <Text className="mt-0.5 text-3 text-dim">{hint}</Text>
-    </View>
-  );
-
   return (
     <ScrollView
       className="flex-1 bg-bg"
+      // Sign in / Create account sit under a keyboard; without this the first
+      // tap only dismisses it.
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32, paddingHorizontal: 16 }}
     >
       <Text className="text-2 font-bold uppercase tracking-widest text-dim">Settings</Text>

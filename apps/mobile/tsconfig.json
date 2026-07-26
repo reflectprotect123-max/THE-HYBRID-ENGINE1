@@ -11,5 +11,5 @@
     "types": ["react", "nativewind/types"],
     "allowJs": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "index.js"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "index.js", "nativewind-env.d.ts"]
 }

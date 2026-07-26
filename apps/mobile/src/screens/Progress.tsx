@@ -60,9 +60,14 @@ export function ProgressScreen() {
         <>
           <SectionHead title="Weekly volume · 8 weeks" />
           <Card>
+            {/* `h-full` on the column is load-bearing. `items-end` on the row
+                makes each column hug its content, and Yoga resolves a
+                percentage height against the parent's DEFINITE height — which
+                an auto-sized column does not have. The bars came out zero-high
+                and the chart rendered as an empty strip. */}
             <View className="h-16 flex-row items-end gap-0.5">
               {weeks.map((w, i) => (
-                <View key={i} className="flex-1 justify-end">
+                <View key={i} className="h-full flex-1 justify-end">
                   <View
                     className="rounded-sm bg-gold2"
                     style={{ height: `${Math.max(2, (100 * w.value) / peak)}%`, opacity: w.value ? 1 : 0.25 }}
@@ -155,7 +160,10 @@ function weekly(sessions: Session[], n: number) {
 function thisWeek(sessions: Session[], settings: { conditioning?: CondResult[] }) {
   const since = Date.now() - 7 * 864e5;
   const inline = sessions.flatMap((s) => s.blocks.filter(isCond).map((b) => b.condResult).filter(Boolean) as CondResult[]);
-  const all = [...(settings.conditioning || []), ...inline];
+  // `|| []` is not enough: a non-array `conditioning` from an older or corrupt
+  // payload is truthy and spreading it throws, taking the whole screen down
+  // rather than degrading to empty. The web app checks the same way.
+  const all = [...(Array.isArray(settings.conditioning) ? settings.conditioning : []), ...inline];
   const acc = { low: 0, mod: 0, high: 0, total: 0 };
   all
     .filter((r) => (r.startedAt || 0) >= since)

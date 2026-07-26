@@ -40,10 +40,17 @@ export function ConditioningScreen() {
   const [live, setLive] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [bpm, setBpm] = useState<number | null>(null);
+  const [hrMsg, setHrMsg] = useState('');
   const [result, setResult] = useState<CondResult | null>(null);
   const samples = useRef<HrSample[]>([]);
   const startedAt = useRef(0);
   const monitor = useRef<ReturnType<typeof createHeartRateMonitor> | null>(null);
+  // The ticker reads the latest beat through a ref. Held in state and listed as
+  // a dependency it tore the interval down and rebuilt it on every sample —
+  // and a strap notifying at ~1Hz resets a 1s interval before it ever fires, so
+  // the session clock stopped the moment a strap actually connected.
+  const bpmRef = useRef<number | null>(null);
+  bpmRef.current = bpm;
 
   const zones = useMemo(() => conZones(hr), [hr]);
   const rx = useMemo(() => conPrescription(fmt, { settings: db.settings, whoop }), [fmt, db.settings, whoop]);
@@ -64,10 +71,11 @@ export function ConditioningScreen() {
     const iv = setInterval(() => {
       const t = Math.floor((Date.now() - startedAt.current) / 1000);
       setElapsed(t);
-      if (bpm != null) samples.current.push({ t, bpm });
+      const b = bpmRef.current;
+      if (b != null) samples.current.push({ t, bpm: b });
     }, 1000);
     return () => clearInterval(iv);
-  }, [live, bpm]);
+  }, [live]);
 
   // Release the strap and the wake lock if the screen goes away mid-session.
   useEffect(() => () => {
@@ -82,10 +90,17 @@ export function ConditioningScreen() {
     startedAt.current = Date.now();
     setElapsed(0);
     setResult(null);
+    setHrMsg('');
+    setBpm(null);
     setLive(true);
     void setKeepAwake(true);
     monitor.current = createHeartRateMonitor();
-    await monitor.current.start(setBpm);
+    // The second callback is the old conNativeState: a refused permission, a
+    // scan that found nothing, an adapter that is off. Without it the screen
+    // could only ever show a dash and the athlete had no idea why.
+    await monitor.current.start(setBpm, (state, msg) =>
+      setHrMsg(state === 'connected' ? '' : state === 'scanning' ? 'Looking for your strap…' : msg),
+    );
   };
 
   const finish = () => {
@@ -161,6 +176,7 @@ export function ConditioningScreen() {
               {bpm == null ? '—' : bpm}
             </Text>
             <Text className="text-2 text-dim">{bpm == null ? 'no strap connected' : 'bpm · ' + zone?.name}</Text>
+            {bpm == null && hrMsg ? <Text className="mt-0.5 text-center text-3 text-muted">{hrMsg}</Text> : null}
             <Text className="mt-2 text-8 font-black text-text">{fmtClock(elapsed)}</Text>
             <Text className="text-3 text-dim">of {fmtClock(totalSec)}</Text>
             {phaseNow ? (

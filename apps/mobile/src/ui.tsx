@@ -20,6 +20,11 @@ export function Screen({ children }: { children: ReactNode }) {
   return (
     <ScrollView
       className="flex-1 bg-bg"
+      /* A ScrollView swallows the first tap outside a focused input to dismiss
+         the keyboard, so with the keypad up every button needed pressing
+         TWICE. 'handled' lets the press through and still dismisses on a tap
+         that hits nothing. */
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={{
         paddingTop: insets.top + 16,
         paddingBottom: insets.bottom + 32,

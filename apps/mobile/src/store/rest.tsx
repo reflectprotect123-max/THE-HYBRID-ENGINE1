@@ -36,16 +36,22 @@ export function RestProvider({ children }: { children: ReactNode }) {
   const [ends, setEnds] = useState(() => num(REST_KEY));
   const [total, setTotal] = useState(() => num(REST_TOT_KEY));
   const [now, setNow] = useState(() => Date.now());
-  const buzzed = useRef(false);
+  /* Seeded from what was on disk. A rest that had already elapsed while the app
+     was closed must NOT buzz on the next cold start — the athlete gets a
+     vibration for a set they finished yesterday. */
+  const buzzed = useRef(num(REST_KEY) <= Date.now());
 
   const running = ends > now;
   const left = running ? Math.max(0, Math.ceil((ends - now) / 1000)) : 0;
 
   useEffect(() => {
-    if (!ends) return;
+    // `running`, not `ends`: `ends` stays set after the timer expires, so keying
+    // off it left a 250ms setState looping — and re-rendering every consumer of
+    // this context — for the rest of the app's life.
+    if (!running) return;
     const iv = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(iv);
-  }, [ends]);
+  }, [running]);
 
   useEffect(() => {
     if (!ends || running || buzzed.current) return;

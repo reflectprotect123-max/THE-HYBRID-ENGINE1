@@ -1,31 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { impParse, impToWorkout, learnMove, learnWord, lexiconOf, uid, unlearn, type ImpIssue, type ImpResult } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { recogniseText, startDictation, stopDictation } from '../native/capabilities';
+import { pickImage, recogniseText, startDictation, stopDictation } from '../native/capabilities';
 import { Btn, Card, Empty, Kicker, Screen, SectionHead, Title } from '../ui';
 import type { RootStackParams } from '../App';
-
-/** Dynamic specifier: keeps TypeScript from resolving a module that only
-    exists in a full native build, while still loading it when present. */
-const dynImport = (m: string): Promise<unknown> => import(m);
-
-async function pickImage(): Promise<string | null> {
-  try {
-    const P = (await dynImport('expo-image-picker')) as {
-      requestMediaLibraryPermissionsAsync(): Promise<{ granted: boolean }>;
-      launchImageLibraryAsync(o: unknown): Promise<{ canceled: boolean; assets?: { uri: string }[] }>;
-    };
-    const perm = await P.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return null;
-    const res = await P.launchImageLibraryAsync({ quality: 1 });
-    return res.canceled ? null : (res.assets?.[0]?.uri ?? null);
-  } catch {
-    return null;
-  }
-}
 
 /*
  * Paste, dictate or photograph a workout.
@@ -43,6 +24,11 @@ export function ImportScreen() {
   const [listening, setListening] = useState(false);
   const [msg, setMsg] = useState('');
 
+  // The recogniser holds the microphone until it is told to stop. Navigating
+  // away mid-dictation left it listening for the rest of the app's life — a
+  // permanently lit mic indicator and a battery drain with no UI attached.
+  useEffect(() => () => void stopDictation(), []);
+
   const lex = useMemo(() => lexiconOf(db.settings), [db.settings]);
   const parsed: ImpResult | null = useMemo(() => (text.trim() ? impParse(text, lex) : null), [text, lex]);
   const open = parsed ? parsed.issues.filter((i) => !resolved.includes(i.id)) : [];
@@ -53,7 +39,10 @@ export function ImportScreen() {
     update((d) => {
       d.workouts.push(w as (typeof d.workouts)[number]);
     });
-    nav.navigate('Tabs');
+    // To the Library, where the thing just saved actually is — the same landing
+    // the web importer uses. Bare 'Tabs' dropped you on whatever tab was last
+    // open, usually Home, with no sign the import had worked.
+    nav.navigate('Tabs', { screen: 'Library' });
   };
 
   const dictate = async () => {
@@ -73,16 +62,27 @@ export function ImportScreen() {
     // image, then recognise text in it. On-device OCR — the model ships with
     // the app, so this works offline and sends the photo nowhere.
     //
-    // The specifier is passed through a variable so TypeScript does not try to
-    // resolve a module that is only present in a full native build.
-    const uri = await pickImage();
-    if (!uri) {
-      setMsg('Photo import needs the camera roll — not available in this build.');
+    // The picker reports WHY it came back empty, because "you tapped cancel",
+    // "you denied the permission" and "this build has no picker" want three
+    // different sentences and the old single null gave them all the last one.
+    const picked = await pickImage();
+    if (!picked.uri) {
+      setMsg(
+        picked.why === 'cancelled'
+          ? ''
+          : picked.why === 'denied'
+            ? 'Photo import needs access to your photos. Allow it in Settings and try again.'
+            : 'Photo import needs the camera roll — not available in this build.',
+      );
       return;
     }
-    const out = await recogniseText(uri);
+    setMsg('Reading the photo…');
+    const out = await recogniseText(picked.uri);
     if (!out) setMsg('Could not read any text in that photo.');
-    else setText((t) => (t ? t + '\n' : '') + out);
+    else {
+      setMsg('');
+      setText((t) => (t ? t + '\n' : '') + out);
+    }
   };
 
   return (

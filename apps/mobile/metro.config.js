@@ -20,6 +20,22 @@ config.resolver.nodeModulesPaths = [
 // pnpm links packages rather than copying them; without this Metro follows the
 // symlink and then cannot resolve React from the linked package's perspective.
 config.resolver.unstable_enableSymlinks = true;
-config.resolver.disableHierarchicalLookup = true;
+
+/*
+ * Hierarchical lookup MUST stay on under pnpm.
+ *
+ * Turning it off is the usual advice for a yarn/npm monorepo, where it stops a
+ * package accidentally resolving something it never declared. Under pnpm it is
+ * actively wrong: a dependency of `expo` does not live in either directory
+ * listed above, it lives beside `expo` inside the content-addressed store at
+ * node_modules/.pnpm/expo@<ver>/node_modules/. The only way Metro reaches it is
+ * by walking up from the resolved file's REAL path — which is precisely what
+ * disabling this forbids.
+ *
+ * With it off, `import "expo"` fails on expo-modules-core and the app does not
+ * bundle at all. Nothing else catches that: typecheck passes, because
+ * TypeScript resolves through the symlink perfectly well.
+ */
+config.resolver.disableHierarchicalLookup = false;
 
 module.exports = withNativeWind(config, { input: './src/global.css' });

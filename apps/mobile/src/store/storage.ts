@@ -12,6 +12,11 @@ import type { Storage } from '@hybrid/engine';
  */
 
 let impl: Storage;
+/* Whether the implementation above is the real one. A probe cannot tell: the
+   in-memory shim answers a read-after-write exactly like MMKV does, so asking
+   it "did that stick?" always says yes and the warning it exists to raise never
+   appears. Only the construction site knows. */
+let backedByDisk: boolean;
 
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -22,6 +27,7 @@ try {
     setItem: (k, v) => kv.set(k, v),
     removeItem: (k) => kv.delete(k),
   };
+  backedByDisk = true;
 } catch {
   const mem = new Map<string, string>();
   impl = {
@@ -29,6 +35,7 @@ try {
     setItem: (k, v) => void mem.set(k, v),
     removeItem: (k) => void mem.delete(k),
   };
+  backedByDisk = false;
 }
 
 interface MmkvLike {
@@ -39,8 +46,15 @@ interface MmkvLike {
 
 export const storage: Storage = impl;
 
-/** True when writes actually survive a restart. Surfaced in Settings. */
+/**
+ * True when writes actually survive a restart. Surfaced in Settings.
+ *
+ * Both conditions matter: the native module has to be present AND has to accept
+ * a write. A read-only or corrupt MMKV store is as bad as no store at all, and
+ * unlike the shim it does throw, so it is worth probing for.
+ */
 export const isPersistent = (() => {
+  if (!backedByDisk) return false;
   try {
     storage.setItem('__probe', '1');
     const ok = storage.getItem('__probe') === '1';

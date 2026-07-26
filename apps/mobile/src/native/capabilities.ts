@@ -14,11 +14,24 @@ import { PermissionsAndroid, Platform, Vibration } from 'react-native';
  * that still runs on the clock — never a crash mid-workout.
  */
 
+/**
+ * The states the old `conNativeState` callback reported into the page. Kept
+ * verbatim: a screen that cannot tell "scanning" from "Bluetooth permission
+ * refused" can only ever print "no strap", which is what the first port did.
+ */
+export type HrState = 'scanning' | 'connected' | 'error';
+
 export interface HeartRateMonitor {
-  /** Resolves once scanning has begun. Samples arrive on the callback. */
-  start(onBpm: (bpm: number) => void): Promise<void>;
+  /**
+   * Resolves once scanning has begun — or, on a failure, once `onState` has
+   * been told why it did not. Samples arrive on `onBpm`.
+   */
+  start(onBpm: (bpm: number) => void, onState?: (state: HrState, msg: string) => void): Promise<void>;
   stop(): void;
 }
+
+/** How long to look before admitting nothing is broadcasting. MainActivity used 6s. */
+const SCAN_MS = 6000;
 
 /**
  * Standard BLE Heart Rate service. The measurement characteristic's first byte
@@ -37,24 +50,78 @@ interface BleManagerLike {
   stopDeviceScan(): void;
 }
 
+/**
+ * Ask for the permissions a BLE scan needs, in the same split MainActivity used
+ * (`neededPerms()`): from Android 12 the two Bluetooth runtime permissions,
+ * before it ACCESS_FINE_LOCATION, because a scan counted as a location
+ * capability then.
+ *
+ * react-native-ble-plx does NOT request these itself — it only fails the scan.
+ * Without this the strap never connects on any modern phone and the only symptom
+ * is a dash where the heart rate should be.
+ */
+async function ensureBlePermissions(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  const perms =
+    Number(Platform.Version) >= 31
+      ? [PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN, PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT]
+      : [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+  const res = await PermissionsAndroid.requestMultiple(perms);
+  return perms.every((p) => res[p] === PermissionsAndroid.RESULTS.GRANTED);
+}
+
 export function createHeartRateMonitor(): HeartRateMonitor {
   // Imported lazily: react-native-ble-plx needs a custom native build, and a
   // top-level import would crash Expo Go before the app could explain why.
   let manager: BleManagerLike | null = null;
   let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
   return {
-    async start(onBpm) {
+    async start(onBpm, onState) {
       stopped = false;
+      const say = (state: HrState, msg = '') => {
+        if (!stopped) onState?.(state, msg);
+      };
       try {
+        if (!(await ensureBlePermissions())) {
+          say('error', 'Bluetooth permission was refused — allow it to read your strap.');
+          return;
+        }
+
         const { BleManager } = (await import('react-native-ble-plx')) as unknown as {
           BleManager: new () => BleManagerLike;
         };
         const m = new BleManager();
         manager = m;
+        say('scanning');
+
+        // A scan that finds nothing never calls back at all, so the window is
+        // closed here rather than left spinning for the whole session.
+        timer = setTimeout(() => {
+          if (stopped || !manager) return;
+          try {
+            m.stopDeviceScan();
+          } catch {
+            /* already stopped */
+          }
+          say(
+            'error',
+            'No heart-rate broadcast found. In the WHOOP app: Device Settings → HR Broadcast ON, then try again.',
+          );
+        }, SCAN_MS);
 
         m.startDeviceScan([HR_SERVICE], null, async (err, device) => {
-          if (err || !device || stopped) return;
+          // The scan's own error arrives HERE — Bluetooth off, an unsupported
+          // adapter, a permission the OS revoked mid-session. Swallowing it is
+          // how a broken strap became indistinguishable from a missing one.
+          if (err) {
+            if (timer) clearTimeout(timer);
+            say('error', String((err as { message?: string })?.message || 'Bluetooth scan failed.'));
+            return;
+          }
+          if (!device || stopped) return;
+          if (timer) clearTimeout(timer);
           m.stopDeviceScan();
           const d = device as {
             connect(): Promise<{
@@ -66,23 +133,36 @@ export function createHeartRateMonitor(): HeartRateMonitor {
               ): void;
             }>;
           };
-          const conn = await d.connect();
-          await conn.discoverAllServicesAndCharacteristics();
-          conn.monitorCharacteristicForService(HR_SERVICE, HR_CHARACTERISTIC, (e, ch) => {
-            if (e || !ch?.value || stopped) return;
-            const bytes = base64Bytes(ch.value);
-            if (bytes.length < 2) return;
-            const flags = bytes[0];
-            onBpm(flags & 1 ? bytes[1] | (bytes[2] << 8) : bytes[1]);
-          });
+          try {
+            const conn = await d.connect();
+            await conn.discoverAllServicesAndCharacteristics();
+            conn.monitorCharacteristicForService(HR_SERVICE, HR_CHARACTERISTIC, (e, ch) => {
+              if (e || !ch?.value || stopped) return;
+              const bytes = base64Bytes(ch.value);
+              if (bytes.length < 2) return;
+              const flags = bytes[0];
+              // The wide form needs THREE bytes. Reading byte 2 out of a
+              // two-byte packet yields undefined, and `undefined << 8` is 0 in
+              // JS — silently right, until a strap sends a short packet with the
+              // wide flag set and every beat reads back as the low byte alone.
+              const bpm = flags & 1 ? (bytes.length >= 3 ? bytes[1] | (bytes[2] << 8) : bytes[1]) : bytes[1];
+              if (bpm > 0) onBpm(bpm);
+            });
+            say('connected');
+          } catch (e) {
+            say('error', String((e as Error)?.message || 'Could not connect to that strap.'));
+          }
         });
       } catch {
-        // No BLE stack in this build (Expo Go), or Bluetooth is off. The
-        // session runs on the clock and banks no zone time.
+        // No BLE stack in this build (Expo Go). The session runs on the clock
+        // and banks no zone time — but say so rather than showing a dash.
+        say('error', 'This build has no Bluetooth support — the session still runs on the clock.');
       }
     },
     stop() {
       stopped = true;
+      if (timer) clearTimeout(timer);
+      timer = null;
       try {
         manager?.stopDeviceScan();
         manager?.destroy();
@@ -113,18 +193,77 @@ function base64Bytes(b64: string): number[] {
   return out;
 }
 
-/**
+/* ------------------------------------------------------------------ *
  * The rest alarm. On the old app this was `AndroidHR.scheduleBuzz`, scheduled
  * natively precisely because a WebView's JS is throttled with the screen off —
  * a timer held in JS simply does not fire when the phone is in a pocket. A
  * scheduled notification is the equivalent that survives the same conditions.
+ * ------------------------------------------------------------------ */
+
+let restChannelReady: Promise<boolean> | null = null;
+
+/**
+ * One-time notification setup, done lazily so a build without the module still
+ * boots. Three things have to be true before a scheduled rest alarm is
+ * ANYTHING more than a no-op, and none of them are defaults:
+ *
+ *  1. POST_NOTIFICATIONS must be granted (Android 13+). Unasked, every
+ *     notification is dropped by the OS without an error.
+ *  2. The 'rest' channel must EXIST. Android 8+ discards a notification posted
+ *     to an unknown channel.
+ *  3. A notification handler must be set. expo-notifications' documented
+ *     default when no handler is installed is NOT to show the notification —
+ *     and the app being in the foreground is the normal case for a rest timer.
  */
+async function prepareNotifications(): Promise<boolean> {
+  if (!restChannelReady) {
+    restChannelReady = (async () => {
+      try {
+        const N = await import('expo-notifications');
+        N.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+          }),
+        });
+        if (Platform.OS === 'android') {
+          await N.setNotificationChannelAsync('rest', {
+            name: 'Rest timer',
+            importance: N.AndroidImportance.HIGH,
+            vibrationPattern: [0, 200, 120, 200],
+            sound: 'default',
+          });
+        }
+        const cur = await N.getPermissionsAsync();
+        if (cur.granted) return true;
+        const asked = await N.requestPermissionsAsync();
+        return asked.granted;
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return restChannelReady;
+}
+
 export async function scheduleRestAlarm(seconds: number): Promise<string | null> {
   try {
+    if (!(await prepareNotifications())) return null;
     const N = await import('expo-notifications');
     return await N.scheduleNotificationAsync({
       content: { title: 'Rest is up', body: 'Next set.', sound: true },
-      trigger: { seconds: Math.max(1, Math.round(seconds)), channelId: 'rest' } as never,
+      // `type` is not optional. Without it the trigger falls through every
+      // schedulable branch and lands on the Android channel trigger, which is
+      // "post this NOW on that channel" — the alarm fired the instant the rest
+      // started instead of at the end of it.
+      trigger: {
+        type: N.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: Math.max(1, Math.round(seconds)),
+        repeats: false,
+        channelId: 'rest',
+      },
     });
   } catch {
     return null;
@@ -172,6 +311,11 @@ export async function stepsToday(): Promise<number | null> {
     if (!ok) return null;
     const { status } = await Pedometer.requestPermissionsAsync();
     if (status !== 'granted') return null;
+    // `getStepCountAsync` is iOS-only — it is backed by CMPedometer's historical
+    // query, which Android's TYPE_STEP_COUNTER has no equivalent of. On Android
+    // the module simply has no such method and expo throws UnavailabilityError,
+    // so calling it there returns null every time.
+    if (Platform.OS !== 'ios') return null;
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     const res = await Pedometer.getStepCountAsync(start, new Date());
@@ -196,12 +340,19 @@ export async function stepsToday(): Promise<number | null> {
  * Ask the user for an image and return its local URI.
  *
  * The camera roll rather than the camera by default: a whiteboard is usually
- * already photographed by the time someone thinks to import it. Null on
- * cancel, on a denied permission, or on a build without expo-image-picker.
+ * already photographed by the time someone thinks to import it.
+ *
+ * `why` exists because a bare null conflated three different situations, and
+ * the importer then told everyone their build was broken when they had simply
+ * tapped cancel.
  */
-async function pickImageUri(): Promise<string | null> {
+export interface PickResult {
+  uri: string | null;
+  why: 'ok' | 'cancelled' | 'denied' | 'unavailable';
+}
+
+export async function pickImage(): Promise<PickResult> {
   try {
-    // @ts-ignore — optional dependency, not yet in package.json.
     const P = (await import('expo-image-picker')) as {
       requestMediaLibraryPermissionsAsync(): Promise<{ granted: boolean }>;
       launchImageLibraryAsync(opts: {
@@ -210,12 +361,13 @@ async function pickImageUri(): Promise<string | null> {
       }): Promise<{ canceled: boolean; assets?: { uri: string }[] | null }>;
     };
     const perm = await P.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return null;
+    if (!perm.granted) return { uri: null, why: 'denied' };
     const res = await P.launchImageLibraryAsync({ quality: 1, allowsMultipleSelection: false });
-    if (res.canceled) return null;
-    return res.assets?.[0]?.uri ?? null;
+    if (res.canceled) return { uri: null, why: 'cancelled' };
+    const uri = res.assets?.[0]?.uri ?? null;
+    return uri ? { uri, why: 'ok' } : { uri: null, why: 'cancelled' };
   } catch {
-    return null;
+    return { uri: null, why: 'unavailable' };
   }
 }
 
@@ -236,12 +388,9 @@ async function pickImageUri(): Promise<string | null> {
  * paste box instead of showing a crash.
  */
 export async function recogniseText(imageUri?: string): Promise<string | null> {
-  const uri = imageUri || (await pickImageUri());
+  const uri = imageUri || (await pickImage()).uri;
   if (!uri) return null;
   try {
-    // @ts-ignore — optional dependency: not yet in package.json, so TS cannot
-    // resolve the specifier. Deliberately @ts-ignore and not @ts-expect-error,
-    // which would itself become an error the day the package is installed.
     const mod = (await import('@react-native-ml-kit/text-recognition')) as unknown as {
       default?: { recognize(uri: string): Promise<{ text?: string } | null> };
       recognize?: (uri: string) => Promise<{ text?: string } | null>;
@@ -294,7 +443,6 @@ export async function startDictation(onText: (text: string) => void): Promise<bo
       if (granted !== PermissionsAndroid.RESULTS.GRANTED) return false;
     }
 
-    // @ts-ignore — optional dependency, see recogniseText above.
     const mod = (await import('@react-native-voice/voice')) as unknown as {
       default?: VoiceLike;
     };

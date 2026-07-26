@@ -27,3 +27,7 @@ apps/*/vite.config.js
 
 # Screenshot output from checks/screens.mjs — regenerated, never committed.
 .screens/
+
+# Metro bundle output from `pnpm --filter @hybrid/mobile bundle` — a build check,
+# not an artifact.
+apps/mobile/.expo-export/

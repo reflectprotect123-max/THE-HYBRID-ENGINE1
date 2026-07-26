@@ -50,6 +50,17 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      # Typecheck is BLIND to whether the mobile app can be built: TypeScript
+      # resolves happily through pnpm's symlinks, and Metro does not. The app
+      # spent this entire migration unable to bundle — a variable import()
+      # specifier Metro rejects outright, a resolver setting that hid every
+      # transitive dependency, an undeclared NativeWind runtime, and an
+      # `import.meta` that Hermes refuses at parse time. Every one of those was
+      # invisible to `tsc`. Running the real bundler is the only check that sees
+      # them, so it runs on every push.
+      - name: Bundle the mobile app (Metro + Hermes)
+        run: pnpm --filter @hybrid/mobile bundle
+
       - name: Unit tests
         run: pnpm run test
 

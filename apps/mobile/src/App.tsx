@@ -1,4 +1,4 @@
-import { NavigationContainer, DarkTheme, type Theme } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, type NavigatorScreenParams, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
@@ -38,8 +38,19 @@ import { ConditioningScreen } from './screens/Conditioning';
  * the work in front of you and the back gesture means what it looks like.
  */
 
+/* Named so a stack screen can send you back to a SPECIFIC tab. Without this
+   `navigate('Tabs')` only ever lands on whichever tab was last open, which is
+   how a freshly imported session appeared to vanish. */
+export type TabParams = {
+  Home: undefined;
+  Train: undefined;
+  Library: undefined;
+  Progress: undefined;
+  Settings: undefined;
+};
+
 export type RootStackParams = {
-  Tabs: undefined;
+  Tabs: NavigatorScreenParams<TabParams> | undefined;
   Logger: { bi: number; ei: number };
   Planner: { id: string };
   Recap: { id: string };
@@ -50,7 +61,7 @@ export type RootStackParams = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParams>();
-const Tabs = createBottomTabNavigator();
+const Tabs = createBottomTabNavigator<TabParams>();
 
 const theme: Theme = {
   ...DarkTheme,
