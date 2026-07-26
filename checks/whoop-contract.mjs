@@ -408,7 +408,26 @@ async function main() {
     { label: 'OpenRouter key', pattern: /sk-or-v1-[A-Za-z0-9_-]{20,}/i },
     { label: 'WHOOP client secret literal', pattern: /WHOOP_CLIENT_SECRET\s*[:=]\s*(['"`])(?!(?:undefined|null)\1)(?:\\.|(?!\1)[^\r\n])*\1/i },
     { label: 'session secret literal', pattern: /APP_SESSION_SECRET\s*[:=]\s*(['"`])(?!(?:undefined|null)\1)(?:\\.|(?!\1)[^\r\n])*\1/i },
-    { label: 'access/refresh token literal', pattern: /(?:access_token|refresh_token|client_secret)\s*[:=]\s*(['"`])(?!(?:undefined|null)\1)(?:\\.|(?!\1)[^\r\n])*\1/i },
+    /*
+     * Scanned across BUILT bundles too, not just source — a secret baked in at
+     * build time (a mis-prefixed VITE_* var, a define()) exists nowhere in the
+     * tree and would otherwise ship unnoticed.
+     *
+     * That means this runs over minified third-party code, where a field-name
+     * constant map is normal: supabase-js emits `access_token:"access_token"`.
+     * A value that IS its own key is a name, not a credential, so it is the one
+     * shape dropped here. Everything else — including a short or odd-looking
+     * literal — still fails, because the cost of a false negative is a leaked
+     * token and the cost of a false positive is reading one line.
+     */
+    {
+      label: 'access/refresh token literal',
+      pattern: /(access_token|refresh_token|client_secret)\s*[:=]\s*(['"`])(?!(?:undefined|null)\2)((?:\\.|(?!\2)[^\r\n])*)\2/gi,
+      credible: (m) => {
+        const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return norm(m[3]) !== norm(m[1]);
+      },
+    },
     { label: 'WHOOP API in browser package', pattern: /https:\/\/api\.prod\.whoop\.com/i },
   ];
   let secretFindings = 0;
@@ -420,8 +439,20 @@ async function main() {
       fail(`scan browser-facing file ${relativePath}`, error instanceof Error ? error.message : String(error));
       continue;
     }
-    for (const { label, pattern } of secretPatterns) {
-      if (pattern.test(source)) {
+    for (const { label, pattern, credible } of secretPatterns) {
+      let hit = false;
+      if (credible) {
+        pattern.lastIndex = 0;
+        for (let m; (m = pattern.exec(source)); ) {
+          if (credible(m)) {
+            hit = true;
+            break;
+          }
+        }
+      } else {
+        hit = pattern.test(source);
+      }
+      if (hit) {
         secretFindings += 1;
         fail(`browser-facing secret scan — ${relativePath}`, label);
       }

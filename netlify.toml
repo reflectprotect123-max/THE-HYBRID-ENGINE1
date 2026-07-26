@@ -1,7 +1,49 @@
+# =============================================================================
+# THE Hybrid System — deployment
+# =============================================================================
+#
+# The site IS the React monorepo: apps/web (athlete PWA) is the origin, with
+# apps/coach served as real files at /coach/.
+#
+# Netlify publishes exactly ONE directory, so `scripts/build-site.mjs` assembles
+# everything the origin must serve into apps/web/dist — the coach app, the icons
+# and fonts the built HTML already references, .well-known/assetlinks.json,
+# privacy.html, and _headers/_redirects (which Netlify reads from the PUBLISH
+# directory, not the repo root; miss that and the CSP silently disappears while
+# the site keeps working, which is the worst possible failure mode).
+#
+# That script also FAILS the build if anything the built HTML references is
+# absent, so a missing asset breaks the deploy rather than shipping a PWA with
+# no icon.
+#
+# ROLLING BACK: `git revert <this commit> && git push`. The previous state
+# published the repo root and served the vanilla index.html + app.js, both of
+# which are still in the tree — nothing has been deleted.
+#
+# The one part of a rollback that is not instant: browsers that have already
+# taken the Workbox worker at /sw.js keep it until they fetch an update. The
+# build ships a tombstone at the OLD /service-worker.js path so existing
+# installs hand over cleanly on the way IN; coming back relies on the normal
+# service-worker update cycle.
+
 [build]
   base = "."
-  publish = "."
+  publish = "apps/web/dist"
+  command = "corepack enable && pnpm install --frozen-lockfile && pnpm run build:site && pnpm run check:csp"
+
+[build.environment]
+  NODE_VERSION = "22"
 
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# The coach app's own fallback, so a refresh or a deep link under /coach/ lands
+# on the coach shell rather than the athlete one. It lives HERE rather than in
+# _redirects because netlify.toml rules are evaluated BEFORE the _redirects
+# file, which guarantees it wins over `/* /index.html 200`. Real files are
+# served before any rewrite is considered, so /coach/assets/* is unaffected.
+[[redirects]]
+  from = "/coach/*"
+  to = "/coach/index.html"
+  status = 200

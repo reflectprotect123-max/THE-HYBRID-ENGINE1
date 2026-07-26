@@ -1,0 +1,132 @@
+name: CI
+
+# One job that runs exactly what `pnpm run verify` runs locally, plus the three
+# legacy suites that need no network. Each phase is its own step so a failure is
+# legible in the Actions UI, but every step invokes the SAME package.json script
+# a human would — CI and a laptop cannot drift apart without someone editing
+# package.json.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned so the browser cache key is exact and a Playwright release cannot
+  # change what CI tested overnight. Playwright is deliberately NOT a workspace
+  # dependency: checks/*.mjs import it optionally and skip cleanly without it,
+  # which is what lets a contributor run them on a machine with no browser.
+  # CI installs it explicitly so those sections actually execute — see the
+  # "silently skipped" guard below.
+  PLAYWRIGHT_VERSION: 1.61.1
+
+jobs:
+  verify:
+    name: typecheck, test, build, smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # Reads the pnpm version from package.json's `packageManager` field.
+      # `cache: true` caches the pnpm store, keyed on pnpm-lock.yaml.
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Unit tests
+        run: pnpm run test
+
+      - name: Build both web apps
+        run: pnpm run build
+
+      # Netlify publishes ONE directory, and `netlify.toml` runs this same
+      # script. It copies the coach app, icons, fonts, assetlinks, privacy.html
+      # and _headers/_redirects into apps/web/dist, then FAILS if anything the
+      # built HTML references is absent. Running it here means a missing asset
+      # breaks a pull request rather than a deploy.
+      - name: Assemble the publish directory
+        run: node scripts/build-site.mjs
+
+      # The deployed CSP (_headers) is `script-src 'self' 'wasm-unsafe-eval'`
+      # with no 'unsafe-inline'. A single inline <script> in the built HTML —
+      # a Vite modulepreload polyfill, a PWA registration snippet, a small
+      # runtime chunk — is blocked by the browser and the app renders a blank
+      # page in production while working perfectly in dev. That failure is
+      # invisible to `vite build`, so it is asserted here.
+      - name: No inline <script> in built HTML (CSP guarantee)
+        run: pnpm run check:csp
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+
+      - name: Install Playwright + Chromium
+        run: |
+          pnpm add -w -D playwright@"$PLAYWRIGHT_VERSION"
+          pnpm exec playwright install --with-deps chromium
+
+      # 26 checks: drives the BUILT output of apps/web and apps/coach in a real
+      # browser. Requires the dists from the build step above.
+      - name: React smoke (built output, Chromium)
+        run: |
+          set -o pipefail
+          node checks/react-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/react-smoke.log"
+          if grep -qiE 'playwright not installed|no Chromium' "$RUNNER_TEMP/react-smoke.log"; then
+            echo "::error::react-smoke skipped its browser section — Playwright was not usable, so nothing was actually tested."
+            exit 1
+          fi
+
+      # Serves apps/web/dist the way Netlify will — real files ahead of any
+      # rewrite, netlify.toml redirects before _redirects, _headers applied as
+      # real response headers — and boots both apps in Chromium under the real
+      # CSP. The cutover's failure modes are all silent: a missing icon still
+      # renders, an uncopied _headers still serves the site with no CSP at all,
+      # and /coach/ falling through to the athlete app reads as a routing quirk
+      # rather than a missing product.
+      - name: Deploy smoke (publish directory, Chromium)
+        run: pnpm run smoke:deploy
+
+      # Suites that need no network and no secrets: emit-contract and pentest
+      # drive local files in Chromium, native-pwa-smoke and whoop-deployment-smoke
+      # are pure file reads, whoop-contract constructs and asserts OAuth URLs
+      # without calling anyone, and supabase-contract runs its static half (it
+      # skips only the live round-trip, which needs credentials).
+      #
+      # whoop-contract must run AFTER the build: its secret scan sweeps the
+      # built bundles as well as the source, because a credential baked in at
+      # build time exists nowhere in the tree.
+      #
+      # browser-smoke, torture and coach-smoke drive the pre-React vanilla app,
+      # which is still in the tree as the rollback path but is no longer what
+      # deploys. golden-vectors regenerates fixtures rather than asserting.
+      - name: Contract + security suites (no network)
+        run: |
+          set -o pipefail
+          for check in emit-contract pentest native-pwa-smoke supabase-contract whoop-contract whoop-deployment-smoke; do
+            echo "::group::checks/$check.mjs"
+            node "checks/$check.mjs" 2>&1 | tee "$RUNNER_TEMP/$check.log"
+            echo "::endgroup::"
+            if grep -qiE 'playwright not installed|no Chromium' "$RUNNER_TEMP/$check.log"; then
+              echo "::error::checks/$check.mjs skipped its browser section — Playwright was not usable."
+              exit 1
+            fi
+          done

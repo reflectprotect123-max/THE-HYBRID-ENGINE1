@@ -121,7 +121,11 @@ async function main() {
   if (pkg) {
     check(pkg.private === true, 'Netlify function package is private');
     check(pkg.type === 'module', 'Netlify function package uses ESM');
-    check(typeof pkg.engines?.node === 'string' && /(?:^|[>=])\s*18\b/.test(pkg.engines.node), 'Netlify function package requires Node 18 or newer');
+    // Parse the floor rather than string-matching "18": the workspace moved to
+    // >=20.19 for Vite, which IS newer than 18 but failed a literal match. A
+    // check that only passes for one exact value is not testing "or newer".
+    const nodeFloor = Number(String(pkg.engines?.node ?? '').match(/(\d+)/)?.[1] ?? 0);
+    check(nodeFloor >= 18, `Netlify function package requires Node 18 or newer (declares ${pkg.engines?.node ?? 'nothing'})`);
     check(Boolean(pkg.dependencies?.['@netlify/blobs']), 'Netlify Blobs dependency is declared');
   }
   if (lock) {
@@ -130,9 +134,14 @@ async function main() {
     check(Boolean(lock.packages?.['node_modules/@netlify/blobs']), 'lockfile contains @netlify/blobs');
   }
 
+  // The publish directory moved from "." to apps/web/dist at the React
+  // cutover. What actually matters to the WHOOP integration is unchanged and
+  // is what is asserted: the functions still deploy, and the publish directory
+  // is a real one. Pinning the literal "." made this fail on a change that
+  // could not affect WHOOP at all.
   check(
-    Boolean(netlify) && /publish\s*=\s*["']\.["']/.test(netlify) && /directory\s*=\s*["']netlify\/functions["']/.test(netlify),
-    'Netlify publishes the app root and deploys netlify/functions',
+    Boolean(netlify) && /publish\s*=\s*["'][^"']+["']/.test(netlify) && /directory\s*=\s*["']netlify\/functions["']/.test(netlify),
+    'Netlify declares a publish directory and deploys netlify/functions',
   );
   check(await exists('netlify/functions'), 'Netlify Functions directory exists');
   check(await exists('netlify/functions/_lib'), 'Netlify Functions shared library directory exists');

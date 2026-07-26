@@ -1,0 +1,127 @@
+name: Mobile — EAS Android build
+
+# MANUAL ONLY. There is no Expo account wired to this repo yet, so this
+# workflow has never completed a real build; it is the runway, not the flight.
+# It is gated on an EXPO_TOKEN repository secret and exits GREEN with an
+# explanation when that secret is absent, so an accidental dispatch does not
+# paint the repo red.
+#
+# ---------------------------------------------------------------------------
+# DO NOT DELETE .github/workflows/android-apk.yml
+#
+# That workflow builds native/android-app — the OLD WebView shell that is what
+# every current Android user actually has installed. It stays until an EAS
+# build has SHIPPED an update those users have received. Deleting it earlier
+# leaves the installed base with no build pipeline at all.
+#
+# The replacement must install OVER the old app, not beside it. Three things
+# have to match, or Android/Play treats it as a different app and the user ends
+# up with a second icon and none of their history:
+#
+#   applicationId   com.hybridengine.app   (apps/mobile/app.json → expo.android.package)
+#   versionCode     > 27                   (currently 28 — never lower it)
+#   signing key     the SAME keystore as the old app
+#                   (ANDROID_KEYSTORE_B64 in android-apk.yml; on EAS it must be
+#                    uploaded as the Android app credential, or EAS will happily
+#                    generate a new key and produce an uninstallable "update")
+#
+# .well-known/assetlinks.json pins that key's SHA-256 fingerprint. If the EAS
+# build is signed with a different key, deep links break too.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile (see apps/mobile/eas.json)"
+        type: choice
+        default: preview
+        options: [development, preview, production]
+      wait:
+        description: "Wait for the EAS build to finish (off = queue it and return the build URL)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: eas build --platform android
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      # The `secrets` context is not available in a job-level `if:`, so the gate
+      # is a step that publishes an output. Every later step reads it, and the
+      # job finishes successfully either way.
+      - name: Check for EXPO_TOKEN
+        id: gate
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "have_token=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Skipped::No EXPO_TOKEN secret is set, so there is no Expo account to build with. Create a token at https://expo.dev/settings/access-tokens and add it as the repository secret EXPO_TOKEN, then dispatch this workflow again. Skipping — this is not a failure."
+          else
+            echo "have_token=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.gate.outputs.have_token == 'true'
+
+      - uses: actions/setup-node@v6
+        if: steps.gate.outputs.have_token == 'true'
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v6
+        if: steps.gate.outputs.have_token == 'true'
+        with:
+          cache: true
+
+      # apps/mobile consumes @hybrid/{config,design,engine} as workspace links,
+      # so the whole workspace has to be installed before EAS packages the app.
+      - name: Install workspace
+        if: steps.gate.outputs.have_token == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck the mobile app
+        if: steps.gate.outputs.have_token == 'true'
+        run: pnpm --filter @hybrid/mobile typecheck
+
+      # Guard rail, not decoration: a versionCode at or below the old app's 27
+      # produces a build Play refuses and a sideload that installs as a second
+      # app. Cheaper to fail here than to find out from a user.
+      - name: Assert applicationId and versionCode
+        if: steps.gate.outputs.have_token == 'true'
+        run: |
+          node -e '
+            const a = require("./apps/mobile/app.json").expo.android;
+            if (a.package !== "com.hybridengine.app") {
+              console.error("applicationId is " + a.package + ", expected com.hybridengine.app — this would install as a SECOND app.");
+              process.exit(1);
+            }
+            if (!(a.versionCode > 27)) {
+              console.error("versionCode is " + a.versionCode + "; the shipped WebView app is 27. It must be higher or the update is rejected.");
+              process.exit(1);
+            }
+            console.log("OK — " + a.package + " versionCode " + a.versionCode);
+          '
+
+      # eas-cli is invoked directly rather than through a marketplace action:
+      # one less pinned third party, and EXPO_TOKEN is the documented CI auth
+      # path for the CLI itself. Pinned to a major so a CLI release cannot
+      # change what a dispatch does.
+      - name: EAS build (Android)
+        if: steps.gate.outputs.have_token == 'true'
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          wait_flag="--no-wait"
+          if [ "${{ inputs.wait }}" = "true" ]; then wait_flag="--wait"; fi
+          pnpm dlx eas-cli@21 build \
+            --platform android \
+            --profile "${{ inputs.profile }}" \
+            --non-interactive \
+            $wait_flag
