@@ -7,7 +7,9 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#070706",
     "scheme": "hybridengine",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "android": {
       "//": "applicationId, versionCode and the signing keystore must match the existing native/android-app build or Play treats this as a NEW app and current users get a second icon instead of an update.",
       "package": "com.hybridengine.app",
@@ -15,12 +17,14 @@
       "minSdkVersion": 24,
       "targetSdkVersion": 35,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#070706"
+        "//": "Reproduces the SHIPPED launcher exactly: native/android-app inset ic_raw 18% on a #080808 field. Change it and every existing user watches their icon change during what is supposed to be a silent update.",
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#080808"
       },
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.RECORD_AUDIO"
@@ -40,11 +44,14 @@
         {
           "isBackgroundEnabled": true,
           "neverForLocation": true,
-          "modes": ["central"],
+          "modes": [
+            "central"
+          ],
           "bluetoothAlwaysPermission": "Connects to your heart-rate strap so conditioning can be run by heart rate."
         }
       ],
       "expo-notifications"
-    ]
+    ],
+    "icon": "./assets/icon.png"
   }
 }
