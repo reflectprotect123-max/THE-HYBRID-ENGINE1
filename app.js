@@ -143,7 +143,7 @@ function go(id,btn){
   document.querySelectorAll('.navlink').forEach(b=>b.classList.remove('active'));
   // The logger is a detail view of Training — keep Training lit while logging.
   // Conditioning, Progress and exercise-history all live under Library now.
-  const LIB_SCREENS={library:1,conditioning:1,progress:1,exhist:1,planner:1};
+  const LIB_SCREENS={library:1,conditioning:1,progress:1,exhist:1,planner:1,planedit:1};
   const navId=(id==='recap'||id==='logger')?'training'
     :LIB_SCREENS[id]?'library'
     :(id==='history'||id==='import'||id==='calendar')?'home':id;
@@ -178,6 +178,7 @@ function renderScreen(id){
   else if(id==='exhist')renderExHist();
   else if(id==='calendar')renderCalendar();
   else if(id==='planner')renderPlanner();
+  else if(id==='planedit')renderPlanEdit();
 }
 
 /* ---------- week strip (Sunday-first, exactly like the mock) ---------- */
@@ -1382,11 +1383,48 @@ function openPlateSheet(si){
 let PLAN={wid:null,openLoc:null,openCond:null,custom:false};
 function planW(){return DB.workouts.find(w=>w.id===PLAN.wid)||null}
 function openPlanner(wid,loc){PLAN={wid:wid,openLoc:loc||null,openCond:null,custom:false};go('planner');}
+/* Editing an exercise takes over the screen, exactly like logging one. The
+   plan editor and the Logger are meant to be the same surface in two modes, so
+   they navigate the same way: tap a row → its own screen, back → the list. */
 function planToggle(bi,ei){
-  PLAN.openLoc=(PLAN.openLoc&&PLAN.openLoc.bi===bi&&PLAN.openLoc.ei===ei)?null:{bi,ei};
-  PLAN.custom=false;PLAN.openCond=null;
-  renderPlanner();
-  if(PLAN.openLoc){const c=document.getElementById('plx'+bi+'-'+ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  PLAN.openLoc={bi,ei};PLAN.custom=false;PLAN.openCond=null;
+  go('planedit');
+}
+function planToggleCond(bi){
+  PLAN.openCond=bi;PLAN.openLoc=null;PLAN.custom=false;
+  go('planedit');
+}
+function closePlanEdit(){
+  PLAN.openLoc=null;PLAN.openCond=null;PLAN.custom=false;
+  go('planner');
+}
+/* Paint whichever surface is showing the open card. */
+function renderPlan(){if(CURRENT==='planedit')renderPlanEdit();else renderPlanner();}
+function renderPlanEdit(){
+  const el=document.getElementById('s-planedit');if(!el)return;
+  const w=planW();
+  if(!w){go('library');return;}
+  if(PLAN.openCond==null&&!PLAN.openLoc){closePlanEdit();return;}
+  const letters=sessionLetters(w);
+  let b,card,kicker;
+  if(PLAN.openCond!=null){
+    b=w.blocks[PLAN.openCond];
+    if(!b||!isCond(b)){closePlanEdit();return;}
+    kicker='Conditioning';
+    card=planCondCard(w,b,PLAN.openCond);
+  }else{
+    b=w.blocks[PLAN.openLoc.bi];
+    const ex=b&&blockExercises(b)[PLAN.openLoc.ei];
+    if(!ex){closePlanEdit();return;}
+    kicker=(b.heading||'Block')+(b.superset?' · superset':'');
+    card=planOpenCard(w,b,ex,PLAN.openLoc.bi,PLAN.openLoc.ei,letters[PLAN.openLoc.bi][PLAN.openLoc.ei]);
+  }
+  el.innerHTML='<div class="logtop">'+
+    '<button class="backbtn" data-click="closePlanEdit" aria-label="back to plan">←</button>'+
+    '<div class="logtopt"><div class="kicker">'+esc(kicker)+' · saves as you go</div>'+
+      '<h1 class="screentitle">'+esc(w.name||'Session')+'</h1></div></div>'+
+    card+
+    '<div class="logfoot"><button class="addbtn" data-click="closePlanEdit">‹ Back to plan</button></div>';
 }
 function planEdit(id){
   closeSheet();
@@ -1413,9 +1451,9 @@ function planSetTarget(t){
     else if(ex.mode==='amrap')ex.mode='reps_kg';
     ex.sets.forEach(st=>{st.t=t;});
   });
-  PLAN.custom=false;renderPlanner();
+  PLAN.custom=false;renderPlan();
 }
-function planCustomToggle(){PLAN.custom=!PLAN.custom;renderPlanner();}
+function planCustomToggle(){PLAN.custom=!PLAN.custom;renderPlan();}
 function planCustomStep(which,dir){
   if(!PLAN.openLoc)return;
   planMutate(w=>{
@@ -1428,7 +1466,7 @@ function planCustomStep(which,dir){
     if(ex.mode==='amrap')ex.mode='reps_kg';
     ex.sets.forEach(st=>{st.t=t;});
   });
-  renderPlanner();
+  renderPlan();
 }
 function planRpeInput(v){
   if(!PLAN.openLoc)return;
@@ -1440,12 +1478,12 @@ function planRpeInput(v){
 function planRpeClear(){
   if(!PLAN.openLoc)return;
   planMutate(w=>{w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei].sets.forEach(st=>{st.rpe='';});});
-  renderPlanner();
+  renderPlan();
 }
 function planRestStep(d){
   if(!PLAN.openLoc)return;
   planMutate(w=>{const ex=w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei];ex.rest=Math.max(0,(+ex.rest||0)+d);});
-  renderPlanner();
+  renderPlan();
 }
 function planBumpSets(d){
   if(!PLAN.openLoc)return;
@@ -1454,7 +1492,7 @@ function planBumpSets(d){
     if(d>0){const last=ex.sets[ex.sets.length-1]||{t:'',rpe:''};ex.sets.push({t:last.t||'',rpe:last.rpe||''});}
     else if(ex.sets.length>1)ex.sets.pop();
   });
-  renderPlanner();
+  renderPlan();
 }
 function planTrackMode(m){
   if(!PLAN.openLoc)return;
@@ -1465,7 +1503,7 @@ function planTrackMode(m){
     if(wasSec!==isSec)ex.sets.forEach(st=>{st.t='';}); // units changed — old targets are meaningless
     ex.mode=m;
   });
-  renderPlanner();
+  renderPlan();
 }
 function openPlanNameSheet(){
   const w=planW();if(!w||!PLAN.openLoc)return;
@@ -1478,13 +1516,13 @@ function planAddEx(bi){
   const w=planMutate(w2=>{w2.blocks[bi].exercises.push(newEx());});
   if(!w)return;
   PLAN.openLoc={bi,ei:w.blocks[bi].exercises.length-1};PLAN.custom=false;
-  renderPlanner();openPlanNameSheet(); // first tap of a new exercise is choosing the movement
+  go('planedit');openPlanNameSheet(); // first tap of a new exercise is choosing the movement
 }
 function planAddBlock(){
   const w=planMutate(w2=>{const nb=newBlock();nb.heading='Main';w2.blocks.push(nb);});
   if(!w)return;
   PLAN.openLoc={bi:w.blocks.length-1,ei:0};PLAN.custom=false;
-  renderPlanner();openPlanNameSheet();
+  go('planedit');openPlanNameSheet();
 }
 function planDelEx(){
   const w=planW();if(!w||!PLAN.openLoc)return;
@@ -1496,7 +1534,7 @@ function planDelEx(){
     if(!b2.exercises.length)w2.blocks.splice(bi,1);
     else if(b2.exercises.length<2)b2.superset=false;
   });
-  PLAN.openLoc=null;renderPlanner();
+  closePlanEdit();
 }
 function planMoveEx(dir){
   const w=planW();if(!w||!PLAN.openLoc)return;
@@ -1516,8 +1554,7 @@ function planMoveEx(dir){
   // follow the moved exercise wherever it landed
   const w3=planW();
   w3.blocks.forEach((bb,i)=>{(bb.exercises||[]).forEach((e3,j)=>{if(e3.id===ex.id)PLAN.openLoc={bi:i,ei:j};});});
-  renderPlanner();
-  const c=document.getElementById('plx'+PLAN.openLoc.bi+'-'+PLAN.openLoc.ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});
+  renderPlan();
 }
 /* One chain per seam. In-block unlit → the block becomes a superset; lit →
    split at that seam. Across a block boundary → merge the next block in. */
@@ -1541,21 +1578,20 @@ function planLink(bi,ei,cross){
 /* ---- conditioning blocks: format + target zone, previewed at the athlete's
    earned level (the engine autoregulates the actual session; the plan never
    freezes a number the day would override) ---- */
-function planToggleCond(bi){PLAN.openCond=(PLAN.openCond===bi)?null:bi;PLAN.openLoc=null;renderPlanner();}
 function planAddCond(){
   const w=planMutate(w2=>{w2.blocks.push(newCondBlock());});
   if(!w)return;
-  PLAN.openCond=w.blocks.length-1;PLAN.openLoc=null;renderPlanner();
-  const c=document.getElementById('plc'+PLAN.openCond);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});
+  PLAN.openCond=w.blocks.length-1;PLAN.openLoc=null;
+  go('planedit');
 }
-function planCondFmt(bi,key){planMutate(w=>{const b=w.blocks[bi];if(isCond(b)&&CON_FORMATS[key])b.condFmt=key;});renderPlanner();}
+function planCondFmt(bi,key){planMutate(w=>{const b=w.blocks[bi];if(isCond(b)&&CON_FORMATS[key])b.condFmt=key;});renderPlan();}
 /* Authoring effort writes the zone too — one word in, both vocabularies out. */
-function planCondEffort(bi,key){planMutate(w=>{const b=w.blocks[bi];const e=CON_EFFORTS[key];if(isCond(b)&&e){b.effort=e.key;b.targetZone=e.zone;}});renderPlanner();}
+function planCondEffort(bi,key){planMutate(w=>{const b=w.blocks[bi];const e=CON_EFFORTS[key];if(isCond(b)&&e){b.effort=e.key;b.targetZone=e.zone;}});renderPlan();}
 function planDelCond(bi){
   const w=planW();if(!w||!isCond(w.blocks[bi]))return;
   if(!confirm('Remove this conditioning block from the plan?'))return;
   planMutate(w2=>{w2.blocks.splice(bi,1);});
-  PLAN.openCond=null;renderPlanner();
+  closePlanEdit();
 }
 function planCondCard(w,b,bi){
   const f=CON_FORMATS[b.condFmt]||CON_FORMATS.intervals;
@@ -1593,7 +1629,7 @@ function planHeadDone(){PLAN.editHead=null;renderPlanner();}
 function applyPlanName(name){
   if(!PLAN.openLoc){closeSheet();return;}
   planMutate(w=>{if(name)w.blocks[PLAN.openLoc.bi].exercises[PLAN.openLoc.ei].name=name;});
-  closeSheet();renderPlanner();
+  closeSheet();renderPlan();
 }
 function planOpenCard(w,b,ex,bi,ei,letter){
   const lift=isLiftMode(ex.mode);
@@ -1672,7 +1708,6 @@ function renderPlanner(){
   const seam=(bi,ei,cross,on)=>'<div class="planseam"><button class="'+(on?'on':'')+'" data-click="planLink" data-args="['+bi+','+ei+','+(cross?'true':'false')+']" aria-label="'+(on?'unlink superset here':'link into a superset')+'">'+icoLink()+'</button></div>';
   (w.blocks||[]).forEach((b,bi)=>{
     if(isCond(b)){
-      if(PLAN.openCond===bi){body+=planCondCard(w,b,bi);return;}
       const f=CON_FORMATS[b.condFmt];
       body+='<div class="lgx"><button class="lgcrow" data-click="planToggleCond" data-args="['+bi+']">'+
         '<span class="lgltr">♥</span><span class="lgcn"><b>'+esc(f?f.name:'Conditioning')+'</b><span>'+esc(conPrescDesc(b.condFmt,conPrescription(b.condFmt,true))+' · '+condEffortLine(b))+'</span></span>'+
@@ -1687,12 +1722,10 @@ function renderPlanner(){
       body+='<div class="lgsec plansec" data-click="planHeadEdit" data-args="['+bi+']">'+esc(b.heading||'Block')+(b.superset?'<span class="lgss">superset · flows on</span>':'')+(b.format?'<span class="lgfmt">'+esc(b.format)+'</span>':'')+'</div>';
     }
     blockExercises(b).forEach((ex,ei)=>{
-      if(PLAN.openLoc&&PLAN.openLoc.bi===bi&&PLAN.openLoc.ei===ei){body+=planOpenCard(w,b,ex,bi,ei,letters[bi][ei]);}
-      else{
-        body+='<div class="lgx"><button class="lgcrow" data-click="planToggle" data-args="['+bi+','+ei+']">'+
-          '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
-          '<span class="lgcar">›</span></button></div>';
-      }
+      // rows only — tapping one opens the full-screen editor
+      body+='<div class="lgx"><button class="lgcrow" data-click="planToggle" data-args="['+bi+','+ei+']">'+
+        '<span class="lgltr">'+letters[bi][ei]+'</span><span class="lgcn"><b>'+esc(ex.name||'Exercise')+'</b><span>'+prettyMeta(rxLine(ex))+'</span></span>'+
+        '<span class="lgcar">›</span></button></div>';
       if(ei<b.exercises.length-1)body+=seam(bi,ei,false,!!b.superset); // in-block seam
     });
     body+='<button class="addbtn planadd" data-click="planAddEx" data-args="['+bi+']">＋ Exercise</button>';
@@ -1705,7 +1738,7 @@ function renderPlanner(){
     '<div class="backrow"><button class="backbtn" aria-label="Back" data-click="go" data-args="[&quot;library&quot;]">←</button><div style="flex:1"><div class="kicker" style="margin-bottom:3px">Plan · edits save as you go</div>'+
     '<input class="planname" value="'+esc(w.name||'Session')+'" data-input="planName" data-args="[&quot;@value&quot;]" aria-label="session name"></div></div>'+
     (active?'<div class="plannote">A session in progress uses the previous plan — changes apply next time.</div>':'')+
-    '<div class="loggerlist'+(PLAN.openLoc?' hasopen':'')+'">'+body+'</div>'+
+    '<div class="loggerlist">'+body+'</div>'+
     '<div class="completebar"><button class="bigbtn" data-click="go" data-args="[&quot;library&quot;]">Done</button></div>';
 }
 /* ============================================================

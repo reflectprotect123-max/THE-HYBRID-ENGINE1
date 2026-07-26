@@ -832,21 +832,24 @@ await t('Planner: Library ⋮ Edit opens the plan view with logger-identical row
 });
 await t('Planner: dots stepper, rep chips, RPE slider and ±15s rest all write the template', async () => {
   await page.click('#s-planner .lgcrow');
-  await page.waitForSelector('#s-planner .lgx.open.plan', { timeout: 2000 });
-  await page.click('#s-planner .plandots button:last-child'); // + one set
-  await page.click('#s-planner .daychip:text-is("6-8")');
+  await page.waitForSelector('#s-planedit .lgx.open.plan', { timeout: 2000 });
+  await page.click('#s-planedit .plandots button:last-child'); // + one set
+  await page.click('#s-planedit .daychip:text-is("6-8")');
   await page.fill('#planRpeSlider', '8');
-  await page.click('#s-planner .glogfield:has(.planrest) button[data-args="[15]"]');
-  await page.click('#s-planner .glogfield:has(.planrest) button[data-args="[15]"]');
+  await page.click('#s-planedit .glogfield:has(.planrest) button[data-args="[15]"]');
+  await page.click('#s-planedit .glogfield:has(.planrest) button[data-args="[15]"]');
   const ex = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts[0].blocks[0].exercises[0]);
   if (ex.sets.length !== 4) throw new Error('sets=' + ex.sets.length);
   if (!ex.sets.every((s) => s.t === '6-8' && s.rpe === '8')) throw new Error('sets=' + JSON.stringify(ex.sets));
   if (ex.rest !== 120) throw new Error('rest=' + ex.rest);
   if (Object.keys(ex.sets[0]).sort().join(',') !== 'rpe,t') throw new Error('set shape grew: ' + Object.keys(ex.sets[0]));
   // an imported per-set ladder reads as "mixed" until deliberately overridden
-  await page.click('#s-planner .lgx:not(.open) .lgcrow');
-  await page.waitForSelector('#s-planner .lgx.open.plan', { timeout: 2000 });
-  const lit = await page.$$eval('#s-planner .planchips .daychip.on', (els) => els.map((e) => e.textContent).join(','));
+  await page.click('#s-planedit .logfoot .addbtn');
+  await page.waitForSelector('#s-planner.on', { timeout: 2000 });
+  const planRows = await page.$$('#s-planner .lgcrow');
+  await planRows[1].click(); // the imported per-set ladder
+  await page.waitForSelector('#s-planedit .lgx.open.plan', { timeout: 2000 });
+  const lit = await page.$$eval('#s-planedit .planchips .daychip.on', (els) => els.map((e) => e.textContent).join(','));
   if (!/mixed/.test(lit)) throw new Error('ladder not shown as mixed: ' + lit);
 });
 await t('Planner structure: chain merges/splits supersets, add/move/delete, heading chips', async () => {
@@ -873,17 +876,18 @@ await t('Planner structure: chain merges/splits supersets, add/move/delete, head
   await page.waitForSelector('#sheet .swapsearch', { timeout: 2000 });
   await page.fill('#sheet .swapsearch', 'Pallof Press Iso');
   await page.click('#sheet .swapopt');
-  await page.waitForSelector('#s-planner .lgx.open.plan', { timeout: 2000 });
+  await page.waitForSelector('#s-planedit .lgx.open.plan', { timeout: 2000 });
   let names = await page.evaluate(() => DB.workouts[0].blocks[0].exercises.map((e) => e.name));
   if (names[1] !== 'Pallof Press Iso') throw new Error('add+name failed: ' + names);
   // move it up, then delete it
-  await page.click('#s-planner .planctl button:first-child');
+  await page.click('#s-planedit .planctl button:first-child');
   names = await page.evaluate(() => DB.workouts[0].blocks[0].exercises.map((e) => e.name));
   if (names[0] !== 'Pallof Press Iso') throw new Error('move failed: ' + names);
-  await page.click('#s-planner .planctl .del');
+  await page.click('#s-planedit .planctl .del');
   names = await page.evaluate(() => DB.workouts[0].blocks[0].exercises.map((e) => e.name));
   if (names.length !== 1 || names[0] !== 'Bench') throw new Error('delete failed: ' + names);
   // heading chips
+  await page.waitForSelector('#s-planner.on', { timeout: 2000 });
   await page.click('#s-planner .plansec');
   await page.waitForSelector('#s-planner .planhead input', { timeout: 2000 });
   await page.click('#s-planner .planhead .daychip:text-is("Warm-up")');

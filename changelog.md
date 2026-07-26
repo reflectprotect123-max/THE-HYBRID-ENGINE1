@@ -1,5 +1,17 @@
 # Changelog
 
+## The plan editor is full screen too — 26 July 2026
+
+The Logger and the plan editor are meant to be one surface in two modes, so
+they now behave identically. Tapping an exercise in a plan opens **its own
+screen** — back arrow, block and session name, the controls, ‹ Back to plan —
+exactly the shell the Logger uses, instead of an accordion squeezed between the
+rows. Same for a conditioning block.
+
+Nothing about the controls changed: sets stepper, rep chips, the RPE slider,
+±15s rest, track mode, ↑↓✕. They just get the room to breathe, and the plan
+list stays a clean list of rows.
+
 ## The Logger is full screen — 26 July 2026
 
 Logging used to happen in an accordion wedged between the rows above and below
