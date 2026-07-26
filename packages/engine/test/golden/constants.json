@@ -1,0 +1,73 @@
+{
+ "AUTOREG": {
+  "targetRpeCenter": 8.5,
+  "pctPerRpePoint": 2.5,
+  "missedFloorRpe": 10.5,
+  "plateIncrement": 2.5,
+  "stepKg": 2.5
+ },
+ "MAX_KG": 2000,
+ "REZONE_PROVISIONAL": {
+  "lowOnRed": 0.03,
+  "modOnRed": -0.05,
+  "lowOnGreen": -0.03,
+  "modOnGreen": 0.04
+ },
+ "CON_EFFORTS": {
+  "easy": {
+   "key": "easy",
+   "name": "Easy",
+   "zone": "low",
+   "rpe": [
+    3,
+    4
+   ],
+   "center": 3.5,
+   "cue": "full sentences"
+  },
+  "medium": {
+   "key": "medium",
+   "name": "Medium",
+   "zone": "mod",
+   "rpe": [
+    5,
+    7
+   ],
+   "center": 6,
+   "cue": "short sentences"
+  },
+  "hard": {
+   "key": "hard",
+   "name": "Hard",
+   "zone": "high",
+   "rpe": [
+    8,
+    9.5
+   ],
+   "center": 8.5,
+   "cue": "a few words at a time"
+  }
+ },
+ "ZONE_TO_EFFORT": {
+  "low": "easy",
+  "mod": "medium",
+  "high": "hard"
+ },
+ "MODES": [
+  "reps_kg",
+  "amrap",
+  "seconds",
+  "reps_seconds",
+  "reps",
+  "completion"
+ ],
+ "CON_FORMATS": [
+  "steady",
+  "intervals",
+  "tempo",
+  "custom",
+  "free"
+ ],
+ "HRR_WINDOW_SEC": 60,
+ "HRR_TOLERANCE_SEC": 6
+}

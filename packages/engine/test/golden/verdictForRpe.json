@@ -1,0 +1,362 @@
+[
+ {
+  "rpe": 1,
+  "center": null,
+  "out": "way too light"
+ },
+ {
+  "rpe": 1,
+  "center": 6,
+  "out": "way too light"
+ },
+ {
+  "rpe": 1,
+  "center": 7,
+  "out": "way too light"
+ },
+ {
+  "rpe": 1,
+  "center": 8,
+  "out": "way too light"
+ },
+ {
+  "rpe": 1,
+  "center": 8.5,
+  "out": "way too light"
+ },
+ {
+  "rpe": 1,
+  "center": 9,
+  "out": "way too light"
+ },
+ {
+  "rpe": 3,
+  "center": null,
+  "out": "way too light"
+ },
+ {
+  "rpe": 3,
+  "center": 6,
+  "out": "too light"
+ },
+ {
+  "rpe": 3,
+  "center": 7,
+  "out": "way too light"
+ },
+ {
+  "rpe": 3,
+  "center": 8,
+  "out": "way too light"
+ },
+ {
+  "rpe": 3,
+  "center": 8.5,
+  "out": "way too light"
+ },
+ {
+  "rpe": 3,
+  "center": 9,
+  "out": "way too light"
+ },
+ {
+  "rpe": 5,
+  "center": null,
+  "out": "way too light"
+ },
+ {
+  "rpe": 5,
+  "center": 6,
+  "out": "easy"
+ },
+ {
+  "rpe": 5,
+  "center": 7,
+  "out": "too light"
+ },
+ {
+  "rpe": 5,
+  "center": 8,
+  "out": "too light"
+ },
+ {
+  "rpe": 5,
+  "center": 8.5,
+  "out": "way too light"
+ },
+ {
+  "rpe": 5,
+  "center": 9,
+  "out": "way too light"
+ },
+ {
+  "rpe": 6,
+  "center": null,
+  "out": "too light"
+ },
+ {
+  "rpe": 6,
+  "center": 6,
+  "out": "right on target"
+ },
+ {
+  "rpe": 6,
+  "center": 7,
+  "out": "easy"
+ },
+ {
+  "rpe": 6,
+  "center": 8,
+  "out": "too light"
+ },
+ {
+  "rpe": 6,
+  "center": 8.5,
+  "out": "too light"
+ },
+ {
+  "rpe": 6,
+  "center": 9,
+  "out": "too light"
+ },
+ {
+  "rpe": 6.5,
+  "center": null,
+  "out": "too light"
+ },
+ {
+  "rpe": 6.5,
+  "center": 6,
+  "out": "right on target"
+ },
+ {
+  "rpe": 6.5,
+  "center": 7,
+  "out": "a touch under target"
+ },
+ {
+  "rpe": 6.5,
+  "center": 8,
+  "out": "easy"
+ },
+ {
+  "rpe": 6.5,
+  "center": 8.5,
+  "out": "too light"
+ },
+ {
+  "rpe": 6.5,
+  "center": 9,
+  "out": "too light"
+ },
+ {
+  "rpe": 7,
+  "center": null,
+  "out": "easy"
+ },
+ {
+  "rpe": 7,
+  "center": 6,
+  "out": "grindy"
+ },
+ {
+  "rpe": 7,
+  "center": 7,
+  "out": "right on target"
+ },
+ {
+  "rpe": 7,
+  "center": 8,
+  "out": "easy"
+ },
+ {
+  "rpe": 7,
+  "center": 8.5,
+  "out": "easy"
+ },
+ {
+  "rpe": 7,
+  "center": 9,
+  "out": "too light"
+ },
+ {
+  "rpe": 7.5,
+  "center": null,
+  "out": "easy"
+ },
+ {
+  "rpe": 7.5,
+  "center": 6,
+  "out": "max effort"
+ },
+ {
+  "rpe": 7.5,
+  "center": 7,
+  "out": "right on target"
+ },
+ {
+  "rpe": 7.5,
+  "center": 8,
+  "out": "a touch under target"
+ },
+ {
+  "rpe": 7.5,
+  "center": 8.5,
+  "out": "easy"
+ },
+ {
+  "rpe": 7.5,
+  "center": 9,
+  "out": "easy"
+ },
+ {
+  "rpe": 8,
+  "center": null,
+  "out": "a touch under target"
+ },
+ {
+  "rpe": 8,
+  "center": 6,
+  "out": "max effort"
+ },
+ {
+  "rpe": 8,
+  "center": 7,
+  "out": "grindy"
+ },
+ {
+  "rpe": 8,
+  "center": 8,
+  "out": "right on target"
+ },
+ {
+  "rpe": 8,
+  "center": 8.5,
+  "out": "a touch under target"
+ },
+ {
+  "rpe": 8,
+  "center": 9,
+  "out": "easy"
+ },
+ {
+  "rpe": 8.5,
+  "center": null,
+  "out": "right on target"
+ },
+ {
+  "rpe": 8.5,
+  "center": 6,
+  "out": "max effort"
+ },
+ {
+  "rpe": 8.5,
+  "center": 7,
+  "out": "max effort"
+ },
+ {
+  "rpe": 8.5,
+  "center": 8,
+  "out": "right on target"
+ },
+ {
+  "rpe": 8.5,
+  "center": 8.5,
+  "out": "right on target"
+ },
+ {
+  "rpe": 8.5,
+  "center": 9,
+  "out": "a touch under target"
+ },
+ {
+  "rpe": 9,
+  "center": null,
+  "out": "right on target"
+ },
+ {
+  "rpe": 9,
+  "center": 6,
+  "out": "max effort"
+ },
+ {
+  "rpe": 9,
+  "center": 7,
+  "out": "max effort"
+ },
+ {
+  "rpe": 9,
+  "center": 8,
+  "out": "grindy"
+ },
+ {
+  "rpe": 9,
+  "center": 8.5,
+  "out": "right on target"
+ },
+ {
+  "rpe": 9,
+  "center": 9,
+  "out": "right on target"
+ },
+ {
+  "rpe": 9.5,
+  "center": null,
+  "out": "grindy"
+ },
+ {
+  "rpe": 9.5,
+  "center": 6,
+  "out": "max effort"
+ },
+ {
+  "rpe": 9.5,
+  "center": 7,
+  "out": "max effort"
+ },
+ {
+  "rpe": 9.5,
+  "center": 8,
+  "out": "max effort"
+ },
+ {
+  "rpe": 9.5,
+  "center": 8.5,
+  "out": "grindy"
+ },
+ {
+  "rpe": 9.5,
+  "center": 9,
+  "out": "right on target"
+ },
+ {
+  "rpe": 10,
+  "center": null,
+  "out": "max effort"
+ },
+ {
+  "rpe": 10,
+  "center": 6,
+  "out": "max effort"
+ },
+ {
+  "rpe": 10,
+  "center": 7,
+  "out": "max effort"
+ },
+ {
+  "rpe": 10,
+  "center": 8,
+  "out": "max effort"
+ },
+ {
+  "rpe": 10,
+  "center": 8.5,
+  "out": "max effort"
+ },
+ {
+  "rpe": 10,
+  "center": 9,
+  "out": "max effort"
+ }
+]

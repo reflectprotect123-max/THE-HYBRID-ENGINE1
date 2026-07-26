@@ -13,6 +13,16 @@
 /readme.txt          /index.html  404!
 /package.json        /index.html  404!
 /package-lock.json   /index.html  404!
+# React monorepo source. `publish = "."` serves the whole tree, so without
+# these the TypeScript sources and node_modules would be fetchable while the
+# migration is in flight. The BUILT apps are published from their own dist/,
+# not from here.
+/packages/*          /index.html  404!
+/apps/*              /index.html  404!
+/node_modules/*      /index.html  404!
+/pnpm-workspace.yaml /index.html  404!
+/pnpm-lock.yaml      /index.html  404!
+/tsconfig*.json      /index.html  404!
 
 # Coach website (Entity 2) is served in place at /coach/* — the files are real
 # (they win over the SPA fallback below) and the service worker bypasses /coach,

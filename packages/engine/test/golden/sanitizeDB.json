@@ -1,0 +1,162 @@
+[
+ {
+  "in": {},
+  "out": {
+   "workouts": [],
+   "sessions": [],
+   "settings": {}
+  }
+ },
+ {
+  "in": {
+   "workouts": null,
+   "sessions": "nope",
+   "settings": 5
+  },
+  "out": {
+   "workouts": [],
+   "sessions": [],
+   "settings": {}
+  }
+ },
+ {
+  "in": {
+   "workouts": [
+    {
+     "id": "w1",
+     "name": "X",
+     "blocks": [
+      {
+       "exercises": [
+        {
+         "id": "e",
+         "name": "Sq",
+         "mode": "reps_kg",
+         "sets": [
+          {
+           "t": "5",
+           "rpe": "8",
+           "aVal": "99",
+           "felt": "9"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "sessions": [],
+   "settings": {}
+  },
+  "out": {
+   "workouts": [
+    {
+     "id": "w1",
+     "name": "X",
+     "blocks": [
+      {
+       "exercises": [
+        {
+         "id": "e",
+         "name": "Sq",
+         "mode": "reps_kg",
+         "sets": [
+          {
+           "t": "5",
+           "rpe": "8",
+           "aVal": "99",
+           "felt": "9"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "sessions": [],
+   "settings": {}
+  }
+ },
+ {
+  "in": {
+   "workouts": [
+    {
+     "id": "w2",
+     "name": "<img src=x onerror=alert(1)>",
+     "blocks": []
+    }
+   ],
+   "sessions": [],
+   "settings": {}
+  },
+  "out": {
+   "workouts": [
+    {
+     "id": "w2",
+     "name": "<img src=x onerror=alert(1)>",
+     "blocks": []
+    }
+   ],
+   "sessions": [],
+   "settings": {}
+  }
+ },
+ {
+  "in": {
+   "workouts": [
+    {
+     "id": "w3",
+     "name": "Inf",
+     "blocks": [
+      {
+       "exercises": [
+        {
+         "id": "e",
+         "name": "Sq",
+         "mode": "reps_kg",
+         "sets": [
+          {
+           "t": "Infinity",
+           "rpe": "1e99"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "sessions": [],
+   "settings": {}
+  },
+  "out": {
+   "workouts": [
+    {
+     "id": "w3",
+     "name": "Inf",
+     "blocks": [
+      {
+       "exercises": [
+        {
+         "id": "e",
+         "name": "Sq",
+         "mode": "reps_kg",
+         "sets": [
+          {
+           "t": "Infinity",
+           "rpe": "1e99"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "sessions": [],
+   "settings": {}
+  }
+ }
+]

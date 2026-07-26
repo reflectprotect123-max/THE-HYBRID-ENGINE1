@@ -1,0 +1,161 @@
+[
+ {
+  "in": {},
+  "out": {
+   "key": "medium",
+   "name": "Medium",
+   "zone": "mod",
+   "rpe": [
+    5,
+    7
+   ],
+   "center": 6,
+   "cue": "short sentences"
+  }
+ },
+ {
+  "in": {
+   "effort": "easy"
+  },
+  "out": {
+   "key": "easy",
+   "name": "Easy",
+   "zone": "low",
+   "rpe": [
+    3,
+    4
+   ],
+   "center": 3.5,
+   "cue": "full sentences"
+  }
+ },
+ {
+  "in": {
+   "effort": "medium"
+  },
+  "out": {
+   "key": "medium",
+   "name": "Medium",
+   "zone": "mod",
+   "rpe": [
+    5,
+    7
+   ],
+   "center": 6,
+   "cue": "short sentences"
+  }
+ },
+ {
+  "in": {
+   "effort": "hard"
+  },
+  "out": {
+   "key": "hard",
+   "name": "Hard",
+   "zone": "high",
+   "rpe": [
+    8,
+    9.5
+   ],
+   "center": 8.5,
+   "cue": "a few words at a time"
+  }
+ },
+ {
+  "in": {
+   "effort": "bogus"
+  },
+  "out": {
+   "key": "medium",
+   "name": "Medium",
+   "zone": "mod",
+   "rpe": [
+    5,
+    7
+   ],
+   "center": 6,
+   "cue": "short sentences"
+  }
+ },
+ {
+  "in": {
+   "targetZone": "low"
+  },
+  "out": {
+   "key": "easy",
+   "name": "Easy",
+   "zone": "low",
+   "rpe": [
+    3,
+    4
+   ],
+   "center": 3.5,
+   "cue": "full sentences"
+  }
+ },
+ {
+  "in": {
+   "targetZone": "mod"
+  },
+  "out": {
+   "key": "medium",
+   "name": "Medium",
+   "zone": "mod",
+   "rpe": [
+    5,
+    7
+   ],
+   "center": 6,
+   "cue": "short sentences"
+  }
+ },
+ {
+  "in": {
+   "targetZone": "high"
+  },
+  "out": {
+   "key": "hard",
+   "name": "Hard",
+   "zone": "high",
+   "rpe": [
+    8,
+    9.5
+   ],
+   "center": 8.5,
+   "cue": "a few words at a time"
+  }
+ },
+ {
+  "in": {
+   "targetZone": "nope"
+  },
+  "out": {
+   "key": "medium",
+   "name": "Medium",
+   "zone": "mod",
+   "rpe": [
+    5,
+    7
+   ],
+   "center": 6,
+   "cue": "short sentences"
+  }
+ },
+ {
+  "in": {
+   "effort": "hard",
+   "targetZone": "low"
+  },
+  "out": {
+   "key": "hard",
+   "name": "Hard",
+   "zone": "high",
+   "rpe": [
+    8,
+    9.5
+   ],
+   "center": 8.5,
+   "cue": "a few words at a time"
+  }
+ }
+]

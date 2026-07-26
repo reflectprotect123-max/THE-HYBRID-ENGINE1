@@ -1,0 +1,87 @@
+import { AUTOREG } from './constants';
+import { roundToIncrement } from './num';
+import type { AnySet, SetAdjustment } from './types';
+
+/**
+ * A target beginning with W is a warm-up set: "W" alone (work up as you like)
+ * or "W10" (a warm-up of ten).
+ *
+ * It rides in `t` rather than a new key because a planned set's shape is
+ * contractual — two suites assert it is exactly {t, rpe} — and `t` is already
+ * free text parsed by pattern, the way `max` carries meaning.
+ *
+ * A warm-up is real work the athlete performs, so it still counts toward the
+ * session's progress. What it must never do is move the working weight or enter
+ * the record as if it were a working set.
+ */
+export function isWarmup(st: Pick<AnySet, 't'> | null | undefined): boolean {
+  return /^\s*w/i.test((st && st.t) || '');
+}
+
+/**
+ * The RPE this set is judged against. A target may be a range ("7-9") or a
+ * list; the centre is their mean. With no target, fall back to the global.
+ */
+export function rpeCenterOf(st: Pick<AnySet, 'rpe'> | null | undefined): number {
+  const ns = String((st && st.rpe) || '').match(/\d+(?:\.\d+)?/g);
+  if (ns && ns.length) return ns.reduce((a, x) => a + Number(x), 0) / ns.length;
+  return AUTOREG.targetRpeCenter;
+}
+
+/**
+ * Plain-language verdict for a rated set, judged relative to that set's OWN
+ * target RPE rather than an absolute scale — so "right on target" means what it
+ * says whether the target was 7 or 9. The bands reproduce the old absolute
+ * wording at the default 8.5 centre.
+ */
+export function verdictForRpe(rpe: number, center?: number | null): string {
+  const d = rpe - (center == null ? AUTOREG.targetRpeCenter : center);
+  if (rpe >= 10) return 'max effort'; // a 10 is a 10, whatever the target was
+  if (d <= -3.5) return 'way too light';
+  if (d <= -2) return 'too light';
+  if (d <= -1) return 'easy';
+  if (d < 0) return 'a touch under target';
+  if (d <= 0.5) return 'right on target';
+  if (d <= 1) return 'grindy';
+  return 'max effort';
+}
+
+/**
+ * Move the next set's load from how the last one actually went.
+ *
+ * Tuchscherer/Helms basis: one RPE point below target is worth roughly
+ * `pctPerRpePoint` of load. Missing the rep floor is treated as harder than a
+ * 10 (`missedFloorRpe`), so a missed set always brings the weight down even if
+ * the athlete rated the effort modestly.
+ */
+export function computeSetAdjustment(
+  reps: number,
+  rpe: number,
+  low: number,
+  weight: number,
+  center: number,
+): SetAdjustment {
+  const missed = low > 0 && reps < low;
+  const eff = missed ? AUTOREG.missedFloorRpe : rpe;
+  const newWeight = roundToIncrement(
+    weight * (1 + ((center - eff) * AUTOREG.pctPerRpePoint) / 100),
+    AUTOREG.plateIncrement,
+  );
+  const delta = Math.round((newWeight - weight) * 100) / 100;
+  return {
+    delta,
+    newWeight,
+    verdict: missed ? 'missed the rep floor' : verdictForRpe(rpe, center),
+    cls: delta < 0 ? 'bad' : 'good',
+  };
+}
+
+/**
+ * The rep floor a target implies. "5" → 5; "8-10" → 8; "max"/"" → 0 (no floor,
+ * so nothing can be "missed").
+ */
+export function repFloorOf(t: string | undefined): number {
+  const ns = String(t || '').match(/\d+(?:\.\d+)?/g);
+  if (!ns || !ns.length) return 0;
+  return Math.min(...ns.map(Number));
+}

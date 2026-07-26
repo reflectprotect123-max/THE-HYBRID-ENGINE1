@@ -13,3 +13,8 @@ native/android/keystore.b64
 # generated design-kit cards (regenerate: python3 design/_split_kit.py)
 design/cards/
 design/cards-index.html
+
+# Vite/React build output
+dist/
+.vite/
+*.tsbuildinfo
