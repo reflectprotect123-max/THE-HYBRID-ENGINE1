@@ -93,6 +93,7 @@ export function Settings() {
       </Card>
 
       <CloudCard />
+      <CoachLinkCard />
       <WhoopCard />
 
       <SectionHead title="Your data" />
@@ -186,6 +187,54 @@ function CloudCard() {
                 Create account
               </Button>
             </div>
+          </>
+        )}
+      </Card>
+    </>
+  );
+}
+
+function CoachLinkCard() {
+  const { enabled, user, coachLinked, claimInvite } = useSync();
+  const [code, setCode] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!enabled || !user) return null;
+
+  return (
+    <>
+      <SectionHead title="Your coach" />
+      <Card>
+        {coachLinked ? (
+          <p className="text-4 text-muted">
+            Linked. Sessions your coach assigns appear in your Library automatically, and they can see a summary of
+            your training — never your heart-rate traces, notes or settings, and only the last 90 days.
+          </p>
+        ) : (
+          <>
+            <p className="text-4 text-muted">
+              Got a code from a coach? Entering it is what grants them access — they cannot link to you on their own.
+            </p>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="INVITE CODE"
+              aria-label="invite code"
+              className="num mt-1 h-5 w-full rounded-md border border-line bg-well px-1 text-center text-5 font-[750] tracking-[.2em] uppercase outline-none focus:border-gold-line"
+            />
+            {msg ? <p className="mt-1 text-3 text-warn">{msg}</p> : null}
+            <Button
+              variant="brass"
+              className="mt-1.5"
+              disabled={busy || !code.trim()}
+              onClick={async () => {
+                setBusy(true);
+                setMsg((await claimInvite(code)) || 'Linked — your coach can now assign you sessions.');
+                setBusy(false);
+              }}
+            >
+              {busy ? 'Linking…' : 'Link to coach'}
+            </Button>
           </>
         )}
       </Card>

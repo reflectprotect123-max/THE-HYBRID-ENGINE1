@@ -18,3 +18,9 @@ design/cards-index.html
 dist/
 .vite/
 *.tsbuildinfo
+
+# tsc must never emit beside a source. If these reappear, a build script
+# has --noEmit disabled again.
+apps/*/src/**/*.js
+apps/*/src/**/*.js.map
+apps/*/vite.config.js

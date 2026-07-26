@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { conMaxHr, conZones, restingHr, type Profile } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { useSync } from '../cloud/sync';
+import { useWhoop } from '../cloud/whoop';
 import { isPersistent } from '../store/storage';
 
 export function SettingsScreen() {
@@ -48,6 +50,9 @@ export function SettingsScreen() {
       <Field label="Max HR" hint="A tested max wins over the estimate." value={profile.maxHr} onChange={(v) => set({ maxHr: v })} />
       <Field label="Resting HR" hint="With this, zones use Karvonen instead of percent-of-max." value={profile.restingHr} onChange={(v) => set({ restingHr: v })} />
 
+      <CloudCard />
+      <WhoopCard />
+
       <Text className="mt-3 mb-1 text-6 font-bold text-text">What that produces</Text>
       <View className="rounded-lg border border-line bg-panel p-2">
         <Text className="text-4 text-muted">
@@ -64,5 +69,117 @@ export function SettingsScreen() {
         ))}
       </View>
     </ScrollView>
+  );
+}
+
+function CloudCard() {
+  const { enabled, user, busy, error, syncedAt, signIn, signUp, signOut, syncNow } = useSync();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [msg, setMsg] = useState('');
+  if (!enabled) return null;
+
+  const go = async (fn: (e: string, p: string) => Promise<string | null>) => setMsg((await fn(email, password)) || '');
+
+  return (
+    <View>
+      <Text className="mt-3 mb-1 text-6 font-bold text-text">Cloud sync</Text>
+      <View className="rounded-lg border border-line bg-panel p-2">
+        {user ? (
+          <>
+            <Text className="text-4 text-muted">
+              Signed in as <Text className="font-bold text-text">{user.email}</Text>
+            </Text>
+            <Text className="mt-0.5 text-3 text-dim">
+              {busy ? 'Syncing…' : syncedAt ? 'Last synced ' + new Date(syncedAt).toLocaleTimeString() : 'Not synced yet.'}
+            </Text>
+            {!isPersistent ? (
+              <Text className="mt-1 text-3 text-bad">
+                Storage is not persisting in this build, so this sign-in will not survive a restart.
+              </Text>
+            ) : null}
+            {error ? <Text className="mt-1 text-3 text-bad">{error}</Text> : null}
+            <View className="mt-1.5 flex-row gap-1">
+              <Pressable onPress={() => void syncNow()} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
+                <Text className="text-4 font-bold text-text">Sync now</Text>
+              </Pressable>
+              <Pressable onPress={() => void signOut()} className="flex-1 items-center rounded-md py-1.5">
+                <Text className="text-4 text-muted">Sign out</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text className="text-4 text-muted">Sign in to sync across devices and receive sessions from a coach.</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholder="email"
+              placeholderTextColor="#847d73"
+              className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
+            />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="password"
+              placeholderTextColor="#847d73"
+              className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
+            />
+            {msg ? <Text className="mt-1 text-3 text-warn">{msg}</Text> : null}
+            <View className="mt-1.5 flex-row gap-1">
+              <Pressable onPress={() => void go(signIn)} className="flex-1 items-center rounded-md bg-gold py-1.5">
+                <Text className="text-4 font-black text-bg">Sign in</Text>
+              </Pressable>
+              <Pressable onPress={() => void go(signUp)} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
+                <Text className="text-4 font-bold text-text">Create account</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function WhoopCard() {
+  const { connected, sample, busy, connect, sync, disconnect } = useWhoop();
+  return (
+    <View>
+      <Text className="mt-3 mb-1 text-6 font-bold text-text">WHOOP</Text>
+      <View className="rounded-lg border border-line bg-panel p-2">
+        {connected ? (
+          <>
+            <Text className="text-4 text-muted">
+              Connected
+              {sample?.recoveryScore != null ? ` · today ${Math.round(Number(sample.recoveryScore))}%` : ' · no reading yet today'}
+            </Text>
+            <View className="mt-1.5 flex-row gap-1">
+              <Pressable onPress={() => void sync()} disabled={busy} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
+                <Text className="text-4 font-bold text-text">{busy ? 'Pulling…' : 'Pull now'}</Text>
+              </Pressable>
+              <Pressable onPress={() => void disconnect()} className="flex-1 items-center rounded-md py-1.5">
+                <Text className="text-4 text-muted">Disconnect</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text className="text-4 text-muted">
+              Connect WHOOP and your zones re-tune to the day: a low-recovery morning widens the easy band and pulls the
+              hard line down.
+            </Text>
+            <Pressable onPress={connect} className="mt-1.5 items-center rounded-md bg-gold py-1.5">
+              <Text className="text-4 font-black text-bg">Connect WHOOP</Text>
+            </Pressable>
+            <Text className="mt-1 text-3 text-dim">
+              Opens your browser. The connection is not yet visible back in the app — see the note in MIGRATION.md.
+            </Text>
+          </>
+        )}
+      </View>
+    </View>
   );
 }

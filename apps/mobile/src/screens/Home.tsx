@@ -1,12 +1,17 @@
 import { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { conZones, recoveryBand, todayRecovery, ymd } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { Btn } from '../ui';
+import type { RootStackParams } from '../App';
 
 /* Readiness first, because it changes what today should be. */
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { db, hr, whoop } = useDb();
   const rec = todayRecovery(whoop);
   const band = recoveryBand(rec);
@@ -52,6 +57,14 @@ export function HomeScreen() {
             </Text>
           </View>
         ))}
+      </View>
+
+      <Text className="mt-3 mb-1 text-6 font-bold text-text">Elsewhere</Text>
+      <View className="flex-row flex-wrap gap-1">
+        <Btn onPress={() => nav.navigate('Conditioning')}>Conditioning</Btn>
+        <Btn onPress={() => nav.navigate('History')}>History</Btn>
+        <Btn onPress={() => nav.navigate('Calendar')}>Calendar</Btn>
+        <Btn onPress={() => nav.navigate('Import')}>Import</Btn>
       </View>
 
       <Text className="mt-3 mb-1 text-6 font-bold text-text">Today&apos;s plan</Text>

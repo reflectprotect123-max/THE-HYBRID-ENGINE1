@@ -104,10 +104,13 @@ export function TrainingScreen() {
         <View key={b.id ?? bi} className="mt-2">
           <Text className="mb-1 text-5 font-bold text-text">{b.heading || 'Block'}</Text>
           {isCond(b) ? (
-            <View className="rounded-lg border border-line bg-panel p-2">
+            <Pressable
+              onPress={() => (b.condResult ? undefined : nav.navigate('Conditioning'))}
+              className={`rounded-lg border p-2 ${b.condResult ? 'border-done-line bg-done-bg' : 'border-line bg-panel'}`}
+            >
               <Text className="text-5 font-bold text-text">{b.condFmt}</Text>
-              <Text className="text-3 text-dim">{b.condResult ? 'logged' : 'runs by heart rate'}</Text>
-            </View>
+              <Text className="text-3 text-dim">{b.condResult ? 'logged' : 'runs by heart rate · tap to start'}</Text>
+            </Pressable>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
               const done = exFinished(ex);
@@ -138,15 +141,18 @@ export function TrainingScreen() {
       ))}
 
       <Pressable
-        onPress={() =>
+        onPress={() => {
           update((draft) => {
             const ds = draft.sessions.find((x) => x.id === s.id);
             if (!ds) return false;
             ds.status = 'completed';
             ds.completedAt = Date.now();
             ds.updatedAt = Date.now();
-          })
-        }
+          });
+          // Straight to the recap: just after finishing is the only time anyone
+          // actually reads what they did.
+          nav.navigate('Recap', { id: s.id });
+        }}
         className="mt-3 items-center rounded-md bg-gold py-2"
       >
         <Text className="text-6 font-black text-bg">Finish session</Text>

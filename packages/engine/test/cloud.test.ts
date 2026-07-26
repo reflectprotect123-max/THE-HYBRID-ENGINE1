@@ -188,13 +188,22 @@ describe('coachDigest', () => {
         date: '2026-02-01',
         name: 'Lower',
         status: 'completed',
+        startedAt: RECENT - 45 * 60_000,
         completedAt: RECENT,
         blocks: [
           {
             id: 'b1',
             heading: 'Main',
             exercises: [
-              { id: 'e', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '9', done: true }] },
+              {
+                id: 'e',
+                name: 'Squat',
+                mode: 'reps_kg',
+                sets: [
+                  { t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '9', done: true },
+                  { t: '5', rpe: '8', aVal: '100', aVal2: '5', done: false },
+                ],
+              },
             ],
           },
           {
@@ -202,6 +211,7 @@ describe('coachDigest', () => {
             kind: 'conditioning',
             condFmt: 'intervals',
             condResult: {
+              id: 'c1',
               fmt: 'intervals',
               effort: 'hard',
               dur: 900,
@@ -216,14 +226,44 @@ describe('coachDigest', () => {
       { id: 's2', date: '2020-01-01', status: 'completed', completedAt: ANCIENT, blocks: [] },
       { id: 's3', date: '2026-02-02', status: 'active', blocks: [] },
     ],
-    settings: { profile: { age: 30 }, lexicon: { kw: { squat: 'Back Squat' } } },
+    settings: {
+      profile: { age: 30 },
+      lexicon: { kw: { squat: 'Back Squat' } },
+      whoopDaily: [
+        { date: '2026-02-01', recovery: 71, strain: 12 },
+        { date: '2019-05-05', recovery: 40, strain: 8 },
+      ],
+    },
   };
 
-  it('carries logged work and the conditioning summary', () => {
+  /*
+   * THE SHAPE IS THE CONTRACT. The coach dashboard reads exactly these fields
+   * (coach/js/app.js athleteDetailHTML) and renders "0 sessions / NaN kg" —
+   * silently, without erroring — if any of them is missing. This test exists
+   * because the first port of coachDigest emitted a completely different shape
+   * and nothing caught it.
+   */
+  it('emits the fields the coach dashboard actually reads', () => {
     const d = coachDigest(db, NOW);
-    expect(d.sessions.length).toBe(1);
-    expect(d.sessions[0].blocks[0].exercises[0].sets[0].felt).toBe('9');
-    expect(d.sessions[0].blocks[1].cond?.hrr).toBe(22);
+    expect(d.v).toBe(1);
+    const s = d.sessions[0];
+    expect(Object.keys(s).sort()).toEqual(
+      ['date', 'exercises', 'id', 'minutes', 'name', 'rpeFelt', 'rpeTarget', 'setsDone', 'setsTotal', 'status', 'volumeKg'].sort(),
+    );
+    expect(s.volumeKg).toBe(500); // one completed set: 100kg × 5
+    expect(s.setsDone).toBe(1);
+    expect(s.setsTotal).toBe(2);
+    expect(s.minutes).toBe(45);
+    expect(s.exercises).toEqual(['Squat']);
+    expect(s.rpeFelt).toBe(9);
+  });
+
+  it('publishes conditioning and WHOOP as their own top-level arrays', () => {
+    const d = coachDigest(db, NOW);
+    expect(d.conditioning.length).toBe(1);
+    expect(d.conditioning[0].hrr).toBe(22);
+    expect(d.conditioning[0].zsec).toEqual({ low: 100, mod: 400, high: 400 });
+    expect(d.whoop.map((w) => w.date)).toEqual(['2026-02-01']); // 2019 is outside the window
   });
 
   it('excludes the raw HR trace, settings and the lexicon', () => {
@@ -234,9 +274,20 @@ describe('coachDigest', () => {
   });
 
   it('is bounded to the window and never includes a live session', () => {
-    const d = coachDigest(db, NOW);
-    const ids = d.sessions.map((s) => s.id);
+    const ids = coachDigest(db, NOW).sessions.map((s) => s.id);
     expect(ids).not.toContain('s2'); // outside 90 days
     expect(ids).not.toContain('s3'); // still in progress
+    expect(ids).toEqual(['s1']);
+  });
+
+  it('windows on `date`, so an unfinished session still reaches the coach', () => {
+    // No completedAt at all — windowing on it would silently hide exactly the
+    // sessions a coach most wants to ask about.
+    const noStamp: EngineDB = {
+      workouts: [],
+      sessions: [{ id: 'x', date: '2026-02-01', status: 'incomplete', blocks: [] }],
+      settings: {},
+    };
+    expect(coachDigest(noStamp, NOW).sessions.map((s) => s.id)).toEqual(['x']);
   });
 });

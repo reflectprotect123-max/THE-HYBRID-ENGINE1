@@ -1,6 +1,7 @@
 import { cloudFp, materializeAssignment, mergeEngines, sanitizeDB } from './db';
-import { hasLoggedWork } from './session';
-import type { EngineDB, Session, Settings, Workout } from './types';
+import { blockExercises, hasLoggedWork, isCond, sessionRpe, sessionVolume } from './session';
+import { ymd } from './num';
+import type { CondResult, EngineDB, Session, Settings, Workout } from './types';
 
 /*
  * The sync protocol, as logic.
@@ -138,52 +139,92 @@ export function applyPull(local: EngineDB, remote: EngineDB | null): PullOutcome
 /**
  * The bounded digest a linked coach is allowed to read.
  *
- * Never the whole local blob: no settings, no lexicon, and no raw HR point
- * traces. Ninety days, because a coach looking further back than that is doing
- * something the athlete did not agree to when they accepted the link.
+ * THE SHAPE HERE IS A CONTRACT with the coach dashboard, which reads
+ * `payload.sessions[].{volumeKg,setsDone,setsTotal,exercises}`,
+ * `payload.conditioning[]` and `payload.whoop[]`. Emit anything else and an
+ * athlete's whole week renders as "0 sessions / NaN kg" on the coach's screen
+ * — the coach site does not error, it just quietly shows nothing.
+ *
+ * Never the whole local blob: no settings, no lexicon, and no HR point traces.
+ * Ninety days, because a coach looking further back than that is doing
+ * something the athlete did not agree to when they accepted the link. `sim`
+ * survives deliberately — without it a coach cannot tell a demo run from a
+ * real session.
+ *
+ * Windowed on `date`, NOT `completedAt`: a session left unfinished has a date
+ * but may have no completion timestamp, and dropping those would hide exactly
+ * the sessions a coach most wants to ask about.
  */
 export function coachDigest(db: EngineDB, now = Date.now(), days = 90) {
-  const since = now - days * 864e5;
-  return {
-    generatedAt: now,
-    sessions: db.sessions
-      .filter((s) => s.status !== 'active' && (s.completedAt || 0) >= since)
-      .map((s) => ({
+  const cut = ymd(new Date(now - days * 864e5));
+
+  const sessions = db.sessions
+    .filter((s) => s.status !== 'active' && s.date && s.date >= cut)
+    .map((s) => {
+      let done = 0;
+      let tot = 0;
+      (s.blocks || []).forEach((b) =>
+        blockExercises(b).forEach((e) =>
+          (e.sets || []).forEach((st) => {
+            tot += 1;
+            if (st.done) done += 1;
+          }),
+        ),
+      );
+      const r = sessionRpe(s);
+      return {
         id: s.id,
         date: s.date,
-        name: s.name || '',
+        name: s.name || 'Session',
         status: s.status,
-        completedAt: s.completedAt || 0,
-        blocks: s.blocks.map((b) => ({
-          heading: b.heading || '',
-          kind: b.kind || 'strength',
-          exercises: ((b as { exercises?: unknown[] }).exercises || []).map((e) => {
-            const ex = e as { name?: string; mode?: string; sets?: { t?: string; rpe?: string; aVal?: string; aVal2?: string; felt?: string; done?: boolean }[] };
-            return {
-              name: ex.name || '',
-              mode: ex.mode || '',
-              sets: (ex.sets || []).map((st) => ({
-                t: st.t || '',
-                rpe: st.rpe || '',
-                aVal: st.aVal || '',
-                aVal2: st.aVal2 || '',
-                felt: st.felt || '',
-                done: !!st.done,
-              })),
-            };
-          }),
-          // the HR trace itself is deliberately NOT included
-          cond: (b as { condResult?: { fmt?: string; effort?: string; dur?: number; felt?: string; zsec?: unknown; hrr?: number | null } }).condResult
-            ? {
-                fmt: (b as { condResult?: { fmt?: string } }).condResult?.fmt || '',
-                effort: (b as { condResult?: { effort?: string } }).condResult?.effort || '',
-                dur: (b as { condResult?: { dur?: number } }).condResult?.dur || 0,
-                felt: (b as { condResult?: { felt?: string } }).condResult?.felt || '',
-                zsec: (b as { condResult?: { zsec?: unknown } }).condResult?.zsec || null,
-                hrr: (b as { condResult?: { hrr?: number | null } }).condResult?.hrr ?? null,
-              }
-            : null,
-        })),
-      })),
-  };
+        volumeKg: sessionVolume(s),
+        setsDone: done,
+        setsTotal: tot,
+        rpeTarget: r.target,
+        rpeFelt: r.felt,
+        minutes: s.completedAt && s.startedAt ? Math.round((s.completedAt - s.startedAt) / 6e4) : null,
+        exercises: (s.blocks || [])
+          .flatMap((b) => blockExercises(b).map((e) => e.name).filter(Boolean))
+          .slice(0, 12),
+      };
+    })
+    .slice(-120);
+
+  /* The full point trace is deliberately dropped — it is large and adds
+     nothing to a review view. */
+  const slim = (r: CondResult) => ({
+    id: r.id,
+    date: (r as { date?: string }).date,
+    fmt: r.fmt,
+    dur: r.dur,
+    avg: (r as { avg?: number }).avg,
+    max: (r as { max?: number }).max,
+    hrr: r.hrr,
+    zsec: r.zsec,
+    effort: r.effort,
+    targetRpe: r.targetRpe ?? undefined,
+    felt: r.felt || undefined,
+    sim: r.sim || undefined,
+  });
+
+  const cond: ReturnType<typeof slim>[] = (
+    Array.isArray(db.settings.conditioning) ? db.settings.conditioning : []
+  )
+    .filter((r) => r && ((r as { date?: string }).date ?? '') >= cut)
+    .map(slim);
+  db.sessions.forEach((s) => {
+    if (s.date >= cut) {
+      (s.blocks || []).forEach((b) => {
+        if (isCond(b) && b.condResult) cond.push(slim(b.condResult));
+      });
+    }
+  });
+
+  const whoop = (
+    Array.isArray(db.settings.whoopDaily)
+      ? (db.settings.whoopDaily as { date: string; recovery: number | null; strain: number | null }[])
+      : []
+  ).filter((h) => h && h.date >= cut);
+
+  return { v: 1, updatedAt: now, sessions, conditioning: cond.slice(-120), whoop };
 }

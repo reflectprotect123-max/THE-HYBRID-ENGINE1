@@ -26,6 +26,10 @@ interface CoachCloud {
   publish: (sess: CoachSession, athleteId: string, date: string) => Promise<string | null>;
   athletes: { id: string; label: string }[];
   refreshAthletes: () => Promise<void>;
+  /** Pending invites this coach has created but nobody has claimed yet. */
+  invites: { id: string; token: string; label: string | null }[];
+  createInvite: (label: string) => Promise<string | null>;
+  revokeInvite: (id: string) => Promise<void>;
 }
 
 const Ctx = createContext<CoachCloud | null>(null);
@@ -41,6 +45,7 @@ const client: SupabaseClient | null = (() => {
 export function CoachCloudProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [athletes, setAthletes] = useState<{ id: string; label: string }[]>([]);
+  const [invites, setInvites] = useState<{ id: string; token: string; label: string | null }[]>([]);
 
   useEffect(() => {
     if (!client) return;
@@ -57,7 +62,19 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       .eq('coach_id', user.id)
       .eq('status', 'active');
     if (error) return;
-    const rows = (data || []).map((r) => ({ id: r.athlete_id as string, label: (r.label as string) || 'Athlete' }));
+
+    // Pending invites come back on the same policy (ca_coach_select covers all
+    // of this coach's rows), so one extra read keeps the codes visible until
+    // they are claimed.
+    const { data: pend } = await client
+      .from('coach_athletes')
+      .select('id,invite_token,label')
+      .eq('coach_id', user.id)
+      .eq('status', 'pending');
+    setInvites((pend || []).map((r) => ({ id: r.id as string, token: r.invite_token as string, label: (r.label as string) ?? null })));
+    const rows = (data || [])
+      .filter((r) => r.athlete_id)
+      .map((r) => ({ id: r.athlete_id as string, label: (r.label as string) || 'Athlete' }));
     // A coach can always assign to themselves — it is how you try a session
     // before giving it to anyone, and it needs no invitation to exist.
     setAthletes([{ id: user.id, label: 'Myself' }, ...rows]);
@@ -115,8 +132,39 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       enabled: !!client,
       user,
       athletes,
+      invites,
       refreshAthletes,
       publish,
+      /*
+       * An invite is a PENDING row with no athlete on it. RLS enforces exactly
+       * that (`ca_coach_insert` requires athlete_id null and status pending) —
+       * a coach cannot attach themselves to an athlete, only offer a code the
+       * athlete chooses to claim.
+       */
+      createInvite: async (label) => {
+        if (!client || !user) return 'Sign in first.';
+        let token: string;
+        try {
+          token = crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase();
+        } catch {
+          token = String(Date.now()).slice(-10);
+        }
+        const { error } = await client.from('coach_athletes').insert({
+          coach_id: user.id,
+          athlete_id: null,
+          status: 'pending',
+          invite_token: token,
+          label: label.trim() || null,
+        });
+        if (error) return error.message;
+        await refreshAthletes();
+        return null;
+      },
+      revokeInvite: async (id) => {
+        if (!client || !user) return;
+        await client.from('coach_athletes').delete().eq('id', id).eq('coach_id', user.id);
+        await refreshAthletes();
+      },
       signIn: async (email, password) => {
         if (!client) return 'Cloud is not configured.';
         const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
@@ -134,7 +182,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
         setUser(null);
       },
     }),
-    [user, athletes, refreshAthletes, publish],
+    [user, athletes, invites, refreshAthletes, publish],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

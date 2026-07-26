@@ -3,7 +3,7 @@
   "version": "2.14.0",
   "private": true,
   "main": "index.js",
-  "//": "Expo SDK 54 \u2014 RN 0.81 on React 19, so the whole monorepo stays on one React major. SDK 52 predates React 19 and would have forced a second React version into the workspace.",
+  "//": "Expo SDK 54 — RN 0.81 on React 19, so the whole monorepo stays on one React major. SDK 52 predates React 19 and would have forced a second React version into the workspace.",
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",
@@ -12,17 +12,20 @@
     "build:aab": "eas build --platform android --profile production",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"mobile is verified on a device \u2014 see checks/README\" && exit 0"
+    "test": "echo \"mobile is verified on a device — see checks/README\" && exit 0"
   },
   "dependencies": {
     "@hybrid/config": "workspace:*",
     "@hybrid/design": "workspace:*",
     "@hybrid/engine": "workspace:*",
+    "@react-native-ml-kit/text-recognition": "^2.0.0",
+    "@react-native-voice/voice": "^3.2.4",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/native": "^7.1.6",
     "@react-navigation/native-stack": "^7.3.10",
     "@supabase/supabase-js": "^2.110.8",
     "expo": "~54.0.36",
+    "expo-image-picker": "^57.0.6",
     "expo-keep-awake": "~15.0.8",
     "expo-notifications": "~0.32.12",
     "expo-sensors": "~15.0.7",
