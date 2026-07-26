@@ -1133,6 +1133,52 @@ await t('superset pair flows A→B with no rest, rests after the pair, then roun
     CUR_SESSION = null; LOG_LOC = null; save(); go('home');
   });
 });
+await t('warm-up sets (W) stay out of the weight maths, the volume and the record', async () => {
+  await page.evaluate(() => {
+    window.__stashWU = DB.sessions; window.__stashWUw = DB.workouts;
+    const today = ymd(new Date());
+    // a heavy history so a warm-up cannot quietly become the "previous best"
+    DB.workouts = [{ id: 'wu1', name: 'Warmup Test', days: [], dates: [today], blocks: [
+      { id: 'wb', heading: 'Main', superset: false, exercises: [
+        { id: 'we', name: 'Warmup Squat', mode: 'reps_kg', tempo: '', rest: 60,
+          sets: [{ t: 'W10', rpe: '' }, { t: 'W5', rpe: '' }, { t: '5', rpe: '8' }, { t: '5', rpe: '8' }] }] }] }];
+    DB.sessions = []; CUR_SESSION = null; save(); startWorkout('wu1');
+  });
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  const out = await page.evaluate(() => {
+    const type = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+    openLogger(0, 0);
+    // two warm-ups: 60kg then 100kg, both rated easy
+    type('glogV1', '60'); type('glogV2', '10'); glogFinishSet(); glogRpeInput('4'); glogConfirmSet(); stopRest();
+    const afterFirstWarm = curSession().blocks[0].exercises[0].sets[1].aVal;
+    type('glogV1', '100'); type('glogV2', '5'); glogFinishSet(); glogRpeInput('5'); glogConfirmSet(); stopRest();
+    // the first WORKING set must not have been prefilled from a warm-up
+    const workingPrefill = glogVal1Prefill(curSession().blocks[0].exercises[0], 2);
+    type('glogV1', '120'); type('glogV2', '5'); glogFinishSet(); glogRpeInput('8'); glogConfirmSet(); stopRest();
+    const afterWorking = curSession().blocks[0].exercises[0].sets[3].aVal;
+    type('glogV1', '120'); type('glogV2', '5'); glogFinishSet(); glogRpeInput('8'); glogConfirmSet(); stopRest();
+    const s = curSession();
+    return { afterFirstWarm, workingPrefill, afterWorking,
+      vol: sessionVolume(s), rpe: sessionRpe(s), prs: detectPRs(s).map((p) => p.kg) };
+  });
+  // autoregulation never fired off a warm-up, so set 2 was left alone
+  if (out.afterFirstWarm) throw new Error('a warm-up moved the next set weight: ' + out.afterFirstWarm);
+  // but it did fire off the working set
+  if (!out.afterWorking) throw new Error('autoregulation did not run on a working set');
+  // and the working set was not prefilled with a warm-up load
+  if (out.workingPrefill === '100' || out.workingPrefill === '60') throw new Error('working set prefilled from a warm-up: ' + out.workingPrefill);
+  // volume counts only the two working sets: 120*5 * 2 = 1200
+  if (out.vol !== 1200) throw new Error('warm-ups leaked into volume: ' + out.vol);
+  // avg felt RPE is the two 8s, not dragged down by the 4 and 5
+  if (Math.abs(out.rpe.felt - 8) > 0.001) throw new Error('warm-ups leaked into avg RPE: ' + out.rpe.felt);
+  // the 100kg warm-up single must not be the session's PR
+  if (out.prs.includes(100)) throw new Error('a warm-up registered as a PR: ' + JSON.stringify(out.prs));
+  await page.evaluate(() => {
+    DB.sessions = window.__stashWU; DB.workouts = window.__stashWUw;
+    delete window.__stashWU; delete window.__stashWUw;
+    CUR_SESSION = null; LOG_LOC = null; glogReset(); save(); go('home');
+  });
+});
 await t('hostile exercise/target text is escaped, never executed (XSS)', async () => {
   const executed = await page.evaluate(async () => {
     window.__xss = 0;

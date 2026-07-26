@@ -770,6 +770,15 @@ function verdictForRpe(rpe,center){
   if(d<=1)return'grindy';
   return'max effort';
 }
+/* A target beginning with W is a warm-up set: "W" alone (work up as you like)
+   or "W10" (a warm-up of ten). It rides in `t` rather than a new key because a
+   planned set's shape is contractual — checks/emit-contract.mjs and
+   checks/browser-smoke.mjs both assert it is exactly {t,rpe} — and `t` is
+   already free text parsed by pattern, the way `max` carries meaning. A
+   warm-up is real work the athlete performs, so it still counts toward the
+   session's progress; what it must never do is move the working weight or
+   enter the record as if it were a working set. */
+function isWarmup(st){return /^\s*w/i.test(st&&st.t||'');}
 function repFloorOf(st){const m=String(st.t||'').match(/(\d+)/);return m?+m[1]:0;}
 function repTopOf(st){const r=String(st.t||'').match(/(\d+)\s*[-–]\s*(\d+)/);if(r)return r[2];const m=String(st.t||'').match(/(\d+)/);return m?m[1]:'';}
 function rpeCenterOf(st){const ns=String(st.rpe||'').match(/\d+(?:\.\d+)?/g);if(ns&&ns.length)return ns.reduce((a,x)=>a+ +x,0)/ns.length;return AUTOREG.targetRpeCenter;}
@@ -794,10 +803,20 @@ function fmtRpe(v){return String(Math.round(v*10)/10);}
 function glogVal1Prefill(ex,si){
   const st=ex.sets[si];
   if(st.aVal)return st.aVal;
-  for(let i=si-1;i>=0;i--)if(ex.sets[i].aVal)return ex.sets[i].aVal;
+  /* Only prefill from a set of the same kind. Carrying a 40kg warm-up into the
+     first working set — or a working weight back into a warm-up — is the same
+     contamination the isWarmup guards exist to prevent, just arriving through
+     the prefill instead of the maths. */
+  const warm=isWarmup(st),same=x=>x&&isWarmup(x)===warm;
+  for(let i=si-1;i>=0;i--)if(ex.sets[i].aVal&&same(ex.sets[i]))return ex.sets[i].aVal;
   if(isLiftMode(ex.mode)){
     const last=lastTimeFor(ex.name);
-    if(last){const ls=(last.sets[si]&&last.sets[si].aVal)?last.sets[si]:last.sets.find(x=>x&&x.aVal);if(ls)return ls.aVal;}
+    if(last){
+      const at=last.sets[si];
+      if(at&&at.aVal&&same(at))return at.aVal;
+      const ls=last.sets.find(x=>x&&x.aVal&&same(x));
+      if(ls)return ls.aVal;
+    }
     return'';
   }
   return st.t&&st.t!=='max'?st.t:'';
@@ -897,6 +916,10 @@ function lgOpenCard(s,b,ex,bi,ei,letter){
       '<button class="lgswap" data-click="openSwapSheet" aria-label="swap exercise">'+svgSwap()+'</button>'+
       '<span class="lgmeta">'+meta+'</span></div>'+
     (ex.swappedFrom?'<div class="lgswapped">swapped from '+esc(ex.swappedFrom)+'</div>':'')+
+    /* The coach's note for this exercise. It is also where a prescribed load
+       lives: the set model is {t,rpe} with no target-weight field, so a coach
+       who wants to name a number writes it here and the athlete reads it. */
+    (ex.cue?'<div class="lgcue">'+esc(ex.cue)+'</div>':'')+
     dots+body+
     '</div>'+
     '</div>';
@@ -998,7 +1021,7 @@ function exLogFor(name){
       const sets=[];
       s.blocks.forEach(b=>blockExercises(b).forEach(e=>{
         if(!isLiftMode(e.mode)||String(e.name||'').trim().toLowerCase()!==key)return;
-        e.sets.forEach(st=>{const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null)sets.push({kg:+st.aVal,reps:+st.aVal2,felt:st.felt||'',e1});});
+        e.sets.forEach(st=>{if(isWarmup(st))return;const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null)sets.push({kg:+st.aVal,reps:+st.aVal2,felt:st.felt||'',e1});});
       }));
       if(sets.length){const best=sets.reduce((m,x)=>x.e1>m.e1?x:m,sets[0]);out.push({sid:s.id,date:s.date,at:s.completedAt,sets,best});}
     });
@@ -1016,7 +1039,7 @@ function detectPRs(s){
     if(!isLiftMode(e.mode))return;
     const key=String(e.name||'').trim().toLowerCase();if(!key||seen.has(key))return;seen.add(key);
     let best=null;
-    e.sets.forEach(st=>{const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null&&(!best||e1>best.e1))best={kg:+st.aVal,reps:+st.aVal2,e1};});
+    e.sets.forEach(st=>{if(isWarmup(st))return;const e1=epley(st.aVal,st.aVal2);if(st.done&&e1!=null&&(!best||e1>best.e1))best={kg:+st.aVal,reps:+st.aVal2,e1};});
     if(!best)return;
     const prev=exBest(e.name,s.id);
     if(!prev||best.e1>prev.e1+0.01)prs.push({name:e.name,kg:best.kg,reps:best.reps,e1:best.e1,prevE1:prev?prev.e1:null});
@@ -1258,7 +1281,9 @@ function glogConfirmSet(){
   st.done=true;
   const isFinal=si>=ex.sets.length-1;
   GLOG.hint=null;
-  if(lift){
+  // A warm-up at RPE 4 would otherwise tell the engine to add weight, and a
+  // heavy single warm-up to take it off. Neither is a reading of working effort.
+  if(lift&&!isWarmup(st)){
     const weight=saneKg(st.aVal);
     if(weight>0){
       const adj=computeSetAdjustment(parseInt(st.aVal2,10)||0,GLOG.rpe,repFloorOf(st),weight,rpeCenterOf(st));
@@ -2529,11 +2554,12 @@ function plateBreakdown(totalKg,bar,plates){
   return {perSide:per,loadable:Math.abs(ach-totalKg)<1e-9,delta:+(ach-totalKg).toFixed(2),achievableKg:+ach.toFixed(2)};
 }
 function sessionVolume(s){
-  let v=0;s.blocks.forEach(b=>blockExercises(b).forEach(e=>{if(e.mode==='reps_kg'||e.mode==='amrap')e.sets.forEach(st=>{if(st.done){const kg=parseFloat(st.aVal),r=parseFloat(st.aVal2);if(Number.isFinite(kg)&&Number.isFinite(r))v+=kg*r;}})}));
+  // warm-ups are excluded: they would inflate volume without being training
+  let v=0;s.blocks.forEach(b=>blockExercises(b).forEach(e=>{if(e.mode==='reps_kg'||e.mode==='amrap')e.sets.forEach(st=>{if(isWarmup(st))return;if(st.done){const kg=parseFloat(st.aVal),r=parseFloat(st.aVal2);if(Number.isFinite(kg)&&Number.isFinite(r))v+=kg*r;}})}));
   return Math.round(v);
 }
 function sessionRpe(s){
-  const t=[],f=[];s.blocks.forEach(b=>blockExercises(b).forEach(e=>e.sets.forEach(st=>{if(st.done){const tt=parseFloat(st.rpe),ff=parseFloat(st.felt);if(Number.isFinite(tt))t.push(tt);if(Number.isFinite(ff))f.push(ff);}})));
+  const t=[],f=[];s.blocks.forEach(b=>blockExercises(b).forEach(e=>e.sets.forEach(st=>{if(isWarmup(st))return;if(st.done){const tt=parseFloat(st.rpe),ff=parseFloat(st.felt);if(Number.isFinite(tt))t.push(tt);if(Number.isFinite(ff))f.push(ff);}})));
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   return {target:avg(t),felt:avg(f)};
 }
