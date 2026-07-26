@@ -1,5 +1,27 @@
 # Changelog
 
+## One effort word: Easy · Medium · Hard — 26 July 2026
+
+Conditioning is authored in the same language as everything else you lift. A
+plan used to ask you to think in two unrelated scales — RPE for sets, a
+heart-rate band for runs — so the conditioning block's **Target zone** picker
+is now an **Effort** picker: Easy, Medium, Hard, each chip carrying the RPE it
+means (RPE 3-4 · 5-7 · 8-9.5) in its zone's colour.
+
+- **One word, both vocabularies.** Picking *Hard* stores the effort and the
+  Overload zone together, so the live engine, saved results and older plans all
+  keep working untouched. Blocks authored before this read back through the
+  same door — a saved *Recovery* block is simply *Easy*.
+- **It tells you what it means.** The card spells it out at today's numbers:
+  "Hard = hold Overload (165-187 bpm today), about RPE 8-9.5 — a few words at a
+  time." The anchors are the talk test; the bpm still move with your recovery,
+  so the word stays put while the target adapts.
+- **You rate it on the same slider.** Finishing a conditioning session now asks
+  *How hard was that?* on the exact 1-10 slider you rate sets with, against the
+  effort you asked for. The target-vs-felt gap feeds **Readiness** exactly like
+  a lifting session's does — a run that cost far more than it should now counts
+  as evidence.
+
 ## Conditioning joins the Planner — 25 July 2026
 
 Sessions can finally carry conditioning again — authored in the same plan

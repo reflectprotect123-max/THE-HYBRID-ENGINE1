@@ -894,7 +894,7 @@ await t('Planner structure: chain merges/splits supersets, add/move/delete, head
     delete window.__stashW2; delete window.__stashS2; save(); go('library');
   });
 });
-await t('Planner conditioning: ♥ adds a block, format+zone persist, live engine picks it up', async () => {
+await t('Planner conditioning: ♥ adds a block, format+effort persist, live engine picks it up', async () => {
   await page.evaluate(() => {
     window.__stashW3 = DB.workouts; window.__stashS3 = DB.sessions;
     DB.workouts = [{ id: 'plw3', name: 'Hybrid Day', days: [], dates: [], blocks: [
@@ -906,22 +906,63 @@ await t('Planner conditioning: ♥ adds a block, format+zone persist, live engin
   await page.click('#s-planner .planaddrow button:last-child'); // ♥ Conditioning
   await page.waitForSelector('#plc1', { timeout: 2000 });
   await page.click('#plc1 .daychip:text-is("Steady-state")');
-  await page.click('#plc1 .daychip:text-is("Overload")');
+  await page.click('#plc1 .daychip:has-text("Hard")'); // effort chip: "Hard" + "RPE 8-9.5"
   const blk = await page.evaluate(() => DB.workouts[0].blocks[1]);
-  if (blk.kind !== 'conditioning' || blk.condFmt !== 'steady' || blk.targetZone !== 'high') throw new Error(JSON.stringify(blk));
-  const preview = await page.textContent('#plc1 .plannote');
-  if (!/earned level/.test(preview)) throw new Error('no earned-level preview: ' + preview);
+  // effort is what you authored; the zone it implies is written alongside it
+  if (blk.kind !== 'conditioning' || blk.condFmt !== 'steady' || blk.effort !== 'hard' || blk.targetZone !== 'high') throw new Error(JSON.stringify(blk));
+  const body = await page.textContent('#plc1 .lg-body');
+  if (!/earned level/.test(body)) throw new Error('no earned-level preview: ' + body);
+  if (!/RPE 8-9\.5/.test(body)) throw new Error('effort chip does not show its RPE anchor: ' + body);
+  if (!/Overload/.test(body)) throw new Error('effort note does not name the zone it holds: ' + body);
   await page.evaluate(() => { scheduleWorkoutOn('plw3', ymd(new Date())); startWorkout('plw3'); });
   await page.waitForSelector('#s-training .condrow', { timeout: 2000 });
   await page.click('#s-training .condrow');
   await page.waitForSelector('#s-conditioning.on', { timeout: 3000 });
-  const con = await page.evaluate(() => ({ fmt: CON.fmt, zone: CON.targetZone, sink: CON.sink.scope }));
-  if (con.fmt !== 'steady' || con.zone !== 'high' || con.sink !== 'session') throw new Error(JSON.stringify(con));
+  const con = await page.evaluate(() => ({ fmt: CON.fmt, zone: CON.targetZone, eff: CON.effort, rpe: CON.targetRpe, sink: CON.sink.scope }));
+  if (con.fmt !== 'steady' || con.zone !== 'high' || con.eff !== 'hard' || con.rpe !== 8.5 || con.sink !== 'session') throw new Error(JSON.stringify(con));
   await page.evaluate(() => {
     CON.sink = { scope: 'standalone' }; CON.view = 'setup';
     DB.workouts = window.__stashW3; DB.sessions = window.__stashS3;
     delete window.__stashW3; delete window.__stashS3;
     CUR_SESSION = null; LOG_LOC = null; save(); go('library');
+  });
+});
+await t('Conditioning effort ↔ RPE: legacy zones map, felt rating saves and feeds readiness', async () => {
+  // blocks authored before effort existed carry only a zone — they must read back
+  const map = await page.evaluate(() => ({
+    legacyLow: condEffort({ targetZone: 'low' }).key,
+    legacyHigh: condEffort({ targetZone: 'high' }).key,
+    bare: condEffort({}).key,
+    hardCenter: CON_EFFORTS.hard.center
+  }));
+  if (map.legacyLow !== 'easy' || map.legacyHigh !== 'hard' || map.bare !== 'medium' || map.hardCenter !== 8.5) throw new Error(JSON.stringify(map));
+
+  await page.evaluate(() => {
+    window.__stashS4 = DB.sessions;
+    const hr = Array.from({ length: 240 }, (_, i) => 130 + (i % 40));
+    DB.sessions = [{ id: 'cs1', name: 'Run day', date: ymd(new Date()), status: 'completed', completedAt: Date.now(), blocks: [
+      { id: 'cb1', kind: 'conditioning', heading: 'Conditioning', condFmt: 'steady', effort: 'medium', targetZone: 'mod',
+        condResult: { id: 'cr1', date: ymd(new Date()), startedAt: Date.now() - 1200000, dur: 1200, fmt: 'steady',
+          every: 5, hr, zsec: { low: 200, mod: 900, high: 100 }, max: 170, avg: 148, hrr: 22,
+          effort: 'medium', targetRpe: 6 } }] }];
+    save();
+    CON.sink = { scope: 'session', sid: 'cs1', bi: 0, bid: 'cb1' };
+    CON.record = DB.sessions[0].blocks[0].condResult;
+    CON.view = 'results'; CON.feltDraft = null; CON.feltEdit = false;
+    go('conditioning');
+  });
+  await page.waitForSelector('#s-conditioning .glogrpe', { timeout: 2000 });
+  const ask = await page.textContent('#s-conditioning .glogrpe');
+  if (!/you asked for Medium/.test(ask)) throw new Error('rating panel does not recall the authored effort: ' + ask);
+  await page.evaluate(() => { conFeltInput('9'); conFeltSave(); });
+  const out = await page.evaluate(() => ({ felt: DB.sessions[0].blocks[0].condResult.felt, gap: rpeGapInfo() }));
+  if (out.felt !== '9') throw new Error('felt RPE not persisted onto the block: ' + JSON.stringify(out));
+  if (!out.gap || Math.abs(out.gap.gap - 3) > 0.001) throw new Error('conditioning gap missing from readiness: ' + JSON.stringify(out.gap));
+  const verdict = await page.textContent('#s-conditioning .guidebar');
+  if (!/RPE 9/.test(verdict) || !/harder than medium/.test(verdict)) throw new Error('no target-vs-felt verdict: ' + verdict);
+  await page.evaluate(() => {
+    DB.sessions = window.__stashS4; delete window.__stashS4;
+    CON.sink = { scope: 'standalone' }; CON.view = 'setup'; CON.record = null; save(); go('library');
   });
 });
 await t('Planner → Logger symbiosis: the authored plan drives the guided flow', async () => {

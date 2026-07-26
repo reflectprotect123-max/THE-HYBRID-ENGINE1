@@ -108,7 +108,9 @@ function newEx(){return{id:uid(),name:'',mode:'reps_kg',tempo:'',rest:90,sets:[n
 function newBlock(){return{id:uid(),heading:'New block',minutes:'',format:'',superset:false,exercises:[newEx()]}}
 /* A conditioning block runs by live heart rate instead of set-by-set. It has no
    exercises; kind:'conditioning' is what tells every path to treat it that way. */
-function newCondBlock(){return{id:uid(),kind:'conditioning',heading:'Conditioning',condFmt:'intervals',targetZone:'mod',minutes:''}}
+/* `effort` is what you author; `targetZone` is kept in lockstep with it so the
+   live engine, saved results and every older read path need no changes. */
+function newCondBlock(){return{id:uid(),kind:'conditioning',heading:'Conditioning',condFmt:'intervals',effort:'medium',targetZone:'mod',minutes:''}}
 function isCond(b){return b&&b.kind==='conditioning'}
 function blockExercises(b){return (b&&b.exercises)||[]}
 function fmtRest(s){s=+s||0;return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
@@ -448,6 +450,13 @@ function rpeGapInfo(){
       const t=parseFloat(st.rpe),f=parseFloat(st.felt);
       if(st.done&&Number.isFinite(t)&&Number.isFinite(f))gaps.push(f-t);
     })));
+    // conditioning counts too: its authored effort carries an RPE target, and
+    // it is rated on the same slider, so the gap means the same thing
+    s.blocks.forEach(b=>{
+      if(!isCond(b)||!b.condResult)return;
+      const t=parseFloat(b.condResult.targetRpe),f=parseFloat(b.condResult.felt);
+      if(Number.isFinite(t)&&Number.isFinite(f))gaps.push(f-t);
+    });
     if(gaps.length)return{gap:gaps.reduce((a,b)=>a+b,0)/gaps.length,date:s.date,n:gaps.length};
   }
   return null;
@@ -902,7 +911,7 @@ function renderCondBlockRow(b,bi){
   const head='<div class="sec-head"><h2>'+esc(b.heading||'Conditioning')+'</h2><span>heart rate</span></div>';
   let sub;
   if(done){const r=b.condResult;sub=conMmss(r.dur)+' · avg '+(r.avg||'—')+' · max '+(r.max||'—')+' bpm'+(r.hrr!=null?' · ▼'+r.hrr+' recovery':'');}
-  else{sub=(f?conPrescDesc(b.condFmt):'Live zone session')+' · target '+condZoneName(b.targetZone);}
+  else{sub=(f?conPrescDesc(b.condFmt):'Live zone session')+' · '+condEffortLine(b);}
   const endcap=done?'<div class="st">✓</div>':'<div class="chev" aria-hidden="true">›</div>';
   return '<div class="section">'+head+'<div class="card exrow condrow nav'+(done?' done':'')+'" data-click="conRunBlock" data-args="['+bi+']"><div class="t"><b>'+esc(title)+'</b><span>'+esc(sub)+'</span></div>'+endcap+'</div></div>';
 }
@@ -914,7 +923,8 @@ function conRunBlock(bi){
   const b=s.blocks[bi];if(!isCond(b))return;
   if(b.condResult){CON.sink={scope:'session',sid:s.id,bi:bi,bid:b.id};CON.record=b.condResult;CON.view='results';CON.error='';CON.info='';go('conditioning');return;}
   CON.sink={scope:'session',sid:s.id,bi:bi,bid:b.id};
-  CON.targetZone=b.targetZone||'mod';
+  const eff=condEffort(b);
+  CON.effort=eff.key;CON.targetZone=eff.zone;CON.targetRpe=eff.center;
   CON.fmt=(b.condFmt&&CON_FORMATS[b.condFmt])?b.condFmt:'intervals';
   CON.view='setup';CON.record=null;CON.error='';CON.info='';
   go('conditioning');
@@ -1498,7 +1508,8 @@ function planAddCond(){
   const c=document.getElementById('plc'+PLAN.openCond);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});
 }
 function planCondFmt(bi,key){planMutate(w=>{const b=w.blocks[bi];if(isCond(b)&&CON_FORMATS[key])b.condFmt=key;});renderPlanner();}
-function planCondZone(bi,key){planMutate(w=>{const b=w.blocks[bi];if(isCond(b))b.targetZone=key;});renderPlanner();}
+/* Authoring effort writes the zone too — one word in, both vocabularies out. */
+function planCondEffort(bi,key){planMutate(w=>{const b=w.blocks[bi];const e=CON_EFFORTS[key];if(isCond(b)&&e){b.effort=e.key;b.targetZone=e.zone;}});renderPlanner();}
 function planDelCond(bi){
   const w=planW();if(!w||!isCond(w.blocks[bi]))return;
   if(!confirm('Remove this conditioning block from the plan?'))return;
@@ -1512,17 +1523,25 @@ function planCondCard(w,b,bi){
   const fmtChips='<div class="planchips"><label>Format</label><div class="daychips">'+
     Object.keys(CON_FORMATS).map(k=>'<button class="daychip'+(k===b.condFmt?' on':'')+'" data-click="planCondFmt" data-args="['+bi+',&quot;'+k+'&quot;]">'+CON_FORMATS[k].name+'</button>').join('')+
     '</div></div>';
+  // Effort — the same word for a run as for a set of squats. Each chip carries
+  // its zone's colour, so the HR meaning is still visible without being the
+  // thing you have to reason in.
   const zones=conZones().list;
-  const zoneChips='<div class="planchips"><label>Target zone</label><div class="daychips">'+
-    zones.map(z=>'<button class="daychip planzone'+(z.key===b.targetZone?' on':'')+'" style="'+(z.key===b.targetZone?'border-color:'+z.color+';color:'+z.color+';background:transparent':'')+'" data-click="planCondZone" data-args="['+bi+',&quot;'+z.key+'&quot;]">'+z.name+'</button>').join('')+
+  const cur=condEffort(b);
+  const effChips='<div class="planchips"><label>Effort</label><div class="daychips">'+
+    CON_EFFORT_KEYS.map(k=>{const e=CON_EFFORTS[k],z=zones.find(x=>x.key===e.zone)||{},on=k===cur.key;
+      return '<button class="daychip planzone'+(on?' on':'')+'" style="'+(on?'border-color:'+z.color+';color:'+z.color+';background:transparent':'')+'" data-click="planCondEffort" data-args="['+bi+',&quot;'+k+'&quot;]">'+e.name+'<i>RPE '+condEffortRpe(e)+'</i></button>';}).join('')+
     '</div></div>';
-  const preview='<div class="plannote" style="margin:12px 12px 0">At your earned level: <b style="color:var(--text)">'+esc(presc)+'</b>'+(mins?' · ~'+mins+' min':'')+' — the engine still eases it on a low-recovery day.</div>';
+  const curZone=zones.find(x=>x.key===cur.zone)||{};
+  const effNote='<div class="plannote" style="margin:12px 12px 0"><b style="color:'+(curZone.color||'var(--text)')+'">'+esc(cur.name)+'</b> = hold '+esc(curZone.name||condZoneName(cur.zone))+
+    (curZone.lo?' ('+curZone.lo+'-'+curZone.hi+' bpm today)':'')+', about <b style="color:var(--text)">RPE '+condEffortRpe(cur)+'</b> — '+esc(cur.cue)+'. You rate it on the same 1-10 slider afterwards.</div>';
+  const preview='<div class="plannote" style="margin:8px 12px 0">At your earned level: <b style="color:var(--text)">'+esc(presc)+'</b>'+(mins?' · ~'+mins+' min':'')+' — the engine still eases it on a low-recovery day.</div>';
   return '<div class="lgx open glog plan" id="plc'+bi+'">'+
     '<div class="lg-body">'+
     '<div class="lgtop"><button class="lgltr" data-click="planToggleCond" data-args="['+bi+']" aria-label="collapse">♥</button>'+
       '<span class="lgttl">'+esc(f.name)+'</span>'+
       '<span class="lgmeta">runs by heart rate</span></div>'+
-    fmtChips+zoneChips+preview+
+    fmtChips+effChips+effNote+preview+
     '<div class="planctl"><button class="del" style="margin-left:auto" data-click="planDelCond" data-args="['+bi+']" aria-label="remove conditioning block">✕</button></div>'+
     '</div></div>';
 }
@@ -1615,7 +1634,7 @@ function renderPlanner(){
       if(PLAN.openCond===bi){body+=planCondCard(w,b,bi);return;}
       const f=CON_FORMATS[b.condFmt];
       body+='<div class="lgx"><button class="lgcrow" data-click="planToggleCond" data-args="['+bi+']">'+
-        '<span class="lgltr">♥</span><span class="lgcn"><b>'+esc(f?f.name:'Conditioning')+'</b><span>'+esc(conPrescDesc(b.condFmt,conPrescription(b.condFmt,true))+' · target '+condZoneName(b.targetZone))+'</span></span>'+
+        '<span class="lgltr">♥</span><span class="lgcn"><b>'+esc(f?f.name:'Conditioning')+'</b><span>'+esc(conPrescDesc(b.condFmt,conPrescription(b.condFmt,true))+' · '+condEffortLine(b))+'</span></span>'+
         '<span class="lgcar">›</span></button></div>';
       return;
     }
@@ -1664,7 +1683,7 @@ function libTabStrip(active){
 }
 function libGo(tab){
   LIB_TAB=tab;
-  if(tab==='conditioning'){ if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';CON.view='setup';} go('conditioning'); }
+  if(tab==='conditioning'){ if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';CON.effort=null;CON.view='setup';} go('conditioning'); }
   else if(tab==='progress'){ go('progress'); }
   else { go('library'); }
 }
@@ -2517,6 +2536,9 @@ const CON={view:'setup',fmt:'intervals',live:false,ble:{dev:null,chr:null,connec
   /* live zone accounting: seconds banked per zone this session, the current
      in-target-zone streak, and which zone we're aiming to hold. */
   zlive:{low:0,mod:0,high:0},lastT:0,streak:0,targetZone:'mod',
+  /* the authored effort for this run (null on a standalone run, where the zone
+     picker is the author) and the RPE it centers on. */
+  effort:null,targetRpe:null,
   /* sink = where a finished session writes. Standalone (the Conditioning tab)
      saves to DB.settings.conditioning as ever; a session-scoped run writes the
      result onto its block inside a hybrid workout instead. */
@@ -2607,6 +2629,40 @@ function conZones(){
     {key:'high',name:'Overload',    color:PAL.zoneRed,   neon:PAL.neonBad,    lo:modTop,hi:m}]};
 }
 function conZoneOf(bpm,z){z=z||conZones();return bpm<z.list[0].hi?z.list[0]:bpm<z.list[1].hi?z.list[1]:z.list[2];}
+
+/* --- effort: one word to author a conditioning block ---
+   The lifting side already has a single effort vocabulary — the 1-10 RPE
+   slider you set targets with and rate sets against. Conditioning had its own
+   unrelated one (pick a heart-rate band), so one session asked you to think in
+   two languages. Easy / Medium / Hard is the bridge: you author one word, and
+   it resolves to BOTH the zone the live engine holds you to and an RPE target
+   the same slider can be rated against when you're done.
+
+   The anchors are the talk test, the accepted field proxy for these
+   boundaries: full sentences sits in the recovery band, short sentences in the
+   conditioning band, a few words at a time above the overload line. Effort
+   names the intent; the zone model still decides what that means in bpm today,
+   so a low-recovery morning moves the bpm and leaves the word alone.
+
+   PROVISIONAL — the talk-test-to-zone correspondence is well established in
+   direction, but the exact RPE numbers below are our convention for lining the
+   two scales up, not a published mapping. */
+const CON_EFFORTS={
+  easy:  {key:'easy',  name:'Easy',   zone:'low',  rpe:[3,4],   center:3.5, cue:'full sentences'},
+  medium:{key:'medium',name:'Medium', zone:'mod',  rpe:[5,7],   center:6,   cue:'short sentences'},
+  hard:  {key:'hard',  name:'Hard',   zone:'high', rpe:[8,9.5], center:8.5, cue:'a few words at a time'}
+};
+const CON_EFFORT_KEYS=['easy','medium','hard'];
+/* Blocks authored before effort existed stored only a target zone. Read them
+   back through the same door so saved plans and History keep working. */
+const ZONE_TO_EFFORT={low:'easy',mod:'medium',high:'hard'};
+function condEffort(b){
+  const e=b&&b.effort;
+  if(e&&CON_EFFORTS[e])return CON_EFFORTS[e];
+  return CON_EFFORTS[ZONE_TO_EFFORT[b&&b.targetZone]]||CON_EFFORTS.medium;
+}
+function condEffortRpe(e){return fmtRpe(e.rpe[0])+'-'+fmtRpe(e.rpe[1]);}
+function condEffortLine(b){const e=condEffort(b);return e.name+' · RPE '+condEffortRpe(e);}
 function conMmss(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
 function setProfile(key,val){
   const p=Object.assign({},DB.settings.profile);const n=parseInt(val,10);
@@ -2966,12 +3022,17 @@ function conFinish(){
   ds.pts.forEach(b=>{if(b!=null)zsec[conZoneOf(b,z).key]+=ds.every;});
   const hrrInfo=conHrr(ds);
   const avg=Math.round(CON.avgSum/CON.avgN);
+  const eff=condEffort({effort:CON.effort,targetZone:CON.targetZone});
   const rec={id:uid(),date:ymd(new Date()),startedAt:CON.startedAt,dur,fmt:CON.fmt,maxHr:z.max,
     every:ds.every,hr:ds.pts,zsec,max:CON.max,avg,hrr:hrrInfo.hrr,hrrWin:hrrInfo.win,
     // Context captured AT THE TIME, so a record can be re-scored later without
     // guessing. conAdapt used to re-read today's live WHOOP sample, which meant
     // a late sync silently changed the verdict on an already-finished session.
     rec:todayRecovery(),restHr:z.rest,zoneMethod:z.method,targetZone:CON.targetZone||null,
+    // The authored effort and the RPE it centers on, captured at the time so a
+    // record can be scored against what was actually asked for. A standalone
+    // run has no authored effort, so it derives one from the zone it targeted.
+    effort:eff.key,targetRpe:eff.center,
     sim:CON.ble.sim||undefined};
   const sink=CON.sink||{scope:'standalone'};
   let persisted=false;
@@ -2989,14 +3050,47 @@ function conFinish(){
   }
   // autoregulated progression: let this session's metrics move the earned baseline
   CON.adaptDelta=conAdapt(rec);CON.adaptFmt=rec.fmt;CON.adaptLevel=conProgLevel(rec.fmt);
-  CON.record=rec;CON.view='results';
+  CON.record=rec;CON.view='results';CON.feltDraft=null;CON.feltEdit=false;
   renderConditioning();updateWake();
+}
+
+/* ---- felt effort: the other half of the effort bridge ----
+   The plan asked for a word (Easy/Medium/Hard) that carries an RPE target; this
+   is the same 1-10 slider the Logger rates sets with, asked once at the end of
+   a conditioning session. Target vs felt is the same gap the lifting side
+   already feeds into Readiness, so a run that cost far more than it should now
+   counts as evidence too. */
+function conFeltInput(v){
+  const n=parseFloat(v);if(!Number.isFinite(n))return;
+  CON.feltDraft=n;
+  const o=document.getElementById('conFeltOut');if(o)o.textContent=fmtRpe(n); // slider drag: no re-render
+}
+function conFeltEdit(){
+  const r=CON.record;if(!r)return;
+  CON.feltDraft=parseFloat(r.felt)||r.targetRpe||6;CON.feltEdit=true;renderConditioning();
+}
+function conFeltSave(){
+  const r=CON.record;if(!r)return;
+  const n=Number.isFinite(CON.feltDraft)?CON.feltDraft:(r.targetRpe||6);
+  r.felt=fmtRpe(n);
+  // write back wherever this record lives — match by id so a reordered or
+  // re-edited session still lands on the right block
+  let saved=false;
+  DB.sessions.forEach(s=>(s.blocks||[]).forEach(b=>{
+    if(isCond(b)&&b.condResult&&b.condResult.id===r.id){b.condResult=r;saved=true;}}));
+  if(!saved){
+    const list=Array.isArray(DB.settings.conditioning)?DB.settings.conditioning.slice():[];
+    const i=list.findIndex(x=>x.id===r.id);
+    if(i>=0){list[i]=r;DB.settings.conditioning=list;saved=true;}
+  }
+  if(saved)save();
+  CON.feltEdit=false;renderConditioning();
 }
 function conOpenResult(id){
   const r=allCondRecords().find(x=>x.id===id);
   if(!r)return;
   CON.sink={scope:'standalone'};CON.adaptDelta=0;
-  CON.record=r;CON.view='results';
+  CON.record=r;CON.view='results';CON.feltDraft=null;CON.feltEdit=false;
   if(CURRENT!=='conditioning')go('conditioning');else renderConditioning();
 }
 /* Every conditioning result the app knows: legacy standalone history plus the
@@ -3052,7 +3146,7 @@ function conDone(){
 }
 /* The Conditioning nav tab and Home shortcut always mean a standalone session —
    reset the sink unless a session run is mid-flight (don't hijack it). */
-function conNav(btn){if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';CON.view='setup';}go('conditioning',btn);}
+function conNav(btn){if(!CON.live){CON.sink={scope:'standalone'};CON.targetZone='mod';CON.effort=null;CON.view='setup';}go('conditioning',btn);}
 
 /* --- SVG helpers --- */
 function conArc(cx,cy,r,a0,a1){
@@ -3259,6 +3353,27 @@ function conResultsHtml(rec){
   h+='<p class="con-hint">'+(rec.hrr!=null
       ? 'HR recovery = how far your heart rate dropped in the '+(rec.hrrWin||60)+'s after your peak — a real conditioning-fitness marker.'
       : 'HR recovery needs a clean minute of data after your peak — this session didn\'t have one, so it isn\'t shown.')+'</p>';
+  // Felt effort against the effort that was authored. Only shown when the run
+  // carried a target — an old record from before effort existed has none.
+  if(rec.targetRpe!=null){
+    const e=CON_EFFORTS[rec.effort]||condEffort(rec);
+    const rated=rec.felt!=null&&rec.felt!=='';
+    if(rated&&!CON.feltEdit){
+      const gap=parseFloat(rec.felt)-rec.targetRpe;
+      const low=e.name.toLowerCase();
+      const verdict=gap>=1?'that ran harder than '+low:gap<=-1?'that ran easier than '+low+' — you had more in you':'right on '+low;
+      h+='<div class="card guidebar" style="margin-top:14px"><b>Felt effort:</b> RPE '+esc(rec.felt)+
+        ' against a '+esc(e.name)+' target of RPE '+condEffortRpe(e)+' — '+esc(verdict)+
+        '. <button class="daychip" data-click="conFeltEdit">change</button></div>';
+    }else{
+      const start=Number.isFinite(CON.feltDraft)?CON.feltDraft:e.center;
+      h+='<div class="glogrpe" style="margin-top:14px"><span class="glogeyebrow">How hard was that? · RPE</span>'+
+        '<b id="conFeltOut">'+fmtRpe(start)+'</b>'+
+        '<input type="range" min="1" max="10" step="0.5" value="'+start+'" data-input="conFeltInput" data-args="[&quot;@value&quot;]" aria-label="felt RPE from 1 to 10">'+
+        '<div class="glogancs"><span>1 · barely felt it</span><span>10 · max effort</span></div>'+
+        '<button class="daychip" data-click="conFeltSave">Save — you asked for '+esc(e.name)+' (RPE '+condEffortRpe(e)+')</button></div>';
+    }
+  }
   const inSession=(CON.sink||{}).scope==='session';
   h+='<button class="bigbtn" style="margin-top:14px" data-click="conDone">'+(inSession?'Back to workout ✓':'Done')+'</button>';
   return h;

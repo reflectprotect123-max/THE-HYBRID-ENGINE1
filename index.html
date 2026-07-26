@@ -307,6 +307,8 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .daychip{padding:6px 11px;border:1px solid var(--line2);border-radius:999px;background:transparent;color:var(--muted);font:inherit;font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:.15s ease}
 .daychip:hover{border-color:rgba(224,188,135,.4)}
 .daychip.on{border-color:rgba(198,154,97,.42);background:var(--gold-wash);color:var(--gold2)}
+/* effort chips carry their RPE anchor underneath the word */
+.daychip i{display:block;font-style:normal;font-size:9px;font-weight:600;letter-spacing:.04em;opacity:.6;margin-top:2px}
 .bex-grid.solo{grid-template-columns:1fr}
 /* WHOOP-style dual ring: outer = strain (blue), inner = recovery (WHOOP colors).
    The arcs animate up from 0 to their value via registered custom properties. */
