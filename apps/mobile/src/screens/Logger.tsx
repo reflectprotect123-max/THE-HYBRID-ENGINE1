@@ -13,6 +13,9 @@ import {
   isCond,
   isLiftMode,
   isWarmup,
+  MAX_KG,
+  nextLoggerLocation,
+  plateBreakdown,
   prefillPrimary,
   prefillSecondary,
   repFloorOf,
@@ -27,6 +30,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useRest } from '../store/rest';
+import { Btn, Chip } from '../ui';
 import { setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
 
@@ -57,6 +61,8 @@ export function LoggerScreen({ route, navigation }: Props) {
   const [hint, setHint] = useState<{ txt: string; cls: 'good' | 'bad' } | null>(null);
   const [v1, setV1] = useState('');
   const [v2, setV2] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [platesOpen, setPlatesOpen] = useState(false);
 
   const s = activeSession;
   const block = s?.blocks[loc.bi];
@@ -78,6 +84,8 @@ export function LoggerScreen({ route, navigation }: Props) {
     lastKey.current = setKey;
     setV1(prefillPrimary(ex, si, db.sessions));
     setV2(prefillSecondary(ex, si));
+    setNoteOpen(false);
+    setPlatesOpen(false);
   }, [ex, si, setKey, db.sessions]);
 
   useEffect(() => {
@@ -86,6 +94,9 @@ export function LoggerScreen({ route, navigation }: Props) {
 
   const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);
   const letters = useMemo(() => (s ? sessionLetters(s) : {}), [s]);
+  // Where "next exercise" points. Never the current location — re-entering
+  // would reset the stage and discard an RPE already dialled in.
+  const next = useMemo(() => (s ? nextLoggerLocation(s, loc.bi, loc.ei) : null), [s, loc.bi, loc.ei]);
 
   if (!s || !block || isCond(block) || !ex) {
     return (
@@ -96,6 +107,43 @@ export function LoggerScreen({ route, navigation }: Props) {
         </Pressable>
       </View>
     );
+  }
+
+  /*
+   * Every keystroke lands on the set, not just in component state.
+   *
+   * Android reclaims a backgrounded process aggressively, and a session is
+   * ninety minutes of screen-on time — so "typed but not yet confirmed" has to
+   * survive the process dying. `prefillPrimary` reads `aVal` back first, which
+   * makes the round trip lossless. Sanitising still happens on confirm: what is
+   * half-typed is not yet a claim about what was lifted.
+   */
+  function writeVal(slot: 1 | 2, val: string) {
+    if (slot === 1) setV1(val);
+    else setV2(val);
+    if (!s || si < 0) return;
+    update((draft) => {
+      const ds = draft.sessions.find((x) => x.id === s.id);
+      const dst = ds && (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>)?.exercises?.[loc.ei]?.sets?.[si];
+      if (!ds || !dst) return false;
+      if (slot === 1) dst.aVal = val;
+      else dst.aVal2 = val;
+      ds.updatedAt = Date.now();
+    });
+  }
+
+  /* Written through on change for the same reason: a note saved on blur alone
+     is lost whenever the field never gets to blur — the keyboard's Done key,
+     the back gesture, or the OS reclaiming the app. */
+  function writeNote(txt: string) {
+    if (!s || si < 0) return;
+    update((draft) => {
+      const ds = draft.sessions.find((x) => x.id === s.id);
+      const dst = ds && (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>)?.exercises?.[loc.ei]?.sets?.[si];
+      if (!ds || !dst) return false;
+      dst.note = txt;
+      ds.updatedAt = Date.now();
+    });
   }
 
   function confirmSet() {
@@ -165,9 +213,15 @@ export function LoggerScreen({ route, navigation }: Props) {
   }
 
   const step = (dir: 1 | -1) => {
-    const cur = parseFloat(v1) || 0;
-    setV1(String(Math.max(0, Math.round((cur + dir * AUTOREG.stepKg) * 100) / 100)));
+    // parseFloat('1e309') is Infinity and `|| 0` lets it straight through: the
+    // field then reads "Infinity" and the plate breakdown below is asked to
+    // load a bar with it.
+    const cur = parseFloat(v1);
+    const from = Number.isFinite(cur) ? cur : 0;
+    writeVal(1, String(Math.max(0, Math.min(MAX_KG, Math.round((from + dir * AUTOREG.stepKg) * 100) / 100))));
   };
+
+  const plates = lift && parseFloat(v1) > 0 ? plateBreakdown(parseFloat(v1), 20, [25, 20, 15, 10, 5, 2.5, 1.25]) : null;
 
   return (
     <ScrollView
@@ -259,7 +313,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                       </Pressable>
                       <TextInput
                         value={v1}
-                        onChangeText={setV1}
+                        onChangeText={(t) => writeVal(1, t)}
                         keyboardType="decimal-pad"
                         accessibilityLabel="kg"
                         className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 font-black text-text"
@@ -277,7 +331,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                     <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Reps</Text>
                     <TextInput
                       value={v2}
-                      onChangeText={setV2}
+                      onChangeText={(t) => writeVal(2, t)}
                       keyboardType="number-pad"
                       accessibilityLabel="reps"
                       className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
@@ -291,7 +345,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                     <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Secs</Text>
                     <TextInput
                       value={v1}
-                      onChangeText={setV1}
+                      onChangeText={(t) => writeVal(1, t)}
                       keyboardType="number-pad"
                       accessibilityLabel="seconds"
                       className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
@@ -299,7 +353,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                     <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Reps</Text>
                     <TextInput
                       value={v2}
-                      onChangeText={setV2}
+                      onChangeText={(t) => writeVal(2, t)}
                       keyboardType="number-pad"
                       accessibilityLabel="reps"
                       className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
@@ -312,12 +366,48 @@ export function LoggerScreen({ route, navigation }: Props) {
                     </Text>
                     <TextInput
                       value={v1}
-                      onChangeText={setV1}
+                      onChangeText={(t) => writeVal(1, t)}
                       keyboardType="number-pad"
                       className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
                     />
                   </>
                 )}
+
+                {/* The two things you reach for with the bar in front of you: a
+                    note about how the set went, and what to actually load. */}
+                <View className="mt-1.5">
+                  <View className="flex-row flex-wrap items-center gap-1">
+                    {/* Truncated on the chip, not in the data: a pill sized by
+                        120 characters of free text pushes itself off the card,
+                        because a React Native flex item does not shrink. */}
+                    <Chip on={!!st.note} onPress={() => setNoteOpen((o) => !o)}>
+                      {st.note ? (st.note.length > 24 ? `${st.note.slice(0, 24)}…` : st.note) : 'note'}
+                    </Chip>
+                    {plates ? <Chip on={platesOpen} onPress={() => setPlatesOpen((o) => !o)}>plates</Chip> : null}
+                  </View>
+
+                  {noteOpen ? (
+                    <TextInput
+                      autoFocus
+                      value={st.note || ''}
+                      onChangeText={writeNote}
+                      maxLength={120}
+                      placeholder="note (e.g. belt, tweak)"
+                      placeholderTextColor="#847d73"
+                      accessibilityLabel="set note text"
+                      className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
+                    />
+                  ) : null}
+
+                  {platesOpen && plates ? (
+                    <Text className="mt-1 rounded-md border border-line bg-well px-1 py-0.5 text-3 text-muted">
+                      {plates.perSide.length ? `per side: ${plates.perSide.join(' · ')}` : 'bar only'}
+                      {plates.loadable
+                        ? ''
+                        : ` — nearest is ${plates.achievableKg}kg (${plates.delta > 0 ? '+' : ''}${plates.delta})`}
+                    </Text>
+                  ) : null}
+                </View>
 
                 <Pressable onPress={() => setPhase('rpe')} className="mt-2 items-center rounded-md bg-gold py-2">
                   <Text className="text-6 font-black text-bg">Finish Set</Text>
@@ -330,13 +420,34 @@ export function LoggerScreen({ route, navigation }: Props) {
                 <Text className="text-center text-2 font-bold uppercase tracking-widest text-dim">
                   How hard was that? · RPE
                 </Text>
-                <Text className="mt-0.5 text-center text-9 font-black text-gold2">{fmtRpe(rpe)}</Text>
+                {/* The chips used to start at 5, which made every value the web
+                    app's 1–10 slider can reach below that simply unreachable —
+                    and a warm-up is honestly rated 3. The low end is on the chip
+                    row now, and the stepper covers the halves between. */}
+                <View className="mt-0.5 flex-row items-center justify-center gap-1">
+                  <Pressable
+                    onPress={() => setRpe((r) => Math.max(1, Math.round((r - 0.5) * 10) / 10))}
+                    accessibilityLabel="lower RPE by a half"
+                    className="h-5 w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
+                  >
+                    <Text className="text-7 text-muted">−</Text>
+                  </Pressable>
+                  <Text className="w-10 text-center text-9 font-black text-gold2">{fmtRpe(rpe)}</Text>
+                  <Pressable
+                    onPress={() => setRpe((r) => Math.min(10, Math.round((r + 0.5) * 10) / 10))}
+                    accessibilityLabel="raise RPE by a half"
+                    className="h-5 w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
+                  >
+                    <Text className="text-7 text-muted">+</Text>
+                  </Pressable>
+                </View>
                 <View className="mt-1 flex-row flex-wrap justify-center gap-1">
-                  {[5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((n) => (
+                  {[1, 2, 3, 4, 5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((n) => (
                     <Pressable
                       key={n}
                       onPress={() => setRpe(n)}
-                      className={`h-5 w-7 items-center justify-center rounded-pill border ${
+                      accessibilityLabel={`RPE ${fmtRpe(n)}`}
+                      className={`h-5 w-6 items-center justify-center rounded-pill border ${
                         rpe === n ? 'border-done-line bg-done-bg' : 'border-line2 bg-panel2'
                       }`}
                     >
@@ -346,6 +457,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                     </Pressable>
                   ))}
                 </View>
+                <Text className="mt-1 text-center text-2 text-dim">1 · barely felt it — 10 · max effort</Text>
                 <Pressable onPress={confirmSet} className="mt-2 items-center rounded-md bg-gold py-2">
                   <Text className="text-6 font-black text-bg">Confirm Set</Text>
                 </Pressable>
@@ -386,6 +498,26 @@ export function LoggerScreen({ route, navigation }: Props) {
 
         {hint ? (
           <Text className={`mt-2 text-4 ${hint.cls === 'good' ? 'text-gold2' : 'text-bad'}`}>{hint.txt}</Text>
+        ) : null}
+      </View>
+
+      {/* Moving on without going back through the session list. `next` never
+          points at the exercise already on the stage. */}
+      <View className="mt-2 flex-row gap-1">
+        <Btn className="flex-1" onPress={() => navigation.goBack()}>
+          ‹ Back to session
+        </Btn>
+        {next ? (
+          <Btn
+            className="flex-1"
+            onPress={() => {
+              setLoc({ bi: next.bi, ei: next.ei });
+              setPhase('input');
+              setHint(null);
+            }}
+          >
+            {next.name} ›
+          </Btn>
         ) : null}
       </View>
     </ScrollView>

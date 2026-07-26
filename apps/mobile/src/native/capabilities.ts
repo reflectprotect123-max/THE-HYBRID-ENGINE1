@@ -299,31 +299,27 @@ export async function setKeepAwake(on: boolean): Promise<void> {
   }
 }
 
-/**
- * Steps from the phone's own pedometer. WHOOP's developer API exposes no step
- * data, so the on-device hardware counter is the free source — the same reason
- * the old app declared ACTIVITY_RECOGNITION.
+/*
+ * `stepsToday()` used to live here and has been REMOVED rather than fixed.
+ *
+ * It was the replacement for AndroidSteps, and it could not work: it was built
+ * on `Pedometer.getStepCountAsync`, which is iOS-only — it is backed by
+ * CMPedometer's historical query, and Android's TYPE_STEP_COUNTER has no
+ * equivalent, so on the only platform this app ships to it returned null
+ * unconditionally. Android's counter can only be SUBSCRIBED to
+ * (`watchStepCount`), which counts from the moment you subscribe and would need
+ * a foreground service plus its own persistence to add up to "today".
+ *
+ * That work was not done because nothing anywhere in the product consumes a
+ * step count: no engine field, no screen in the athlete or coach app, no term
+ * in any training calculation. Writing a foreground service to feed a number
+ * nobody reads is worse than the honest absence. If steps ever earn a place in
+ * the model, this is the note that says what implementing them actually costs.
+ *
+ * `expo-sensors` was the only dependency this needed, so it has been removed
+ * from package.json along with it. Restoring steps means adding it back AND
+ * writing the foreground service above.
  */
-export async function stepsToday(): Promise<number | null> {
-  try {
-    const { Pedometer } = await import('expo-sensors');
-    const ok = await Pedometer.isAvailableAsync();
-    if (!ok) return null;
-    const { status } = await Pedometer.requestPermissionsAsync();
-    if (status !== 'granted') return null;
-    // `getStepCountAsync` is iOS-only — it is backed by CMPedometer's historical
-    // query, which Android's TYPE_STEP_COUNTER has no equivalent of. On Android
-    // the module simply has no such method and expo throws UnavailabilityError,
-    // so calling it there returns null every time.
-    if (Platform.OS !== 'ios') return null;
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const res = await Pedometer.getStepCountAsync(start, new Date());
-    return res?.steps ?? null;
-  } catch {
-    return null;
-  }
-}
 
 /* ------------------------------------------------------------------ *
  * Text in, two ways.

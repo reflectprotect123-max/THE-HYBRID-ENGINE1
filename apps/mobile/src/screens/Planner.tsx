@@ -242,6 +242,24 @@ export function PlannerScreen() {
                               +
                             </Btn>
                           ) : null}
+                          {/* An exercise added by mistake was permanent: the
+                              sets could be removed one by one, and the block
+                              deleted whole, but never the movement itself. */}
+                          {!readOnly ? (
+                            <>
+                              <View className="flex-1" />
+                              <Pressable
+                                accessibilityLabel={`remove ${ex.name || 'exercise'}`}
+                                onPress={() => {
+                                  setOpenEx(null);
+                                  edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.splice(ei, 1));
+                                }}
+                                className="rounded-md border border-line2 px-1 py-0.5"
+                              >
+                                <Text className="text-3 text-dim">Remove</Text>
+                              </Pressable>
+                            </>
+                          ) : null}
                         </View>
                       </View>
                     ) : null}

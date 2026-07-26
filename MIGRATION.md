@@ -14,9 +14,12 @@ apps/coach          coach builder — React 19 + Vite + Tailwind v4
 apps/mobile         Android app — Expo SDK 54, RN 0.81, React 19
 ```
 
-The vanilla app (`index.html`, `app.js`, `coach/`) is **still present and still
-serving the site**. Nothing has been deleted. The React apps build to their own
-`dist/` and are not yet wired into the Netlify publish.
+The React apps **are** the site. `netlify.toml` publishes `apps/web/dist` with
+the coach app folded in at `/coach/` — see **Deploying** below.
+
+The vanilla app (`index.html`, `app.js`, `coach/`) is still present and still
+passing its own suites. Nothing has been deleted, because it is the rollback
+path: reverting the cutover commit republishes it.
 
 ## The 8px grid
 
@@ -30,14 +33,24 @@ sub-grid step and is written to stand out in review.
 
 | What | How | Result |
 |---|---|---|
-| Engine matches the shipped app | 1,296 golden vectors harvested from the live `app.js` in a real browser (`checks/golden-vectors.mjs`) | 71 tests pass |
+| Engine matches the shipped app | 1,296 golden vectors harvested from the live `app.js` in a real browser (`checks/golden-vectors.mjs`) | 82 tests pass |
+| Engine matches it where the vectors DON'T reach | `packages/engine/test/parity.test.ts` — one test per divergence found by reading the port against `app.js`, each citing the line it was read off | included above |
 | Sync rules | `packages/engine/test/cloud.test.ts` — assignment reconcile, push/pull merge, coach digest bounds | included above |
 | The coach→athlete boundary | `packages/engine/test/emit.test.ts` — every forbidden set key is refused | included above |
 | The importer | `packages/engine/test/importer.test.ts` — 19 harvested parse cases plus the lexicon | included above |
+| The coach's pure model | `apps/coach/test/model.test.ts` — mode inference, target coercion, malformed libraries | 14 tests pass |
 | React apps actually run | `checks/react-smoke.mjs` serves the built output and drives both apps in Chromium | 26 checks pass |
+| **The publish directory works** | `checks/deploy-smoke.mjs` serves `apps/web/dist` with Netlify's own precedence and boots both apps under the real CSP | 13 checks pass |
+| **The mobile app builds** | `pnpm --filter @hybrid/mobile bundle` — Metro + Hermes, for real | 1,422 modules |
+| **Nobody can impersonate a user** | `checks/supabase-auth.mjs` mints tokens against a fixture secret and attacks the verifier with them, the public anon key included | 11 attacks repelled |
 | Types | `pnpm -r typecheck` across all six packages | clean |
 | The vanilla app still works | the six original suites | all pass |
 | CSP | built HTML contains zero inline `<script>`; `checks/pentest.mjs` still holds | 22 attacks, 0 findings |
+
+**What the golden vectors do not cover.** They matrix the pure maths, so a
+divergence in a function they do not reach passes them silently — which is
+exactly what happened to six of them (see `parity.test.ts`). A green golden run
+means the arithmetic matches, not that the port does.
 
 ### Regenerating the golden vectors
 
@@ -69,9 +82,9 @@ replaces them:
 | Old bridge | React Native replacement |
 |---|---|
 | `AndroidHR` — BLE scan/connect/notify, keepAwake, saveFile, scheduleBuzz | `react-native-ble-plx` (HR service `0x180D`), `expo-keep-awake`, `expo-notifications` |
-| `AndroidOCR` — ML Kit text recognition | not yet ported — see below |
-| `AndroidVoice` — SpeechRecognizer | not yet ported — see below |
-| `AndroidSteps` — hardware step counter | `expo-sensors` Pedometer |
+| `AndroidOCR` — ML Kit text recognition | `@react-native-ml-kit/text-recognition` via `recogniseText()`, on-device; falls back to the Import screen's paste box |
+| `AndroidVoice` — SpeechRecognizer | `@react-native-voice/voice` via `startDictation()`/`stopDictation()`, partials included; falls back to the keyboard |
+| `AndroidSteps` — hardware step counter | **Not ported, deliberately.** Expo's `Pedometer.getStepCountAsync` is iOS-only, so it returned null unconditionally on the only platform this ships to; Android can only be *subscribed* to, which needs a foreground service and its own persistence to mean "today". Nothing in the product consumes a step count — no engine field, no screen, no calculation — so the honest absence beats a service feeding a number nobody reads. See the note in `src/native/capabilities.ts` for what implementing it would cost. |
 
 ## Cloud, WHOOP and the coach loop
 
@@ -94,11 +107,14 @@ Wired and building; the rules are unit-tested, the network paths are not.
 
 Stated plainly, because a green build is not a finished migration.
 
-1. **The Android app has never been built or run.** There is no Android SDK in
-   this environment and EAS needs an account. `pnpm --filter @hybrid/mobile
-   typecheck` passes; `eas build --platform android --profile preview` has not
-   been attempted. **BLE, notifications and the pedometer are unverified against
-   real hardware** — they cannot be verified any other way.
+1. **The Android app bundles but has never RUN.** `pnpm --filter @hybrid/mobile
+   bundle` puts the whole app through Metro and Hermes for real — that is what
+   CI runs, and it is not optional: this app spent the entire migration unable
+   to bundle while `tsc` stayed green, because TypeScript resolves through
+   pnpm's symlinks happily and Metro does not. What has NOT happened is
+   `eas build` (no Expo account wired) or any execution on a device. **BLE,
+   notifications, ML Kit and dictation are unverified against real hardware**
+   and cannot be verified any other way.
 2. **No sync path has touched a real Supabase project.** Every rule is unit
    tested against fixtures and the UI is driven in a browser, but no request has
    been made: not a sign-in, not a push, not an assignment. The first real
@@ -129,12 +145,13 @@ terminal:
   to Supabase and appear in the coach view.
 - Only once that EAS build has shipped and been verified, retire
   `native/android-app/`.
-- **WHOOP OAuth does not work on mobile.** The Netlify functions identify a
-  connection solely by a signed HttpOnly `hybrid_sid` cookie, and
-  `Linking.openURL` hands the flow to the system browser, which has a separate
-  cookie jar. The fix is to key WHOOP tokens by the Supabase `user_id` instead,
-  which means editing `netlify/functions/**` — deliberately untouched by this
-  migration.
+- **Set `SUPABASE_JWT_SECRET` in the Netlify environment.** WHOOP on mobile now
+  proves identity with a Supabase access token instead of a cookie the system
+  browser owns (see `netlify/functions/_lib/supabase.mjs`), and that token has
+  to be verified server-side. `SUPABASE_URL` is already set; the secret comes
+  from Supabase → Project Settings → API → JWT Settings and cannot be guessed.
+  Until it is set, bearer requests fail with `supabase_auth_unconfigured` and
+  the web flow is unaffected.
 
 ## Deploying
 

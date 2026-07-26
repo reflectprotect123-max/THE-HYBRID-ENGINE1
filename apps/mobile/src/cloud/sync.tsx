@@ -48,6 +48,10 @@ interface SyncCtx {
   signUp: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
+  /** True once an active coach link exists for this athlete. */
+  coachLinked: boolean;
+  /** Redeem a coach's invite code. Resolves to an error message, or null. */
+  claimInvite: (code: string) => Promise<string | null>;
 }
 
 const Ctx = createContext<SyncCtx | null>(null);
@@ -88,6 +92,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [syncedAt, setSyncedAt] = useState(0);
+  const [coachLinked, setCoachLinked] = useState(false);
 
   // The DB changes on every logged set; reading it through a ref keeps the
   // reconcile callback stable so the AppState listener isn't torn down and
@@ -168,6 +173,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       .eq('athlete_id', user.id)
       .eq('status', 'active')
       .maybeSingle();
+    setCoachLinked(!!link);
     if (!link) return;
     await client
       .from('athlete_feed')
@@ -305,10 +311,31 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         await client.auth.signOut();
         setUser(null);
         lastFp.current = null;
+        // Otherwise the next account on this device inherits the previous
+        // athlete's link state and is told it already has a coach.
+        setCoachLinked(false);
       },
       syncNow: reconcile,
+      coachLinked,
+      /*
+       * The ONLY way to establish a coach link. `claim_invite` is a
+       * security-definer RPC because the RLS policies deliberately give a coach
+       * no UPDATE on coach_athletes — otherwise a coach could flip any row to
+       * active against an athlete who never agreed. Consent flows one way: the
+       * athlete types the code.
+       */
+      claimInvite: async (code) => {
+        if (!client) return 'Cloud sync is not configured.';
+        if (!user) return 'Sign in first — a coach link is tied to your account.';
+        const token = code.trim().toUpperCase();
+        if (!token) return 'Enter the code your coach gave you.';
+        const { error: e } = await client.rpc('claim_invite', { p_token: token });
+        if (e) return e.message;
+        await reconcile();
+        return null;
+      },
     }),
-    [user, busy, error, syncedAt, reconcile],
+    [user, busy, error, syncedAt, reconcile, coachLinked],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

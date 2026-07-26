@@ -4,12 +4,14 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   blockExercises,
+  detectPRs,
   exFinished,
   freshSessionBlocks,
   isCond,
   rxLine,
   sessionLetters,
   sessionProgress,
+  sessionVolume,
   uid,
   ymd,
   type LoggedSet,
@@ -87,6 +89,9 @@ export function TrainingScreen() {
   const s = activeSession;
   const letters = sessionLetters(s);
   const prog = sessionProgress(s);
+  // Against every OTHER session — comparing a session with itself would call
+  // its own first working set a record.
+  const prs = detectPRs(s, db.sessions.filter((x) => x.id !== s.id));
 
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerStyle={pad}>
@@ -96,9 +101,12 @@ export function TrainingScreen() {
       <View className="mt-2 h-0.5 overflow-hidden rounded-pill bg-track">
         <View className="h-full rounded-pill bg-gold2" style={{ width: `${prog.pct}%` }} />
       </View>
-      <Text className="mt-0.5 text-2 text-dim">
-        {prog.done} of {prog.total} done
-      </Text>
+      <View className="mt-0.5 flex-row justify-between">
+        <Text className="text-2 text-dim">
+          {prog.done} of {prog.total} done
+        </Text>
+        <Text className="text-2 text-dim">{sessionVolume(s).toLocaleString()} kg</Text>
+      </View>
 
       {s.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mt-2">
@@ -139,6 +147,17 @@ export function TrainingScreen() {
           )}
         </View>
       ))}
+
+      {prs.length ? (
+        <View className="mt-2 rounded-lg border border-gold-line bg-gold-wash p-2">
+          <Text className="text-2 font-bold uppercase tracking-widest text-dim">Personal records</Text>
+          {prs.map((p) => (
+            <Text key={p.name} className="mt-0.5 text-4 text-gold2">
+              {p.name} — {p.kg}kg × {p.reps} (e1RM {Math.round(p.e1)}kg)
+            </Text>
+          ))}
+        </View>
+      ) : null}
 
       <Pressable
         onPress={() => {

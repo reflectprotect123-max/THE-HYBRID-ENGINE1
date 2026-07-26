@@ -17,10 +17,11 @@ import { Card, Empty, Kicker, Row, Screen, SectionHead, Title, zoneInk } from '.
 /*
  * Charts are drawn with plain Views rather than SVG.
  *
- * react-native-svg is not a dependency, and a bar chart of eight points does
- * not justify adding one — a flexed View with a height percentage is the same
- * picture. If a line chart is ever genuinely needed, that is the moment to add
- * the dependency, not before.
+ * react-native-svg is not a dependency, and a trend of eight to thirty points
+ * does not justify adding one — a flexed View with a height percentage carries
+ * the same information. The web app's recovery and HRR trends are polylines;
+ * here they are columns against the same axis. Deliberate: the shape of the
+ * trend is the point, and a column chart states it without a new dependency.
  */
 export function ProgressScreen() {
   const { db, hr } = useDb();
@@ -28,6 +29,23 @@ export function ProgressScreen() {
 
   const weeks = useMemo(() => weekly(db.sessions, 8), [db.sessions]);
   const zoneWeek = useMemo(() => thisWeek(db.sessions, db.settings), [db.sessions, db.settings]);
+
+  const recovery = useMemo(() => {
+    const hist = Array.isArray(db.settings.whoopDaily)
+      ? (db.settings.whoopDaily as { date: string; recovery: number | null }[])
+      : [];
+    return hist
+      .filter((h) => h && h.recovery != null)
+      .slice(-30)
+      .map((h) => ({ label: String(h.date).slice(5), value: h.recovery as number }));
+  }, [db.settings.whoopDaily]);
+
+  const hrrTrend = useMemo(() => {
+    return condRecords(db.sessions, db.settings)
+      .filter((r) => r.hrr != null)
+      .slice(-12)
+      .map((r, i) => ({ label: String(i + 1), value: r.hrr as number }));
+  }, [db.sessions, db.settings]);
   const lifts = useMemo(() => {
     const now = Date.now();
     const recent = bestE1rmByLift(db.sessions, now - 8 * 7 * 864e5, now);
@@ -41,7 +59,8 @@ export function ProgressScreen() {
       .slice(0, 5);
   }, [db.sessions]);
 
-  const anything = weeks.some((w) => w.value > 0) || lifts.length || zoneWeek.total > 0;
+  const anything =
+    weeks.some((w) => w.value > 0) || lifts.length || zoneWeek.total > 0 || recovery.length || hrrTrend.length;
   const peak = Math.max(...weeks.map((w) => w.value), 1);
 
   return (
@@ -135,7 +154,87 @@ export function ProgressScreen() {
           </Card>
         </>
       ) : null}
+
+      {/* One point is not a trend: a chart drawn from a single reading implies a
+          direction it cannot know, which is worse than showing nothing. */}
+      {recovery.length > 1 ? (
+        <>
+          <SectionHead title="Recovery · 30 days" />
+          <Card>
+            <Trend data={recovery} color="#9fc59b" unit="%" min={0} max={100} />
+          </Card>
+        </>
+      ) : null}
+
+      {hrrTrend.length > 1 ? (
+        <>
+          <SectionHead title="Heart-rate recovery" />
+          <Card>
+            <Trend data={hrrTrend} color="#cf9d4f" unit="bpm" />
+            <Text className="mt-1 text-2 text-dim">
+              Drop in the minute after your session peak. Recorded and shown — it does not gate progression, because
+              its day-to-day noise is larger than the effect.
+            </Text>
+          </Card>
+        </>
+      ) : null}
     </Screen>
+  );
+}
+
+interface Point {
+  label: string;
+  value: number;
+}
+
+/** A trend as columns against a shared axis. See the note at the top of the file. */
+function Trend({
+  data,
+  color,
+  unit,
+  min,
+  max,
+}: {
+  data: Point[];
+  color: string;
+  unit: string;
+  min?: number;
+  max?: number;
+}) {
+  const lo = min ?? Math.min(...data.map((d) => d.value));
+  const hi = max ?? Math.max(...data.map((d) => d.value));
+  const span = hi - lo || 1;
+  const last = data[data.length - 1];
+
+  return (
+    <View>
+      {/* `h-full` on each column is load-bearing: Yoga resolves a percentage
+          height against the parent's DEFINITE height, which an auto-sized
+          column does not have — the bars come out zero-high without it. */}
+      <View className="h-8 flex-row items-end">
+        {data.map((d, i) => (
+          <View key={i} className="h-full flex-1 justify-end">
+            <View
+              className="rounded-sm"
+              style={{
+                height: `${Math.max(4, ((d.value - lo) / span) * 100)}%`,
+                backgroundColor: color,
+                opacity: i === data.length - 1 ? 1 : 0.5,
+                marginHorizontal: 0.5,
+              }}
+            />
+          </View>
+        ))}
+      </View>
+      <View className="mt-0.5 flex-row justify-between">
+        <Text className="text-2 text-dim">{data[0].label}</Text>
+        <Text className="text-2 font-bold" style={{ color }}>
+          {Math.round(last.value)}
+          {unit}
+        </Text>
+        <Text className="text-2 text-dim">{last.label}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -157,15 +256,20 @@ function weekly(sessions: Session[], n: number) {
   return out;
 }
 
-function thisWeek(sessions: Session[], settings: { conditioning?: CondResult[] }) {
-  const since = Date.now() - 7 * 864e5;
+/** Conditioning results live both on session blocks and in standalone history. */
+function condRecords(sessions: Session[], settings: { conditioning?: CondResult[] }): CondResult[] {
   const inline = sessions.flatMap((s) => s.blocks.filter(isCond).map((b) => b.condResult).filter(Boolean) as CondResult[]);
   // `|| []` is not enough: a non-array `conditioning` from an older or corrupt
   // payload is truthy and spreading it throws, taking the whole screen down
   // rather than degrading to empty. The web app checks the same way.
-  const all = [...(Array.isArray(settings.conditioning) ? settings.conditioning : []), ...inline];
+  const standalone = Array.isArray(settings.conditioning) ? settings.conditioning : [];
+  return [...standalone, ...inline].sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+}
+
+function thisWeek(sessions: Session[], settings: { conditioning?: CondResult[] }) {
+  const since = Date.now() - 7 * 864e5;
   const acc = { low: 0, mod: 0, high: 0, total: 0 };
-  all
+  condRecords(sessions, settings)
     .filter((r) => (r.startedAt || 0) >= since)
     .forEach((r) => {
       (['low', 'mod', 'high'] as ZoneKey[]).forEach((k) => {
