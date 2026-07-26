@@ -26,8 +26,7 @@
         "android.permission.VIBRATE",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.BLUETOOTH_SCAN",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.BLUETOOTH_CONNECT"
       ]
     },
     "ios": {
@@ -52,6 +51,12 @@
       ],
       "expo-notifications"
     ],
-    "icon": "./assets/icon.png"
+    "icon": "./assets/icon.png",
+    "extra": {
+      "eas": {
+        "//": "The EAS project this app builds under. `eas init --id` writes exactly this; it is recorded here rather than run because CI builds are --non-interactive and cannot be prompted to link a project mid-build. Not a secret: it identifies the project, it does not grant access to it. That is EXPO_TOKEN, which lives in GitHub secrets.",
+        "projectId": "7851ad90-8dd1-443f-8ce5-6461f62c26aa"
+      }
+    }
   }
 }
