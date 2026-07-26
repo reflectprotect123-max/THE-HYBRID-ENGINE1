@@ -40,3 +40,8 @@ apps/mobile/ios/
 
 # Expo local state (device pairing, cached prebuild fingerprints).
 apps/mobile/.expo/
+
+# EAS local signing credentials, written by the workflow at build time from
+# the ANDROID_KEYSTORE_B64 secret. Never committed.
+apps/mobile/credentials.json
+apps/mobile/*.keystore

@@ -1,19 +1,33 @@
 {
-  "cli": { "version": ">= 5.0.0", "appVersionSource": "local" },
+  "cli": {
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
+  },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      },
+      "credentialsSource": "local",
+      "//": "Installable APK for a real phone. Signed with the existing key too, so it installs OVER the shipped app rather than beside it as a second icon."
     },
     "production": {
-      "//": "AAB for Play. The signing key MUST be the existing one from native/android-app or Play rejects the upload as a different app.",
-      "android": { "buildType": "app-bundle" }
+      "//": "AAB for Play. credentialsSource is 'local' so signing uses the keystore the workflow decodes from ANDROID_KEYSTORE_B64 — the SAME key that signed the shipped WebView app. Let EAS generate its own and Play rejects the upload as a different app.",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "credentialsSource": "local"
     }
   },
-  "submit": { "production": {} }
+  "submit": {
+    "production": {}
+  }
 }
