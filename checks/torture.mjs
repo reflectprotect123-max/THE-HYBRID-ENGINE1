@@ -85,7 +85,9 @@ await t('log EVERY set of EVERY exercise like a real session', async () => {
   if (!result) throw new Error('not all sets done');
 });
 await t('finish offered in the session view; finish lands on recap → home', async () => {
-  await page.evaluate(() => renderSession());
+  // logging happens on its own screen now — come back to the session list first
+  await page.evaluate(() => closeLogger());
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
   await page.waitForSelector('#s-training .completebar .bigbtn', { timeout: 2000 });
   const label = await page.textContent('#s-training .completebar .bigbtn');
   if (!/finish/i.test(label)) throw new Error('finish label=' + label);

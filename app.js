@@ -144,7 +144,7 @@ function go(id,btn){
   // The logger is a detail view of Training — keep Training lit while logging.
   // Conditioning, Progress and exercise-history all live under Library now.
   const LIB_SCREENS={library:1,conditioning:1,progress:1,exhist:1,planner:1};
-  const navId=id==='recap'?'training'
+  const navId=(id==='recap'||id==='logger')?'training'
     :LIB_SCREENS[id]?'library'
     :(id==='history'||id==='import'||id==='calendar')?'home':id;
   const navBtn=btn||document.querySelector('.navlink[data-s="'+navId+'"]');
@@ -162,11 +162,12 @@ async function acquireWake(){
 async function releaseWake(){
   try{if(window.AndroidHR&&window.AndroidHR.keepAwake)window.AndroidHR.keepAwake(false);}catch(e){}
   try{if(_wakeLock){const w=_wakeLock;_wakeLock=null;await w.release();}}catch(e){}}
-function updateWake(){((CURRENT==='training'&&curSession())||(CURRENT==='conditioning'&&CON.live))?acquireWake():releaseWake();}
+function updateWake(){(((CURRENT==='training'||CURRENT==='logger')&&curSession())||(CURRENT==='conditioning'&&CON.live))?acquireWake():releaseWake();}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')updateWake();});
 function renderScreen(id){
   if(id==='home')renderHome();
   else if(id==='training')renderTraining();
+  else if(id==='logger')renderLogger();
   else if(id==='library')renderLibrary();
   else if(id==='settings')renderSettings();
   else if(id==='history')renderHistory();
@@ -818,7 +819,7 @@ function lgOpenCard(s,b,ex,bi,ei,letter){
     if(lift){
       body+='<div class="glogfield"><label>Weight</label><div class="glogstep">'+
         '<button data-click="glogStepW" data-args="['+si+',-1]" aria-label="minus '+AUTOREG.stepKg+' kg">−</button>'+
-        '<input id="glogV1" inputmode="decimal" value="'+esc(glogVal1Prefill(ex,si))+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="kg">'+
+        '<input id="glogV1" inputmode="decimal" placeholder="kg" value="'+esc(glogVal1Prefill(ex,si))+'" data-input="setActual" data-args="['+si+',1,&quot;@value&quot;]" aria-label="kg">'+
         '<button data-click="glogStepW" data-args="['+si+',1]" aria-label="plus '+AUTOREG.stepKg+' kg">+</button></div><span class="glogunit">kg</span></div>'+
         '<div class="glogfield"><label>Reps</label><input id="glogV2" class="glogreps" inputmode="numeric" value="'+esc(glogVal2Prefill(ex,si))+'" data-input="setActual" data-args="['+si+',2,&quot;@value&quot;]" aria-label="reps"></div>';
     }else if(ex.mode==='reps_seconds'){
@@ -855,7 +856,7 @@ function lgOpenCard(s,b,ex,bi,ei,letter){
   body+=glogLoggedList(ex);
   return '<div class="lgx open glog" id="lgx'+bi+'-'+ei+'">'+
     '<div class="lg-body">'+
-    '<div class="lgtop"><button class="lgltr" data-click="openLogger" data-args="['+bi+','+ei+']" aria-label="collapse">'+letter+'</button><span class="lgttl">'+esc(ex.name||'Exercise')+'</span>'+
+    '<div class="lgtop"><button class="lgltr" data-click="closeLogger" aria-label="back to session">'+letter+'</button><span class="lgttl">'+esc(ex.name||'Exercise')+'</span>'+
       '<button class="lgswap" data-click="openSwapSheet" aria-label="swap exercise">'+svgSwap()+'</button>'+
       '<span class="lgmeta">'+meta+'</span></div>'+
     (ex.swappedFrom?'<div class="lgswapped">swapped from '+esc(ex.swappedFrom)+'</div>':'')+
@@ -875,8 +876,7 @@ function renderSession(){
     if(isCond(b)){body+=renderCondBlockRow(b,bi);return;}
     if(b.heading)body+='<div class="lgsec">'+esc(b.heading)+(b.superset?'<span class="lgss">superset · flows on</span>':'')+(b.format?'<span class="lgfmt">'+esc(b.format)+'</span>':'')+'</div>';
     blockExercises(b).forEach((ex,ei)=>{
-      const open=LOG_LOC&&LOG_LOC.bi===bi&&LOG_LOC.ei===ei&&ex.mode!=='completion';
-      if(open){anyOpen=true;body+=lgOpenCard(s,b,ex,bi,ei,letters[bi][ei]);return;}
+      // no inline open card any more — tapping a row goes to the full-screen stage
       const done=ex.sets.length&&ex.sets.every(st=>st.done);
       if(ex.mode==='completion'){
         body+='<div class="lgx'+(done?' donex':'')+'"><button class="lgcrow" data-click="toggleCompletion" data-args="['+bi+','+ei+']">'+
@@ -1119,13 +1119,51 @@ function lastTimeFor(name){
   return null;
 }
 /* Toggle an exercise's guided stage open/closed (one open at a time). */
+/* Logging takes over the screen. On a gym floor the set you are actually doing
+   is the only thing that matters, and squeezing it into an accordion between
+   the rows above and below it meant the controls you tap mid-set were the
+   smallest targets on the page. The stage itself is unchanged — same guided
+   flow, same handlers — it just gets the whole viewport now. */
 function openLogger(bi,ei){
   const s=curSession();if(!s)return;
-  LOG_LOC=(LOG_LOC&&LOG_LOC.bi===bi&&LOG_LOC.ei===ei)?null:{bi,ei};
+  LOG_LOC={bi,ei};
   glogReset();
-  if(CURRENT!=='training')go('training');else renderSession();
-  if(LOG_LOC){const c=document.getElementById('lgx'+bi+'-'+ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  go('logger');
   updateWake();
+}
+/* back out of the stage to the session list */
+function closeLogger(){
+  LOG_LOC=null;glogReset();
+  go('training');
+  updateWake();
+}
+/* Render whichever surface is showing the stage. Every guided-flow handler
+   goes through here so the same code drives both. */
+function renderLog(){if(CURRENT==='logger')renderLogger();else renderSession();}
+function renderLogger(){
+  const el=document.getElementById('s-logger');if(!el)return;
+  const s=curSession();
+  if(!s||!LOG_LOC){go('training');return;}
+  const b=s.blocks[LOG_LOC.bi];
+  const ex=b&&blockExercises(b)[LOG_LOC.ei];
+  if(!ex){closeLogger();return;}
+  const letters=sessionLetters(s);
+  let sdone=0,stot=0;
+  s.blocks.forEach(x=>{if(isCond(x)){stot++;if(x.condResult)sdone++;}else blockExercises(x).forEach(e=>{stot+=e.sets.length;sdone+=e.sets.filter(st=>st.done).length;});});
+  const spct=stot?Math.round(100*sdone/stot):0;
+  const head='<div class="logtop">'+
+    '<button class="backbtn" data-click="closeLogger" aria-label="back to session">←</button>'+
+    '<div class="logtopt"><div class="kicker">'+esc(b.heading||'Block')+(b.superset?' · superset':'')+'</div>'+
+      '<h1 class="screentitle">'+esc(s.name||'Workout')+'</h1></div></div>'+
+    '<div class="lgprog"><span style="width:'+spct+'%"></span></div>'+
+    '<div class="lgprogl"><span>'+sdone+' of '+stot+' done</span><span>'+spct+'%</span></div>';
+  const nx=glogNextLoc(s,LOG_LOC.bi,LOG_LOC.ei);
+  const foot='<div class="logfoot">'+
+    '<button class="addbtn" data-click="closeLogger">‹ Back to session</button>'+
+    (nx?'<button class="addbtn" data-click="openLogger" data-args="['+nx.bi+','+nx.ei+']">'+esc(nx.name)+' ›</button>':'')+
+    '</div>';
+  el.innerHTML=head+lgOpenCard(s,b,ex,LOG_LOC.bi,LOG_LOC.ei,letters[LOG_LOC.bi][LOG_LOC.ei])+foot;
+  if(restEnds)paintRest();
 }
 function exFinished(ex){return ex.sets.length>0&&ex.sets.every(st=>st.done)}
 function blockDone(b){return isCond(b)?!!b.condResult:(blockExercises(b).length>0&&blockExercises(b).every(exFinished));}
@@ -1143,7 +1181,7 @@ function toggleNoteInput(si){
   if(st.note){delete st.note;delete NOTE_OPEN[k];s.updatedAt=Date.now();save();}      // filled → clear
   else if(NOTE_OPEN[k])delete NOTE_OPEN[k];                    // open+empty → close
   else NOTE_OPEN[k]=1;                                         // closed → open editor
-  renderSession();
+  renderLog();
 }
 function setNote(si,val){                                      // mutate + save, NO re-render (keeps focus)
   const s=curSession();if(!s||!LOG_LOC)return;
@@ -1161,7 +1199,7 @@ function glogStepW(si,dir){
 }
 function glogFinishSet(){
   if(!curSession()||!LOG_LOC)return;
-  GLOG.phase='rpe';renderSession();
+  GLOG.phase='rpe';renderLog();
 }
 function glogRpeInput(v){
   GLOG.rpe=Math.max(1,Math.min(10,parseFloat(v)||7.5));
@@ -1205,7 +1243,7 @@ function glogConfirmSet(){
   save();
   if(restSec>0&&next){startRest(restSec);GLOG.after=next;GLOG.phase='rest';}
   else if(next&&(next.bi!==bi||next.ei!==ei)){LOG_LOC=next;GLOG.hint=null;}
-  renderSession();
+  renderLog();
   const c=document.getElementById('lgx'+LOG_LOC.bi+'-'+LOG_LOC.ei);if(c)c.scrollIntoView({block:'nearest',behavior:'smooth'});
 }
 
@@ -1266,7 +1304,7 @@ function stopRest(clear){
     const nx=GLOG.after;
     GLOG.after=null;GLOG.phase='input';GLOG.rpe=7.5;
     if(nx&&LOG_LOC&&(nx.bi!==LOG_LOC.bi||nx.ei!==LOG_LOC.ei)){LOG_LOC=nx;GLOG.hint=null;}
-    if(CURRENT==='training')renderSession();
+    if(CURRENT==='training'||CURRENT==='logger')renderLog();
   }
 }
 function resumeRest(){
@@ -1313,7 +1351,7 @@ function applySwap(name){
   const ex=s.blocks[LOG_LOC.bi].exercises[LOG_LOC.ei];
   const from=ex.name||'';
   if(name&&name!==from){ if(!ex.swappedFrom)ex.swappedFrom=from; ex.name=name; s.updatedAt=Date.now(); }
-  save(); closeSheet(); renderSession();
+  save(); closeSheet(); renderLog();
 }
 function openPlateSheet(si){
   const s=curSession();if(!s||!LOG_LOC)return;

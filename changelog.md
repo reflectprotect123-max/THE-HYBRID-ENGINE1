@@ -1,5 +1,22 @@
 # Changelog
 
+## The Logger is full screen — 26 July 2026
+
+Logging used to happen in an accordion wedged between the rows above and below
+it, so the controls you tap mid-set were the smallest targets on the page and
+`rest 3:00` and the target chip got clipped on a real phone. Tapping an
+exercise now opens its own screen: back arrow, the session's name and block,
+the progress bar, and then the set — set dots, `SET 1 OF 4`, target, weight and
+reps, Finish Set. Nothing else competing for the space.
+
+The guided flow itself is unchanged — same one-set-at-a-time stage, same RPE
+slider, same autoregulation, same in-place rest clock. It just gets the whole
+viewport. The footer carries **‹ Back to session** and the next exercise, so
+you can move through a workout without going back to the list at all, and the
+Training tab stays lit throughout because the stage is a detail view of the
+session, not a fifth tab. The weight box also shows a `kg` placeholder when
+there's no history to prefill, instead of sitting there empty.
+
 ## A sample session, one tap away — 26 July 2026
 
 Trying the Logger no longer starts with importing something. **Load a sample

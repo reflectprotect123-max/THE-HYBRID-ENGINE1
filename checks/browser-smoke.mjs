@@ -131,22 +131,22 @@ await t('guided stage opens on a strength row: dots, tracker, weight+reps, Finis
     if (/rest/.test(txt) && /RPE|reps/.test(txt)) { await row.click(); clicked = true; break; }
   }
   if (!clicked) throw new Error('no row with prescribed rest');
-  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
-  const track = await page.textContent('#s-training .glogtrack');
+  await page.waitForSelector('#s-logger .lgx.open.glog', { timeout: 2000 });
+  const track = await page.textContent('#s-logger .glogtrack');
   if (!/SET 1 OF/.test(track)) throw new Error('tracker=' + track);
   if (!(await page.$('#glogV1')) || !(await page.$('#glogV2'))) throw new Error('weight/reps inputs missing');
-  if (!(await page.$('#s-training .glogdot.active'))) throw new Error('no active set dot');
-  if (!(await page.$('#s-training .glogfinish'))) throw new Error('no Finish Set button');
+  if (!(await page.$('#s-logger .glogdot.active'))) throw new Error('no active set dot');
+  if (!(await page.$('#s-logger .glogfinish'))) throw new Error('no Finish Set button');
 });
 await t('Finish Set → RPE slider (1–10) → Confirm logs the set and starts the rest chip', async () => {
   await page.fill('#glogV1', '60'); await page.fill('#glogV2', '12');
-  await page.click('#s-training .glogfinish');
+  await page.click('#s-logger .glogfinish');
   await page.waitForSelector('#glogRpeSlider', { timeout: 2000 });
   const range = await page.$eval('#glogRpeSlider', (el) => el.min + '-' + el.max + '/' + el.step);
   if (range !== '1-10/0.5') throw new Error('slider range=' + range);
   await page.fill('#glogRpeSlider', '8');
   if ((await page.textContent('#glogRpeOut')) !== '8') throw new Error('readout did not track slider');
-  await page.click('#s-training .glogrpe .bigbtn');
+  await page.click('#s-logger .glogrpe .bigbtn');
   await page.waitForSelector('#restchip.show', { timeout: 2000 });
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')));
   const ok = saved.sessions.some((s) => s.blocks.some((b) => b.exercises.some((e) => e.sets.some((st) => st.done && st.aVal === '60' && st.felt === '8'))));
@@ -159,19 +159,19 @@ await t('per-set autoregulation moved the next set\'s weight (percentage of curr
   if (!ex) throw new Error('logged exercise not found');
   const next = ex.sets[1];
   if (next.aVal !== '57.5') throw new Error('next set weight=' + next.aVal);
-  const hint = await page.textContent('#s-training .gloghint');
+  const hint = await page.textContent('#s-logger .gloghint');
   if (!/57\.5 kg/.test(hint)) throw new Error('hint=' + hint);
-  if (!(await page.$('#s-training .glogrest'))) throw new Error('in-stage rest panel missing');
+  if (!(await page.$('#s-logger .glogrest'))) throw new Error('in-stage rest panel missing');
 });
 await t('rest +15s extends the clock; Skip Rest advances to the next set', async () => {
   const secsOf = (s) => { const m = s.trim().match(/(\d+):(\d+)/); return m ? +m[1] * 60 + +m[2] : NaN; };
   const before = secsOf(await page.textContent('#glogClock'));
-  await page.click('#s-training .glogrestbtns button:first-child');
+  await page.click('#s-logger .glogrestbtns button:first-child');
   const after = secsOf(await page.textContent('#glogClock'));
   if (!(after > before + 10)) throw new Error('+15s did not extend: ' + before + '→' + after);
-  await page.click('#s-training .glogrestbtns button:last-child');
-  await page.waitForSelector('#s-training .glogfinish', { timeout: 2000 });
-  const track = await page.textContent('#s-training .glogtrack');
+  await page.click('#s-logger .glogrestbtns button:last-child');
+  await page.waitForSelector('#s-logger .glogfinish', { timeout: 2000 });
+  const track = await page.textContent('#s-logger .glogtrack');
   if (!/SET 2 OF/.test(track)) throw new Error('did not advance: ' + track);
   // re-arm a rest for the reload-persistence tests below
   await page.evaluate(() => startRest(120));
@@ -259,10 +259,10 @@ await t('logger prefills last kg as placeholder next time', async () => {
   for (const row of rows) {
     if (/rest 3:00/.test(await row.textContent())) { await row.click(); break; }
   }
-  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
+  await page.waitForSelector('#s-logger .lgx.open.glog', { timeout: 2000 });
   const v = await page.$eval('#glogV1', (el) => el.value);
   if (v !== '60') throw new Error('prefill=' + v);
-  const lastLine = await page.textContent('#s-training .gloglast');
+  const lastLine = await page.textContent('#s-logger .gloglast');
   if (!/60 kg × 12 @ RPE 8/.test(lastLine)) throw new Error('last-time line=' + lastLine);
 });
 await t('nav is four tabs: Home · Training · Library · Settings', async () => {
@@ -999,7 +999,7 @@ await t('Sample session: one tap loads a full demo workout that drives the Logge
   if (!/RPE 8/.test(body)) throw new Error('sample RPE target not shown: ' + body.slice(0, 300));
   if (!/max/.test(body)) throw new Error('sample max-reps set not shown: ' + body.slice(0, 300));
   await page.evaluate(() => openLogger(1, 0));
-  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
+  await page.waitForSelector('#s-logger .lgx.open.glog', { timeout: 2000 });
   await page.evaluate(() => {
     DB.workouts = window.__stashW5; DB.sessions = window.__stashS5;
     delete window.__stashW5; delete window.__stashS5;
@@ -1008,15 +1008,15 @@ await t('Sample session: one tap loads a full demo workout that drives the Logge
 });
 await t('Planner → Logger symbiosis: the authored plan drives the guided flow', async () => {
   await page.evaluate(() => { scheduleWorkoutOn('plw1', ymd(new Date())); startWorkout('plw1'); openLogger(0, 0); });
-  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
-  const track = await page.textContent('#s-training .glogtrack');
+  await page.waitForSelector('#s-logger .lgx.open.glog', { timeout: 2000 });
+  const track = await page.textContent('#s-logger .glogtrack');
   if (!/SET 1 OF 4/.test(track) || !/6-8 @8/.test(track)) throw new Error('logger did not read the plan: ' + track);
   await page.fill('#glogV1', '80'); await page.fill('#glogV2', '8');
-  await page.click('#s-training .glogfinish');
+  await page.click('#s-logger .glogfinish');
   await page.fill('#glogRpeSlider', '8');
-  await page.click('#s-training .glogrpe .bigbtn');
-  await page.waitForSelector('#s-training .glogrest', { timeout: 2000 });
-  const hint = await page.textContent('#s-training .gloghint');
+  await page.click('#s-logger .glogrpe .bigbtn');
+  await page.waitForSelector('#s-logger .glogrest', { timeout: 2000 });
+  const hint = await page.textContent('#s-logger .gloghint');
   // felt 8 against an authored target of 8 → on target, hold weight
   if (!/right on target/.test(hint) || !/hold weight/.test(hint)) throw new Error('verdict not centered on authored RPE: ' + hint);
   await page.evaluate(() => {
@@ -1025,27 +1025,37 @@ await t('Planner → Logger symbiosis: the authored plan drives the guided flow'
     CUR_SESSION = null; LOG_LOC = null; save(); go('home');
   });
 });
-await t('logger accordion: open, collapse, one-at-a-time', async () => {
+await t('logger is full screen: a row opens the stage, back returns to the session', async () => {
   await page.click('.navlink[data-s="training"]');
   await page.waitForSelector('#s-training.on', { timeout: 2000 });
   const rows = await page.$$('#s-training .lgcrow');
   if (rows.length < 2) throw new Error('need at least 2 exercise rows, got ' + rows.length);
   await rows[0].click();
-  await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
-  // collapse via the letter chip
-  await page.click('#s-training .lgx.open .lgltr');
-  if (await page.$('#s-training .lgx.open')) throw new Error('card did not collapse');
-  // open a different row — only ONE open card ever
+  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
+  // the stage owns the screen: the session list is no longer showing behind it
+  if (await page.$('#s-training.on')) throw new Error('Training screen still showing under the stage');
+  const stages = await page.$$eval('#s-logger .lgx.open', (els) => els.length);
+  if (stages !== 1) throw new Error('expected exactly one stage, got ' + stages);
+  if (!(await page.$('#s-logger .lgprog'))) throw new Error('no session progress bar on the stage');
+  // and no collapsed rows come along for the ride
+  const strays = await page.$$eval('#s-logger .lgcrow', (els) => els.length);
+  if (strays) throw new Error('collapsed rows leaked onto the stage: ' + strays);
+  // Training stays lit — the stage is a detail view, not a fifth tab
+  const lit = await page.$eval('.navlink[data-s="training"]', (el) => el.classList.contains('active'));
+  if (!lit) throw new Error('Training tab not highlighted while logging');
+  // back out via the letter chip, then again via the footer button
+  await page.click('#s-logger .lgx.open .lgltr');
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
+  if (await page.$('#s-logger.on')) throw new Error('stage did not close');
   const rows2 = await page.$$('#s-training .lgcrow');
   await rows2[1].click();
-  await page.waitForSelector('#s-training .lgx.open', { timeout: 2000 });
-  const openCount = await page.$$eval('#s-training .lgx.open', (els) => els.length);
-  if (openCount !== 1) throw new Error('open cards=' + openCount);
-  const training = await page.$eval('.navlink[data-s="training"]', (el) => el.classList.contains('active'));
-  if (!training) throw new Error('Training tab not highlighted while logging');
+  await page.waitForSelector('#s-logger.on', { timeout: 2000 });
+  await page.click('#s-logger .logfoot .addbtn');
+  await page.waitForSelector('#s-training.on', { timeout: 2000 });
 });
 await t('per-set note persists and shows in History', async () => {
-  await page.evaluate(() => { setNote(0, 'belt on'); });
+  // the stage owns LOG_LOC now, so open one before writing a note to it
+  await page.evaluate(() => { openLogger(0, 0); setNote(0, 'belt on'); });
   const stored = await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
     return db.sessions.some((s) => s.blocks.some((b) => (b.exercises || []).some((e) => e.sets.some((st) => st.note === 'belt on'))));
@@ -1089,23 +1099,23 @@ await t('superset pair flows A→B with no rest, rests after the pair, then roun
         { id: uid(), name: 'Row', mode: 'reps_kg', rest: 120, sets: [{ t: '10', rpe: '8' }, { t: '10', rpe: '8' }] }] }] }];
     save(); startWorkout(DB.workouts[0].id); openLogger(0, 0);
   });
-  await page.waitForSelector('#s-training .lgx.open.glog', { timeout: 2000 });
+  await page.waitForSelector('#s-logger .lgx.open.glog', { timeout: 2000 });
   const logOne = async (kg) => {
     await page.fill('#glogV1', kg); await page.fill('#glogV2', '10');
-    await page.click('#s-training .glogfinish');
+    await page.click('#s-logger .glogfinish');
     await page.fill('#glogRpeSlider', '8.5');
-    await page.click('#s-training .glogrpe .bigbtn');
+    await page.click('#s-logger .glogrpe .bigbtn');
   };
   await logOne('60'); // A1 confirmed → B opens immediately, NO rest inside the pair
-  const openA = await page.textContent('#s-training .lgx.open .lgttl');
+  const openA = await page.textContent('#s-logger .lgx.open .lgttl');
   if (openA !== 'Row') throw new Error('did not flow to B, open=' + openA);
-  if (await page.$('#s-training .glogrest')) throw new Error('rest ran inside the pair');
+  if (await page.$('#s-logger .glogrest')) throw new Error('rest ran inside the pair');
   await logOne('40'); // B1 confirmed → pair complete → rest
-  await page.waitForSelector('#s-training .glogrest', { timeout: 2000 });
-  await page.click('#s-training .glogrestbtns button:last-child'); // skip
-  await page.waitForSelector('#s-training .glogfinish', { timeout: 2000 });
-  const openB = await page.textContent('#s-training .lgx.open .lgttl');
-  const track = await page.textContent('#s-training .glogtrack');
+  await page.waitForSelector('#s-logger .glogrest', { timeout: 2000 });
+  await page.click('#s-logger .glogrestbtns button:last-child'); // skip
+  await page.waitForSelector('#s-logger .glogfinish', { timeout: 2000 });
+  const openB = await page.textContent('#s-logger .lgx.open .lgttl');
+  const track = await page.textContent('#s-logger .glogtrack');
   if (openB !== 'Bench' || !/SET 2 OF/.test(track)) throw new Error('round 2 landed on ' + openB + ' / ' + track);
   await page.evaluate(() => {
     DB.workouts = []; DB.sessions = DB.sessions.filter((s) => s.status !== 'active');

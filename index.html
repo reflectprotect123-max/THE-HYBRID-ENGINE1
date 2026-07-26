@@ -193,6 +193,19 @@ h1{font-size:clamp(26px,4.5vw,34px);line-height:1.05;letter-spacing:-.04em;font-
 .exrow .t span i{font-style:normal;color:var(--gold2)}
 .exrow .st{flex:0 0 auto;width:26px;height:26px;border:2px solid var(--line2);border-radius:50%;display:grid;place-items:center;color:transparent;font-size:13px;font-weight:900}
 .exrow.done .st{border-color:var(--gold);background:var(--gold);color:#17120c}
+/* ===== FULL-SCREEN LOGGER STAGE ===== */
+#s-logger .logtop{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+#s-logger .logtopt{min-width:0}
+#s-logger .logtopt .screentitle{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-logger .lgprog{height:3px;border-radius:999px;background:var(--line);overflow:hidden}
+#s-logger .lgprog span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .3s ease}
+#s-logger .lgprogl{display:flex;justify-content:space-between;margin:7px 2px 16px;color:var(--dim);font-size:11px;font-weight:750;letter-spacing:.04em}
+/* the stage owns the viewport: no card chrome, no competing rows */
+#s-logger .lgx.open.glog{border:0;box-shadow:none;background:transparent;margin:0;overflow:visible}
+#s-logger .lgx.open.glog::before{display:none}
+#s-logger .lgx.open.glog .lg-body{padding-left:0;padding-right:0}
+#s-logger .logfoot{display:flex;gap:10px;margin-top:24px}
+#s-logger .logfoot .addbtn{flex:1;margin-top:0}
 .superwrap{margin-top:10px;padding-left:11px;border-left:3px solid var(--gold)}
 .superlabel{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
 .superlabel span{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
@@ -988,6 +1001,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   <main class="main">
     <section class="screen on" id="s-home"></section>
     <section class="screen" id="s-training"></section>
+    <section class="screen" id="s-logger"></section>
     <section class="screen" id="s-library"></section>
     <section class="screen" id="s-planner"></section>
     <section class="screen" id="s-settings"></section>
