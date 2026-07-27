@@ -14,6 +14,7 @@ import { Planner } from './screens/Planner';
 import { Conditioning } from './screens/Conditioning';
 import { History } from './screens/History';
 import { Progress } from './screens/Progress';
+import { Exercise } from './screens/Exercise';
 import { Calendar } from './screens/Calendar';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
@@ -51,6 +52,8 @@ export function App() {
                   <Route path="/conditioning" element={<Conditioning />} />
                   <Route path="/history" element={<History />} />
                   <Route path="/progress" element={<Progress />} />
+                  <Route path="/exercise" element={<Exercise />} />
+                  <Route path="/exercise/:name" element={<Exercise />} />
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/recap/:id" element={<Recap />} />
                   <Route path="/settings" element={<Settings />} />

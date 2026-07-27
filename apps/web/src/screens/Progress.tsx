@@ -131,8 +131,15 @@ export function Progress() {
           />
           <Card>
             <ul className="flex flex-col gap-1">
+              {/* Each lift is a door into its own history — the trend per
+                  movement that `exLogFor` has always been able to produce and
+                  nothing ever asked it for. */}
               {lifts.map((d) => (
-                <li key={d.name} className="flex items-baseline gap-1">
+                <li key={d.name}>
+                  <Link
+                    to={`/exercise/${encodeURIComponent(d.name)}`}
+                    className="flex items-baseline gap-1 rounded-sm hover:text-gold2"
+                  >
                   <span className="min-w-0 flex-1 truncate text-4 font-[650]">{d.name}</span>
                   <span className="num text-4 text-muted">{Math.round(d.e1)}kg</span>
                   <span
@@ -150,6 +157,8 @@ export function Progress() {
                   >
                     {d.delta == null ? '—' : (d.delta > 0 ? '+' : '') + Math.round(d.delta)}
                   </span>
+                  <span aria-hidden className="text-3 text-dim">›</span>
+                  </Link>
                 </li>
               ))}
             </ul>
