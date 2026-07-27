@@ -49,13 +49,20 @@ export function T({ w = 'reg', num, style, ...rest }: TextProps & { w?: Fw; num?
 }
 
 /** The one TextInput, for the same reason: a typed weight rendered in Roboto
- * next to an Inter label reads as a bug. Numeric slots pass `num`. */
+ * next to an Inter label reads as a bug. Numeric slots pass `num`.
+ *
+ * textAlignVertical + includeFontPadding are Android-only and exist to stop a
+ * real Android bug: without them, Android sizes the text box using Inter's
+ * font metrics rather than the box's own height, so in a short, centered
+ * input (the per-set reps/RPE boxes) the glyphs render clipped and shoved
+ * toward one edge — legible on iOS, garbled on Android. */
 export function Input({ w = 'reg', num, style, ...rest }: TextInputProps & { w?: Fw; num?: boolean }) {
   return (
     <RNTextInput
       placeholderTextColor={color.dim}
+      textAlignVertical="center"
       {...rest}
-      style={[{ fontFamily: font[w] }, num ? tabular : null, style]}
+      style={[{ fontFamily: font[w], includeFontPadding: false }, num ? tabular : null, style]}
     />
   );
 }
