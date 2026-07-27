@@ -51,18 +51,31 @@ export function T({ w = 'reg', num, style, ...rest }: TextProps & { w?: Fw; num?
 /** The one TextInput, for the same reason: a typed weight rendered in Roboto
  * next to an Inter label reads as a bug. Numeric slots pass `num`.
  *
- * textAlignVertical + includeFontPadding are Android-only and exist to stop a
- * real Android bug: without them, Android sizes the text box using Inter's
- * font metrics rather than the box's own height, so in a short, centered
- * input (the per-set reps/RPE boxes) the glyphs render clipped and shoved
- * toward one edge — legible on iOS, garbled on Android. */
+ * Three Android-only fixes, and it takes all three — the reps/RPE boxes were
+ * still rendering clipped with only the first two:
+ *
+ *  includeFontPadding  drops the padding Android derives from Inter's own
+ *                      ascent/descent metrics.
+ *  textAlignVertical   centres the line in the box rather than sitting it on
+ *                      the top edge.
+ *  paddingVertical     drops the EditText's DEFAULT view padding, which the
+ *                      two above do not touch. That default is what actually
+ *                      broke it: the per-set boxes are h-4 (32px), and once
+ *                      Android's own padding is added to a 13px line there is
+ *                      no room left, so the glyphs are pushed out of the
+ *                      visible box. The taller Movement field absorbed it,
+ *                      which is exactly why that one always looked fine and
+ *                      the short ones next to it did not.
+ *
+ * Only the VERTICAL padding is zeroed — horizontal padding comes from each
+ * field's own px-* class and must survive. */
 export function Input({ w = 'reg', num, style, ...rest }: TextInputProps & { w?: Fw; num?: boolean }) {
   return (
     <RNTextInput
       placeholderTextColor={color.dim}
       textAlignVertical="center"
       {...rest}
-      style={[{ fontFamily: font[w], includeFontPadding: false }, num ? tabular : null, style]}
+      style={[{ fontFamily: font[w], includeFontPadding: false, paddingVertical: 0 }, num ? tabular : null, style]}
     />
   );
 }
