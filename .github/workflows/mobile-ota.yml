@@ -83,9 +83,17 @@ jobs:
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          # Passed through the environment, not interpolated into the script
+          # text below — a commit message is arbitrary text (quotes,
+          # newlines) and string-substituting it directly into a shell
+          # command is exactly how that breaks: an embedded double-quote
+          # closes the argument early and the rest gets parsed as separate
+          # CLI args. Only the subject line, since EAS truncates past 1024
+          # characters anyway and the subject is what a channel label needs.
+          UPDATE_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
           pnpm dlx eas-cli@21 update \
             --channel preview \
-            --message "${{ github.event.head_commit.message }}" \
+            --message "$(head -n1 <<< "$UPDATE_MESSAGE")" \
             --non-interactive
