@@ -1,5 +1,12 @@
 node_modules/
-.claude/
+
+# Claude's per-machine state — local settings, caches, session scratch — is
+# noise in a diff and differs per developer. Its SKILLS are the opposite:
+# shared tooling that should arrive with a clone, the same as anything in
+# scripts/. Git cannot re-include a path under an excluded directory, hence
+# the `.claude/*` form rather than `.claude/`.
+.claude/*
+!.claude/skills/
 
 # build output — never commit a copy of the app inside the app
 the-hybrid-engine-netlify/
