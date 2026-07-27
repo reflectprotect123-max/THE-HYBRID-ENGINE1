@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { render } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { newBlock, newEx, newSet, uid, type EngineDB, type Workout } from '@hybrid/engine';
+import { newBlock, newEx, newSet, uid, ymd, type EngineDB, type Session, type Workout } from '@hybrid/engine';
 import { DbProvider } from '../src/store/db';
 import { RestProvider } from '../src/store/rest';
 import { storage } from '../src/store/storage';
@@ -46,6 +46,27 @@ export function seed(db: Partial<EngineDB>) {
   const full: EngineDB = { workouts: [], sessions: [], settings: {}, ...db };
   storage.setItem(LS_KEY, JSON.stringify(full));
   return full;
+}
+
+/**
+ * A finished session on a given day whose volume is EXACTLY `kg`.
+ *
+ * One done set of `kg` × 1 rep, so a test can name the number it expects on the
+ * chart instead of deriving it. `daysAgo` rather than a date string because the
+ * weekly buckets are relative to now — a fixed date would drift out of the
+ * window the day after it was written.
+ */
+export function volumeSession(daysAgo: number, kg: number): Session {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  const ex = { ...newEx(), id: uid(), name: 'Back squat', sets: [{ t: '1', rpe: '8', done: true, aVal: String(kg), aVal2: '1' }] };
+  return {
+    id: uid(),
+    date: ymd(d),
+    status: 'done',
+    blocks: [{ ...newBlock(), id: uid(), heading: 'Main', exercises: [ex] }],
+    updatedAt: Date.now(),
+  };
 }
 
 /** A one-lift, three-set workout — the shape almost every test wants. */

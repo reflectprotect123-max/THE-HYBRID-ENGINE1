@@ -55,6 +55,66 @@ export function fmtRest(s: unknown): string {
   return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
 }
 
+export interface BarScale {
+  /** the value the bottom of the card represents */
+  floor: number;
+  /** the value the top represents */
+  top: number;
+  /** true when the axis does NOT start at zero, so a surface can say so */
+  floating: boolean;
+  /** 0–100 height for a value; 0 for anything at or under the floor */
+  pct(v: number): number;
+}
+
+/**
+ * Where to put the bottom of a bar chart.
+ *
+ * A zero baseline is the honest default and it is also, for this app, useless.
+ * Eight weeks of consistent training produced seven bars spanning 92%–100% of
+ * the card: a wall of identical beige occupying the largest element on the
+ * Progress screen while distinguishing nothing. The one question it exists to
+ * answer — is volume trending up — was invisible, and the actual answer had
+ * been demoted to "peak 6,548kg" in small text underneath.
+ *
+ * So the floor drops to just below the smallest bar, which makes real variation
+ * legible. That is a truncated axis, and a truncated axis exaggerates: the
+ * surface MUST say what the floor is rather than implying the shortest bar is
+ * nothing. `floating` is how it knows to.
+ *
+ * Zero baseline is kept in the two cases where a floating one would mislead
+ * rather than clarify: when everything is identical (no variation to show, and
+ * a floor equal to the values divides by zero), and when a value is actually
+ * zero — a week you did not train reads as an empty slot, not as a short bar.
+ */
+export function barScale(values: number[]): BarScale {
+  const vals = (values || []).filter((v) => Number.isFinite(v));
+  const max = Math.max(...vals, 1);
+  const nonZero = vals.filter((v) => v > 0);
+  const min = nonZero.length ? Math.min(...nonZero) : 0;
+  const spread = max - min;
+
+  // A rest week among training weeks is real signal, not noise to zoom past —
+  // and with a zero in the set the distance from zero IS the information.
+  const hasZero = vals.some((v) => v <= 0);
+  const flat = spread <= 0 || max <= 0;
+  // Below ~4% the bars genuinely are the same height; zooming in would magnify
+  // rounding into a trend that is not there.
+  const worthFloating = !hasZero && !flat && spread / max < 0.4 && spread / max > 0.04;
+
+  const floor = worthFloating ? Math.max(0, min - spread * 0.35) : 0;
+  const span = max - floor || 1;
+
+  return {
+    floor,
+    top: max,
+    floating: floor > 0,
+    pct: (v) => {
+      if (!Number.isFinite(v) || v <= 0) return 0;
+      return Math.max(0, Math.min(100, ((v - floor) / span) * 100));
+    },
+  };
+}
+
 /** Seconds as h:mm:ss when it runs past an hour, else m:ss. */
 export function fmtClock(s: unknown): string {
   const n = Math.max(0, Math.floor(Number(s) || 0));

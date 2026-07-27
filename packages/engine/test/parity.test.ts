@@ -12,7 +12,7 @@ import { prefillPrimary, prefillSecondary } from '../src/logger';
 import { repFloorOf, repTopOf } from '../src/autoreg';
 import { conZones, zoneSeconds } from '../src/hr';
 import { knownMovements, workoutStats } from '../src/session';
-import { agoLabel } from '../src/num';
+import { agoLabel, barScale } from '../src/num';
 import { mergeEngines } from '../src/db';
 import type { EngineDB, Exercise, LoggedSet, Session, Workout } from '../src/types';
 
@@ -233,6 +233,69 @@ describe('agoLabel', () => {
     expect(agoLabel('2026-04-01', now)).toBe('scheduled');
     expect(agoLabel('', now)).toBe('');
     expect(agoLabel(null, now)).toBe('');
+  });
+});
+
+describe('barScale — the axis under the volume chart', () => {
+  it('floats the baseline when consistent training would otherwise flatten it', () => {
+    // The real case: eight seeded weeks rendered as seven bars spanning
+    // 92–100% of the card. The largest element on the screen, saying nothing.
+    const weeks = [6100, 6200, 6050, 6300, 6180, 6400, 6548];
+    const s = barScale(weeks);
+    expect(s.floating).toBe(true);
+    const heights = weeks.map((v) => s.pct(v));
+    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(50);
+  });
+
+  it('keeps a zero baseline when a week was not trained', () => {
+    // A rest week among training weeks is signal, not noise to zoom past —
+    // with a zero present, the distance FROM zero is the information.
+    const s = barScale([6100, 0, 6300, 6548]);
+    expect(s.floating).toBe(false);
+    expect(s.pct(0)).toBe(0);
+  });
+
+  it('keeps a zero baseline when the spread already fills the card', () => {
+    expect(barScale([1000, 5000, 9000]).floating).toBe(false);
+  });
+
+  it('does not magnify rounding into a trend that is not there', () => {
+    // Under ~4% the bars genuinely ARE the same height. Zooming would invent a
+    // story out of noise — the failure mode opposite the flat chart, and the
+    // reason this is a band rather than "always float".
+    expect(barScale([6000, 6010, 6020]).floating).toBe(false);
+  });
+
+  it('survives one week, all zeroes, and no weeks at all', () => {
+    expect(barScale([5000]).floating).toBe(false);
+    expect(barScale([0, 0]).pct(0)).toBe(0);
+    expect(() => barScale([]).pct(1)).not.toThrow();
+  });
+
+  it('is defeated by a part-finished week, which is why the caller filters', () => {
+    /*
+     * The eight-bucket shape the screen actually renders: seven complete weeks
+     * plus the one ending today, two days in. That stub makes the spread 98%
+     * of the peak, so `barScale` correctly concludes the variation is already
+     * obvious and keeps a zero baseline — and the chart stays flat.
+     *
+     * This is not a bug in the scale, it is the contract: a caller passes the
+     * values it wants the AXIS derived from, and an in-progress bucket is not
+     * one of them. Asserted here rather than left implicit because the first
+     * version of the test above used seven weeks and passed while the feature
+     * did nothing on screen.
+     */
+    const complete = [6100, 6200, 6050, 6300, 6180, 6400, 6548];
+    const thisWeekSoFar = 120;
+    expect(barScale([...complete, thisWeekSoFar]).floating).toBe(false);
+    expect(barScale(complete).floating).toBe(true);
+  });
+
+  it('never returns a height outside 0–100', () => {
+    const s = barScale([6100, 6548]);
+    expect(s.pct(999999)).toBeLessThanOrEqual(100);
+    expect(s.pct(-5)).toBe(0);
+    expect(s.pct(NaN)).toBe(0);
   });
 });
 

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  barScale,
   bestE1rmByLift,
   conZones,
   fmtClock,
@@ -205,10 +206,19 @@ const ink = (k: ZoneKey) =>
 interface Point {
   label: string;
   value: number;
+  /** the current week, still being trained */
+  partial?: boolean;
 }
 
 function Bars({ data, unit, color }: { data: Point[]; unit: string; color: string }) {
-  const max = Math.max(...data.map((d) => d.value), 1);
+  /* Zero-baselined, this was seven bars spanning 92–100% of the card: the
+     largest element on the screen, distinguishing nothing. See `barScale`. */
+  /* Scaled from COMPLETE weeks only. The last bucket ends today, so on a
+     Monday it holds two days against seven full weeks — which made the spread
+     98% and correctly told barScale there was nothing to zoom into. The
+     in-progress week is drawn against that scale, not allowed to set it. */
+  const done = data.filter((d) => !d.partial);
+  const scale = barScale((done.length ? done : data).map((d) => d.value));
   return (
     <div>
       {/* Columns stretch to the full 128px so the percentage heights of the
@@ -218,9 +228,19 @@ function Bars({ data, unit, color }: { data: Point[]; unit: string; color: strin
         {data.map((d, i) => (
           <div key={i} className="flex flex-1 flex-col justify-end">
             <span
-              className="w-full rounded-t-[4px]"
-              style={{ height: Math.max(2, (100 * d.value) / max) + '%', background: color, opacity: d.value ? 1 : 0.25 }}
-              title={`${d.label}: ${Math.round(d.value)}${unit}`}
+              className="w-full rounded-t-[4px] transition-[height] duration-200 ease-standard"
+              style={{
+                // A trained week never renders as literally nothing — 2% is a
+                // sliver that reads as "small", where 0 reads as "missing".
+                height: d.value > 0 ? Math.max(2, scale.pct(d.value)) + '%' : '2%',
+                // The current week is short because it is UNFINISHED, not
+                // because it went badly. Outlined rather than filled says
+                // "still going" without inventing a number it does not have.
+                ...(d.partial
+                  ? { background: 'transparent', border: `1px solid ${color}`, opacity: 0.55 }
+                  : { background: color, opacity: d.value ? 1 : 0.25 }),
+              }}
+              title={`${d.label}: ${Math.round(d.value).toLocaleString()}${unit}${d.partial ? ' (this week, so far)' : ''}`}
             />
           </div>
         ))}
@@ -232,9 +252,14 @@ function Bars({ data, unit, color }: { data: Point[]; unit: string; color: strin
           </span>
         ))}
       </div>
+      {/* The axis is truncated to make variation visible, so it says so. A
+          zoomed chart that implies the shortest bar is nothing is the same
+          dishonesty as the flat one, pointing the other way. */}
       <p className="num mt-1 text-3 text-muted">
-        peak {Math.round(max).toLocaleString()}
-        {unit}
+        {scale.floating
+          ? `${Math.round(scale.floor).toLocaleString()}–${Math.round(scale.top).toLocaleString()}${unit} · axis starts at ${Math.round(scale.floor).toLocaleString()}`
+          : `peak ${Math.round(scale.top).toLocaleString()}${unit}`}
+        {data.some((d) => d.partial) ? ' · outlined bar is this week so far' : ''}
       </p>
     </div>
   );
@@ -285,7 +310,10 @@ function weeklyVolume(sessions: Session[], n: number): Point[] {
     const vol = sessions
       .filter((s) => s.status !== 'active' && s.date >= a && s.date <= b)
       .reduce((sum, s) => sum + sessionVolume(s), 0);
-    out.push({ label: b.slice(5), value: vol });
+    // The last bucket ends today, so it is ALWAYS a partial week. Marked
+    // rather than dropped: this week's progress is worth seeing — it just must
+    // not be compared against, or allowed to scale against, seven full ones.
+    out.push({ label: b.slice(5), value: vol, partial: i === 0 });
   }
   return out;
 }

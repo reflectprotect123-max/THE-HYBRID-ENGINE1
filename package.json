@@ -22,6 +22,7 @@
     "@netlify/blobs": "^10.7.9"
   },
   "devDependencies": {
+    "playwright": "1.61.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

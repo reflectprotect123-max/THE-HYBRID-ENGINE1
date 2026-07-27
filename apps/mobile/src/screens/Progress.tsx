@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import {
+  barScale,
   bestE1rmByLift,
   conZones,
   fmtClock,
@@ -89,7 +90,15 @@ export function ProgressScreen() {
     recovery.length > 1 ||
     strain.length > 1 ||
     hrrTrend.length > 1;
-  const peak = Math.max(...weeks.map((w) => w.value), 1);
+  /* Zero-baselined, this was seven bars spanning 92-100% of the card: the
+     largest element on the screen, distinguishing nothing. See `barScale`. */
+  /* Scaled from COMPLETE weeks only — see the web app's note. The current
+     bucket ends today, so on a Monday it holds two days against seven full
+     weeks and flattens the whole chart. */
+  const vol = useMemo(() => {
+    const done = weeks.filter((w) => !w.partial);
+    return barScale((done.length ? done : weeks).map((w) => w.value));
+  }, [weeks]);
 
   return (
     <Screen>
@@ -119,8 +128,15 @@ export function ProgressScreen() {
               {weeks.map((w, i) => (
                 <View key={i} className="h-full flex-1 justify-end">
                   <View
-                    className="rounded-sm bg-gold2"
-                    style={{ height: `${Math.max(2, (100 * w.value) / peak)}%`, opacity: w.value ? 1 : 0.25 }}
+                    className={`rounded-sm ${w.partial ? 'border border-gold2' : 'bg-gold2'}`}
+                    style={{
+                      // A trained week never renders as literally nothing — 2%
+                      // reads as "small", 0 reads as "missing".
+                      height: `${w.value > 0 ? Math.max(2, vol.pct(w.value)) : 2}%`,
+                      // Outlined, not filled: the current week is short because
+                      // it is UNFINISHED, not because it went badly.
+                      opacity: w.partial ? 0.55 : w.value ? 1 : 0.25,
+                    }}
                   />
                 </View>
               ))}
@@ -132,7 +148,15 @@ export function ProgressScreen() {
                 </T>
               ))}
             </View>
-            <T num className="mt-1 text-3 text-muted">peak {Math.round(peak).toLocaleString()}kg</T>
+            {/* The axis is truncated to make variation visible, so it says so.
+                A zoomed chart implying the shortest bar is nothing is the same
+                dishonesty as the flat one, pointing the other way. */}
+            <T num className="mt-1 text-3 text-muted">
+              {vol.floating
+                ? `${Math.round(vol.floor).toLocaleString()}–${Math.round(vol.top).toLocaleString()}kg · axis starts at ${Math.round(vol.floor).toLocaleString()}`
+                : `peak ${Math.round(vol.top).toLocaleString()}kg`}
+              {weeks.some((w) => w.partial) ? ' · outlined bar is this week so far' : ''}
+            </T>
           </Card>
         </>
       ) : null}
@@ -227,6 +251,8 @@ export function ProgressScreen() {
 interface Point {
   label: string;
   value: number;
+  /** the current week, still being trained */
+  partial?: boolean;
 }
 
 /** A trend as columns against a shared axis. See the note at the top of the file. */
@@ -280,8 +306,8 @@ function Trend({
   );
 }
 
-function weekly(sessions: Session[], n: number) {
-  const out: { label: string; value: number }[] = [];
+function weekly(sessions: Session[], n: number): Point[] {
+  const out: Point[] = [];
   const now = new Date();
   for (let i = n - 1; i >= 0; i--) {
     const end = new Date(now);
@@ -293,6 +319,8 @@ function weekly(sessions: Session[], n: number) {
     out.push({
       label: b.slice(5),
       value: sessions.filter((s) => s.status !== 'active' && s.date >= a && s.date <= b).reduce((t, s) => t + sessionVolume(s), 0),
+      // Always the current week, always incomplete — see the web app's note.
+      partial: i === 0,
     });
   }
   return out;

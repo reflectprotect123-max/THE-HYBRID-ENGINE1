@@ -10,7 +10,7 @@
  * A screen must always render SOMETHING. That is the rule these assert.
  */
 import { screen } from '@testing-library/react-native';
-import { liftWorkout, renderScreen, seed } from './harness';
+import { liftWorkout, renderScreen, seed, volumeSession } from './harness';
 import { ProgressScreen } from '../src/screens/Progress';
 import { LibraryScreen } from '../src/screens/Library';
 
@@ -49,6 +49,64 @@ describe('Progress', () => {
     seed({ settings: { conditioning: 'nonsense' as never, whoopDaily: 'nonsense' as never } });
     renderScreen(<ProgressScreen />);
     expect(screen.getByText('Not enough logged yet')).toBeTruthy();
+  });
+});
+
+describe('Weekly volume chart', () => {
+  /*
+   * The chart renders EIGHT buckets and the last one ends today, so it always
+   * holds a part-finished week. Scaling from all eight let that stub set the
+   * spread — 98% of the peak — which correctly told `barScale` there was
+   * nothing to zoom into, and the chart stayed the flat wall it had always
+   * been. The unit test for `barScale` passed the whole time because it used
+   * seven complete weeks: the shape the app never actually renders.
+   */
+  /* Bucket i spans days [i*7+6 … i*7] back from today, so bucket 0 is days 0–6
+     — the week in progress — and the mid-bucket days below put exactly one
+     session in each of the eight. Miss that and a bucket silently reads 0,
+     which changes the answer for an unrelated reason. */
+  const EIGHT_WEEKS = [
+    volumeSession(52, 6100),
+    volumeSession(45, 6200),
+    volumeSession(38, 6050),
+    volumeSession(31, 6300),
+    volumeSession(24, 6180),
+    volumeSession(17, 6400),
+    volumeSession(10, 6548),
+    // this week, two days in
+    volumeSession(1, 120),
+  ];
+
+  it('scales from the complete weeks, not the one still being trained', () => {
+    seed({ sessions: EIGHT_WEEKS });
+    renderScreen(<ProgressScreen />);
+    // Floating: the footer names the floor. Were the 120kg stub still setting
+    // the scale this would read "peak 6,548kg" and every bar would be full.
+    expect(screen.getByText(/axis starts at/)).toBeTruthy();
+  });
+
+  it('says which bar is the unfinished week, since a truncated axis exaggerates', () => {
+    seed({ sessions: EIGHT_WEEKS });
+    renderScreen(<ProgressScreen />);
+    expect(screen.getByText(/outlined bar is this week so far/)).toBeTruthy();
+  });
+
+  it('keeps the zero baseline when the complete weeks really do vary', () => {
+    seed({
+      sessions: [
+        volumeSession(52, 1000),
+        volumeSession(45, 3000),
+        volumeSession(38, 5000),
+        volumeSession(31, 7000),
+        volumeSession(24, 9000),
+        volumeSession(17, 6000),
+        volumeSession(10, 8000),
+        volumeSession(1, 120),
+      ],
+    });
+    renderScreen(<ProgressScreen />);
+    expect(screen.queryByText(/axis starts at/)).toBeNull();
+    expect(screen.getByText(/peak 9,000kg/)).toBeTruthy();
   });
 });
 
