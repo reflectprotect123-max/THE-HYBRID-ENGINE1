@@ -94,10 +94,6 @@ async function main() {
   const redirects = await readText('_redirects');
   const headers = await readText('_headers');
   const readme = await readText('readme.txt');
-  const worker = await readText('service-worker.js');
-  const indexHtml = await readText('index.html');
-  const appJs = await readText('app.js');
-  const clientJs = (indexHtml || '') + (appJs || '');
 
   let pkg = null;
   let lock = null;
@@ -176,17 +172,13 @@ async function main() {
   check(Boolean(readme) && /Netlify Git|Netlify CLI|Netlify API/i.test(readme) && /static (?:drag-and-drop )?upload[\s\S]*?(?:will|does) not activate (?:server |the )?functions/i.test(readme), 'deployment handoff warns against static-only publication');
   check(Boolean(readme) && /netlify\/functions/.test(readme), 'deployment handoff names the Functions directory');
 
-  if (worker) {
-    check(!/\.netlify\/functions/.test(worker.match(/APP_SHELL\s*=\s*\[([\s\S]*?)\]/)?.[1] || ''), 'service worker app shell does not cache function routes');
-    check(/pathname\.startsWith\(['"]\/\.netlify\/functions\//.test(worker), 'service worker bypasses authenticated function requests');
-    check(/CACHE_NAME\s*=\s*['\"].*-v\d+-\d{4}-\d{2}-\d{2}['\"]/.test(worker), 'service worker cache version is date-stamped');
-  }
+  /* The pre-React service worker and its client used to be asserted here. Both
+     were deleted with the vanilla app: the origin now ships a Workbox worker at
+     /sw.js and a generated tombstone at the old path, and checks/deploy-smoke.mjs
+     asserts BOTH against the real publish directory under the real headers.
+     These blocks were guarded by `if (worker)`, so leaving them would have meant
+     three assertions that quietly stopped running while still reporting green. */
 
-  if (clientJs) {
-    check(/integrations-status/.test(clientJs) && /WHOOP_ENDPOINTS/.test(clientJs), 'browser status request uses the deployed status Function');
-    check(/integrations-disconnect/.test(clientJs) && /WHOOP_ENDPOINTS/.test(clientJs), 'browser disconnect request uses the deployed disconnect Function');
-    check(/method:\s*['"]POST['"]/.test(clientJs) && /credentials:\s*['"]same-origin['"]/.test(clientJs), 'browser disconnect request is same-origin POST');
-  }
 
   const workspaceRoot = resolve(appRoot, '..');
   const archiveCandidates = [

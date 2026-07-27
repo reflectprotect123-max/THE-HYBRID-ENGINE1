@@ -16,7 +16,6 @@
     "verify": "pnpm run typecheck && pnpm run test && pnpm run build:site && pnpm run check:csp && pnpm run smoke && pnpm run smoke:deploy",
     "dev:web": "pnpm --filter @hybrid/web dev",
     "dev:coach": "pnpm --filter @hybrid/coach dev",
-    "golden": "node checks/golden-vectors.mjs",
     "build:site": "pnpm run build && node scripts/build-site.mjs"
   },
   "dependencies": {

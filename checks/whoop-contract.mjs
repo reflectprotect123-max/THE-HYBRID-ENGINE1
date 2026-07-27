@@ -95,9 +95,10 @@ async function main() {
     '_headers',
     'readme.txt',
     'privacy.html',
-    'index.html',
-    'app.js',
-    'integrations/whoop-adapter.js',
+    'packages/engine/src/types.ts',
+    'apps/web/src/cloud/whoop.tsx',
+    'apps/mobile/src/cloud/whoop.tsx',
+    'packages/config/src/index.ts',
     'netlify/functions/_lib/config.mjs',
     'netlify/functions/_lib/crypto.mjs',
     'netlify/functions/_lib/http.mjs',
@@ -138,10 +139,16 @@ async function main() {
   const webhook = sources.get('netlify/functions/whoop-webhook.mjs') || '';
   const disconnect = sources.get('netlify/functions/integrations-disconnect.mjs') || '';
   const status = sources.get('netlify/functions/integrations-status.mjs') || '';
-  const adapter = sources.get('integrations/whoop-adapter.js') || '';
-  const index = sources.get('index.html') || '';
-  const app = sources.get('app.js') || '';
-  const ui = index + app;
+  /* The browser side of WHOOP is now two React clients over one shared
+     endpoint table, not a vanilla adapter plus an inline UI. Concatenated
+     because the assertions below are about the SURFACE the origin exposes —
+     which endpoints get called, and what never appears client-side — and that
+     property has to hold across both apps or it holds in neither. */
+  const sample = sources.get('packages/engine/src/types.ts') || '';
+  const ui =
+    (sources.get('apps/web/src/cloud/whoop.tsx') || '') +
+    (sources.get('apps/mobile/src/cloud/whoop.tsx') || '') +
+    (sources.get('packages/config/src/index.ts') || '');
   const readme = sources.get('readme.txt') || '';
   const privacy = sources.get('privacy.html') || '';
 
@@ -244,18 +251,17 @@ async function main() {
       new RegExp(`\\b${field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`).test(whoop),
       `server normalized recovery field ${field}`,
     );
+    /* The client half of this contract used to live in a vanilla adapter that
+       re-declared every field. It is now ONE shared type that all three apps
+       import, so the field belonging to the client surface means the field
+       existing on WhoopSample — a mismatch between server and client is a
+       compile error rather than a thing this file has to notice. */
     check(
-      new RegExp(`\\b${field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`).test(adapter),
-      `browser normalized recovery field ${field}`,
+      new RegExp(`\\b${field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\??\\s*:`).test(sample),
+      `client normalized recovery field ${field}`,
     );
   }
-  check(/source:\s*['"]whoop['"]/.test(adapter), 'browser WHOOP adapter identifies its provider');
-  check(
-    /canUseWhoopSample/.test(adapter) &&
-      (/Number\.isFinite\(sample\[field\]\)/.test(adapter) || /typeof\s+value\s*===\s*['"]number['"]/.test(adapter)),
-    'browser WHOOP adapter accepts normalized numeric samples only',
-  );
-  check(!/api\.prod\.whoop\.com|oauth\/oauth2|client_secret\s*[:=]/i.test(adapter), 'browser WHOOP adapter has no provider API or secret boundary crossing');
+  check(/source\?\s*:/.test(sample), 'client sample type carries its provider');
 
   check(
     hasAll(connect, [
@@ -516,10 +522,13 @@ async function main() {
   check(/https:\/\/thehybridengine1\.netlify\.app\/\.netlify\/functions\/whoop-webhook/.test(readme), 'production WHOOP webhook URL is documented');
   check(/WHOOP|server-side|credentials are not stored/i.test(privacy) && /credentials.*server-side/i.test(privacy), 'privacy policy states WHOOP credentials stay server-side');
 
-  check(/whoop-connect/.test(ui) && /integrations-status/.test(ui) && /integrations-disconnect/.test(ui) && /whoop-sync/.test(ui), 'app UI uses the integration function endpoints');
-  check(/Connect WHOOP/.test(ui) && /WHOOP_ENDPOINTS\.connect/.test(ui), 'Settings exposes a WHOOP connect entry');
-  check(/whoopCard/.test(ui) && /whoopCardHtml/.test(ui) && /ringx/.test(ui) && /syncWhoop/.test(ui), 'Home exposes a WHOOP-style recovery snapshot with sync states');
-  check(/app\.js/.test(index) && /whoop-connect/.test(app), 'app shell includes the WHOOP integration entry point');
+  check(/whoop-connect/.test(ui) && /integrations-status/.test(ui) && /integrations-disconnect/.test(ui) && /whoop-sync/.test(ui), 'client uses the integration function endpoints');
+  check(/FN\.whoopConnect/.test(ui) && /FN\.whoopSync/.test(ui), 'client reaches those endpoints through the shared table, not by hand-written path');
+  /* The property that actually matters, and the reason this file exists: the
+     browser never talks to WHOOP, only to this origin's own functions. A
+     client that learned the provider's API would be one refresh-token leak
+     away from an incident. */
+  check(!/api\.prod\.whoop\.com|oauth\/oauth2|client_secret\s*[:=]/i.test(ui), 'client has no provider API host or secret — every call is brokered by a Function');
 
   const staticFiles = await walkTextFiles(appRoot, (relativePath) => (
     relativePath === 'netlify' || relativePath.startsWith('netlify/functions/') ||

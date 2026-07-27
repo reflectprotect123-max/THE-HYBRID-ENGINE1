@@ -347,8 +347,7 @@ function extractChains(src, file) {
 const SOURCES = [
   'apps/web/src/cloud/sync.tsx',
   'apps/coach/src/cloud.tsx',
-  'app.js',
-  'coach/js/app.js',
+  'apps/mobile/src/cloud/sync.tsx',
 ];
 
 const chains = [];
@@ -582,12 +581,25 @@ t('athlete_feed is only ever written by the athlete themselves', () => {
     });
 });
 
-t('the React port names the same tables as the vanilla reference', () => {
-  const set = (f) => new Set(chains.filter((c) => c.file === f).map((c) => c.table));
-  const vanillaAthlete = set('app.js');
-  const reactAthlete = set('apps/web/src/cloud/sync.tsx');
-  const missing = [...reactAthlete].filter((x) => !vanillaAthlete.has(x));
-  assert(!missing.length, 'React athlete app touches tables the vanilla app never did: ' + missing.join(', '));
+/*
+ * This used to compare the React apps against the vanilla app's table usage —
+ * a MIGRATION check, and a good one while there were two implementations to
+ * keep honest. The vanilla app is gone, so the reference is gone with it.
+ *
+ * What replaced it is stronger rather than weaker: the schema is the real
+ * authority on which tables exist, and a client naming one that
+ * supabase-schema.sql does not create is a runtime 404 in production — which
+ * the old check could never have caught, because both implementations could
+ * have been wrong together.
+ */
+t('every table a client touches is one the schema actually creates', () => {
+  const declared = new Set(
+    [...schemaSql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?"?([a-z0-9_]+)"?/gi)].map((m) => m[1].toLowerCase()),
+  );
+  assert(declared.size > 0, 'no CREATE TABLE found in supabase-schema.sql — the parse, not the schema, is wrong');
+  const used = new Set(chains.map((c) => c.table.toLowerCase()));
+  const undeclared = [...used].filter((x) => !declared.has(x));
+  assert(!undeclared.length, 'client queries a table the schema never creates: ' + undeclared.join(', '));
 });
 
 /* ==================================================================

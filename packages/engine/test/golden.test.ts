@@ -2,7 +2,10 @@
  * The port's proof of work.
  *
  * Every vector in test/golden/ was produced by running the ORIGINAL vanilla
- * app.js in a real browser (checks/golden-vectors.mjs). If any assertion here
+ * app.js in a real browser. That app and its harvester have since been deleted
+ * — these fixtures are now the only surviving record of what it computed, which
+ * is precisely why they are checked in rather than regenerated. If any assertion
+ * here
  * fails, the TypeScript engine and the shipped app disagree about training
  * maths, and one of them is wrong. Regenerating the fixtures to make a test
  * pass is how a silent behaviour change gets shipped — don't.

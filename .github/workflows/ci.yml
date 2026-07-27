@@ -116,11 +116,18 @@ jobs:
       - name: Deploy smoke (publish directory, Chromium)
         run: pnpm run smoke:deploy
 
-      # Suites that need no network and no secrets: emit-contract and pentest
-      # drive local files in Chromium, native-pwa-smoke and whoop-deployment-smoke
-      # are pure file reads, whoop-contract constructs and asserts OAuth URLs
-      # without calling anyone, and supabase-contract runs its static half (it
-      # skips only the live round-trip, which needs credentials).
+      # Suites that need no network and no secrets. emit-contract used to lead
+      # this list; it string-pinned the vanilla app.js and round-tripped the
+      # vanilla coach emit.js through a browser. Both are deleted, and
+      # packages/engine/test/emit.test.ts already asserts every property it
+      # pinned — against the live code rather than by regexing a file.
+      #
+      # pentest attacks the real function crypto in-process and then statically
+      # sweeps all three apps for raw-HTML sinks,
+      # whoop-deployment-smoke is pure file reads, whoop-contract constructs and
+      # asserts OAuth URLs without calling anyone, and supabase-contract runs
+      # its static half (it skips only the live round-trip, which needs
+      # credentials).
       #
       # whoop-contract must run AFTER the build: its secret scan sweeps the
       # built bundles as well as the source, because a credential baked in at
@@ -132,13 +139,16 @@ jobs:
       # copied the public anon key out of a client bundle being handed a
       # logged-in identity.
       #
-      # browser-smoke, torture and coach-smoke drive the pre-React vanilla app,
-      # which is still in the tree as the rollback path but is no longer what
-      # deploys. golden-vectors regenerates fixtures rather than asserting.
+      # The vanilla app that browser-smoke, torture, coach-smoke, native-pwa-smoke
+      # and golden-vectors drove has been deleted, and so have they. Its coverage
+      # did not vanish with it: react-smoke and deploy-smoke drive the BUILT
+      # React output under the real headers, check:csp guards the inline-script
+      # rule, and pentest's static sweep guards the injection sinks the vanilla
+      # XSS suite existed to find.
       - name: Contract + security suites (no network)
         run: |
           set -o pipefail
-          for check in emit-contract pentest native-pwa-smoke supabase-contract whoop-contract whoop-deployment-smoke supabase-auth; do
+          for check in pentest supabase-contract whoop-contract whoop-deployment-smoke supabase-auth; do
             echo "::group::checks/$check.mjs"
             node "checks/$check.mjs" 2>&1 | tee "$RUNNER_TEMP/$check.log"
             echo "::endgroup::"

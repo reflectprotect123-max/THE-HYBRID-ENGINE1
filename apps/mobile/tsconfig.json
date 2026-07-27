@@ -8,8 +8,9 @@
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    "types": ["react", "nativewind/types"],
+    "types": ["react", "nativewind/types", "jest"],
     "allowJs": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "index.js", "nativewind-env.d.ts"]
+  "//include": "test/ is in here deliberately: a test that does not compile is a test that silently stops running, and `tsc` is the only thing that would say so before someone notices the count dropped.",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "index.js", "nativewind-env.d.ts"]
 }

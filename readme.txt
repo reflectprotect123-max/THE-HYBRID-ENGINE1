@@ -1,18 +1,21 @@
 THE Hybrid System — local-first training PWA + coach website
 
-Two entities share one Supabase project:
-  1. The athlete app (repo root) — a local-first PWA. Workouts, live sessions
-     and history live on-device (localStorage), with optional cloud sync and
-     server-side WHOOP recovery via Netlify functions. Wrapped as an Android
-     app (native/android-app) that adds BLE heart rate, on-device OCR, voice
-     input and a step counter.
-  2. The coach website (coach/) — a desktop builder served in place at
-     /coach/. Authors programs -> weeks -> days -> sessions and publishes them
-     to an athlete's calendar. See coach/GO-LIVE.md.
+A pnpm monorepo. One engine, three front ends, one Supabase project:
+  packages/engine   every training decision — zones, autoregulation, the
+                    progression, the sync merge. No DOM, no globals.
+  apps/web          the athlete PWA. The origin.
+  apps/coach        the desktop builder, served in place at /coach/.
+  apps/mobile       the Android app (Expo/EAS) with real BLE heart rate.
+
+The pre-React vanilla app that used to live at the repo root — app.js,
+index.html, coach/ — has been deleted, along with the Tauri and TWA wrappers
+under native/. It deployed nothing and was tested by suites that ran nowhere.
+Its behaviour survives as packages/engine/test/golden/, harvested from it
+before it went.
 
 Quick local test
-1. Run: python3 -m http.server 4173
-2. Visit: http://localhost:4173
+1. Run: pnpm run dev:web    (or dev:coach)
+2. For the phone: pnpm --filter @hybrid/mobile start
 3. Service workers and PWA install need localhost or HTTPS, not file://.
 
 Screens
@@ -103,17 +106,21 @@ service worker never receive or cache provider tokens.
 Verification
 From the repository root, run:
 
-  node checks/native-pwa-smoke.mjs .
-  node checks/whoop-contract.mjs .
-  node checks/whoop-deployment-smoke.mjs .
-  node checks/browser-smoke.mjs       (needs: npm i -D playwright)
-  node checks/torture.mjs             (edge cases / abuse of the session engine)
-  node checks/pentest.mjs             (adversarial; needs playwright for the browser half)
-  node checks/emit-contract.mjs       (coach -> phone shape contract; dual-mode)
-  node checks/coach-smoke.mjs         (the coach builder, fully offline)
+  pnpm run verify                     (typecheck, tests, build, both smokes)
 
-All eight should pass before shipping. The last two are the only automated
-coverage of the coach entity.
+and the contract/security suites, none of which need network or secrets:
+
+  node checks/pentest.mjs             (attacks the real function crypto; then
+                                       sweeps all three apps for raw-HTML sinks)
+  node checks/supabase-contract.mjs   (every query against the real schema + RLS)
+  node checks/supabase-auth.mjs       (forged tokens against the verifier)
+  node checks/whoop-contract.mjs      (OAuth URLs, and no secret client-side)
+  node checks/whoop-deployment-smoke.mjs
+
+.github/workflows/ci.yml runs exactly this list on every push, plus Playwright
+for the browser halves of react-smoke and deploy-smoke. It installs Playwright
+explicitly and FAILS if a browser section skips — a suite that quietly tested
+nothing is worse than one that failed.
 
 This repository is not an access-control layer. Do not put provider
 credentials or secrets in the browser or the repository.
