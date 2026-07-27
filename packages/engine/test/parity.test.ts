@@ -87,6 +87,55 @@ describe('the guided-logger prefills', () => {
     const e = ex('Back squat', [{ t: '8-10', rpe: '8' }]);
     expect(prefillSecondary(e, 0)).toBe('10');
   });
+
+  /* The earned weight sits BETWEEN this exercise's own earlier sets and last
+     time's history. Every neighbour in that order is load-bearing. */
+  describe('the earned working weight', () => {
+    const earned = { liftProgress: { 'back squat': { kg: 105, at: 2000 } } };
+
+    it('outranks repeating what was lifted last time', () => {
+      // The whole point. Without this the app prints "+2.5 kg for next session"
+      // and then offers the same 100 it always did.
+      expect(prefillPrimary(today, 1, [last], { settings: earned })).toBe('105');
+    });
+
+    it('never reaches a warm-up', () => {
+      // A warm-up prefilled from the working weight is the same contamination
+      // `same()` exists to stop, arriving through the front door instead.
+      expect(prefillPrimary(today, 0, [last], { settings: earned })).toBe('40');
+    });
+
+    it('never overwrites a number already typed', () => {
+      const typed = ex('Back squat', [{ t: '5', rpe: '8', aVal: '97.5' }]);
+      expect(prefillPrimary(typed, 0, [last], { settings: earned })).toBe('97.5');
+    });
+
+    it('yields to an earlier set of the SAME exercise', () => {
+      // What is on the bar right now beats what last week decided you'd be on.
+      const mid = ex('Back squat', [
+        { t: '5', rpe: '8', aVal: '102.5', done: true },
+        { t: '5', rpe: '8' },
+      ]);
+      expect(prefillPrimary(mid, 1, [last], { settings: earned })).toBe('102.5');
+    });
+
+    it('falls back to history for a lift that has earned nothing', () => {
+      expect(prefillPrimary(today, 1, [last], { settings: { liftProgress: {} } })).toBe('100');
+    });
+
+    it('is eased on a red recovery morning, but not on a green one', () => {
+      const red = prefillPrimary(today, 1, [last], {
+        settings: earned,
+        whoop: { recoveryScore: 20 },
+      });
+      const green = prefillPrimary(today, 1, [last], {
+        settings: earned,
+        whoop: { recoveryScore: 80 },
+      });
+      expect(red).toBe('102.5');
+      expect(green).toBe('105');
+    });
+  });
 });
 
 describe('rep targets', () => {

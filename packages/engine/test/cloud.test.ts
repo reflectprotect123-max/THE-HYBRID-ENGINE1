@@ -173,6 +173,29 @@ describe('applyPull', () => {
   });
 });
 
+describe('mergeSettings carries earned working weights', () => {
+  const at = (kg: number, when: number) => ({ workouts: [], sessions: [], settings: { liftProgress: { squat: { kg, at: when } } } });
+
+  it('a DELOAD survives a merge against a higher, older weight', () => {
+    // The case that makes this rule different from conProgress's max-wins.
+    // A missed set, or a deliberate back-off, lowers the weight — and max-wins
+    // would restore the higher number on the next sync, so the one outcome an
+    // athlete most needs to stick is the one it would eat.
+    const deloaded = at(90, 2000);
+    const stale = at(110, 1000);
+
+    expect(applyPull(deloaded, stale).db.settings.liftProgress?.squat.kg, 'local deload vs older remote').toBe(90);
+    expect(applyPull(stale, deloaded).db.settings.liftProgress?.squat.kg, 'remote deload vs older local').toBe(90);
+  });
+
+  it('a lift only one side knows about is kept, not dropped', () => {
+    const a: EngineDB = { workouts: [], sessions: [], settings: { liftProgress: { squat: { kg: 100, at: 1 } } } };
+    const b: EngineDB = { workouts: [], sessions: [], settings: { liftProgress: { bench: { kg: 60, at: 1 } } } };
+    const lp = applyPull(a, b).db.settings.liftProgress || {};
+    expect(Object.keys(lp).sort()).toEqual(['bench', 'squat']);
+  });
+});
+
 describe('coachDigest', () => {
   // Real epoch milliseconds: with toy values `now − 90 days` goes negative and
   // the window can never exclude anything, so the bound would test nothing.

@@ -15,6 +15,7 @@ import {
   isWarmup,
   MAX_KG,
   nextLoggerLocation,
+  nextWorkingWeight,
   plateBreakdown,
   prefillPrimary,
   prefillSecondary,
@@ -52,7 +53,7 @@ type Phase = 'input' | 'rpe' | 'rest';
 
 export function LoggerScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { activeSession, db, updateSession } = useDb();
+  const { activeSession, db, whoop, updateSession } = useDb();
   const rest = useRest();
 
   const [loc, setLoc] = useState({ bi: route.params.bi, ei: route.params.ei });
@@ -82,11 +83,11 @@ export function LoggerScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (!ex || si < 0 || lastKey.current === setKey) return;
     lastKey.current = setKey;
-    setV1(prefillPrimary(ex, si, db.sessions));
+    setV1(prefillPrimary(ex, si, db.sessions, { settings: db.settings, whoop }));
     setV2(prefillSecondary(ex, si));
     setNoteOpen(false);
     setPlatesOpen(false);
-  }, [ex, si, setKey, db.sessions]);
+  }, [ex, si, setKey, db.sessions, db.settings, whoop]);
 
   useEffect(() => {
     if (phase === 'rest' && !rest.running) setPhase('input');
@@ -97,6 +98,15 @@ export function LoggerScreen({ route, navigation }: Props) {
   // Where "next exercise" points. Never the current location — re-entering
   // would reset the stage and discard an RPE already dialled in.
   const next = useMemo(() => (s ? nextLoggerLocation(s, loc.bi, loc.ei) : null), [s, loc.bi, loc.ei]);
+
+  /* Where the prefilled weight came from. A number that appears in the box on
+     its own is either trusted blindly or ignored; naming its origin — earned
+     last session, and whether today's recovery eased it — is what makes it
+     a suggestion rather than an instruction. */
+  const earned = useMemo(
+    () => (ex && lift ? nextWorkingWeight(ex.name, db.settings, whoop) : null),
+    [ex, lift, db.settings, whoop],
+  );
 
   if (!s || !block || isCond(block) || !ex) {
     return (
@@ -296,7 +306,16 @@ export function LoggerScreen({ route, navigation }: Props) {
               <>
                 {lift ? (
                   <>
-                    <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">Weight</T>
+                    <View className="mt-2 flex-row items-baseline justify-between">
+                      <T w="semi" className="text-2 uppercase tracking-widest text-dim">Weight</T>
+                      {earned && !isWarmup(st) ? (
+                        <T num className="text-2 text-muted">
+                          {earned.dailyAdj < 0
+                            ? `earned ${earned.earned}kg · ${earned.note}`
+                            : `earned ${earned.earned}kg last time`}
+                        </T>
+                      ) : null}
+                    </View>
                     <View className="mt-0.5 flex-row gap-1">
                       <Pressable
                         onPress={() => step(-1)}

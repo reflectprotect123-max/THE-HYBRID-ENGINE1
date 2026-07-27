@@ -1,6 +1,7 @@
 import { isWarmup, repTopOf } from './autoreg';
+import { nextWorkingWeight } from './lift';
 import { blockExercises, isCond, isLiftMode } from './session';
-import type { Exercise, LoggedSet, Session } from './types';
+import type { Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
 
 /*
  * The guided set flow, as logic.
@@ -107,6 +108,12 @@ function lastTimeFor(name: string, sessions: Session[]): (LoggedSet | null)[] | 
   return null;
 }
 
+/** Where the earned weight comes from. Optional — omit it and nothing changes. */
+export interface PrefillCtx {
+  settings?: Settings;
+  whoop?: WhoopSample | null;
+}
+
 /**
  * What to put in the primary field before the athlete types.
  *
@@ -114,8 +121,19 @@ function lastTimeFor(name: string, sessions: Session[]): (LoggedSet | null)[] | 
  * first working set — or a working weight back into a warm-up — is the same
  * contamination the isWarmup guards exist to prevent, just arriving through the
  * prefill instead of through the maths.
+ *
+ * The order below is the whole rule, and each step outranks the next for a
+ * reason: something already typed must never be overwritten by a suggestion;
+ * this exercise's own earlier sets are more current than any history; the
+ * EARNED weight is what the last session decided you should be on; and only
+ * when nothing has been earned does it fall back to repeating last time.
  */
-export function prefillPrimary(ex: Exercise<LoggedSet>, si: number, sessions: Session[] = []): string {
+export function prefillPrimary(
+  ex: Exercise<LoggedSet>,
+  si: number,
+  sessions: Session[] = [],
+  ctx: PrefillCtx = {},
+): string {
   const st = ex.sets[si];
   if (!st) return '';
   if (st.aVal) return st.aVal;
@@ -129,6 +147,14 @@ export function prefillPrimary(ex: Exercise<LoggedSet>, si: number, sessions: Se
   }
 
   if (isLiftMode(ex.mode)) {
+    // Working sets only. A warm-up prefilled from the earned working weight is
+    // the exact contamination the `same` guard exists to stop, and it would
+    // arrive here through the front door.
+    if (!warm) {
+      const w = nextWorkingWeight(ex.name, ctx.settings, ctx.whoop);
+      if (w) return String(w.kg);
+    }
+
     const last = lastTimeFor(ex.name, sessions);
     if (last) {
       const at = last[si];

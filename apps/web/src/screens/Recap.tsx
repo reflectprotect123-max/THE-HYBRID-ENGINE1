@@ -7,6 +7,7 @@ import {
   fmtClock,
   isCond,
   isWarmup,
+  liftMoves,
   sessionRpe,
   sessionVolume,
   type LoggedSet,
@@ -30,6 +31,7 @@ export function Recap() {
   const s = sessions.find((x) => x.id === id);
   const others = useMemo(() => sessions.filter((x) => x.id !== id), [sessions, id]);
   const prs = useMemo(() => (s ? detectPRs(s, others) : []), [s, others]);
+  const moves = useMemo(() => liftMoves(s), [s]);
 
   if (!s) {
     return (
@@ -89,6 +91,42 @@ export function Recap() {
                 : 'easier than asked. There is room to add load.'}
           </p>
         </Card>
+      ) : null}
+
+      {/* The one thing this session changed about the next one. The logger says
+          it a set at a time and it scrolls away; here it is the standing
+          record of what you are now on. */}
+      {moves.length ? (
+        <>
+          <SectionHead title="Next session" />
+          <Card>
+            <ul className="flex flex-col gap-0.5">
+              {moves.map((m) => (
+                <li key={m.key} className="flex items-baseline gap-1">
+                  <span className="min-w-0 flex-1 truncate text-4 font-[650]">{m.name}</span>
+                  <span className="num text-4 text-muted">{m.from} →</span>
+                  <span
+                    className="num text-4 font-[750]"
+                    style={{
+                      color:
+                        m.delta > 0
+                          ? 'var(--color-ok)'
+                          : m.delta < 0
+                            ? 'var(--color-bad)'
+                            : 'var(--color-muted)',
+                    }}
+                  >
+                    {m.to}kg
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 border-t border-line pt-1 text-2 text-dim">
+              From your last working set of each lift. It is what the weight field starts at next time — not a rule,
+              and a red recovery morning eases it further.
+            </p>
+          </Card>
+        </>
       ) : null}
 
       <SectionHead title="Everything logged" />

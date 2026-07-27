@@ -9,6 +9,7 @@ import {
   fmtClock,
   isCond,
   isWarmup,
+  liftMoves,
   sessionRpe,
   sessionVolume,
   type LoggedSet,
@@ -28,6 +29,7 @@ export function RecapScreen() {
 
   const s = db.sessions.find((x) => x.id === route.params.id);
   const prs = useMemo(() => (s ? detectPRs(s, db.sessions.filter((x) => x.id !== s.id)) : []), [s, db.sessions]);
+  const moves = useMemo(() => liftMoves(s), [s]);
 
   if (!s) {
     return (
@@ -86,6 +88,40 @@ export function RecapScreen() {
                 : 'easier than asked. There is room to add load.'}
           </T>
         </Card>
+      ) : null}
+
+      {/* The one thing this session changed about the next one. The logger says
+          it a set at a time and it scrolls away; here it is the standing
+          record of what you are now on. */}
+      {moves.length ? (
+        <>
+          <SectionHead title="Next session" />
+          <Card>
+            {moves.map((m) => (
+              <View key={m.key} className="flex-row items-baseline">
+                <T w="semi" className="flex-1 text-4 text-text" numberOfLines={1}>
+                  {m.name}
+                </T>
+                <T num className="text-4 text-muted">
+                  {m.from}
+                  {' → '}
+                </T>
+                <T
+                  w="semi"
+                  num
+                  className="text-4"
+                  style={{ color: m.delta > 0 ? '#9fc59b' : m.delta < 0 ? '#cf7f7c' : '#aaa49a' }}
+                >
+                  {m.to}kg
+                </T>
+              </View>
+            ))}
+            <T className="mt-1 border-t border-line pt-1 text-2 text-dim">
+              From your last working set of each lift. It is what the weight field starts at next time — not a rule,
+              and a red recovery morning eases it further.
+            </T>
+          </Card>
+        </>
       ) : null}
 
       <SectionHead title="Everything logged" />

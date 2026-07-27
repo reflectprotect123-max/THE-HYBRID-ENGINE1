@@ -13,6 +13,7 @@ import {
   isWarmup,
   MAX_KG,
   nextLoggerLocation,
+  nextWorkingWeight,
   plateBreakdown,
   prefillPrimary,
   prefillSecondary,
@@ -59,7 +60,7 @@ export function Logger() {
   const bi = Number(biStr);
   const ei = Number(eiStr);
   const nav = useNavigate();
-  const { activeSession, sessions, update } = useDb();
+  const { activeSession, sessions, settings, whoop, update } = useDb();
   const rest = useRest();
 
   // `replace`, so the back arrow still leaves the stage for the session list
@@ -87,11 +88,11 @@ export function Logger() {
   useEffect(() => {
     if (!ex || si < 0 || lastKey.current === setKey) return;
     lastKey.current = setKey;
-    setV1(prefillPrimary(ex, si, sessions));
+    setV1(prefillPrimary(ex, si, sessions, { settings, whoop }));
     setV2(prefillSecondary(ex, si));
     setNoteOpen(false);
     setPlatesOpen(false);
-  }, [ex, si, setKey, sessions]);
+  }, [ex, si, setKey, sessions, settings, whoop]);
 
   // Rest ending returns the stage to input for whatever set is now current.
   useEffect(() => {
@@ -101,6 +102,15 @@ export function Logger() {
   const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);
   const letters = useMemo(() => (s ? sessionLetters(s) : {}), [s]);
   const next = useMemo(() => (s ? nextLoggerLocation(s, bi, ei) : null), [s, bi, ei]);
+
+  /* Where the prefilled weight came from. A number that appears in the box on
+     its own is either trusted blindly or ignored; naming its origin — earned
+     last session, and whether today's recovery eased it — is what makes it a
+     suggestion rather than an instruction. */
+  const earned = useMemo(
+    () => (ex && lift ? nextWorkingWeight(ex.name, settings, whoop) : null),
+    [ex, lift, settings, whoop],
+  );
 
   if (!s || !block || isCond(block) || !ex) {
     return (
@@ -290,6 +300,13 @@ export function Logger() {
                   <>
                     <StepperField
                       label="Weight"
+                      note={
+                        earned && !isWarmup(st)
+                          ? earned.dailyAdj < 0
+                            ? `earned ${earned.earned}kg · ${earned.note}`
+                            : `earned ${earned.earned}kg last time`
+                          : ''
+                      }
                       unit="kg"
                       value={v1}
                       onChange={(v) => writeVal(1, v)}
@@ -427,6 +444,7 @@ function Dots({ ex, si }: { ex: Exercise<LoggedSet>; si: number }) {
 
 function StepperField({
   label,
+  note,
   unit,
   value,
   onChange,
@@ -434,6 +452,8 @@ function StepperField({
   inputMode,
 }: {
   label: string;
+  /** where a prefilled value came from — see the `earned` memo above */
+  note?: string;
   unit: string;
   value: string;
   onChange: (v: string) => void;
@@ -442,7 +462,10 @@ function StepperField({
 }) {
   return (
     <div className="mt-2">
-      <label className="text-2 font-[750] uppercase tracking-[.14em] text-dim">{label}</label>
+      <div className="flex items-baseline justify-between gap-1">
+        <label className="text-2 font-[750] uppercase tracking-[.14em] text-dim">{label}</label>
+        {note ? <span className="num text-2 text-muted">{note}</span> : null}
+      </div>
       <div className="mt-0.5 flex items-stretch gap-1">
         <button
           onClick={() => onStep(-1)}

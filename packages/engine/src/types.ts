@@ -156,9 +156,27 @@ export interface ProgressState {
   miss: number;
 }
 
+/**
+ * The working weight a movement has EARNED, carried to its next session.
+ *
+ * It lives in settings rather than on a set because `FORBIDDEN_SET_KEYS` bans
+ * recorded values from a planned set and `emit.test.ts` asserts it — a weight
+ * riding on a `PlannedSet` would leak an athlete's logbook into a coach's plan.
+ */
+export interface LiftState {
+  /** kilos to offer next time */
+  kg: number;
+  /** `completedAt` of the session that earned it — the merge tiebreak */
+  at: number;
+  /** reps it was earned at, so a changed rep target is visible in the record */
+  reps?: number;
+}
+
 export interface Settings {
   profile?: Profile;
   conProgress?: Record<string, ProgressState>;
+  /** Earned working weights, keyed by LOWERCASED movement name. */
+  liftProgress?: Record<string, LiftState>;
   conditioning?: CondResult[];
   customFmt?: { rounds?: number | string; work?: number | string; rest?: number | string };
   /**

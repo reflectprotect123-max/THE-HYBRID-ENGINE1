@@ -8,6 +8,7 @@ import {
   exFinished,
   freshSessionBlocks,
   isCond,
+  liftAdapt,
   rxLine,
   sessionLetters,
   sessionProgress,
@@ -65,6 +66,11 @@ export function Training() {
       ds.status = 'completed';
       ds.completedAt = Date.now();
       ds.updatedAt = Date.now();
+      /* Bank each lift's next working weight, in the SAME write that closes the
+         session — the way conditioning banks its level in the write that
+         records the effort. Split across two updates, a crash between them
+         would leave a finished session that progressed nothing. */
+      draft.settings.liftProgress = liftAdapt(ds, draft.settings).liftProgress;
     });
     // Straight to the recap: the moment after finishing is the only time
     // anyone actually reads what they just did.

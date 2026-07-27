@@ -5,6 +5,7 @@ import type {
   Block,
   EngineDB,
   Exercise,
+  LiftState,
   LoggedSet,
   ProgressState,
   Session,
@@ -152,6 +153,36 @@ export function mergeSettings(base: Settings = {}, winner: Settings = {}): Setti
       });
     });
     out.conProgress = cp;
+  }
+
+  // Earned working weights: NEWEST wins per lift, by the `at` the session that
+  // earned it finished.
+  //
+  // This looks inconsistent with the max-wins rule directly above and is not.
+  // `conProgress.level` only ever climbs a ladder, so taking the higher side is
+  // safe. A working weight must be able to go DOWN — a set that missed its rep
+  // floor, or a deload — and max-wins would ratchet it up forever, so the one
+  // outcome the athlete most needs to survive a sync is the one it would eat.
+  const bl2 = base.liftProgress || {};
+  const wl2 = winner.liftProgress || {};
+  const lk = new Set([...Object.keys(bl2), ...Object.keys(wl2)]);
+  if (lk.size) {
+    const lp: Record<string, LiftState> = {};
+    lk.forEach((k) => {
+      const a = bl2[k];
+      const b = wl2[k];
+      if (!a) {
+        if (b) lp[k] = b;
+        return;
+      }
+      if (!b) {
+        lp[k] = a;
+        return;
+      }
+      // `winner` takes an exact tie, matching how every scalar above resolves.
+      lp[k] = (b.at || 0) >= (a.at || 0) ? b : a;
+    });
+    out.liftProgress = lp;
   }
 
   // Conditioning history: union by id, but MERGE each record rather than taking
