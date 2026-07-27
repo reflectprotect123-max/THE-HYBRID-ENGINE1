@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
+import { useRoute, type RouteProp } from '@react-navigation/native';
 import {
   CON_FORMATS,
   conAdapt,
@@ -9,6 +10,7 @@ import {
   conZoneOf,
   conZones,
   fmtClock,
+  isCond,
   paramsFor,
   pushCondHistory,
   uid,
@@ -19,7 +21,8 @@ import {
   type Phase,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
+import { buzz, createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
+import type { RootStackParams } from '../App';
 import { color } from '@hybrid/design';
 import { Btn, Card, Chip, Kicker, Ring, Row, Screen, SectionHead, T, Title, zoneInk, zoneNeon } from '../ui';
 
@@ -35,8 +38,16 @@ import { Btn, Card, Chip, Kicker, Ring, Row, Screen, SectionHead, T, Title, zone
  * says which, because hiding that difference makes the whole progression feel
  * arbitrary.
  */
+/** Below this, a run is a mis-tap rather than training, and is not recorded. */
+const MIN_LOGGABLE_SEC = 20;
+
 export function ConditioningScreen() {
-  const { db, hr, whoop, update } = useDb();
+  const { db, hr, whoop, update, activeSession } = useDb();
+  // Which block of the live session this run belongs to, when it was started
+  // from one. Absent for a standalone run off Home.
+  const route = useRoute<RouteProp<RootStackParams, 'Conditioning'>>();
+  const sinkBid = route.params?.bid ?? '';
+  const sinkBi = route.params?.bi ?? -1;
   const [fmt, setFmt] = useState<CondFmtKey>('intervals');
   const [live, setLive] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -58,14 +69,44 @@ export function ConditioningScreen() {
   const phases = useMemo<Phase[]>(() => CON_FORMATS[fmt].build(paramsFor(fmt, rx)), [fmt, rx]);
   const totalSec = useMemo(() => phases.reduce((n, p) => n + p.dur, 0), [phases]);
 
-  const phaseNow = useMemo(() => {
+  /* Indexed, not just resolved: the INDEX is what makes a phase change
+     detectable, which is what the buzz below hangs off. -1 means the
+     prescription has been run to the end. */
+  const phaseIdx = useMemo(() => {
     let acc = 0;
-    for (const p of phases) {
-      if (elapsed < acc + p.dur) return { p, into: elapsed - acc };
-      acc += p.dur;
+    for (let i = 0; i < phases.length; i++) {
+      if (elapsed < acc + phases[i].dur) return i;
+      acc += phases[i].dur;
     }
-    return null;
+    return -1;
   }, [phases, elapsed]);
+
+  const phaseNow = useMemo(() => {
+    if (phaseIdx < 0) return null;
+    const into = elapsed - phases.slice(0, phaseIdx).reduce((n, p) => n + p.dur, 0);
+    return { p: phases[phaseIdx], into };
+  }, [phases, phaseIdx, elapsed]);
+
+  const done = live && phaseIdx < 0;
+
+  /*
+   * A buzz on every phase change, and on finishing.
+   *
+   * This is the screen that exists to run in a pocket with the screen off, and
+   * intervals you cannot feel switch are intervals you cannot train to. The
+   * very first phase is skipped — you just pressed Start, you know it began.
+   */
+  const lastPhase = useRef<number | null>(null);
+  useEffect(() => {
+    if (!live) {
+      lastPhase.current = null;
+      return;
+    }
+    if (lastPhase.current === phaseIdx) return;
+    const first = lastPhase.current === null;
+    lastPhase.current = phaseIdx;
+    if (!first) void buzz();
+  }, [live, phaseIdx]);
 
   useEffect(() => {
     if (!live) return;
@@ -109,6 +150,18 @@ export function ConditioningScreen() {
     monitor.current?.stop();
     void setKeepAwake(false);
 
+    /*
+     * A run too short to be training is discarded rather than banked. Start
+     * then immediately Finish used to record a one-second session, and
+     * conAdapt then moved your EARNED level off that — a mis-tap quietly
+     * rewriting your progression.
+     */
+    if (elapsed < MIN_LOGGABLE_SEC) {
+      setElapsed(0);
+      samples.current = [];
+      return;
+    }
+
     const dur = Math.max(1, elapsed);
     const trace = conDownsample(samples.current, dur);
     const rec: CondResult = {
@@ -123,11 +176,29 @@ export function ConditioningScreen() {
       trace,
     };
     setResult(rec);
+    void buzz();
     update((d) => {
       const { conProgress } = conAdapt(rec, d.settings);
       d.settings.conProgress = conProgress;
-      d.settings.conditioning = pushCondHistory(d.settings, rec);
       d.settings.updatedAt = Date.now();
+
+      /*
+       * A run started FROM a session belongs to that session's block. Banking
+       * it in the standalone history instead left the block forever unlogged:
+       * the session could never reach 100%, Training kept offering work
+       * already done, and the recap and history showed none of it. Match by
+       * block id first so an edited or reordered session still lands on the
+       * right block, then fall back to the index.
+       */
+      const ds = activeSession ? d.sessions.find((x) => x.id === activeSession.id) : undefined;
+      let cb = ds && sinkBid ? ds.blocks.find((b) => b.id === sinkBid) : undefined;
+      if (ds && !isCond(cb) && sinkBi >= 0) cb = ds.blocks[sinkBi];
+      if (ds && isCond(cb)) {
+        cb.condResult = rec;
+        ds.updatedAt = Date.now();
+        return;
+      }
+      d.settings.conditioning = pushCondHistory(d.settings, rec);
     });
   };
 
@@ -207,13 +278,24 @@ export function ConditioningScreen() {
                 <T num className="mt-1 text-4 text-gold2">
                   {phaseNow.p.name} · {fmtClock(phaseNow.p.dur - phaseNow.into)} left
                 </T>
-              ) : null}
+              ) : (
+                /* The prescription is done. It used to just keep counting with
+                   no label, so nothing ever told you to stop. */
+                <T w="semi" className="mt-1 text-4 text-done-ink">
+                  Prescription complete — tap Finish
+                </T>
+              )}
               {bpm == null && hrMsg ? <T className="mt-1 text-3 text-muted">{hrMsg}</T> : null}
             </View>
           </Card>
           <Btn variant="brass" size="lg" className="mt-3" onPress={finish}>
-            Finish
+            {done ? 'Finish ✓' : 'Finish'}
           </Btn>
+          {elapsed < MIN_LOGGABLE_SEC ? (
+            <T className="mt-1 text-center text-3 text-dim">
+              Runs under {MIN_LOGGABLE_SEC}s are discarded, not logged.
+            </T>
+          ) : null}
         </>
       ) : null}
 

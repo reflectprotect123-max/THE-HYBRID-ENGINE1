@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, View } from 'react-native';
+import { useMemo } from 'react';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -57,7 +58,27 @@ export function TrainingScreen() {
 
   const pad = { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32, paddingHorizontal: 16 };
 
-  if (!activeSession) {
+  /*
+   * Derived ABOVE the no-session early return, and null-guarded, because these
+   * are hooks: computing them after the return meant this component rendered
+   * three hooks with no session and seven with one, so the very act of
+   * starting a session threw "rendered more hooks than during the previous
+   * render". Hook count has to be identical on every path.
+   *
+   * Memoised because this screen sits UNDER the Logger in the stack and stays
+   * mounted, so every keystroke in a set field re-rendered it — and detectPRs
+   * re-scans the entire training history for records.
+   */
+  const s = activeSession;
+  const letters = useMemo(() => (s ? sessionLetters(s) : {}), [s]);
+  const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);
+  // Against every OTHER session — comparing a session with itself would call
+  // its own first working set a record.
+  const prs = useMemo(() => (s ? detectPRs(s, db.sessions.filter((x) => x.id !== s.id)) : []), [s, db.sessions]);
+  const volume = useMemo(() => (s ? sessionVolume(s) : 0), [s]);
+
+  // Narrowed on `s`, not activeSession, so it stays non-null below.
+  if (!s) {
     return (
       <ScrollView className="flex-1 bg-bg" contentContainerStyle={pad}>
         <Kicker>Training</Kicker>
@@ -87,12 +108,37 @@ export function TrainingScreen() {
     );
   }
 
-  const s = activeSession;
-  const letters = sessionLetters(s);
-  const prog = sessionProgress(s);
-  // Against every OTHER session — comparing a session with itself would call
-  // its own first working set a record.
-  const prs = detectPRs(s, db.sessions.filter((x) => x.id !== s.id));
+  const finish = () => {
+    if (!s) return;
+    const left = prog.total - prog.done;
+    const end = () => {
+      update((draft) => {
+        const ds = draft.sessions.find((x) => x.id === s.id);
+        if (!ds) return false;
+        ds.status = 'completed';
+        ds.completedAt = Date.now();
+        ds.updatedAt = Date.now();
+      });
+      // Straight to the recap: just after finishing is the only time anyone
+      // actually reads what they did.
+      nav.navigate('Recap', { id: s.id });
+    };
+    // Finishing cannot be undone — nothing reopens a completed session — and
+    // this is a full-width button at the bottom of a list you thumb through
+    // mid-workout. Only ask when there is actually work left to lose.
+    if (left > 0) {
+      Alert.alert(
+        'Finish with work left?',
+        `${left} set${left === 1 ? '' : 's'} still unlogged. Finishing cannot be undone.`,
+        [
+          { text: 'Keep training', style: 'cancel' },
+          { text: 'Finish anyway', style: 'destructive', onPress: end },
+        ],
+      );
+      return;
+    }
+    end();
+  };
 
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerStyle={pad}>
@@ -106,7 +152,7 @@ export function TrainingScreen() {
         <T num className="text-2 text-dim">
           {prog.done} of {prog.total} done
         </T>
-        <T num className="text-2 text-dim">{sessionVolume(s).toLocaleString()} kg</T>
+        <T num className="text-2 text-dim">{volume.toLocaleString()} kg</T>
       </View>
 
       {s.blocks.map((b, bi) => (
@@ -114,11 +160,19 @@ export function TrainingScreen() {
           <T w="semi" className="mb-1 text-5 text-text">{b.heading || 'Block'}</T>
           {isCond(b) ? (
             <Pressable
-              onPress={() => (b.condResult ? undefined : nav.navigate('Conditioning'))}
+              /* Carries WHICH block this is, so the result lands back on it.
+                 Without it the run banked into standalone history and the
+                 block stayed forever unlogged. A logged block reopens the
+                 recap rather than being inert. */
+              onPress={() =>
+                b.condResult ? nav.navigate('Recap', { id: s.id }) : nav.navigate('Conditioning', { bi, bid: b.id })
+              }
               className={`rounded-lg border p-2 ${b.condResult ? 'border-done-line bg-done-bg' : 'border-line bg-panel'}`}
             >
               <T w="semi" className="text-5 text-text">{b.condFmt}</T>
-              <T className="text-3 text-dim">{b.condResult ? 'logged' : 'runs by heart rate · tap to start'}</T>
+              <T className="text-3 text-dim">
+                {b.condResult ? 'logged · tap to review' : 'runs by heart rate · tap to start'}
+              </T>
             </Pressable>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
@@ -158,23 +212,7 @@ export function TrainingScreen() {
         </View>
       ) : null}
 
-      <Btn
-        variant="brass"
-        size="lg"
-        className="mt-3"
-        onPress={() => {
-          update((draft) => {
-            const ds = draft.sessions.find((x) => x.id === s.id);
-            if (!ds) return false;
-            ds.status = 'completed';
-            ds.completedAt = Date.now();
-            ds.updatedAt = Date.now();
-          });
-          // Straight to the recap: just after finishing is the only time anyone
-          // actually reads what they did.
-          nav.navigate('Recap', { id: s.id });
-        }}
-      >
+      <Btn variant="brass" size="lg" className="mt-3" onPress={finish}>
         Finish session
       </Btn>
     </ScrollView>

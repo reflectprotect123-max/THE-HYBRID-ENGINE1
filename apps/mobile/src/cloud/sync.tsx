@@ -276,7 +276,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   // typed off setTimeout itself because RN's is not the DOM's number.
   useEffect(() => {
     if (!user) return;
-    if (cloudFp(db) === lastFp.current) return;
+    /* The fingerprint check used to run HERE, which meant a full
+       JSON.stringify of every workout and session on every keystroke of a set
+       field, purely to decide whether to arm a timer. pushNow already computes
+       the same fingerprint and no-ops when it is unchanged, so the work now
+       happens once per quiet period instead of once per character. */
     if (pushTimer.current) clearTimeout(pushTimer.current);
     pushTimer.current = setTimeout(() => {
       void pushNow(false).catch((e) => setError(String((e as Error)?.message || e)));

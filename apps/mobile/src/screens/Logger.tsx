@@ -52,7 +52,7 @@ type Phase = 'input' | 'rpe' | 'rest';
 
 export function LoggerScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { activeSession, db, update } = useDb();
+  const { activeSession, db, updateSession } = useDb();
   const rest = useRest();
 
   const [loc, setLoc] = useState({ bi: route.params.bi, ei: route.params.ei });
@@ -122,10 +122,9 @@ export function LoggerScreen({ route, navigation }: Props) {
     if (slot === 1) setV1(val);
     else setV2(val);
     if (!s || si < 0) return;
-    update((draft) => {
-      const ds = draft.sessions.find((x) => x.id === s.id);
-      const dst = ds && (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>)?.exercises?.[loc.ei]?.sets?.[si];
-      if (!ds || !dst) return false;
+    updateSession(s.id, (ds) => {
+      const dst = (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>)?.exercises?.[loc.ei]?.sets?.[si];
+      if (!dst) return false;
       if (slot === 1) dst.aVal = val;
       else dst.aVal2 = val;
       ds.updatedAt = Date.now();
@@ -137,10 +136,9 @@ export function LoggerScreen({ route, navigation }: Props) {
      the back gesture, or the OS reclaiming the app. */
   function writeNote(txt: string) {
     if (!s || si < 0) return;
-    update((draft) => {
-      const ds = draft.sessions.find((x) => x.id === s.id);
-      const dst = ds && (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>)?.exercises?.[loc.ei]?.sets?.[si];
-      if (!ds || !dst) return false;
+    updateSession(s.id, (ds) => {
+      const dst = (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>)?.exercises?.[loc.ei]?.sets?.[si];
+      if (!dst) return false;
       dst.note = txt;
       ds.updatedAt = Date.now();
     });
@@ -151,9 +149,7 @@ export function LoggerScreen({ route, navigation }: Props) {
     const isFinal = si >= ex.sets.length - 1;
     let nextHint: typeof hint = null;
 
-    update((draft) => {
-      const ds = draft.sessions.find((x) => x.id === s.id);
-      if (!ds) return false;
+    updateSession(s.id, (ds) => {
       const dex = (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>).exercises[loc.ei];
       const dst = dex.sets[si];
 

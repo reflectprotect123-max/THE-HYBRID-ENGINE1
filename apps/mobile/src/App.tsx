@@ -66,7 +66,9 @@ export type RootStackParams = {
   Planner: { id: string };
   QuickBuild: { id: string };
   Recap: { id: string };
-  Conditioning: undefined;
+  /* Optional sink: which block of the live session this run belongs to. Absent
+     when conditioning is started standalone from Home. */
+  Conditioning: { bi?: number; bid?: string } | undefined;
   History: undefined;
   Calendar: undefined;
 };

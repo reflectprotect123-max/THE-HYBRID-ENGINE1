@@ -92,11 +92,16 @@ export function RestProvider({ children }: { children: ReactNode }) {
   const add = useCallback(
     (sec: number) => {
       if (!ends) return;
-      const endsAt = ends + sec * 1000;
+      // Clamped like start() is: repeated +15s could otherwise walk the timer
+      // past the hour cap start() enforces.
+      const room = Math.max(0, Date.now() + 3600_000 - ends);
+      const addMs = Math.min(sec * 1000, room);
+      if (!addMs) return;
+      const endsAt = ends + addMs;
       buzzed.current = false;
       setEnds(endsAt);
-      setTotal(total + sec);
-      persist(endsAt, total + sec);
+      setTotal(total + addMs / 1000);
+      persist(endsAt, total + addMs / 1000);
       void rearm(Math.max(1, Math.ceil((endsAt - Date.now()) / 1000)));
     },
     [ends, total, rearm],
