@@ -74,8 +74,21 @@ export function ProgressScreen() {
       .slice(0, 5);
   }, [db.sessions]);
 
+  /*
+   * These thresholds must match the ones each card renders at, EXACTLY.
+   * They did not: `anything` counted a single recovery reading as content
+   * while every trend below refuses to draw from fewer than two points. One
+   * WHOOP sync is enough to produce exactly that — so the empty state was
+   * suppressed, no card qualified, and the screen was blank apart from its
+   * title. "Nothing to show yet" has to mean the same thing in both places.
+   */
   const anything =
-    weeks.some((w) => w.value > 0) || lifts.length || zoneWeek.total > 0 || recovery.length || strain.length || hrrTrend.length;
+    weeks.some((w) => w.value > 0) ||
+    lifts.length > 0 ||
+    zoneWeek.total > 0 ||
+    recovery.length > 1 ||
+    strain.length > 1 ||
+    hrrTrend.length > 1;
   const peak = Math.max(...weeks.map((w) => w.value), 1);
 
   return (

@@ -194,14 +194,14 @@ function ExerciseStep({
             value={draft.target}
             onChangeText={(v) => setDraft({ ...draft, target: v })}
             placeholder="reps — 5, 8-12, max, W10"
-            className="h-4 flex-1 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
+            className="h-5 flex-1 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
           />
           <Input
             num
             value={draft.rpe}
             onChangeText={(v) => setDraft({ ...draft, rpe: v })}
             placeholder="RPE"
-            className="h-4 w-14 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
+            className="h-5 w-14 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
           />
         </View>
         <T className="mt-1 text-3 text-dim">

@@ -62,7 +62,15 @@ export function Progress() {
       .slice(0, 5);
   }, [sessions]);
 
-  const anything = weeks.some((w) => w.value > 0) || recovery.length || strain.length || hrrTrend.length || lifts.length;
+  /* Thresholds must match the ones each card renders at — counting a single
+     recovery reading as content while every trend needs two left the screen
+     blank apart from its title after one WHOOP sync. */
+  const anything =
+    weeks.some((w) => w.value > 0) ||
+    recovery.length > 1 ||
+    strain.length > 1 ||
+    hrrTrend.length > 1 ||
+    lifts.length > 0;
 
   return (
     <>

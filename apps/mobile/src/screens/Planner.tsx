@@ -179,7 +179,7 @@ export function PlannerScreen() {
                                 edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets[si].t = v))
                               }
                               placeholder="reps"
-                              className="h-4 w-14 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
+                              className="h-5 w-14 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
                             />
                             <Input
                               num
@@ -189,7 +189,7 @@ export function PlannerScreen() {
                                 edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets[si].rpe = v))
                               }
                               placeholder={isWarmup(st) ? '—' : 'RPE'}
-                              className="h-4 w-12 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
+                              className="h-5 w-12 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
                             />
                             {!readOnly && ex.sets.length > 1 ? (
                               <Pressable
