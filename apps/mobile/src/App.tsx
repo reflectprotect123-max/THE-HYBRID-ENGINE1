@@ -31,6 +31,7 @@ import { LibraryScreen } from './screens/Library';
 import { ProgressScreen } from './screens/Progress';
 import { HistoryScreen } from './screens/History';
 import { CalendarScreen } from './screens/Calendar';
+import { ExerciseScreen } from './screens/Exercise';
 import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { ConditioningScreen } from './screens/Conditioning';
@@ -70,6 +71,8 @@ export type RootStackParams = {
   Conditioning: { bi?: number; bid?: string } | undefined;
   History: undefined;
   Calendar: undefined;
+  /** One movement's whole history. No param = the movement picker. */
+  Exercise: { name?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParams>();
@@ -200,6 +203,7 @@ export function App() {
               <Stack.Screen name="Conditioning" component={ConditioningScreen} />
               <Stack.Screen name="History" component={HistoryScreen} />
               <Stack.Screen name="Calendar" component={CalendarScreen} />
+              <Stack.Screen name="Exercise" component={ExerciseScreen} />
             </Stack.Navigator>
               </NavigationContainer>
             </RestProvider>

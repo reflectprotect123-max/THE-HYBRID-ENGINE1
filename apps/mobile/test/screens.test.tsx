@@ -13,6 +13,7 @@ import { screen } from '@testing-library/react-native';
 import { liftSession, liftWorkout, renderScreen, runEffort, seed, volumeSession } from './harness';
 import { ProgressScreen } from '../src/screens/Progress';
 import { LibraryScreen } from '../src/screens/Library';
+import { ExerciseScreen } from '../src/screens/Exercise';
 
 describe('Progress', () => {
   it('shows the empty state with nothing logged', () => {
@@ -164,5 +165,50 @@ describe('Library', () => {
     renderScreen(<LibraryScreen />);
     expect(screen.queryByText(/opens at/)).toBeNull();
     expect(screen.queryByText(/times/)).toBeNull();
+  });
+});
+
+describe('Exercise history', () => {
+  /*
+   * The screen `exLogFor` was written for. It had no caller anywhere for
+   * months, so nothing would have noticed if the engine's shape drifted from
+   * what a screen needs — these are the first assertions that the two agree.
+   */
+  const SQUATS = [
+    liftSession(60, 'Back squat', 100),
+    liftSession(40, 'Back squat', 105),
+    liftSession(20, 'Back squat', 110),
+  ];
+
+  it('charts a movement across its sessions', () => {
+    seed({ sessions: SQUATS });
+    renderScreen(<ExerciseScreen />, { name: 'Back squat' });
+    expect(screen.getByText('Estimated 1RM · 3 sessions')).toBeTruthy();
+    // 110kg × 5 by Epley is 128kg, and it must be the best of the three. It
+    // appears in the bests card, the trend footer and the session row, so the
+    // assertion is on the labelled pair rather than the bare number.
+    expect(screen.getByText('Best estimated 1RM')).toBeTruthy();
+    expect(screen.getAllByText('128kg').length).toBeGreaterThan(0);
+    expect(screen.getByText('Heaviest set')).toBeTruthy();
+    expect(screen.getByText('for 5 reps')).toBeTruthy();
+  });
+
+  it('refuses to draw a trend from one session', () => {
+    // A line through a single point implies a direction it cannot know.
+    seed({ sessions: [liftSession(10, 'Back squat', 100)] });
+    renderScreen(<ExerciseScreen />, { name: 'Back squat' });
+    expect(screen.getByText(/One session is a point, not a trend/)).toBeTruthy();
+  });
+
+  it('says so for a movement with nothing logged', () => {
+    seed({ sessions: SQUATS });
+    renderScreen(<ExerciseScreen />, { name: 'Zercher squat' });
+    expect(screen.getByText('Nothing logged for this one yet')).toBeTruthy();
+  });
+
+  it('renders the picker with no movement chosen', () => {
+    seed({ sessions: SQUATS });
+    renderScreen(<ExerciseScreen />, {});
+    expect(screen.getByText('Pick a movement')).toBeTruthy();
   });
 });

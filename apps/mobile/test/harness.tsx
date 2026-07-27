@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { render } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { newBlock, newEx, newSet, uid, ymd, type EngineDB, type Session, type Workout } from '@hybrid/engine';
 import { DbProvider } from '../src/store/db';
@@ -22,12 +23,31 @@ import { LS_KEY } from '@hybrid/engine';
 const FRAME = { x: 0, y: 0, width: 390, height: 844 };
 const INSETS = { top: 47, left: 0, right: 0, bottom: 34 };
 
-export function renderScreen(ui: ReactElement) {
+/**
+ * Mount a screen, optionally with route params.
+ *
+ * Screens that read `useRoute().params` need a real navigator above them —
+ * rendering the element bare gives them `undefined` params, which is a
+ * different code path from the one the app actually takes. With params the
+ * screen goes inside a one-route stack carrying `initialParams`; without, the
+ * cheaper bare render is kept so the existing tests do not change shape.
+ */
+export function renderScreen(ui: ReactElement, params?: object) {
+  const Stack = createNativeStackNavigator();
+  const inner = params ? (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Under test" initialParams={params}>
+        {() => ui}
+      </Stack.Screen>
+    </Stack.Navigator>
+  ) : (
+    ui
+  );
   return render(
     <SafeAreaProvider initialMetrics={{ frame: FRAME, insets: INSETS }}>
       <DbProvider>
         <RestProvider>
-          <NavigationContainer>{ui}</NavigationContainer>
+          <NavigationContainer>{inner}</NavigationContainer>
         </RestProvider>
       </DbProvider>
     </SafeAreaProvider>,
@@ -76,13 +96,18 @@ export function volumeSession(daysAgo: number, kg: number): Session {
 export function liftSession(daysAgo: number, name: string, kg: number): Session {
   const d = new Date();
   d.setDate(d.getDate() - daysAgo);
+  // `completedAt` is not decoration: exLogFor and rpeGapInfo both require it,
+  // and a session without one is invisible to every history read path.
+  const at = d.getTime();
   const ex = { ...newEx(), id: uid(), name, sets: [{ t: '5', rpe: '8', done: true, aVal: String(kg), aVal2: '5' }] };
   return {
     id: uid(),
     date: ymd(d),
     status: 'completed',
     blocks: [{ ...newBlock(), id: uid(), heading: 'Main', exercises: [ex] }],
-    updatedAt: Date.now(),
+    startedAt: at,
+    completedAt: at,
+    updatedAt: at,
   };
 }
 

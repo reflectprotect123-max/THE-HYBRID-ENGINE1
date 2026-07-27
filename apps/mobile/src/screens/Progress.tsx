@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   barScale,
   bestE1rmByLift,
@@ -16,7 +18,8 @@ import {
 } from '@hybrid/engine';
 import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
-import { Card, Empty, Kicker, Row, Screen, SectionHead, T, Title, zoneInk } from '../ui';
+import { Card, Empty, Kicker, Row, Screen, SectionHead, T, Tap, Title, zoneInk } from '../ui';
+import type { RootStackParams } from '../App';
 
 /*
  * Charts are drawn with plain Views rather than SVG.
@@ -28,6 +31,7 @@ import { Card, Empty, Kicker, Row, Screen, SectionHead, T, Title, zoneInk } from
  * trend is the point, and a column chart states it without a new dependency.
  */
 export function ProgressScreen() {
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { db, hr } = useDb();
   const zones = useMemo(() => conZones(hr), [hr]);
 
@@ -189,8 +193,16 @@ export function ProgressScreen() {
         <>
           <SectionHead title="Top lifts · 8-week change" />
           <Card>
+            {/* Each lift is a door into its own history — the per-movement
+                trend `exLogFor` has always been able to produce and nothing
+                ever asked it for. */}
             {lifts.map((d) => (
-              <View key={d.name} className="mt-0.5 flex-row items-baseline">
+              <Tap
+                key={d.name}
+                onPress={() => nav.navigate('Exercise', { name: d.name })}
+                label={`${d.name} history`}
+                className="mt-0.5 flex-row items-baseline"
+              >
                 <T w="semi" className="flex-1 text-4 text-text" numberOfLines={1}>
                   {d.name}
                 </T>
@@ -203,7 +215,8 @@ export function ProgressScreen() {
                 >
                   {d.delta == null ? '—' : (d.delta > 0 ? '+' : '') + Math.round(d.delta)}
                 </T>
-              </View>
+                <T className="ml-1 text-3 text-dim">›</T>
+              </Tap>
             ))}
             <T className="mt-1 border-t border-line pt-1 text-2 text-dim">
               Against the same lift&apos;s best 8–16 weeks ago. A dash means it wasn&apos;t trained in that window —
