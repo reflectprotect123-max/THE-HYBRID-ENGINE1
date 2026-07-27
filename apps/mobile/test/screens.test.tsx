@@ -10,7 +10,7 @@
  * A screen must always render SOMETHING. That is the rule these assert.
  */
 import { screen } from '@testing-library/react-native';
-import { liftWorkout, renderScreen, seed, volumeSession } from './harness';
+import { liftSession, liftWorkout, renderScreen, runEffort, seed, volumeSession } from './harness';
 import { ProgressScreen } from '../src/screens/Progress';
 import { LibraryScreen } from '../src/screens/Library';
 
@@ -49,6 +49,34 @@ describe('Progress', () => {
     seed({ settings: { conditioning: 'nonsense' as never, whoopDaily: 'nonsense' as never } });
     renderScreen(<ProgressScreen />);
     expect(screen.getByText('Not enough logged yet')).toBeTruthy();
+  });
+});
+
+describe('Strength vs conditioning', () => {
+  it('says nothing at all until both sides have something to compare', () => {
+    // The card must be absent, not present-and-hedging. A readout that always
+    // has an opinion is one you stop reading.
+    seed({ sessions: [volumeSession(10, 4000)] });
+    renderScreen(<ProgressScreen />);
+    expect(screen.queryByText('Strength vs conditioning')).toBeNull();
+  });
+
+  it('surfaces the trade when conditioning climbs and the lifts do not', () => {
+    // The whole point of the feature: 60 min/week became 150, squat and bench
+    // have not moved, and no other screen in the app would have told you.
+    seed({
+      sessions: [
+        liftSession(40, 'Back squat', 100),
+        liftSession(40, 'Bench press', 80),
+        liftSession(10, 'Back squat', 100),
+        liftSession(10, 'Bench press', 80),
+      ],
+      settings: { conditioning: [runEffort(40, 30), runEffort(35, 30), runEffort(12, 75), runEffort(8, 75)] as never },
+    });
+    renderScreen(<ProgressScreen />);
+    expect(screen.getByText('Conditioning up, lifts flat')).toBeTruthy();
+    // And it must not overclaim: the caveat ships with the finding.
+    expect(screen.getByText(/not one causing the other/)).toBeTruthy();
   });
 });
 

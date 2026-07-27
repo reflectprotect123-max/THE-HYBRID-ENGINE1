@@ -17,6 +17,7 @@ export * from './hr';
 export * from './conditioning';
 export * from './session';
 export * from './lift';
+export * from './balance';
 export * from './logger';
 export * from './db';
 export * from './cloud';

@@ -69,6 +69,28 @@ export function volumeSession(daysAgo: number, kg: number): Session {
   };
 }
 
+/**
+ * A finished session `daysAgo` holding one lift at `kg` × 5, so the e1RM the
+ * balance readout compares is a number the test named.
+ */
+export function liftSession(daysAgo: number, name: string, kg: number): Session {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  const ex = { ...newEx(), id: uid(), name, sets: [{ t: '5', rpe: '8', done: true, aVal: String(kg), aVal2: '5' }] };
+  return {
+    id: uid(),
+    date: ymd(d),
+    status: 'completed',
+    blocks: [{ ...newBlock(), id: uid(), heading: 'Main', exercises: [ex] }],
+    updatedAt: Date.now(),
+  };
+}
+
+/** A standalone conditioning effort `daysAgo`, `min` minutes long. */
+export function runEffort(daysAgo: number, min: number) {
+  return { id: uid(), startedAt: Date.now() - daysAgo * 864e5, dur: min * 60 };
+}
+
 /** A one-lift, three-set workout — the shape almost every test wants. */
 export function liftWorkout(name = 'Back squat', sets = 3): Workout {
   const ex = { ...newEx(), id: uid(), name, sets: Array.from({ length: sets }, () => ({ ...newSet(), t: '5', rpe: '8' })) };

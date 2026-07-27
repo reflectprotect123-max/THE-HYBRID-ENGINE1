@@ -160,26 +160,49 @@ function buildSeed() {
     }],
   });
 
-  // Conditioning, with a downsampled HR trace so the zone bars and the trace
-  // chart both have something real to render.
+  /*
+   * Conditioning, with a downsampled HR trace so the zone bars and the trace
+   * chart both have something real to render.
+   *
+   * This block was WRONG for as long as it existed and nothing noticed, because
+   * a screenshot harness cannot fail. It wrote `{ minutes, zones: {blue, green,
+   * red}, hr }` at the DB root — an older schema — while the engine reads
+   * `settings.conditioning` as `CondResult` with `dur` in seconds, `zsec` keyed
+   * low/mod/high, and `trace` as `{every, pts}`. Nothing in either app reads
+   * `db.conditioning`, so these six runs reached no screen at all: the weekly
+   * zone card, the HR-recovery trend and the strength-vs-conditioning readout
+   * had all been screenshotted as permanently absent, and the harness was
+   * quietly flattering the app by showing only the half that worked.
+   *
+   * Two runs a week for the last three, one a week before that — someone
+   * ramping their running, which is the shape the balance card exists to catch.
+   */
   const conditioning = [];
+  const EVERY = 20;
   for (let w = 6; w >= 1; w--) {
-    const when = now - (w * 7 + 1) * DAY;
-    const trace = Array.from({ length: 90 }, (_, i) => {
-      const base = 118 + Math.round(28 * Math.sin(i / 9));
-      return Math.max(96, Math.min(178, base + (i % 7) * 2));
-    });
-    conditioning.push({
-      id: 'c' + w, date: iso(when), startedAt: when, completedAt: when + 2400000,
-      format: 'zone2', effort: 'easy', minutes: 40, avgHr: 132, maxHr: 168,
-      hr: trace, zones: { blue: 1500, green: 780, red: 120 },
-    });
+    const perWeek = w <= 3 ? 2 : 1;
+    for (let n = 0; n < perWeek; n++) {
+      const when = now - (w * 7 + 1 + n * 3) * DAY;
+      const pts = Array.from({ length: 90 }, (_, i) => {
+        const base = 118 + Math.round(28 * Math.sin(i / 9));
+        return Math.max(96, Math.min(178, base + (i % 7) * 2));
+      });
+      // 40 minutes, banked the way conFinish banks it: seconds per zone, and
+      // the three summing to the duration.
+      conditioning.push({
+        id: 'c' + w + '-' + n, fmt: 'steady', effort: 'easy', targetZone: 'low',
+        startedAt: when, dur: 2400, zsec: { low: 1500, mod: 780, high: 120 },
+        rec: 62, hrr: 26 + (6 - w), trace: { every: EVERY, pts },
+      });
+    }
   }
 
   return {
     db: {
-      workouts, sessions, conditioning,
+      workouts, sessions,
       settings: {
+        // Under settings, which is where every read path looks for it.
+        conditioning,
         profile: { age: 30, maxHr: '', restingHr: 48 },
         // Twelve weeks of recovery/strain so the WHOOP trend card has a curve.
         whoopDaily: Array.from({ length: 84 }, (_, i) => ({

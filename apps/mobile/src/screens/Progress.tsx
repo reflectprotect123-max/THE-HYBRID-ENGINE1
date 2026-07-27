@@ -6,6 +6,8 @@ import {
   conZones,
   fmtClock,
   isCond,
+  condEfforts,
+  loadBalance,
   sessionVolume,
   ymd,
   type CondResult,
@@ -57,7 +59,7 @@ export function ProgressScreen() {
   );
 
   const hrrTrend = useMemo(() => {
-    return condRecords(db.sessions, db.settings)
+    return condEfforts(db.sessions, db.settings)
       .filter((r) => r.hrr != null)
       .slice(-12)
       .map((r, i) => ({ label: String(i + 1), value: r.hrr as number }));
@@ -75,6 +77,8 @@ export function ProgressScreen() {
       .slice(0, 5);
   }, [db.sessions]);
 
+  const balance = useMemo(() => loadBalance(db.sessions, db.settings), [db.sessions, db.settings]);
+
   /*
    * These thresholds must match the ones each card renders at, EXACTLY.
    * They did not: `anything` counted a single recovery reading as content
@@ -89,7 +93,8 @@ export function ProgressScreen() {
     zoneWeek.total > 0 ||
     recovery.length > 1 ||
     strain.length > 1 ||
-    hrrTrend.length > 1;
+    hrrTrend.length > 1 ||
+    !!balance;
   /* Zero-baselined, this was seven bars spanning 92-100% of the card: the
      largest element on the screen, distinguishing nothing. See `barScale`. */
   /* Scaled from COMPLETE weeks only — see the web app's note. The current
@@ -113,6 +118,25 @@ export function ProgressScreen() {
           title="Not enough logged yet"
           body="Trends need a few sessions before they mean anything. Train, and this fills in on its own."
         />
+      ) : null}
+
+      {/* First, because it is the answer and everything below is the working.
+          It is also the only thing on this screen that reads the two halves of
+          the app together — strength progression and conditioning progression
+          have always adapted correctly in isolation and never once been
+          compared. `loadBalance` returns null unless both sides have enough
+          data, so this card simply is not here rather than guessing. */}
+      {balance ? (
+        <Card tone="raised" className="mt-2">
+          <Kicker className="text-1">Strength vs conditioning</Kicker>
+          <T w="semi" className="mt-0.5 text-6 text-text">{balance.title}</T>
+          <T className="mt-0.5 text-4 text-muted">{balance.body}</T>
+          <View className="mt-1 border-t border-line pt-1">
+            <T className="text-2 text-dim">
+              Two things moving together is not one causing the other — a hard month at work moves both.
+            </T>
+          </View>
+        </Card>
       ) : null}
 
       {weeks.some((w) => w.value > 0) ? (
@@ -326,20 +350,10 @@ function weekly(sessions: Session[], n: number): Point[] {
   return out;
 }
 
-/** Conditioning results live both on session blocks and in standalone history. */
-function condRecords(sessions: Session[], settings: { conditioning?: CondResult[] }): CondResult[] {
-  const inline = sessions.flatMap((s) => s.blocks.filter(isCond).map((b) => b.condResult).filter(Boolean) as CondResult[]);
-  // `|| []` is not enough: a non-array `conditioning` from an older or corrupt
-  // payload is truthy and spreading it throws, taking the whole screen down
-  // rather than degrading to empty. The web app checks the same way.
-  const standalone = Array.isArray(settings.conditioning) ? settings.conditioning : [];
-  return [...standalone, ...inline].sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
-}
-
 function thisWeek(sessions: Session[], settings: { conditioning?: CondResult[] }) {
   const since = Date.now() - 7 * 864e5;
   const acc = { low: 0, mod: 0, high: 0, total: 0 };
-  condRecords(sessions, settings)
+  condEfforts(sessions, settings)
     .filter((r) => (r.startedAt || 0) >= since)
     .forEach((r) => {
       (['low', 'mod', 'high'] as ZoneKey[]).forEach((k) => {
