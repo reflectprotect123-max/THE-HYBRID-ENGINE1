@@ -323,3 +323,67 @@ export function expireStaleSessions(
   });
   return { sessions: out, changed };
 }
+
+export interface RestoreReport {
+  workouts: number;
+  sessions: number;
+  /** records already present that the incoming file did not add */
+  kept: number;
+  mode: 'merge' | 'replace';
+}
+
+/**
+ * Read a backup back in.
+ *
+ * Settings has offered "Export a backup" since the sync work, and says
+ * "export a backup before you train again" when a save fails — while offering
+ * no way on earth to load one. The safety net only had one end. This is the
+ * other end, and it is also the road any historical import travels: convert an
+ * export from wherever into this same shape and it arrives through one
+ * reviewed, tested path rather than a bespoke one per source.
+ *
+ * `merge` is the default and the safe one. It runs the same record-level merge
+ * the cloud sync uses, so a restore cannot silently drop a session logged since
+ * the backup was taken, and tombstones still win — restoring an old file must
+ * not resurrect a workout deliberately deleted afterwards.
+ *
+ * `replace` exists because merge cannot express "this file is the truth, throw
+ * away what is here" — the case after a corrupt local store. It is destructive
+ * and the caller is responsible for confirming it.
+ *
+ * Throws on anything that is not an object with at least one of the three
+ * top-level keys. `sanitizeDB` would happily turn a photo of a cat into an
+ * empty database, and an import that silently produces nothing is worse than
+ * one that says the file is wrong.
+ */
+export function restoreDb(
+  current: EngineDB,
+  raw: unknown,
+  mode: 'merge' | 'replace' = 'merge',
+): { db: EngineDB; report: RestoreReport } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('That file is not a backup — expected a JSON object.');
+  }
+  const keys = raw as Record<string, unknown>;
+  if (!('workouts' in keys) && !('sessions' in keys) && !('settings' in keys)) {
+    throw new Error('That file has no workouts, sessions or settings in it.');
+  }
+
+  const incoming = sanitizeDB(raw);
+  const before = current.workouts.length + current.sessions.length;
+  // mergeEngines(local, remote): the incoming file is `remote`, so a record
+  // present in both is resolved by the same updatedAt rule sync already uses
+  // rather than by which side happened to be the file.
+  const db = mode === 'replace' ? incoming : mergeEngines(current, incoming);
+  const added = db.workouts.length + db.sessions.length;
+
+  return {
+    db,
+    report: {
+      workouts: db.workouts.length,
+      sessions: db.sessions.length,
+      kept: mode === 'replace' ? 0 : Math.max(0, before + incoming.workouts.length + incoming.sessions.length - added),
+      mode,
+    },
+  };
+}

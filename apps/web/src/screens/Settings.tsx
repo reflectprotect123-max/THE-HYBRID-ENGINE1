@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { conMaxHr, conZones, restingHr, todayRecovery, type Profile } from '@hybrid/engine';
+import { conMaxHr, conZones, restingHr, restoreDb, todayRecovery, type Profile, type RestoreReport } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
@@ -14,6 +14,9 @@ export function Settings() {
   const profile = settings.profile || {};
   const zones = useMemo(() => conZones(hr), [hr]);
   const [busy, setBusy] = useState(false);
+  const [wipe, setWipe] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState('');
+  const [restoreErr, setRestoreErr] = useState(false);
 
   function setProfile(patch: Partial<Profile>) {
     update((draft) => {
@@ -32,6 +35,47 @@ export function Settings() {
     a.click();
     URL.revokeObjectURL(url);
     setBusy(false);
+  }
+
+  /**
+   * Load a backup back in.
+   *
+   * Reads and parses BEFORE touching the store, so a corrupt or wrong file
+   * leaves the app exactly as it was — the one thing a restore must never do
+   * is half-apply. The input is cleared afterwards so picking the same file
+   * twice still fires `change`.
+   */
+  async function onRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    setRestoreMsg('');
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (wipe && !window.confirm('Replace everything on this device with this file? This cannot be undone.')) {
+        return;
+      }
+      let report: RestoreReport | null = null;
+      update((draft) => {
+        const out = restoreDb(draft, parsed, wipe ? 'replace' : 'merge');
+        report = out.report;
+        draft.workouts = out.db.workouts;
+        draft.sessions = out.db.sessions;
+        draft.settings = out.db.settings;
+      });
+      const r = report as RestoreReport | null;
+      setRestoreErr(false);
+      setRestoreMsg(
+        r ? `Restored. ${r.workouts} in the library, ${r.sessions} logged sessions.` : 'Nothing to restore.',
+      );
+    } catch (err) {
+      setRestoreErr(true);
+      setRestoreMsg(err instanceof SyntaxError ? "That file isn't valid JSON." : String((err as Error).message || err));
+    } finally {
+      setBusy(false);
+      input.value = '';
+    }
   }
 
   return (
@@ -107,6 +151,34 @@ export function Settings() {
         <p className="text-3 text-dim">
           A plain JSON file with everything on this device. Keeping one is worth the ten seconds.
         </p>
+
+        {/* The other end of the safety net. Export has been here since the sync
+            work and there was no way to load one back — so the warning above
+            ("export a backup before you train again") was advice you could
+            follow and never act on. */}
+        <label className="mt-1 block">
+          <span className="sr-only">Restore from a backup file</span>
+          <input
+            type="file"
+            accept="application/json,.json"
+            onChange={onRestoreFile}
+            disabled={busy}
+            className="block w-full rounded-md border border-line bg-panel2 p-1 text-4 text-muted file:mr-1 file:rounded-sm file:border-0 file:bg-gold-wash file:px-1.5 file:py-0.5 file:text-4 file:font-[650] file:text-gold2"
+          />
+        </label>
+        <p className="text-3 text-dim">
+          Merges by default — anything logged since the backup is kept, and a session you deleted on
+          purpose stays deleted.
+        </p>
+        <label className="flex items-center gap-1 text-3 text-dim">
+          <input type="checkbox" checked={wipe} onChange={(e) => setWipe(e.target.checked)} />
+          Replace everything instead (for a corrupted app — this throws away what is here)
+        </label>
+        {restoreMsg ? (
+          <p role="status" className={`text-3 ${restoreErr ? 'text-bad' : 'text-ok'}`}>
+            {restoreMsg}
+          </p>
+        ) : null}
       </Card>
     </>
   );
@@ -211,6 +283,9 @@ function CoachLinkCard() {
   const [code, setCode] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [wipe, setWipe] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState('');
+  const [restoreErr, setRestoreErr] = useState(false);
   if (!enabled || !user) return null;
 
   return (
