@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { conMaxHr, conZones, restingHr, type EngineDB, type Profile } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
 import { isPersistent } from '../store/storage';
+import { Card, Input, Kicker, SectionHead, T, Title } from '../ui';
 
 /*
  * Declared at MODULE scope, not inside SettingsScreen.
@@ -30,14 +31,16 @@ function Field({
 }) {
   return (
     <View className="mt-2">
-      <Text className="text-2 font-bold uppercase tracking-widest text-dim">{label}</Text>
-      <TextInput
+      <T w="semi" className="text-2 uppercase tracking-widest text-dim">{label}</T>
+      <Input
         value={String(value ?? '')}
         onChangeText={onChange}
         keyboardType="number-pad"
-        className="mt-0.5 h-5 rounded-md border border-line bg-well px-1 text-5 font-bold text-text"
+        w="semi"
+        num
+        className="mt-0.5 h-5 rounded-md border border-line bg-well px-1 text-5 text-text"
       />
-      <Text className="mt-0.5 text-3 text-dim">{hint}</Text>
+      <T className="mt-0.5 text-3 text-dim">{hint}</T>
     </View>
   );
 }
@@ -62,14 +65,14 @@ export function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32, paddingHorizontal: 16 }}
     >
-      <Text className="text-2 font-bold uppercase tracking-widest text-dim">Settings</Text>
-      <Text className="text-8 font-black text-text">Your numbers</Text>
+      <Kicker>Settings</Kicker>
+      <Title>Your numbers</Title>
 
       {saveFailed || !isPersistent ? (
-        <Text className="mt-2 rounded-md border border-bad bg-panel p-2 text-4 text-bad">
+        <T className="mt-2 rounded-md border border-bad bg-panel p-2 text-4 text-bad">
           Storage is not persisting on this build. Anything you log now may not survive a restart — export a backup
           below before you train again.
-        </Text>
+        </T>
       ) : null}
 
       <Field label="Age" hint="Used for the Tanaka max-HR estimate (208 − 0.7 × age)." value={profile.age} onChange={(v) => set({ age: v })} />
@@ -80,21 +83,21 @@ export function SettingsScreen() {
       <CoachLinkCard />
       <WhoopCard />
 
-      <Text className="mt-3 mb-1 text-6 font-bold text-text">What that produces</Text>
-      <View className="rounded-lg border border-line bg-panel p-2">
-        <Text className="text-4 text-muted">
+      <SectionHead title="What that produces" />
+      <Card>
+        <T num className="text-4 text-muted">
           Max {conMaxHr(profile)} · resting {restingHr(profile, whoop) ?? '—'} ·{' '}
           {zones.method === 'hrr' ? 'Karvonen (HRR)' : 'percent of max'}
-        </Text>
+        </T>
         {zones.list.map((b) => (
           <View key={b.key} className="mt-0.5 flex-row">
-            <Text className="flex-1 text-4 text-text">{b.name}</Text>
-            <Text className="text-4 text-muted">
+            <T w="med" className="flex-1 text-4 text-text">{b.name}</T>
+            <T num className="text-4 text-muted">
               {b.lo}–{b.hi}
-            </Text>
+            </T>
           </View>
         ))}
-      </View>
+      </Card>
 
       <BackupCard db={db} />
     </ScrollView>
@@ -140,23 +143,23 @@ function BackupCard({ db }: { db: EngineDB }) {
 
   return (
     <View>
-      <Text className="mt-3 mb-1 text-6 font-bold text-text">Your data</Text>
-      <View className="rounded-lg border border-line bg-panel p-2">
-        <Text className="text-4 text-muted">
+      <SectionHead title="Your data" />
+      <Card>
+        <T num className="text-4 text-muted">
           {db.workouts.length} sessions in the library · {db.sessions.length} logged
-        </Text>
+        </T>
         <Pressable
           onPress={() => void share()}
           disabled={busy}
           className={`mt-1.5 items-center rounded-md border border-line2 bg-panel2 py-1.5 ${busy ? 'opacity-40' : ''}`}
         >
-          <Text className="text-4 font-bold text-text">{busy ? 'Exporting…' : 'Export a backup'}</Text>
+          <T w="med" className="text-4 text-text">{busy ? 'Exporting…' : 'Export a backup'}</T>
         </Pressable>
-        {msg ? <Text className="mt-1 text-3 text-muted">{msg}</Text> : null}
-        <Text className="mt-1 text-3 text-dim">
+        {msg ? <T className="mt-1 text-3 text-muted">{msg}</T> : null}
+        <T className="mt-1 text-3 text-dim">
           Everything on this device as plain JSON, sent wherever you keep files. Keeping one is worth the ten seconds.
-        </Text>
-      </View>
+        </T>
+      </Card>
     </View>
   );
 }
@@ -170,28 +173,28 @@ function CoachLinkCard() {
 
   return (
     <View>
-      <Text className="mt-3 mb-1 text-6 font-bold text-text">Your coach</Text>
-      <View className="rounded-lg border border-line bg-panel p-2">
+      <SectionHead title="Your coach" />
+      <Card>
         {coachLinked ? (
-          <Text className="text-4 text-muted">
+          <T className="text-4 text-muted">
             Linked. Sessions your coach assigns appear in your Library automatically, and they can see a summary of
             your training — never your heart-rate traces, notes or settings, and only the last 90 days.
-          </Text>
+          </T>
         ) : (
           <>
-            <Text className="text-4 text-muted">
+            <T className="text-4 text-muted">
               Got a code from a coach? Entering it is what grants them access — they cannot link to you on their own.
-            </Text>
-            <TextInput
+            </T>
+            <Input
               value={code}
               onChangeText={(v) => setCode(v.toUpperCase())}
               autoCapitalize="characters"
               autoCorrect={false}
               placeholder="INVITE CODE"
-              placeholderTextColor="#847d73"
-              className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-center text-5 font-bold tracking-widest text-text"
+              w="semi"
+              className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-center text-5 tracking-widest text-text"
             />
-            {msg ? <Text className="mt-1 text-3 text-warn">{msg}</Text> : null}
+            {msg ? <T className="mt-1 text-3 text-warn">{msg}</T> : null}
             <Pressable
               onPress={async () => {
                 setBusy(true);
@@ -201,11 +204,11 @@ function CoachLinkCard() {
               disabled={busy || !code.trim()}
               className={`mt-1.5 items-center rounded-md bg-gold py-1.5 ${busy || !code.trim() ? 'opacity-40' : ''}`}
             >
-              <Text className="text-4 font-black text-bg">{busy ? 'Linking…' : 'Link to coach'}</Text>
+              <T w="med" className="text-4" style={{ color: '#1b1509' }}>{busy ? 'Linking…' : 'Link to coach'}</T>
             </Pressable>
           </>
         )}
-      </View>
+      </Card>
     </View>
   );
 }
@@ -221,63 +224,61 @@ function CloudCard() {
 
   return (
     <View>
-      <Text className="mt-3 mb-1 text-6 font-bold text-text">Cloud sync</Text>
-      <View className="rounded-lg border border-line bg-panel p-2">
+      <SectionHead title="Cloud sync" />
+      <Card>
         {user ? (
           <>
-            <Text className="text-4 text-muted">
-              Signed in as <Text className="font-bold text-text">{user.email}</Text>
-            </Text>
-            <Text className="mt-0.5 text-3 text-dim">
+            <T className="text-4 text-muted">
+              Signed in as <T w="semi" className="text-text">{user.email}</T>
+            </T>
+            <T className="mt-0.5 text-3 text-dim">
               {busy ? 'Syncing…' : syncedAt ? 'Last synced ' + new Date(syncedAt).toLocaleTimeString() : 'Not synced yet.'}
-            </Text>
+            </T>
             {!isPersistent ? (
-              <Text className="mt-1 text-3 text-bad">
+              <T className="mt-1 text-3 text-bad">
                 Storage is not persisting in this build, so this sign-in will not survive a restart.
-              </Text>
+              </T>
             ) : null}
-            {error ? <Text className="mt-1 text-3 text-bad">{error}</Text> : null}
+            {error ? <T className="mt-1 text-3 text-bad">{error}</T> : null}
             <View className="mt-1.5 flex-row gap-1">
               <Pressable onPress={() => void syncNow()} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
-                <Text className="text-4 font-bold text-text">Sync now</Text>
+                <T w="med" className="text-4 text-text">Sync now</T>
               </Pressable>
               <Pressable onPress={() => void signOut()} className="flex-1 items-center rounded-md py-1.5">
-                <Text className="text-4 text-muted">Sign out</Text>
+                <T className="text-4 text-muted">Sign out</T>
               </Pressable>
             </View>
           </>
         ) : (
           <>
-            <Text className="text-4 text-muted">Sign in to sync across devices and receive sessions from a coach.</Text>
-            <TextInput
+            <T className="text-4 text-muted">Sign in to sync across devices and receive sessions from a coach.</T>
+            <Input
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
               placeholder="email"
-              placeholderTextColor="#847d73"
               className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
             />
-            <TextInput
+            <Input
               value={password}
               onChangeText={setPassword}
               secureTextEntry
               placeholder="password"
-              placeholderTextColor="#847d73"
               className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
             />
-            {msg ? <Text className="mt-1 text-3 text-warn">{msg}</Text> : null}
+            {msg ? <T className="mt-1 text-3 text-warn">{msg}</T> : null}
             <View className="mt-1.5 flex-row gap-1">
               <Pressable onPress={() => void go(signIn)} className="flex-1 items-center rounded-md bg-gold py-1.5">
-                <Text className="text-4 font-black text-bg">Sign in</Text>
+                <T w="med" className="text-4" style={{ color: '#1b1509' }}>Sign in</T>
               </Pressable>
               <Pressable onPress={() => void go(signUp)} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
-                <Text className="text-4 font-bold text-text">Create account</Text>
+                <T w="med" className="text-4 text-text">Create account</T>
               </Pressable>
             </View>
           </>
         )}
-      </View>
+      </Card>
     </View>
   );
 }
@@ -286,46 +287,46 @@ function WhoopCard() {
   const { connected, sample, busy, error, lastSyncAt, connect, sync, disconnect } = useWhoop();
   return (
     <View>
-      <Text className="mt-3 mb-1 text-6 font-bold text-text">WHOOP</Text>
-      <View className="rounded-lg border border-line bg-panel p-2">
+      <SectionHead title="WHOOP" />
+      <Card>
         {connected ? (
           <>
-            <Text className="text-4 text-muted">
+            <T num className="text-4 text-muted">
               Connected
               {sample?.recoveryScore != null ? ` · today ${Math.round(Number(sample.recoveryScore))}%` : ' · no reading yet today'}
-            </Text>
+            </T>
             {lastSyncAt ? (
-              <Text className="mt-0.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</Text>
+              <T className="mt-0.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</T>
             ) : null}
             <View className="mt-1.5 flex-row gap-1">
               <Pressable onPress={() => void sync()} disabled={busy} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
-                <Text className="text-4 font-bold text-text">{busy ? 'Pulling…' : 'Pull now'}</Text>
+                <T w="med" className="text-4 text-text">{busy ? 'Pulling…' : 'Pull now'}</T>
               </Pressable>
               <Pressable onPress={() => void disconnect()} className="flex-1 items-center rounded-md py-1.5">
-                <Text className="text-4 text-muted">Disconnect</Text>
+                <T className="text-4 text-muted">Disconnect</T>
               </Pressable>
             </View>
           </>
         ) : (
           <>
-            <Text className="text-4 text-muted">
+            <T className="text-4 text-muted">
               Connect WHOOP and your zones re-tune to the day: a low-recovery morning widens the easy band and pulls the
               hard line down.
-            </Text>
+            </T>
             <Pressable onPress={connect} className="mt-1.5 items-center rounded-md bg-gold py-1.5">
-              <Text className="text-4 font-black text-bg">Connect WHOOP</Text>
+              <T w="med" className="text-4" style={{ color: '#1b1509' }}>Connect WHOOP</T>
             </Pressable>
             {/* The connection IS visible back in the app now: it is filed under
                 the Supabase user rather than a browser cookie this app could
                 never read. Come back here after consenting and pull. */}
-            <Text className="mt-1 text-3 text-dim">
+            <T className="mt-1 text-3 text-dim">
               Opens your browser to consent. Come back here afterwards — the connection is filed against your account,
               so this screen picks it up.
-            </Text>
+            </T>
           </>
         )}
-        {error ? <Text className="mt-1 text-3 text-dim">{error}</Text> : null}
-      </View>
+        {error ? <T className="mt-1 text-3 text-dim">{error}</T> : null}
+      </Card>
     </View>
   );
 }

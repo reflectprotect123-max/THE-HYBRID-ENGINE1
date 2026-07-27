@@ -4,7 +4,18 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text } from 'react-native';
-import { color } from '@hybrid/design';
+import { useFonts } from 'expo-font';
+/* One weight per import, from the per-weight subpath: the package root
+   re-exports every weight AND every italic, and Metro bundles whatever is
+   required — importing the root would ship ~36 font files for the 6 used. */
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
+import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
+import { color, radius } from '@hybrid/design';
+import { font } from './ui';
 import './global.css';
 
 import { DbProvider } from './store/db';
@@ -72,10 +83,21 @@ const theme: Theme = {
     border: color.line,
     notification: color.gold,
   },
+  /* Whatever chrome the navigator draws itself renders in Inter too. The
+     weights are 'normal' on purpose: each Inter file IS its weight, and a
+     fontWeight on top invites Android to fake-bold an already-bold face. */
+  fonts: {
+    regular: { fontFamily: font.reg, fontWeight: 'normal' },
+    medium: { fontFamily: font.med, fontWeight: 'normal' },
+    bold: { fontFamily: font.semi, fontWeight: 'normal' },
+    heavy: { fontFamily: font.bold, fontWeight: 'normal' },
+  },
 };
 
 /* Glyph tabs rather than an icon dependency — five shapes do not justify
-   pulling in a vector-icon package and its font assets. */
+   pulling in a vector-icon package and its font assets. Deliberately raw
+   Text, NOT the ui.tsx <T>: these are unicode symbols the system font
+   carries and Inter's static files may not. */
 const tabIcon = (glyph: string) =>
   function Icon({ color: c, focused }: { color: string; focused: boolean }) {
     return <Text style={{ color: c, fontSize: focused ? 19 : 17 }}>{glyph}</Text>;
@@ -88,10 +110,12 @@ function TabNav() {
         headerShown: false,
         tabBarActiveTintColor: color.gold2,
         tabBarInactiveTintColor: color.dim,
+        /* The active tab per 04-athlete-03: gold ink over a soft gold wash,
+           rounded like every other selected surface in the app. */
+        tabBarActiveBackgroundColor: color.goldWash,
+        tabBarItemStyle: { borderRadius: radius.sm, marginHorizontal: 4, marginVertical: 3 },
         tabBarStyle: { backgroundColor: color.panel3, borderTopColor: color.line },
-        // React Native only accepts the nine standard weights, so the design
-        // system's 650/750 steps round to the nearest real one here.
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
+        tabBarLabelStyle: { fontSize: 11, fontFamily: font.med },
       }}
     >
       <Tabs.Screen name="Home" component={HomeScreen} options={{ tabBarIcon: tabIcon('⌂') }} />
@@ -104,6 +128,21 @@ function TabNav() {
 }
 
 export function App() {
+  /* Inter is the app's voice — the same family the design cards and both web
+     apps set first in their stacks. Rendering before it loads would flash
+     every screen in system Roboto, so the app holds on a blank frame for the
+     few ms the six weights take. If loading ever ERRORS the app proceeds on
+     the system fallback instead: an ugly launch beats no launch. */
+  const [fontsReady, fontsError] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+    Inter_900Black,
+  });
+  if (!fontsReady && !fontsError) return null;
+
   return (
     <SafeAreaProvider>
       <DbProvider>

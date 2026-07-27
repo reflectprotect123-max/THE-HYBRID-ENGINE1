@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import {
   CON_FORMATS,
   conAdapt,
@@ -20,7 +20,8 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
-import { Btn, Card, Chip, Kicker, Row, Screen, SectionHead, Title, zoneInk } from '../ui';
+import { color } from '@hybrid/design';
+import { Btn, Card, Chip, Kicker, Ring, Row, Screen, SectionHead, T, Title, zoneInk, zoneNeon } from '../ui';
 
 /*
  * Conditioning, run by live heart rate off a real strap.
@@ -147,23 +148,23 @@ export function ConditioningScreen() {
 
           <Card className="mt-2">
             <Kicker>Today&apos;s prescription</Kicker>
-            <Text className="mt-0.5 text-7 font-black text-gold2">
+            <T w="black" num className="mt-0.5 text-7 text-gold2">
               {fmt === 'steady' ? `${rx.minutes} min` : fmt === 'free' ? 'open-ended' : `${rx.rounds} × ${rx.work}s / ${rx.rest}s`}
-            </Text>
-            {rx.note ? <Text className="mt-0.5 text-4 text-muted">{rx.note}</Text> : null}
-            <Text className="mt-1 text-3 text-dim">
+            </T>
+            {rx.note ? <T className="mt-0.5 text-4 text-muted">{rx.note}</T> : null}
+            <T num className="mt-1 text-3 text-dim">
               {phases.length} phases · {fmtClock(totalSec)} total
-            </Text>
+            </T>
           </Card>
 
           <SectionHead title="Zones you'll be held to" />
           <Card>
             {zones.list.map((b) => (
-              <Row key={b.key} dot={zoneInk(b.key)} label={b.name} value={`${b.lo}–${b.hi}`} />
+              <Row key={b.key} dot={zoneNeon(b.key)} glow label={b.name} value={`${b.lo}–${b.hi}`} />
             ))}
           </Card>
 
-          <Btn variant="brass" className="mt-3" onPress={() => void start()}>
+          <Btn variant="brass" size="lg" className="mt-3" onPress={() => void start()}>
             Start
           </Btn>
         </>
@@ -171,21 +172,46 @@ export function ConditioningScreen() {
 
       {live ? (
         <>
-          <Card className="mt-2 items-center">
-            <Text className="text-9 font-black" style={{ color: zone ? zoneInk(zone.key) : '#847d73' }}>
-              {bpm == null ? '—' : bpm}
-            </Text>
-            <Text className="text-2 text-dim">{bpm == null ? 'no strap connected' : 'bpm · ' + zone?.name}</Text>
-            {bpm == null && hrMsg ? <Text className="mt-0.5 text-center text-3 text-muted">{hrMsg}</Text> : null}
-            <Text className="mt-2 text-8 font-black text-text">{fmtClock(elapsed)}</Text>
-            <Text className="text-3 text-dim">of {fmtClock(totalSec)}</Text>
-            {phaseNow ? (
-              <Text className="mt-1 text-4 text-gold2">
-                {phaseNow.p.name} · {fmtClock(phaseNow.p.dur - phaseNow.into)} left
-              </Text>
-            ) : null}
+          {/* The live surface per the web app: a ring lit in the CURRENT
+              zone's neon, the beat inside it, the clock beside it. */}
+          <Card className="mt-2 flex-row items-center gap-2">
+            <Ring
+              frac={bpm == null ? 0 : Math.min(1, bpm / zones.max)}
+              size={120}
+              stroke={10}
+              color={zone ? zoneNeon(zone.key) : color.ringIdle}
+              glow={zone != null}
+            >
+              {bpm == null ? (
+                <T className="text-3 text-dim">no strap</T>
+              ) : (
+                <>
+                  <T w="black" num className="text-9" style={{ color: zoneNeon(zone!.key) }}>
+                    {bpm}
+                  </T>
+                  <T w="semi" className="text-1 uppercase text-dim" style={{ letterSpacing: 1 }}>
+                    bpm
+                  </T>
+                </>
+              )}
+            </Ring>
+            <View className="min-w-0 flex-1">
+              <Kicker>{zone ? zone.name : 'Below zones'}</Kicker>
+              <T w="black" num className="mt-0.5 text-8 text-text">
+                {fmtClock(elapsed)}
+              </T>
+              <T num className="text-3 text-dim">
+                of {fmtClock(totalSec)}
+              </T>
+              {phaseNow ? (
+                <T num className="mt-1 text-4 text-gold2">
+                  {phaseNow.p.name} · {fmtClock(phaseNow.p.dur - phaseNow.into)} left
+                </T>
+              ) : null}
+              {bpm == null && hrMsg ? <T className="mt-1 text-3 text-muted">{hrMsg}</T> : null}
+            </View>
           </Card>
-          <Btn variant="brass" className="mt-3" onPress={finish}>
+          <Btn variant="brass" size="lg" className="mt-3" onPress={finish}>
             Finish
           </Btn>
         </>
@@ -203,10 +229,12 @@ export function ConditioningScreen() {
                 value={fmtClock(result.zsec?.[k] ?? 0)}
               />
             ))}
-            <Text className="mt-1.5 border-t border-line pt-1 text-3 text-dim">
-              {fmtClock(result.dur ?? 0)} total
-              {result.hrr != null ? ` · HR dropped ${result.hrr}bpm in the minute after peak` : ''}
-            </Text>
+            <View className="mt-1.5 border-t border-line pt-1">
+              <T num className="text-3 text-dim">
+                {fmtClock(result.dur ?? 0)} total
+                {result.hrr != null ? ` · HR dropped ${result.hrr}bpm in the minute after peak` : ''}
+              </T>
+            </View>
           </Card>
           <Btn className="mt-2" onPress={() => setResult(null)}>
             Done

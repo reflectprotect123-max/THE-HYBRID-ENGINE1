@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import {
   bestE1rmByLift,
   conZones,
@@ -12,7 +12,7 @@ import {
   type ZoneKey,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Card, Empty, Kicker, Row, Screen, SectionHead, Title, zoneInk } from '../ui';
+import { Card, Empty, Kicker, Row, Screen, SectionHead, T, Title, zoneInk } from '../ui';
 
 /*
  * Charts are drawn with plain Views rather than SVG.
@@ -96,12 +96,12 @@ export function ProgressScreen() {
             </View>
             <View className="mt-0.5 flex-row gap-0.5">
               {weeks.map((w, i) => (
-                <Text key={i} className="flex-1 text-center text-1 text-dim">
+                <T key={i} num className="flex-1 text-center text-1 text-dim">
                   {w.label}
-                </Text>
+                </T>
               ))}
             </View>
-            <Text className="mt-1 text-3 text-muted">peak {Math.round(peak).toLocaleString()}kg</Text>
+            <T num className="mt-1 text-3 text-muted">peak {Math.round(peak).toLocaleString()}kg</T>
           </Card>
         </>
       ) : null}
@@ -112,22 +112,24 @@ export function ProgressScreen() {
           <Card>
             {lifts.map((d) => (
               <View key={d.name} className="mt-0.5 flex-row items-baseline">
-                <Text className="flex-1 text-4 font-bold text-text" numberOfLines={1}>
+                <T w="semi" className="flex-1 text-4 text-text" numberOfLines={1}>
                   {d.name}
-                </Text>
-                <Text className="mr-2 text-4 text-muted">{Math.round(d.e1)}kg</Text>
-                <Text
-                  className="w-8 text-right text-4 font-bold"
+                </T>
+                <T num className="mr-2 text-4 text-muted">{Math.round(d.e1)}kg</T>
+                <T
+                  w="semi"
+                  num
+                  className="w-8 text-right text-4"
                   style={{ color: d.delta == null ? '#847d73' : d.delta > 0 ? '#9fc59b' : d.delta < 0 ? '#cf7f7c' : '#aaa49a' }}
                 >
                   {d.delta == null ? '—' : (d.delta > 0 ? '+' : '') + Math.round(d.delta)}
-                </Text>
+                </T>
               </View>
             ))}
-            <Text className="mt-1 border-t border-line pt-1 text-2 text-dim">
+            <T className="mt-1 border-t border-line pt-1 text-2 text-dim">
               Against the same lift&apos;s best 8–16 weeks ago. A dash means it wasn&apos;t trained in that window —
               not that it went nowhere.
-            </Text>
+            </T>
           </Card>
         </>
       ) : null}
@@ -171,10 +173,10 @@ export function ProgressScreen() {
           <SectionHead title="Heart-rate recovery" />
           <Card>
             <Trend data={hrrTrend} color="#cf9d4f" unit="bpm" />
-            <Text className="mt-1 text-2 text-dim">
+            <T className="mt-1 text-2 text-dim">
               Drop in the minute after your session peak. Recorded and shown — it does not gate progression, because
               its day-to-day noise is larger than the effect.
-            </Text>
+            </T>
           </Card>
         </>
       ) : null}
@@ -227,12 +229,12 @@ function Trend({
         ))}
       </View>
       <View className="mt-0.5 flex-row justify-between">
-        <Text className="text-2 text-dim">{data[0].label}</Text>
-        <Text className="text-2 font-bold" style={{ color }}>
+        <T num className="text-2 text-dim">{data[0].label}</T>
+        <T w="semi" num className="text-2" style={{ color }}>
           {Math.round(last.value)}
           {unit}
-        </Text>
-        <Text className="text-2 text-dim">{last.label}</Text>
+        </T>
+        <T num className="text-2 text-dim">{last.label}</T>
       </View>
     </View>
   );

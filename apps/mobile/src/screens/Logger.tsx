@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
@@ -30,7 +30,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useRest } from '../store/rest';
-import { Btn, Chip } from '../ui';
+import { Btn, Chip, Input, Ltr, T } from '../ui';
 import { setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
 
@@ -101,10 +101,10 @@ export function LoggerScreen({ route, navigation }: Props) {
   if (!s || !block || isCond(block) || !ex) {
     return (
       <View className="flex-1 items-center justify-center bg-bg p-3">
-        <Text className="text-6 font-bold text-text">No live session</Text>
-        <Pressable className="mt-2 rounded-md bg-gold px-2 py-1" onPress={() => navigation.goBack()}>
-          <Text className="text-5 font-bold text-bg">Back</Text>
-        </Pressable>
+        <T w="semi" className="text-6 text-text">No live session</T>
+        <Btn variant="brass" className="mt-2" onPress={() => navigation.goBack()}>
+          Back
+        </Btn>
       </View>
     );
   }
@@ -237,14 +237,14 @@ export function LoggerScreen({ route, navigation }: Props) {
           accessibilityLabel="back to session"
           className="h-5 w-5 items-center justify-center rounded-md border border-line2 bg-panel2"
         >
-          <Text className="text-6 text-muted">←</Text>
+          <T className="text-6 text-muted">←</T>
         </Pressable>
         <View className="flex-1">
-          <Text className="text-2 font-bold uppercase tracking-widest text-dim">
+          <T w="semi" className="text-2 uppercase tracking-widest text-dim">
             {block.heading || 'Block'}
             {block.superset ? ' · superset' : ''}
-          </Text>
-          <Text className="text-7 font-black text-text">{s.name || 'Workout'}</Text>
+          </T>
+          <T w="bold" className="text-7 text-text">{s.name || 'Workout'}</T>
         </View>
       </View>
 
@@ -252,31 +252,29 @@ export function LoggerScreen({ route, navigation }: Props) {
         <View className="h-full rounded-pill bg-gold2" style={{ width: `${prog.pct}%` }} />
       </View>
       <View className="mt-0.5 flex-row justify-between">
-        <Text className="text-2 text-dim">
+        <T num className="text-2 text-dim">
           {prog.done} of {prog.total} done
-        </Text>
-        <Text className="text-2 text-dim">{prog.pct}%</Text>
+        </T>
+        <T num className="text-2 text-dim">{prog.pct}%</T>
       </View>
 
       <View className="mt-2 rounded-lg border border-line bg-panel p-2">
         <View className="flex-row items-center gap-1">
-          <View className="rounded-sm border border-gold-line bg-gold-wash px-0.5">
-            <Text className="text-3 font-black text-gold2">{letters[loc.bi]?.[loc.ei] ?? '?'}</Text>
-          </View>
-          <Text className="flex-1 text-7 font-black text-text" numberOfLines={1}>
+          <Ltr>{letters[loc.bi]?.[loc.ei] ?? '?'}</Ltr>
+          <T w="bold" className="flex-1 text-7 text-text" numberOfLines={1}>
             {ex.name || 'Exercise'}
-          </Text>
+          </T>
         </View>
-        <Text className="mt-0.5 text-3 text-dim">
+        <T num className="mt-0.5 text-3 text-dim">
           {[ex.tempo ? '@' + ex.tempo : '', Number(ex.rest) ? 'rest ' + fmtRest(ex.rest) : 'no rest']
             .filter(Boolean)
             .join(' · ')}
-        </Text>
+        </T>
 
         {ex.cue ? (
-          <Text className="mt-1 rounded-md border border-gold-line bg-gold-wash px-1 py-1 text-4 text-gold2">
+          <T className="mt-1 rounded-md border border-gold-line bg-gold-wash px-1 py-1 text-4 text-gold2">
             {ex.cue}
-          </Text>
+          </T>
         ) : null}
 
         <View className="mt-1.5 flex-row gap-0.5">
@@ -291,33 +289,34 @@ export function LoggerScreen({ route, navigation }: Props) {
         {si >= 0 && st ? (
           <>
             <View className="mt-2 flex-row justify-between">
-              <Text className="text-2 font-bold uppercase tracking-widest text-dim">
+              <T w="semi" className="text-2 uppercase tracking-widest text-dim">
                 Set {si + 1} of {ex.sets.length}
                 {isWarmup(st) ? ' · warm-up' : ''}
-              </Text>
-              <Text className="text-2 font-bold text-gold2">target {targetLine(ex, st)}</Text>
+              </T>
+              <T w="semi" num className="text-2 text-gold2">target {targetLine(ex, st)}</T>
             </View>
 
             {phase === 'input' ? (
               <>
                 {lift ? (
                   <>
-                    <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Weight</Text>
+                    <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">Weight</T>
                     <View className="mt-0.5 flex-row gap-1">
                       <Pressable
                         onPress={() => step(-1)}
                         accessibilityLabel={`minus ${AUTOREG.stepKg} kg`}
                         className="w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
                       >
-                        <Text className="text-7 text-muted">−</Text>
+                        <T className="text-7 text-muted">−</T>
                       </Pressable>
-                      <TextInput
+                      <Input
                         value={v1}
                         onChangeText={(t) => writeVal(1, t)}
                         keyboardType="decimal-pad"
                         accessibilityLabel="kg"
-                        className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 font-black text-text"
-                        placeholderTextColor="#847d73"
+                        w="semi"
+                        num
+                        className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 text-text"
                         placeholder="kg"
                       />
                       <Pressable
@@ -325,16 +324,18 @@ export function LoggerScreen({ route, navigation }: Props) {
                         accessibilityLabel={`plus ${AUTOREG.stepKg} kg`}
                         className="w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
                       >
-                        <Text className="text-7 text-muted">+</Text>
+                        <T className="text-7 text-muted">+</T>
                       </Pressable>
                     </View>
-                    <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Reps</Text>
-                    <TextInput
+                    <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">Reps</T>
+                    <Input
                       value={v2}
                       onChangeText={(t) => writeVal(2, t)}
                       keyboardType="number-pad"
                       accessibilityLabel="reps"
-                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                      w="semi"
+                      num
+                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 text-text"
                     />
                   </>
                 ) : ex.mode === 'reps_seconds' ? (
@@ -342,33 +343,39 @@ export function LoggerScreen({ route, navigation }: Props) {
                      collapsing it to one box labelled "Reps" wrote the seconds
                      into the reps field and lost the other half of the set. */
                   <>
-                    <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Secs</Text>
-                    <TextInput
+                    <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">Secs</T>
+                    <Input
                       value={v1}
                       onChangeText={(t) => writeVal(1, t)}
                       keyboardType="number-pad"
                       accessibilityLabel="seconds"
-                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                      w="semi"
+                      num
+                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 text-text"
                     />
-                    <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">Reps</Text>
-                    <TextInput
+                    <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">Reps</T>
+                    <Input
                       value={v2}
                       onChangeText={(t) => writeVal(2, t)}
                       keyboardType="number-pad"
                       accessibilityLabel="reps"
-                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                      w="semi"
+                      num
+                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 text-text"
                     />
                   </>
                 ) : (
                   <>
-                    <Text className="mt-2 text-2 font-bold uppercase tracking-widest text-dim">
+                    <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">
                       {ex.mode === 'seconds' ? 'Secs' : 'Reps'}
-                    </Text>
-                    <TextInput
+                    </T>
+                    <Input
                       value={v1}
                       onChangeText={(t) => writeVal(1, t)}
                       keyboardType="number-pad"
-                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 font-black text-text"
+                      w="semi"
+                      num
+                      className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 text-text"
                     />
                   </>
                 )}
@@ -387,39 +394,38 @@ export function LoggerScreen({ route, navigation }: Props) {
                   </View>
 
                   {noteOpen ? (
-                    <TextInput
+                    <Input
                       autoFocus
                       value={st.note || ''}
                       onChangeText={writeNote}
                       maxLength={120}
                       placeholder="note (e.g. belt, tweak)"
-                      placeholderTextColor="#847d73"
                       accessibilityLabel="set note text"
                       className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
                     />
                   ) : null}
 
                   {platesOpen && plates ? (
-                    <Text className="mt-1 rounded-md border border-line bg-well px-1 py-0.5 text-3 text-muted">
+                    <T num className="mt-1 rounded-md border border-line bg-well px-1 py-0.5 text-3 text-muted">
                       {plates.perSide.length ? `per side: ${plates.perSide.join(' · ')}` : 'bar only'}
                       {plates.loadable
                         ? ''
                         : ` — nearest is ${plates.achievableKg}kg (${plates.delta > 0 ? '+' : ''}${plates.delta})`}
-                    </Text>
+                    </T>
                   ) : null}
                 </View>
 
-                <Pressable onPress={() => setPhase('rpe')} className="mt-2 items-center rounded-md bg-gold py-2">
-                  <Text className="text-6 font-black text-bg">Finish Set</Text>
-                </Pressable>
+                <Btn variant="brass" size="lg" className="mt-2" onPress={() => setPhase('rpe')}>
+                  Finish Set
+                </Btn>
               </>
             ) : null}
 
             {phase === 'rpe' ? (
               <View className="mt-2 rounded-md border border-line bg-well p-2">
-                <Text className="text-center text-2 font-bold uppercase tracking-widest text-dim">
+                <T w="semi" className="text-center text-2 uppercase tracking-widest text-dim">
                   How hard was that? · RPE
-                </Text>
+                </T>
                 {/* The chips used to start at 5, which made every value the web
                     app's 1–10 slider can reach below that simply unreachable —
                     and a warm-up is honestly rated 3. The low end is on the chip
@@ -430,15 +436,15 @@ export function LoggerScreen({ route, navigation }: Props) {
                     accessibilityLabel="lower RPE by a half"
                     className="h-5 w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
                   >
-                    <Text className="text-7 text-muted">−</Text>
+                    <T className="text-7 text-muted">−</T>
                   </Pressable>
-                  <Text className="w-10 text-center text-9 font-black text-gold2">{fmtRpe(rpe)}</Text>
+                  <T w="black" num className="w-10 text-center text-9 text-gold2">{fmtRpe(rpe)}</T>
                   <Pressable
                     onPress={() => setRpe((r) => Math.min(10, Math.round((r + 0.5) * 10) / 10))}
                     accessibilityLabel="raise RPE by a half"
                     className="h-5 w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
                   >
-                    <Text className="text-7 text-muted">+</Text>
+                    <T className="text-7 text-muted">+</T>
                   </Pressable>
                 </View>
                 <View className="mt-1 flex-row flex-wrap justify-center gap-1">
@@ -451,29 +457,29 @@ export function LoggerScreen({ route, navigation }: Props) {
                         rpe === n ? 'border-done-line bg-done-bg' : 'border-line2 bg-panel2'
                       }`}
                     >
-                      <Text className={`text-4 font-bold ${rpe === n ? 'text-done-ink' : 'text-muted'}`}>
+                      <T w="semi" num className={`text-4 ${rpe === n ? 'text-done-ink' : 'text-muted'}`}>
                         {fmtRpe(n)}
-                      </Text>
+                      </T>
                     </Pressable>
                   ))}
                 </View>
-                <Text className="mt-1 text-center text-2 text-dim">1 · barely felt it — 10 · max effort</Text>
-                <Pressable onPress={confirmSet} className="mt-2 items-center rounded-md bg-gold py-2">
-                  <Text className="text-6 font-black text-bg">Confirm Set</Text>
-                </Pressable>
+                <T className="mt-1 text-center text-2 text-dim">1 · barely felt it — 10 · max effort</T>
+                <Btn variant="brass" size="lg" className="mt-2" onPress={confirmSet}>
+                  Confirm Set
+                </Btn>
               </View>
             ) : null}
 
             {phase === 'rest' ? (
               <View className="mt-2 items-center rounded-md border border-line bg-well p-2">
-                <Text className="text-2 font-bold uppercase tracking-widest text-dim">Rest</Text>
-                <Text className="mt-0.5 text-9 font-black text-gold2">{fmtRest(rest.left)}</Text>
+                <T w="semi" className="text-2 uppercase tracking-widest text-dim">Rest</T>
+                <T w="black" num className="mt-0.5 text-9 text-gold2">{fmtRest(rest.left)}</T>
                 <View className="mt-1 h-0.5 w-full overflow-hidden rounded-pill bg-track">
                   <View className="h-full rounded-pill bg-gold2" style={{ width: `${rest.frac * 100}%` }} />
                 </View>
                 <View className="mt-2 flex-row gap-1">
                   <Pressable onPress={() => rest.add(15)} className="rounded-md border border-line2 px-2 py-1">
-                    <Text className="text-4 text-muted">+15s</Text>
+                    <T w="med" num className="text-4 text-muted">+15s</T>
                   </Pressable>
                   <Pressable
                     onPress={() => {
@@ -482,7 +488,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                     }}
                     className="rounded-md border border-line2 px-2 py-1"
                   >
-                    <Text className="text-4 text-muted">Skip Rest</Text>
+                    <T w="med" className="text-4 text-muted">Skip Rest</T>
                   </Pressable>
                 </View>
               </View>
@@ -490,14 +496,14 @@ export function LoggerScreen({ route, navigation }: Props) {
           </>
         ) : (
           <View className="mt-3 items-center rounded-md border border-done-line bg-done-bg p-3">
-            <Text className="text-5 font-bold text-done-ink">
+            <T w="semi" className="text-5 text-done-ink">
               All {ex.sets.length} set{ex.sets.length === 1 ? '' : 's'} logged
-            </Text>
+            </T>
           </View>
         )}
 
         {hint ? (
-          <Text className={`mt-2 text-4 ${hint.cls === 'good' ? 'text-gold2' : 'text-bad'}`}>{hint.txt}</Text>
+          <T num className={`mt-2 text-4 ${hint.cls === 'good' ? 'text-gold2' : 'text-bad'}`}>{hint.txt}</T>
         ) : null}
       </View>
 

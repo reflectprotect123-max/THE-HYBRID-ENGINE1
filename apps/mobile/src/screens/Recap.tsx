@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -15,7 +15,7 @@ import {
   type StrengthBlock,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Kicker, Screen, SectionHead, Title } from '../ui';
+import { Btn, Card, Kicker, Screen, SectionHead, T, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 /* PRs first, because that is the thing worth knowing; then the honest totals.
@@ -58,12 +58,12 @@ export function RecapScreen() {
         <Card className="mt-2 border-gold-line bg-gold-wash">
           <Kicker>{prs.length === 1 ? 'Personal record' : 'Personal records'}</Kicker>
           {prs.map((p) => (
-            <Text key={p.name} className="mt-0.5 text-5 font-bold text-gold2">
+            <T key={p.name} w="semi" num className="mt-0.5 text-5 text-gold2">
               {p.name} — {p.kg}kg × {p.reps}
-              <Text className="text-3 text-muted">
+              <T num className="text-3 text-muted">
                 {'  '}e1RM {Math.round(p.e1)}kg{p.prevE1 != null ? ` (was ${Math.round(p.prevE1)})` : ' — first on record'}
-              </Text>
-            </Text>
+              </T>
+            </T>
           ))}
         </Card>
       ) : null}
@@ -77,27 +77,27 @@ export function RecapScreen() {
 
       {rpe.target != null && rpe.felt != null ? (
         <Card className="mt-2">
-          <Text className="text-4 text-muted">
+          <T num className="text-4 text-muted">
             You rated it {rpe.felt.toFixed(1)} against a target of {rpe.target.toFixed(1)} —{' '}
             {Math.abs(rpe.felt - rpe.target) <= 0.25
               ? 'right where it was meant to be.'
               : rpe.felt > rpe.target
                 ? 'harder than asked. Tomorrow gets adjusted for that.'
                 : 'easier than asked. There is room to add load.'}
-          </Text>
+          </T>
         </Card>
       ) : null}
 
       <SectionHead title="Everything logged" />
       {s.blocks.map((b, bi) => (
         <Card key={b.id ?? bi} className="mb-1">
-          <Text className="text-3 font-bold uppercase tracking-widest text-dim">{b.heading || 'Block'}</Text>
+          <T w="semi" className="text-3 uppercase tracking-widest text-dim">{b.heading || 'Block'}</T>
           {isCond(b) ? (
-            <Text className="mt-0.5 text-4 text-muted">
+            <T num className="mt-0.5 text-4 text-muted">
               {b.condFmt}
               {b.condResult?.dur ? ` · ${fmtClock(b.condResult.dur)}` : ''}
               {b.condResult?.hrr != null ? ` · HRR ${b.condResult.hrr}bpm` : ''}
-            </Text>
+            </T>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
               const done = ex.sets.filter((st) => st.done);
@@ -109,13 +109,13 @@ export function RecapScreen() {
               }, null);
               return (
                 <View key={ex.id ?? ei} className="mt-1">
-                  <Text className="text-4 font-bold text-text">{ex.name || 'Exercise'}</Text>
-                  <Text className="text-3 text-muted">
+                  <T w="semi" className="text-4 text-text">{ex.name || 'Exercise'}</T>
+                  <T num className="text-3 text-muted">
                     {done
                       .map((st) => `${isWarmup(st) ? 'W ' : ''}${st.aVal || '—'}${st.aVal2 ? '×' + st.aVal2 : ''}${st.felt ? '@' + st.felt : ''}`)
                       .join('  ')}
                     {best != null ? `  ·  best e1RM ${Math.round(best)}kg` : ''}
-                  </Text>
+                  </T>
                 </View>
               );
             })
@@ -133,11 +133,11 @@ export function RecapScreen() {
 function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
     <Card className="min-w-[45%] flex-1">
-      <Text className="text-2 font-bold uppercase tracking-widest text-dim">{label}</Text>
-      <Text className="mt-0.5 text-8 font-black text-text">
+      <T w="semi" className="text-2 uppercase tracking-widest text-dim">{label}</T>
+      <T w="black" num className="mt-0.5 text-8 text-text">
         {value}
-        {unit ? <Text className="text-4 text-dim"> {unit}</Text> : null}
-      </Text>
+        {unit ? <T className="text-4 text-dim"> {unit}</T> : null}
+      </T>
     </Card>
   );
 }

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,6 +20,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { Btn, Kicker, Ltr, T, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -59,28 +60,28 @@ export function TrainingScreen() {
   if (!activeSession) {
     return (
       <ScrollView className="flex-1 bg-bg" contentContainerStyle={pad}>
-        <Text className="text-2 font-bold uppercase tracking-widest text-dim">Training</Text>
-        <Text className="text-8 font-black text-text">Start a session</Text>
+        <Kicker>Training</Kicker>
+        <Title>Start a session</Title>
         {(candidates.length ? candidates : db.workouts).map((w) => (
           <View key={w.id} className="mt-1 flex-row items-center rounded-lg border border-line bg-panel p-2">
             <View className="flex-1">
-              <Text className="text-5 font-bold text-text" numberOfLines={1}>
+              <T w="semi" className="text-5 text-text" numberOfLines={1}>
                 {w.name || 'Session'}
-              </Text>
-              <Text className="text-3 text-dim">
+              </T>
+              <T num className="text-3 text-dim">
                 {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
                 {w.origin === 'coach' ? ' · from your coach' : ''}
-              </Text>
+              </T>
             </View>
-            <Pressable onPress={() => start(w)} className="rounded-md bg-gold px-2 py-1">
-              <Text className="text-4 font-black text-bg">Start</Text>
-            </Pressable>
+            <Btn variant="brass" onPress={() => start(w)}>
+              Start
+            </Btn>
           </View>
         ))}
         {!db.workouts.length ? (
-          <Text className="mt-2 text-4 text-muted">
+          <T className="mt-2 text-4 text-muted">
             Nothing in your library yet. Sessions your coach assigns will appear here automatically.
-          </Text>
+          </T>
         ) : null}
       </ScrollView>
     );
@@ -95,29 +96,29 @@ export function TrainingScreen() {
 
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerStyle={pad}>
-      <Text className="text-2 font-bold uppercase tracking-widest text-dim">In progress</Text>
-      <Text className="text-8 font-black text-text">{s.name || 'Session'}</Text>
+      <Kicker>In progress</Kicker>
+      <Title>{s.name || 'Session'}</Title>
 
       <View className="mt-2 h-0.5 overflow-hidden rounded-pill bg-track">
         <View className="h-full rounded-pill bg-gold2" style={{ width: `${prog.pct}%` }} />
       </View>
       <View className="mt-0.5 flex-row justify-between">
-        <Text className="text-2 text-dim">
+        <T num className="text-2 text-dim">
           {prog.done} of {prog.total} done
-        </Text>
-        <Text className="text-2 text-dim">{sessionVolume(s).toLocaleString()} kg</Text>
+        </T>
+        <T num className="text-2 text-dim">{sessionVolume(s).toLocaleString()} kg</T>
       </View>
 
       {s.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mt-2">
-          <Text className="mb-1 text-5 font-bold text-text">{b.heading || 'Block'}</Text>
+          <T w="semi" className="mb-1 text-5 text-text">{b.heading || 'Block'}</T>
           {isCond(b) ? (
             <Pressable
               onPress={() => (b.condResult ? undefined : nav.navigate('Conditioning'))}
               className={`rounded-lg border p-2 ${b.condResult ? 'border-done-line bg-done-bg' : 'border-line bg-panel'}`}
             >
-              <Text className="text-5 font-bold text-text">{b.condFmt}</Text>
-              <Text className="text-3 text-dim">{b.condResult ? 'logged' : 'runs by heart rate · tap to start'}</Text>
+              <T w="semi" className="text-5 text-text">{b.condFmt}</T>
+              <T className="text-3 text-dim">{b.condResult ? 'logged' : 'runs by heart rate · tap to start'}</T>
             </Pressable>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
@@ -129,18 +130,16 @@ export function TrainingScreen() {
                   className={`mb-1 rounded-lg border p-2 ${done ? 'border-done-line bg-done-bg' : 'border-line bg-panel'}`}
                 >
                   <View className="flex-row items-center gap-1">
-                    <View className="rounded-sm border border-gold-line bg-gold-wash px-0.5">
-                      <Text className="text-3 font-black text-gold2">{letters[bi]?.[ei] ?? '?'}</Text>
-                    </View>
-                    <Text className="flex-1 text-5 font-bold text-text" numberOfLines={1}>
+                    <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
+                    <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
                       {ex.name || 'Exercise'}
-                    </Text>
-                    <Text className="text-3 text-dim">
+                    </T>
+                    <T num className="text-3 text-dim">
                       {ex.sets.filter((x) => x.done).length}/{ex.sets.length}
-                    </Text>
+                    </T>
                   </View>
-                  <Text className="mt-0.5 text-3 text-muted">{rxLine(ex)}</Text>
-                  {ex.cue ? <Text className="mt-0.5 text-3 text-gold2">{ex.cue}</Text> : null}
+                  <T num className="mt-0.5 text-3 text-muted">{rxLine(ex)}</T>
+                  {ex.cue ? <T className="mt-0.5 text-3 text-gold2">{ex.cue}</T> : null}
                 </Pressable>
               );
             })
@@ -150,16 +149,19 @@ export function TrainingScreen() {
 
       {prs.length ? (
         <View className="mt-2 rounded-lg border border-gold-line bg-gold-wash p-2">
-          <Text className="text-2 font-bold uppercase tracking-widest text-dim">Personal records</Text>
+          <T w="semi" className="text-2 uppercase tracking-widest text-dim">Personal records</T>
           {prs.map((p) => (
-            <Text key={p.name} className="mt-0.5 text-4 text-gold2">
+            <T key={p.name} num className="mt-0.5 text-4 text-gold2">
               {p.name} — {p.kg}kg × {p.reps} (e1RM {Math.round(p.e1)}kg)
-            </Text>
+            </T>
           ))}
         </View>
       ) : null}
 
-      <Pressable
+      <Btn
+        variant="brass"
+        size="lg"
+        className="mt-3"
         onPress={() => {
           update((draft) => {
             const ds = draft.sessions.find((x) => x.id === s.id);
@@ -172,10 +174,9 @@ export function TrainingScreen() {
           // actually reads what they did.
           nav.navigate('Recap', { id: s.id });
         }}
-        className="mt-3 items-center rounded-md bg-gold py-2"
       >
-        <Text className="text-6 font-black text-bg">Finish session</Text>
-      </Pressable>
+        Finish session
+      </Btn>
     </ScrollView>
   );
 }

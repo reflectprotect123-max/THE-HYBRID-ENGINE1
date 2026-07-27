@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { hasLoggedWork, ymd, type Session, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Kicker, Screen, Title } from '../ui';
+import { Btn, Card, Kicker, Screen, T, Title } from '../ui';
 
 /*
  * Planned and trained are drawn differently on purpose. A dot you intended is
@@ -40,7 +40,7 @@ export function CalendarScreen() {
         <View className="flex-row flex-wrap">
           {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
             <View key={i} style={{ width: `${100 / 7}%` }} className="pb-0.5">
-              <Text className="text-center text-1 font-bold uppercase tracking-widest text-dim">{d}</Text>
+              <T w="semi" className="text-center text-1 uppercase tracking-widest text-dim">{d}</T>
             </View>
           ))}
           {cells.map((c, i) => (
@@ -51,7 +51,7 @@ export function CalendarScreen() {
                     c.key === today ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel2'
                   }`}
                 >
-                  <Text className="text-2 text-muted">{c.n}</Text>
+                  <T num className={`text-2 ${c.key === today ? 'text-gold2' : 'text-muted'}`}>{c.n}</T>
                   <View className="mt-0.5 flex-row gap-0.5">
                     {c.trained ? <View className="h-1 w-1 rounded-pill bg-gold2" /> : null}
                     {c.planned && !c.trained ? <View className="h-1 w-1 rounded-pill border border-gold2" /> : null}
@@ -66,11 +66,11 @@ export function CalendarScreen() {
         <View className="mt-1.5 flex-row gap-2 border-t border-line pt-1">
           <View className="flex-row items-center gap-0.5">
             <View className="h-1 w-1 rounded-pill bg-gold2" />
-            <Text className="text-2 text-dim">trained</Text>
+            <T className="text-2 text-dim">trained</T>
           </View>
           <View className="flex-row items-center gap-0.5">
             <View className="h-1 w-1 rounded-pill border border-gold2" />
-            <Text className="text-2 text-dim">planned</Text>
+            <T className="text-2 text-dim">planned</T>
           </View>
         </View>
       </Card>

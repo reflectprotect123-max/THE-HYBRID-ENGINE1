@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { blockExercises, isCond, newBlock, rxLine, uid, type LoggedSet, type StrengthBlock, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Chip, Empty, Kicker, Screen, SectionHead, Title } from '../ui';
+import { Btn, Card, Chip, Empty, Kicker, Screen, SectionHead, T, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -64,10 +64,12 @@ export function LibraryScreen() {
           <Card key={w.id} className="mb-1">
             <Pressable onPress={() => setOpen(open === w.id ? null : w.id)}>
               <View className="flex-row items-center">
-                <Text className="flex-1 text-5 font-bold text-text" numberOfLines={1}>
+                <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
                   {w.name || 'Session'}
-                </Text>
-                <Text className="text-3 text-dim">{w.blocks.length} blocks</Text>
+                </T>
+                <T num className="text-3 text-dim">
+                  {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
+                </T>
               </View>
             </Pressable>
 
@@ -104,12 +106,12 @@ export function LibraryScreen() {
           {fromCoach.map((w) => (
             <Card key={w.id} className="mb-1 border-gold-line">
               <View className="flex-row items-center">
-                <Text className="flex-1 text-5 font-bold text-text" numberOfLines={1}>
+                <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
                   {w.name || 'Session'}
-                </Text>
-                <Text className="text-2 font-bold uppercase tracking-widest text-gold2">assigned</Text>
+                </T>
+                <T w="semi" className="text-2 uppercase tracking-widest text-gold2">assigned</T>
               </View>
-              {(w.dates || []).length ? <Text className="mt-0.5 text-3 text-dim">for {(w.dates || []).join(', ')}</Text> : null}
+              {(w.dates || []).length ? <T num className="mt-0.5 text-3 text-dim">for {(w.dates || []).join(', ')}</T> : null}
               <Detail w={w} />
               <Btn className="mt-1.5" onPress={() => nav.navigate('Planner', { id: w.id })}>
                 View
@@ -127,16 +129,16 @@ function Detail({ w }: { w: Workout }) {
     <View className="mt-1.5 border-t border-line pt-1.5">
       {w.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mb-1">
-          <Text className="text-3 font-bold uppercase tracking-widest text-dim">{b.heading || 'Block'}</Text>
+          <T w="semi" className="text-3 uppercase tracking-widest text-dim">{b.heading || 'Block'}</T>
           {isCond(b) ? (
-            <Text className="text-4 text-muted">
+            <T className="text-4 text-muted">
               {b.condFmt} · {b.effort || b.targetZone}
-            </Text>
+            </T>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => (
-              <Text key={ex.id ?? ei} className="text-4 text-muted">
-                <Text className="font-bold text-text">{ex.name || 'Exercise'}</Text> {rxLine(ex)}
-              </Text>
+              <T key={ex.id ?? ei} num className="text-4 text-muted">
+                <T w="semi" className="text-text">{ex.name || 'Exercise'}</T> {rxLine(ex)}
+              </T>
             ))
           )}
         </View>

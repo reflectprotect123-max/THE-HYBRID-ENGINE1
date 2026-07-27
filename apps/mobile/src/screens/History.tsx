@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { blockExercises, epley, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Card, Empty, Kicker, Screen, SectionHead, Title } from '../ui';
+import { Card, Empty, Kicker, Screen, SectionHead, T, Title } from '../ui';
 
 export function HistoryScreen() {
   const { db } = useDb();
@@ -24,10 +24,10 @@ export function HistoryScreen() {
           <Card key={s.id} className="mb-1">
             <Pressable onPress={() => setOpen(open === s.id ? null : s.id)}>
               <View className="flex-row items-baseline">
-                <Text className="flex-1 text-5 font-bold text-text" numberOfLines={1}>
+                <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
                   {s.name || 'Session'}
-                </Text>
-                <Text className="text-3 text-dim">{s.date}</Text>
+                </T>
+                <T num className="text-3 text-dim">{s.date}</T>
               </View>
               <Summary s={s} />
             </Pressable>
@@ -46,7 +46,7 @@ function Summary({ s }: { s: Session }) {
   const rpe = sessionRpe(s);
   const cond = s.blocks.filter((b) => isCond(b) && b.condResult).length;
   return (
-    <Text className="mt-0.5 text-3 text-muted">
+    <T num className="mt-0.5 text-3 text-muted">
       {[
         vol ? `${vol.toLocaleString()} kg` : null,
         rpe.felt != null ? `felt RPE ${rpe.felt.toFixed(1)}` : null,
@@ -55,7 +55,7 @@ function Summary({ s }: { s: Session }) {
       ]
         .filter(Boolean)
         .join(' · ')}
-    </Text>
+    </T>
   );
 }
 
@@ -64,12 +64,12 @@ function Detail({ s }: { s: Session }) {
     <View className="mt-1.5 border-t border-line pt-1.5">
       {s.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mb-1">
-          <Text className="text-3 font-bold uppercase tracking-widest text-dim">{b.heading || 'Block'}</Text>
+          <T w="semi" className="text-3 uppercase tracking-widest text-dim">{b.heading || 'Block'}</T>
           {isCond(b) ? (
-            <Text className="text-4 text-muted">
+            <T num className="text-4 text-muted">
               {b.condFmt}
               {b.condResult?.dur ? ` · ${Math.round(b.condResult.dur / 60)} min` : ''}
-            </Text>
+            </T>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
               const logged = ex.sets.filter((st) => st.done);
@@ -80,11 +80,11 @@ function Detail({ s }: { s: Session }) {
               }, null);
               return (
                 <View key={ex.id ?? ei}>
-                  <Text className="text-4 font-bold text-text">{ex.name || 'Exercise'}</Text>
-                  <Text className="text-3 text-muted">
+                  <T w="semi" className="text-4 text-text">{ex.name || 'Exercise'}</T>
+                  <T num className="text-3 text-muted">
                     {logged.map((st) => `${st.aVal || '—'}${st.aVal2 ? '×' + st.aVal2 : ''}${st.felt ? '@' + st.felt : ''}`).join('  ')}
                     {best != null ? `  ·  e1RM ${Math.round(best)}kg` : ''}
-                  </Text>
+                  </T>
                 </View>
               );
             })

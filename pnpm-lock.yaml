@@ -70,6 +70,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@expo-google-fonts/inter':
+        specifier: ^0.4.2
+        version: 0.4.2
       '@hybrid/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -94,6 +97,9 @@ importers:
       expo:
         specifier: ~54.0.36
         version: 54.0.36(@babel/core@7.29.7)(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
+      expo-font:
+        specifier: ~14.0.12
+        version: 14.0.12(expo@54.0.36(@babel/core@7.29.7)(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3))(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       expo-keep-awake:
         specifier: ~15.0.8
         version: 15.0.8(expo@54.0.36(@babel/core@7.29.7)(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3))(react@19.1.0)
@@ -1087,6 +1093,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@expo-google-fonts/inter@0.4.2':
+    resolution: {integrity: sha512-syfiImMaDmq7cFi0of+waE2M4uSCyd16zgyWxdPOY7fN2VBmSLKEzkfbZgeOjJq61kSqPBNNtXjggiQiSD6gMQ==}
 
   '@expo/cli@54.0.26':
     resolution: {integrity: sha512-BjsAoKINLEo3LRE+sDC6FCgjxuOWsyfOFOKz0txrbEcxSatzIjJDVuX8XaTdmeicZdcoN524yl1sfwCWfxhYMw==}
@@ -5924,6 +5933,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.1':
     optional: true
+
+  '@expo-google-fonts/inter@0.4.2': {}
 
   '@expo/cli@54.0.26(expo@54.0.36(@babel/core@7.29.7)(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3))(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(typescript@5.9.3)':
     dependencies:

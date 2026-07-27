@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -23,7 +23,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Chip, Kicker, Ltr, Screen, Title } from '../ui';
+import { Btn, Card, Chip, Input, Kicker, Ltr, Screen, T, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 const FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo', 'free'];
@@ -64,32 +64,34 @@ export function PlannerScreen() {
   return (
     <Screen>
       <Kicker>{readOnly ? 'From your coach · read-only' : 'Plan editor · saves as you go'}</Kicker>
-      <TextInput
+      <Input
+        w="bold"
         value={w.name || ''}
         editable={!readOnly}
         onChangeText={(v) => edit((d) => void (d.name = v))}
-        className="text-8 font-black text-text"
+        className="text-8 text-text"
       />
 
       {readOnly ? (
-        <Text className="mt-2 rounded-md border border-gold-line bg-gold-wash px-1 py-1 text-3 text-gold2">
+        <T className="mt-2 rounded-md border border-gold-line bg-gold-wash px-1 py-1 text-3 text-gold2">
           Editing this locally would silently diverge from what your coach still believes they gave you. Ask them to
           change it instead.
-        </Text>
+        </T>
       ) : null}
 
       {w.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mt-2">
           <View className="mb-1 flex-row items-center gap-1">
-            <TextInput
+            <Input
+              w="semi"
               value={b.heading || ''}
               editable={!readOnly}
               onChangeText={(v) => edit((d) => void (d.blocks[bi].heading = v))}
-              className="flex-1 text-5 font-bold text-text"
+              className="flex-1 text-5 text-text"
             />
             {!readOnly ? (
               <Pressable onPress={() => edit((d) => void d.blocks.splice(bi, 1))}>
-                <Text className="px-1 text-3 text-dim">✕</Text>
+                <T className="px-1 text-3 text-dim">✕</T>
               </Pressable>
             ) : null}
           </View>
@@ -98,11 +100,11 @@ export function PlannerScreen() {
             <Card>
               <View className="flex-row items-center gap-1">
                 <Ltr>♥</Ltr>
-                <Text className="flex-1 text-5 font-bold text-text">{b.condFmt}</Text>
+                <T w="semi" className="flex-1 text-5 text-text">{b.condFmt}</T>
               </View>
-              <Text className="mt-0.5 text-3 text-dim">
+              <T num className="mt-0.5 text-3 text-dim">
                 {condEffort(b).name} · RPE {condEffortRpe(condEffort(b))} · {CON_EFFORTS[condEffort(b).key].cue}
-              </Text>
+              </T>
               {!readOnly ? (
                 <>
                   <View className="mt-1.5 flex-row flex-wrap gap-0.5">
@@ -144,50 +146,49 @@ export function PlannerScreen() {
                       <View className="flex-row items-center gap-1">
                         <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
                         <View className="flex-1">
-                          <Text className="text-5 font-bold text-text" numberOfLines={1}>
+                          <T w="semi" className="text-5 text-text" numberOfLines={1}>
                             {ex.name || 'Exercise'}
-                          </Text>
-                          <Text className="text-3 text-dim" numberOfLines={1}>
+                          </T>
+                          <T num className="text-3 text-dim" numberOfLines={1}>
                             {rxLine(ex)}
-                          </Text>
+                          </T>
                         </View>
-                        <Text className="text-6 text-dim">{open ? '▴' : '›'}</Text>
+                        <T className="text-6 text-dim">{open ? '▴' : '›'}</T>
                       </View>
                     </Pressable>
 
                     {open ? (
                       <View className="mt-1.5 border-t border-line pt-1.5">
-                        <TextInput
+                        <Input
                           value={ex.name}
                           editable={!readOnly}
                           onChangeText={(v) => edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].name = v))}
                           placeholder="Movement"
-                          placeholderTextColor="#847d73"
                           className="h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
                         />
                         {ex.sets.map((st, si) => (
                           <View key={si} className="mt-1 flex-row items-center gap-1">
-                            <Text className={`w-8 text-3 font-bold ${isWarmup(st) ? 'text-gold2' : 'text-dim'}`}>
+                            <T w="semi" num className={`w-8 text-3 ${isWarmup(st) ? 'text-gold2' : 'text-dim'}`}>
                               {isWarmup(st) ? 'Warm' : 'Set ' + (si + 1)}
-                            </Text>
-                            <TextInput
+                            </T>
+                            <Input
+                              num
                               value={st.t}
                               editable={!readOnly}
                               onChangeText={(v) =>
                                 edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets[si].t = v))
                               }
                               placeholder="reps"
-                              placeholderTextColor="#847d73"
                               className="h-4 w-14 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
                             />
-                            <TextInput
+                            <Input
+                              num
                               value={st.rpe}
                               editable={!readOnly}
                               onChangeText={(v) =>
                                 edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets[si].rpe = v))
                               }
                               placeholder={isWarmup(st) ? '—' : 'RPE'}
-                              placeholderTextColor="#847d73"
                               className="h-4 w-12 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
                             />
                             {!readOnly && ex.sets.length > 1 ? (
@@ -196,7 +197,7 @@ export function PlannerScreen() {
                                   edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets.splice(si, 1))
                                 }
                               >
-                                <Text className="px-1 text-3 text-dim">✕</Text>
+                                <T className="px-1 text-3 text-dim">✕</T>
                               </Pressable>
                             ) : null}
                           </View>
@@ -211,12 +212,12 @@ export function PlannerScreen() {
                             ＋ Add set
                           </Btn>
                         ) : null}
-                        <Text className="mt-1 text-3 text-dim">
+                        <T className="mt-1 text-3 text-dim">
                           Type what you want to hit — 8, 8-12, max. Start with W for a warm-up (W or W10).
-                        </Text>
+                        </T>
 
                         <View className="mt-1.5 flex-row items-center gap-1">
-                          <Text className="text-2 font-bold uppercase tracking-widest text-dim">Rest</Text>
+                          <T w="semi" className="text-2 uppercase tracking-widest text-dim">Rest</T>
                           {!readOnly ? (
                             <Btn
                               onPress={() =>
@@ -229,7 +230,7 @@ export function PlannerScreen() {
                               −
                             </Btn>
                           ) : null}
-                          <Text className="w-10 text-center text-4 font-bold text-text">{fmtRest(ex.rest || 0)}</Text>
+                          <T w="semi" num className="w-10 text-center text-4 text-text">{fmtRest(ex.rest || 0)}</T>
                           {!readOnly ? (
                             <Btn
                               onPress={() =>
@@ -256,7 +257,7 @@ export function PlannerScreen() {
                                 }}
                                 className="rounded-md border border-line2 px-1 py-0.5"
                               >
-                                <Text className="text-3 text-dim">Remove</Text>
+                                <T className="text-3 text-dim">Remove</T>
                               </Pressable>
                             </>
                           ) : null}
