@@ -224,6 +224,11 @@ export function Editor({
                       onChange={(e) => edit((d) => void ((d.blocks[bi] as CoachBlock).mins = e.target.value))}
                       placeholder="—"
                       aria-label="block duration"
+                      /* The only genuinely numeric field on this screen. The
+                         target and RPE cells look numeric and are not — they
+                         carry "8-12", "max", "W10" — so a numeric keypad there
+                         would hide the very characters that make them useful. */
+                      inputMode="numeric"
                       className={WELL + ' num h-4 w-6 px-0.5 text-center text-3'}
                     />
                     <span className={MICRO}>min</span>

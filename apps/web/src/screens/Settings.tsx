@@ -136,14 +136,26 @@ function CloudCard() {
             <p className="text-4 text-muted">
               Signed in as <b className="text-text">{user.email}</b>
             </p>
-            <p className="mt-0.5 text-3 text-dim">
+            {/* Announced, because this text is the ONLY report a sync gives.
+                It changes on its own after a button press, and a change nobody
+                is told about is the same as no feedback at all for anyone not
+                watching this exact line. `polite` waits for a pause rather
+                than interrupting. */}
+            <p className="mt-0.5 text-3 text-dim" role="status" aria-live="polite">
               {busy
                 ? 'Syncing…'
                 : syncedAt
                   ? 'Last synced ' + new Date(syncedAt).toLocaleTimeString()
                   : 'Not synced yet this session.'}
             </p>
-            {error ? <p className="mt-1 text-3 text-bad">{error}</p> : null}
+            {/* `assertive`: a failed sign-in or a rejected sync is the one thing
+                worth interrupting for — carrying on unaware costs you the
+                session you thought was saved. */}
+            {error ? (
+              <p className="mt-1 text-3 text-bad" role="alert" aria-live="assertive">
+                {error}
+              </p>
+            ) : null}
             <div className="mt-1.5 flex gap-1">
               <Button onClick={() => void syncNow()} disabled={busy}>
                 Sync now

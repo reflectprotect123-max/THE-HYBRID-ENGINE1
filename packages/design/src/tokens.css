@@ -138,6 +138,32 @@
     outline-offset: 2px;
   }
 
+  /*
+   * Touch targets, but only for fingers.
+   *
+   * The athlete app is an installable PWA and is used on a phone in a gym —
+   * yet `Button` renders 32px at `sm` and 40px at `md`, both under the 44pt
+   * minimum. The phone app had exactly this defect and it was fixed there
+   * first; the same person meets the same buttons here.
+   *
+   * `pointer: coarse` is what makes this safe to do globally. A mouse is
+   * precise and does not need 44px, so desktop and the coach builder — which
+   * is dense by design and would look bloated — are untouched. The query
+   * matches the input device, not the viewport, so a narrow desktop window
+   * stays compact and a large tablet still gets finger-sized controls.
+   *
+   * min-height rather than height: a control that is already taller keeps its
+   * size, and nothing that fits gets stretched.
+   */
+  @media (pointer: coarse) {
+    button,
+    [role='button'],
+    select,
+    input:not([type='range']):not([type='checkbox']):not([type='radio']) {
+      min-height: 44px;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

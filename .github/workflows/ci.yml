@@ -116,6 +116,15 @@ jobs:
       - name: Deploy smoke (publish directory, Chromium)
         run: pnpm run smoke:deploy
 
+      # Measures button heights under BOTH pointer emulations. The coarse-pointer
+      # rule in tokens.css is the kind of media query that is easy to write and
+      # easy to get wrong — it can match nothing, or match everything — and every
+      # other browser suite runs with a fine pointer, so none of them would ever
+      # enter the branch. This asserts fingers get 44px AND that a mouse still
+      # gets the compact sizes.
+      - name: Web touch targets (both pointer emulations)
+        run: node checks/web-touch.mjs
+
       # Suites that need no network and no secrets. emit-contract used to lead
       # this list; it string-pinned the vanilla app.js and round-tripped the
       # vanilla coach emit.js through a browser. Both are deleted, and
