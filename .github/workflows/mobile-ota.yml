@@ -98,12 +98,20 @@ jobs:
           UPDATE_MESSAGE: ${{ github.event.head_commit.message || 'Manual OTA publish' }}
         run: |
           set -euo pipefail
-          # --platform android, matching mobile-eas.yml and the local bundle
-          # script: this app has no real iOS or web target. Without it, `eas
-          # update` exports for --platform=all internally, which pulls in
-          # cross-platform babel plugins (e.g. @babel/plugin-transform-react-jsx
-          # for the web/iOS JSX runtime) this Android-only app never installs.
-          pnpm dlx eas-cli@21 update \
+          # `eas-cli` is a real devDependency here (not `pnpm dlx`), unlike
+          # mobile-eas.yml's `eas build`. That distinction matters: `eas
+          # build` only uploads and returns — `eas update` bundles LOCALLY,
+          # forking Metro worker child processes that resolve babel presets
+          # by walking up from the working directory. `pnpm dlx` runs the
+          # tool from an isolated, ephemeral store, and those forked workers
+          # didn't inherit a working directory that resolves this project's
+          # own node_modules — "Cannot find module '@babel/plugin-transform-
+          # react-jsx'" even with the plugin present in the pnpm store,
+          # reproducible only inside dlx's isolation, not via a direct local
+          # invocation. A properly linked local binary doesn't have that
+          # problem. --platform android matches every other build script:
+          # this app has no real iOS or web target.
+          node_modules/.bin/eas update \
             --channel preview \
             --platform android \
             --message "$(head -n1 <<< "$UPDATE_MESSAGE")" \
