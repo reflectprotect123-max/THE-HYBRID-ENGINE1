@@ -31,6 +31,9 @@ on:
       - "packages/design/**"
       - "packages/config/**"
       - "pnpm-lock.yaml"
+  # Manual escape hatch — e.g. to re-publish after a workflow-only fix that
+  # doesn't touch a path above, or to retry without an empty commit.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -90,7 +93,9 @@ jobs:
           # closes the argument early and the rest gets parsed as separate
           # CLI args. Only the subject line, since EAS truncates past 1024
           # characters anyway and the subject is what a channel label needs.
-          UPDATE_MESSAGE: ${{ github.event.head_commit.message }}
+          # head_commit is only set on a push event; a manual dispatch has no
+          # commit to summarize.
+          UPDATE_MESSAGE: ${{ github.event.head_commit.message || 'Manual OTA publish' }}
         run: |
           set -euo pipefail
           pnpm dlx eas-cli@21 update \
