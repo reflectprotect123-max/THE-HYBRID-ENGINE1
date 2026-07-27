@@ -8,7 +8,9 @@ import {
   recoveryBand,
   rpeGapInfo,
   sessionVolume,
+  todayHrv,
   todayRecovery,
+  todayStrain,
   ymd,
   type Session,
   type Workout,
@@ -16,7 +18,7 @@ import {
 } from '@hybrid/engine';
 import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
-import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Title, zoneNeon } from '../ui';
+import { Btn, Card, Empty, Kicker, Link, Ring, Row, Screen, SectionHead, T, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -39,6 +41,9 @@ export function HomeScreen() {
   const today = ymd(new Date());
   const rec = todayRecovery(whoop);
   const band = recoveryBand(rec);
+  const strain = todayStrain(whoop);
+  const hrv = todayHrv(whoop);
+  const rhr = Number.isFinite(Number(whoop?.restingHr)) && whoop?.restingHr != null ? Math.round(Number(whoop.restingHr)) : null;
   const zones = useMemo(() => conZones(hr), [hr]);
   const gap = useMemo(() => rpeGapInfo(sessions), [sessions]);
 
@@ -128,47 +133,56 @@ export function HomeScreen() {
       )}
 
       <SectionHead title="Readiness" />
-      <Card className="flex-row items-center gap-2">
-        <Ring
-          frac={rec == null ? 0 : rec / 100}
-          size={104}
-          color={rec == null ? color.ringIdle : bandColor}
-          glow={rec != null}
-        >
-          {rec == null ? (
-            <T className="text-3 text-dim">no score</T>
-          ) : (
-            <>
-              <T w="black" num className="text-8" style={{ color: bandColor }}>
-                {rec}
-              </T>
-              <T w="semi" className="text-1 uppercase text-dim" style={{ letterSpacing: 1 }}>
-                recovery
-              </T>
-            </>
-          )}
-        </Ring>
-        <View className="min-w-0 flex-1">
-          <T w="semi" className="text-6 text-text">
-            {band === 'good' ? 'Strong' : band === 'watch' ? 'Steady' : band === 'low' ? 'Low' : 'No score yet'}
-          </T>
-          <T className="mt-0.5 text-4 text-muted">
-            {band === 'low'
-              ? 'Zones are eased today and conditioning is dialled back a notch.'
-              : band === 'good'
-                ? 'Zones widened slightly at the top. Good day to push.'
-                : band === 'watch'
-                  ? 'Nothing adjusted. Train as prescribed.'
-                  : 'Connect WHOOP in Settings, or set a resting HR to sharpen your zones.'}
-          </T>
-          {gap ? (
-            <T className="mt-1 text-3 text-dim">
-              Last session felt {gap.gap > 0.25 ? 'harder' : gap.gap < -0.25 ? 'easier' : 'about as'}{' '}
-              {Math.abs(gap.gap) <= 0.25 ? 'hard as asked' : 'than asked'} ({gap.gap > 0 ? '+' : ''}
-              {gap.gap.toFixed(1)} RPE over {gap.n} rated {gap.n === 1 ? 'set' : 'sets'}).
+      <Card>
+        <View className="flex-row items-center gap-2">
+          <Ring
+            frac={rec == null ? 0 : rec / 100}
+            size={104}
+            color={rec == null ? color.ringIdle : bandColor}
+            glow={rec != null}
+          >
+            {rec == null ? (
+              <T className="text-3 text-dim">no score</T>
+            ) : (
+              <>
+                <T w="black" num className="text-8" style={{ color: bandColor }}>
+                  {rec}
+                </T>
+                <T w="semi" className="text-1 uppercase text-dim" style={{ letterSpacing: 1 }}>
+                  recovery
+                </T>
+              </>
+            )}
+          </Ring>
+          <View className="min-w-0 flex-1">
+            <T w="semi" className="text-6 text-text">
+              {band === 'good' ? 'Strong' : band === 'watch' ? 'Steady' : band === 'low' ? 'Low' : 'No score yet'}
             </T>
-          ) : null}
+            <T className="mt-0.5 text-4 text-muted">
+              {band === 'low'
+                ? 'Zones are eased today and conditioning is dialled back a notch.'
+                : band === 'good'
+                  ? 'Zones widened slightly at the top. Good day to push.'
+                  : band === 'watch'
+                    ? 'Nothing adjusted. Train as prescribed.'
+                    : 'Connect WHOOP in Settings, or set a resting HR to sharpen your zones.'}
+            </T>
+            {gap ? (
+              <T className="mt-1 text-3 text-dim">
+                Last session felt {gap.gap > 0.25 ? 'harder' : gap.gap < -0.25 ? 'easier' : 'about as'}{' '}
+                {Math.abs(gap.gap) <= 0.25 ? 'hard as asked' : 'than asked'} ({gap.gap > 0 ? '+' : ''}
+                {gap.gap.toFixed(1)} RPE over {gap.n} rated {gap.n === 1 ? 'set' : 'sets'}).
+              </T>
+            ) : null}
+          </View>
         </View>
+        {strain != null || hrv != null || rhr != null ? (
+          <View className="mt-1.5 border-t border-line pt-1.5">
+            {strain != null ? <Row dot={color.neonStrain} glow label="Strain" value={strain.toFixed(1)} /> : null}
+            {hrv != null ? <Row label="HRV" value={hrv + ' ms'} /> : null}
+            {rhr != null ? <Row label="Resting HR" value={rhr + ' bpm'} /> : null}
+          </View>
+        ) : null}
       </Card>
 
       <SectionHead

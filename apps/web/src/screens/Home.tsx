@@ -6,7 +6,9 @@ import {
   recoveryBand,
   rpeGapInfo,
   sessionVolume,
+  todayHrv,
   todayRecovery,
+  todayStrain,
   ymd,
   type Session,
   type Workout,
@@ -43,6 +45,9 @@ export function Home() {
   const today = ymd(new Date());
   const rec = todayRecovery(whoop);
   const band = recoveryBand(rec);
+  const strain = todayStrain(whoop);
+  const hrv = todayHrv(whoop);
+  const rhr = Number.isFinite(Number(whoop?.restingHr)) && whoop?.restingHr != null ? Math.round(Number(whoop.restingHr)) : null;
   const zones = useMemo(() => conZones(hr), [hr]);
   const gap = useMemo(() => rpeGapInfo(sessions), [sessions]);
 
@@ -132,45 +137,73 @@ export function Home() {
       )}
 
       <SectionHead title="Readiness" />
-      <Card className="flex items-center gap-2">
-        <Ring
-          frac={rec == null ? 0 : rec / 100}
-          size={104}
-          color={rec == null ? 'var(--color-ring-idle)' : bandColor}
-          glow={rec != null}
-        >
-          {rec == null ? (
-            <span className="text-3 text-dim">no score</span>
-          ) : (
-            <>
-              <span className="num text-8 font-[900]" style={{ color: bandColor }}>
-                {rec}
-              </span>
-              <span className="text-1 font-[750] uppercase tracking-[.1em] text-dim">recovery</span>
-            </>
-          )}
-        </Ring>
-        <div className="min-w-0 flex-1">
-          <p className="text-6 font-[750]">
-            {band === 'good' ? 'Strong' : band === 'watch' ? 'Steady' : band === 'low' ? 'Low' : 'No score yet'}
-          </p>
-          <p className="mt-0.5 text-4 text-muted">
-            {band === 'low'
-              ? 'Zones are eased today and conditioning is dialled back a notch.'
-              : band === 'good'
-                ? 'Zones widened slightly at the top. Good day to push.'
-                : band === 'watch'
-                  ? 'Nothing adjusted. Train as prescribed.'
-                  : 'Connect WHOOP in Settings, or set a resting HR to sharpen your zones.'}
-          </p>
-          {gap ? (
-            <p className="mt-1 text-3 text-dim">
-              Last session felt {gap.gap > 0.25 ? 'harder' : gap.gap < -0.25 ? 'easier' : 'about as'} {' '}
-              {Math.abs(gap.gap) <= 0.25 ? 'hard as asked' : 'than asked'} ({gap.gap > 0 ? '+' : ''}
-              {gap.gap.toFixed(1)} RPE over {gap.n} rated {gap.n === 1 ? 'set' : 'sets'}).
+      <Card>
+        <div className="flex items-center gap-2">
+          <Ring
+            frac={rec == null ? 0 : rec / 100}
+            size={104}
+            color={rec == null ? 'var(--color-ring-idle)' : bandColor}
+            glow={rec != null}
+          >
+            {rec == null ? (
+              <span className="text-3 text-dim">no score</span>
+            ) : (
+              <>
+                <span className="num text-8 font-[900]" style={{ color: bandColor }}>
+                  {rec}
+                </span>
+                <span className="text-1 font-[750] uppercase tracking-[.1em] text-dim">recovery</span>
+              </>
+            )}
+          </Ring>
+          <div className="min-w-0 flex-1">
+            <p className="text-6 font-[750]">
+              {band === 'good' ? 'Strong' : band === 'watch' ? 'Steady' : band === 'low' ? 'Low' : 'No score yet'}
             </p>
-          ) : null}
+            <p className="mt-0.5 text-4 text-muted">
+              {band === 'low'
+                ? 'Zones are eased today and conditioning is dialled back a notch.'
+                : band === 'good'
+                  ? 'Zones widened slightly at the top. Good day to push.'
+                  : band === 'watch'
+                    ? 'Nothing adjusted. Train as prescribed.'
+                    : 'Connect WHOOP in Settings, or set a resting HR to sharpen your zones.'}
+            </p>
+            {gap ? (
+              <p className="mt-1 text-3 text-dim">
+                Last session felt {gap.gap > 0.25 ? 'harder' : gap.gap < -0.25 ? 'easier' : 'about as'} {' '}
+                {Math.abs(gap.gap) <= 0.25 ? 'hard as asked' : 'than asked'} ({gap.gap > 0 ? '+' : ''}
+                {gap.gap.toFixed(1)} RPE over {gap.n} rated {gap.n === 1 ? 'set' : 'sets'}).
+              </p>
+            ) : null}
+          </div>
         </div>
+        {strain != null || hrv != null || rhr != null ? (
+          <ul className="mt-1.5 flex flex-col gap-0.5 border-t border-line pt-1.5">
+            {strain != null ? (
+              <li className="flex items-center gap-1">
+                <span
+                  className="h-1 w-1 shrink-0 rounded-pill"
+                  style={{ background: 'var(--color-neon-strain)', boxShadow: '0 0 6px var(--color-neon-strain)' }}
+                />
+                <span className="flex-1 text-4 font-[650]">Strain</span>
+                <span className="num text-4 text-muted">{strain.toFixed(1)}</span>
+              </li>
+            ) : null}
+            {hrv != null ? (
+              <li className="flex items-center gap-1">
+                <span className="flex-1 text-4 font-[650]">HRV</span>
+                <span className="num text-4 text-muted">{hrv} ms</span>
+              </li>
+            ) : null}
+            {rhr != null ? (
+              <li className="flex items-center gap-1">
+                <span className="flex-1 text-4 font-[650]">Resting HR</span>
+                <span className="num text-4 text-muted">{rhr} bpm</span>
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
       </Card>
 
       {/* Title is asserted verbatim by checks/react-smoke.mjs — keep the string. */}
