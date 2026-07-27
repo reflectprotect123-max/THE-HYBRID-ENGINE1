@@ -1,8 +1,20 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { blockExercises, isCond, newBlock, rxLine, uid, type LoggedSet, type StrengthBlock, type Workout } from '@hybrid/engine';
+import {
+  agoLabel,
+  blockExercises,
+  isCond,
+  newBlock,
+  rxLine,
+  sessionOpeners,
+  uid,
+  workoutStats,
+  type LoggedSet,
+  type StrengthBlock,
+  type Workout,
+} from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Btn, Card, Chip, Empty, Kicker, Screen, SectionHead, T, Title } from '../ui';
 import type { RootStackParams } from '../App';
@@ -102,6 +114,8 @@ export function LibraryScreen() {
               </Pressable>
             </View>
 
+            <Signal w={w} />
+
             <View className="mt-1 flex-row flex-wrap gap-0.5">
               {DAYS.map((d, i) => (
                 <Chip key={d} on={(w.days || []).includes(i)} onPress={() => toggleDay(w.id, i)}>
@@ -145,6 +159,43 @@ export function LibraryScreen() {
         </>
       ) : null}
     </Screen>
+  );
+}
+
+/*
+ * What this session actually means to you, on the card.
+ *
+ * The Library is the screen you open to DECIDE what to train, and until now it
+ * answered with a name and a block count. These two lines are the two things
+ * that bear on the decision: when you last did it, and what you would be
+ * lifting if you started it now.
+ *
+ * Both are suppressed when empty rather than rendered blank — a session you
+ * have never trained should say nothing, not "last trained never · opens at".
+ */
+function Signal({ w }: { w: Workout }) {
+  const { db, whoop } = useDb();
+  const stats = useMemo(() => workoutStats(w, db.sessions), [w, db.sessions]);
+  // Through sessionOpeners, so this figure and the one the logger prefills come
+  // from the same function — including the red-morning easing.
+  const opens = useMemo(() => sessionOpeners(w, db.settings, whoop), [w, db.settings, whoop]);
+
+  if (!stats.count && !opens.length) return null;
+
+  return (
+    <View className="mt-0.5">
+      {stats.count ? (
+        <T num className="text-3 text-dim">
+          {agoLabel(stats.lastDate)} · {stats.count} {stats.count === 1 ? 'time' : 'times'}
+        </T>
+      ) : null}
+      {opens.length ? (
+        <T num className="text-3 text-muted" numberOfLines={1}>
+          opens at {opens.map((o) => `${o.name} ${o.kg}`).join(' · ')}
+          {opens.some((o) => o.eased) ? ' (eased today)' : ''}
+        </T>
+      ) : null}
+    </View>
   );
 }
 

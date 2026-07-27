@@ -11,8 +11,10 @@ import { describe, expect, it } from 'vitest';
 import { prefillPrimary, prefillSecondary } from '../src/logger';
 import { repFloorOf, repTopOf } from '../src/autoreg';
 import { conZones, zoneSeconds } from '../src/hr';
+import { knownMovements, workoutStats } from '../src/session';
+import { agoLabel } from '../src/num';
 import { mergeEngines } from '../src/db';
-import type { EngineDB, Exercise, LoggedSet, Session } from '../src/types';
+import type { EngineDB, Exercise, LoggedSet, Session, Workout } from '../src/types';
 
 const ex = (name: string, sets: LoggedSet[]): Exercise<LoggedSet> => ({
   id: 'e1',
@@ -123,6 +125,17 @@ describe('the guided-logger prefills', () => {
       expect(prefillPrimary(today, 1, [last], { settings: { liftProgress: {} } })).toBe('100');
     });
 
+    it('finds both history and earned weight through a trailing space', () => {
+      // lastTimeFor lowercased but did not trim, while every OTHER keyer did —
+      // so a name saved as "Back squat " found its PRs and its earned weight
+      // but silently missed its own last session. Before the fix the first
+      // assertion returned '' (no history matched at all), not the wrong
+      // number — which is why nobody noticed.
+      const padded = ex('Back squat ', [{ t: '5', rpe: '8' }]);
+      expect(prefillPrimary(padded, 0, [last]), 'history').toBe('100');
+      expect(prefillPrimary(padded, 0, [], { settings: earned }), 'earned').toBe('105');
+    });
+
     it('is eased on a red recovery morning, but not on a green one', () => {
       const red = prefillPrimary(today, 1, [last], {
         settings: earned,
@@ -135,6 +148,91 @@ describe('the guided-logger prefills', () => {
       expect(red).toBe('102.5');
       expect(green).toBe('105');
     });
+  });
+});
+
+describe('the movement list the Planner offers back', () => {
+  const mk = (names: string[], at: number): Session => ({
+    id: 's' + at,
+    date: '2026-01-01',
+    status: 'completed',
+    completedAt: at,
+    blocks: [{ id: 'b', exercises: names.map((n, i) => ({ ...ex(n, []), id: 'e' + i })) }],
+  });
+
+  it('collapses spellings that differ only in case, keeping the newest', () => {
+    // The whole reason this exists: "Back Squat" and "back squat" are two
+    // separate lifts to exLogFor, detectPRs and the earned working weight.
+    const out = knownMovements([], [mk(['back squat'], 100), mk(['Back Squat'], 200)]);
+    expect(out).toEqual(['Back Squat']);
+  });
+
+  it('trims, and drops blanks', () => {
+    expect(knownMovements([], [mk(['  Bench  ', '', '   '], 1)])).toEqual(['Bench']);
+  });
+
+  it('reads workouts as well as sessions, since a plan may be unlogged', () => {
+    const w: Workout = { id: 'w1', name: 'A', updatedAt: 5, blocks: [{ id: 'b', exercises: [ex('Overhead press', [])] }] };
+    expect(knownMovements([w], [])).toEqual(['Overhead press']);
+  });
+
+  it('ignores conditioning and non-lift modes', () => {
+    const w: Workout = {
+      id: 'w1',
+      name: 'A',
+      updatedAt: 1,
+      blocks: [
+        { id: 'c', kind: 'conditioning', condFmt: 'intervals' },
+        { id: 'b', exercises: [{ ...ex('Plank', []), mode: 'seconds' }] },
+      ],
+    };
+    expect(knownMovements([w], [])).toEqual([]);
+  });
+});
+
+describe('what the Library says about a session', () => {
+  const w: Workout = { id: 'w1', name: 'Lower', blocks: [] };
+  const logged: Session = {
+    id: 's1',
+    date: '2026-03-02',
+    status: 'completed',
+    completedAt: 200,
+    workoutId: 'w1',
+    blocks: [{ id: 'b', exercises: [ex('Squat', [{ t: '5', rpe: '8', aVal: '100', done: true }])] }],
+  };
+  const abandoned: Session = { id: 's2', date: '2026-03-09', status: 'completed', completedAt: 900, workoutId: 'w1', blocks: [] };
+
+  it('does not count a session that was started and never logged', () => {
+    // Otherwise opening Training by mistake makes the Library claim a history
+    // the athlete knows they do not have — and moves "last trained" forward.
+    const st = workoutStats(w, [logged, abandoned]);
+    expect(st.count).toBe(1);
+    expect(st.lastDate).toBe('2026-03-02');
+  });
+
+  it('is zeroed for a session never trained', () => {
+    expect(workoutStats({ id: 'w9', name: 'X', blocks: [] }, [logged])).toEqual({ lastDate: null, lastAt: 0, count: 0 });
+  });
+});
+
+describe('agoLabel', () => {
+  const now = new Date(2026, 2, 20, 9); // 20 Mar 2026, morning
+
+  it('names the near days rather than counting them', () => {
+    expect(agoLabel('2026-03-20', now)).toBe('today');
+    expect(agoLabel('2026-03-19', now)).toBe('yesterday');
+    expect(agoLabel('2026-03-16', now)).toBe('4 days ago');
+  });
+
+  it('coarsens as it gets further away', () => {
+    expect(agoLabel('2026-03-01', now)).toBe('2 weeks ago');
+    expect(agoLabel('2025-12-20', now)).toBe('3 months ago');
+  });
+
+  it('handles a future date and a missing one without producing nonsense', () => {
+    expect(agoLabel('2026-04-01', now)).toBe('scheduled');
+    expect(agoLabel('', now)).toBe('');
+    expect(agoLabel(null, now)).toBe('');
   });
 });
 

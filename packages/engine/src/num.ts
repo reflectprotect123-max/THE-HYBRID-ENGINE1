@@ -76,6 +76,28 @@ export function ymd(d: Date): string {
 }
 
 /**
+ * "today" / "yesterday" / "4 days ago" / "3 weeks ago" from a YYYY-MM-DD.
+ *
+ * Here rather than in either app so both phrase it identically — the same
+ * reason `fmtClock` and `fmtRpe` live in this file. Compared at local midday to
+ * dodge the DST hour: at midnight a clock change flips "yesterday" to "today".
+ */
+export function agoLabel(date: string | null | undefined, now: Date = new Date()): string {
+  const t = Date.parse(String(date || '') + 'T12:00:00');
+  if (!Number.isFinite(t)) return '';
+  const ref = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12).getTime();
+  const days = Math.round((ref - t) / 864e5);
+  if (days < 0) return 'scheduled';
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 14) return days + ' days ago';
+  const wk = Math.floor(days / 7);
+  if (wk < 9) return wk + ' weeks ago';
+  const mo = Math.floor(days / 30);
+  return mo + (mo === 1 ? ' month ago' : ' months ago');
+}
+
+/**
  * De-duplicate, dropping holes. A legacy blob can carry `null` in a workout's
  * days/dates, and the merge that unions them runs before any sanitize on the
  * push path — so a hole kept here is written straight back to the cloud.

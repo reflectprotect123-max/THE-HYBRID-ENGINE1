@@ -3,7 +3,7 @@ import { computeSetAdjustment, isWarmup, repFloorOf, rpeCenterOf } from './autor
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
 import { blockExercises, isLiftMode } from './session';
-import type { LiftState, LoggedSet, Session, Settings, WhoopSample } from './types';
+import type { AnySet, Block, LiftState, LoggedSet, Session, Settings, WhoopSample } from './types';
 
 /*
  * Strength progression ACROSS sessions.
@@ -178,3 +178,39 @@ export function nextWorkingWeight(
 
 /** Below this, the day is red. Re-exported so surfaces can explain the gate. */
 export const LIFT_EASE_BELOW = RECOVERY_BANDS.watch;
+
+/**
+ * What a library session would open at, movement by movement.
+ *
+ * Goes through `nextWorkingWeight` rather than reading `liftProgress` directly,
+ * so the figure the Library shows and the figure the logger prefills cannot
+ * disagree — including on a red morning, when both are eased by the same step.
+ *
+ * Movements that have earned nothing yet are omitted, not shown as blanks: a
+ * session you have never trained should say nothing rather than list its
+ * exercises against empty numbers.
+ */
+export function sessionOpeners(
+  w: { blocks: Block<AnySet>[] } | null | undefined,
+  settings: Settings = {},
+  whoop?: WhoopSample | null,
+): { name: string; kg: number; eased: boolean }[] {
+  if (!w) return [];
+  const out: { name: string; kg: number; eased: boolean }[] = [];
+  const seen = new Set<string>();
+
+  (w.blocks || []).forEach((b) =>
+    blockExercises(b).forEach((ex) => {
+      if (!isLiftMode(ex.mode)) return;
+      const name = String(ex.name || '').trim();
+      const key = name.toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+
+      const nw = nextWorkingWeight(name, settings, whoop);
+      if (nw) out.push({ name, kg: nw.kg, eased: nw.dailyAdj < 0 });
+    }),
+  );
+
+  return out;
+}

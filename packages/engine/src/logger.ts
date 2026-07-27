@@ -91,7 +91,11 @@ export function targetLine(ex: Exercise<LoggedSet>, st: LoggedSet): string {
  * reading it by index silently walks the athlete onto a heavier set.
  */
 function lastTimeFor(name: string, sessions: Session[]): (LoggedSet | null)[] | null {
-  const key = String(name || '').toLowerCase();
+  // `.trim()` matters and was missing: every OTHER place that keys on a
+  // movement name trims first — exLogFor, detectPRs, bestE1rmByLift, liftMoves,
+  // nextWorkingWeight — so a name saved with a trailing space found its earned
+  // weight and its PRs but not its own last session.
+  const key = String(name || '').trim().toLowerCase();
   const done = sessions
     .filter((s) => s.status === 'completed' || s.status === 'incomplete')
     .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));

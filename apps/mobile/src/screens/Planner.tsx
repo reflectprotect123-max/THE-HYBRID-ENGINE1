@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,6 +10,7 @@ import {
   fmtRest,
   isCond,
   isWarmup,
+  knownMovements,
   newBlock,
   newCondBlock,
   newEx,
@@ -29,6 +30,37 @@ import type { RootStackParams } from '../App';
 const FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo', 'free'];
 const EFFORTS: EffortKey[] = ['easy', 'medium', 'hard'];
 
+/** How many name suggestions fit under the field without pushing the sets off. */
+const MAX_SUGGEST = 6;
+
+/*
+ * Movements you have already written, offered back.
+ *
+ * Not a catalogue — the sessions ARE the catalogue, and `knownMovements`
+ * derives this on read. The point is that "Squat" and "Back Squat" are two
+ * different lifts to the history, the PR detector and the earned working
+ * weight, so the cheapest way to stop a lift fragmenting is to make retyping
+ * it unnecessary.
+ *
+ * Hidden once what you have typed already matches something exactly — at that
+ * point the row is only telling you what is already in the box.
+ */
+function Suggest({ typed, known, onPick }: { typed: string; known: string[]; onPick: (name: string) => void }) {
+  const q = String(typed || '').trim().toLowerCase();
+  const hits = known.filter((n) => n.toLowerCase() !== q && (!q || n.toLowerCase().includes(q))).slice(0, MAX_SUGGEST);
+  if (!hits.length) return null;
+
+  return (
+    <View className="mt-0.5 flex-row flex-wrap gap-0.5">
+      {hits.map((n) => (
+        <Chip key={n} onPress={() => onPick(n)}>
+          {n}
+        </Chip>
+      ))}
+    </View>
+  );
+}
+
 /* The athlete's own plan editor — the same shape the coach writes in, because
    both sides share one model. Targets are typed, not chipped: chips cannot
    express "8-12", a ladder, or a warm-up. */
@@ -37,6 +69,11 @@ export function PlannerScreen() {
   const route = useRoute<RouteProp<RootStackParams, 'Planner'>>();
   const { db, update } = useDb();
   const [openEx, setOpenEx] = useState<string | null>('0-0');
+
+  /* Above the early return, not below it: a hook that only runs when the
+     workout exists changes the hook COUNT between renders, which typecheck
+     cannot see and React crashes on. */
+  const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
 
   const w = db.workouts.find((x) => x.id === route.params.id);
   if (!w) {
@@ -166,6 +203,15 @@ export function PlannerScreen() {
                           placeholder="Movement"
                           className="h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
                         />
+                        {!readOnly ? (
+                          <Suggest
+                            typed={ex.name}
+                            known={known}
+                            onPick={(name) =>
+                              edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].name = name))
+                            }
+                          />
+                        ) : null}
                         {ex.sets.map((st, si) => (
                           <View key={si} className="mt-1 flex-row items-center gap-1">
                             <T w="semi" num className={`w-8 text-3 ${isWarmup(st) ? 'text-gold2' : 'text-dim'}`}>

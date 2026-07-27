@@ -341,3 +341,72 @@ export function bestE1rmByLift(
 export function isCondWorkout(w: Workout): boolean {
   return (w.blocks || []).length > 0 && (w.blocks || []).every(isCond);
 }
+
+/**
+ * How often a library session has actually been trained, and when last.
+ *
+ * `hasLoggedWork` rather than `status === 'completed'` on purpose: a session
+ * started by mistake and finished with nothing on it is not a session you
+ * trained, and counting it would make the Library claim a history the athlete
+ * knows they do not have.
+ */
+export function workoutStats(
+  w: Workout | null | undefined,
+  sessions: Session[] = [],
+): { lastDate: string | null; lastAt: number; count: number } {
+  if (!w || !w.id) return { lastDate: null, lastAt: 0, count: 0 };
+  let lastDate: string | null = null;
+  let lastAt = 0;
+  let count = 0;
+
+  sessions.forEach((s) => {
+    if (!s || s.workoutId !== w.id || s.status === 'active') return;
+    if (!hasLoggedWork(s)) return;
+    count += 1;
+    const at = s.completedAt || 0;
+    if (at >= lastAt) {
+      lastAt = at;
+      lastDate = s.date || lastDate;
+    }
+  });
+
+  return { lastDate, lastAt, count };
+}
+
+/**
+ * Every movement name the athlete has ever written, newest spelling first.
+ *
+ * DERIVED, never stored. The point of this list is to stop the same lift being
+ * written two ways — "Squat" and "Back Squat" are two different lifts to
+ * `exLogFor`, `detectPRs`, `bestE1rmByLift` and the earned working weight — and
+ * a stored catalogue would be one more thing that can desync and disagree with
+ * the sessions it is meant to describe. The sessions ARE the catalogue.
+ *
+ * De-duplicated case-insensitively keeping the most recent spelling, because
+ * the last way you wrote it is the way you are writing it now.
+ */
+export function knownMovements(
+  workouts: Workout[] = [],
+  sessions: Session[] = [],
+): string[] {
+  // Newest first so the first spelling seen for a key is the freshest one.
+  const src: { blocks: Block<AnySet>[]; at: number }[] = [];
+  (workouts || []).forEach((w) => w && src.push({ blocks: w.blocks || [], at: w.updatedAt || 0 }));
+  (sessions || []).forEach((s) => s && src.push({ blocks: s.blocks || [], at: s.completedAt || s.updatedAt || 0 }));
+  src.sort((a, b) => b.at - a.at);
+
+  const seen = new Map<string, string>();
+  src.forEach((x) =>
+    x.blocks.forEach((b) =>
+      blockExercises(b).forEach((e) => {
+        if (!isLiftMode(e.mode)) return;
+        const name = String(e.name || '').trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        if (!seen.has(key)) seen.set(key, name);
+      }),
+    ),
+  );
+
+  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+}

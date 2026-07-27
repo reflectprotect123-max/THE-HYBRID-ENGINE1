@@ -11,7 +11,7 @@
  * happens when nothing was earned, and how the recovery gate behaves.
  */
 import { describe, expect, it } from 'vitest';
-import { liftAdapt, liftMoves, nextWorkingWeight } from '../src/lift';
+import { liftAdapt, liftMoves, nextWorkingWeight, sessionOpeners } from '../src/lift';
 import type { Exercise, LoggedSet, Session } from '../src/types';
 
 const ex = (name: string, sets: LoggedSet[], mode: Exercise['mode'] = 'reps_kg'): Exercise<LoggedSet> => ({
@@ -173,5 +173,47 @@ describe('what to offer today', () => {
   it('never eases below one step', () => {
     const light = { liftProgress: { curl: { kg: 2.5, at: 1 } } };
     expect(nextWorkingWeight('curl', light, { recoveryScore: 10 })?.kg).toBe(2.5);
+  });
+});
+
+describe('what a library session opens at', () => {
+  const settings = {
+    liftProgress: {
+      'back squat': { kg: 100, at: 1000 },
+      bench: { kg: 60, at: 1000 },
+    },
+  };
+  const w = {
+    blocks: [
+      { id: 'b1', exercises: [ex('Back squat', []), ex('Bench', [])] },
+      { id: 'b2', exercises: [ex('Deadlift', [])] },
+    ],
+  };
+
+  it('lists only movements that have earned something', () => {
+    // Deadlift has never been trained. A row against a blank number reads as a
+    // bug; saying nothing reads as "not yet".
+    expect(sessionOpeners(w, settings)).toEqual([
+      { name: 'Back squat', kg: 100, eased: false },
+      { name: 'Bench', kg: 60, eased: false },
+    ]);
+  });
+
+  it('agrees with the logger on a red morning, including the easing', () => {
+    // Both go through nextWorkingWeight precisely so the Library cannot
+    // advertise one number and the weight field open at another.
+    const red = sessionOpeners(w, settings, { recoveryScore: 15 });
+    expect(red[0]).toEqual({ name: 'Back squat', kg: 97.5, eased: true });
+    expect(red[0].kg).toBe(nextWorkingWeight('Back squat', settings, { recoveryScore: 15 })?.kg);
+  });
+
+  it('does not repeat a movement that appears in two blocks', () => {
+    const dup = { blocks: [{ id: 'b1', exercises: [ex('Back squat', [])] }, { id: 'b2', exercises: [ex('BACK SQUAT', [])] }] };
+    expect(sessionOpeners(dup, settings)).toHaveLength(1);
+  });
+
+  it('is empty for a missing workout or one with nothing earned', () => {
+    expect(sessionOpeners(null, settings)).toEqual([]);
+    expect(sessionOpeners(w, {})).toEqual([]);
   });
 });

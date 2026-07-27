@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   CON_EFFORTS,
   blockExercises,
@@ -8,6 +8,7 @@ import {
   fmtRest,
   isCond,
   isWarmup,
+  knownMovements,
   newBlock,
   newCondBlock,
   newEx,
@@ -34,11 +35,19 @@ import { Button, Card, Chip, Kicker, LetterChip, cx } from '../ui';
 const FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo', 'free'];
 const EFFORTS: EffortKey[] = ['easy', 'medium', 'hard'];
 
+/** Every movement field points at the same list; see the datalist below. */
+const MOVEMENT_LIST_ID = 'known-movements';
+
 export function Planner() {
   const { id } = useParams();
   const nav = useNavigate();
   const { db, update } = useDb();
   const [openEx, setOpenEx] = useState<string | null>('0-0');
+
+  /* Above the early return, not below it: a hook that only runs when the
+     workout exists changes the hook COUNT between renders, which typecheck
+     cannot see and React crashes on. */
+  const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
 
   const w = db.workouts.find((x) => x.id === id);
 
@@ -70,6 +79,26 @@ export function Planner() {
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-2 pt-2 pb-3">
+      {/*
+       * Movements already written, offered back to every name field.
+       *
+       * ONE datalist for the whole screen rather than one per input: the list
+       * is identical everywhere, and `list=` is a reference, so N copies would
+       * be N identical option sets in the DOM for no benefit.
+       *
+       * Not a catalogue — the sessions ARE the catalogue, derived on read by
+       * `knownMovements`. The point is that "Squat" and "Back Squat" are two
+       * different lifts to the history, the PR detector and the earned working
+       * weight, so the cheapest fix is to make retyping unnecessary.
+       */}
+      {!readOnly && known.length ? (
+        <datalist id={MOVEMENT_LIST_ID}>
+          {known.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+      ) : null}
+
       <header className="flex items-start gap-1">
         <button
           onClick={() => nav('/library')}
@@ -182,9 +211,14 @@ export function Planner() {
 
                         {open ? (
                           <div className="mt-1.5 border-t border-line pt-1.5">
+                            {/* A native datalist: no dependency, no popup to
+                                position, and no inline script — which matters,
+                                because the deployed CSP is script-src self and
+                                `check:csp` fails the build on inline script. */}
                             <input
                               value={ex.name}
                               readOnly={readOnly}
+                              list={readOnly ? undefined : MOVEMENT_LIST_ID}
                               onChange={(e) =>
                                 edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].name = e.target.value))
                               }
