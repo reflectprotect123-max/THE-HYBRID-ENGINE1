@@ -48,6 +48,18 @@ describe('Training', () => {
     expect(screen.queryByText('Start a session')).toBeNull();
   });
 
+  it('does not put the brass on Finish while there is work left', () => {
+    // At 0 of 3 the loudest control on the screen used to be the one action you
+    // should not take yet. The label is the observable half of that: the button
+    // stays available and says what finishing now would mean.
+    seed({ workouts: [liftWorkout()] });
+    renderScreen(<TrainingScreen />);
+    fireEvent.press(screen.getByText('Start'));
+
+    expect(screen.getByText('Finish session early')).toBeTruthy();
+    expect(screen.queryByText('Finish session')).toBeNull();
+  });
+
   it('renders an empty library without crashing', () => {
     seed({ workouts: [] });
     renderScreen(<TrainingScreen />);

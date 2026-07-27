@@ -19,7 +19,18 @@ import { useDb } from '../store/db';
 import { Btn, Card, Chip, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/*
+ * Two letters, in seven equal columns — the same change as the web app's.
+ *
+ * Three-letter chips in a wrapping row do not fit a phone: SAT dropped to a
+ * line of its own, so a week rendered as 6 + 1 and every session card carried
+ * an extra row of height to say nothing. `flex-1` per cell cannot wrap.
+ *
+ * Two letters rather than one because Sunday and Saturday are both S, and
+ * unlike Home's week strip there is no date underneath to tell them apart.
+ */
+const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /*
  * Everything you can train. Coach-assigned work is listed separately and is
@@ -115,11 +126,19 @@ export function LibraryScreen() {
 
             <Signal w={w} />
 
-            <View className="mt-1 flex-row flex-wrap gap-0.5">
+            <View className="mt-1 flex-row gap-0.5">
               {DAYS.map((d, i) => (
-                <Chip key={d} on={(w.days || []).includes(i)} onPress={() => toggleDay(w.id, i)}>
-                  {d}
-                </Chip>
+                // The cell owns the width; the chip stretches to fill it, so
+                // seven always land on one row whatever the label does.
+                <View key={d} className="flex-1">
+                  <Chip
+                    on={(w.days || []).includes(i)}
+                    onPress={() => toggleDay(w.id, i)}
+                    label={`${DAY_NAMES[i]} — ${(w.days || []).includes(i) ? 'scheduled' : 'not scheduled'}`}
+                  >
+                    {d}
+                  </Chip>
+                </View>
               ))}
             </View>
 

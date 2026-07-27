@@ -103,39 +103,50 @@ export function Home() {
       <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpen={() => nav('/calendar')} />
 
       {activeSession ? (
-        <SessionCard className="mt-2 border-gold-line">
+        <SessionCard tone="raised" className="mt-2">
           <Kicker className="text-1">In progress</Kicker>
           <h3 className="mt-0.5 truncate text-7 font-[800]">{activeSession.name || 'Live session'}</h3>
+          {/* Was its own section — a header, a gap and a full-width line to say
+              one sentence about a card directly above it. It belongs on the
+              card it is about. */}
+          {!plannedToShow.length ? (
+            <p className="mt-0.5 text-3 text-muted">Nothing else on today. Finish what you started.</p>
+          ) : null}
           <Button variant="brass" size="lg" className="mt-1.5 w-full" onClick={() => nav('/training')}>
             Resume session →
           </Button>
         </SessionCard>
       ) : null}
 
-      <SectionHead title="Today's plan" />
+      {/* The header renders only when the section has something in it. An
+          empty "Today's plan" under a live session was pure vertical cost. */}
       {plannedToShow.length ? (
-        <ul className="flex flex-col gap-1">
-          {plannedToShow.map((w, i) => (
-            <PlanRow
-              key={w.id}
-              w={w}
-              primary={i === 0 && !activeSession}
-              onStart={() => nav('/training')}
-            />
-          ))}
-        </ul>
-      ) : activeSession ? (
-        <p className="text-4 text-muted">Nothing else on today. Finish what you started.</p>
-      ) : (
-        <Empty
-          title="Nothing planned today"
-          body="Pick something from your Library, or let a rest day be a rest day."
-          action={
-            <Button variant="brass" onClick={() => nav('/library')}>
-              Open Library
-            </Button>
-          }
-        />
+        <>
+          <SectionHead title="Today's plan" />
+          <ul className="flex flex-col gap-1">
+            {plannedToShow.map((w, i) => (
+              <PlanRow
+                key={w.id}
+                w={w}
+                primary={i === 0 && !activeSession}
+                onStart={() => nav('/training')}
+              />
+            ))}
+          </ul>
+        </>
+      ) : activeSession ? null : (
+        <>
+          <SectionHead title="Today's plan" />
+          <Empty
+            title="Nothing planned today"
+            body="Pick something from your Library, or let a rest day be a rest day."
+            action={
+              <Button variant="brass" onClick={() => nav('/library')}>
+                Open Library
+              </Button>
+            }
+          />
+        </>
       )}
 
       <SectionHead title="Readiness" />
@@ -318,9 +329,17 @@ function WeekStrip({
 
 /** The session card surface from 04-athlete-02: a brass wash falling in from
  * the top-right corner. Decoration only — content stacks above it. */
-function SessionCard({ className, children }: { className?: string; children: React.ReactNode }) {
+function SessionCard({
+  className,
+  tone,
+  children,
+}: {
+  className?: string;
+  tone?: 'raised';
+  children: React.ReactNode;
+}) {
   return (
-    <Card className={cx('relative overflow-hidden', className)}>
+    <Card tone={tone} className={cx('relative overflow-hidden', className)}>
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0,var(--color-gold-wash),transparent_60%)]"
@@ -340,7 +359,7 @@ function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; pri
     .join(' · ');
   return (
     <li>
-      <SessionCard>
+      <SessionCard tone={primary ? 'raised' : undefined}>
         <Kicker className="text-1">Today · {cond ? 'Conditioning' : 'Strength'}</Kicker>
         <div className="mt-0.5 flex items-center gap-1">
           <div className="min-w-0 flex-1">
@@ -368,7 +387,7 @@ function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; pri
 function ZonesCard({ zones }: { zones: Zones }) {
   const span = Math.max(1, zones.max - zones.floor);
   return (
-    <Card>
+    <Card tone="quiet">
       <div className="num flex items-baseline justify-between gap-1 text-3 text-dim">
         <span>
           max {zones.max} bpm · {zones.method === 'hrr' ? 'Karvonen · resting ' + zones.rest : 'percent of max'}
@@ -409,7 +428,7 @@ function ZonesCard({ zones }: { zones: Zones }) {
 
 function Stat({ value, label, tint }: { value: string; label: string; tint?: boolean }) {
   return (
-    <Card className="py-1.5 text-center">
+    <Card tone="quiet" className="py-1.5 text-center">
       <b className={cx('num block text-7 font-[900]', tint ? 'text-gold2' : 'text-text')}>{value}</b>
       <span className="mt-0.5 block text-2 text-dim">{label}</span>
     </Card>

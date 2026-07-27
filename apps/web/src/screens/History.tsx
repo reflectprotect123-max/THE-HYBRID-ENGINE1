@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import {
   bestE1rmByLift,
   blockExercises,
+  byMonth,
+  dayLabel,
   epley,
   isCond,
   sessionRpe,
@@ -34,6 +36,8 @@ export function History() {
         .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)),
     [sessions],
   );
+
+  const months = useMemo(() => byMonth(done, (s) => s.date), [done]);
 
   const deltas = useMemo(() => {
     const now = Date.now();
@@ -87,30 +91,41 @@ export function History() {
         </>
       ) : null}
 
-      <SectionHead title="Sessions" />
+      {/* Grouped by month rather than run as one ribbon. Seventeen identical
+          cards each stamped `2026-07-20` is a column of near-identical strings
+          that has to be read digit by digit to place; the heading carries the
+          month once and each row carries only what tells it apart. */}
       {done.length ? (
-        <ul className="flex flex-col gap-1">
-          {done.map((s) => (
-            <li key={s.id}>
-              <Card>
-                <button
-                  className="w-full text-left"
-                  onClick={() => setOpen(open === s.id ? null : s.id)}
-                  aria-expanded={open === s.id}
-                >
-                  <div className="flex items-baseline gap-1">
-                    <span className="min-w-0 flex-1 truncate text-5 font-[750]">{s.name || 'Session'}</span>
-                    <span className="num text-3 text-dim">{s.date}</span>
-                  </div>
-                  <SessionSummary s={s} />
-                </button>
-                {open === s.id ? <SessionDetail s={s} /> : null}
-              </Card>
-            </li>
-          ))}
-        </ul>
+        months.map((m) => (
+          <div key={m.key}>
+            <SectionHead title={m.label} />
+            <ul className="flex flex-col gap-0.5">
+              {m.items.map((s) => (
+                <li key={s.id}>
+                  <Card tone="quiet" className="py-1.5">
+                    <button
+                      className="w-full text-left"
+                      onClick={() => setOpen(open === s.id ? null : s.id)}
+                      aria-expanded={open === s.id}
+                    >
+                      <div className="flex items-baseline gap-1">
+                        <span className="min-w-0 flex-1 truncate text-5 font-[750]">{s.name || 'Session'}</span>
+                        <span className="num shrink-0 text-3 text-dim">{dayLabel(s.date) || s.date}</span>
+                      </div>
+                      <SessionSummary s={s} />
+                    </button>
+                    {open === s.id ? <SessionDetail s={s} /> : null}
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
       ) : (
-        <Empty title="No finished sessions yet" body="Your first one will show up here the moment you finish it." />
+        <>
+          <SectionHead title="Sessions" />
+          <Empty title="No finished sessions yet" body="Your first one will show up here the moment you finish it." />
+        </>
       )}
     </>
   );

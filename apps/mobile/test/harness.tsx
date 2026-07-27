@@ -63,7 +63,7 @@ export function volumeSession(daysAgo: number, kg: number): Session {
   return {
     id: uid(),
     date: ymd(d),
-    status: 'done',
+    status: 'completed',
     blocks: [{ ...newBlock(), id: uid(), heading: 'Main', exercises: [ex] }],
     updatedAt: Date.now(),
   };

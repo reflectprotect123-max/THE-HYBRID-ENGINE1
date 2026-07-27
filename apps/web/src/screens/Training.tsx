@@ -132,6 +132,11 @@ export function Training() {
   const letters = sessionLetters(s);
   const prog = sessionProgress(s);
   const prs = detectPRs(s, sessions.filter((x) => x.id !== s.id));
+  /* Deliberately not a useMemo: the no-session branch returns above this line,
+     so a hook here would run on one render path and not the other. It is a
+     walk over a handful of exercises — the memo would cost more than it saves. */
+  const current = firstUnfinished(s);
+  const allDone = prog.total > 0 && prog.done >= prog.total;
 
   return (
     <>
@@ -191,15 +196,25 @@ export function Training() {
                 {blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
                   const done = exFinished(ex);
                   const logged = ex.sets.filter((st) => st.done).length;
+                  const isCurrent = current === `${bi}:${ei}`;
                   return (
                     <li key={ex.id ?? ei}>
                       <button
                         onClick={() => nav(`/log/${bi}/${ei}`)}
+                        // Announced as well as drawn — the card that leads is
+                        // the answer to "where am I", and a screen reader
+                        // cannot see a shadow.
+                        aria-current={isCurrent ? 'step' : undefined}
                         className={cx(
                           'w-full rounded-lg border p-2 text-left transition-colors duration-150',
                           done
                             ? 'border-done-line bg-done-bg'
-                            : 'border-line bg-panel shadow-card hover:border-gold-line',
+                            : isCurrent
+                              ? // The one you are on. Every card carried the
+                                // same weight, so finding your place meant
+                                // reading seven set counters.
+                                'border-gold-line bg-panel shadow-lift'
+                              : 'border-line bg-panel shadow-card hover:border-gold-line',
                         )}
                       >
                         <div className="flex items-center gap-1">
@@ -236,9 +251,25 @@ export function Training() {
         </Card>
       ) : null}
 
-      <Button variant="brass" size="lg" className="mt-3 w-full" onClick={finishSession}>
-        Finish session
+      {/* Brass only once the work is actually done. At 2 of 7 the loudest
+          control on the screen was the one action you should not take yet —
+          the brass belongs on the exercise you are mid-way through. Finishing
+          early stays available, it just stops shouting. */}
+      <Button variant={allDone ? 'brass' : 'ghost'} size="lg" className="mt-3 w-full" onClick={finishSession}>
+        {allDone ? 'Finish session' : 'Finish session early'}
       </Button>
     </>
   );
+}
+
+/** `"bi:ei"` of the first exercise with sets still to log, or null when the
+ *  session is done. Conditioning blocks have no set list and are skipped. */
+function firstUnfinished(s: Session): string | null {
+  for (let bi = 0; bi < s.blocks.length; bi++) {
+    const b = s.blocks[bi];
+    if (isCond(b)) continue;
+    const exs = blockExercises(b as StrengthBlock<LoggedSet>);
+    for (let ei = 0; ei < exs.length; ei++) if (!exFinished(exs[ei])) return `${bi}:${ei}`;
+  }
+  return null;
 }

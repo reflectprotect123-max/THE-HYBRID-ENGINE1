@@ -77,6 +77,11 @@ export function TrainingScreen() {
   // its own first working set a record.
   const prs = useMemo(() => (s ? detectPRs(s, db.sessions.filter((x) => x.id !== s.id)) : []), [s, db.sessions]);
   const volume = useMemo(() => (s ? sessionVolume(s) : 0), [s]);
+  /* Which exercise you are on. Guarded on `s` like every hook above it, so the
+     count is identical whether or not a session is live — typecheck is blind
+     to a hook that only runs on one path. */
+  const current = useMemo(() => (s ? firstUnfinished(s) : null), [s]);
+  const allDone = prog.total > 0 && prog.done >= prog.total;
 
   // Narrowed on `s`, not activeSession, so it stays non-null below.
   if (!s) {
@@ -183,11 +188,17 @@ export function TrainingScreen() {
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
               const done = exFinished(ex);
+              const isCurrent = current === `${bi}:${ei}`;
               return (
                 <Tap
                   key={ex.id ?? ei}
                   onPress={() => nav.navigate('Logger', { bi, ei })}
-                  className={`mb-1 rounded-lg border p-2 ${done ? 'border-done-line bg-done-bg' : 'border-line bg-panel'}`}
+                  // The one you are on. Every card carried the same weight, so
+                  // finding your place meant reading seven set counters.
+                  style={isCurrent ? { boxShadow: '0 18px 40px -20px rgba(0,0,0,.9)' } : undefined}
+                  className={`mb-1 rounded-lg border p-2 ${
+                    done ? 'border-done-line bg-done-bg' : isCurrent ? 'border-gold-line bg-panel' : 'border-line bg-panel'
+                  }`}
                 >
                   <View className="flex-row items-center gap-1">
                     <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
@@ -218,9 +229,24 @@ export function TrainingScreen() {
         </View>
       ) : null}
 
-      <Btn variant="brass" size="lg" className="mt-3" onPress={finish}>
-        Finish session
+      {/* Brass only once the work is actually done. At 2 of 7 the loudest
+          control on the screen was the one action you should not take yet.
+          Finishing early stays available, it just stops shouting. */}
+      <Btn variant={allDone ? 'brass' : 'ghost'} size="lg" className="mt-3" onPress={finish}>
+        {allDone ? 'Finish session' : 'Finish session early'}
       </Btn>
     </ScrollView>
   );
+}
+
+/** `"bi:ei"` of the first exercise with sets still to log, or null when the
+ *  session is done. Conditioning blocks have no set list and are skipped. */
+function firstUnfinished(s: Session): string | null {
+  for (let bi = 0; bi < s.blocks.length; bi++) {
+    const b = s.blocks[bi];
+    if (isCond(b)) continue;
+    const exs = blockExercises(b as StrengthBlock<LoggedSet>);
+    for (let ei = 0; ei < exs.length; ei++) if (!exFinished(exs[ei])) return `${bi}:${ei}`;
+  }
+  return null;
 }

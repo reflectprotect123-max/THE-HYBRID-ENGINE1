@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { blockExercises, epley, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
+import { blockExercises, byMonth, dayLabel, epley, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Card, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
 
@@ -13,29 +13,41 @@ export function HistoryScreen() {
     [db.sessions],
   );
 
+  const months = useMemo(() => byMonth(done, (s) => s.date), [done]);
+
   return (
     <Screen>
       <Kicker>History</Kicker>
       <Title>What you&apos;ve done</Title>
 
-      <SectionHead title="Sessions" />
+      {/* Grouped by month rather than run as one ribbon — see the web app's
+          note. The heading names the month once; each row carries only the day
+          that tells it apart. */}
       {done.length ? (
-        done.map((s) => (
-          <Card key={s.id} className="mb-1">
-            <Tap onPress={() => setOpen(open === s.id ? null : s.id)}>
-              <View className="flex-row items-baseline">
-                <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
-                  {s.name || 'Session'}
-                </T>
-                <T num className="text-3 text-dim">{s.date}</T>
-              </View>
-              <Summary s={s} />
-            </Tap>
-            {open === s.id ? <Detail s={s} /> : null}
-          </Card>
+        months.map((m) => (
+          <View key={m.key}>
+            <SectionHead title={m.label} />
+            {m.items.map((s) => (
+              <Card key={s.id} tone="quiet" className="mb-0.5 py-1.5">
+                <Tap onPress={() => setOpen(open === s.id ? null : s.id)}>
+                  <View className="flex-row items-baseline">
+                    <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
+                      {s.name || 'Session'}
+                    </T>
+                    <T num className="text-3 text-dim">{dayLabel(s.date) || s.date}</T>
+                  </View>
+                  <Summary s={s} />
+                </Tap>
+                {open === s.id ? <Detail s={s} /> : null}
+              </Card>
+            ))}
+          </View>
         ))
       ) : (
-        <Empty title="No finished sessions yet" body="Your first one shows up here the moment you finish it." />
+        <>
+          <SectionHead title="Sessions" />
+          <Empty title="No finished sessions yet" body="Your first one shows up here the moment you finish it." />
+        </>
       )}
     </Screen>
   );

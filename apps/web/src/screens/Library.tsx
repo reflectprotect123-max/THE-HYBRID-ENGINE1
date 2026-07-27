@@ -17,7 +17,20 @@ import {
 import { useDb } from '../store/db';
 import { Button, Card, Chip, Empty, Kicker, ScreenTitle, SectionHead } from '../ui';
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/*
+ * Two letters, in a fixed seven-column grid.
+ *
+ * Three-letter chips in a wrapping flex row do not fit a phone: SAT dropped to
+ * a line of its own, so a week rendered as 6 + 1 and every session card carried
+ * an extra row of height to say nothing. It reads as a layout bug rather than
+ * as a week. A grid cannot wrap, so the row survives whatever the label width
+ * and the coarse-pointer 44px rule do to the chips.
+ *
+ * Two letters rather than one because Sunday and Saturday are both S, and
+ * unlike the Home week strip there is no date underneath to disambiguate them.
+ */
+const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /*
  * The Library is everything you can train: sessions you have written, and
@@ -92,9 +105,17 @@ export function Library() {
 
                 <Signal w={w} />
 
-                <div className="mt-1 flex flex-wrap gap-0.5">
+                <div className="mt-1 grid grid-cols-7 gap-0.5">
                   {DAYS.map((d, i) => (
-                    <Chip key={d} on={(w.days || []).includes(i)} onClick={() => toggleDay(w.id, i)}>
+                    <Chip
+                      key={d}
+                      on={(w.days || []).includes(i)}
+                      onClick={() => toggleDay(w.id, i)}
+                      // The visible label is an abbreviation; a screen reader
+                      // gets the day and whether it is on.
+                      aria-label={`${DAY_NAMES[i]} — ${(w.days || []).includes(i) ? 'scheduled' : 'not scheduled'}`}
+                      className="min-w-0 px-0"
+                    >
                       {d}
                     </Chip>
                   ))}

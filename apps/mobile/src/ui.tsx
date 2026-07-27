@@ -222,20 +222,38 @@ export function Link({ children, onPress }: { children: ReactNode; onPress: () =
   );
 }
 
-/* One elevation for every card, from the tokens' shadow.card — written in the
+/* Elevations from the tokens' shadow.card and shadow.lift — written in the
    inset-first order RN's boxShadow parser expects. */
 const cardShadow = 'inset 0 1px 0 rgba(255,255,255,.028), 0 14px 34px -18px rgba(0,0,0,.9)';
+const liftShadow =
+  'inset 0 1px 0 rgba(255,255,255,.045), 0 22px 48px -20px rgba(0,0,0,.9), 0 0 0 1px rgba(224,188,135,.16)';
 
+/**
+ * Three card weights, matching the web app's `Card`.
+ *
+ * One surface for every card is a list, not a hierarchy: "Resume session" —
+ * the single thing Home exists to offer — carried exactly the same border,
+ * panel and shadow as the week's kg total, so the eye had to read each card to
+ * find the important one.
+ *
+ * `raised` is the card holding the screen's primary action. `quiet` is
+ * reference material, which drops the shadow and sinks to the recessed panel.
+ * A screen should use `raised` at most once; nothing enforces that, and it is
+ * the point of the tone existing.
+ */
 export function Card({
   className,
   style,
+  tone,
   children,
   ...rest
-}: ViewProps & { className?: string; children: ReactNode }) {
+}: ViewProps & { className?: string; tone?: 'raised' | 'quiet'; children: ReactNode }) {
+  const skin =
+    tone === 'raised' ? 'border-gold-line bg-panel' : tone === 'quiet' ? 'border-line bg-panel3' : 'border-line bg-panel';
   return (
     <View
-      className={`rounded-lg border border-line bg-panel p-2 ${className || ''}`}
-      style={[{ boxShadow: cardShadow }, style]}
+      className={`rounded-lg border p-2 ${skin} ${className || ''}`}
+      style={[{ boxShadow: tone === 'raised' ? liftShadow : tone === 'quiet' ? undefined : cardShadow }, style]}
       {...rest}
     >
       {children}
@@ -284,7 +302,18 @@ export function Btn({
 }
 
 /** Selection chip per 03-shared-02: selected is the gold wash, never green. */
-export function Chip({ on, children, onPress }: { on?: boolean; children: ReactNode; onPress?: () => void }) {
+export function Chip({
+  on,
+  children,
+  onPress,
+  label,
+}: {
+  on?: boolean;
+  children: ReactNode;
+  onPress?: () => void;
+  /** Spoken name, when the visible text is an abbreviation. */
+  label?: string;
+}) {
   return (
     /* The day chips are the smallest repeated control in the app — py-0.5
        around 10px type is ~22px tall — and they sit in a row of seven, so a
@@ -294,7 +323,7 @@ export function Chip({ on, children, onPress }: { on?: boolean; children: ReactN
       onPress={onPress}
       box={{ h: 22 }}
       selected={!!on}
-      label={typeof children === 'string' ? children : undefined}
+      label={label ?? (typeof children === 'string' ? children : undefined)}
       className={`items-center justify-center rounded-pill border px-1.5 py-0.5 ${
         on ? 'border-gold-line bg-gold-wash' : 'border-line2 bg-panel2'
       }`}

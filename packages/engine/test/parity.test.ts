@@ -12,7 +12,7 @@ import { prefillPrimary, prefillSecondary } from '../src/logger';
 import { repFloorOf, repTopOf } from '../src/autoreg';
 import { conZones, zoneSeconds } from '../src/hr';
 import { knownMovements, workoutStats } from '../src/session';
-import { agoLabel, barScale } from '../src/num';
+import { agoLabel, barScale, byMonth, dayLabel, monthLabel } from '../src/num';
 import { mergeEngines } from '../src/db';
 import type { EngineDB, Exercise, LoggedSet, Session, Workout } from '../src/types';
 
@@ -233,6 +233,41 @@ describe('agoLabel', () => {
     expect(agoLabel('2026-04-01', now)).toBe('scheduled');
     expect(agoLabel('', now)).toBe('');
     expect(agoLabel(null, now)).toBe('');
+  });
+});
+
+describe('month grouping in History', () => {
+  const NOW = new Date(2026, 6, 27);
+
+  it('drops the year in the current year and keeps it otherwise', () => {
+    expect(monthLabel('2026-07-20', NOW)).toBe('July');
+    expect(monthLabel('2025-11-02', NOW)).toBe('November 2025');
+  });
+
+  it('names the day without repeating the month above it', () => {
+    // Parsed at local midday, like agoLabel: at midnight a DST change moves the
+    // date by one, which is the whole reason the row exists.
+    expect(dayLabel('2026-07-20')).toBe('Mon 20');
+    expect(dayLabel('')).toBe('');
+  });
+
+  it('runs consecutive same-month items together, in the order given', () => {
+    const rows = [{ d: '2026-07-20' }, { d: '2026-07-03' }, { d: '2026-06-26' }];
+    const g = byMonth(rows, (r) => r.d, NOW);
+    expect(g.map((m) => m.label)).toEqual(['July', 'June']);
+    expect(g[0].items).toHaveLength(2);
+  });
+
+  it('does not silently re-order a list that was not sorted by date', () => {
+    // Grouping by key would collapse these into two runs and quietly move a
+    // row; splitting on consecutive runs renders the list as it actually is.
+    const rows = [{ d: '2026-07-20' }, { d: '2026-06-26' }, { d: '2026-07-03' }];
+    expect(byMonth(rows, (r) => r.d, NOW).map((m) => m.label)).toEqual(['July', 'June', 'July']);
+  });
+
+  it('gives an undated row a heading rather than an empty one', () => {
+    expect(byMonth([{ d: '' }], (r) => r.d, NOW)[0].label).toBe('Undated');
+    expect(byMonth([], (r: { d: string }) => r.d, NOW)).toEqual([]);
   });
 });
 

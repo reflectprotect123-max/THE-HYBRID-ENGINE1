@@ -158,6 +158,59 @@ export function agoLabel(date: string | null | undefined, now: Date = new Date()
 }
 
 /**
+ * "July" this year, "July 2025" otherwise — a heading over a run of days.
+ *
+ * A history list is a column of dates, and `2026-07-20` repeated seventeen
+ * times is a column of near-identical strings that must be read digit by digit
+ * to place. Naming the month once above the run lets each row carry only what
+ * distinguishes it. The year is dropped in the current year for the same
+ * reason: it is the same on every row until it isn't.
+ */
+export function monthLabel(date: string | null | undefined, now: Date = new Date()): string {
+  const t = Date.parse(String(date || '') + 'T12:00:00');
+  if (!Number.isFinite(t)) return '';
+  const d = new Date(t);
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString(undefined, sameYear ? { month: 'long' } : { month: 'long', year: 'numeric' });
+}
+
+/**
+ * "Mon 20" — a day under a heading that has already named the month.
+ *
+ * Assembled from parts rather than taken from `toLocaleDateString`, which
+ * decides the ORDER as well as the names: asking for weekday + day returns
+ * "20 Mon" under several locales, and this sits in a fixed-width right-aligned
+ * column where the weekday has to lead. The part values are still localised —
+ * only the order is ours.
+ */
+export function dayLabel(date: string | null | undefined): string {
+  const t = Date.parse(String(date || '') + 'T12:00:00');
+  if (!Number.isFinite(t)) return '';
+  const parts = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric' }).formatToParts(new Date(t));
+  const wd = parts.find((p) => p.type === 'weekday')?.value || '';
+  const day = parts.find((p) => p.type === 'day')?.value || '';
+  return [wd, day].filter(Boolean).join(' ');
+}
+
+/**
+ * Split date-ordered items into consecutive runs sharing a month.
+ *
+ * Consecutive rather than grouped-by-key on purpose: the caller has already
+ * sorted, and re-bucketing would silently reorder. A list that is not sorted by
+ * date gets more than one run for a month, which is the honest rendering of it.
+ */
+export function byMonth<T>(items: T[], dateOf: (t: T) => string, now?: Date): { key: string; label: string; items: T[] }[] {
+  const out: { key: string; label: string; items: T[] }[] = [];
+  for (const it of items || []) {
+    const key = String(dateOf(it) || '').slice(0, 7);
+    const last = out[out.length - 1];
+    if (last && last.key === key) last.items.push(it);
+    else out.push({ key, label: monthLabel(dateOf(it), now) || 'Undated', items: [it] });
+  }
+  return out;
+}
+
+/**
  * De-duplicate, dropping holes. A legacy blob can carry `null` in a workout's
  * days/dates, and the merge that unions them runs before any sanitize on the
  * push path — so a hole kept here is written straight back to the cloud.

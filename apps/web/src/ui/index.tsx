@@ -13,11 +13,36 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
-export function Card({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
+/**
+ * Three card weights, because one was not a hierarchy.
+ *
+ * Every card on every screen used to be the same panel, border, radius and
+ * shadow, so a screen read as a list of equal boxes and the eye had to fall
+ * back on reading each one to find the important one. On Home that meant
+ * "Resume session" — the single thing the screen exists to offer — carried
+ * exactly the same visual weight as the week's kg total.
+ *
+ * `raised` is the card holding the screen's primary action: lift shadow and a
+ * brass edge, so it sits above the page rather than in it. Unmarked is the
+ * working surface. `quiet` is reference material — zone bands, seven-day
+ * totals — which loses the shadow and drops to the recessed panel, so it
+ * settles into the background instead of competing.
+ *
+ * A screen should use `raised` at most once. Nothing enforces that; it is the
+ * point of the tone existing.
+ */
+type CardTone = 'raised' | 'quiet';
+
+export function Card({ tone, className, ...rest }: HTMLAttributes<HTMLDivElement> & { tone?: CardTone }) {
   return (
     <div
       className={cx(
-        'rounded-lg border border-line bg-panel p-2 shadow-card',
+        'rounded-lg border p-2',
+        tone === 'raised'
+          ? 'border-gold-line bg-panel shadow-lift'
+          : tone === 'quiet'
+            ? 'border-line bg-panel3'
+            : 'border-line bg-panel shadow-card',
         className,
       )}
       {...rest}

@@ -104,34 +104,45 @@ export function HomeScreen() {
       <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpen={() => nav.navigate('Calendar')} />
 
       {activeSession ? (
-        <SessionCard className="mt-2 border-gold-line">
+        <SessionCard tone="raised" className="mt-2">
           <Kicker className="text-1">In progress</Kicker>
           <T w="bold" className="mt-0.5 text-7 text-text" numberOfLines={1}>
             {activeSession.name || 'Live session'}
           </T>
+          {/* Was its own section — a header, a gap and a full-width line to say
+              one sentence about the card directly above it. It belongs on the
+              card it is about. */}
+          {!plannedToShow.length ? (
+            <T className="mt-0.5 text-3 text-muted">Nothing else on today. Finish what you started.</T>
+          ) : null}
           <Btn variant="brass" size="lg" className="mt-1.5" onPress={toTraining}>
             Resume session →
           </Btn>
         </SessionCard>
       ) : null}
 
-      <SectionHead title="Today's plan" />
+      {/* The header renders only when the section has something in it. An empty
+          "Today's plan" under a live session was pure vertical cost. */}
       {plannedToShow.length ? (
-        plannedToShow.map((w, i) => (
-          <PlanRow key={w.id} w={w} primary={i === 0 && !activeSession} onStart={toTraining} />
-        ))
-      ) : activeSession ? (
-        <T className="text-4 text-muted">Nothing else on today. Finish what you started.</T>
-      ) : (
-        <Empty
-          title="Nothing planned today"
-          body="Pick something from your Library, or let a rest day be a rest day."
-          action={
-            <Btn variant="brass" onPress={() => nav.navigate('Tabs', { screen: 'Library' })}>
-              Open Library
-            </Btn>
-          }
-        />
+        <>
+          <SectionHead title="Today's plan" />
+          {plannedToShow.map((w, i) => (
+            <PlanRow key={w.id} w={w} primary={i === 0 && !activeSession} onStart={toTraining} />
+          ))}
+        </>
+      ) : activeSession ? null : (
+        <>
+          <SectionHead title="Today's plan" />
+          <Empty
+            title="Nothing planned today"
+            body="Pick something from your Library, or let a rest day be a rest day."
+            action={
+              <Btn variant="brass" onPress={() => nav.navigate('Tabs', { screen: 'Library' })}>
+                Open Library
+              </Btn>
+            }
+          />
+        </>
       )}
 
       <SectionHead title="Readiness" />
@@ -304,9 +315,17 @@ function WeekStrip({
  * the top-right corner. RN has no radial gradients, so the wash is two stacked
  * translucent gold discs bleeding off the corner — decoration only, content
  * stacks above it and the card's overflow clips the rest. */
-function SessionCard({ className, children }: { className?: string; children: React.ReactNode }) {
+function SessionCard({
+  className,
+  tone,
+  children,
+}: {
+  className?: string;
+  tone?: 'raised';
+  children: React.ReactNode;
+}) {
   return (
-    <Card className={`overflow-hidden ${className || ''}`}>
+    <Card tone={tone} className={`overflow-hidden ${className || ''}`}>
       <View
         pointerEvents="none"
         className="absolute rounded-pill"
@@ -331,7 +350,7 @@ function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; pri
     .filter(Boolean)
     .join(' · ');
   return (
-    <SessionCard className="mb-1">
+    <SessionCard tone={primary ? 'raised' : undefined} className="mb-1">
       <Kicker className="text-1">Today · {cond ? 'Conditioning' : 'Strength'}</Kicker>
       <View className="mt-0.5 flex-row items-center gap-1">
         <View className="min-w-0 flex-1">
@@ -360,7 +379,7 @@ function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; pri
 function ZonesCard({ zones }: { zones: Zones }) {
   const span = Math.max(1, zones.max - zones.floor);
   return (
-    <Card>
+    <Card tone="quiet">
       <View className="flex-row items-baseline justify-between gap-1">
         <T num className="text-3 text-dim">
           max {zones.max} bpm · {zones.method === 'hrr' ? 'Karvonen · resting ' + zones.rest : 'percent of max'}
@@ -402,7 +421,7 @@ function ZonesCard({ zones }: { zones: Zones }) {
 
 function Stat({ value, label, tint }: { value: string; label: string; tint?: boolean }) {
   return (
-    <Card className="flex-1 items-center py-1.5">
+    <Card tone="quiet" className="flex-1 items-center py-1.5">
       <T w="black" num className={`text-7 ${tint ? 'text-gold2' : 'text-text'}`}>
         {value}
       </T>
