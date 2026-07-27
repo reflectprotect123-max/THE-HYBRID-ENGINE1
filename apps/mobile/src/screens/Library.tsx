@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { blockExercises, isCond, newBlock, rxLine, uid, type LoggedSet, type StrengthBlock, type Workout } from '@hybrid/engine';
@@ -51,6 +51,15 @@ export function LibraryScreen() {
       d.settings.deletedIds = { ...(d.settings.deletedIds || {}), [id]: Date.now() };
     });
 
+  /* Asks first. The tombstone above is exactly why: this is not a local
+     tidy-up that a re-sync quietly undoes, it removes the session from every
+     device you own and there is no way back to it. */
+  const confirmRemove = (w: Workout) =>
+    Alert.alert(`Delete "${w.name || 'Session'}"?`, 'This removes it from every device. It cannot be undone.', [
+      { text: 'Keep', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => remove(w.id) },
+    ]);
+
   return (
     <Screen>
       <Kicker>Library</Kicker>
@@ -64,16 +73,34 @@ export function LibraryScreen() {
       {mine.length ? (
         mine.map((w) => (
           <Card key={w.id} className="mb-1">
-            <Pressable onPress={() => setOpen(open === w.id ? null : w.id)}>
-              <View className="flex-row items-center">
-                <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
+            {/* Delete sits on the ROW, not behind the expand. It used to only
+                appear once you had tapped the card open, which is not
+                somewhere anyone looks for it. */}
+            <View className="flex-row items-center">
+              <Pressable
+                className="min-w-0 flex-1 flex-row items-center"
+                onPress={() => setOpen(open === w.id ? null : w.id)}
+                accessibilityLabel={`${open === w.id ? 'collapse' : 'expand'} ${w.name || 'session'}`}
+              >
+                <T w="semi" className="min-w-0 flex-1 text-5 text-text" numberOfLines={1}>
                   {w.name || 'Session'}
                 </T>
-                <T num className="text-3 text-dim">
+                <T num className="ml-1 text-3 text-dim">
                   {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
                 </T>
-              </View>
-            </Pressable>
+              </Pressable>
+              <Pressable
+                onPress={() => confirmRemove(w)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={`delete ${w.name || 'session'}`}
+                className="ml-1 h-4 w-4 items-center justify-center rounded-md border border-line2 bg-panel2"
+              >
+                <T w="med" className="text-4 text-muted">
+                  ✕
+                </T>
+              </Pressable>
+            </View>
 
             <View className="mt-1 flex-row flex-wrap gap-0.5">
               {DAYS.map((d, i) => (
@@ -86,14 +113,9 @@ export function LibraryScreen() {
             {open === w.id ? (
               <>
                 <Detail w={w} />
-                <View className="mt-1.5 flex-row gap-1">
-                  <Btn variant="brass" className="flex-1" onPress={() => nav.navigate('Planner', { id: w.id })}>
-                    Edit
-                  </Btn>
-                  <Btn className="flex-1" onPress={() => remove(w.id)}>
-                    Delete
-                  </Btn>
-                </View>
+                <Btn variant="brass" className="mt-1.5" onPress={() => nav.navigate('Planner', { id: w.id })}>
+                  Edit
+                </Btn>
               </>
             ) : null}
           </Card>
