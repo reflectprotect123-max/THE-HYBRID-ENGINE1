@@ -32,6 +32,7 @@ import { HistoryScreen } from './screens/History';
 import { CalendarScreen } from './screens/Calendar';
 import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
+import { QuickBuildScreen } from './screens/QuickBuild';
 import { ConditioningScreen } from './screens/Conditioning';
 
 /*
@@ -63,6 +64,7 @@ export type RootStackParams = {
   Tabs: NavigatorScreenParams<TabParams> | undefined;
   Logger: { bi: number; ei: number };
   Planner: { id: string };
+  QuickBuild: { id: string };
   Recap: { id: string };
   Conditioning: undefined;
   History: undefined;
@@ -162,6 +164,7 @@ export function App() {
               <Stack.Screen name="Tabs" component={TabNav} />
               <Stack.Screen name="Logger" component={LoggerScreen} />
               <Stack.Screen name="Planner" component={PlannerScreen} />
+              <Stack.Screen name="QuickBuild" component={QuickBuildScreen} />
               <Stack.Screen name="Recap" component={RecapScreen} />
               <Stack.Screen name="Conditioning" component={ConditioningScreen} />
               <Stack.Screen name="History" component={HistoryScreen} />

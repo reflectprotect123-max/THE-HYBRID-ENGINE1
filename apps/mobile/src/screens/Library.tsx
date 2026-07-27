@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { blockExercises, isCond, newBlock, rxLine, uid, type LoggedSet, type StrengthBlock, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Chip, Empty, Kicker, Screen, SectionHead, T, Title } from '../ui';
+import { Btn, Card, Chip, Empty, Kicker, Link, Screen, SectionHead, T, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -22,7 +22,22 @@ export function LibraryScreen() {
   const mine = db.workouts.filter((w) => w.origin !== 'coach');
   const fromCoach = db.workouts.filter((w) => w.origin === 'coach');
 
-  const add = () => {
+  /*
+   * The guided flow is the default door. It seeds the block with NO exercises
+   * (unlike newBlock()'s own default, which pre-fills one blank one) — a
+   * mystery blank row in the quick-build summary would look like a bug rather
+   * than an empty starting point.
+   */
+  const startQuickBuild = () => {
+    const w: Workout = { id: uid(), name: 'New session', blocks: [{ ...newBlock(), exercises: [] }], updatedAt: Date.now() };
+    update((d) => {
+      d.workouts.push(w);
+    });
+    nav.navigate('QuickBuild', { id: w.id });
+  };
+
+  /** Straight into the full card editor — today's exact original behaviour. */
+  const addAdvanced = () => {
     const w: Workout = { id: uid(), name: 'New session', blocks: [newBlock()], updatedAt: Date.now() };
     update((d) => {
       d.workouts.push(w);
@@ -54,9 +69,12 @@ export function LibraryScreen() {
       <Kicker>Library</Kicker>
       <Title>Your sessions</Title>
 
-      <Btn variant="brass" className="mt-2" onPress={add}>
+      <Btn variant="brass" className="mt-2" onPress={startQuickBuild}>
         ＋ New session
       </Btn>
+      <View className="mt-1 items-center">
+        <Link onPress={addAdvanced}>Prefer the full editor? →</Link>
+      </View>
 
       <SectionHead title="Yours" />
       {mine.length ? (
