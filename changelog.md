@@ -1,5 +1,77 @@
 # Changelog
 
+## The React apps ship: site cut over, APK built, everything debugged — 27 July 2026
+
+The migration stopped being a parallel universe. The React apps are now the
+live site, and the Android app compiled for the first time and installs as an
+update over the shipped one — same key, same icon, versionCode 28.
+
+**The cutover.** Netlify had been publishing the old vanilla app all along; the
+React apps existed only in the repo. `scripts/build-site.mjs` now assembles the
+one directory Netlify serves — athlete app at `/`, coach at `/coach/`, icons,
+fonts, assetlinks, privacy, `_headers`/`_redirects` — and fails the build if
+anything the built HTML references is missing. A tombstone at the old
+service-worker path hands existing installs over cleanly. Hashed bundles are
+immutable-cached (they were being re-downloaded in full on every launch);
+the workers and the shell stay no-store. `checks/deploy-smoke.mjs` serves the
+publish directory with Netlify's own precedence rules and boots both apps
+under the real CSP, because every failure mode of this topology is silent.
+
+**The debug pass, all four surfaces.** Six engine divergences from the vanilla
+spec — two of them changed what the app told you to lift: warm-up seconds were
+being dropped from the conditioning denominator so progression levels were
+handed out unearned, and "10-8" read its floor as 8 so a missed set scored as
+a make and the load went up. Seven coach bugs, led by publish dates computed
+in UTC (every coach east of Greenwich assigned work to yesterday) and a loader
+that blanked whole prescriptions read back off disk. On web, five ways the app
+lost work — a live conditioning run died if you glanced at another tab, and
+the conditioning clock froze at 0:00 for anyone whose strap notifies faster
+than once a second. The same interval bug existed on mobile. A failed save now
+shows a banner above every screen instead of only inside Settings.
+
+**Mobile actually builds now.** It never had: a variable import Metro rejects,
+a resolver setting wrong for pnpm, an undeclared NativeWind runtime, and an
+`import.meta` Hermes refuses at parse time — all invisible to typecheck, which
+stayed green throughout. Then prebuild surfaced two more: the app had no icon
+file at all, and `POST_NOTIFICATIONS` was missing from the manifest, so the
+rest alarm — the reason a native app exists — could never have fired on
+Android 13+. CI now runs the real bundler on every push. Fourteen more mobile
+fixes landed alongside (instant-firing rest alarms, BLE that never asked for
+permissions, untypeable Settings fields, a keyboard that ate the first tap on
+Finish Set), plus the parity gaps: Start buttons on Home, the resume card,
+plate breakdown in the logger, backup export, and the coach-link card.
+
+**WHOOP works from the phone.** The functions identified a connection by a
+browser cookie the app can never hold, so mobile connections succeeded
+server-side and stayed invisible forever. Identity is now the Supabase access
+token, verified in full — issuer, audience, role, subject — because the public
+anon key is itself a valid JWT signed with the same secret, and a
+signature-only check would have let anyone impersonate anyone.
+`checks/supabase-auth.mjs` attacks the verifier with eleven forgeries,
+including that anon key, on every CI run. Web keeps its cookie flow untouched.
+
+**The importer is gone.** Owner's call: it never worked well enough to earn
+its keep. ~2,500 lines out across the engine parser, both screens, OCR,
+dictation, and three native dependencies. Imported workouts are untouched —
+they were always just workouts.
+
+**Both apps got their design back.** The coach app went from a narrow column
+with a sign-in form in the header to the shell it was designed for: rail, week
+board with real day previews, wide editor with a prescription table — built
+from the six coach cards that had sat unused in `design/cards/`. Three
+behaviours got honest too: deleting the last exercise arms a "Delete session?"
+confirm instead of silently discarding the day, looking at a week no longer
+creates it (creation is an explicit "+ New week"), and the rail numeral opens
+a jump-to-week list. The athlete Home got back everything the port lost — the
+week strip, the neon readiness ring, lit zone bars, one big brass CTA — and
+the "Elsewhere" pill row is dead, its routes reachable through doors that mean
+something.
+
+**Numbers, because a changelog should have them.** 33 commits. Engine 69,
+coach 14, react-smoke 23, deploy-smoke 13 and supabase-auth 11 all green;
+1,262 golden vectors byte-identical; 22 pentest attacks held; Metro bundles
+1,413 modules; and one APK on a QR code.
+
 ## The coach site is the Planner, and publishing stops losing things — 26 July 2026
 
 The coach builder is rebuilt in the app's own language: one top bar, one column
