@@ -1,19 +1,9 @@
 import { useMemo, useState } from 'react';
-import {
-  conMaxHr,
-  conZones,
-  recoveryBand,
-  restingHr,
-  todayHrv,
-  todayRecovery,
-  todaySleepPerformance,
-  todayStrain,
-  type Profile,
-} from '@hybrid/engine';
+import { conMaxHr, conZones, restingHr, todayRecovery, type Profile } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
-import { Button, Card, Kicker, Ring, ScreenTitle, SectionHead } from '../ui';
+import { Button, Card, Kicker, ScreenTitle, SectionHead } from '../ui';
 
 /*
  * Settings is short on purpose. The only values here are the ones that change
@@ -252,78 +242,21 @@ function CoachLinkCard() {
   );
 }
 
+/* Connection only. The readings themselves — sleep, recovery, strain — live on
+   Home, where you actually look at them before training. Repeating them here
+   was two places to keep honest and one more screen to scroll. */
 function WhoopCard() {
   const { connected, sample, busy, error, lastSyncAt, connect, sync, disconnect } = useWhoop();
   const rec = todayRecovery(sample);
-  const band = recoveryBand(rec);
-  const recColor =
-    rec == null
-      ? 'var(--color-ring-idle)'
-      : band === 'good'
-        ? 'var(--color-neon-ok)'
-        : band === 'watch'
-          ? 'var(--color-neon-warn)'
-          : 'var(--color-neon-bad)';
-  const strain = todayStrain(sample);
-  const hrv = todayHrv(sample);
-  const rhr = Number.isFinite(Number(sample?.restingHr)) && sample?.restingHr != null ? Math.round(Number(sample.restingHr)) : null;
-  const sleepPerf = todaySleepPerformance(sample);
   return (
     <>
       <SectionHead title="WHOOP" />
       <Card>
         {connected ? (
           <>
-            {rec == null && strain == null ? (
-              <p className="text-4 text-muted">Connected · no reading yet today</p>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <Ring frac={rec == null ? 0 : rec / 100} size={68} stroke={6} color={recColor} glow={rec != null}>
-                  {rec == null ? (
-                    <span className="text-1 text-dim">—</span>
-                  ) : (
-                    <>
-                      <span className="num block text-5 font-[900]" style={{ color: recColor }}>{rec}</span>
-                      <span className="block text-1 font-[650] uppercase text-dim">recovery</span>
-                    </>
-                  )}
-                </Ring>
-                <Ring
-                  frac={strain == null ? 0 : Math.min(1, strain / 21)}
-                  size={68}
-                  stroke={6}
-                  color={strain == null ? 'var(--color-ring-idle)' : 'var(--color-neon-strain)'}
-                  glow={strain != null}
-                >
-                  {strain == null ? (
-                    <span className="text-1 text-dim">—</span>
-                  ) : (
-                    <>
-                      <span className="num block text-5 font-[900]" style={{ color: 'var(--color-neon-strain)' }}>
-                        {strain.toFixed(1)}
-                      </span>
-                      <span className="block text-1 font-[650] uppercase text-dim">strain</span>
-                    </>
-                  )}
-                </Ring>
-                <ul className="min-w-0 flex-1">
-                  <li className="flex items-center gap-1">
-                    <span className="flex-1 text-4 font-[650]">HRV</span>
-                    <span className="num text-4 text-muted">{hrv != null ? hrv + ' ms' : '—'}</span>
-                  </li>
-                  <li className="mt-0.5 flex items-center gap-1">
-                    <span className="flex-1 text-4 font-[650]">Resting HR</span>
-                    <span className="num text-4 text-muted">{rhr != null ? rhr + ' bpm' : '—'}</span>
-                  </li>
-                  {sleepPerf != null ? (
-                    <li className="mt-0.5 flex items-center gap-1">
-                      <span className="flex-1 text-4 font-[650]">Sleep</span>
-                      <span className="num text-4 text-muted">{sleepPerf}%</span>
-                    </li>
-                  ) : null}
-                </ul>
-              </div>
-            )}
+            <p className="num text-4 text-muted">
+              Connected{rec != null ? ` · today ${rec}% recovery` : ' · no reading yet today'}
+            </p>
             {lastSyncAt ? (
               <p className="mt-1.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</p>
             ) : null}

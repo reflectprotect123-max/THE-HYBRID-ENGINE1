@@ -10,6 +10,7 @@ import {
   sessionVolume,
   todayHrv,
   todayRecovery,
+  todaySleepPerformance,
   todayStrain,
   ymd,
   type Session,
@@ -18,7 +19,7 @@ import {
 } from '@hybrid/engine';
 import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
-import { Btn, Card, Empty, Kicker, Link, Ring, Row, Screen, SectionHead, T, Title, zoneNeon } from '../ui';
+import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -42,6 +43,7 @@ export function HomeScreen() {
   const rec = todayRecovery(whoop);
   const band = recoveryBand(rec);
   const strain = todayStrain(whoop);
+  const sleep = todaySleepPerformance(whoop);
   const hrv = todayHrv(whoop);
   const rhr = Number.isFinite(Number(whoop?.restingHr)) && whoop?.restingHr != null ? Math.round(Number(whoop.restingHr)) : null;
   const zones = useMemo(() => conZones(hr), [hr]);
@@ -134,55 +136,48 @@ export function HomeScreen() {
 
       <SectionHead title="Readiness" />
       <Card>
-        <View className="flex-row items-center gap-2">
-          <Ring
-            frac={rec == null ? 0 : rec / 100}
-            size={104}
-            color={rec == null ? color.ringIdle : bandColor}
-            glow={rec != null}
-          >
-            {rec == null ? (
-              <T className="text-3 text-dim">no score</T>
-            ) : (
-              <>
-                <T w="black" num className="text-8" style={{ color: bandColor }}>
-                  {rec}
-                </T>
-                <T w="semi" className="text-1 uppercase text-dim" style={{ letterSpacing: 1 }}>
-                  recovery
-                </T>
-              </>
-            )}
-          </Ring>
-          <View className="min-w-0 flex-1">
-            <T w="semi" className="text-6 text-text">
-              {band === 'good' ? 'Strong' : band === 'watch' ? 'Steady' : band === 'low' ? 'Low' : 'No score yet'}
-            </T>
-            <T className="mt-0.5 text-4 text-muted">
-              {band === 'low'
-                ? 'Zones are eased today and conditioning is dialled back a notch.'
-                : band === 'good'
-                  ? 'Zones widened slightly at the top. Good day to push.'
-                  : band === 'watch'
-                    ? 'Nothing adjusted. Train as prescribed.'
-                    : 'Connect WHOOP in Settings, or set a resting HR to sharpen your zones.'}
-            </T>
-            {gap ? (
-              <T className="mt-1 text-3 text-dim">
-                Last session felt {gap.gap > 0.25 ? 'harder' : gap.gap < -0.25 ? 'easier' : 'about as'}{' '}
-                {Math.abs(gap.gap) <= 0.25 ? 'hard as asked' : 'than asked'} ({gap.gap > 0 ? '+' : ''}
-                {gap.gap.toFixed(1)} RPE over {gap.n} rated {gap.n === 1 ? 'set' : 'sets'}).
-              </T>
-            ) : null}
-          </View>
+        {/* Sleep · Recovery · Strain, in that order and side by side, because
+            that is the shape WHOOP itself shows and the one already read every
+            morning. Recovery keeps the band colour the zone model uses, so the
+            ring and the prescription below it agree. */}
+        <View className="flex-row justify-between">
+          <RingStat label="Sleep" value={sleep} frac={sleep == null ? 0 : sleep / 100} suffix="%" ink={color.zLow} />
+          <RingStat label="Recovery" value={rec} frac={rec == null ? 0 : rec / 100} suffix="%" ink={bandColor} />
+          <RingStat
+            label="Strain"
+            value={strain}
+            frac={strain == null ? 0 : Math.min(1, strain / 21)}
+            decimals={1}
+            ink={color.neonStrain}
+          />
         </View>
-        {strain != null || hrv != null || rhr != null ? (
-          <View className="mt-1.5 border-t border-line pt-1.5">
-            {strain != null ? <Row dot={color.neonStrain} glow label="Strain" value={strain.toFixed(1)} /> : null}
-            {hrv != null ? <Row label="HRV" value={hrv + ' ms'} /> : null}
-            {rhr != null ? <Row label="Resting HR" value={rhr + ' bpm'} /> : null}
-          </View>
-        ) : null}
+
+        <View className="mt-2 border-t border-line pt-1.5">
+          <T w="semi" className="text-6 text-text">
+            {band === 'good' ? 'Strong' : band === 'watch' ? 'Steady' : band === 'low' ? 'Low' : 'No score yet'}
+          </T>
+          <T className="mt-0.5 text-4 text-muted">
+            {band === 'low'
+              ? 'Zones are eased today and conditioning is dialled back a notch.'
+              : band === 'good'
+                ? 'Zones widened slightly at the top. Good day to push.'
+                : band === 'watch'
+                  ? 'Nothing adjusted. Train as prescribed.'
+                  : 'Connect WHOOP in Settings, or set a resting HR to sharpen your zones.'}
+          </T>
+          {gap ? (
+            <T className="mt-1 text-3 text-dim">
+              Last session felt {gap.gap > 0.25 ? 'harder' : gap.gap < -0.25 ? 'easier' : 'about as'}{' '}
+              {Math.abs(gap.gap) <= 0.25 ? 'hard as asked' : 'than asked'} ({gap.gap > 0 ? '+' : ''}
+              {gap.gap.toFixed(1)} RPE over {gap.n} rated {gap.n === 1 ? 'set' : 'sets'}).
+            </T>
+          ) : null}
+          {hrv != null || rhr != null ? (
+            <T num className="mt-1 text-3 text-dim">
+              {[hrv != null ? `HRV ${hrv} ms` : '', rhr != null ? `resting ${rhr} bpm` : ''].filter(Boolean).join(' · ')}
+            </T>
+          ) : null}
+        </View>
       </Card>
 
       <SectionHead
@@ -202,6 +197,48 @@ export function HomeScreen() {
 
 /** Seven days, today lit, a brass dot on any day with planned or logged work.
  * Every cell is a door into the calendar (04-athlete-01). */
+/** One of the three readiness dials: the figure inside, its name beneath. A
+ *  missing reading shows an idle ring and a dash rather than a zero, because
+ *  "no strap on last night" is not the same claim as "you scored nothing". */
+function RingStat({
+  label,
+  value,
+  frac,
+  ink,
+  suffix = '',
+  decimals = 0,
+}: {
+  label: string;
+  value: number | null;
+  frac: number;
+  ink: string;
+  suffix?: string;
+  decimals?: number;
+}) {
+  const has = value != null;
+  return (
+    <View className="items-center">
+      <Ring frac={has ? frac : 0} size={92} stroke={8} color={has ? ink : color.ringIdle} glow={has}>
+        {has ? (
+          <T w="black" num className="text-7" style={{ color: ink }}>
+            {value.toFixed(decimals)}
+            <T w="bold" num className="text-4" style={{ color: ink }}>
+              {suffix}
+            </T>
+          </T>
+        ) : (
+          <T w="semi" className="text-6 text-dim">
+            —
+          </T>
+        )}
+      </Ring>
+      <T w="semi" className="mt-0.5 text-2 uppercase text-dim" style={{ letterSpacing: 1.2 }}>
+        {label}
+      </T>
+    </View>
+  );
+}
+
 function WeekStrip({
   workouts,
   sessions,
