@@ -67,7 +67,7 @@ week strip, the neon readiness ring, lit zone bars, one big brass CTA — and
 the "Elsewhere" pill row is dead, its routes reachable through doors that mean
 something.
 
-**Numbers, because a changelog should have them.** 33 commits. Engine 69,
+**Numbers, because a changelog should have them.** 23 commits. Engine 69,
 coach 14, react-smoke 23, deploy-smoke 13 and supabase-auth 11 all green;
 1,262 golden vectors byte-identical; 22 pentest attacks held; Metro bundles
 1,413 modules; and one APK on a QR code.
