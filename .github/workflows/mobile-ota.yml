@@ -98,7 +98,13 @@ jobs:
           UPDATE_MESSAGE: ${{ github.event.head_commit.message || 'Manual OTA publish' }}
         run: |
           set -euo pipefail
+          # --platform android, matching mobile-eas.yml and the local bundle
+          # script: this app has no real iOS or web target. Without it, `eas
+          # update` exports for --platform=all internally, which pulls in
+          # cross-platform babel plugins (e.g. @babel/plugin-transform-react-jsx
+          # for the web/iOS JSX runtime) this Android-only app never installs.
           pnpm dlx eas-cli@21 update \
             --channel preview \
+            --platform android \
             --message "$(head -n1 <<< "$UPDATE_MESSAGE")" \
             --non-interactive
