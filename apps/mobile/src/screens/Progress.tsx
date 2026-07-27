@@ -11,6 +11,7 @@ import {
   type Session,
   type ZoneKey,
 } from '@hybrid/engine';
+import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { Card, Empty, Kicker, Row, Screen, SectionHead, T, Title, zoneInk } from '../ui';
 
@@ -30,15 +31,29 @@ export function ProgressScreen() {
   const weeks = useMemo(() => weekly(db.sessions, 8), [db.sessions]);
   const zoneWeek = useMemo(() => thisWeek(db.sessions, db.settings), [db.sessions, db.settings]);
 
-  const recovery = useMemo(() => {
-    const hist = Array.isArray(db.settings.whoopDaily)
-      ? (db.settings.whoopDaily as { date: string; recovery: number | null }[])
-      : [];
-    return hist
-      .filter((h) => h && h.recovery != null)
-      .slice(-30)
-      .map((h) => ({ label: String(h.date).slice(5), value: h.recovery as number }));
-  }, [db.settings.whoopDaily]);
+  const whoopHist = useMemo(
+    () =>
+      Array.isArray(db.settings.whoopDaily)
+        ? (db.settings.whoopDaily as { date: string; recovery: number | null; strain: number | null }[])
+        : [],
+    [db.settings.whoopDaily],
+  );
+  const recovery = useMemo(
+    () =>
+      whoopHist
+        .filter((h) => h && h.recovery != null)
+        .slice(-30)
+        .map((h) => ({ label: String(h.date).slice(5), value: h.recovery as number })),
+    [whoopHist],
+  );
+  const strain = useMemo(
+    () =>
+      whoopHist
+        .filter((h) => h && h.strain != null)
+        .slice(-30)
+        .map((h) => ({ label: String(h.date).slice(5), value: h.strain as number })),
+    [whoopHist],
+  );
 
   const hrrTrend = useMemo(() => {
     return condRecords(db.sessions, db.settings)
@@ -60,7 +75,7 @@ export function ProgressScreen() {
   }, [db.sessions]);
 
   const anything =
-    weeks.some((w) => w.value > 0) || lifts.length || zoneWeek.total > 0 || recovery.length || hrrTrend.length;
+    weeks.some((w) => w.value > 0) || lifts.length || zoneWeek.total > 0 || recovery.length || strain.length || hrrTrend.length;
   const peak = Math.max(...weeks.map((w) => w.value), 1);
 
   return (
@@ -164,6 +179,15 @@ export function ProgressScreen() {
           <SectionHead title="Recovery · 30 days" />
           <Card>
             <Trend data={recovery} color="#9fc59b" unit="%" min={0} max={100} />
+          </Card>
+        </>
+      ) : null}
+
+      {strain.length > 1 ? (
+        <>
+          <SectionHead title="Strain · 30 days" />
+          <Card>
+            <Trend data={strain} color={color.neonStrain} unit="" min={0} max={21} />
           </Card>
         </>
       ) : null}

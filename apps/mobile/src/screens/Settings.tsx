@@ -1,12 +1,24 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { conMaxHr, conZones, restingHr, type EngineDB, type Profile } from '@hybrid/engine';
+import {
+  conMaxHr,
+  conZones,
+  recoveryBand,
+  restingHr,
+  todayHrv,
+  todayRecovery,
+  todaySleepPerformance,
+  todayStrain,
+  type EngineDB,
+  type Profile,
+} from '@hybrid/engine';
+import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
 import { isPersistent } from '../store/storage';
-import { Card, Input, Kicker, SectionHead, T, Title } from '../ui';
+import { Card, Input, Kicker, Ring, Row, SectionHead, T, Title } from '../ui';
 
 /*
  * Declared at MODULE scope, not inside SettingsScreen.
@@ -285,18 +297,58 @@ function CloudCard() {
 
 function WhoopCard() {
   const { connected, sample, busy, error, lastSyncAt, connect, sync, disconnect } = useWhoop();
+  const rec = todayRecovery(sample);
+  const band = recoveryBand(rec);
+  const recColor = rec == null ? color.ringIdle : band === 'good' ? color.neonOk : band === 'watch' ? color.neonWarn : color.neonBad;
+  const strain = todayStrain(sample);
+  const hrv = todayHrv(sample);
+  const rhr = Number.isFinite(Number(sample?.restingHr)) && sample?.restingHr != null ? Math.round(Number(sample.restingHr)) : null;
+  const sleepPerf = todaySleepPerformance(sample);
   return (
     <View>
       <SectionHead title="WHOOP" />
       <Card>
         {connected ? (
           <>
-            <T num className="text-4 text-muted">
-              Connected
-              {sample?.recoveryScore != null ? ` · today ${Math.round(Number(sample.recoveryScore))}%` : ' · no reading yet today'}
-            </T>
+            {rec == null && strain == null ? (
+              <T className="text-4 text-muted">Connected · no reading yet today</T>
+            ) : (
+              <View className="flex-row items-center gap-1.5">
+                <Ring frac={rec == null ? 0 : rec / 100} size={68} stroke={6} color={recColor} glow={rec != null}>
+                  {rec == null ? (
+                    <T className="text-1 text-dim">—</T>
+                  ) : (
+                    <>
+                      <T w="black" num className="text-5" style={{ color: recColor }}>{rec}</T>
+                      <T w="semi" className="text-1 uppercase text-dim">recovery</T>
+                    </>
+                  )}
+                </Ring>
+                <Ring
+                  frac={strain == null ? 0 : Math.min(1, strain / 21)}
+                  size={68}
+                  stroke={6}
+                  color={strain == null ? color.ringIdle : color.neonStrain}
+                  glow={strain != null}
+                >
+                  {strain == null ? (
+                    <T className="text-1 text-dim">—</T>
+                  ) : (
+                    <>
+                      <T w="black" num className="text-5" style={{ color: color.neonStrain }}>{strain.toFixed(1)}</T>
+                      <T w="semi" className="text-1 uppercase text-dim">strain</T>
+                    </>
+                  )}
+                </Ring>
+                <View className="min-w-0 flex-1">
+                  <Row label="HRV" value={hrv != null ? hrv + ' ms' : '—'} />
+                  <Row label="Resting HR" value={rhr != null ? rhr + ' bpm' : '—'} />
+                  {sleepPerf != null ? <Row label="Sleep" value={sleepPerf + '%'} /> : null}
+                </View>
+              </View>
+            )}
             {lastSyncAt ? (
-              <T className="mt-0.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</T>
+              <T className="mt-1.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</T>
             ) : null}
             <View className="mt-1.5 flex-row gap-1">
               <Pressable onPress={() => void sync()} disabled={busy} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">

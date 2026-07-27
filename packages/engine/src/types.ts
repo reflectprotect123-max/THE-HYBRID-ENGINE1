@@ -190,6 +190,13 @@ export interface WhoopSample {
   recoveryScore?: number | string | null;
   restingHr?: number | string | null;
   strain?: number | null;
+  /** HRV in milliseconds (WHOOP's `hrv_rmssd_milli`). */
+  hrvMs?: number | string | null;
+  /** Last night's sleep performance, 0–100. */
+  sleepPerformance?: number | string | null;
+  date?: string;
+  capturedAt?: string;
+  source?: string;
   at?: number;
 }
 

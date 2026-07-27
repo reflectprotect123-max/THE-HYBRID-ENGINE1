@@ -30,12 +30,21 @@ export function Progress() {
   const zones = useMemo(() => conZones(hr), [hr]);
 
   const weeks = useMemo(() => weeklyVolume(sessions, 8), [sessions]);
-  const recovery = useMemo(() => {
-    const hist = Array.isArray(settings.whoopDaily)
-      ? (settings.whoopDaily as { date: string; recovery: number | null }[])
-      : [];
-    return hist.filter((h) => h.recovery != null).slice(-30).map((h) => ({ label: h.date.slice(5), value: h.recovery as number }));
-  }, [settings.whoopDaily]);
+  const whoopHist = useMemo(
+    () =>
+      Array.isArray(settings.whoopDaily)
+        ? (settings.whoopDaily as { date: string; recovery: number | null; strain: number | null }[])
+        : [],
+    [settings.whoopDaily],
+  );
+  const recovery = useMemo(
+    () => whoopHist.filter((h) => h.recovery != null).slice(-30).map((h) => ({ label: h.date.slice(5), value: h.recovery as number })),
+    [whoopHist],
+  );
+  const strain = useMemo(
+    () => whoopHist.filter((h) => h.strain != null).slice(-30).map((h) => ({ label: h.date.slice(5), value: h.strain as number })),
+    [whoopHist],
+  );
 
   const zoneWeek = useMemo(() => zoneSecondsThisWeek(sessions, settings), [sessions, settings]);
   const hrrTrend = useMemo(() => {
@@ -53,7 +62,7 @@ export function Progress() {
       .slice(0, 5);
   }, [sessions]);
 
-  const anything = weeks.some((w) => w.value > 0) || recovery.length || hrrTrend.length || lifts.length;
+  const anything = weeks.some((w) => w.value > 0) || recovery.length || strain.length || hrrTrend.length || lifts.length;
 
   return (
     <>
@@ -147,6 +156,15 @@ export function Progress() {
           <SectionHead title="Recovery · 30 days" />
           <Card>
             <Line data={recovery} min={0} max={100} color="var(--color-neon-ok)" unit="%" />
+          </Card>
+        </>
+      ) : null}
+
+      {strain.length > 1 ? (
+        <>
+          <SectionHead title="Strain · 30 days" />
+          <Card>
+            <Line data={strain} min={0} max={21} color="var(--color-neon-strain)" unit="" />
           </Card>
         </>
       ) : null}

@@ -65,6 +65,24 @@ export function todayRecovery(whoop?: WhoopSample | null): number | null {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
 
+/** Today's strain on WHOOP's 0–21 scale, to one decimal, or null. */
+export function todayStrain(whoop?: WhoopSample | null): number | null {
+  const n = whoop ? Number(whoop.strain) : NaN;
+  return Number.isFinite(n) ? Math.round(n * 10) / 10 : null;
+}
+
+/** Today's HRV in milliseconds, or null. */
+export function todayHrv(whoop?: WhoopSample | null): number | null {
+  const n = whoop ? Number(whoop.hrvMs) : NaN;
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+/** Last night's sleep performance, 0–100, or null. */
+export function todaySleepPerformance(whoop?: WhoopSample | null): number | null {
+  const n = whoop ? Number(whoop.sleepPerformance) : NaN;
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
 /**
  * The three-band zone model.
  *
