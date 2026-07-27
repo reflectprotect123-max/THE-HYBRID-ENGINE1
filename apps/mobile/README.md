@@ -35,9 +35,31 @@ Both files are shredded in an `always()` step and are gitignored.
 | Setting | Value | Why |
 |---|---|---|
 | `expo.android.package` | `com.hybridengine.app` | Change it and it is a different app |
-| `expo.android.versionCode` | `> 27` (currently 28) | The shipped WebView build is 27 |
+| `expo.android.versionCode` | `> 27` (currently 30) | The shipped WebView build is 27 |
+| `expo.runtimeVersion` | `"1"` — a hand-bumped string | See below. Not the `fingerprint` policy |
 | `expo.owner` | `ths1s-team` | The EAS project belongs to an organisation, not a personal account. Without this, EAS resolves against whichever account the token belongs to and cannot find the project |
 | `expo.extra.eas.projectId` | `7851ad90-…` | What `eas init --id` writes. Recorded rather than run, because CI builds are `--non-interactive` and cannot be prompted to link a project mid-build |
+
+## runtimeVersion — the one rule that keeps OTA honest
+
+`.github/workflows/mobile-ota.yml` publishes an EAS Update on every push that
+touches this app. A phone only accepts an update whose `runtimeVersion` matches
+the one compiled into the APK it is running.
+
+**The rule: bump `expo.runtimeVersion` in the same commit as any NATIVE change**
+— a new native module, a new permission, the icon, an Expo SDK bump — and ship
+a fresh APK with it. Never bump it for a JS-only change; not bumping is
+precisely what lets those ship over the air.
+
+It is a hand-managed string rather than `{"policy": "fingerprint"}` because
+fingerprint **silently broke delivery here**. Fingerprint hashes the autolinked
+native module directories, and under pnpm those directory names embed the
+peer-resolution hash. Adding `eas-cli` to the workspace injected
+`graphql@16.8.1` into the path of every `expo-*` module, changing the runtime
+version even though not one line of native code differed. Updates published
+green; every phone ignored them; nothing logged an error on either side. A
+fixed string cannot drift like that — but it does mean the rule above is now a
+human responsibility rather than an automatic one.
 
 ## The native project is generated, not committed
 

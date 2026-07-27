@@ -3,20 +3,23 @@ name: Mobile — OTA update (EAS Update)
 # AUTOMATIC. Runs on every push to main that touches the mobile app or a
 # package it depends on, and publishes an EAS Update — no manual dispatch.
 #
-# This is the JS/asset half of "auto install": app.json pins
-# runtimeVersion.policy to "fingerprint", which hashes the native config and
-# native dependencies. A build published here carries the SAME fingerprint as
-# whatever is already installed on the phone as long as nothing native
-# changed, so expo-updates on the phone finds it, downloads it, and applies it
-# on next app open — no reinstall, no tap.
+# This is the JS/asset half of "auto install". An update only reaches a phone
+# whose installed build declares the SAME runtimeVersion, which app.json pins
+# to a fixed string ("1") that a human bumps by hand.
 #
-# The other half — anything that changes the fingerprint (a new permission, a
-# new native module, the icon, an Expo SDK bump) — is NOT something this
-# workflow can deliver. The phone's installed build simply will not match that
-# update's runtime version and will not offer it. That case still needs
-# mobile-eas.yml to produce a fresh APK and a manual reinstall. That split is
-# correct, not a gap: it is exactly what stops a native-incompatible JS bundle
-# from being pushed onto a binary that cannot run it.
+# It used to use the "fingerprint" policy, and that silently broke delivery:
+# fingerprint hashes the autolinked native module directories, and under pnpm
+# those directory names embed the peer-resolution hash, so merely adding
+# eas-cli to the workspace injected "graphql@16.8.1" into every expo-* path
+# and changed the runtime version. Updates published green, and every phone
+# ignored them — no error on either side. A fixed string cannot drift like
+# that.
+#
+# The other half — any NATIVE change (new native module, permission, icon,
+# SDK bump) — is still not deliverable here, and still needs mobile-eas.yml to
+# produce a fresh APK. The rule that keeps that honest lives in app.json:
+# bump runtimeVersion in the same commit as the native change. Skipping that
+# bump is what would push a JS bundle onto a binary that cannot run it.
 #
 # Gated on EXPO_TOKEN exactly like mobile-eas.yml, and exits GREEN with an
 # explanation when it is absent so a push does not paint the repo red before
