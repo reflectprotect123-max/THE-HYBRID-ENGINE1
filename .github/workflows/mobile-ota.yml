@@ -1,0 +1,91 @@
+name: Mobile — OTA update (EAS Update)
+
+# AUTOMATIC. Runs on every push to main that touches the mobile app or a
+# package it depends on, and publishes an EAS Update — no manual dispatch.
+#
+# This is the JS/asset half of "auto install": app.json pins
+# runtimeVersion.policy to "fingerprint", which hashes the native config and
+# native dependencies. A build published here carries the SAME fingerprint as
+# whatever is already installed on the phone as long as nothing native
+# changed, so expo-updates on the phone finds it, downloads it, and applies it
+# on next app open — no reinstall, no tap.
+#
+# The other half — anything that changes the fingerprint (a new permission, a
+# new native module, the icon, an Expo SDK bump) — is NOT something this
+# workflow can deliver. The phone's installed build simply will not match that
+# update's runtime version and will not offer it. That case still needs
+# mobile-eas.yml to produce a fresh APK and a manual reinstall. That split is
+# correct, not a gap: it is exactly what stops a native-incompatible JS bundle
+# from being pushed onto a binary that cannot run it.
+#
+# Gated on EXPO_TOKEN exactly like mobile-eas.yml, and exits GREEN with an
+# explanation when it is absent so a push does not paint the repo red before
+# that secret exists.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/engine/**"
+      - "packages/design/**"
+      - "packages/config/**"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: eas update --channel preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check for EXPO_TOKEN
+        id: gate
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "have_token=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Skipped::No EXPO_TOKEN secret is set, so there is no Expo account to publish an update with. Skipping — this is not a failure."
+          else
+            echo "have_token=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.gate.outputs.have_token == 'true'
+
+      - uses: actions/setup-node@v6
+        if: steps.gate.outputs.have_token == 'true'
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v6
+        if: steps.gate.outputs.have_token == 'true'
+        with:
+          cache: true
+
+      - name: Install workspace
+        if: steps.gate.outputs.have_token == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Cheap, fast gate before spending an EAS Update publish on something
+      # broken. Not sufficient on its own (see mobile-eas.yml's README note on
+      # tsc vs Metro) but `eas update` bundles with the same Metro/Hermes
+      # pipeline, so a bundling failure surfaces there regardless.
+      - name: Typecheck the mobile app
+        if: steps.gate.outputs.have_token == 'true'
+        run: pnpm --filter @hybrid/mobile typecheck
+
+      - name: Publish EAS Update
+        if: steps.gate.outputs.have_token == 'true'
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          pnpm dlx eas-cli@21 update \
+            --channel preview \
+            --message "${{ github.event.head_commit.message }}" \
+            --non-interactive

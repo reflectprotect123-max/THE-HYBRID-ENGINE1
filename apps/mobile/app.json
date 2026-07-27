@@ -12,6 +12,14 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "//runtimeVersion": "policy 'fingerprint' hashes the native config + native deps. A JS-only push gets the SAME runtime version as what's already installed, so expo-updates delivers it silently. A push that changes anything native (a permission, a native module, the icon) changes the hash, so installed apps correctly do NOT receive it as an OTA update — that one still needs a fresh APK, by design, not by bug.",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "//": "u.expo.dev/<projectId> is EAS Update's fixed URL shape — same projectId as extra.eas below.",
+      "url": "https://u.expo.dev/7851ad90-8dd1-443f-8ce5-6461f62c26aa"
+    },
     "android": {
       "//": "applicationId, versionCode and the signing keystore must match the existing native/android-app build or Play treats this as a NEW app and current users get a second icon instead of an update.",
       "package": "com.hybridengine.app",
