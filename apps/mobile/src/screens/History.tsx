@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { blockExercises, epley, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Card, Empty, Kicker, Screen, SectionHead, T, Title } from '../ui';
+import { Card, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
 
 export function HistoryScreen() {
   const { db } = useDb();
@@ -22,7 +22,7 @@ export function HistoryScreen() {
       {done.length ? (
         done.map((s) => (
           <Card key={s.id} className="mb-1">
-            <Pressable onPress={() => setOpen(open === s.id ? null : s.id)}>
+            <Tap onPress={() => setOpen(open === s.id ? null : s.id)}>
               <View className="flex-row items-baseline">
                 <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
                   {s.name || 'Session'}
@@ -30,7 +30,7 @@ export function HistoryScreen() {
                 <T num className="text-3 text-dim">{s.date}</T>
               </View>
               <Summary s={s} />
-            </Pressable>
+            </Tap>
             {open === s.id ? <Detail s={s} /> : null}
           </Card>
         ))

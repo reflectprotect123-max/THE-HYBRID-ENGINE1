@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,7 +22,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Kicker, Ltr, T, Title } from '../ui';
+import { Btn, Kicker, Ltr, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -165,7 +165,7 @@ export function TrainingScreen() {
         <View key={b.id ?? bi} className="mt-2">
           <T w="semi" className="mb-1 text-5 text-text">{b.heading || 'Block'}</T>
           {isCond(b) ? (
-            <Pressable
+            <Tap
               /* Carries WHICH block this is, so the result lands back on it.
                  Without it the run banked into standalone history and the
                  block stayed forever unlogged. A logged block reopens the
@@ -179,12 +179,12 @@ export function TrainingScreen() {
               <T className="text-3 text-dim">
                 {b.condResult ? 'logged · tap to review' : 'runs by heart rate · tap to start'}
               </T>
-            </Pressable>
+            </Tap>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
               const done = exFinished(ex);
               return (
-                <Pressable
+                <Tap
                   key={ex.id ?? ei}
                   onPress={() => nav.navigate('Logger', { bi, ei })}
                   className={`mb-1 rounded-lg border p-2 ${done ? 'border-done-line bg-done-bg' : 'border-line bg-panel'}`}
@@ -200,7 +200,7 @@ export function TrainingScreen() {
                   </View>
                   <T num className="mt-0.5 text-3 text-muted">{rxLine(ex)}</T>
                   {ex.cue ? <T className="mt-0.5 text-3 text-gold2">{ex.cue}</T> : null}
-                </Pressable>
+                </Tap>
               );
             })
           )}

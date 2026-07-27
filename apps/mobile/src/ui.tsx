@@ -4,6 +4,7 @@ import {
   Text as RNText,
   TextInput as RNTextInput,
   View,
+  type PressableProps,
   type TextInputProps,
   type TextProps,
   type TextStyle,
@@ -134,15 +135,90 @@ export function SectionHead({ title, right }: { title: string; right?: ReactNode
   );
 }
 
+/**
+ * Android's floor for a touch target. iOS asks for 44; taking the larger of the
+ * two means one number for both platforms and no per-platform branching.
+ */
+const MIN_TAP = 48;
+
+/**
+ * Every tappable thing in the app.
+ *
+ * Three properties were missing almost everywhere and were never going to be
+ * remembered per call site: thirteen controls sat under the 44pt minimum (one
+ * at 24px), and of thirty Pressables exactly none gave any press feedback. A
+ * tap that produces no acknowledgement until the screen changes reads as "did
+ * that register?" and invites a second tap — which, on a logger, means a set
+ * confirmed twice.
+ *
+ * `box` is what the caller RENDERS, and the slop is computed from it to reach
+ * MIN_TAP. Expanding the touch area rather than the visual is deliberate: the
+ * design does not move, so this is a behavioural fix with a byte-identical
+ * layout. Pass the height/width you set in `className` and it does the maths.
+ */
+export function Tap({
+  children,
+  onPress,
+  box,
+  disabled,
+  className,
+  style,
+  label,
+  role = 'button',
+  selected,
+  ...rest
+}: Omit<PressableProps, 'style' | 'children'> & {
+  children: ReactNode;
+  /** the rendered size in px; omit when the control is already comfortably big */
+  box?: number | { h?: number; w?: number };
+  className?: string;
+  style?: ViewProps['style'];
+  /** required when the child is a glyph rather than words — see the test */
+  label?: string;
+  role?: 'button' | 'link';
+  selected?: boolean;
+}) {
+  const h = typeof box === 'number' ? box : box?.h;
+  const w = typeof box === 'number' ? box : box?.w;
+  /* Half the shortfall on each side, so the expansion is symmetric about the
+     control. hitSlop grows the touch rect only — nothing reflows. */
+  const slop = {
+    top: Math.max(0, Math.ceil((MIN_TAP - (h ?? MIN_TAP)) / 2)),
+    bottom: Math.max(0, Math.ceil((MIN_TAP - (h ?? MIN_TAP)) / 2)),
+    left: Math.max(0, Math.ceil((MIN_TAP - (w ?? MIN_TAP)) / 2)),
+    right: Math.max(0, Math.ceil((MIN_TAP - (w ?? MIN_TAP)) / 2)),
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={slop}
+      accessibilityRole={role}
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled, ...(selected == null ? {} : { selected }) }}
+      /* Android draws a real ripple; on iOS it is a no-op, so the opacity step
+         below is what gives that platform its feedback. Both land inside the
+         80–150ms window a press needs to be acknowledged in. */
+      android_ripple={disabled ? undefined : { color: 'rgba(255,255,255,.10)', borderless: false }}
+      className={className}
+      style={({ pressed }) => [style, pressed && !disabled ? { opacity: 0.65 } : null]}
+      {...rest}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
 /** The small gold text-link that rides on a SectionHead — "History ›". These
  * are the doors to the screens that have no tab of their own. */
 export function Link({ children, onPress }: { children: ReactNode; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button">
+    <Tap onPress={onPress} box={{ h: 20 }} role="link">
       <T w="med" className="text-3 text-gold2">
         {children}
       </T>
-    </Pressable>
+    </Tap>
   );
 }
 
@@ -183,10 +259,16 @@ export function Btn({
   disabled?: boolean;
 }) {
   const brass = variant === 'brass';
+  /* py-1.5 + a 14px line box came to ~42px — under the bar by a hair, and the
+     reason seven Settings buttons failed the audit. Declared rather than
+     measured so Tap can make up the difference in slop. */
+  const boxH = size === 'lg' ? 52 : 42;
   return (
-    <Pressable
+    <Tap
       onPress={onPress}
       disabled={disabled}
+      box={{ h: boxH }}
+      label={typeof children === 'string' ? children : undefined}
       className={`items-center justify-center rounded-md ${size === 'lg' ? 'px-3 py-2' : 'px-2 py-1.5'} ${
         brass ? 'bg-gold' : 'border border-line2 bg-panel2'
       } ${disabled ? 'opacity-40' : ''} ${className || ''}`}
@@ -197,16 +279,22 @@ export function Btn({
       <T w="med" className={size === 'lg' ? 'text-6' : 'text-5'} style={{ color: brass ? '#1b1509' : color.text }}>
         {children}
       </T>
-    </Pressable>
+    </Tap>
   );
 }
 
 /** Selection chip per 03-shared-02: selected is the gold wash, never green. */
 export function Chip({ on, children, onPress }: { on?: boolean; children: ReactNode; onPress?: () => void }) {
   return (
-    <Pressable
+    /* The day chips are the smallest repeated control in the app — py-0.5
+       around 10px type is ~22px tall — and they sit in a row of seven, so a
+       mis-tap schedules the wrong day. The slop does not overlap neighbours:
+       hitSlop is clipped by the parent, and the row has gap-0.5 between them. */
+    <Tap
       onPress={onPress}
-      accessibilityState={{ selected: !!on }}
+      box={{ h: 22 }}
+      selected={!!on}
+      label={typeof children === 'string' ? children : undefined}
       className={`items-center justify-center rounded-pill border px-1.5 py-0.5 ${
         on ? 'border-gold-line bg-gold-wash' : 'border-line2 bg-panel2'
       }`}
@@ -214,7 +302,7 @@ export function Chip({ on, children, onPress }: { on?: boolean; children: ReactN
       <T w="bold" className={`text-1 uppercase ${on ? 'text-gold2' : 'text-muted'}`} style={{ letterSpacing: 1 }}>
         {children}
       </T>
-    </Pressable>
+    </Tap>
   );
 }
 

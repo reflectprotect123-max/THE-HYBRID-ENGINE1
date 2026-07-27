@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -19,7 +19,7 @@ import {
 } from '@hybrid/engine';
 import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
-import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Title, zoneNeon } from '../ui';
+import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -276,11 +276,10 @@ function WeekStrip({
       {days.map((d) => {
         const isToday = d.key === today;
         return (
-          <Pressable
+          <Tap
             key={d.key}
             onPress={onOpen}
-            accessibilityRole="button"
-            accessibilityLabel={`${d.label} — open calendar`}
+            label={`${d.label} — open calendar`}
             className={`flex-1 items-center rounded-sm border py-1 ${
               isToday ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel3'
             }`}
@@ -294,7 +293,7 @@ function WeekStrip({
             <View
               className={`mt-0.5 h-0.5 w-0.5 rounded-pill ${d.has ? 'bg-gold' : 'bg-transparent'}`}
             />
-          </Pressable>
+          </Tap>
         );
       })}
     </View>

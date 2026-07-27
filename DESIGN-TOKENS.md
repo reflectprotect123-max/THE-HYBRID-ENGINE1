@@ -24,7 +24,7 @@ Target direction: **one shared language, both dark** (coach moves out of light).
 | Side panel | — | `--panelw` | coach-only (week nav) |
 | Text primary | `--text` | `--ink` | → `--fg-1` |
 | Text muted | `--muted` | `--ink2` | → `--fg-2` |
-| Text dim | `--dim` | `--faint` | → `--fg-3` |
+| Text dim | `--dim` | `--faint` | → `--fg-3` · **secondary ink only — see below** |
 | Hairlines | `--line`, `--line2`, `--hair` | `--line`, `--line2`, `--line3` | |
 | Border hover | — | `--line-hover` | |
 | Accent | `--gold` | `--orange` | **pick one for the unified look** |
@@ -34,6 +34,7 @@ Target direction: **one shared language, both dark** (coach moves out of light).
 | Ink ON accent | (implicit) | `--on-accent`, `--on-accent-deep` | |
 | Ink ON dark fill | — | `--on-dark`, `--on-dark-ink` | |
 | Metal gradient / edge | `--brass-grad`, `--brass-edge` | — | athlete-only signature |
+
 | Completion state | `--done-bg`, `--done-line`, `--done-ink` | — | deliberately brass, not green |
 | Success / warn / error | `--ok`, `--warn`, `--bad` | `--ok`, `--warn`, `--danger` | converge names |
 | Link | `--blue`, `--blue2` | `--blue` | |
@@ -43,6 +44,27 @@ Target direction: **one shared language, both dark** (coach moves out of light).
 | Exercise-card greys | — | `--exhdr`, `--exhdr-line`, `--exhdr-line2`, `--exhdr-line3`, `--exhdr-tick` | the "TrainHeroic" cool band |
 | Cell focus | — | `--cell-focus` | prescription input focus |
 | Trophy / media | — | `--trophy`, `--thumb`, `--thumb-1`, `--thumb-2` | |
+
+### `dim` is a secondary ink, and that is a constraint not a preference
+
+Measured against every surface in the palette:
+
+| ink on… | `bg` | `panel` | `panel2` | `well` |
+|---|---|---|---|---|
+| `text` | 17.9 | 16.5 | 15.3 | 17.4 |
+| `muted` | 8.1 | 7.5 | 7.0 | 7.9 |
+| **`dim`** | 5.0 | 4.6 | **4.2** | 4.8 |
+
+Every other ink clears 4.5:1 everywhere. `dim` on `panel2` does not — it lands
+at 4.2, which passes the 3:1 bar for secondary text and fails the 4.5:1 bar for
+body copy.
+
+The value is right and is used correctly in ~90 places; what was missing was
+the rule written down. **Do not set body copy in `dim` on `panel2`** — labels,
+units, timestamps and captions are what it is for. If a sentence someone has to
+read lands in `dim`, it wants `muted`, which clears 7:1 on every surface.
+
+Regenerate the table with the contrast script in `checks/` if the palette moves.
 
 ### Meaning-bearing colour — change deliberately
 HR zones are **semantic**, not decorative. Say explicitly in `design.md` whether

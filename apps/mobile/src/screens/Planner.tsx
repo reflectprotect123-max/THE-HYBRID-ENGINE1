@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -24,7 +24,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Chip, Input, Kicker, Ltr, Screen, T, Title } from '../ui';
+import { Btn, Card, Chip, Input, Kicker, Ltr, Screen, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 const FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo', 'free'];
@@ -127,9 +127,13 @@ export function PlannerScreen() {
               className="flex-1 text-5 text-text"
             />
             {!readOnly ? (
-              <Pressable onPress={() => edit((d) => void d.blocks.splice(bi, 1))}>
+              <Tap
+                onPress={() => edit((d) => void d.blocks.splice(bi, 1))}
+                box={{ h: 20, w: 24 }}
+                label={`delete block ${b.heading || bi + 1}`}
+              >
                 <T className="px-1 text-3 text-dim">✕</T>
-              </Pressable>
+              </Tap>
             ) : null}
           </View>
 
@@ -179,7 +183,10 @@ export function PlannerScreen() {
                 const open = openEx === key;
                 return (
                   <Card key={ex.id ?? ei} className={`mb-1 ${open ? 'border-gold-line' : ''}`}>
-                    <Pressable onPress={() => setOpenEx(open ? null : key)}>
+                    <Tap
+                      onPress={() => setOpenEx(open ? null : key)}
+                      label={`${open ? 'collapse' : 'expand'} ${ex.name || 'exercise'}`}
+                    >
                       <View className="flex-row items-center gap-1">
                         <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
                         <View className="flex-1">
@@ -192,7 +199,7 @@ export function PlannerScreen() {
                         </View>
                         <T className="text-6 text-dim">{open ? '▴' : '›'}</T>
                       </View>
-                    </Pressable>
+                    </Tap>
 
                     {open ? (
                       <View className="mt-1.5 border-t border-line pt-1.5">
@@ -238,13 +245,15 @@ export function PlannerScreen() {
                               className="h-5 w-12 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
                             />
                             {!readOnly && ex.sets.length > 1 ? (
-                              <Pressable
+                              <Tap
                                 onPress={() =>
                                   edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets.splice(si, 1))
                                 }
+                                box={{ h: 20, w: 24 }}
+                                label={`delete set ${si + 1}`}
                               >
                                 <T className="px-1 text-3 text-dim">✕</T>
-                              </Pressable>
+                              </Tap>
                             ) : null}
                           </View>
                         ))}
@@ -295,16 +304,17 @@ export function PlannerScreen() {
                           {!readOnly ? (
                             <>
                               <View className="flex-1" />
-                              <Pressable
-                                accessibilityLabel={`remove ${ex.name || 'exercise'}`}
+                              <Tap
+                                label={`remove ${ex.name || 'exercise'}`}
                                 onPress={() => {
                                   setOpenEx(null);
                                   edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.splice(ei, 1));
                                 }}
+                                box={{ h: 28 }}
                                 className="rounded-md border border-line2 px-1 py-0.5"
                               >
                                 <T className="text-3 text-dim">Remove</T>
-                              </Pressable>
+                              </Tap>
                             </>
                           ) : null}
                         </View>

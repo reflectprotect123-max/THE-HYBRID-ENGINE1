@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Share, View } from 'react-native';
+import { ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { conMaxHr, conZones, restingHr, todayRecovery, type EngineDB, type Profile } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
 import { isPersistent } from '../store/storage';
-import { Card, Input, Kicker, SectionHead, T, Title } from '../ui';
+import { Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
 
 /*
  * Declared at MODULE scope, not inside SettingsScreen.
@@ -148,13 +148,13 @@ function BackupCard({ db }: { db: EngineDB }) {
         <T num className="text-4 text-muted">
           {db.workouts.length} sessions in the library · {db.sessions.length} logged
         </T>
-        <Pressable
+        <Tap box={{ h: 42 }}
           onPress={() => void share()}
           disabled={busy}
           className={`mt-1.5 items-center rounded-md border border-line2 bg-panel2 py-1.5 ${busy ? 'opacity-40' : ''}`}
         >
           <T w="med" className="text-4 text-text">{busy ? 'Exporting…' : 'Export a backup'}</T>
-        </Pressable>
+        </Tap>
         {msg ? <T className="mt-1 text-3 text-muted">{msg}</T> : null}
         <T className="mt-1 text-3 text-dim">
           Everything on this device as plain JSON, sent wherever you keep files. Keeping one is worth the ten seconds.
@@ -195,7 +195,7 @@ function CoachLinkCard() {
               className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-center text-5 tracking-widest text-text"
             />
             {msg ? <T className="mt-1 text-3 text-warn">{msg}</T> : null}
-            <Pressable
+            <Tap box={{ h: 42 }}
               onPress={async () => {
                 setBusy(true);
                 setMsg((await claimInvite(code)) || 'Linked — your coach can now assign you sessions.');
@@ -205,7 +205,7 @@ function CoachLinkCard() {
               className={`mt-1.5 items-center rounded-md bg-gold py-1.5 ${busy || !code.trim() ? 'opacity-40' : ''}`}
             >
               <T w="med" className="text-4" style={{ color: '#1b1509' }}>{busy ? 'Linking…' : 'Link to coach'}</T>
-            </Pressable>
+            </Tap>
           </>
         )}
       </Card>
@@ -241,12 +241,12 @@ function CloudCard() {
             ) : null}
             {error ? <T className="mt-1 text-3 text-bad">{error}</T> : null}
             <View className="mt-1.5 flex-row gap-1">
-              <Pressable onPress={() => void syncNow()} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
+              <Tap box={{ h: 42 }} onPress={() => void syncNow()} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
                 <T w="med" className="text-4 text-text">Sync now</T>
-              </Pressable>
-              <Pressable onPress={() => void signOut()} className="flex-1 items-center rounded-md py-1.5">
+              </Tap>
+              <Tap box={{ h: 42 }} onPress={() => void signOut()} className="flex-1 items-center rounded-md py-1.5">
                 <T className="text-4 text-muted">Sign out</T>
-              </Pressable>
+              </Tap>
             </View>
           </>
         ) : (
@@ -269,12 +269,12 @@ function CloudCard() {
             />
             {msg ? <T className="mt-1 text-3 text-warn">{msg}</T> : null}
             <View className="mt-1.5 flex-row gap-1">
-              <Pressable onPress={() => void go(signIn)} className="flex-1 items-center rounded-md bg-gold py-1.5">
+              <Tap box={{ h: 42 }} onPress={() => void go(signIn)} className="flex-1 items-center rounded-md bg-gold py-1.5">
                 <T w="med" className="text-4" style={{ color: '#1b1509' }}>Sign in</T>
-              </Pressable>
-              <Pressable onPress={() => void go(signUp)} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
+              </Tap>
+              <Tap box={{ h: 42 }} onPress={() => void go(signUp)} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
                 <T w="med" className="text-4 text-text">Create account</T>
-              </Pressable>
+              </Tap>
             </View>
           </>
         )}
@@ -302,12 +302,12 @@ function WhoopCard() {
               <T className="mt-1.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</T>
             ) : null}
             <View className="mt-1.5 flex-row gap-1">
-              <Pressable onPress={() => void sync()} disabled={busy} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
+              <Tap box={{ h: 42 }} onPress={() => void sync()} disabled={busy} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
                 <T w="med" className="text-4 text-text">{busy ? 'Pulling…' : 'Pull now'}</T>
-              </Pressable>
-              <Pressable onPress={() => void disconnect()} className="flex-1 items-center rounded-md py-1.5">
+              </Tap>
+              <Tap box={{ h: 42 }} onPress={() => void disconnect()} className="flex-1 items-center rounded-md py-1.5">
                 <T className="text-4 text-muted">Disconnect</T>
-              </Pressable>
+              </Tap>
             </View>
           </>
         ) : (
@@ -316,9 +316,9 @@ function WhoopCard() {
               Connect WHOOP and your zones re-tune to the day: a low-recovery morning widens the easy band and pulls the
               hard line down.
             </T>
-            <Pressable onPress={connect} className="mt-1.5 items-center rounded-md bg-gold py-1.5">
+            <Tap box={{ h: 42 }} onPress={connect} className="mt-1.5 items-center rounded-md bg-gold py-1.5">
               <T w="med" className="text-4" style={{ color: '#1b1509' }}>Connect WHOOP</T>
-            </Pressable>
+            </Tap>
             {/* The connection IS visible back in the app now: it is filed under
                 the Supabase user rather than a browser cookie this app could
                 never read. Come back here after consenting and pull. */}

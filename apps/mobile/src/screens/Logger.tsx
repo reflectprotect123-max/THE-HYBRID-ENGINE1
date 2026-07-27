@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
@@ -31,7 +31,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useRest } from '../store/rest';
-import { Btn, Chip, Input, Ltr, T } from '../ui';
+import { Btn, Chip, Input, Ltr, T, Tap } from '../ui';
 import { setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
 
@@ -238,13 +238,14 @@ export function LoggerScreen({ route, navigation }: Props) {
       contentContainerStyle={{ padding: 16, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }}
     >
       <View className="flex-row items-start gap-1">
-        <Pressable
+        <Tap
           onPress={() => navigation.goBack()}
-          accessibilityLabel="back to session"
+          label="back to session"
+          box={40}
           className="h-5 w-5 items-center justify-center rounded-md border border-line2 bg-panel2"
         >
           <T className="text-6 text-muted">←</T>
-        </Pressable>
+        </Tap>
         <View className="flex-1">
           <T w="semi" className="text-2 uppercase tracking-widest text-dim">
             {block.heading || 'Block'}
@@ -317,13 +318,14 @@ export function LoggerScreen({ route, navigation }: Props) {
                       ) : null}
                     </View>
                     <View className="mt-0.5 flex-row gap-1">
-                      <Pressable
+                      <Tap
                         onPress={() => step(-1)}
-                        accessibilityLabel={`minus ${AUTOREG.stepKg} kg`}
+                        label={`minus ${AUTOREG.stepKg} kg`}
+                        box={{ w: 48 }}
                         className="w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
                       >
                         <T className="text-7 text-muted">−</T>
-                      </Pressable>
+                      </Tap>
                       <Input
                         value={v1}
                         onChangeText={(t) => writeVal(1, t)}
@@ -334,13 +336,14 @@ export function LoggerScreen({ route, navigation }: Props) {
                         className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 text-text"
                         placeholder="kg"
                       />
-                      <Pressable
+                      <Tap
                         onPress={() => step(1)}
-                        accessibilityLabel={`plus ${AUTOREG.stepKg} kg`}
+                        label={`plus ${AUTOREG.stepKg} kg`}
+                        box={{ w: 48 }}
                         className="w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
                       >
                         <T className="text-7 text-muted">+</T>
-                      </Pressable>
+                      </Tap>
                     </View>
                     <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">Reps</T>
                     <Input
@@ -446,28 +449,30 @@ export function LoggerScreen({ route, navigation }: Props) {
                     and a warm-up is honestly rated 3. The low end is on the chip
                     row now, and the stepper covers the halves between. */}
                 <View className="mt-0.5 flex-row items-center justify-center gap-1">
-                  <Pressable
+                  <Tap
                     onPress={() => setRpe((r) => Math.max(1, Math.round((r - 0.5) * 10) / 10))}
-                    accessibilityLabel="lower RPE by a half"
+                    label="lower RPE by a half"
+                    box={{ h: 40, w: 48 }}
                     className="h-5 w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
                   >
                     <T className="text-7 text-muted">−</T>
-                  </Pressable>
+                  </Tap>
                   <T w="black" num className="w-10 text-center text-9 text-gold2">{fmtRpe(rpe)}</T>
-                  <Pressable
+                  <Tap
                     onPress={() => setRpe((r) => Math.min(10, Math.round((r + 0.5) * 10) / 10))}
-                    accessibilityLabel="raise RPE by a half"
+                    label="raise RPE by a half"
+                    box={{ h: 40, w: 48 }}
                     className="h-5 w-6 items-center justify-center rounded-md border border-line2 bg-panel2"
                   >
                     <T className="text-7 text-muted">+</T>
-                  </Pressable>
+                  </Tap>
                 </View>
                 <View className="mt-1 flex-row flex-wrap justify-center gap-1">
                   {[1, 2, 3, 4, 5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((n) => (
-                    <Pressable
+                    <Tap
                       key={n}
                       onPress={() => setRpe(n)}
-                      accessibilityLabel={`RPE ${fmtRpe(n)}`}
+                      label={`RPE ${fmtRpe(n)}`}
                       className={`h-5 w-6 items-center justify-center rounded-pill border ${
                         rpe === n ? 'border-done-line bg-done-bg' : 'border-line2 bg-panel2'
                       }`}
@@ -475,7 +480,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                       <T w="semi" num className={`text-4 ${rpe === n ? 'text-done-ink' : 'text-muted'}`}>
                         {fmtRpe(n)}
                       </T>
-                    </Pressable>
+                    </Tap>
                   ))}
                 </View>
                 <T className="mt-1 text-center text-2 text-dim">1 · barely felt it — 10 · max effort</T>
@@ -493,18 +498,25 @@ export function LoggerScreen({ route, navigation }: Props) {
                   <View className="h-full rounded-pill bg-gold2" style={{ width: `${rest.frac * 100}%` }} />
                 </View>
                 <View className="mt-2 flex-row gap-1">
-                  <Pressable onPress={() => rest.add(15)} className="rounded-md border border-line2 px-2 py-1">
+                  <Tap
+                    onPress={() => rest.add(15)}
+                    label="add 15 seconds of rest"
+                    box={{ h: 34 }}
+                    className="rounded-md border border-line2 px-2 py-1"
+                  >
                     <T w="med" num className="text-4 text-muted">+15s</T>
-                  </Pressable>
-                  <Pressable
+                  </Tap>
+                  <Tap
                     onPress={() => {
                       rest.stop();
                       setPhase('input');
                     }}
+                    label="skip the rest timer"
+                    box={{ h: 34 }}
                     className="rounded-md border border-line2 px-2 py-1"
                   >
                     <T w="med" className="text-4 text-muted">Skip Rest</T>
-                  </Pressable>
+                  </Tap>
                 </View>
               </View>
             ) : null}

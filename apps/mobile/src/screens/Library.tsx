@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -16,7 +16,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Chip, Empty, Kicker, Screen, SectionHead, T, Title } from '../ui';
+import { Btn, Card, Chip, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -89,10 +89,10 @@ export function LibraryScreen() {
                 appear once you had tapped the card open, which is not
                 somewhere anyone looks for it. */}
             <View className="flex-row items-center">
-              <Pressable
+              <Tap
                 className="min-w-0 flex-1 flex-row items-center"
                 onPress={() => setOpen(open === w.id ? null : w.id)}
-                accessibilityLabel={`${open === w.id ? 'collapse' : 'expand'} ${w.name || 'session'}`}
+                label={`${open === w.id ? 'collapse' : 'expand'} ${w.name || 'session'}`}
               >
                 <T w="semi" className="min-w-0 flex-1 text-5 text-text" numberOfLines={1}>
                   {w.name || 'Session'}
@@ -100,18 +100,17 @@ export function LibraryScreen() {
                 <T num className="ml-1 text-3 text-dim">
                   {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
                 </T>
-              </Pressable>
-              <Pressable
+              </Tap>
+              <Tap
                 onPress={() => confirmRemove(w)}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={`delete ${w.name || 'session'}`}
+                box={32}
+                label={`delete ${w.name || 'session'}`}
                 className="ml-1 h-4 w-4 items-center justify-center rounded-md border border-line2 bg-panel2"
               >
                 <T w="med" className="text-4 text-muted">
                   ✕
                 </T>
-              </Pressable>
+              </Tap>
             </View>
 
             <Signal w={w} />

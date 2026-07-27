@@ -1,9 +1,10 @@
+import { useEffect, useState } from 'react';
 import { NavigationContainer, DarkTheme, type NavigatorScreenParams, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Text } from 'react-native';
+import { AccessibilityInfo, Text } from 'react-native';
 import { useFonts } from 'expo-font';
 /* One weight per import, from the per-weight subpath: the package root
    re-exports every weight AND every italic, and Metro bundles whatever is
@@ -129,12 +130,39 @@ function TabNav() {
   );
 }
 
+/**
+ * Whether the OS has been asked to cut animation.
+ *
+ * Worth honouring for a reason beyond compliance: "Remove animations" is
+ * usually switched on by people who get motion sick or who find movement
+ * distracting, and this app is used mid-set with a heart rate of 160. A screen
+ * that slides in while you are trying to read a target is the exact case that
+ * setting exists for.
+ *
+ * Subscribed rather than read once, because it can be toggled while the app is
+ * running and a stale value would be wrong for the rest of the session.
+ */
+function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((v) => alive && setReduce(!!v));
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => setReduce(!!v));
+    return () => {
+      alive = false;
+      sub.remove();
+    };
+  }, []);
+  return reduce;
+}
+
 export function App() {
   /* Inter is the app's voice — the same family the design cards and both web
      apps set first in their stacks. Rendering before it loads would flash
      every screen in system Roboto, so the app holds on a blank frame for the
      few ms the six weights take. If loading ever ERRORS the app proceeds on
      the system fallback instead: an ugly launch beats no launch. */
+  const reduceMotion = useReduceMotion();
   const [fontsReady, fontsError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -157,7 +185,11 @@ export function App() {
               screenOptions={{
                 headerShown: false,
                 contentStyle: { backgroundColor: color.bg },
-                animation: 'slide_from_right',
+                /* 'fade', not 'none'. A screen that simply appears reads as a
+                   glitch — the eye cannot tell a navigation from a redraw — so
+                   the calm version still marks the transition, it just does not
+                   travel. */
+                animation: reduceMotion ? 'fade' : 'slide_from_right',
                 gestureEnabled: true,
               }}
             >

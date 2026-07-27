@@ -133,6 +133,14 @@ jobs:
       # built bundles as well as the source, because a credential baked in at
       # build time exists nowhere in the tree.
       #
+      # mobile-touch and contrast guard two things a UI audit found and nothing
+      # else can see: that every tappable in the phone app goes through <Tap>
+      # (which is what makes touch targets reach 48dp and give feedback), and
+      # that no ink/surface pair in the palette drops under 3:1. Both are
+      # invisible to tsc, to Metro, and to a screenshot — which is exactly how
+      # thirteen undersized controls accumulated one reasonable-looking line at
+      # a time.
+      #
       # supabase-auth mints tokens against a local fixture secret and attacks
       # the verifier with them. It is here rather than beside the unit tests
       # because a regression in it is not a failing feature — it is anyone who
@@ -148,7 +156,7 @@ jobs:
       - name: Contract + security suites (no network)
         run: |
           set -o pipefail
-          for check in pentest supabase-contract whoop-contract whoop-deployment-smoke supabase-auth; do
+          for check in pentest supabase-contract whoop-contract whoop-deployment-smoke supabase-auth mobile-touch contrast; do
             echo "::group::checks/$check.mjs"
             node "checks/$check.mjs" 2>&1 | tee "$RUNNER_TEMP/$check.log"
             echo "::endgroup::"
