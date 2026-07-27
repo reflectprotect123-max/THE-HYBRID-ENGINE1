@@ -224,3 +224,50 @@ export function Meter({ pct }: { pct: number }) {
     </div>
   );
 }
+
+/**
+ * A row of view switches.
+ *
+ * Not navigation — every tab is the same screen showing a different slice, so
+ * these are `role="tab"` rather than links, and the selected one is announced
+ * as such. The row scrolls rather than wraps: three fit a phone, and a fourth
+ * added later must not silently drop onto a second line the way the Library's
+ * day chips did.
+ */
+export function Tabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+  label,
+}: {
+  tabs: readonly { key: T; label: string; count?: number }[];
+  value: T;
+  onChange: (k: T) => void;
+  label: string;
+}) {
+  return (
+    <div role="tablist" aria-label={label} className="mt-2 flex gap-0.5">
+      {tabs.map((t) => {
+        const on = t.key === value;
+        return (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={on}
+            onClick={() => onChange(t.key)}
+            className={cx(
+              /* No shrink-0: with it, three labels plus their counts overflowed
+                 420px and the last tab was clipped off the right edge. They
+                 share the row evenly and the type is sized to fit three. */
+              'min-w-0 flex-1 rounded-md border px-1 py-1 text-2 font-[750] uppercase tracking-[.06em] transition-colors duration-120',
+              on ? 'border-gold-line bg-gold-wash text-gold2' : 'border-line bg-panel3 text-dim hover:text-text',
+            )}
+          >
+            {t.label}
+            {t.count != null ? <span className="num ml-0.5 font-[650] opacity-70">{t.count}</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

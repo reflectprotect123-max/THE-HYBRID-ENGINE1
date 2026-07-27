@@ -9,7 +9,7 @@
  *
  * A screen must always render SOMETHING. That is the rule these assert.
  */
-import { screen } from '@testing-library/react-native';
+import { fireEvent, screen } from '@testing-library/react-native';
 import { liftSession, liftWorkout, renderScreen, runEffort, seed, volumeSession } from './harness';
 import { ProgressScreen } from '../src/screens/Progress';
 import { LibraryScreen } from '../src/screens/Library';
@@ -210,5 +210,35 @@ describe('Exercise history', () => {
     seed({ sessions: SQUATS });
     renderScreen(<ExerciseScreen />, {});
     expect(screen.getByText('Pick a movement')).toBeTruthy();
+  });
+});
+
+describe('Library tabs', () => {
+  const DB = {
+    workouts: [liftWorkout()],
+    sessions: [liftSession(10, 'Back squat', 100)],
+    settings: { mobility: ['World’s Greatest Stretch', 'Parasympathetic Breathing'] as never },
+  };
+
+  it('opens on Sessions, not on a list of 448 movements', () => {
+    seed(DB);
+    renderScreen(<LibraryScreen />);
+    expect(screen.getByText('Lower')).toBeTruthy();
+    expect(screen.queryByText('Parasympathetic Breathing')).toBeNull();
+  });
+
+  it('switches to mobility and lists it', () => {
+    seed(DB);
+    renderScreen(<LibraryScreen />);
+    fireEvent.press(screen.getByLabelText('Mobility, 2'));
+    expect(screen.getByText('Parasympathetic Breathing')).toBeTruthy();
+    // And the sessions are gone — it is a slice, not an append.
+    expect(screen.queryByText('Lower')).toBeNull();
+  });
+
+  it('counts each tab so an empty one is visible before it is opened', () => {
+    seed({ workouts: [], sessions: [], settings: {} });
+    renderScreen(<LibraryScreen />);
+    expect(screen.getByLabelText('Mobility, 0')).toBeTruthy();
   });
 });

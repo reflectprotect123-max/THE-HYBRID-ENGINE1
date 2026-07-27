@@ -6,6 +6,7 @@ import {
   agoLabel,
   blockExercises,
   isCond,
+  knownMovements,
   newBlock,
   rxLine,
   sessionOpeners,
@@ -16,7 +17,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Chip, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
+import { Btn, Card, Chip, Empty, Input, Kicker, Screen, SectionHead, T, Tabs, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -42,8 +43,24 @@ export function LibraryScreen() {
   const { db, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
 
+  /* Three slices of one library, not three destinations. Sessions are things
+     you START; exercises and mobility are things you LOOK UP. In one list the
+     448 movements buried the sessions you actually run. */
+  const [tab, setTab] = useState<'sessions' | 'exercises' | 'mobility'>('sessions');
+  const [q, setQ] = useState('');
+
   const mine = db.workouts.filter((w) => w.origin !== 'coach');
   const fromCoach = db.workouts.filter((w) => w.origin === 'coach');
+  const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  const mobility = useMemo(
+    () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
+    [db.settings.mobility],
+  );
+  const shown = useMemo(() => {
+    const list = tab === 'exercises' ? movements : tab === 'mobility' ? mobility : [];
+    const k = q.trim().toLowerCase();
+    return (k ? list.filter((m) => m.toLowerCase().includes(k)) : list).slice(0, 40);
+  }, [tab, q, movements, mobility]);
 
   /** Straight into the full editor. There was briefly a guided wizard in front
    *  of this; it earned nothing the Planner did not already do better. */
@@ -86,8 +103,39 @@ export function LibraryScreen() {
   return (
     <Screen>
       <Kicker>Library</Kicker>
-      <Title>Your sessions</Title>
+      <Title>Your library</Title>
 
+      <Tabs
+        value={tab}
+        onChange={(k) => {
+          setTab(k);
+          setQ('');
+        }}
+        tabs={[
+          { key: 'sessions', label: 'Sessions', count: db.workouts.length },
+          { key: 'exercises', label: 'Exercises', count: movements.length },
+          { key: 'mobility', label: 'Mobility', count: mobility.length },
+        ]}
+      />
+
+      {tab !== 'sessions' ? (
+        <NameList
+          shown={shown}
+          total={tab === 'exercises' ? movements.length : mobility.length}
+          q={q}
+          setQ={setQ}
+          noun={tab === 'exercises' ? 'movements' : 'mobility & prep'}
+          onPick={tab === 'exercises' ? (m) => nav.navigate('Exercise', { name: m }) : undefined}
+          empty={
+            tab === 'exercises'
+              ? 'Nothing logged yet. Movements appear here as you train them.'
+              : 'No mobility work saved. These are the stretches, breathing and prep you do around training — they carry no load to track, so this is a reference list.'
+          }
+        />
+      ) : null}
+
+      {tab !== 'sessions' ? null : (
+      <>
       <Btn variant="brass" className="mt-2" onPress={add}>
         ＋ New session
       </Btn>
@@ -176,7 +224,74 @@ export function LibraryScreen() {
           ))}
         </>
       ) : null}
+      </>
+      )}
     </Screen>
+  );
+}
+
+/**
+ * A searchable list of names — the web app's `NameList`.
+ *
+ * Shared by Exercises and Mobility because they are the same object at
+ * different weights: one opens a history the app can draw, the other does not,
+ * because mobility work carries no numbers and a tappable row would promise a
+ * screen that has nothing on it.
+ */
+function NameList({
+  shown,
+  total,
+  q,
+  setQ,
+  onPick,
+  noun,
+  empty,
+}: {
+  shown: string[];
+  total: number;
+  q: string;
+  setQ: (s: string) => void;
+  onPick?: (m: string) => void;
+  noun: string;
+  empty: string;
+}) {
+  if (!total) {
+    return (
+      <View className="mt-2">
+        <Empty title="Nothing here yet" body={empty} />
+      </View>
+    );
+  }
+  return (
+    <>
+      <Input
+        value={q}
+        onChangeText={setQ}
+        placeholder={`Search ${total} ${noun}`}
+        accessibilityLabel={`Search ${noun}`}
+        className="mt-2 h-5 rounded-md border border-line bg-well px-1.5 text-4 text-text"
+      />
+      {shown.map((m) =>
+        onPick ? (
+          <Tap
+            key={m}
+            onPress={() => onPick(m)}
+            label={`${m} history`}
+            className="mt-0.5 flex-row items-center rounded-md border border-line bg-panel3 p-1.5"
+          >
+            <T w="med" className="min-w-0 flex-1 text-4 text-text" numberOfLines={1}>
+              {m}
+            </T>
+            <T className="text-3 text-dim">›</T>
+          </Tap>
+        ) : (
+          <View key={m} className="mt-0.5 rounded-md border border-line bg-panel3 p-1.5">
+            <T className="text-4 text-muted">{m}</T>
+          </View>
+        ),
+      )}
+      {!shown.length ? <T className="mt-1 p-1.5 text-4 text-dim">Nothing matches “{q}”.</T> : null}
+    </>
   );
 }
 

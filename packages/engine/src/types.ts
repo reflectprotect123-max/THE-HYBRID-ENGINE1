@@ -178,6 +178,16 @@ export interface Settings {
   /** Earned working weights, keyed by LOWERCASED movement name. */
   liftProgress?: Record<string, LiftState>;
   conditioning?: CondResult[];
+  /**
+   * Prep and mobility movements — the things done before and around training
+   * that carry no load and no reps to progress.
+   *
+   * A plain list of names rather than records, because there is nothing to
+   * record: these are a reference of what you do, not work with a history. Kept
+   * in settings rather than derived from a name pattern at runtime, so the app
+   * never has to guess whether "Bench Press Warm-up" is mobility.
+   */
+  mobility?: string[];
   customFmt?: { rounds?: number | string; work?: number | string; rest?: number | string };
   /**
    * The shorthand the vanilla app's importer has been taught — `kw` maps a word

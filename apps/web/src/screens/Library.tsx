@@ -5,6 +5,7 @@ import {
   blockExercises,
   isCond,
   isCondWorkout,
+  knownMovements,
   newBlock,
   rxLine,
   sessionOpeners,
@@ -15,7 +16,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Button, Card, Chip, Empty, Kicker, ScreenTitle, SectionHead } from '../ui';
+import { Button, Card, Chip, Empty, Kicker, ScreenTitle, SectionHead, Tabs } from '../ui';
 
 /*
  * Two letters, in a fixed seven-column grid.
@@ -42,9 +43,25 @@ export function Library() {
   const nav = useNavigate();
   const { db, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
+  /*
+   * Three slices of one library, not three destinations. Sessions are things
+   * you START; exercises and mobility are things you LOOK UP. Mixing them in
+   * one list meant 448 movements buried the six sessions you actually run.
+   */
+  const [tab, setTab] = useState<'sessions' | 'exercises' | 'mobility'>('sessions');
+  const [q, setQ] = useState('');
 
   const mine = db.workouts.filter((w) => w.origin !== 'coach');
   const fromCoach = db.workouts.filter((w) => w.origin === 'coach');
+  const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  const mobility = useMemo(
+    () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
+    [db.settings.mobility],
+  );
+  const match = (list: string[]) => {
+    const k = q.trim().toLowerCase();
+    return k ? list.filter((m) => m.toLowerCase().includes(k)) : list;
+  };
 
   function addWorkout() {
     const w: Workout = { id: uid(), name: 'New session', blocks: [newBlock()], updatedAt: Date.now() };
@@ -78,8 +95,47 @@ export function Library() {
   return (
     <>
       <Kicker>Library</Kicker>
-      <ScreenTitle>Your sessions</ScreenTitle>
+      <ScreenTitle>Your library</ScreenTitle>
 
+      <Tabs
+        label="Library sections"
+        value={tab}
+        onChange={(k) => {
+          setTab(k);
+          setQ('');
+        }}
+        tabs={[
+          { key: 'sessions', label: 'Sessions', count: db.workouts.length },
+          { key: 'exercises', label: 'Exercises', count: movements.length },
+          { key: 'mobility', label: 'Mobility', count: mobility.length },
+        ]}
+      />
+
+      {tab === 'exercises' ? (
+        <NameList
+          names={match(movements)}
+          total={movements.length}
+          q={q}
+          setQ={setQ}
+          onPick={(m) => nav(`/exercise/${encodeURIComponent(m)}`)}
+          noun="movements"
+          empty="Nothing logged yet. Movements appear here as you train them."
+        />
+      ) : null}
+
+      {tab === 'mobility' ? (
+        <NameList
+          names={match(mobility)}
+          total={mobility.length}
+          q={q}
+          setQ={setQ}
+          noun="mobility & prep"
+          empty="No mobility work saved. These are the stretches, breathing and prep you do around training — they carry no load to track, so this is a reference list."
+        />
+      ) : null}
+
+      {tab !== 'sessions' ? null : (
+      <>
       <Button variant="brass" className="mt-2 w-full" onClick={addWorkout}>
         + New session
       </Button>
@@ -166,6 +222,8 @@ export function Library() {
           </ul>
         </>
       ) : null}
+      </>
+      )}
     </>
   );
 }
@@ -230,5 +288,66 @@ function WorkoutDetail({ w }: { w: Workout }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * A searchable list of names.
+ *
+ * Shared by Exercises and Mobility because they are the same object at
+ * different weights: one links into a history the app can draw, the other does
+ * not because there is nothing numeric to draw. Rendering them from one
+ * component keeps them from drifting apart on padding and phrasing.
+ */
+function NameList({
+  names,
+  total,
+  q,
+  setQ,
+  onPick,
+  noun,
+  empty,
+}: {
+  names: string[];
+  total: number;
+  q: string;
+  setQ: (s: string) => void;
+  onPick?: (m: string) => void;
+  noun: string;
+  empty: string;
+}) {
+  if (!total) return <div className="mt-2"><Empty title="Nothing here yet" body={empty} /></div>;
+  return (
+    <>
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={`Search ${total} ${noun}`}
+        aria-label={`Search ${noun}`}
+        className="mt-2 h-5 w-full rounded-md border border-line bg-well px-1.5 text-4 text-text outline-none placeholder:text-dim focus:border-gold-line"
+      />
+      <ul className="mt-1 flex flex-col gap-0.5">
+        {names.map((m) =>
+          onPick ? (
+            <li key={m}>
+              <button
+                onClick={() => onPick(m)}
+                className="flex w-full items-center gap-1 rounded-md border border-line bg-panel3 p-1.5 text-left text-4 font-[650] hover:border-gold-line"
+              >
+                <span className="min-w-0 flex-1 truncate">{m}</span>
+                <span aria-hidden className="text-3 text-dim">&rsaquo;</span>
+              </button>
+            </li>
+          ) : (
+            /* No link: mobility work has no numbers, so there is no history to
+               open and a tappable row would promise one. */
+            <li key={m} className="rounded-md border border-line bg-panel3 p-1.5 text-4 text-muted">
+              {m}
+            </li>
+          ),
+        )}
+        {!names.length ? <li className="p-1.5 text-4 text-dim">Nothing matches &ldquo;{q}&rdquo;.</li> : null}
+      </ul>
+    </>
   );
 }

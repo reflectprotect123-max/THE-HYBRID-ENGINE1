@@ -134,6 +134,19 @@ export function pickSession(x: Session, y: Session): Session {
 export function mergeSettings(base: Settings = {}, winner: Settings = {}): Settings {
   const out: Settings = Object.assign({}, base, winner);
 
+  // The mobility list is a UNION, not winner-wins. Adding a stretch on the
+  // phone and another on the web are both real edits, and Object.assign would
+  // silently drop whichever side lost.
+  if (base.mobility || winner.mobility) {
+    const seen = new Set<string>();
+    out.mobility = [...(base.mobility || []), ...(winner.mobility || [])].filter((m) => {
+      const k = String(m || '').trim().toLowerCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
   // Earned progression: take the higher level, but the HIGHER miss count too.
   // Taking `miss` from whichever side won on level meant two devices could each
   // bank a miss and neither deload ever fired — progression only ratcheted up.

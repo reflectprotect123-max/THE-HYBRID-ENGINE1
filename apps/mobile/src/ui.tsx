@@ -175,7 +175,10 @@ export function Tap({
   style?: ViewProps['style'];
   /** required when the child is a glyph rather than words — see the test */
   label?: string;
-  role?: 'button' | 'link';
+  /* 'radio' is for a row of view switches: it is what a screen reader
+     announces selected/unselected state on, and RN's 'tab' role carries no
+     tablist semantics to sit inside. */
+  role?: 'button' | 'link' | 'radio';
   selected?: boolean;
 }) {
   const h = typeof box === 'number' ? box : box?.h;
@@ -496,3 +499,48 @@ export const zoneInk = (k: 'low' | 'mod' | 'high') =>
  * glow brighter than the band inks, never used for text. */
 export const zoneNeon = (k: 'low' | 'mod' | 'high') =>
   k === 'low' ? color.neonStrain : k === 'mod' ? color.neonOk : color.neonBad;
+
+/**
+ * A row of view switches — the web app's `Tabs`, for a phone.
+ *
+ * Not navigation: every tab is the same screen showing a different slice, so
+ * these are `radio` for accessibility rather than links, and `selected` is
+ * announced. Sized to fit three across without shrink-0, because with it three
+ * labels plus counts clipped the last tab off the right edge on web.
+ */
+export function Tabs<K extends string>({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: readonly { key: K; label: string; count?: number }[];
+  value: K;
+  onChange: (k: K) => void;
+}) {
+  return (
+    <View className="mt-2 flex-row gap-0.5">
+      {tabs.map((t) => {
+        const on = t.key === value;
+        return (
+          <View key={t.key} className="min-w-0 flex-1">
+            <Tap
+              onPress={() => onChange(t.key)}
+              role="radio"
+              selected={on}
+              label={`${t.label}${t.count != null ? `, ${t.count}` : ''}`}
+              box={{ h: 34 }}
+              className={`items-center justify-center rounded-md border px-1 py-1 ${
+                on ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel3'
+              }`}
+            >
+              <T w="semi" className={`text-2 uppercase ${on ? 'text-gold2' : 'text-dim'}`} style={{ letterSpacing: 0.6 }}>
+                {t.label}
+                {t.count != null ? ` ${t.count}` : ''}
+              </T>
+            </Tap>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
