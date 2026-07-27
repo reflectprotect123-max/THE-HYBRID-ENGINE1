@@ -145,10 +145,16 @@ export function Training() {
       <div className="mt-2 flex flex-col gap-2">
         {s.blocks.map((b, bi) => (
           <section key={b.id ?? bi}>
+            {/* Block heading as the logger-section micro-label (04-athlete-04):
+                the exercise names are the loud line, not the block above them. */}
             <div className="mb-1 flex items-baseline gap-1">
-              <h2 className="text-5 font-[750] [overflow-wrap:anywhere]">{b.heading || 'Block'}</h2>
+              <h2 className="text-2 font-[750] uppercase tracking-[.18em] text-dim [overflow-wrap:anywhere]">
+                {b.heading || 'Block'}
+              </h2>
               {!isCond(b) && b.superset ? (
-                <span className="text-2 font-[750] uppercase tracking-[.14em] text-gold2">superset</span>
+                <span className="rounded-pill border border-gold-line bg-gold-wash px-0.5 text-1 font-[750] uppercase tracking-[.1em] text-gold2">
+                  superset
+                </span>
               ) : null}
             </div>
 

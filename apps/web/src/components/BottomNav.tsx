@@ -28,8 +28,12 @@ export function BottomNav() {
               end={to === '/'}
               className={({ isActive }) =>
                 cx(
-                  'flex h-7 flex-col items-center justify-center gap-0.5 text-1 font-[750] uppercase tracking-[.1em] transition-colors duration-120',
-                  isActive ? 'text-gold2' : 'text-dim hover:text-muted',
+                  // Active tab per 04-athlete-03: a gold wash falling away below
+                  // a centred hairline of light, not just a text tint.
+                  'relative flex h-7 flex-col items-center justify-center gap-0.5 text-1 font-[750] uppercase tracking-[.1em] transition-colors duration-120',
+                  isActive
+                    ? 'bg-gradient-to-b from-gold-wash to-transparent text-gold2 before:absolute before:inset-x-[22%] before:top-0 before:h-[2px] before:rounded-pill before:bg-gradient-to-r before:from-transparent before:via-gold2 before:to-transparent before:content-[""]'
+                    : 'text-dim hover:text-muted',
                 )
               }
             >

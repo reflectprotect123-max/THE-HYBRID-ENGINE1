@@ -221,7 +221,11 @@ export function Conditioning() {
             <ul className="flex flex-col gap-0.5">
               {zones.list.map((b) => (
                 <li key={b.key} className="flex items-center gap-1">
-                  <span className="h-1 w-1 shrink-0 rounded-pill" style={{ background: zoneInk(b.key) }} />
+                  <span
+                    aria-hidden
+                    className="h-1 w-1 shrink-0 rounded-pill"
+                    style={{ background: zoneNeon(b.key), boxShadow: `0 0 6px ${zoneNeon(b.key)}` }}
+                  />
                   <span className="flex-1 text-4 font-[650]">{b.name}</span>
                   <span className="num text-4 text-muted">
                     {b.lo}–{b.hi}
@@ -242,7 +246,8 @@ export function Conditioning() {
           <Card className="mt-2 flex items-center gap-2">
             <Ring
               frac={bpm == null ? 0 : Math.min(1, bpm / zones.max)}
-              color={zone ? zoneInk(zone.key) : 'var(--color-ring-idle)'}
+              color={zone ? zoneNeon(zone.key) : 'var(--color-ring-idle)'}
+              glow={zone != null}
               size={120}
               stroke={10}
             >
@@ -250,10 +255,10 @@ export function Conditioning() {
                 <span className="text-3 text-dim">no strap</span>
               ) : (
                 <>
-                  <span className="num text-9 font-[900]" style={{ color: zoneInk(zone!.key) }}>
+                  <span className="num text-9 font-[900]" style={{ color: zoneNeon(zone!.key) }}>
                     {bpm}
                   </span>
-                  <span className="text-2 text-dim">bpm</span>
+                  <span className="text-1 font-[750] uppercase tracking-[.1em] text-dim">bpm</span>
                 </>
               )}
             </Ring>
@@ -302,8 +307,13 @@ export function Conditioning() {
   );
 }
 
+/** Band inks for data read against text (banked seconds); the neon set for
+ * anything drawn as a lit dot, strip or ring — 01-foundations-colour-05/06. */
 function zoneInk(k: 'low' | 'mod' | 'high'): string {
-  return k === 'low' ? 'var(--color-z-low)' : k === 'mod' ? 'var(--color-z-mod)' : 'var(--color-z-high)';
+  return k === 'low' ? 'var(--color-zone-blue)' : k === 'mod' ? 'var(--color-zone-green)' : 'var(--color-zone-red)';
+}
+function zoneNeon(k: 'low' | 'mod' | 'high'): string {
+  return k === 'low' ? 'var(--color-neon-strain)' : k === 'mod' ? 'var(--color-neon-ok)' : 'var(--color-neon-bad)';
 }
 
 /**

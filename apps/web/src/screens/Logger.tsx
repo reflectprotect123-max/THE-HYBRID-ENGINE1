@@ -255,7 +255,9 @@ export function Logger() {
         </div>
       </div>
 
-      <Card className="mt-2 flex-1 shadow-lift">
+      {/* Hugs its content: stretching it to fill the viewport left a dead
+          panel below the set history with nothing in it. */}
+      <Card className="mt-2 shadow-lift">
         <div className="flex items-center gap-1">
           <LetterChip letter={letter} onClick={() => nav('/training')} />
           <span className="min-w-0 flex-1 truncate text-7 font-[800]">{ex.name || 'Exercise'}</span>
@@ -383,7 +385,7 @@ export function Logger() {
         <LoggedList ex={ex} />
       </Card>
 
-      <footer className="mt-2 flex gap-1">
+      <footer className="mt-auto flex gap-1 pt-2">
         <Button className="flex-1" onClick={() => nav('/training')}>
           ‹ Back to session
         </Button>

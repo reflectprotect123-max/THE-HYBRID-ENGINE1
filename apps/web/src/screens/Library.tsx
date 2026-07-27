@@ -80,7 +80,11 @@ export function Library() {
                   aria-expanded={open === w.id}
                 >
                   <span className="min-w-0 flex-1 truncate text-5 font-[750]">{w.name || 'Session'}</span>
-                  <span className="text-3 text-dim">{isCondWorkout(w) ? 'conditioning' : `${w.blocks.length} blocks`}</span>
+                  <span className="text-3 text-dim">
+                    {isCondWorkout(w) || !w.blocks.length
+                      ? 'conditioning'
+                      : `${w.blocks.length} ${w.blocks.length === 1 ? 'block' : 'blocks'}`}
+                  </span>
                 </button>
 
                 <div className="mt-1 flex flex-wrap gap-0.5">

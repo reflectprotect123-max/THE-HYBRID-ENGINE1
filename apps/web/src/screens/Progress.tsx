@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   bestE1rmByLift,
   conZones,
@@ -77,7 +78,14 @@ export function Progress() {
 
       {lifts.length ? (
         <>
-          <SectionHead title="Top lifts · 8-week change" />
+          <SectionHead
+            title="Top lifts · 8-week change"
+            right={
+              <Link to="/history" className="rounded-sm text-3 font-[650] text-gold2">
+                Full history ›
+              </Link>
+            }
+          />
           <Card>
             <ul className="flex flex-col gap-1">
               {lifts.map((d) => (
@@ -159,7 +167,11 @@ export function Progress() {
   );
 }
 
-const ink = (k: ZoneKey) => (k === 'low' ? 'var(--color-z-low)' : k === 'mod' ? 'var(--color-z-mod)' : 'var(--color-z-high)');
+// Band inks, not neon: banked zone seconds are data read against text
+// (01-foundations-colour-05 — these carry meaning; the emissive set is for
+// lit dots and strips only).
+const ink = (k: ZoneKey) =>
+  k === 'low' ? 'var(--color-zone-blue)' : k === 'mod' ? 'var(--color-zone-green)' : 'var(--color-zone-red)';
 
 interface Point {
   label: string;
@@ -170,11 +182,14 @@ function Bars({ data, unit, color }: { data: Point[]; unit: string; color: strin
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
     <div>
-      <div className="flex h-16 items-end gap-0.5">
+      {/* Columns stretch to the full 128px so the percentage heights of the
+          bars have something definite to resolve against — with `items-end`
+          they resolved to auto and the chart drew nothing. */}
+      <div className="flex h-16 gap-0.5">
         {data.map((d, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center justify-end gap-0.5">
+          <div key={i} className="flex flex-1 flex-col justify-end">
             <span
-              className="w-full rounded-sm"
+              className="w-full rounded-t-[4px]"
               style={{ height: Math.max(2, (100 * d.value) / max) + '%', background: color, opacity: d.value ? 1 : 0.25 }}
               title={`${d.label}: ${Math.round(d.value)}${unit}`}
             />

@@ -56,9 +56,9 @@ export function Chip({
     <button
       aria-pressed={on}
       className={cx(
-        'h-4 rounded-pill border px-1.5 text-3 font-[650] transition-colors duration-120 ease-standard',
+        'h-4 rounded-pill border px-1.5 text-1 font-[800] uppercase tracking-[.1em] transition-colors duration-120 ease-standard',
         on
-          ? 'border-done-line bg-done-bg text-done-ink'
+          ? 'border-gold-line bg-gold-wash text-gold2'
           : 'border-line2 bg-panel2 text-muted hover:text-text',
         className,
       )}
@@ -80,9 +80,12 @@ export function Field({ className, ...rest }: InputHTMLAttributes<HTMLInputEleme
   );
 }
 
+/** The uppercase tracked micro-label, in the brand gold of the shipped app's
+ * `.kicker` / `.sc-kicker` (design card 04-athlete-01/02). Pass a text- class
+ * to retint where a quieter label is wanted. */
 export function Kicker({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx('text-2 font-[750] uppercase tracking-[.14em] text-dim', className)}>
+    <div className={cx('text-2 font-[800] uppercase tracking-[.18em] text-gold', className)}>
       {children}
     </div>
   );
@@ -94,10 +97,15 @@ export function ScreenTitle({ children }: { children: ReactNode }) {
   );
 }
 
+/** Section label between cards — the vanilla app's `.sec-head`: an uppercase
+ * tracked micro-line in muted gold, so screen title > card titles > sections
+ * read as three distinct levels rather than a flat stack of bold. */
 export function SectionHead({ title, right }: { title: string; right?: ReactNode }) {
   return (
-    <div className="mt-3 mb-1 flex items-end justify-between gap-1">
-      <h2 className="text-6 font-[750] text-text [overflow-wrap:anywhere]">{title}</h2>
+    <div className="mt-3 mb-1 flex items-baseline justify-between gap-1">
+      <h2 className="text-2 font-[750] uppercase tracking-[.16em] text-gold2/80 [overflow-wrap:anywhere]">
+        {title}
+      </h2>
       {right}
     </div>
   );
@@ -138,7 +146,8 @@ export function Ring({
   size = 96,
   stroke = 8,
   color,
-  track = 'var(--color-track)',
+  track = 'var(--color-track-soft)',
+  glow,
   children,
 }: {
   frac: number;
@@ -146,6 +155,9 @@ export function Ring({
   stroke?: number;
   color: string;
   track?: string;
+  /** Neon treatment from 01-foundations-colour-06: the lit arc glows brighter
+   * than any band ink. Static light, not motion — reduced-motion safe. */
+  glow?: boolean;
   children?: ReactNode;
 }) {
   const r = (size - stroke) / 2;
@@ -165,7 +177,10 @@ export function Ring({
           strokeLinecap="round"
           strokeDasharray={c}
           strokeDashoffset={c * (1 - f)}
-          style={{ transition: 'stroke-dashoffset .3s var(--ease-standard)' }}
+          style={{
+            transition: 'stroke-dashoffset .3s var(--ease-standard)',
+            filter: glow ? `drop-shadow(0 0 5px ${color})` : undefined,
+          }}
         />
       </svg>
       <div className="absolute grid place-items-center text-center">{children}</div>
