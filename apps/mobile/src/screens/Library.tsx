@@ -121,7 +121,7 @@ export function LibraryScreen() {
           </Card>
         ))
       ) : (
-        <Empty title="Nothing here yet" body="Create a session, or import one you already have written down." />
+        <Empty title="Nothing here yet" body="Tap “＋ New session” to build your first one." />
       )}
 
       {fromCoach.length ? (

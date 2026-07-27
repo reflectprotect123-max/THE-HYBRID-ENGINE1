@@ -113,7 +113,7 @@ export function Library() {
           ))}
         </ul>
       ) : (
-        <Empty title="Nothing here yet" body="Create a session, or import one you already have written down." />
+        <Empty title="Nothing here yet" body="Use “＋ New session” above to build your first one." />
       )}
 
       {fromCoach.length ? (

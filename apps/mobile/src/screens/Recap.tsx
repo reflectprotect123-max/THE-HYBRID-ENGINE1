@@ -32,7 +32,7 @@ export function RecapScreen() {
   if (!s) {
     return (
       <Screen>
-        <Title>Session not found</Title>
+        <Title>That session is gone</Title>
         <Btn variant="brass" className="mt-2" onPress={() => nav.goBack()}>
           Back
         </Btn>

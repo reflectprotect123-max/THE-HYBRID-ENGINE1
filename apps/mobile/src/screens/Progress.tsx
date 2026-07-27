@@ -94,7 +94,10 @@ export function ProgressScreen() {
   return (
     <Screen>
       <Kicker>Progress</Kicker>
-      <Title>Is it working?</Title>
+      {/* Not "Is it working?" — on a screen that can legitimately be empty,
+          that reads as the APP asking whether IT is broken. It is a question
+          about the training. */}
+      <Title>Is the training working?</Title>
 
       {!anything ? (
         <Empty

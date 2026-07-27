@@ -34,7 +34,7 @@ export function Recap() {
   if (!s) {
     return (
       <>
-        <ScreenTitle>Session not found</ScreenTitle>
+        <ScreenTitle>That session is gone</ScreenTitle>
         <Button className="mt-2" variant="brass" onClick={() => nav('/history')}>
           Back to History
         </Button>
