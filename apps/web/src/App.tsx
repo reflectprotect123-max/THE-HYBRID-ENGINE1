@@ -15,6 +15,7 @@ import { Conditioning } from './screens/Conditioning';
 import { History } from './screens/History';
 import { Progress } from './screens/Progress';
 import { Exercise } from './screens/Exercise';
+import { UpdateBanner } from './UpdateBanner';
 import { Calendar } from './screens/Calendar';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
@@ -75,6 +76,9 @@ function Shell() {
         <Outlet />
       </main>
       <RestChip />
+      {/* Above the nav, below the rest chip: a running timer outranks a
+          version notice. */}
+      <UpdateBanner />
       <BottomNav />
     </div>
   );

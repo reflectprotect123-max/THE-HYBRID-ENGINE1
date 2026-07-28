@@ -19,7 +19,12 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
-      injectRegister: 'script-defer', // emits a real file, not an inline snippet
+      /* null, not 'script-defer': src/UpdateBanner.tsx calls registerSW()
+         itself so it can hold the activator until the athlete taps. Leaving the
+         plugin's own registration script in place registers the worker twice —
+         two registrations racing for the same scope, and the one that wins is
+         the one with no update handler attached. */
+      injectRegister: null,
       manifest: {
         name: 'THE Hybrid System',
         short_name: 'Hybrid',

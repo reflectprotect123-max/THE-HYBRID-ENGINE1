@@ -8,7 +8,7 @@
  * because the bug was never in the engine.
  */
 import { act, fireEvent, screen } from '@testing-library/react-native';
-import { LS_KEY, freshSessionBlocks, uid, type EngineDB, type Session } from '@hybrid/engine';
+import { LS_KEY, freshSessionBlocks, uid, ymd, type EngineDB, type Session } from '@hybrid/engine';
 import { liftWorkout, renderScreen, seed } from './harness';
 import { storage } from '../src/store/storage';
 import { LoggerScreen } from '../src/screens/Logger';
@@ -18,7 +18,11 @@ function liveSession(over: Partial<EngineDB> = {}) {
   const w = liftWorkout('Back squat', 2);
   const s: Session = {
     id: uid(),
-    date: '2026-07-27',
+    /* TODAY, computed. It was hardcoded, and `expireStaleSessions` correctly
+       bins an active session dated before today — so the whole file passed on
+       the day it was written and failed at the next midnight, blaming whatever
+       change happened to come after. A fixture that means "now" must say so. */
+    date: ymd(new Date()),
     name: 'Lower',
     status: 'active',
     blocks: freshSessionBlocks(w.blocks),

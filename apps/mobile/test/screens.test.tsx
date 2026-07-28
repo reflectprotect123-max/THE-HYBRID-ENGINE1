@@ -14,6 +14,16 @@ import { liftSession, liftWorkout, renderScreen, runEffort, seed, volumeSession 
 import { ProgressScreen } from '../src/screens/Progress';
 import { LibraryScreen } from '../src/screens/Library';
 import { ExerciseScreen } from '../src/screens/Exercise';
+import { ymd } from '@hybrid/engine';
+
+/* Relative, never hardcoded: the recovery chart only reads the last 30 days,
+   so fixed dates pass until they age out and then fail for a reason that has
+   nothing to do with the code under test. */
+const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return ymd(d);
+};
 
 describe('Progress', () => {
   it('shows the empty state with nothing logged', () => {
@@ -25,7 +35,7 @@ describe('Progress', () => {
   it('still shows the empty state after exactly ONE WHOOP reading', () => {
     // The regression, precisely. One sync is enough to make `anything` true
     // while leaving every chart below its two-point minimum — title, then void.
-    seed({ settings: { whoopDaily: [{ date: '2026-07-27', recovery: 62, strain: 9.1 }] } });
+    seed({ settings: { whoopDaily: [{ date: daysAgo(0), recovery: 62, strain: 9.1 }] } });
     renderScreen(<ProgressScreen />);
     expect(screen.getByText('Not enough logged yet')).toBeTruthy();
   });
@@ -34,8 +44,8 @@ describe('Progress', () => {
     seed({
       settings: {
         whoopDaily: [
-          { date: '2026-07-26', recovery: 55, strain: 8 },
-          { date: '2026-07-27', recovery: 62, strain: 9.1 },
+          { date: daysAgo(1), recovery: 55, strain: 8 },
+          { date: daysAgo(0), recovery: 62, strain: 9.1 },
         ],
       },
     });
