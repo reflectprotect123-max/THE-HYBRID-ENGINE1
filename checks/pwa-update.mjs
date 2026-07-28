@@ -22,15 +22,32 @@ import { createServer } from 'node:http';
 import { cp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { execFileSync, execSync } from 'node:child_process';
 import { launchChromium } from './_chromium.mjs';
 
-const TMP = process.env.PWA_TMP || '/tmp/pwa-update-check';
+const TMP = process.env.PWA_TMP || join(tmpdir(), 'pwa-update-check');
 const MARKER = 'PWA UPDATE CHECK V2';
 const SCREEN = 'apps/web/src/screens/Library.tsx';
 const TITLE = '<ScreenTitle>Your library</ScreenTitle>';
 
-const build = () => execFileSync('pnpm', ['--filter', '@hybrid/web', 'build'], { stdio: 'ignore' });
+/*
+ * Two real builds, so the precache manifest carries genuine revision hashes.
+ *
+ * Reaching pnpm is the fiddly part. When this check is run through a pnpm
+ * script, npm_execpath points at pnpm's own entry script, and running it with
+ * this Node finds it no matter what PATH looks like. Run directly as
+ * `node checks/pwa-update.mjs` that variable is unset, so fall back to the
+ * PATH lookup through a shell, because on Windows pnpm is a .cmd and
+ * execFileSync will not apply PATHEXT for you: without a shell this check died
+ * at `spawnSync pnpm ENOENT` before it ever opened a browser. The command is a
+ * fixed string, so execSync's shell costs nothing here.
+ */
+const PNPM = process.env.npm_execpath;
+const build = () =>
+  PNPM
+    ? execFileSync(process.execPath, [PNPM, '--filter', '@hybrid/web', 'build'], { stdio: 'ignore' })
+    : execSync('pnpm --filter @hybrid/web build', { stdio: 'ignore' });
 
 /* v2 differs by one visible string. The source is restored in `finally` even
    if the build throws — leaving a test marker in a screen would be a far worse
