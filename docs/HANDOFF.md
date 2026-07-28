@@ -12,12 +12,15 @@ commitment to build — section 4 is a proposal, and it is marked as one.
 
 ## 1. Where the code is
 
-The real monorepo is **`the-hybrid-engine1`**.
+The real monorepo is **`reflectprotect123-max/THE-HYBRID-ENGINE1`**. It was
+renamed from `the-hybrid-engine1`; pushes to the old name still redirect, so a
+stale remote works but reports the move.
 
 There is a second, empty repository named `THEhybridsystem` — no commits, no
 files. A session pointed at that one sees an empty directory and will conclude
 the project does not exist. If you are reading this and your working directory
-looks bare, that is what happened; you are in the wrong repo.
+looks bare, that is what happened; you are in the wrong repo. The names are
+similar enough that this has already cost one session most of its length.
 
 ## 2. The coach dashboard already exists
 
