@@ -65,7 +65,13 @@ export default defineConfig({
     target: 'es2022',
     modulePreload: { polyfill: false },
     cssCodeSplit: true,
-    sourcemap: true,
+    /* OFF for the published build.
+       Maps were 5.3MB of a 6.4MB deploy — 83% of everything uploaded — and
+       nothing consumed them: there is no error-reporting service wired up, and
+       the service worker never precached them. They also published the full
+       original TypeScript, comments and all, to anyone who guessed the URL.
+       Turn back on locally when you need to read a production stack trace. */
+    sourcemap: false,
     rollupOptions: {
       output: {
         // Keeping the runtime out of index.html: no inline chunk, ever.
