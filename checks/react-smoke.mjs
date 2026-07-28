@@ -12,6 +12,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
+import { launchChromium } from './_chromium.mjs';
 
 const root = resolve(process.cwd(), process.argv[2] || '.');
 let failures = 0;
@@ -58,29 +59,15 @@ function serve(port) {
   });
 }
 
-let chromium;
-try {
-  ({ chromium } = await import('playwright'));
-} catch {
-  console.log('SKIP — react-smoke: playwright not installed.');
-  process.exit(0);
-}
-
 const PORT = 4317;
 const server = await serve(PORT);
 const base = 'http://127.0.0.1:' + PORT;
 
-let browser;
-try {
-  browser = await chromium.launch();
-} catch {
-  const bundled = '/opt/pw-browsers/chromium';
-  if (!existsSync(bundled)) {
-    console.log('SKIP — react-smoke: no Chromium.');
-    server.close();
-    process.exit(0);
-  }
-  browser = await chromium.launch({ executablePath: bundled });
+const { browser, skip } = await launchChromium();
+if (skip) {
+  console.log('SKIP — react-smoke: ' + skip + '.');
+  server.close();
+  process.exit(0);
 }
 
 const ctx = await browser.newContext({ viewport: { width: 420, height: 900 } });

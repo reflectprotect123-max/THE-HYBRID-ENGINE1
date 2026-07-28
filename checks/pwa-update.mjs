@@ -23,7 +23,7 @@ import { cp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { chromium } from 'playwright';
+import { launchChromium } from './_chromium.mjs';
 
 const TMP = process.env.PWA_TMP || '/tmp/pwa-update-check';
 const MARKER = 'PWA UPDATE CHECK V2';
@@ -59,7 +59,12 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const { browser, skip } = await launchChromium();
+if (skip) {
+  console.log('SKIP — pwa-update: ' + skip + '.');
+  server.close();
+  process.exit(0);
+}
 const page = await browser.newPage({ viewport: { width: 420, height: 900 } });
 const fail = (m) => { console.error('FAIL: ' + m); process.exitCode = 1; };
 

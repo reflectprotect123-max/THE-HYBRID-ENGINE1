@@ -17,6 +17,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
+import { launchChromium } from './_chromium.mjs';
 
 const root = resolve(process.cwd(), process.argv[2] || '.');
 const PUB = resolve(root, 'apps/web/dist');
@@ -236,21 +237,12 @@ await t('hashed bundles are cacheable and the workers are not', async () => {
 });
 
 /* ---- and it has to actually run ---- */
-let chromium;
-try {
-  ({ chromium } = await import('playwright'));
-} catch {
-  console.log('SKIP — browser run: playwright not installed.');
+const { browser, skip } = await launchChromium();
+if (skip) {
+  console.log('SKIP — browser run: ' + skip + '.');
   server.close();
-  console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nAll deploy checks passed.');
+  console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nAll deploy checks passed (browser run skipped).');
   process.exit(failures ? 1 : 0);
-}
-
-let browser;
-try {
-  browser = await chromium.launch();
-} catch {
-  browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 }
 const ctx = await browser.newContext({ viewport: { width: 420, height: 900 } });
 const page = await ctx.newPage();

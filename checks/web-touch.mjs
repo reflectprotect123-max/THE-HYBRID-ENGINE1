@@ -18,18 +18,12 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
+import { launchChromium } from './_chromium.mjs';
 
 const root = resolve(process.cwd(), process.argv.slice(2).find((a) => !a.startsWith('-')) || '.');
 const PUB = resolve(root, 'apps/web/dist');
 const MIN = 44;
 
-let chromium;
-try {
-  ({ chromium } = await import('playwright'));
-} catch {
-  console.log('SKIP — web-touch: playwright not installed.');
-  process.exit(0);
-}
 if (!existsSync(PUB)) {
   console.error('apps/web/dist missing — run `pnpm run build:site` first.');
   process.exit(1);
@@ -46,11 +40,11 @@ const server = createServer(async (req, res) => {
 await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-let browser;
-try {
-  browser = await chromium.launch();
-} catch {
-  browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const { browser, skip } = await launchChromium();
+if (skip) {
+  console.log('SKIP — web-touch: ' + skip + '.');
+  server.close();
+  process.exit(0);
 }
 
 let fails = 0;

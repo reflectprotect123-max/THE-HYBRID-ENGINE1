@@ -18,6 +18,7 @@ import { createServer } from 'node:http';
 import { readFile, mkdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
+import { launchChromium } from './_chromium.mjs';
 
 const root = resolve(process.cwd(), '.');
 const OUT = resolve(root, process.argv[2] || '.screens');
@@ -243,14 +244,6 @@ const SHOTS = [
   ['10-logger', '/log/0/0', null],
 ];
 
-let chromium;
-try {
-  ({ chromium } = await import('playwright'));
-} catch {
-  console.error('playwright is required for screenshots.');
-  process.exit(1);
-}
-
 const PORT = 4519;
 const server = await serve(PORT);
 const base = 'http://127.0.0.1:' + PORT;
@@ -258,11 +251,13 @@ const base = 'http://127.0.0.1:' + PORT;
 await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 
-let browser;
-try {
-  browser = await chromium.launch();
-} catch {
-  browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+// Fatal here, unlike the other checks: a screenshot run with no browser has
+// nothing to produce, so skipping would report success and write no images.
+const { browser, skip } = await launchChromium();
+if (skip) {
+  console.error('screenshots need a browser: ' + skip + '.');
+  server.close();
+  process.exit(1);
 }
 
 const seed = buildSeed();
