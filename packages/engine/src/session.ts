@@ -22,6 +22,17 @@ export function isCond(b: Block | null | undefined): b is CondBlock {
   return !!b && (b as CondBlock).kind === 'conditioning';
 }
 
+/** A whole block of prep. Nothing inside it counts toward anything earned. */
+export function isWarmupBlock(b: Block | null | undefined): boolean {
+  return !!b && !isCond(b) && !isText(b) && !!(b as StrengthBlock<AnySet>).warmup;
+}
+
+export function newWarmupBlock(): StrengthBlock {
+  // One block type for both ends of the session: the rule is the same either
+  // way — real movements, ticked off, counting toward nothing earned.
+  return { id: uid(), heading: 'Warm-up / Cooldown', warmup: true, superset: false, exercises: [newEx()] };
+}
+
 export function isText(b: Block | null | undefined): b is TextBlock {
   return !!b && (b as TextBlock).kind === 'text';
 }
@@ -97,7 +108,10 @@ export function rxLine(ex: Exercise<AnySet>): string {
 /** Warm-ups are excluded: they inflate volume without being training. */
 export function sessionVolume(s: Session): number {
   let v = 0;
-  s.blocks.forEach((b) =>
+  s.blocks.forEach((b) => {
+    // Prep is not tonnage. The per-set marker handles a ramp inside a working
+    // exercise; this skips the whole block.
+    if (isWarmupBlock(b)) return;
     blockExercises(b).forEach((e) => {
       if (e.mode !== 'reps_kg' && e.mode !== 'amrap') return;
       e.sets.forEach((st) => {
@@ -107,8 +121,8 @@ export function sessionVolume(s: Session): number {
         const r = parseFloat(String(st.aVal2));
         if (Number.isFinite(kg) && Number.isFinite(r)) v += kg * r;
       });
-    }),
-  );
+    });
+  });
   return Math.round(v);
 }
 
@@ -183,7 +197,8 @@ export function exLogFor(name: string, sessions: Session[]): ExerciseHistoryEntr
     .sort((a, b) => (a.completedAt || 0) - (b.completedAt || 0))
     .forEach((s) => {
       const sets: ExerciseHistoryEntry['sets'] = [];
-      s.blocks.forEach((b) =>
+      s.blocks.forEach((b) => {
+        if (isWarmupBlock(b)) return;
         blockExercises(b).forEach((e) => {
           if (!isLiftMode(e.mode) || String(e.name || '').trim().toLowerCase() !== key) return;
           e.sets.forEach((st) => {
@@ -196,8 +211,8 @@ export function exLogFor(name: string, sessions: Session[]): ExerciseHistoryEntr
             const e1 = epley(st.aVal, st.aVal2);
             sets.push({ kg: e1 == null ? null : Number(st.aVal), reps, felt: st.felt || '', e1 });
           });
-        }),
-      );
+        });
+      });
       if (sets.length) {
         // `best` stays the best LOADED set: an e1RM is a claim about load, and
         // bodyweight work cannot make one. Null when the whole session was
@@ -231,7 +246,8 @@ export function detectPRs(s: Session, sessions: Session[]): PrRecord[] {
   const prs: PrRecord[] = [];
   const seen = new Set<string>();
 
-  s.blocks.forEach((b) =>
+  s.blocks.forEach((b) => {
+    if (isWarmupBlock(b)) return;
     blockExercises(b).forEach((e) => {
       if (!isLiftMode(e.mode)) return;
       const key = String(e.name || '').trim().toLowerCase();
@@ -253,8 +269,8 @@ export function detectPRs(s: Session, sessions: Session[]): PrRecord[] {
       if (!prev || b2.e1 > prev.e1 + 0.01) {
         prs.push({ name: e.name, kg: b2.kg, reps: b2.reps, e1: b2.e1, prevE1: prev ? prev.e1 : null });
       }
-    }),
-  );
+    });
+  });
 
   return prs;
 }

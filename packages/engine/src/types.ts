@@ -68,6 +68,16 @@ export interface Exercise<S extends AnySet = LoggedSet> {
 export interface StrengthBlock<S extends AnySet = LoggedSet> {
   id: string;
   kind?: undefined;
+  /**
+   * Prep, not work.
+   *
+   * A warm-up block holds real movements you tick off, but nothing in it may
+   * reach tonnage, an e1RM, or an earned working weight — warming up with an
+   * empty bar must never teach the progression that your bench went to 20kg.
+   * The per-SET warm-up marker ("W10") already exists for a ramp inside a
+   * working exercise; this is the whole block.
+   */
+  warmup?: boolean;
   heading?: string;
   minutes?: number | string;
   format?: string;

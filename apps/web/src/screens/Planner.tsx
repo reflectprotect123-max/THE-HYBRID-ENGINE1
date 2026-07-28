@@ -12,6 +12,7 @@ import {
   knownMovements,
   newBlock,
   newCondBlock,
+  newWarmupBlock,
   newTextBlock,
   newEx,
   newSet,
@@ -40,6 +41,7 @@ const EFFORTS: EffortKey[] = ['easy', 'medium', 'hard'];
 
 /** Every movement field points at the same list; see the datalist below. */
 const MOVEMENT_LIST_ID = 'known-movements';
+const PREP_LIST_ID = 'prep-movements';
 
 export function Planner() {
   const { id } = useParams();
@@ -51,6 +53,19 @@ export function Planner() {
      workout exists changes the hook COUNT between renders, which typecheck
      cannot see and React crashes on. */
   const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  /* In a warm-up/cooldown block the prep movements come first — that is what
+     you are reaching for there, and it is what finally makes the 200-strong
+     Mobility list something you use rather than a page you read. Logged
+     movements stay available underneath, because an empty-bar bench is a
+     legitimate warm-up. */
+  const mobility = useMemo(
+    () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
+    [db.settings.mobility],
+  );
+  const prepFirst = useMemo(() => {
+    const seen = new Set(mobility.map((m) => m.toLowerCase()));
+    return [...mobility, ...known.filter((k) => !seen.has(k.toLowerCase()))];
+  }, [mobility, known]);
 
   const w = db.workouts.find((x) => x.id === id);
 
@@ -97,6 +112,13 @@ export function Planner() {
       {!readOnly && known.length ? (
         <datalist id={MOVEMENT_LIST_ID}>
           {known.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+      ) : null}
+      {!readOnly && prepFirst.length ? (
+        <datalist id={PREP_LIST_ID}>
+          {prepFirst.map((n) => (
             <option key={n} value={n} />
           ))}
         </datalist>
@@ -217,7 +239,12 @@ export function Planner() {
                 ) : null}
               </Card>
             ) : (
-              <div className={cx((b as StrengthBlock<LoggedSet>).superset && 'rounded-lg border border-gold-line/40 bg-gold-wash/40 p-1')}>
+              <div
+                className={cx(
+                  (b as StrengthBlock<LoggedSet>).superset && 'rounded-lg border border-gold-line/40 bg-gold-wash/40 p-1',
+                  (b as StrengthBlock<LoggedSet>).warmup && 'rounded-lg border border-dashed border-line2 p-1',
+                )}
+              >
                 {blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei, exs) => {
                   const key = `${bi}-${ei}`;
                   const open = openEx === key;
@@ -243,7 +270,7 @@ export function Planner() {
                             <input
                               value={ex.name}
                               readOnly={readOnly}
-                              list={readOnly ? undefined : MOVEMENT_LIST_ID}
+                              list={readOnly ? undefined : (b as StrengthBlock<LoggedSet>).warmup ? PREP_LIST_ID : MOVEMENT_LIST_ID}
                               onChange={(e) =>
                                 edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].name = e.target.value))
                               }
@@ -431,6 +458,9 @@ export function Planner() {
       {!readOnly ? (
         <div className="mt-2 flex flex-wrap gap-1">
           <Button onClick={() => edit((d) => void d.blocks.push(newBlock() as never))}>＋ Block</Button>
+          <Button onClick={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
+            ☀ Warm-up / Cooldown
+          </Button>
           <Button onClick={() => edit((d) => void d.blocks.push(newCondBlock()))}>♥ Conditioning</Button>
           <Button onClick={() => edit((d) => void d.blocks.push(newTextBlock()))}>✎ Metcon / notes</Button>
         </div>

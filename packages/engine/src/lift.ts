@@ -2,7 +2,7 @@ import { AUTOREG, RECOVERY_BANDS } from './constants';
 import { computeSetAdjustment, isWarmup, repFloorOf, rpeCenterOf } from './autoreg';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
-import { blockExercises, isLiftMode } from './session';
+import { blockExercises, isLiftMode, isWarmupBlock } from './session';
 import type { AnySet, Block, LiftState, LoggedSet, Session, Settings, WhoopSample } from './types';
 
 /*
@@ -69,7 +69,11 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
   if (!s) return [];
   const out: LiftMove[] = [];
 
-  s.blocks.forEach((b) =>
+  s.blocks.forEach((b) => {
+    // THE important guard. Without it, warming bench up with an empty bar at
+    // RPE 3 teaches the progression that your working weight is 20kg, and the
+    // next session offers it back to you.
+    if (isWarmupBlock(b)) return;
     blockExercises<LoggedSet>(b).forEach((ex) => {
       if (!isLiftMode(ex.mode)) return;
       const name = String(ex.name || '').trim();
@@ -89,8 +93,8 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
 
       const adj = computeSetAdjustment(reps, felt, repFloorOf(st.t), from, rpeCenterOf(st));
       out.push({ name, key, from, to: adj.newWeight, delta: adj.delta, verdict: adj.verdict, reps });
-    }),
-  );
+    });
+  });
 
   return out;
 }

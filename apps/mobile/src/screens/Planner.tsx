@@ -14,6 +14,7 @@ import {
   knownMovements,
   newBlock,
   newCondBlock,
+  newWarmupBlock,
   newTextBlock,
   newEx,
   newSet,
@@ -77,6 +78,19 @@ export function PlannerScreen() {
      workout exists changes the hook COUNT between renders, which typecheck
      cannot see and React crashes on. */
   const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  /* In a warm-up/cooldown block the prep movements come first — that is what
+     you are reaching for there, and it is what finally makes the 200-strong
+     Mobility list something you use rather than a page you read. Logged
+     movements stay available underneath, because an empty-bar bench is a
+     legitimate warm-up. */
+  const mobility = useMemo(
+    () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
+    [db.settings.mobility],
+  );
+  const prepFirst = useMemo(() => {
+    const seen = new Set(mobility.map((m) => m.toLowerCase()));
+    return [...mobility, ...known.filter((k) => !seen.has(k.toLowerCase()))];
+  }, [mobility, known]);
 
   const w = db.workouts.find((x) => x.id === route.params.id);
   if (!w) {
@@ -236,7 +250,7 @@ export function PlannerScreen() {
                         {!readOnly ? (
                           <Suggest
                             typed={ex.name}
-                            known={known}
+                            known={(b as StrengthBlock<LoggedSet>).warmup ? prepFirst : known}
                             onPick={(name) =>
                               edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].name = name))
                             }
@@ -411,6 +425,9 @@ export function PlannerScreen() {
         <View className="mt-2 flex-row gap-1">
           <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newBlock() as never))}>
             ＋ Block
+          </Btn>
+          <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
+            ☀ Warm-up
           </Btn>
           <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newTextBlock()))}>
             ✎ Metcon
