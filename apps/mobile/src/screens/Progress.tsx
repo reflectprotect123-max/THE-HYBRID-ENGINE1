@@ -424,7 +424,18 @@ function Finding({
         ) : (
           heading
         )}
-        <T num w="bold" className={`text-4 ${i.improved ? 'text-ok' : 'text-bad'}`}>
+        {/* Whether this is good news is carried by the colour and, for a
+            decline, the minus sign — neither of which reaches a screen reader
+            as meaning, and green-vs-red is the pairing colour-blind readers are
+            least likely to separate. TalkBack gets the direction in words. */}
+        <T
+          num
+          w="bold"
+          accessibilityLabel={`${i.pct == null ? 'no percentage' : Math.abs(Math.round(i.pct * 100)) + ' percent'}, ${
+            i.improved ? 'improved' : 'declined'
+          }`}
+          className={`text-4 ${i.improved ? 'text-ok' : 'text-bad'}`}
+        >
           {i.pct == null ? '—' : (i.pct > 0 ? '+' : '') + Math.round(i.pct * 100) + '%'}
         </T>
       </View>

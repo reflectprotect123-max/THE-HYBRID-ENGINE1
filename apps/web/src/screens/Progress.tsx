@@ -296,6 +296,12 @@ function Finding({ i }: { i: Insight }) {
           style={{ color: i.improved ? 'var(--color-ok)' : 'var(--color-bad)' }}
         >
           {i.pct == null ? '—' : (i.pct > 0 ? '+' : '') + Math.round(i.pct * 100) + '%'}
+          {/* Whether this is good news is carried by the colour and, for a
+              decline, the minus sign. Neither reaches a screen reader as
+              meaning, and green-vs-red is the one pairing colour-blind readers
+              are least likely to separate — so the direction is also stated in
+              words. */}
+          <span className="sr-only">{i.improved ? ' — improved' : ' — declined'}</span>
         </span>
       </div>
       <p className="mt-0.5 text-3 text-muted">{i.detail}</p>
