@@ -49,6 +49,16 @@ interface CoachCloud {
    */
   mine: EngineDB | null;
   mineLoading: boolean;
+  /**
+   * WHY `mine` is empty, when it is not simply "there is nothing".
+   *
+   * The first version swallowed the query result: a refused read, a network
+   * failure and a genuinely empty account all produced null, and the screen
+   * said "nothing logged yet" to all three. That is the same failure as a
+   * chart with no axis label — confidently wrong, and impossible to debug from
+   * the outside.
+   */
+  mineError: string | null;
 }
 
 const Ctx = createContext<CoachCloud | null>(null);
@@ -65,6 +75,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [mine, setMine] = useState<EngineDB | null>(null);
   const [mineLoading, setMineLoading] = useState(false);
+  const [mineError, setMineError] = useState<string | null>(null);
   const [athletes, setAthletes] = useState<{ id: string; label: string }[]>([]);
   const [invites, setInvites] = useState<{ id: string; token: string; label: string | null }[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -80,6 +91,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!client || !user) {
       setMine(null);
+      setMineError(null);
       return;
     }
     let live = true;
@@ -89,13 +101,30 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       .select('state')
       .eq('user_id', user.id)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (!live) return;
+        if (error) {
+          setMineError('Could not read your training: ' + error.message);
+          setMine(null);
+          setMineLoading(false);
+          return;
+        }
+        if (!data) {
+          // Signed in, but this account has never pushed. Almost always means
+          // the athlete app was used signed OUT, so its data is still only on
+          // that device.
+          setMineError('none');
+          setMine(null);
+          setMineLoading(false);
+          return;
+        }
+        setMineError(null);
         /* The engine lives UNDER `hybridEngine`, not at the top of the row —
            buildPushState nests it so unrelated keys in a user's state survive a
            push. Reading data.state directly returns an empty database and a
            dashboard that says "nothing logged yet" forever. */
-        const raw = (data?.state as { hybridEngine?: unknown } | null)?.hybridEngine;
+        const raw = (data.state as { hybridEngine?: unknown } | null)?.hybridEngine;
+        if (!raw) setMineError('shape');
         // sanitizeDB is the same trust boundary the athlete app uses: a
         // half-written row must degrade, not crash.
         setMine(raw ? sanitizeDB(raw) : null);
@@ -205,6 +234,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       loadError,
       mine,
       mineLoading,
+      mineError,
       refreshAthletes,
       publish,
       /*
@@ -260,7 +290,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
         setUser(null);
       },
     }),
-    [user, athletes, invites, loadError, mine, mineLoading, refreshAthletes, publish],
+    [user, athletes, invites, loadError, mine, mineLoading, mineError, refreshAthletes, publish],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

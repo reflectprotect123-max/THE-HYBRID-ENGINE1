@@ -30,7 +30,7 @@ import { MICRO } from './ui';
  * than a coach screen that does not exist.
  */
 export function Dashboard() {
-  const { mine, mineLoading, user } = useCoachCloud();
+  const { mine, mineLoading, mineError, user } = useCoachCloud();
 
   if (!user) {
     return (
@@ -49,12 +49,43 @@ export function Dashboard() {
       </Shell>
     );
   }
+  /* Three different reasons for an empty screen, three different answers. A
+     single "nothing logged yet" for all of them is unactionable — it reads as
+     "you have not trained" when the real cause is usually "this account has
+     never pushed". */
+  if (mineError && mineError !== 'none' && mineError !== 'shape') {
+    return (
+      <Shell>
+        <Empty title="Could not read your training" body={mineError} />
+      </Shell>
+    );
+  }
+  if (mineError === 'none') {
+    return (
+      <Shell>
+        <Empty
+          title="This account has no training in the cloud yet"
+          body={`Signed in as ${user.email}. Your sessions are still only on the device that logged them — open the athlete app, sign in with THIS email, and let it sync. If you signed into the athlete app with a different address, that is the one holding your data.`}
+        />
+      </Shell>
+    );
+  }
+  if (mineError === 'shape') {
+    return (
+      <Shell>
+        <Empty
+          title="Found the account, but no training in it"
+          body="There is a record for this user with nothing under it. That happens when the athlete app has signed in but not finished a sync — open it and press Sync now."
+        />
+      </Shell>
+    );
+  }
   if (!mine || !mine.sessions.length) {
     return (
       <Shell>
         <Empty
           title="Nothing logged yet"
-          body="Finish a session on the phone, sync, and this fills in. Until then there is nothing true to put here."
+          body="The account synced, and it holds no sessions. Finish one on the phone and this fills in."
         />
       </Shell>
     );
