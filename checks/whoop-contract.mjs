@@ -540,7 +540,16 @@ async function main() {
     relativePath === 'node_modules' || relativePath.endsWith('/node_modules') || relativePath.includes('node_modules/') ||
     relativePath === 'vendor' || relativePath.startsWith('vendor/') ||
     relativePath === 'coach/vendor' || relativePath.startsWith('coach/vendor/') ||
-    relativePath === 'checks' || relativePath.startsWith('checks/')
+    relativePath === 'checks' || relativePath.startsWith('checks/') ||
+    /*
+     * Agent scaffolding, and in particular .claude/worktrees — a git worktree
+     * there is a SECOND FULL CHECKOUT of this repo. Its netlify/ and checks/
+     * copies arrive as '.claude/worktrees/<name>/netlify/...', which matches
+     * none of the exclusions above, so the scan reported this check's own
+     * fixture literals and the real server-side functions as browser-facing
+     * secrets. Nothing under .claude is source or is published.
+     */
+    relativePath === '.claude' || relativePath.startsWith('.claude/')
   ));
   const secretPatterns = [
     { label: 'OpenRouter key', pattern: /sk-or-v1-[A-Za-z0-9_-]{20,}/i },
