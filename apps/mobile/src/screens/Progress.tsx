@@ -159,8 +159,13 @@ export function ProgressScreen() {
           <SectionHead title="What has changed" />
           <Card>
             <View className="gap-1">
-              {found.map((i) => (
-                <Finding key={i.id} i={i} />
+              {found.map((i, n) => (
+                <Finding
+                  key={i.id}
+                  i={i}
+                  last={n === found.length - 1}
+                  onMovement={(name) => nav.navigate('Exercise', { name })}
+                />
               ))}
             </View>
             <View className="mt-1 border-t border-line pt-1">
@@ -382,13 +387,43 @@ function Trend({
  * four is a different statement from twenty against twenty, and hiding the
  * difference would make the two look equally certain.
  */
-function Finding({ i }: { i: Insight }) {
+function Finding({
+  i,
+  last,
+  onMovement,
+}: {
+  i: Insight;
+  last: boolean;
+  onMovement: (name: string) => void;
+}) {
+  // A strength finding names a movement, and the sets behind the claim are one
+  // screen away. Opening them makes the evidence inspectable rather than
+  // something to take on trust. Only this kind opens: `work-rate`'s subject is
+  // a session name, which the Exercise route cannot resolve.
+  const movement = i.key === 'strength-at-effort' && i.subject ? i.subject : null;
+  const heading = (
+    <T w="semi" className="min-w-0 flex-1 text-4 text-text">
+      {i.title}
+      {movement ? ' ›' : ''}
+    </T>
+  );
   return (
-    <View className="border-b border-line pb-1">
+    // `last` is a prop rather than a `last:` variant because NativeWind has no
+    // child-position selectors. Without it the final divider stacks against the
+    // footnote's own top border and draws a doubled rule — the web app gets
+    // this free from `last:border-0`, and the phone would quietly not.
+    <View className={last ? '' : 'border-b border-line pb-1'}>
       <View className="flex-row items-baseline gap-1">
-        <T w="semi" className="min-w-0 flex-1 text-4 text-text">
-          {i.title}
-        </T>
+        {/* Through <Tap>, not a bare Pressable — that is what makes the target
+            reach 48dp and give feedback, and checks/mobile-touch.mjs enforces
+            it across every screen. */}
+        {movement ? (
+          <Tap onPress={() => onMovement(movement)} className="min-w-0 flex-1">
+            {heading}
+          </Tap>
+        ) : (
+          heading
+        )}
         <T num w="bold" className={`text-4 ${i.improved ? 'text-ok' : 'text-bad'}`}>
           {i.pct == null ? '—' : (i.pct > 0 ? '+' : '') + Math.round(i.pct * 100) + '%'}
         </T>

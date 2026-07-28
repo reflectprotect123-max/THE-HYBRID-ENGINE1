@@ -272,10 +272,25 @@ const ink = (k: ZoneKey) =>
  * would make the two look equally certain.
  */
 function Finding({ i }: { i: Insight }) {
+  // A strength finding names a movement, and the sets behind the claim are
+  // already a screen away. Linking it makes the evidence inspectable rather
+  // than something the athlete has to take on trust — the same reason the top
+  // lifts list is a set of doors. Only this kind links: `work-rate`'s subject
+  // is a session name, which no movement route would resolve.
+  const movement = i.key === 'strength-at-effort' && i.subject ? i.subject : null;
   return (
     <li className="border-b border-line pb-1 last:border-0 last:pb-0">
       <div className="flex items-baseline gap-1">
-        <span className="min-w-0 flex-1 text-4 font-[650]">{i.title}</span>
+        {movement ? (
+          <Link
+            to={`/exercise/${encodeURIComponent(movement)}`}
+            className="min-w-0 flex-1 truncate rounded-sm text-4 font-[650] hover:text-gold2"
+          >
+            {i.title} <span aria-hidden className="text-3 text-dim">›</span>
+          </Link>
+        ) : (
+          <span className="min-w-0 flex-1 text-4 font-[650]">{i.title}</span>
+        )}
         <span
           className="num text-4 font-[750]"
           style={{ color: i.improved ? 'var(--color-ok)' : 'var(--color-bad)' }}
