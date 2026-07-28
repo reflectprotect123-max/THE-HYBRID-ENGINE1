@@ -200,5 +200,40 @@ git checkout -B claude/app-troubleshooting-c69lw9 origin/main
 - A planned set is exactly `{ t, rpe }`. Two test suites enforce that a planned
   set can never carry logged fields, because the moment it can, publishing a
   plan can overwrite an athlete's logged work.
-- `pnpm verify` is the full chain, including the Metro/Hermes bundle that
-  catches what `tsc` cannot.
+- `pnpm verify` is typecheck → test → build:site → check:csp → smoke →
+  smoke:deploy. It does **not** include the Metro/Hermes bundle, despite that
+  bundle being the only thing that catches what `tsc` cannot about the phone.
+  CI runs it as a separate step, so a green local `verify` can still be a
+  mobile app that will not bundle. Run `pnpm --filter @hybrid/mobile bundle`
+  yourself before pushing mobile or engine changes.
+
+---
+
+## 8. Deployment, verified rather than assumed
+
+Both pipelines fire from a push to `main`, and both were confirmed live at
+`63036ef` rather than inferred from config.
+
+**Web — Netlify project `thehybridengine1`.** The push produced deploy
+`6a690b5c…`, state `ready`, published in 23s: 6 functions, 19 redirect rules,
+10 header rules, secret scan clean over 204 files.
+
+The trap: `deploy_source` is **`api`**, not the GitHub App. So Netlify posts
+**no commit status and no GitHub deployment** back to the repo. A session that
+checks GitHub for a deploy status finds nothing and will wrongly conclude the
+site is not wired up. It is. Check the Netlify project, not GitHub.
+
+**Phone — EAS Update.** `mobile-ota.yml` publishes automatically on a push to
+`main` touching `apps/mobile/**`, `packages/{engine,design,config}/**` or
+`pnpm-lock.yaml`. A docs-only commit correctly triggers nothing.
+
+Both mobile workflows exit GREEN when `EXPO_TOKEN` is missing, so **a green
+tick does not mean a build happened**. Verify by the steps that ran: a real
+update runs `Publish EAS Update`, a real build runs `EAS build (Android)`;
+on the skip path checkout never runs at all. Both secrets are present and both
+have done real work.
+
+**What still cannot ship automatically:** any native change. `runtimeVersion`
+is pinned to `"1"`, and an update only reaches a phone whose installed build
+declares the same string — so a native change needs `runtimeVersion` bumped in
+the same commit plus a fresh APK from `mobile-eas.yml`, dispatched by hand.

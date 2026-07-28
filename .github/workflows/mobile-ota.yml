@@ -23,7 +23,10 @@ name: Mobile — OTA update (EAS Update)
 #
 # Gated on EXPO_TOKEN exactly like mobile-eas.yml, and exits GREEN with an
 # explanation when it is absent so a push does not paint the repo red before
-# that secret exists.
+# that secret exists. It does exist now, and this workflow has published real
+# updates — but note that the gate makes a skip and a publish look identical
+# from the run list. Confirm by whether the job ran `Publish EAS Update`, not
+# by the green tick alone.
 
 on:
   push:

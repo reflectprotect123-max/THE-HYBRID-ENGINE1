@@ -1,29 +1,38 @@
 name: Mobile — EAS Android build
 
-# MANUAL ONLY. There is no Expo account wired to this repo yet, so this
-# workflow has never completed a real build; it is the runway, not the flight.
-# It is gated on an EXPO_TOKEN repository secret and exits GREEN with an
-# explanation when that secret is absent, so an accidental dispatch does not
-# paint the repo red.
+# MANUAL ONLY — dispatch this when a NATIVE change needs a fresh APK. It is
+# gated on an EXPO_TOKEN repository secret and exits GREEN with an explanation
+# when that secret is absent, so an accidental dispatch does not paint the repo
+# red.
+#
+# That gate is worth reading before you trust a green tick: a skipped run and a
+# real build BOTH report success. Tell them apart by whether the job ran
+# `EAS build (Android)` — on the skip path checkout never happens. As of this
+# revision both required secrets are present (EXPO_TOKEN, ANDROID_KEYSTORE_B64)
+# and this workflow has completed real signed builds.
 #
 # ---------------------------------------------------------------------------
-# DO NOT DELETE .github/workflows/android-apk.yml
+# The old WebView shell is gone — that was the plan completing, not an accident.
 #
-# That workflow builds native/android-app — the OLD WebView shell that is what
-# every current Android user actually has installed. It stays until an EAS
-# build has SHIPPED an update those users have received. Deleting it earlier
-# leaves the installed base with no build pipeline at all.
+# This header used to read "DO NOT DELETE .github/workflows/android-apk.yml",
+# the workflow that built native/android-app: the shell every Android user
+# actually had installed. The condition it named was that the workflow stays
+# until an EAS build has SHIPPED an update those users received. That happened,
+# and `88d67d2` then deleted the vanilla app, both wrappers and that workflow
+# together.
 #
-# The replacement must install OVER the old app, not beside it. Three things
-# have to match, or Android/Play treats it as a different app and the user ends
-# up with a second icon and none of their history:
+# What the deletion does NOT change is the constraint below, because the
+# installed base did not change. A build must install OVER the old app, not
+# beside it. Three things have to match, or Android/Play treats it as a
+# different app and the user ends up with a second icon and none of their
+# history:
 #
 #   applicationId   com.hybridengine.app   (apps/mobile/app.json → expo.android.package)
-#   versionCode     > 27                   (currently 28 — never lower it)
-#   signing key     the SAME keystore as the old app
-#                   (ANDROID_KEYSTORE_B64 in android-apk.yml; on EAS it must be
-#                    uploaded as the Android app credential, or EAS will happily
-#                    generate a new key and produce an uninstallable "update")
+#   versionCode     > 27                   (currently 30 — never lower it)
+#   signing key     the SAME keystore as the old app — ANDROID_KEYSTORE_B64,
+#                   staged into credentials.json by the step below. It must
+#                   never be left to EAS, which would happily generate a new
+#                   key and produce an uninstallable "update"
 #
 # .well-known/assetlinks.json pins that key's SHA-256 fingerprint. If the EAS
 # build is signed with a different key, deep links break too.
@@ -115,7 +124,8 @@ jobs:
       # Sign with the EXISTING keystore, not one EAS generates.
       #
       # The key that signed the shipped app is already a repository secret —
-      # ANDROID_KEYSTORE_B64, used by android-apk.yml since the WebView build.
+      # ANDROID_KEYSTORE_B64, carried over from the WebView build's workflow
+      # and now used only here.
       # Decoding it here and pointing EAS at it via credentials.json means the
       # update is signed by the same key by construction, rather than by
       # somebody remembering to upload the right file to Expo. Let EAS generate
