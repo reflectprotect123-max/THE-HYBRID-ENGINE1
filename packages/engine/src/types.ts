@@ -47,6 +47,19 @@ export interface Exercise<S extends AnySet = LoggedSet> {
   sets: S[];
   /** seconds */
   rest?: number;
+  /**
+   * Superset this exercise into the NEXT one: no rest between them, and the
+   * pair cycles until both are done.
+   *
+   * Per-exercise rather than the block's all-or-nothing `superset`, because a
+   * real session is "bench paired with dips, then three straight sets" — one
+   * flag on the block cannot say that, so pairing anything meant splitting the
+   * block, and nobody does that mid-set on a gym floor.
+   *
+   * `block.superset` still works and means every exercise links to the next.
+   * Chaining three or more is just consecutive links: a triset.
+   */
+  ssNext?: boolean;
   tempo?: string;
   /** free text from the coach, shown on the logger stage */
   cue?: string;

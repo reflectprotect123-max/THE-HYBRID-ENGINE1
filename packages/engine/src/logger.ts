@@ -1,7 +1,7 @@
 import { isWarmup, repTopOf } from './autoreg';
 import { nextWorkingWeight } from './lift';
 import { blockExercises, isCond, isLiftMode } from './session';
-import type { Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
+import type { AnySet, Block, Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
 
 /*
  * The guided set flow, as logic.
@@ -53,8 +53,40 @@ export function nextLoggerLocation(s: Session, bi: number, ei: number): NamedLoc
 }
 
 /**
- * The letter shown on each exercise. A superset block shares one letter across
- * its pair — A1, A2 — which is the whole visual point: they are one unit.
+ * The exercises of a block, grouped into superset chains.
+ *
+ * One group per run of linked exercises; an unlinked exercise is a group of
+ * one. This is the single place the two ways of saying "superset" are
+ * reconciled — the legacy block flag (every exercise links to the next) and
+ * the per-exercise `ssNext` — so no caller has to know both exist.
+ */
+export function ssGroups(b: Block<AnySet>): number[][] {
+  if (isCond(b)) return [];
+  const exs = blockExercises(b);
+  const groups: number[][] = [];
+  let cur: number[] = [];
+  exs.forEach((ex, i) => {
+    cur.push(i);
+    // A link on the LAST exercise points at nothing and simply ends the chain,
+    // which is what a half-finished edit leaves behind.
+    const linked = i < exs.length - 1 && (b.superset || !!ex.ssNext);
+    if (!linked) {
+      groups.push(cur);
+      cur = [];
+    }
+  });
+  if (cur.length) groups.push(cur);
+  return groups;
+}
+
+/** The chain containing this exercise — at minimum, itself. */
+export function ssGroupOf(b: Block<AnySet>, ei: number): number[] {
+  return ssGroups(b).find((g) => g.includes(ei)) || [ei];
+}
+
+/**
+ * The letter shown on each exercise. A superset chain shares one letter across
+ * its members — A1, A2 — which is the whole visual point: they are one unit.
  * Conditioning gets a heart instead of a letter.
  */
 export function sessionLetters(s: Session): Record<number, string[]> {
@@ -65,12 +97,16 @@ export function sessionLetters(s: Session): Record<number, string[]> {
       out[bi] = ['♥'];
       return;
     }
-    if (b.superset) {
+    const letters: string[] = [];
+    ssGroups(b).forEach((g) => {
       const L = String.fromCharCode(65 + li++);
-      out[bi] = blockExercises(b).map((_, ei) => L + (ei + 1));
-    } else {
-      out[bi] = blockExercises(b).map(() => String.fromCharCode(65 + li++));
-    }
+      // A chain shares its letter and numbers within it; a lone exercise is
+      // just "C", never "C1" — a number implies a partner that is not there.
+      g.forEach((ei, k) => {
+        letters[ei] = g.length > 1 ? L + (k + 1) : L;
+      });
+    });
+    out[bi] = letters;
   });
   return out;
 }
@@ -224,12 +260,17 @@ export function advanceAfterSet(
   const ex = exs[ei];
   if (!ex) return { next: null, restSec: 0 };
 
-  if (b.superset) {
-    for (let j = ei + 1; j < exs.length; j++) {
-      if (!exFinished(exs[j])) return { next: { bi, ei: j }, restSec: 0 };
+  const group = ssGroupOf(b, ei);
+  if (group.length > 1) {
+    const at = group.indexOf(ei);
+    // Forward through the rest of the chain with NO rest — that is what makes
+    // it a superset.
+    for (let k = at + 1; k < group.length; k++) {
+      if (!exFinished(exs[group[k]])) return { next: { bi, ei: group[k] }, restSec: 0 };
     }
-    for (let j = 0; j < exs.length; j++) {
-      if (!exFinished(exs[j])) return { next: { bi, ei: j }, restSec: Number(ex.rest) || 0 };
+    // Chain complete: back to its first unfinished member, and NOW rest.
+    for (let k = 0; k < group.length; k++) {
+      if (!exFinished(exs[group[k]])) return { next: { bi, ei: group[k] }, restSec: Number(ex.rest) || 0 };
     }
     return { next: null, restSec: 0 };
   }

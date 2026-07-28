@@ -137,6 +137,23 @@ export function Logger() {
    * `aVal` back first, so the round trip is lossless. Sanitising still happens
    * on confirm — what is half-typed is not yet a claim about what was lifted.
    */
+  /* The exercise directly after this one in the same block — the only thing it
+     can be supersetted INTO. Null on the last of a block, where the control is
+     hidden rather than shown disabled: an offer you cannot take is noise. */
+  const partner =
+    block && !isCond(block) ? blockExercises(block as StrengthBlock<LoggedSet>)[ei + 1] || null : null;
+
+  function toggleSuperset() {
+    if (!s) return;
+    update((draft) => {
+      const ds = draft.sessions.find((x) => x.id === s.id);
+      const src = ds && (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei];
+      if (!ds || !src) return false;
+      src.ssNext = !src.ssNext;
+      ds.updatedAt = Date.now();
+    });
+  }
+
   function writeVal(slot: 1 | 2, val: string) {
     if (slot === 1) setV1(val);
     else setV2(val);
@@ -276,6 +293,28 @@ export function Logger() {
 
         {/* The coach's note — and where a prescribed LOAD lives, because the set
             model is {t,rpe} with no target-weight field. */}
+        {partner ? (
+          <button
+            onClick={toggleSuperset}
+            role="switch"
+            aria-checked={!!ex.ssNext}
+            aria-label={`Superset with ${partner.name || 'the next exercise'}`}
+            className={cx(
+              'mt-1 flex w-full items-center gap-1 rounded-md border px-1 py-1 text-left text-3',
+              ex.ssNext ? 'border-gold-line bg-gold-wash text-gold2' : 'border-line bg-panel3 text-dim',
+            )}
+          >
+            <span aria-hidden>⇄</span>
+            {/* On, it states a fact; off, it asks. Same control, and which one
+                it is should be readable without hunting for the highlight. */}
+            <span className="min-w-0 flex-1 truncate">
+              {ex.ssNext ? 'Supersetted with ' : 'Superset with '}
+              <b className="font-[650]">{partner.name || 'next'}</b>
+              {ex.ssNext ? '' : '?'}
+            </span>
+          </button>
+        ) : null}
+
         {ex.cue ? (
           <p className="mt-1 rounded-md border border-gold-line bg-gold-wash px-1 py-0.5 text-4 text-gold2">
             {ex.cue}

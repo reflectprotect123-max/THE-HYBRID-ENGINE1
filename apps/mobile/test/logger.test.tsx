@@ -8,7 +8,7 @@
  * because the bug was never in the engine.
  */
 import { act, fireEvent, screen } from '@testing-library/react-native';
-import { LS_KEY, freshSessionBlocks, uid, ymd, type EngineDB, type Session } from '@hybrid/engine';
+import { LS_KEY, freshSessionBlocks, uid, ymd, type EngineDB, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { liftWorkout, renderScreen, seed } from './harness';
 import { storage } from '../src/store/storage';
 import { LoggerScreen } from '../src/screens/Logger';
@@ -121,5 +121,66 @@ describe('Logger', () => {
     seed({ workouts: [], sessions: [] });
     mount();
     expect(screen.getByText('No live session')).toBeTruthy();
+  });
+});
+
+describe('Supersetting on the gym floor', () => {
+  /*
+   * `superset` was a flag on the BLOCK, so pairing two movements meant
+   * splitting the block — not something anyone does mid-set. These cover the
+   * control that pairs the exercise in front of you with the next one.
+   */
+  function pairSession() {
+    const w = liftWorkout('Bench press', 2);
+    const blk = w.blocks[0] as StrengthBlock<LoggedSet>;
+    blk.exercises.push({
+      ...blk.exercises[0],
+      id: uid(),
+      name: 'Strict dip',
+      sets: blk.exercises[0].sets.map((x) => ({ ...x })),
+    });
+    const s: Session = {
+      id: uid(),
+      date: ymd(new Date()),
+      name: 'Upper',
+      status: 'active',
+      blocks: freshSessionBlocks(w.blocks),
+      startedAt: Date.now(),
+      workoutId: w.id,
+    };
+    seed({ workouts: [w], sessions: [s] });
+    return s;
+  }
+
+  it('offers to superset with the exercise that actually follows', () => {
+    pairSession();
+    mount();
+    expect(screen.getByText(/Superset with/)).toBeTruthy();
+    expect(screen.getByText('Strict dip')).toBeTruthy();
+  });
+
+  it('turns on and says so', () => {
+    pairSession();
+    mount();
+    fireEvent.press(screen.getByLabelText(/superset with Strict dip, off/i));
+    expect(screen.getByText(/Supersetted with/)).toBeTruthy();
+  });
+
+  it('does not offer a partner on the last exercise of a block', () => {
+    // An offer you cannot take is noise, so the control is absent rather than
+    // present-and-disabled.
+    const w = liftWorkout('Bench press', 2);
+    const s: Session = {
+      id: uid(),
+      date: ymd(new Date()),
+      name: 'Upper',
+      status: 'active',
+      blocks: freshSessionBlocks(w.blocks),
+      startedAt: Date.now(),
+      workoutId: w.id,
+    };
+    seed({ workouts: [w], sessions: [s] });
+    mount();
+    expect(screen.queryByText(/Superset with/)).toBeNull();
   });
 });

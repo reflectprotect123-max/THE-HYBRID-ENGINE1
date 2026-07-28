@@ -95,6 +95,26 @@ export function LoggerScreen({ route, navigation }: Props) {
 
   const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);
   const letters = useMemo(() => (s ? sessionLetters(s) : {}), [s]);
+
+  /* The exercise directly after this one in the same block — the only thing it
+     can be supersetted INTO. Null on the last of a block, where the control is
+     hidden rather than shown disabled: an offer you cannot take is noise. */
+  const partner = useMemo(() => {
+    if (!s || !loc) return null;
+    const b = s.blocks[loc.bi];
+    if (!b || isCond(b)) return null;
+    return blockExercises(b)[loc.ei + 1] || null;
+  }, [s, loc]);
+
+  const toggleSuperset = () => {
+    if (!s || !loc) return;
+    updateSession(s.id, (ds) => {
+      const src = (ds.blocks[loc.bi] as StrengthBlock<LoggedSet>)?.exercises?.[loc.ei];
+      if (!src) return false;
+      src.ssNext = !src.ssNext;
+      ds.updatedAt = Date.now();
+    });
+  };
   // Where "next exercise" points. Never the current location — re-entering
   // would reset the stage and discard an RPE already dialled in.
   const next = useMemo(() => (s ? nextLoggerLocation(s, loc.bi, loc.ei) : null), [s, loc.bi, loc.ei]);
@@ -277,6 +297,28 @@ export function LoggerScreen({ route, navigation }: Props) {
             .filter(Boolean)
             .join(' · ')}
         </T>
+
+        {partner ? (
+          <Tap
+            onPress={toggleSuperset}
+            role="radio"
+            selected={!!ex.ssNext}
+            label={`superset with ${partner.name || 'the next exercise'}, ${ex.ssNext ? 'on' : 'off'}`}
+            box={{ h: 34 }}
+            className={`mt-1 flex-row items-center gap-1 rounded-md border px-1 py-1 ${
+              ex.ssNext ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel3'
+            }`}
+          >
+            <T className={`text-4 ${ex.ssNext ? 'text-gold2' : 'text-dim'}`}>⇄</T>
+            {/* On, it states a fact; off, it asks. Same control, and which one
+                it is should be readable without hunting for the highlight. */}
+            <T className={`flex-1 text-3 ${ex.ssNext ? 'text-gold2' : 'text-dim'}`} numberOfLines={1}>
+              {ex.ssNext ? 'Supersetted with ' : 'Superset with '}
+              <T w="semi">{partner.name || 'next'}</T>
+              {ex.ssNext ? '' : '?'}
+            </T>
+          </Tap>
+        ) : null}
 
         {ex.cue ? (
           <T className="mt-1 rounded-md border border-gold-line bg-gold-wash px-1 py-1 text-4 text-gold2">
