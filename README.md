@@ -26,6 +26,7 @@ The fastest way into this repo. Find the symptom, go to the file.
 | A day shows as trained when it wasn't | `packages/engine/src/session.ts` → `hasLoggedWork`; expiry in `packages/engine/src/db.ts` → `expireStaleSessions` |
 | Chart is a flat wall, or exaggerates | `packages/engine/src/num.ts` → `barScale` (floating baseline) |
 | e1RM looks wrong | `packages/engine/src/num.ts` → `epley`; history in `packages/engine/src/session.ts` → `exLogFor` |
+| No insights appear, or one looks wrong | `packages/engine/src/insights.ts` → `insights`; the sample-size and noise floors are `packages/engine/src/constants.ts` → `INSIGHTS` |
 | Web deploy doesn't reach an installed app | `apps/web/src/UpdateBanner.tsx`; check with `node checks/pwa-update.mjs` |
 | Phone doesn't get an update | `.github/workflows/mobile-ota.yml`. Native changes need a new APK — `mobile-eas.yml` |
 | WHOOP connect or sync fails | `netlify/functions/whoop-*`; check with `node checks/whoop-contract.mjs` |
@@ -67,6 +68,7 @@ docs/               design tokens, the migration record, the changelog.
 | `conditioning.ts` | Formats, prescription, the earned conditioning baseline |
 | `hr.ts` | Max HR, zones, recovery-driven daily adjustment |
 | `balance.ts` | Strength vs conditioning readout |
+| `insights.ts` | What changed about you at matched effort: `insights` |
 | `db.ts` | Load/sanitize/merge/restore. The trust boundary for shape |
 | `cloud.ts` | Supabase row ↔ engine record mapping |
 | `emit.ts` | Coach model → athlete session |

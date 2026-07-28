@@ -103,7 +103,7 @@ every conditioning session. Output-per-unit-of-effort is the one metric that
 spans lifting and running in this dataset, which makes it the natural spine for
 anything comparative.
 
-## 4. Proposal, not commitment: an insights engine
+## 4. The insights engine — built
 
 The motivating goal was stated as: *see that you are getting fitter without
 having noticed*. Descriptive stats cannot do that — tonnage and session counts
@@ -111,36 +111,51 @@ report what you already lived through. The mechanism that can is **comparing you
 against your own past self at matched effort**, because effort always feels like
 effort and so the improvement is invisible from the inside.
 
-Sketch — **this file does not exist**: a pure `packages/engine/src/insights.ts` exporting
-`insights(db: EngineDB, now?: Date): Insight[]`, where each `Insight` carries its
-own evidence — sample size, window, and a from/to metric — and detectors are:
+`packages/engine/src/insights.ts` now exists and exports
+`insights(db: EngineDB, now?: Date): Insight[]`. Each `Insight` carries its own
+evidence — sample counts per window, the window length, and a from/to metric —
+so a surface never recomputes the number it is printing and cannot contradict
+the claim it is making. 27 tests in `packages/engine/test/insights.test.ts`.
 
-1. **Strength at matched felt-RPE** — e1RM for sets at the same `felt`, recent
-   window against a baseline window. The headline: same effort, more weight.
-2. **Heart-rate recovery** — trend `CondResult.hrr`. The cleanest cardiac signal
-   here, and completely imperceptible day to day.
-3. **Resting HR / HRV drift** — 28-day means from `whoopDaily`.
-4. **Work rate** — `sessionVolume(s)` ÷ elapsed minutes, compared only between
-   sessions sharing a `workoutId`, so it is the same session done faster rather
-   than two different ones.
-5. **Volume tolerance** — weekly tonnage rising while mean session `felt` is flat
-   or falling.
-6. **Zone efficiency** — `zsec.high` at matched `felt`.
+Five detectors landed as proposed:
 
-Reuses, rather than reimplements: `epley`, `sessionVolume`, `sessionRpe`,
-`exLogFor`, `bestE1rmByLift`, `conHrr`, `hasLoggedWork`, `isWarmupBlock`,
-`barScale`, `agoLabel`, `ymd`.
+1. **Strength at matched felt-RPE** — e1RM compared only within a shared `felt`
+   bucket, per movement. The headline: same effort, more weight.
+2. **Heart-rate recovery** — trend `CondResult.hrr`.
+4. **Work rate** — `sessionVolume(s)` ÷ elapsed minutes, only between sessions
+   sharing a `workoutId`. Elapsed time is clamped to 5–300 minutes: a session
+   left open overnight would otherwise invent a huge improvement.
+5. **Volume tolerance** — tonnage rising while mean `felt` is flat or falling.
+   Conditional, not comparative: rising tonnage alone is not a finding, because
+   the athlete knows they added a set.
+6. **Zone efficiency** — `zsec.high` at matched `felt`, as a **share** of banked
+   time rather than raw seconds, so a longer run is not mistaken for a better
+   one.
 
-**The rule that keeps it honest:** a detector must return nothing below a
-minimum sample size and window span. An engine that invents a trend from four
-data points is worse than no engine, because it costs you trust in the true
-findings. This is the same discipline as `barScale` refusing to zoom a
-misleading axis, and as the notes panel preferring silence to a shrug.
+**Detector 3 was not buildable as written, and this is the important part.**
+The sketch said "resting HR / HRV drift — 28-day means from `whoopDaily`".
+There is no such history to take a mean of: both write paths
+(`apps/web/src/cloud/whoop.tsx`, `apps/mobile/src/cloud/whoop.tsx`) persist
+exactly `{ date, recovery, strain }`, capped at 120 rows. Resting HR, HRV and
+sleep performance arrive on the live `WhoopSample` and are dropped before
+storage. It ships as **recovery-score drift** instead, which is in the data.
+Widening the stored row is the change that would unlock the original — the same
+shape of blocker as the missing pace data in section 3.
 
-Note that the three hand-written note rules in `Dashboard.tsx` — stale lift,
-zero-tonnage weeks, no felt RPE — are the seed of exactly this, and are
-currently the only derivations on that screen with **no test coverage**. Moving
-them into the engine would fix that as a side effect.
+**The rule that keeps it honest:** a detector returns nothing below a minimum
+sample size and nothing inside a relative-change floor. An engine that invents
+a trend from four data points is worse than no engine, because it costs you
+trust in the true findings. Half the test file asserts silence for that reason.
+Two further rules follow from the same principle: declines are reported with
+`improved: false` rather than suppressed, since an engine that only delivered
+good news would say nothing the first time an athlete was overreaching; and
+nothing is truncated — every qualifying finding is returned, sorted strongest
+first, for the surface to slice.
+
+**Still outstanding:** it is not wired into any screen. The three hand-written
+note rules in `Dashboard.tsx` — stale lift, zero-tonnage weeks, no felt RPE —
+remain the only derivations on that screen with **no test coverage**, and are
+the natural next thing to move into the engine beside these.
 
 ## 5. Codex MCP does not work here — do not re-diagnose it
 

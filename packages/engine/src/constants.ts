@@ -108,6 +108,42 @@ export const CON_RETENTION = 200;
 /** Formats that carry earned progression. `free` and `custom` do not. */
 export const PROGRESSED_FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo'];
 
+/**
+ * Thresholds for the insights engine — the numbers that decide whether a
+ * finding is real enough to show an athlete at all.
+ *
+ * PROVISIONAL. Every value here is ours, not published. They are gathered in
+ * one place because they are the honesty of that module: a detector that runs
+ * below these is not measuring a trend, it is reporting noise with a confident
+ * sentence attached, and the cost of that is trust in the findings that ARE
+ * real.
+ *
+ * `minRelChange` is the noise floor. Two windows of the same training will
+ * differ by a percent or two from rounding and set selection alone; below this
+ * there is nothing to say. `sessionMinutes*` bound what counts as one session's
+ * elapsed time — an app left open overnight reports a nine-hour session, and
+ * one of those would sink a work-rate average on its own.
+ */
+export const INSIGHTS = {
+  /** the window being judged, in days */
+  recentDays: 28,
+  /** the window it is judged against, immediately before it */
+  baselineDays: 28,
+  /** samples needed in EACH window before a detector may speak */
+  minPerWindow: 3,
+  /** samples needed at a given effort before that effort can be matched */
+  minPerBucket: 2,
+  /** repeats of one session needed in each window to compare its work rate */
+  minSessionsPerWorkout: 2,
+  /** relative change below which a difference is rounding, not a trend */
+  minRelChange: 0.02,
+  /** felt-RPE rise still counted as "no harder" for volume tolerance */
+  feltFlatTolerance: 0.2,
+  /** elapsed minutes outside this range are not a real session */
+  sessionMinutesMin: 5,
+  sessionMinutesMax: 300,
+} as const;
+
 export const LS_KEY = 'hybrid-engine-v1';
 export const COACH_LS_KEY = 'hybrid-coach-v1';
 
