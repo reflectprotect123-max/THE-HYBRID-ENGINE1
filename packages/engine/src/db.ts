@@ -1,6 +1,6 @@
 import { CON_RETENTION, MODES } from './constants';
 import { uid, uniqArr, ymd } from './num';
-import { isCond, newEx, newSet, sessionScore, hasLoggedWork } from './session';
+import { isCond, isText, newEx, newSet, sessionScore, hasLoggedWork } from './session';
 import type {
   Block,
   EngineDB,
@@ -41,6 +41,13 @@ export function sanitizeDB(d: unknown): EngineDB {
 
   const cleanBlock = (b: unknown): Block<LoggedSet> => {
     const bl = (b && typeof b === 'object' ? b : {}) as Block<LoggedSet>;
+    if (isText(bl)) {
+      // A text block has no exercises and must not be given any — the strength
+      // path below injects an empty one, which would render a phantom movement
+      // under every metcon.
+      delete (bl as { exercises?: unknown }).exercises;
+      return bl;
+    }
     if (isCond(bl)) {
       // A conditioning block has no exercises. An older blob may carry an empty
       // array from before the split; drop it so no read path treats the block

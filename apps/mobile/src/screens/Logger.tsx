@@ -11,6 +11,7 @@ import {
   fmtRest,
   fmtRpe,
   isCond,
+  isText,
   isLiftMode,
   isWarmup,
   MAX_KG,
@@ -269,7 +270,7 @@ export function LoggerScreen({ route, navigation }: Props) {
         <View className="flex-1">
           <T w="semi" className="text-2 uppercase tracking-widest text-dim">
             {block.heading || 'Block'}
-            {block.superset ? ' · superset' : ''}
+            {!isCond(block) && !isText(block) && block.superset ? ' · superset' : ''}
           </T>
           <T w="bold" className="text-7 text-text">{s.name || 'Workout'}</T>
         </View>

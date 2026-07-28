@@ -89,7 +89,31 @@ export interface CondBlock {
   condResult?: CondResult;
 }
 
-export type Block<S extends AnySet = LoggedSet> = StrengthBlock<S> | CondBlock;
+/**
+ * A block that is just words.
+ *
+ * A metcon is "AMRAP 12 — 10 burpees, 15 KB swings, 200m run": one prescription
+ * that does not decompose into sets of a movement without lying about it.
+ * Forcing it into exercises invents structure that was never programmed, and
+ * every number it produced would be fiction.
+ *
+ * So this carries a heading you can rename and a body you type, and the only
+ * thing the app records is whether you did it. It contributes nothing to
+ * tonnage or to any lift's history, because it has nothing measurable to
+ * contribute.
+ */
+export interface TextBlock {
+  id: string;
+  kind: 'text';
+  heading?: string;
+  /** free text, newlines and all */
+  body?: string;
+  /** ticked on the day; the only state a text block has */
+  done?: boolean;
+  exercises?: undefined;
+}
+
+export type Block<S extends AnySet = LoggedSet> = StrengthBlock<S> | CondBlock | TextBlock;
 
 export interface Workout<S extends AnySet = LoggedSet> {
   id: string;

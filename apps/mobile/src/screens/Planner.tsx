@@ -9,10 +9,12 @@ import {
   condEffortRpe,
   fmtRest,
   isCond,
+  isText,
   isWarmup,
   knownMovements,
   newBlock,
   newCondBlock,
+  newTextBlock,
   newEx,
   newSet,
   rxLine,
@@ -21,6 +23,7 @@ import {
   type EffortKey,
   type LoggedSet,
   type StrengthBlock,
+  type TextBlock,
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
@@ -137,7 +140,25 @@ export function PlannerScreen() {
             ) : null}
           </View>
 
-          {isCond(b) ? (
+          {isText(b) ? (
+            /* Just words — see the web Planner for why a metcon is not sets. */
+            <Card>
+              <Input
+                value={b.body || ''}
+                editable={!readOnly}
+                multiline
+                numberOfLines={5}
+                onChangeText={(v) => edit((d) => void ((d.blocks[bi] as TextBlock).body = v))}
+                placeholder={'AMRAP 12\n10 burpees\n15 KB swings\n200m run'}
+                accessibilityLabel="what the block is"
+                className="min-h-[96px] rounded-md border border-line bg-well px-1 py-1 text-4 text-text"
+                style={{ textAlignVertical: 'top' }}
+              />
+              <T className="mt-0.5 text-2 text-dim">
+                Counts as trained when you tick it. No tonnage, no e1RM — there is nothing here to measure.
+              </T>
+            </Card>
+          ) : isCond(b) ? (
             <Card>
               <View className="flex-row items-center gap-1">
                 <Ltr>♥</Ltr>
@@ -382,6 +403,9 @@ export function PlannerScreen() {
         <View className="mt-2 flex-row gap-1">
           <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newBlock() as never))}>
             ＋ Block
+          </Btn>
+          <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newTextBlock()))}>
+            ✎ Metcon
           </Btn>
           <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newCondBlock()))}>
             ♥ Conditioning

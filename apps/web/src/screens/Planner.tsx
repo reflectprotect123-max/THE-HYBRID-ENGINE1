@@ -7,10 +7,12 @@ import {
   condEffortRpe,
   fmtRest,
   isCond,
+  isText,
   isWarmup,
   knownMovements,
   newBlock,
   newCondBlock,
+  newTextBlock,
   newEx,
   newSet,
   rxLine,
@@ -19,6 +21,7 @@ import {
   type EffortKey,
   type LoggedSet,
   type StrengthBlock,
+  type TextBlock,
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
@@ -148,7 +151,28 @@ export function Planner() {
               ) : null}
             </div>
 
-            {isCond(b) ? (
+            {isText(b) ? (
+              /* Just words. A metcon is one prescription that does not
+                 decompose into sets without inventing structure, so the app
+                 stores what you wrote and nothing else. The heading above is
+                 already editable, which is where "Metcon" gets renamed. */
+              <Card>
+                <textarea
+                  value={b.body || ''}
+                  readOnly={readOnly}
+                  onChange={(e) =>
+                    edit((d) => void ((d.blocks[bi] as TextBlock).body = e.target.value))
+                  }
+                  rows={5}
+                  placeholder={'AMRAP 12\n10 burpees\n15 KB swings\n200m run'}
+                  aria-label="what the block is"
+                  className="w-full resize-y rounded-md border border-line bg-well px-1 py-1 text-4 leading-relaxed text-text outline-none placeholder:text-dim focus:border-gold-line"
+                />
+                <p className="mt-0.5 text-2 text-dim">
+                  Counts as trained when you tick it. No tonnage, no e1RM — there is nothing here to measure.
+                </p>
+              </Card>
+            ) : isCond(b) ? (
               <Card>
                 <div className="flex items-center gap-1">
                   <LetterChip letter="♥" />
@@ -403,6 +427,7 @@ export function Planner() {
         <div className="mt-2 flex flex-wrap gap-1">
           <Button onClick={() => edit((d) => void d.blocks.push(newBlock() as never))}>＋ Block</Button>
           <Button onClick={() => edit((d) => void d.blocks.push(newCondBlock()))}>♥ Conditioning</Button>
+          <Button onClick={() => edit((d) => void d.blocks.push(newTextBlock()))}>✎ Metcon / notes</Button>
         </div>
       ) : null}
 

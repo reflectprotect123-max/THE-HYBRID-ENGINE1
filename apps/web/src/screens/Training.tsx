@@ -8,6 +8,7 @@ import {
   exFinished,
   freshSessionBlocks,
   isCond,
+  isText,
   liftAdapt,
   rxLine,
   sessionLetters,
@@ -18,6 +19,7 @@ import {
   type LoggedSet,
   type Session,
   type StrengthBlock,
+  type TextBlock,
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
@@ -162,14 +164,39 @@ export function Training() {
               <h2 className="text-2 font-[750] uppercase tracking-[.18em] text-dim [overflow-wrap:anywhere]">
                 {b.heading || 'Block'}
               </h2>
-              {!isCond(b) && b.superset ? (
+              {!isCond(b) && !isText(b) && b.superset ? (
                 <span className="rounded-pill border border-gold-line bg-gold-wash px-0.5 text-1 font-[750] uppercase tracking-[.1em] text-gold2">
                   superset
                 </span>
               ) : null}
             </div>
 
-            {isCond(b) ? (
+            {isText(b) ? (
+              /* A metcon reads as written. The only state it has is whether you
+                 did it, so the whole card is the tick. */
+              <Card className={cx(b.done && 'border-done-line bg-done-bg')}>
+                <button
+                  onClick={() =>
+                    update((d) => {
+                      const ds = d.sessions.find((x) => x.id === s.id);
+                      const t = ds && (ds.blocks[bi] as TextBlock);
+                      if (!ds || !t) return false;
+                      t.done = !t.done;
+                      ds.updatedAt = Date.now();
+                    })
+                  }
+                  role="switch"
+                  aria-checked={!!b.done}
+                  className="flex w-full items-start gap-1 text-left"
+                >
+                  <LetterChip letter={b.done ? '✓' : '✎'} />
+                  <span className="min-w-0 flex-1 whitespace-pre-wrap text-4 text-text">
+                    {b.body?.trim() || 'Nothing written for this one yet.'}
+                  </span>
+                </button>
+                <p className="mt-1 text-2 text-dim">{b.done ? 'Done' : 'Tap when it is done'}</p>
+              </Card>
+            ) : isCond(b) ? (
               <Card className={cx(b.condResult && 'border-done-line bg-done-bg')}>
                 <div className="flex items-center gap-1">
                   <LetterChip letter="♥" />

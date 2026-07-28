@@ -1,6 +1,6 @@
 import { isWarmup, repTopOf } from './autoreg';
 import { nextWorkingWeight } from './lift';
-import { blockExercises, isCond, isLiftMode } from './session';
+import { blockExercises, isCond, isLiftMode, isText } from './session';
 import type { AnySet, Block, Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
 
 /*
@@ -61,7 +61,8 @@ export function nextLoggerLocation(s: Session, bi: number, ei: number): NamedLoc
  * the per-exercise `ssNext` — so no caller has to know both exist.
  */
 export function ssGroups(b: Block<AnySet>): number[][] {
-  if (isCond(b)) return [];
+  // Neither conditioning nor a text block has exercises to chain.
+  if (isCond(b) || isText(b)) return [];
   const exs = blockExercises(b);
   const groups: number[][] = [];
   let cur: number[] = [];

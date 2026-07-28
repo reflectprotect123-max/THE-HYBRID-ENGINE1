@@ -15,10 +15,19 @@ import type {
   Session,
   StrengthBlock,
   Workout,
+  TextBlock,
 } from './types';
 
 export function isCond(b: Block | null | undefined): b is CondBlock {
   return !!b && (b as CondBlock).kind === 'conditioning';
+}
+
+export function isText(b: Block | null | undefined): b is TextBlock {
+  return !!b && (b as TextBlock).kind === 'text';
+}
+
+export function newTextBlock(): TextBlock {
+  return { id: uid(), kind: 'text', heading: 'Metcon', body: '' };
 }
 
 export function blockExercises<S extends AnySet>(b: Block<S> | null | undefined): Exercise<S>[] {
@@ -152,6 +161,9 @@ export function hasLoggedWork(s: Session | null | undefined): boolean {
     s.blocks.some(
       (b) =>
         (isCond(b) && !!b.condResult) ||
+        // A ticked metcon is training that happened. Without this the day reads
+        // as untrained and expireStaleSessions bins it.
+        (isText(b) && !!b.done) ||
         blockExercises(b).some((e) => e.sets.some((st) => st.done || st.aVal || st.aVal2 || st.felt)),
     )
   );

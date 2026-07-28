@@ -9,6 +9,7 @@ import {
   fmtRest,
   fmtRpe,
   isCond,
+  isText,
   isLiftMode,
   isWarmup,
   MAX_KG,
@@ -266,7 +267,7 @@ export function Logger() {
         <div className="min-w-0 flex-1">
           <Kicker>
             {block.heading || 'Block'}
-            {block.superset ? ' · superset' : ''}
+            {!isCond(block) && !isText(block) && block.superset ? ' · superset' : ''}
           </Kicker>
           <h1 className="text-7 leading-tight font-[800] [overflow-wrap:anywhere]">{s.name || 'Workout'}</h1>
         </div>

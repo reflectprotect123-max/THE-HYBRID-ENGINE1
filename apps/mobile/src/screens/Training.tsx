@@ -9,6 +9,7 @@ import {
   exFinished,
   freshSessionBlocks,
   isCond,
+  isText,
   liftAdapt,
   rxLine,
   sessionLetters,
@@ -19,10 +20,11 @@ import {
   type LoggedSet,
   type Session,
   type StrengthBlock,
+  type TextBlock,
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Kicker, Ltr, T, Tap, Title } from '../ui';
+import { Btn, Card, Kicker, Ltr, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -169,7 +171,33 @@ export function TrainingScreen() {
       {s.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mt-2">
           <T w="semi" className="mb-1 text-5 text-text">{b.heading || 'Block'}</T>
-          {isCond(b) ? (
+          {isText(b) ? (
+            /* A metcon reads as written. The only state it has is whether you
+               did it, so the whole card is the tick. */
+            <Card className={b.done ? 'border-done-line bg-done-bg' : ''}>
+              <Tap
+                onPress={() =>
+                  update((d) => {
+                    const ds = d.sessions.find((x) => x.id === s.id);
+                    const t = ds && (ds.blocks[bi] as TextBlock);
+                    if (!ds || !t) return false;
+                    t.done = !t.done;
+                    ds.updatedAt = Date.now();
+                  })
+                }
+                role="radio"
+                selected={!!b.done}
+                label={`${b.heading || 'Metcon'} — ${b.done ? 'done' : 'not done'}`}
+                className="flex-row items-start gap-1"
+              >
+                <Ltr>{b.done ? '✓' : '✎'}</Ltr>
+                <T className="min-w-0 flex-1 text-4 text-text">
+                  {b.body?.trim() || 'Nothing written for this one yet.'}
+                </T>
+              </Tap>
+              <T className="mt-1 text-2 text-dim">{b.done ? 'Done' : 'Tap when it is done'}</T>
+            </Card>
+          ) : isCond(b) ? (
             <Tap
               /* Carries WHICH block this is, so the result lands back on it.
                  Without it the run banked into standalone history and the
