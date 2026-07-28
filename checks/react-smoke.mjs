@@ -342,6 +342,10 @@ await t('a coach-assigned session is read-only in the plan editor', async () => 
 await t('coach builder mounts', async () => {
   await page.goto(base + '/coach/', { waitUntil: 'networkidle' });
   await page.waitForSelector('text=THE Hybrid System');
+  // It now OPENS on Home — a dashboard of what actually happened — so the
+  // authoring tests below have to ask for the week board. Landing on Home is
+  // the point of the change, not an accident to work around.
+  await page.click('button[aria-label="Plan"]');
   const txt = await page.textContent('body');
   assert(/Week 1/.test(txt), 'week strip missing');
   assert(/Day 1/.test(txt), 'day pills missing');
@@ -377,6 +381,9 @@ await t('a logger-owned field in the coach library cannot reach an athlete', asy
     localStorage.setItem('hybrid-coach-v1', JSON.stringify(lib));
   });
   await page.reload({ waitUntil: 'networkidle' });
+  // Which view you are in is component state, so a reload lands on Home. Ask
+  // for the week board again rather than assume it survived.
+  await page.click('button[aria-label="Plan"]');
   await page.waitForSelector('button:has-text("Validate & publish")');
   await page.click('button:has-text("Validate & publish")');
   await page.waitForSelector('text=ready to send');

@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent } from 'react';
 import { LibProvider, useLib } from './store';
 import { CoachCloudProvider, useCoachCloud } from './cloud';
 import { Editor } from './Editor';
+import { Dashboard } from './Dashboard';
 import { fmtLabel, isCond, newSession, type CoachSession } from './model';
 import { BRASS, Chip, Field, GHOST, IconCheck, IconDown, IconRest, IconUp, MICRO, WELL } from './ui';
 
@@ -41,11 +42,16 @@ function Shell() {
   const prog = lib.programs[lib.sel.p];
   const week = prog.weeks[lib.sel.w];
   const [publishing, setPublishing] = useState(false);
+  /* Two views, one shell. Home answers 'what has actually happened';
+     the week board answers 'what happens next'. */
+  const [view, setView] = useState<'home' | 'plan'>('home');
   const written = week.days.filter(Boolean).length;
 
   return (
     <div className="grid h-full min-w-[1080px] grid-cols-[80px_320px_minmax(0,1fr)] grid-rows-[64px_minmax(0,1fr)]">
       <Rail
+        view={view}
+        onView={setView}
         week={lib.sel.w}
         weeks={prog.weeks.length}
         written={written}
@@ -72,7 +78,9 @@ function Shell() {
       </aside>
 
       <main className="min-h-0 overflow-y-auto">
-        {day ? (
+        {view === 'home' ? (
+          <Dashboard />
+        ) : day ? (
           <Editor publishing={publishing} setPublishing={setPublishing} />
         ) : (
           <RestDay week={lib.sel.w} day={lib.sel.d} onAdd={() => setDay(newSession('Session'))} />
@@ -85,10 +93,13 @@ function Shell() {
 /* ------------------------------------------------------------------- rail -- */
 
 /**
- * 05-coach-02. The rail carries the mark and the one navigation axis above the
- * week board: which week you are in. The card's Home/Athletes/Library/Analytics
- * buttons are deliberately NOT here — this app has no such screens, and a rail
- * full of controls that do nothing is worse than a short one.
+ * 05-coach-02. The rail carries the mark, the view switch, and the one
+ * navigation axis above the week board: which week you are in.
+ *
+ * Home was deliberately absent while this app had no such screen — a rail full
+ * of controls that do nothing is worse than a short one. It has one now, so it
+ * earns its button. Athletes and Analytics still do not exist and still are
+ * not here.
  *
  * Three honest gestures, three controls:
  *  - the chevrons STEP, and only within weeks that exist. `onSelect` clamps in
@@ -100,12 +111,16 @@ function Shell() {
  *    reaching week 9 of 12 should not cost eight presses.
  */
 function Rail({
+  view,
+  onView,
   week,
   weeks,
   written,
   onSelect,
   onCreate,
 }: {
+  view: 'home' | 'plan';
+  onView: (v: 'home' | 'plan') => void;
   week: number;
   weeks: number;
   written: number;
@@ -125,6 +140,31 @@ function Rail({
 
   return (
     <aside className="row-span-2 flex flex-col items-center gap-1 border-r border-line bg-panel3 py-1">
+      <nav className="flex flex-col items-center gap-0.5" aria-label="View">
+        {(
+          [
+            ['home', '⌂', 'Home'],
+            ['plan', '⊟', 'Plan'],
+          ] as const
+        ).map(([k, glyph, label]) => (
+          <button
+            key={k}
+            onClick={() => onView(k)}
+            aria-current={view === k ? 'page' : undefined}
+            aria-label={label}
+            title={label}
+            className={
+              'grid h-6 w-8 place-items-center rounded-md border text-5 transition-colors duration-150 ' +
+              (view === k
+                ? 'border-gold-line bg-gold-wash text-gold2'
+                : 'border-transparent text-dim hover:bg-panel2 hover:text-gold2')
+            }
+          >
+            {glyph}
+          </button>
+        ))}
+      </nav>
+
       <span
         className="grid h-5 w-5 place-items-center rounded-md border border-line bg-panel text-7 font-[900] text-gold2 [font-family:Georgia,'Times_New_Roman',serif]"
         aria-hidden="true"

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { SUPABASE } from '@hybrid/config';
+import { sanitizeDB, type EngineDB } from '@hybrid/engine';
 import { assertPublishable, type CoachSession } from './model';
 
 /*
@@ -33,6 +34,21 @@ interface CoachCloud {
   revokeInvite: (id: string) => Promise<string | null>;
   /** Why the athlete/invite lists are empty, when it is not simply "they are". */
   loadError: string | null;
+  /**
+   * The signed-in user's OWN training, read back from app_state.
+   *
+   * The coach has only ever pushed work out — it could assign a session and
+   * never see whether anyone did it, which is why it read as an empty shell.
+   * This is the other direction.
+   *
+   * It reads the row for `auth.uid()`, which the existing "select own state"
+   * policy already allows. So it works when you coach yourself and shows
+   * nothing when you coach somebody else — reading ANOTHER athlete's training
+   * would need a new RLS policy, and that is a privacy decision to make on
+   * purpose rather than inherit from a convenient query.
+   */
+  mine: EngineDB | null;
+  mineLoading: boolean;
 }
 
 const Ctx = createContext<CoachCloud | null>(null);
@@ -47,6 +63,8 @@ const client: SupabaseClient | null = (() => {
 
 export function CoachCloudProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [mine, setMine] = useState<EngineDB | null>(null);
+  const [mineLoading, setMineLoading] = useState(false);
   const [athletes, setAthletes] = useState<{ id: string; label: string }[]>([]);
   const [invites, setInvites] = useState<{ id: string; token: string; label: string | null }[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -57,6 +75,36 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
     const { data: sub } = client.auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  /* Signed out means no data, not stale data from the last account. */
+  useEffect(() => {
+    if (!client || !user) {
+      setMine(null);
+      return;
+    }
+    let live = true;
+    setMineLoading(true);
+    void client
+      .from('app_state')
+      .select('state')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!live) return;
+        /* The engine lives UNDER `hybridEngine`, not at the top of the row —
+           buildPushState nests it so unrelated keys in a user's state survive a
+           push. Reading data.state directly returns an empty database and a
+           dashboard that says "nothing logged yet" forever. */
+        const raw = (data?.state as { hybridEngine?: unknown } | null)?.hybridEngine;
+        // sanitizeDB is the same trust boundary the athlete app uses: a
+        // half-written row must degrade, not crash.
+        setMine(raw ? sanitizeDB(raw) : null);
+        setMineLoading(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [user]);
 
   const refreshAthletes = useCallback(async () => {
     if (!client || !user) return;
@@ -155,6 +203,8 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       athletes,
       invites,
       loadError,
+      mine,
+      mineLoading,
       refreshAthletes,
       publish,
       /*
@@ -210,7 +260,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
         setUser(null);
       },
     }),
-    [user, athletes, invites, loadError, refreshAthletes, publish],
+    [user, athletes, invites, loadError, mine, mineLoading, refreshAthletes, publish],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
