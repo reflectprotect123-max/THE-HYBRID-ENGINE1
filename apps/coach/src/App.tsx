@@ -13,7 +13,7 @@ import { BRASS, Chip, Field, GHOST, IconCheck, IconDown, IconRest, IconUp, MICRO
  * The shell is the one the kit specifies — rail, week board, wide editor:
  *
  *   design/cards/05-coach-02-rail.html    → the 80px rail
- *   DESIGN-TOKENS.md `--panelw`           → the week board beside it
+ *   docs/DESIGN-TOKENS.md `--panelw`           → the week board beside it
  *   design/cards/05-coach-01-top-bar.html → the bar above both
  *   design/cards/05-coach-03-…-pills-…    → the day rows and their previews
  *

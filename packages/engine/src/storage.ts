@@ -19,14 +19,6 @@ export interface Storage {
   removeItem(key: string): void;
 }
 
-export function memoryStorage(seed: Record<string, string> = {}): Storage {
-  const m = new Map<string, string>(Object.entries(seed));
-  return {
-    getItem: (k) => (m.has(k) ? (m.get(k) as string) : null),
-    setItem: (k, v) => void m.set(k, v),
-    removeItem: (k) => void m.delete(k),
-  };
-}
 
 export interface LoadResult {
   db: EngineDB;

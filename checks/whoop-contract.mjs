@@ -93,7 +93,7 @@ async function main() {
     'pnpm-lock.yaml',
     '_redirects',
     '_headers',
-    'readme.txt',
+    'README.md',
     'privacy.html',
     'packages/engine/src/types.ts',
     'apps/web/src/cloud/whoop.tsx',
@@ -149,7 +149,7 @@ async function main() {
     (sources.get('apps/web/src/cloud/whoop.tsx') || '') +
     (sources.get('apps/mobile/src/cloud/whoop.tsx') || '') +
     (sources.get('packages/config/src/index.ts') || '');
-  const readme = sources.get('readme.txt') || '';
+  const readme = sources.get('README.md') || '';
   const privacy = sources.get('privacy.html') || '';
 
   check(

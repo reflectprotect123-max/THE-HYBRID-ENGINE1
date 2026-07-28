@@ -153,9 +153,6 @@ export function condEffortRpe(e: { rpe: [number, number] }): string {
   return fmtRpe(e.rpe[0]) + '-' + fmtRpe(e.rpe[1]);
 }
 
-export function effortKeys(): EffortKey[] {
-  return ['easy', 'medium', 'hard'];
-}
 
 /* ---------- earned progression ---------- */
 

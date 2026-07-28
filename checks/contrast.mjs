@@ -63,7 +63,7 @@ console.log('\n  (blank) passes 4.5:1   * secondary/large only   ! under 3:1');
 console.log(`  lowest pair: ${worst.toFixed(1)}:1`);
 
 /* `dim` on `panel2` sits at 4.2 by design — it is a secondary ink and 3:1 is
-   its bar. See DESIGN-TOKENS.md. So --strict fails at 3, not 4.5, and the
+   its bar. See docs/DESIGN-TOKENS.md. So --strict fails at 3, not 4.5, and the
    4.5 column is advisory. */
 if (process.argv.includes('--strict') && fails.length) {
   console.error('\nFAIL — under 3:1:\n  ' + fails.join('\n  '));

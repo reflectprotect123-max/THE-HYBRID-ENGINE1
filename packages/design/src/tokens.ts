@@ -1,7 +1,7 @@
 /*
  * THE Hybrid System — design tokens.
  *
- * Lifted verbatim from the vanilla app's `:root` block and DESIGN-TOKENS.md so
+ * Lifted verbatim from the vanilla app's `:root` block and docs/DESIGN-TOKENS.md so
  * the React apps and the React Native app render the same product rather than
  * two products that resemble each other. Values here are the source of truth;
  * `tokens.css` is generated from this file's shape by hand and must stay in

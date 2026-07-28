@@ -93,7 +93,7 @@ async function main() {
   const netlify = await readText('netlify.toml');
   const redirects = await readText('_redirects');
   const headers = await readText('_headers');
-  const readme = await readText('readme.txt');
+  const readme = await readText('README.md');
 
   let pkg = null;
   let lock = null;

@@ -44,6 +44,9 @@ jobs:
         with:
           cache: true
 
+      - name: README map still resolves
+        run: node checks/docs.mjs
+
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
