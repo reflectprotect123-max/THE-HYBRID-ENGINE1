@@ -152,10 +152,38 @@ good news would say nothing the first time an athlete was overreaching; and
 nothing is truncated — every qualifying finding is returned, sorted strongest
 first, for the surface to slice.
 
-**Still outstanding:** it is not wired into any screen. The three hand-written
-note rules in `Dashboard.tsx` — stale lift, zero-tonnage weeks, no felt RPE —
-remain the only derivations on that screen with **no test coverage**, and are
-the natural next thing to move into the engine beside these.
+**Wired into Progress on both athlete surfaces** — `apps/web/src/screens/
+Progress.tsx` and `apps/mobile/src/screens/Progress.tsx` — above the charts,
+because it is the only thing on that screen you could not have worked out by
+looking at them. Each finding shows its own sample counts: four sets against
+four is a different claim from twenty against twenty, and hiding that would
+make the two look equally certain.
+
+**Still outstanding:** the three hand-written note rules in `Dashboard.tsx` —
+stale lift, zero-tonnage weeks, no felt RPE — are still the only derivations on
+that screen with no test coverage, and are the natural next thing to move into
+the engine beside these.
+
+### The readiness tile was broken the whole time
+
+Found while wiring this up, and worth recording because of how it hid.
+`Dashboard.tsx` cast `whoopDaily` rows to `WhoopSample` and passed them to
+`todayRecovery`, which reads `recoveryScore`. A stored row has `recovery`. So
+the coach dashboard's readiness tile showed a dash on every dashboard, for
+every athlete, however well WHOOP was syncing — and a dash is also exactly
+what the tile correctly shows when nothing has synced, so the broken state and
+the healthy empty state were indistinguishable. It type-checked, threw
+nothing, and rendered without complaint.
+
+Fixed by mapping the field rather than casting, and now covered by
+`apps/coach/test/dashboard.test.ts`. Note the second trap that test caught, in
+the first version of the fix: passing the row's `null` straight through gives
+`Number(null)` → `0`, a finite zero that bands as LOW and tells the athlete to
+pull back because of a HOLE in the data. Absent readings must reach the
+accessors as `undefined`. `recoveryBand` documents the same hazard.
+
+This is one more reason to read section 2 carefully before concluding a bare
+dashboard is a data problem: sometimes it is a bug.
 
 ## 5. Codex MCP does not work here — do not re-diagnose it
 

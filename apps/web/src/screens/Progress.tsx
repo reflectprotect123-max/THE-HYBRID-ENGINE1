@@ -7,10 +7,12 @@ import {
   fmtClock,
   isCond,
   condEfforts,
+  insights,
   loadBalance,
   sessionVolume,
   ymd,
   type CondResult,
+  type Insight,
   type Session,
   type ZoneKey,
 } from '@hybrid/engine';
@@ -29,8 +31,13 @@ import { Card, Empty, Kicker, ScreenTitle, SectionHead } from '../ui';
  * which is worse than an empty state.
  */
 export function Progress() {
-  const { sessions, settings, hr } = useDb();
+  const { db, sessions, settings, hr } = useDb();
   const zones = useMemo(() => conZones(hr), [hr]);
+
+  /* Everything else on this screen reports what you already lived through.
+     This is the only thing that answers the title's question, and it returns
+     nothing at all until there is enough on both sides of the comparison. */
+  const found = useMemo(() => insights(db), [db]);
 
   const weeks = useMemo(() => weeklyVolume(sessions, 8), [sessions]);
   const whoopHist = useMemo(
@@ -76,6 +83,7 @@ export function Progress() {
     strain.length > 1 ||
     hrrTrend.length > 1 ||
     lifts.length > 0 ||
+    found.length > 0 ||
     !!balance;
 
   return (
@@ -108,6 +116,26 @@ export function Progress() {
             Two things moving together is not one causing the other — a hard month at work moves both.
           </p>
         </Card>
+      ) : null}
+
+      {/* Above the charts because it is the only thing here you could not have
+          worked out by looking at them. A volume bar tells you what you did; a
+          finding tells you what it did to you. */}
+      {found.length ? (
+        <>
+          <SectionHead title="What has changed" />
+          <Card>
+            <ul className="flex flex-col gap-1">
+              {found.map((i) => (
+                <Finding key={i.id} i={i} />
+              ))}
+            </ul>
+            <p className="mt-1 border-t border-line pt-1 text-2 text-dim">
+              Measured against your own past self at the same felt effort — so more weight only counts if it did not
+              cost more. Nothing appears until both windows hold enough to mean something.
+            </p>
+          </Card>
+        </>
       ) : null}
 
       {weeks.some((w) => w.value > 0) ? (
@@ -233,6 +261,35 @@ export function Progress() {
 // lit dots and strips only).
 const ink = (k: ZoneKey) =>
   k === 'low' ? 'var(--color-zone-blue)' : k === 'mod' ? 'var(--color-zone-green)' : 'var(--color-zone-red)';
+
+/**
+ * One finding, with its evidence under it.
+ *
+ * The sample counts are shown rather than kept internal. A sentence claiming
+ * your bench improved is a claim about your body, and an athlete is entitled
+ * to see how much it rests on before believing it — four sets against four is
+ * a different statement from twenty against twenty, and hiding the difference
+ * would make the two look equally certain.
+ */
+function Finding({ i }: { i: Insight }) {
+  return (
+    <li className="border-b border-line pb-1 last:border-0 last:pb-0">
+      <div className="flex items-baseline gap-1">
+        <span className="min-w-0 flex-1 text-4 font-[650]">{i.title}</span>
+        <span
+          className="num text-4 font-[750]"
+          style={{ color: i.improved ? 'var(--color-ok)' : 'var(--color-bad)' }}
+        >
+          {i.pct == null ? '—' : (i.pct > 0 ? '+' : '') + Math.round(i.pct * 100) + '%'}
+        </span>
+      </div>
+      <p className="mt-0.5 text-3 text-muted">{i.detail}</p>
+      <p className="num mt-0.5 text-2 text-dim">
+        {i.evidence.recentN} recent vs {i.evidence.baselineN} earlier · {i.evidence.windowDays}-day windows
+      </p>
+    </li>
+  );
+}
 
 interface Point {
   label: string;

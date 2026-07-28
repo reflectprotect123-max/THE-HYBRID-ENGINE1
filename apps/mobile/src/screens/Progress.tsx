@@ -9,10 +9,12 @@ import {
   fmtClock,
   isCond,
   condEfforts,
+  insights,
   loadBalance,
   sessionVolume,
   ymd,
   type CondResult,
+  type Insight,
   type Session,
   type ZoneKey,
 } from '@hybrid/engine';
@@ -83,6 +85,11 @@ export function ProgressScreen() {
 
   const balance = useMemo(() => loadBalance(db.sessions, db.settings), [db.sessions, db.settings]);
 
+  /* Everything else on this screen reports what you already lived through.
+     This is the only thing that answers the title's question, and it returns
+     nothing at all until there is enough on both sides of the comparison. */
+  const found = useMemo(() => insights(db), [db]);
+
   /*
    * These thresholds must match the ones each card renders at, EXACTLY.
    * They did not: `anything` counted a single recovery reading as content
@@ -98,6 +105,7 @@ export function ProgressScreen() {
     recovery.length > 1 ||
     strain.length > 1 ||
     hrrTrend.length > 1 ||
+    found.length > 0 ||
     !!balance;
   /* Zero-baselined, this was seven bars spanning 92-100% of the card: the
      largest element on the screen, distinguishing nothing. See `barScale`. */
@@ -141,6 +149,28 @@ export function ProgressScreen() {
             </T>
           </View>
         </Card>
+      ) : null}
+
+      {/* Above the charts because it is the only thing here you could not have
+          worked out by looking at them. A volume bar tells you what you did; a
+          finding tells you what it did to you. */}
+      {found.length ? (
+        <>
+          <SectionHead title="What has changed" />
+          <Card>
+            <View className="gap-1">
+              {found.map((i) => (
+                <Finding key={i.id} i={i} />
+              ))}
+            </View>
+            <View className="mt-1 border-t border-line pt-1">
+              <T className="text-2 text-dim">
+                Measured against your own past self at the same felt effort — so more weight only counts if it did
+                not cost more. Nothing appears until both windows hold enough to mean something.
+              </T>
+            </View>
+          </Card>
+        </>
       ) : null}
 
       {weeks.some((w) => w.value > 0) ? (
@@ -339,6 +369,34 @@ function Trend({
         </T>
         <T num className="text-2 text-dim">{last.label}</T>
       </View>
+    </View>
+  );
+}
+
+/**
+ * One finding, with its evidence under it. The web app's `Finding` in the same
+ * words — a claim about the athlete's body has to read identically on both
+ * surfaces, or one of them is telling a different story about the same data.
+ *
+ * The sample counts are shown rather than kept internal: four sets against
+ * four is a different statement from twenty against twenty, and hiding the
+ * difference would make the two look equally certain.
+ */
+function Finding({ i }: { i: Insight }) {
+  return (
+    <View className="border-b border-line pb-1">
+      <View className="flex-row items-baseline gap-1">
+        <T w="semi" className="min-w-0 flex-1 text-4 text-text">
+          {i.title}
+        </T>
+        <T num w="bold" className={`text-4 ${i.improved ? 'text-ok' : 'text-bad'}`}>
+          {i.pct == null ? '—' : (i.pct > 0 ? '+' : '') + Math.round(i.pct * 100) + '%'}
+        </T>
+      </View>
+      <T className="mt-0.5 text-3 text-muted">{i.detail}</T>
+      <T num className="mt-0.5 text-2 text-dim">
+        {i.evidence.recentN} recent vs {i.evidence.baselineN} earlier · {i.evidence.windowDays}-day windows
+      </T>
     </View>
   );
 }

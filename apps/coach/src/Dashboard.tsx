@@ -243,9 +243,37 @@ function derive(db: EngineDB) {
   };
 }
 
-function latestWhoop(db: EngineDB): WhoopSample | null {
-  const rows = Array.isArray(db.settings.whoopDaily) ? (db.settings.whoopDaily as WhoopSample[]) : [];
-  return rows.length ? rows[rows.length - 1] : null;
+/**
+ * The newest stored daily row, in the shape the HR model reads.
+ *
+ * A `whoopDaily` row is `{ date, recovery, strain }` — the app's own storage
+ * shape, and NOT a `WhoopSample`. Casting one to the other satisfied the
+ * compiler and then silently produced nothing: `todayRecovery` reads
+ * `recoveryScore`, which a stored row has never had, so `Number(undefined)`
+ * was NaN and the readiness tile showed a dash on every dashboard forever —
+ * including for athletes whose WHOOP was syncing perfectly.
+ *
+ * The field is mapped across rather than read straight out, so banding still
+ * goes through `todayRecovery`, the single accessor the rest of the app reads
+ * recovery with.
+ */
+export function latestWhoop(db: EngineDB): WhoopSample | null {
+  const rows = Array.isArray(db.settings.whoopDaily)
+    ? (db.settings.whoopDaily as { date?: string; recovery?: number | null; strain?: number | null }[])
+    : [];
+  const row = rows.length ? rows[rows.length - 1] : null;
+  if (!row) return null;
+  return {
+    // `undefined` and never `null` when a row carries no reading. The
+    // accessors coerce with `Number()`, and `Number(null)` is 0 — a finite
+    // zero, which bands as LOW and would tell an athlete to pull back because
+    // of a HOLE in the data. `Number(undefined)` is NaN, which is the "nothing
+    // recorded" both accessors actually test for. `recoveryBand` carries this
+    // same guard and names the same reason.
+    recoveryScore: row.recovery == null ? undefined : row.recovery,
+    strain: row.strain == null ? undefined : row.strain,
+    date: row.date,
+  };
 }
 
 function anyFelt(s: Session): boolean {
