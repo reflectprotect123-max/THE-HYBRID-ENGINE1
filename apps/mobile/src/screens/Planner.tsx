@@ -219,6 +219,34 @@ export function PlannerScreen() {
                             }
                           />
                         ) : null}
+                        {/* Superset the SAVED session, so a pairing you run every
+                            week survives it. The Logger's toggle only ever
+                            changed the live session. */}
+                        {!readOnly && ei < blockExercises(b as StrengthBlock<LoggedSet>).length - 1 ? (
+                          <Tap
+                            onPress={() =>
+                              edit((d) => {
+                                const t = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
+                                t.ssNext = !t.ssNext;
+                              })
+                            }
+                            role="radio"
+                            selected={!!ex.ssNext}
+                            label={`superset with ${blockExercises(b as StrengthBlock<LoggedSet>)[ei + 1]?.name || 'the next exercise'}, ${ex.ssNext ? 'on' : 'off'}`}
+                            box={{ h: 34 }}
+                            className={`mt-1 flex-row items-center gap-1 rounded-md border px-1 py-1 ${
+                              ex.ssNext ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel3'
+                            }`}
+                          >
+                            <T className={`text-4 ${ex.ssNext ? 'text-gold2' : 'text-dim'}`}>⇄</T>
+                            <T className={`flex-1 text-3 ${ex.ssNext ? 'text-gold2' : 'text-dim'}`} numberOfLines={1}>
+                              {ex.ssNext ? 'Supersetted with ' : 'Superset with '}
+                              <T w="semi">{blockExercises(b as StrengthBlock<LoggedSet>)[ei + 1]?.name || 'next'}</T>
+                              {ex.ssNext ? '' : '?'}
+                            </T>
+                          </Tap>
+                        ) : null}
+
                         {ex.sets.map((st, si) => (
                           <View key={si} className="mt-1 flex-row items-center gap-1">
                             <T w="semi" num className={`w-8 text-3 ${isWarmup(st) ? 'text-gold2' : 'text-dim'}`}>

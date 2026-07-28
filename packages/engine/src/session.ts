@@ -176,15 +176,24 @@ export function exLogFor(name: string, sessions: Session[]): ExerciseHistoryEntr
           if (!isLiftMode(e.mode) || String(e.name || '').trim().toLowerCase() !== key) return;
           e.sets.forEach((st) => {
             if (isWarmup(st)) return;
+            if (!st.done) return;
+            const reps = Number(st.aVal2);
+            // Reps are what make it a set. A bodyweight rep is training that
+            // happened; gating on a WEIGHT threw it away.
+            if (!(reps > 0)) return;
             const e1 = epley(st.aVal, st.aVal2);
-            if (st.done && e1 != null) {
-              sets.push({ kg: Number(st.aVal), reps: Number(st.aVal2), felt: st.felt || '', e1 });
-            }
+            sets.push({ kg: e1 == null ? null : Number(st.aVal), reps, felt: st.felt || '', e1 });
           });
         }),
       );
       if (sets.length) {
-        const best = sets.reduce((m, x) => (x.e1 > m.e1 ? x : m), sets[0]);
+        // `best` stays the best LOADED set: an e1RM is a claim about load, and
+        // bodyweight work cannot make one. Null when the whole session was
+        // bodyweight, which the chart skips and the set list still shows.
+        const loaded = sets.filter(
+          (x): x is { kg: number; reps: number; felt: string; e1: number } => x.e1 != null,
+        );
+        const best = loaded.length ? loaded.reduce((m, x) => (x.e1 > m.e1 ? x : m)) : null;
         out.push({ sid: s.id, date: s.date, at: s.completedAt as number, sets, best });
       }
     });
@@ -199,7 +208,7 @@ export function exBest(
 ): (ExerciseHistoryEntry['best'] & { date: string }) | null {
   let best: (ExerciseHistoryEntry['best'] & { date: string }) | null = null;
   exLogFor(name, sessions).forEach((h) => {
-    if (h.sid === excludeSid) return;
+    if (h.sid === excludeSid || !h.best) return;
     if (!best || h.best.e1 > best.e1) best = Object.assign({ date: h.date }, h.best);
   });
   return best;

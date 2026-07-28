@@ -283,8 +283,15 @@ export interface ExerciseHistoryEntry {
   sid: string;
   date: string;
   at: number;
-  sets: { kg: number; reps: number; felt: string; e1: number }[];
-  best: { kg: number; reps: number; felt: string; e1: number };
+  /**
+   * Every working set performed, INCLUDING bodyweight ones — `kg` and `e1` are
+   * null for those. They used to be dropped, so a screen headed "every session"
+   * quietly omitted work that was done: a dip session logged BW, +10, +20 showed
+   * two sets.
+   */
+  sets: { kg: number | null; reps: number; felt: string; e1: number | null }[];
+  /** The best LOADED set, or null when the session was bodyweight only. */
+  best: { kg: number; reps: number; felt: string; e1: number } | null;
 }
 
 export interface Phase {

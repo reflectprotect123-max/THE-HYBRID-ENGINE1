@@ -34,11 +34,17 @@ export function Exercise() {
   const shown = useMemo(() => (all ? log.slice().reverse() : log.slice(-12).reverse()), [log, all]);
 
   const best = useMemo(
-    () => log.reduce<ExerciseHistoryEntry | null>((m, h) => (!m || h.best.e1 > m.best.e1 ? h : m), null),
+    () => log.reduce<ExerciseHistoryEntry | null>((m, h) => (h.best && (!m || h.best.e1 > m.best!.e1) ? h : m), null),
     [log],
   );
   const heaviest = useMemo(
-    () => log.flatMap((h) => h.sets).reduce<{ kg: number; reps: number } | null>((m, s) => (!m || s.kg > m.kg ? s : m), null),
+    () =>
+      log
+        .flatMap((h) => h.sets)
+        .reduce<{ kg: number; reps: number } | null>(
+          (m, s) => (s.kg != null && (!m || s.kg > m.kg) ? { kg: s.kg, reps: s.reps } : m),
+          null,
+        ),
     [log],
   );
 
@@ -70,8 +76,8 @@ export function Exercise() {
           <div className="grid grid-cols-2 gap-1">
             <Stat
               label="Best estimated 1RM"
-              value={best ? `${Math.round(best.best.e1)}kg` : '—'}
-              sub={best ? `${best.best.kg}×${best.best.reps}${best.best.reps > 8 ? ' — a long extrapolation' : ''} · ${agoLabel(best.date)}` : ''}
+              value={best?.best ? `${Math.round(best.best.e1)}kg` : '—'}
+              sub={best?.best ? `${best.best.kg}×${best.best.reps}${best.best.reps > 8 ? ' — a long extrapolation' : ''} · ${agoLabel(best.date)}` : ''}
               tint
             />
             <Stat
@@ -91,9 +97,10 @@ export function Exercise() {
                       <span className="num text-3 text-dim">{h.date}</span>
                     </div>
                     <p className="num mt-0.5 text-3 text-muted">
-                      {h.sets.map((s) => `${s.kg}×${s.reps}${s.felt ? '@' + s.felt : ''}`).join('  ')}
+                      {/* Bodyweight reads BW, not 0kg or a blank — it is a set that happened. */}
+                      {h.sets.map((s) => `${s.kg == null ? 'BW' : s.kg}×${s.reps}${s.felt ? '@' + s.felt : ''}`).join('  ')}
                     </p>
-                    <p className="num mt-0.5 text-2 text-dim">best e1RM {Math.round(h.best.e1)}kg</p>
+                    {h.best ? <p className="num mt-0.5 text-2 text-dim">best e1RM {Math.round(h.best.e1)}kg</p> : null}
                   </Card>
                 </li>
             ))}
@@ -120,10 +127,16 @@ export function Exercise() {
  * reason the volume chart was a flat wall. The floor is labelled underneath,
  * because a truncated axis that does not say so is the dishonest kind.
  */
-function E1rmTrend({ log }: { log: ExerciseHistoryEntry[] }) {
+function E1rmTrend({ log: all }: { log: ExerciseHistoryEntry[] }) {
   const W = 280;
   const H = 72;
-  const pts = log.map((h) => h.best.e1);
+  /* Only loaded sessions can plot an estimated 1RM. A bodyweight-only day is
+     still training and still shows in the list below — it just has no point. */
+  const log = all.filter((h) => h.best);
+  if (!log.length) {
+    return <p className="num text-4 text-muted">No loaded sets yet — an estimate needs a weight on the bar.</p>;
+  }
+  const pts = log.map((h) => h.best!.e1);
   const scale = barScale(pts);
   const x = (i: number) => (i / Math.max(1, pts.length - 1)) * W;
   const y = (v: number) => H - (scale.pct(v) / 100) * H;
@@ -134,7 +147,7 @@ function E1rmTrend({ log }: { log: ExerciseHistoryEntry[] }) {
   if (pts.length < 2) {
     return (
       <p className="num text-4 text-muted">
-        {Math.round(pts[0])}kg estimated 1RM from {last.best.kg}×{last.best.reps}. One session is a point, not a trend —
+        {Math.round(pts[0])}kg estimated 1RM from {last.best!.kg}×{last.best!.reps}. One session is a point, not a trend —
         the line starts at two.
       </p>
     );

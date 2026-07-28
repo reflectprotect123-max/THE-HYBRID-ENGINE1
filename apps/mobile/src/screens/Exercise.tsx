@@ -38,7 +38,7 @@ export function ExerciseScreen() {
      the recent ones are what anyone opens this for. */
   const shown = useMemo(() => (all ? log.slice().reverse() : log.slice(-8).reverse()), [log, all]);
   const best = useMemo(
-    () => log.reduce<ExerciseHistoryEntry | null>((m, h) => (!m || h.best.e1 > m.best.e1 ? h : m), null),
+    () => log.reduce<ExerciseHistoryEntry | null>((m, h) => (h.best && (!m || h.best.e1 > m.best!.e1) ? h : m), null),
     [log],
   );
   /* Hoisted rather than called inside the JSX: it is a hook, and a hook that
@@ -52,7 +52,10 @@ export function ExerciseScreen() {
     () =>
       log
         .flatMap((h) => h.sets)
-        .reduce<{ kg: number; reps: number } | null>((m, s) => (!m || s.kg > m.kg ? s : m), null),
+        .reduce<{ kg: number; reps: number } | null>(
+          (m, s) => (s.kg != null && (!m || s.kg > m.kg) ? { kg: s.kg, reps: s.reps } : m),
+          null,
+        ),
     [log],
   );
 
@@ -79,9 +82,9 @@ export function ExerciseScreen() {
           <View className="flex-row gap-1">
             <Stat
               label="Best estimated 1RM"
-              value={best ? `${Math.round(best.best.e1)}kg` : '—'}
+              value={best?.best ? `${Math.round(best.best.e1)}kg` : '—'}
               sub={
-                best
+                best?.best
                   ? `${best.best.kg}×${best.best.reps}${best.best.reps > 8 ? ' — a long extrapolation' : ''} · ${agoLabel(best.date)}`
                   : ''
               }
@@ -104,9 +107,10 @@ export function ExerciseScreen() {
                 <T num className="text-3 text-dim">{h.date}</T>
               </View>
               <T num className="mt-0.5 text-3 text-muted">
-                {h.sets.map((s) => `${s.kg}×${s.reps}${s.felt ? '@' + s.felt : ''}`).join('  ')}
+                {/* Bodyweight reads BW, not 0kg or a blank — it is a set that happened. */}
+                {h.sets.map((s) => `${s.kg == null ? 'BW' : s.kg}×${s.reps}${s.felt ? '@' + s.felt : ''}`).join('  ')}
               </T>
-              <T num className="mt-0.5 text-2 text-dim">best e1RM {Math.round(h.best.e1)}kg</T>
+              {h.best ? <T num className="mt-0.5 text-2 text-dim">best e1RM {Math.round(h.best.e1)}kg</T> : null}
             </Card>
           ))}
           {shown.length < log.length ? (
@@ -154,15 +158,21 @@ export function ExerciseScreen() {
  * floor is named underneath, because a truncated axis that does not say so is
  * the dishonest kind.
  */
-function E1rmTrend({ log }: { log: ExerciseHistoryEntry[] }) {
-  const pts = log.map((h) => h.best.e1);
+function E1rmTrend({ log: all }: { log: ExerciseHistoryEntry[] }) {
+  /* Only loaded sessions can plot an estimated 1RM. A bodyweight-only day is
+     still training and still shows in the list below — it just has no point. */
+  const log = all.filter((h) => h.best);
+  if (!log.length) {
+    return <T num className="text-4 text-muted">No loaded sets yet — an estimate needs a weight on the bar.</T>;
+  }
+  const pts = log.map((h) => h.best!.e1);
   const scale = barScale(pts);
   const last = log[log.length - 1];
 
   if (pts.length < 2) {
     return (
       <T num className="text-4 text-muted">
-        {Math.round(pts[0])}kg estimated 1RM from {last.best.kg}×{last.best.reps}. One session is a point, not a trend —
+        {Math.round(pts[0])}kg estimated 1RM from {last.best!.kg}×{last.best!.reps}. One session is a point, not a trend —
         the line starts at two.
       </T>
     );
