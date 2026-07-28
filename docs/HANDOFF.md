@@ -5,8 +5,9 @@ reclaimed. A chat cannot be merged into another chat; a file in the repo can be
 read by any session, on any machine, forever. That asymmetry is the only reason
 this document exists.
 
-Everything below was verified against the tree at `8275360`. Nothing here is a
-commitment to build — section 4 is a proposal, and it is marked as one.
+Sections 2–5 and 7 were verified against the tree at `8275360`; sections 1 and 6
+were re-verified against `b5bc201`. Nothing here is a commitment to build —
+section 4 is a proposal, and it is marked as one.
 
 ---
 
@@ -16,11 +17,34 @@ The real monorepo is **`reflectprotect123-max/THE-HYBRID-ENGINE1`**. It was
 renamed from `the-hybrid-engine1`; pushes to the old name still redirect, so a
 stale remote works but reports the move.
 
-There is a second, empty repository named `THEhybridsystem` — no commits, no
-files. A session pointed at that one sees an empty directory and will conclude
-the project does not exist. If you are reading this and your working directory
-looks bare, that is what happened; you are in the wrong repo. The names are
-similar enough that this has already cost one session most of its length.
+**It is the only live repository.** The owner has confirmed that every other
+repo on the account is dead — not a component, not a deploy target, not a
+staging copy. Nothing in any of them is a dependency of this one, and nothing
+in any of them should be read, copied, revived, or cited as prior art. If a
+task seems to need one of them, the task is wrong about where the code is.
+
+The other twelve, so no session has to wonder which is which:
+
+| Repo | Why it is not this one |
+|---|---|
+| `THEhybridsystem` | Empty — no commits, no files. The dangerous one; see below |
+| `the-hybrid-engine-render` | Superseded deploy target. This repo deploys via Netlify |
+| `THE-HYBRID-ENGINE-newest` | Archived. Named "newest"; it is not |
+| `hybrid-engine` | Superseded |
+| `TheHYBRIDENGINE` | Archived |
+| `THE-Hybrid-engine---netlify` | Superseded Netlify attempt |
+| `THE-Hybrid-engine` | Superseded |
+| `Hybrid-app` | Superseded |
+| `the-coach-brain`, `thebrain` | Earlier unrelated experiments |
+| `claude-code-skills`, `desktop-tutorial` | Not this project at all |
+
+`THEhybridsystem` deserves the specific warning, because its name is the one
+this project calls itself and it contains **nothing** — no commits, no files,
+no branches. A session pointed at it sees a bare directory and concludes the
+project does not exist. If you are reading this and your working directory
+looks empty, that is what happened; you are in the wrong repo. This has now
+cost two sessions: one lost most of its length to it, and a later one opened
+by reporting the project had never been started.
 
 ## 2. The coach dashboard already exists
 
@@ -143,9 +167,14 @@ in this container can send repository source to OpenAI.
 
 ## 6. Branch state
 
-`claude/app-troubleshooting-c69lw9` was fully merged into `main` — main 97
-commits ahead, the branch 0 ahead. It was therefore recreated from `origin/main`
-rather than stacked on merged history. If you find it merged again, do the same:
+As of this revision, `claude/app-troubleshooting-c69lw9` carries only this
+document and is rebased onto `origin/main` at `b5bc201`. It had drifted three
+commits behind while holding two of its own, which is the state to expect if
+nobody merges it.
+
+The rule that produced that state still applies. A merged pull request is
+finished and cannot track new work, so if you find this branch fully merged,
+recreate it from the default branch rather than stacking on merged history:
 
 ```
 git fetch origin main
