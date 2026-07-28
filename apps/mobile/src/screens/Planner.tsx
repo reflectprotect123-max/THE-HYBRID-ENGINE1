@@ -199,11 +199,13 @@ export function PlannerScreen() {
             </Card>
           ) : (
             <>
-              {blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
+              {blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei, exs) => {
                 const key = `${bi}-${ei}`;
                 const open = openEx === key;
+                const next = exs[ei + 1];
                 return (
-                  <Card key={ex.id ?? ei} className={`mb-1 ${open ? 'border-gold-line' : ''}`}>
+                  <View key={ex.id ?? ei}>
+                  <Card className={`mb-1 ${open ? 'border-gold-line' : ''}`}>
                     <Tap
                       onPress={() => setOpenEx(open ? null : key)}
                       label={`${open ? 'collapse' : 'expand'} ${ex.name || 'exercise'}`}
@@ -240,34 +242,6 @@ export function PlannerScreen() {
                             }
                           />
                         ) : null}
-                        {/* Superset the SAVED session, so a pairing you run every
-                            week survives it. The Logger's toggle only ever
-                            changed the live session. */}
-                        {!readOnly && ei < blockExercises(b as StrengthBlock<LoggedSet>).length - 1 ? (
-                          <Tap
-                            onPress={() =>
-                              edit((d) => {
-                                const t = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
-                                t.ssNext = !t.ssNext;
-                              })
-                            }
-                            role="radio"
-                            selected={!!ex.ssNext}
-                            label={`superset with ${blockExercises(b as StrengthBlock<LoggedSet>)[ei + 1]?.name || 'the next exercise'}, ${ex.ssNext ? 'on' : 'off'}`}
-                            box={{ h: 34 }}
-                            className={`mt-1 flex-row items-center gap-1 rounded-md border px-1 py-1 ${
-                              ex.ssNext ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel3'
-                            }`}
-                          >
-                            <T className={`text-4 ${ex.ssNext ? 'text-gold2' : 'text-dim'}`}>⇄</T>
-                            <T className={`flex-1 text-3 ${ex.ssNext ? 'text-gold2' : 'text-dim'}`} numberOfLines={1}>
-                              {ex.ssNext ? 'Supersetted with ' : 'Superset with '}
-                              <T w="semi">{blockExercises(b as StrengthBlock<LoggedSet>)[ei + 1]?.name || 'next'}</T>
-                              {ex.ssNext ? '' : '?'}
-                            </T>
-                          </Tap>
-                        ) : null}
-
                         {ex.sets.map((st, si) => (
                           <View key={si} className="mt-1 flex-row items-center gap-1">
                             <T w="semi" num className={`w-8 text-3 ${isWarmup(st) ? 'text-gold2' : 'text-dim'}`}>
@@ -370,6 +344,40 @@ export function PlannerScreen() {
                       </View>
                     ) : null}
                   </Card>
+                  {/* The chain BETWEEN two movements, not a row inside one:
+                      a superset is a relationship, and drawing it as a property
+                      of the first exercise never said which two. */}
+                  {!readOnly && next ? (
+                    <View className="relative items-center justify-center py-0.5">
+                      <View className="absolute inset-y-0 w-px bg-line2" />
+                      <Tap
+                        onPress={() =>
+                          edit((d) => {
+                            const t = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
+                            t.ssNext = !t.ssNext;
+                          })
+                        }
+                        role="radio"
+                        selected={!!ex.ssNext}
+                        label={
+                          ex.ssNext
+                            ? `Split the superset between ${ex.name || 'this'} and ${next.name || 'the next'}`
+                            : `Superset ${ex.name || 'this'} with ${next.name || 'the next'}`
+                        }
+                        box={{ h: 26, w: 48 }}
+                        className={`h-3.5 w-6 flex-row items-center justify-center gap-0.5 rounded-pill border ${
+                          ex.ssNext ? 'border-gold bg-gold' : 'border-dashed border-line2 bg-panel2'
+                        }`}
+                      >
+                        {/* Two interlocking links, drawn rather than glyphed:
+                            react-native-svg is not a dependency and a chain
+                            emoji renders in full colour, off the palette. */}
+                        <View className={`h-1.5 w-2 rounded-pill border ${ex.ssNext ? 'border-[#1b1509]' : 'border-muted'}`} />
+                        <View className={`-ml-1 h-1.5 w-2 rounded-pill border ${ex.ssNext ? 'border-[#1b1509]' : 'border-muted'}`} />
+                      </Tap>
+                    </View>
+                  ) : null}
+                  </View>
                 );
               })}
 
