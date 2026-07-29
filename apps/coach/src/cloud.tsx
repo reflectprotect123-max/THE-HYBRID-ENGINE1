@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { humanizeError } from './errors';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { SUPABASE } from '@hybrid/config';
 import { sanitizeDB, type EngineDB } from '@hybrid/engine';
@@ -104,7 +105,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       .then(({ data, error }) => {
         if (!live) return;
         if (error) {
-          setMineError('Could not read your training: ' + error.message);
+          setMineError('Could not read your training: ' + humanizeError(error, 'own-training'));
           setMine(null);
           setMineLoading(false);
           return;
@@ -172,7 +173,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
     setAthletes([{ id: user.id, label: 'Myself' }, ...rows]);
 
     const err = act.error || pend.error;
-    setLoadError(err ? 'Could not read your athletes: ' + err.message : null);
+    setLoadError(err ? 'Could not read your athletes: ' + humanizeError(err, 'athletes') : null);
   }, [user]);
 
   useEffect(() => {
@@ -188,7 +189,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
       try {
         snapshot = assertPublishable(sess);
       } catch (e) {
-        return 'Could not convert session: ' + (e as Error).message;
+        return humanizeError(e, 'publish');
       }
 
       try {
@@ -204,7 +205,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
           .eq('athlete_id', athleteId)
           .eq('scheduled_date', date)
           .is('program_id', null);
-        if (clear.error) return 'Could not replace the existing assignment: ' + clear.error.message;
+        if (clear.error) return 'Could not replace the existing assignment: ' + humanizeError(clear.error, 'publish');
 
         const { error } = await client.from('assignments').insert({
           coach_id: user.id,
@@ -216,10 +217,10 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
           session_snapshot: snapshot,
           status: 'assigned',
         });
-        if (error) return error.message;
+        if (error) return humanizeError(error, 'publish');
         return null;
       } catch (e) {
-        return String((e as Error)?.message || e);
+        return humanizeError(e, 'publish');
       }
     },
     [user],
@@ -258,7 +259,7 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
           invite_token: token,
           label: label.trim() || null,
         });
-        if (error) return error.message;
+        if (error) return humanizeError(error, 'invite');
         await refreshAthletes();
         return null;
       },
@@ -271,17 +272,17 @@ export function CoachCloudProvider({ children }: { children: ReactNode }) {
         if (!client || !user) return 'Sign in first.';
         const { error } = await client.from('coach_athletes').delete().eq('id', id).eq('coach_id', user.id);
         await refreshAthletes();
-        return error ? 'Could not revoke that invite: ' + error.message : null;
+        return error ? 'Could not revoke that invite: ' + humanizeError(error, 'invite') : null;
       },
       signIn: async (email, password) => {
         if (!client) return 'Cloud is not configured.';
         const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
-        return error ? error.message : null;
+        return error ? humanizeError(error, 'sign-in') : null;
       },
       signUp: async (email, password) => {
         if (!client) return 'Cloud is not configured.';
         const { data, error } = await client.auth.signUp({ email: email.trim(), password });
-        if (error) return error.message;
+        if (error) return humanizeError(error, 'sign-up');
         return data.session ? null : 'Account created. Check your email to confirm, then sign in.';
       },
       signOut: async () => {

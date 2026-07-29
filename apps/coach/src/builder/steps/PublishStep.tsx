@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { assertPublishable, type CoachSession } from '../../model';
+import { humanizeError } from '../../errors';
 import { useCoachCloud } from '../../cloud';
 import { BRASS, Field, IconSend, MICRO, WELL } from '../../ui';
 
@@ -15,7 +16,7 @@ export function PublishStep({ sess }: { sess: CoachSession }) {
       assertPublishable(sess);
       setMsg({ tone: 'ok', text: cloud.user ? 'Ready to send.' : 'Ready to send — sign in to send this to an athlete.' });
     } catch (e) {
-      setMsg({ tone: 'warn', text: 'Could not validate: ' + (e as Error).message });
+      setMsg({ tone: 'warn', text: humanizeError(e, 'validate') });
     }
   };
 
