@@ -63,6 +63,7 @@ function Shell() {
             <WeekGrid
               onEdit={(i) => setEditingDay(i)}
               onCreate={(i, s) => { select({ d: i }); setDay(s); setEditingDay(i); }}
+              onClear={(i) => { select({ d: i }); setDay(null); }}
             />
           )}
         </main>

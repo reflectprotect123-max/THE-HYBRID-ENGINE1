@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { uid } from '@hybrid/engine';
 import { cellSummary, libraryCandidates } from './grid';
 import { useLib } from '../store';
@@ -18,14 +18,27 @@ import { BRASS, Chip, GHOST, MICRO } from '../ui';
 export function WeekGrid({
   onEdit,
   onCreate,
+  onClear,
 }: {
   onEdit: (dayIndex: number) => void;
   onCreate: (dayIndex: number, session: CoachSession) => void;
+  onClear: (dayIndex: number) => void;
 }) {
   const { lib } = useLib();
   const prog = lib.programs[lib.sel.p];
   const week = prog.weeks[lib.sel.w];
   const [libraryFor, setLibraryFor] = useState<number | null>(null);
+  // Clearing a day is destructive-at-a-distance, so it takes two taps: the
+  // first ARMS the row ("Really clear?"), the second clears. Arming one row
+  // disarms the others, and an armed row disarms itself after 5s untouched.
+  const [armed, setArmed] = useState<number | null>(null);
+  const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const arm = (i: number | null) => {
+    if (disarmTimer.current) clearTimeout(disarmTimer.current);
+    disarmTimer.current = i == null ? null : setTimeout(() => setArmed(null), 5000);
+    setArmed(i);
+  };
+  useEffect(() => () => { if (disarmTimer.current) clearTimeout(disarmTimer.current); }, []);
   const candidates = libraryCandidates(prog);
 
   return (
@@ -52,9 +65,22 @@ export function WeekGrid({
               </div>
 
               {cell.status === 'filled' ? (
-                <button onClick={() => onEdit(i)} className={GHOST + ' shrink-0'}>
-                  Edit
-                </button>
+                <div className="flex shrink-0 gap-1">
+                  <button onClick={() => onEdit(i)} className={GHOST}>
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (armed === i) { arm(null); onClear(i); }
+                      else arm(i);
+                    }}
+                    onBlur={() => { if (armed === i) arm(null); }}
+                    aria-label={armed === i ? 'really clear day ' + (i + 1) : 'clear day ' + (i + 1)}
+                    className={GHOST + (armed === i ? ' !text-bad' : '')}
+                  >
+                    {armed === i ? 'Really clear?' : 'Clear day'}
+                  </button>
+                </div>
               ) : libraryFor === i ? (
                 <LibraryPicker
                   candidates={candidates}
