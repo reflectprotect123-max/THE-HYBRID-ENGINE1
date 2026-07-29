@@ -3,7 +3,8 @@ import { LibProvider, useLib } from './store';
 import { CoachCloudProvider, useCoachCloud } from './cloud';
 import { Editor } from './Editor';
 import { Dashboard } from './Dashboard';
-import { fmtLabel, isCond, newSession, type CoachSession } from './model';
+import { CON_FORMATS, blockExercises, isCond } from '@hybrid/engine';
+import { newSession, type CoachSession } from './model';
 import { BRASS, Chip, Field, GHOST, IconCheck, IconDown, IconRest, IconUp, MICRO, WELL } from './ui';
 
 /*
@@ -353,10 +354,10 @@ function preview(s: CoachSession) {
   let sets = 0;
   for (const b of s.blocks) {
     if (isCond(b)) {
-      cond.push(fmtLabel(b.fmt));
+      cond.push(CON_FORMATS[b.condFmt].name);
       continue;
     }
-    for (const e of b.ex) {
+    for (const e of blockExercises(b)) {
       if (e.name.trim()) names.push(e.name.trim());
       sets += e.sets.length;
     }
@@ -429,7 +430,7 @@ function DayRow({
               (on ? 'text-gold2' : sess ? 'text-text' : 'text-dim')
             }
           >
-            {sess ? sess.title || 'Session' : 'Rest day'}
+            {sess ? sess.name || 'Session' : 'Rest day'}
           </b>
 
           {p ? (
