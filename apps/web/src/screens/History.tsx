@@ -5,6 +5,7 @@ import {
   byMonth,
   dayLabel,
   epley,
+  fmtDistance,
   isCond,
   sessionRpe,
   sessionVolume,
@@ -156,6 +157,7 @@ function SessionDetail({ s }: { s: Session }) {
             <p className="num mt-0.5 text-4 text-muted">
               {b.condFmt}
               {b.condResult?.dur ? ` · ${Math.round(b.condResult.dur / 60)} min` : ''}
+              {b.condResult?.distanceM ? ` · ${fmtDistance(b.condResult.distanceM)}` : ''}
               {b.condResult?.felt ? ` · felt RPE ${b.condResult.felt}` : ''}
             </p>
           ) : (

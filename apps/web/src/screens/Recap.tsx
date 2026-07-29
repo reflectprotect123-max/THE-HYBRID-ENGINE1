@@ -5,6 +5,8 @@ import {
   detectPRs,
   epley,
   fmtClock,
+  fmtDistance,
+  fmtPace,
   isCond,
   isWarmup,
   liftMoves,
@@ -138,6 +140,8 @@ export function Recap() {
               <p className="num mt-0.5 text-4 text-muted">
                 {b.condFmt}
                 {b.condResult?.dur ? ` · ${fmtClock(b.condResult.dur)}` : ''}
+                {b.condResult?.distanceM ? ` · ${fmtDistance(b.condResult.distanceM)}` : ''}
+                {b.condResult?.avgPaceSecPerKm ? ` · ${fmtPace(b.condResult.avgPaceSecPerKm)}` : ''}
                 {b.condResult?.hrr != null ? ` · HRR ${b.condResult.hrr}bpm` : ''}
               </p>
             ) : (

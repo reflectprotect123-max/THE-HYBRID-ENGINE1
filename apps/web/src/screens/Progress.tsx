@@ -5,6 +5,7 @@ import {
   bestE1rmByLift,
   conZones,
   fmtClock,
+  fmtDistance,
   isCond,
   condEfforts,
   insights,
@@ -57,6 +58,7 @@ export function Progress() {
   );
 
   const zoneWeek = useMemo(() => zoneSecondsThisWeek(sessions, settings), [sessions, settings]);
+  const distWeek = useMemo(() => distanceThisWeek(sessions, settings), [sessions, settings]);
   const hrrTrend = useMemo(() => {
     const recs = condEfforts(sessions, settings);
     return recs.filter((r) => r.hrr != null).slice(-12).map((r, i) => ({ label: String(i + 1), value: r.hrr as number }));
@@ -218,6 +220,9 @@ export function Progress() {
                 </li>
               ))}
             </ul>
+            {distWeek > 0 ? (
+              <p className="num mt-1 border-t border-line pt-1 text-3 text-dim">{fmtDistance(distWeek)} this week</p>
+            ) : null}
           </Card>
         </>
       ) : null}
@@ -440,4 +445,11 @@ function zoneSecondsThisWeek(sessions: Session[], settings: { conditioning?: Con
       });
     });
   return acc;
+}
+
+function distanceThisWeek(sessions: Session[], settings: { conditioning?: CondResult[] }): number {
+  const since = Date.now() - 7 * 864e5;
+  return condEfforts(sessions, settings)
+    .filter((r) => (r.startedAt || 0) >= since)
+    .reduce((sum, r) => sum + (r.distanceM || 0), 0);
 }
