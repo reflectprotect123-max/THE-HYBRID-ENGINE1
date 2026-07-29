@@ -462,6 +462,93 @@ await t('a logger-owned field in the stored library cannot reach an athlete, and
   assert(/Ready to send/.test(status), 'validation should pass once the poison is stripped, got: ' + status);
 });
 
+await t('a committed exercise can be edited, deleted, and the session renamed; a day can be cleared', async () => {
+  // Self-contained on Day 2 — the prior tests' Day-1 state (which the reload
+  // check depends on) stays untouched. The publish screen from the previous
+  // test is still up: walk back out to the grid first.
+  await page.click('button[aria-label="back to review"]');
+  await page.click('button:has-text("Done for now")');
+  await page.waitForSelector('text=Week 1');
+  await page.click('button:has-text("Create a session")'); // Day 2 is the first empty cell
+  await page.click('button:has-text("Lift")');
+  await page.waitForSelector('text=Choose a movement');
+  await page.click('button:has-text("DB Bench Press")');
+  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("8")');
+  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("RPE 8")');
+  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("Done")');
+  await page.waitForSelector('button:has-text("Add another block")');
+  // EDIT: the row's name re-enters the steps pre-filled; re-pick the movement.
+  await page.click('button[aria-label="edit DB Bench Press"]');
+  await page.waitForSelector('text=Choose a movement');
+  await page.click('button:has-text("Incline DB Press")');
+  await page.waitForSelector('text=How many sets?');
+  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("Next")'); // reps arrives pre-filled
+  await page.click('button:has-text("Next")'); // rpe arrives pre-filled
+  await page.waitForSelector('text=Anything else?');
+  await page.click('button:has-text("Done")');
+  await page.waitForSelector('button:has-text("Add another block")');
+  let txt = await page.textContent('body');
+  assert(/Incline DB Press/.test(txt) && !/DB Bench Press/.test(txt), 'edit should replace the movement in place');
+  // A conditioning block is authored, not hardcoded.
+  await page.click('button:has-text("Add another block")');
+  await page.click('button:has-text("Conditioning")');
+  await page.waitForSelector('text=What kind of conditioning?');
+  const doneDisabled = await page.getAttribute('button:has-text("Done")', 'disabled');
+  assert(doneDisabled !== null, 'cond Done must be gated until a format is picked');
+  await page.click('button:has-text("Steady")');
+  await page.click('button:has-text("Hard")');
+  await page.click('button:has-text("Done")');
+  await page.waitForSelector('button[aria-label="delete block"]');
+  // DELETE the cond block, then the exercise (removing its whole block).
+  await page.click('button[aria-label="delete block"]');
+  await page.click('button[aria-label="delete Incline DB Press"]');
+  txt = await page.textContent('body');
+  assert(!/Incline DB Press/.test(txt), 'delete should remove the row (and its emptied block)');
+  // RENAME reaches the grid.
+  await page.fill('input[aria-label="session name"]', 'Smoke Day Two');
+  await page.click('button:has-text("Done for now")');
+  await page.waitForSelector('text=Week 1');
+  txt = await page.textContent('body');
+  assert(/Smoke Day Two/.test(txt), 'rename should reach the WeekGrid');
+  // CLEAR DAY: two taps, the first arms.
+  await page.click('button[aria-label="clear day 2"]');
+  await page.waitForSelector('button[aria-label="really clear day 2"]');
+  await page.click('button[aria-label="really clear day 2"]');
+  await page.waitForTimeout(150);
+  txt = await page.textContent('body');
+  assert(!/Smoke Day Two/.test(txt), 'clearing should return the day to rest');
+});
+
+await t('the coach note reaches the athlete logger', async () => {
+  // Workout.note is coach-authored; no athlete UI writes it, so seed the
+  // athlete store directly: one workout with a note, one active session
+  // minted from it — then the logger must show "From your coach".
+  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.evaluate(() => {
+    const wId = 'smoke-w1';
+    const set = { t: '5', rpe: '8' };
+    const block = { id: 'smoke-b1', heading: 'Main', exercises: [{ id: 'smoke-e1', name: 'Back Squat', mode: 'reps_kg', sets: [set, set] }] };
+    const db = {
+      workouts: [{ id: wId, name: 'Coached day', note: 'Cap everything at RPE 8 today.', blocks: [block], updatedAt: Date.now() }],
+      sessions: [{
+        id: 'smoke-s1', date: new Date().toISOString().slice(0, 10), name: 'Coached day', status: 'active',
+        blocks: [{ ...block, exercises: block.exercises.map((e) => ({ ...e, sets: e.sets.map((x) => ({ ...x })) })) }],
+        startedAt: Date.now(), workoutId: wId,
+      }],
+      settings: {},
+    };
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+  await page.waitForSelector('text=From your coach');
+  const txt = await page.textContent('body');
+  assert(/Cap everything at RPE 8 today\./.test(txt), 'the note text should render in the panel');
+});
+
 await t('no uncaught page errors across either app', async () => {
   assert(errors.length === 0, errors.join(' | '));
 });
