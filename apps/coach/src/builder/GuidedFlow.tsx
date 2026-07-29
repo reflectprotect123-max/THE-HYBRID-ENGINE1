@@ -79,9 +79,9 @@ export function GuidedFlow({
     } else {
       const target = draft.isWarmup ? 'W' + draft.reps : draft.reps;
       const sets = Array.from({ length: draft.sets }, () => ({ t: target, rpe: draft.isWarmup ? '' : draft.rpe }));
-      // `draft.note` is MoreStep's "Note for the athlete" field — the exact
-      // label ExerciseCard.tsx already uses for `ex.cue` (packages/engine/src
-      // /types.ts), so it belongs on the exercise, not dropped on the floor.
+      // `draft.note` is MoreStep's "Note for the athlete" field — the label
+      // the athlete apps read from `ex.cue` (packages/engine/src/types.ts),
+      // so it belongs on the exercise, not dropped on the floor.
       const ex = { ...newEx(), name: draft.movementName, sets, rest: draft.rest, tempo: draft.tempo, mode: draft.mode, cue: draft.note };
       const block = draft.blockKind === 'warmup' ? newWarmupBlock() : newBlock();
       block.exercises = [ex];
