@@ -10,18 +10,24 @@ import {
   conZoneOf,
   conZones,
   fmtClock,
+  fmtDistance,
+  fmtPace,
+  geoDownsample,
   isCond,
+  paceSecPerKm,
   paramsFor,
   pushCondHistory,
+  totalDistanceM,
   uid,
   zoneSeconds,
   type CondFmtKey,
   type CondResult,
+  type GeoSample,
   type HrSample,
   type Phase,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { buzz, createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
+import { buzz, createGeoTracker, createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
 import { color } from '@hybrid/design';
 import { Btn, Card, Chip, Kicker, Ring, Row, Screen, SectionHead, T, Title, zoneInk, zoneNeon } from '../ui';
@@ -53,10 +59,13 @@ export function ConditioningScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [bpm, setBpm] = useState<number | null>(null);
   const [hrMsg, setHrMsg] = useState('');
+  const [geoMsg, setGeoMsg] = useState('');
   const [result, setResult] = useState<CondResult | null>(null);
   const samples = useRef<HrSample[]>([]);
+  const geoSamples = useRef<GeoSample[]>([]);
   const startedAt = useRef(0);
   const monitor = useRef<ReturnType<typeof createHeartRateMonitor> | null>(null);
+  const geoTracker = useRef<ReturnType<typeof createGeoTracker> | null>(null);
   // The ticker reads the latest beat through a ref. Held in state and listed as
   // a dependency it tore the interval down and rebuilt it on every sample —
   // and a strap notifying at ~1Hz resets a 1s interval before it ever fires, so
@@ -122,6 +131,7 @@ export function ConditioningScreen() {
   // Release the strap and the wake lock if the screen goes away mid-session.
   useEffect(() => () => {
     monitor.current?.stop();
+    geoTracker.current?.stop();
     void setKeepAwake(false);
   }, []);
 
@@ -143,11 +153,19 @@ export function ConditioningScreen() {
     await monitor.current.start(setBpm, (state, msg) =>
       setHrMsg(state === 'connected' ? '' : state === 'scanning' ? 'Looking for your strap…' : msg),
     );
+    geoSamples.current = [];
+    geoTracker.current = createGeoTracker();
+    setGeoMsg('');
+    await geoTracker.current.start(
+      (s) => geoSamples.current.push(s),
+      (state, msg) => setGeoMsg(state === 'tracking' ? '' : msg),
+    );
   };
 
   const finish = () => {
     setLive(false);
     monitor.current?.stop();
+    geoTracker.current?.stop();
     void setKeepAwake(false);
 
     /*
@@ -164,6 +182,7 @@ export function ConditioningScreen() {
 
     const dur = Math.max(1, elapsed);
     const trace = conDownsample(samples.current, dur);
+    const distanceM = totalDistanceM(geoSamples.current);
     const rec: CondResult = {
       id: uid(),
       fmt,
@@ -174,6 +193,13 @@ export function ConditioningScreen() {
       startedAt: startedAt.current,
       hrr: conHrr(trace).hrr,
       trace,
+      ...(distanceM > 0
+        ? {
+            distanceM,
+            avgPaceSecPerKm: paceSecPerKm(distanceM, dur) ?? undefined,
+            route: geoDownsample(geoSamples.current, dur),
+          }
+        : {}),
     };
     setResult(rec);
     void buzz();
@@ -286,6 +312,7 @@ export function ConditioningScreen() {
                 </T>
               )}
               {bpm == null && hrMsg ? <T className="mt-1 text-3 text-muted">{hrMsg}</T> : null}
+              {geoMsg ? <T className="mt-1 text-3 text-muted">{geoMsg}</T> : null}
             </View>
           </Card>
           <Btn variant="brass" size="lg" className="mt-3" onPress={finish}>
@@ -316,6 +343,12 @@ export function ConditioningScreen() {
                 {fmtClock(result.dur ?? 0)} total
                 {result.hrr != null ? ` · HR dropped ${result.hrr}bpm in the minute after peak` : ''}
               </T>
+              {result.distanceM ? (
+                <T num className="mt-0.5 text-3 text-dim">
+                  {fmtDistance(result.distanceM)}
+                  {result.avgPaceSecPerKm ? ` · ${fmtPace(result.avgPaceSecPerKm)}` : ''}
+                </T>
+              ) : null}
             </View>
           </Card>
           <Btn className="mt-2" onPress={() => setResult(null)}>
