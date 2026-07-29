@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CON_FORMATS,
@@ -44,6 +44,14 @@ export function Library() {
   const nav = useNavigate();
   const { db, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
+  const [armDel, setArmDel] = useState<string | null>(null);
+  // An armed delete disarms itself after 5s untouched — same rule as the
+  // coach's Clear day.
+  useEffect(() => {
+    if (!armDel) return;
+    const t = setTimeout(() => setArmDel(null), 5000);
+    return () => clearTimeout(t);
+  }, [armDel]);
   /*
    * Three slices of one library, not three destinations. Sessions are things
    * you START; exercises and mobility are things you LOOK UP. Mixing them in
@@ -149,7 +157,7 @@ export function Library() {
               <Card>
                 <button
                   className="flex w-full items-center gap-1 text-left"
-                  onClick={() => setOpen(open === w.id ? null : w.id)}
+                  onClick={() => { setArmDel(null); setOpen(open === w.id ? null : w.id); }}
                   aria-expanded={open === w.id}
                 >
                   <span className="min-w-0 flex-1 truncate text-5 font-[750]">{w.name || 'Session'}</span>
@@ -185,8 +193,20 @@ export function Library() {
                       <Button size="sm" variant="brass" onClick={() => nav(`/planner/${w.id}`)}>
                         Edit
                       </Button>
-                      <Button size="sm" onClick={() => removeWorkout(w.id)}>
-                        Delete session
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          // First tap arms, second destroys. The delete writes
+                          // a sync tombstone — by design unrecoverable — so it
+                          // must not be reachable by one mis-tap 20px from Edit.
+                          if (armDel === w.id) {
+                            removeWorkout(w.id);
+                            setArmDel(null);
+                          } else setArmDel(w.id);
+                        }}
+                        className={armDel === w.id ? 'border-[color:var(--color-bad)]/40 text-bad' : undefined}
+                      >
+                        {armDel === w.id ? 'Really delete?' : 'Delete session'}
                       </Button>
                     </div>
                   </>
