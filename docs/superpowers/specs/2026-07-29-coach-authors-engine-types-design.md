@@ -98,6 +98,76 @@ exactly as today.
 The athlete Planner already renders every one of these controls. Its patterns
 are the reference; this is not new interaction design.
 
+## Interface design
+
+Five new controls land in an editor that is already dense: `Editor.tsx` is 455
+lines and `ExerciseCard.tsx` 254. Adding five fields to every card would be the
+single most likely way to make this change a downgrade.
+
+**Audit result first.** The existing coach editor was checked against the
+ui-ux-pro-max ruleset — accessibility, forms, React, dark-mode contrast,
+touch targets, motion. It found **nothing to fix**. Every placeholder-carrying
+input already has an `aria-label`; list keys are stable movement names, not
+indices; `:focus-visible` draws a 2px gold outline and
+`prefers-reduced-motion: reduce` collapses transitions to 0.01ms, both in
+`tokens.css`. The rules below are therefore the standard the *new* controls
+must meet, not repairs to old ones.
+
+### Progressive disclosure, because the card is already full
+
+The common path stays primary: a set is a target and an RPE, and that is what
+the card shows. `mode` and `tempo` are per-exercise and rarely changed, so they
+live behind a disclosure on the exercise header rather than as two more cells in
+every set row. The rule this follows is the ruleset's own — *progressive
+disclosure; do not overwhelm upfront* — and it is also why `mode` was
+originally inferred rather than asked for. Making it explicit must not make it
+loud.
+
+### The superset control is a link, not a field
+
+`ssNext` is rendered **between** two exercise cards, not as a checkbox inside
+one. This is not a style preference: it is what the data means. The engine's
+comment on `ssNext` describes a chain from one movement to the *next*, and this
+repo already learned the distinction once — commit `eee00f0`, "Superset is a
+chain BETWEEN two movements, not a row inside one". A checkbox inside a card
+would reproduce exactly the model the block-level flag already got wrong.
+
+The control therefore sits in the gap between cards, is absent after the last
+card (a link from the final exercise points at nothing), and reads as a join
+rather than a property.
+
+### Warm-up and text blocks
+
+A warm-up toggle belongs on the **block**, not the exercise, because that is
+where `warmup` lives in the engine and because the rule it carries — nothing
+inside counts toward anything earned — is a block-level truth.
+
+A text block has no sets, so its card is a heading and a textarea. It must not
+borrow the exercise card's chrome, which would imply structure the block
+deliberately does not have.
+
+### Standing constraints these must not break
+
+- Every new input carries an `aria-label`, matching the house convention the
+  audit confirmed is already universal here.
+- A warm-up set's RPE cell already renders `—` rather than an editable RPE. New
+  controls follow the same disabled-state clarity: if it does not apply, it does
+  not look editable.
+- Touch targets stay ≥44px on coarse pointers. `checks/web-touch.mjs` measures
+  this under both pointer emulations and will fail the build if a new control
+  regresses it, so this needs no vigilance — only no exemptions.
+- No emoji as icons.
+
+### One thing the tool got wrong, recorded so nobody re-runs it
+
+Its `--design-system` generator returned "Webinar Registration" as the pattern
+and "Exaggerated Minimalism" — a fashion and agency-landing-page style — with a
+generic slate/green palette. That output is for greenfield marketing pages and
+would fight `packages/design` directly. It was discarded. Use the tool here for
+targeted rule queries (`--domain ux`, `--stack react`) and for its pre-delivery
+checklist; do not use it to generate a design system for this app, which
+already has one.
+
 ## Data flow
 
 Unchanged. Coach library → `localStorage` (`hybrid-coach-v1`) → publish →
