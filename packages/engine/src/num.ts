@@ -55,6 +55,21 @@ export function fmtRest(s: unknown): string {
   return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
 }
 
+/** "5:12/km" from seconds-per-km. Mirrors fmtRpe/fmtRest's plainness. */
+export function fmtPace(secPerKm: number): string {
+  if (!Number.isFinite(secPerKm) || secPerKm <= 0) return '';
+  const m = Math.floor(secPerKm / 60);
+  const s = Math.round(secPerKm % 60);
+  return m + ':' + String(s).padStart(2, '0') + '/km';
+}
+
+/** "5.2 km" from metres, or "850 m" under a kilometre. */
+export function fmtDistance(m: number): string {
+  if (!Number.isFinite(m) || m <= 0) return '';
+  if (m < 1000) return Math.round(m) + ' m';
+  return (m / 1000).toFixed(1) + ' km';
+}
+
 export interface BarScale {
   /** the value the bottom of the card represents */
   floor: number;

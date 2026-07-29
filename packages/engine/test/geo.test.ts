@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { geoDownsample, haversineM, paceSecPerKm, totalDistanceM } from '../src/geo';
+import { fmtDistance, fmtPace } from '../src/num';
 
 describe('haversineM', () => {
   it('is zero for the same point', () => {
@@ -67,5 +68,34 @@ describe('paceSecPerKm', () => {
   it('computes seconds per kilometre', () => {
     expect(paceSecPerKm(1000, 300)).toBe(300);
     expect(paceSecPerKm(500, 300)).toBe(600);
+  });
+});
+
+describe('fmtPace', () => {
+  it('formats seconds-per-km as m:ss/km', () => {
+    expect(fmtPace(312)).toBe('5:12/km');
+    expect(fmtPace(60)).toBe('1:00/km');
+  });
+
+  it('is blank for a non-positive or non-finite input', () => {
+    expect(fmtPace(0)).toBe('');
+    expect(fmtPace(-10)).toBe('');
+    expect(fmtPace(NaN)).toBe('');
+  });
+});
+
+describe('fmtDistance', () => {
+  it('shows metres under a kilometre', () => {
+    expect(fmtDistance(850)).toBe('850 m');
+  });
+
+  it('shows one decimal of kilometres at or above a kilometre', () => {
+    expect(fmtDistance(5200)).toBe('5.2 km');
+    expect(fmtDistance(1000)).toBe('1.0 km');
+  });
+
+  it('is blank for a non-positive or non-finite input', () => {
+    expect(fmtDistance(0)).toBe('');
+    expect(fmtDistance(NaN)).toBe('');
   });
 });

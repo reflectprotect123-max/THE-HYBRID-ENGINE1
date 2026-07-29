@@ -112,6 +112,8 @@ export interface CondBlock {
   /** kept in lockstep with `effort` so older read paths still work */
   targetZone?: ZoneKey;
   minutes?: number | string;
+  /** coach-authored target, purely a display chip — no progression tie-in */
+  targetDistanceM?: number;
   exercises?: undefined;
   condResult?: CondResult;
 }
@@ -192,6 +194,12 @@ export interface CondResult {
   hrr?: number | null;
   sim?: boolean;
   trace?: Downsampled;
+  /** total metres covered, jitter-filtered — absent means not GPS-tracked */
+  distanceM?: number;
+  /** dur / (distanceM/1000), only ever set alongside distanceM */
+  avgPaceSecPerKm?: number;
+  /** downsampled GPS route, capped like the HR trace */
+  route?: GeoDownsampled;
 }
 
 export interface Downsampled {
