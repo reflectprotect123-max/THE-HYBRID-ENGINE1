@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
-  blockExercises, duplicateExercise, isCond, isText, isWarmupBlock,
+  blockExercises, CON_EFFORTS, duplicateExercise, isCond, isText, isWarmupBlock,
   newBlock, newCondBlock, newEx, newTextBlock, newWarmupBlock, sessionLetters,
-  type ModeKey,
+  type CondFmtKey, type EffortKey, type ModeKey,
 } from '@hybrid/engine';
 import { canAdvance, nextStep, prevStep, stepsFor, type FlowState, type FlowStep } from './flowSteps';
 import { BlockTypeStep } from './steps/BlockTypeStep';
+import { CondDetailStep } from './steps/CondDetailStep';
 import { MovementStep } from './steps/MovementStep';
 import { SetsStep } from './steps/SetsStep';
 import { RepsStep } from './steps/RepsStep';
@@ -26,11 +27,15 @@ interface Draft {
   tempo: string;
   mode: ModeKey;
   note: string;
+  condFmt: CondFmtKey | '';
+  effort: EffortKey;
+  minutes: number;
 }
 
 const EMPTY_DRAFT: Draft = {
   blockKind: null, movementName: '', sets: 3, reps: '', isWarmup: false,
   rpe: '', rest: 90, tempo: '', mode: 'reps_kg', note: '',
+  condFmt: '', effort: 'medium', minutes: 0,
 };
 
 export function GuidedFlow({
@@ -89,13 +94,19 @@ export function GuidedFlow({
 
   /**
    * Turns the draft into a real block, appends it, and returns to the
-   * overview. `cond` is committed directly from BlockTypeStep's onPick
-   * instead — see below — since a conditioning block has nothing left to
-   * author (CondBlock has no note/rest/tempo/mode field to hold a `more`
-   * step's input) and 'more' is never shown for it (flowSteps.ts).
+   * overview. A conditioning block arrives here from the 'cond-detail' step
+   * carrying format/effort/minutes; `targetZone` is kept in lockstep with
+   * `effort` (via CON_EFFORTS) so older read paths keep working.
    */
   const commitBlock = () => {
-    if (draft.blockKind === 'metcon') {
+    if (draft.blockKind === 'cond') {
+      const cb = newCondBlock();
+      if (draft.condFmt) cb.condFmt = draft.condFmt;
+      cb.effort = draft.effort;
+      cb.targetZone = CON_EFFORTS[draft.effort].zone;
+      if (draft.minutes) cb.minutes = draft.minutes;
+      onChange({ ...session, blocks: [...session.blocks, cb] });
+    } else if (draft.blockKind === 'metcon') {
       onChange({ ...session, blocks: [...session.blocks, { ...newTextBlock(), body: draft.note }] });
     } else {
       const target = draft.isWarmup ? 'W' + draft.reps : draft.reps;
@@ -202,19 +213,6 @@ export function GuidedFlow({
         {step === 'block-type' ? (
           <BlockTypeStep
             onPick={(kind) => {
-              if (kind === 'cond') {
-                // Commit immediately: a cond block is complete as soon as its
-                // kind is picked, and going through setDraft + go('next') +
-                // commitBlock would read stale state (setDraft's update
-                // isn't visible until the next render), so this stays a
-                // direct branch rather than a call into commitBlock. Reset
-                // the draft too, so nothing from an abandoned lift/metcon
-                // attempt earlier in the session leaks into the next block.
-                onChange({ ...session, blocks: [...session.blocks, newCondBlock()] });
-                setDraft(EMPTY_DRAFT);
-                setStep('review');
-                return;
-              }
               setDraft((d) => ({ ...d, blockKind: kind }));
               // go('next') would read `flowState`, which is computed from
               // THIS render's `draft` — the setDraft above hasn't landed yet
@@ -236,6 +234,14 @@ export function GuidedFlow({
                 else onClose();
               }
             }}
+          />
+        ) : step === 'cond-detail' ? (
+          <CondDetailStep
+            condFmt={draft.condFmt}
+            effort={draft.effort}
+            minutes={draft.minutes}
+            onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+            onDone={commitBlock}
           />
         ) : step === 'movement' ? (
           <MovementStep
