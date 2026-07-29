@@ -618,7 +618,7 @@ git commit -m "Coach: guided-flow steps — sets, reps, RPE"
 
 **Interfaces:**
 - Consumes: `MODE_KEYS`, `MODES` (`@hybrid/engine`); `useCoachCloud` (`../../cloud`); `assertPublishable` (`../../model`).
-- Produces: `MoreStep({ rest, tempo, mode, note, onChange, onDone }: {...})`, `PublishStep({ sess, onInstructions, onPublish }: {...})` — consumed by Task 7 (`GuidedFlow`). `PublishStep` ports the existing Deliver panel logic straight from `Editor.tsx` (athlete select, scheduled date, validate/publish, the inline toast) rather than reimplementing it.
+- Produces: `MoreStep({ rest, tempo, mode, note, onChange, onDone }: {...})`, `PublishStep({ sess }: { sess: CoachSession })` — consumed by Task 7 (`GuidedFlow`), which renders `<PublishStep sess={session} />` with no other props. `PublishStep` ports the existing Deliver panel logic straight from `Editor.tsx` (athlete select, scheduled date, validate/publish, the inline toast) rather than reimplementing it.
 
 - [ ] **Step 1: Write `MoreStep.tsx`**
 
