@@ -63,6 +63,64 @@ export function newBlock(): StrengthBlock {
 }
 
 /**
+ * Type once, fill the rest — the authoring-side counterpart to
+ * `prefillPrimary`. `newEx` gives every fresh exercise identical blank sets, so
+ * the common case is typing set 1 and having it apply everywhere.
+ *
+ * A later set follows only while it still holds its PRE-edit value. The
+ * instant one is edited independently it diverges, and the chain stops there —
+ * for every set after it too, since a later coincidental match is not evidence
+ * it belongs to the same run. This is `prefillPrimary`'s own rule read
+ * backwards: something already typed must never be overwritten by a
+ * suggestion, and a blank cell is the only thing that counts as untyped.
+ *
+ * Never crosses a warm-up/working boundary, for the same reason `isWarmup`
+ * guards prefill and the in-session adjustment: a warm-up target and a working
+ * target are different claims, however coincidentally similar their strings.
+ */
+export function fillLinkedSets<S extends AnySet>(sets: S[], si: number, key: 't' | 'rpe', value: string): S[] {
+  if (!sets[si]) return sets;
+  const out = sets.slice();
+  const prev = out[si][key];
+  out[si] = { ...out[si], [key]: value };
+
+  const warm = isWarmup(sets[si]);
+  for (let j = si + 1; j < out.length; j++) {
+    const cur = sets[j];
+    if (!cur || isWarmup(cur) !== warm || cur[key] !== prev) break;
+    out[j] = { ...cur, [key]: value };
+  }
+  return out;
+}
+
+/**
+ * Insert a copy of one exercise immediately after itself, with a fresh id.
+ *
+ * The fastest way to build a session with any repeated structure, which is
+ * most of them: a superset pair, unilateral left/right work, a near-identical
+ * accessory. Sets are copied by value, never by reference, so editing the
+ * copy can never reach back into the original.
+ *
+ * The copy never links onward (`ssNext` is always false): defaulting it true
+ * would splice an unrequested link into whatever the array holds next.
+ *
+ * If the ORIGINAL linked onward, that link is cleared rather than left in
+ * place. `ssNext` is purely positional — "link to whatever is next" — so
+ * inserting anything after the original would otherwise silently reroute an
+ * existing chain from its real partner onto the new copy, a change to a link
+ * the coach did not touch by duplicating a different exercise.
+ */
+export function duplicateExercise<S extends AnySet>(exercises: Exercise<S>[], ei: number): Exercise<S>[] {
+  const ex = exercises[ei];
+  if (!ex) return exercises;
+  const out = exercises.slice();
+  if (out[ei].ssNext) out[ei] = { ...out[ei], ssNext: false };
+  const copy: Exercise<S> = { ...ex, id: uid(), ssNext: false, sets: ex.sets.map((s) => ({ ...s })) };
+  out.splice(ei + 1, 0, copy);
+  return out;
+}
+
+/**
  * A conditioning block runs by live heart rate instead of set by set, so it has
  * no exercises; `kind: 'conditioning'` is what tells every path to treat it
  * that way. `effort` is what you author, `targetZone` is kept in lockstep so

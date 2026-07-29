@@ -3,12 +3,10 @@ import { useMemo, useState } from 'react';
 import {
   CON_EFFORTS,
   blockExercises,
-  condEffort,
-  condEffortRpe,
-  fmtRest,
+  duplicateExercise,
+  fillLinkedSets,
   isCond,
   isText,
-  isWarmup,
   knownMovements,
   newBlock,
   newCondBlock,
@@ -16,7 +14,6 @@ import {
   newTextBlock,
   newEx,
   newSet,
-  rxLine,
   sessionLetters,
   type CondFmtKey,
   type EffortKey,
@@ -26,7 +23,11 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Button, Card, Chip, Kicker, LetterChip, cx } from '../ui';
+import { Button, Card, Kicker, cx } from '../ui';
+import { CondBlockCard } from './planner/CondBlockCard';
+import { ExerciseCard } from './planner/ExerciseCard';
+import { SupersetSeam } from './planner/SupersetSeam';
+import { TextBlockCard } from './planner/TextBlockCard';
 
 /*
  * The plan editor — full-screen, and the mirror image of the coach builder.
@@ -35,9 +36,12 @@ import { Button, Card, Chip, Kicker, LetterChip, cx } from '../ui';
  * does, in the same shape, because the athlete app and the coach app share one
  * model. Targets are typed rather than chipped for the same reason as on the
  * coach side: chips cannot express "8-12", a ladder, or a warm-up.
+ *
+ * This file is the SHELL: state, the `edit` call, layout, and the datalists
+ * every movement field shares. Each block kind draws itself — the cards live
+ * in ./planner, one file each, named for what it draws. This file was over
+ * 500 lines before that split, which is more than anyone reads before editing.
  */
-const FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo', 'free'];
-const EFFORTS: EffortKey[] = ['easy', 'medium', 'hard'];
 
 /** Every movement field points at the same list; see the datalist below. */
 const MOVEMENT_LIST_ID = 'known-movements';
@@ -174,70 +178,26 @@ export function Planner() {
             </div>
 
             {isText(b) ? (
-              /* Just words. A metcon is one prescription that does not
-                 decompose into sets without inventing structure, so the app
-                 stores what you wrote and nothing else. The heading above is
-                 already editable, which is where "Metcon" gets renamed. */
-              <Card>
-                <textarea
-                  value={b.body || ''}
-                  readOnly={readOnly}
-                  onChange={(e) =>
-                    edit((d) => void ((d.blocks[bi] as TextBlock).body = e.target.value))
-                  }
-                  rows={5}
-                  placeholder={'AMRAP 12\n10 burpees\n15 KB swings\n200m run'}
-                  aria-label="what the block is"
-                  className="w-full resize-y rounded-md border border-line bg-well px-1 py-1 text-4 leading-relaxed text-text outline-none placeholder:text-dim focus:border-gold-line"
-                />
-                <p className="mt-0.5 text-2 text-dim">
-                  Counts as trained when you tick it. No tonnage, no e1RM — there is nothing here to measure.
-                </p>
-              </Card>
+              <TextBlockCard
+                body={b.body || ''}
+                readOnly={readOnly}
+                onChange={(v) => edit((d) => void ((d.blocks[bi] as TextBlock).body = v))}
+              />
             ) : isCond(b) ? (
-              <Card>
-                <div className="flex items-center gap-1">
-                  <LetterChip letter="♥" />
-                  <span className="flex-1 text-5 font-[750]">{b.condFmt}</span>
-                </div>
-                <p className="mt-0.5 text-3 text-dim">
-                  {condEffort(b).name} · RPE {condEffortRpe(condEffort(b))} · {CON_EFFORTS[condEffort(b).key].cue}
-                </p>
-                {!readOnly ? (
-                  <>
-                    <div className="mt-1.5 flex flex-wrap gap-0.5">
-                      {FORMATS.map((f) => (
-                        <Chip
-                          key={f}
-                          on={b.condFmt === f}
-                          onClick={() => edit((d) => void ((d.blocks[bi] as { condFmt: CondFmtKey }).condFmt = f))}
-                        >
-                          {f}
-                        </Chip>
-                      ))}
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-0.5">
-                      {EFFORTS.map((e) => (
-                        <Chip
-                          key={e}
-                          on={b.effort === e}
-                          onClick={() =>
-                            edit((d) => {
-                              const cb = d.blocks[bi] as { effort: EffortKey; targetZone: string };
-                              cb.effort = e;
-                              // Keep the zone in lockstep — the live engine and
-                              // every older read path go through targetZone.
-                              cb.targetZone = CON_EFFORTS[e].zone;
-                            })
-                          }
-                        >
-                          {CON_EFFORTS[e].name}
-                        </Chip>
-                      ))}
-                    </div>
-                  </>
-                ) : null}
-              </Card>
+              <CondBlockCard
+                b={b}
+                readOnly={readOnly}
+                onFmt={(f) => edit((d) => void ((d.blocks[bi] as { condFmt: CondFmtKey }).condFmt = f))}
+                onEff={(e) =>
+                  edit((d) => {
+                    const cb = d.blocks[bi] as { effort: EffortKey; targetZone: string };
+                    cb.effort = e;
+                    // Keep the zone in lockstep — the live engine and every
+                    // older read path go through targetZone.
+                    cb.targetZone = CON_EFFORTS[e].zone;
+                  })
+                }
+              />
             ) : (
               <div
                 className={cx(
@@ -251,178 +211,73 @@ export function Planner() {
                   const next = exs[ei + 1];
                   return (
                     <div key={ex.id ?? ei} className="mb-1">
-                      <Card className={open ? 'border-gold-line shadow-lift' : undefined}>
-                        <button className="flex w-full items-center gap-1 text-left" onClick={() => setOpenEx(open ? null : key)}>
-                          <LetterChip letter={letters[bi]?.[ei] ?? '?'} />
-                          <span className="min-w-0 flex-1">
-                            <b className="block truncate text-5 font-[750]">{ex.name || 'Exercise'}</b>
-                            <span className="num block truncate text-3 text-dim">{rxLine(ex)}</span>
-                          </span>
-                          <span className="text-6 text-dim">{open ? '▴' : '›'}</span>
-                        </button>
-
-                        {open ? (
-                          <div className="mt-1.5 border-t border-line pt-1.5">
-                            {/* A native datalist: no dependency, no popup to
-                                position, and no inline script — which matters,
-                                because the deployed CSP is script-src self and
-                                `check:csp` fails the build on inline script. */}
-                            <input
-                              value={ex.name}
-                              readOnly={readOnly}
-                              list={readOnly ? undefined : (b as StrengthBlock<LoggedSet>).warmup ? PREP_LIST_ID : MOVEMENT_LIST_ID}
-                              onChange={(e) =>
-                                edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].name = e.target.value))
-                              }
-                              placeholder="Movement"
-                              aria-label="movement name"
-                              className="h-5 w-full rounded-md border border-line bg-well px-1 text-4 outline-none focus:border-gold-line"
-                            />
-
-                            <div className="mt-1.5 flex flex-col gap-1">
-                              {ex.sets.map((st, si) => (
-                                <div key={si} className="flex items-center gap-1">
-                                  <span className={cx('num w-8 shrink-0 text-3 font-[650]', isWarmup(st) ? 'text-gold2' : 'text-dim')}>
-                                    {isWarmup(st) ? 'Warm' : 'Set ' + (si + 1)}
-                                  </span>
-                                  <input
-                                    value={st.t}
-                                    readOnly={readOnly}
-                                    onChange={(e) =>
-                                      edit(
-                                        (d) =>
-                                          void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets[si].t =
-                                            e.target.value),
-                                      )
-                                    }
-                                    placeholder="reps"
-                                    aria-label={`target for set ${si + 1}`}
-                                    className="num h-4 w-14 rounded-md border border-line bg-well px-1 text-center text-4 outline-none focus:border-gold-line"
-                                  />
-                                  <input
-                                    value={st.rpe}
-                                    readOnly={readOnly}
-                                    onChange={(e) =>
-                                      edit(
-                                        (d) =>
-                                          void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets[si].rpe =
-                                            e.target.value),
-                                      )
-                                    }
-                                    placeholder={isWarmup(st) ? '—' : 'RPE'}
-                                    aria-label={`target RPE for set ${si + 1}`}
-                                    className="num h-4 w-12 rounded-md border border-line bg-well px-1 text-center text-4 outline-none focus:border-gold-line"
-                                  />
-                                  {!readOnly && ex.sets.length > 1 ? (
-                                    <button
-                                      onClick={() =>
-                                        edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets.splice(si, 1))
-                                      }
-                                      aria-label={`remove set ${si + 1}`}
-                                      className="h-4 w-4 text-3 text-dim hover:text-bad"
-                                    >
-                                      ✕
-                                    </button>
-                                  ) : null}
-                                </div>
-                              ))}
-                              {!readOnly ? (
-                                <button
-                                  onClick={() =>
-                                    edit((d) =>
-                                      void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets.push(newSet() as LoggedSet),
-                                    )
-                                  }
-                                  className="h-4 w-fit rounded-md border border-dashed border-line2 px-1 text-3 text-muted hover:border-gold-line hover:text-gold2"
-                                >
-                                  ＋ Add set
-                                </button>
-                              ) : null}
-                              <p className="max-w-[46ch] text-3 text-dim">
-                                Type what you want to hit — <b className="text-muted">8</b>,{' '}
-                                <b className="text-muted">8-12</b>, <b className="text-muted">max</b>. Start with{' '}
-                                <b className="text-muted">W</b> for a warm-up (<b className="text-muted">W</b> or{' '}
-                                <b className="text-muted">W10</b>).
-                              </p>
-                            </div>
-
-                            <div className="mt-1.5 flex items-center gap-1">
-                              <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">Rest</span>
-                              {!readOnly ? (
-                                <button
-                                  onClick={() =>
-                                    edit((d) => {
-                                      const e2 = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
-                                      e2.rest = Math.max(0, (e2.rest || 0) - 15);
-                                    })
-                                  }
-                                  className="h-4 w-4 rounded-md border border-line2 bg-panel2 text-5 text-muted"
-                                >
-                                  −
-                                </button>
-                              ) : null}
-                              <span className="num w-10 text-center text-4 font-[750]">{fmtRest(ex.rest || 0)}</span>
-                              {!readOnly ? (
-                                <button
-                                  onClick={() =>
-                                    edit((d) => {
-                                      const e2 = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
-                                      e2.rest = Math.min(3600, (e2.rest || 0) + 15);
-                                    })
-                                  }
-                                  className="h-4 w-4 rounded-md border border-line2 bg-panel2 text-5 text-muted"
-                                >
-                                  +
-                                </button>
-                              ) : null}
-                              {!readOnly ? (
-                                <button
-                                  onClick={() =>
-                                    edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.splice(ei, 1))
-                                  }
-                                  className="ml-auto h-4 rounded-md border border-line2 px-1 text-3 text-dim hover:text-bad"
-                                >
-                                  Remove
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
-                        ) : null}
-                      </Card>
-                      {/* The chain BETWEEN two movements, not a row inside one:
-                          a superset is a relationship, and drawing it as a
-                          property of the first exercise never said which two.
-                          Dashed and quiet when they are separate, solid brass
-                          when they flow on — the coach builder's Seam, same
-                          gesture on the athlete side. */}
+                      <ExerciseCard
+                        ex={ex}
+                        letter={letters[bi]?.[ei] ?? '?'}
+                        open={open}
+                        readOnly={readOnly}
+                        listId={
+                          readOnly
+                            ? undefined
+                            : (b as StrengthBlock<LoggedSet>).warmup
+                              ? PREP_LIST_ID
+                              : MOVEMENT_LIST_ID
+                        }
+                        onToggle={() => setOpenEx(open ? null : key)}
+                        onNameChange={(v) =>
+                          edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].name = v))
+                        }
+                        onSet={(si, k, v) =>
+                          edit((d) => {
+                            const e2 = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
+                            e2.sets = fillLinkedSets(e2.sets, si, k, v);
+                          })
+                        }
+                        onAddSet={() =>
+                          edit(
+                            (d) =>
+                              void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets.push(
+                                newSet() as LoggedSet,
+                              ),
+                          )
+                        }
+                        onDelSet={(si) =>
+                          edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets.splice(si, 1))
+                        }
+                        onRest={(delta) =>
+                          edit((d) => {
+                            const e2 = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
+                            e2.rest = Math.max(0, Math.min(3600, (e2.rest || 0) + delta));
+                          })
+                        }
+                        onDuplicate={() => {
+                          // Open the new copy, not the original left behind —
+                          // that is the one about to be edited.
+                          setOpenEx(`${bi}-${ei + 1}`);
+                          edit(
+                            (d) =>
+                              void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises = duplicateExercise(
+                                (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises,
+                                ei,
+                              )),
+                          );
+                        }}
+                        onRemove={() =>
+                          edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.splice(ei, 1))
+                        }
+                      />
                       {!readOnly && next ? (
-                        <div className="relative flex items-center justify-center py-0.5">
-                          <span aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line2" />
-                          <button
-                            onClick={() =>
-                              edit((d) => {
-                                const t = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
-                                t.ssNext = !t.ssNext;
-                              })
-                            }
-                            role="switch"
-                            aria-checked={!!ex.ssNext}
-                            aria-label={
-                              ex.ssNext
-                                ? `Split the superset between ${ex.name || 'this'} and ${next.name || 'the next'}`
-                                : `Superset ${ex.name || 'this'} with ${next.name || 'the next'}`
-                            }
-                            title={ex.ssNext ? 'split them apart' : 'chain into a superset'}
-                            className={cx(
-                              'relative grid h-3 w-6 place-items-center rounded-pill border transition-colors duration-150',
-                              ex.ssNext
-                                ? 'border-gold text-[#1b1509] [background:var(--brass)]'
-                                : 'border-dashed border-line2 bg-panel2 text-muted hover:border-gold-line hover:text-gold2',
-                            )}
-                          >
-                            <ChainIcon />
-                          </button>
-                        </div>
+                        <SupersetSeam
+                          on={!!ex.ssNext}
+                          exName={ex.name || 'this'}
+                          nextName={next.name || 'the next'}
+                          onClick={() =>
+                            edit((d) => {
+                              const t = (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei];
+                              t.ssNext = !t.ssNext;
+                            })
+                          }
+                        />
                       ) : null}
                     </div>
                   );
@@ -470,16 +325,5 @@ export function Planner() {
         Done
       </Button>
     </div>
-  );
-}
-
-/** Two interlocking links — the same gesture the coach builder uses for a chain. */
-function ChainIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
-      <path d="M9.5 12h5" />
-      <path d="M10 8.5H8a3.5 3.5 0 0 0 0 7h2" />
-      <path d="M14 8.5h2a3.5 3.5 0 0 1 0 7h-2" />
-    </svg>
   );
 }

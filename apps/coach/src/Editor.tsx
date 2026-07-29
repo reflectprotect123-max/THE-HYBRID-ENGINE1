@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ymd, type CondFmtKey, type EffortKey } from '@hybrid/engine';
+import { fillLinkedSets, ymd, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useLib } from './store';
 import { useCoachCloud } from './cloud';
-import { assertPublishable, condSummary, fmtLabel, isCond, letters, newCond, newEx, newBlock, newSet, summary, type CoachBlock, type CoachSession } from './model';
+import { assertPublishable, condSummary, duplicateCoachEx, fmtLabel, isCond, letters, newCond, newEx, newBlock, newSet, summary, type CoachBlock, type CoachSession } from './model';
 import { ADD, BRASS, Field, IconLink, IconSend, MICRO, WELL } from './ui';
 import { ExCard } from './editor/ExerciseCard';
 import { CondCard } from './editor/ConditioningCard';
@@ -270,7 +270,15 @@ export function Editor({
                         onToggle={() => setOpen(open?.b === bi && open?.e === ei ? null : { b: bi, e: ei })}
                         onPick={() => setPick({ b: bi, e: ei })}
                         onSet={(si, key, v) =>
-                          edit((d) => void ((d.blocks[bi] as CoachBlock).ex[ei].sets[si][key] = v))
+                          // Type once, it fills the rest: fillLinkedSets carries the
+                          // edit forward into any later set still at its untouched
+                          // blank default, so a plain 3x5 is one field, not three.
+                          edit((d) => void ((d.blocks[bi] as CoachBlock).ex[ei].sets = fillLinkedSets(
+                            (d.blocks[bi] as CoachBlock).ex[ei].sets,
+                            si,
+                            key,
+                            v,
+                          )))
                         }
                         onAddSet={() => edit((d) => void (d.blocks[bi] as CoachBlock).ex[ei].sets.push(newSet()))}
                         onDelSet={(si) => edit((d) => void (d.blocks[bi] as CoachBlock).ex[ei].sets.splice(si, 1))}
@@ -289,6 +297,12 @@ export function Editor({
                             [arr[ei], arr[j]] = [arr[j], arr[ei]];
                           })
                         }
+                        onDuplicate={() => {
+                          // Open the new copy, not the original left behind —
+                          // that is the one the coach is about to edit.
+                          setOpen({ b: bi, e: ei + 1 });
+                          edit((d) => void ((d.blocks[bi] as CoachBlock).ex = duplicateCoachEx((d.blocks[bi] as CoachBlock).ex, ei)));
+                        }}
                         deleteArmed={armed === 'e' + bi + '-' + ei}
                         armedClass={ARMED_BTN}
                         onDelete={() =>

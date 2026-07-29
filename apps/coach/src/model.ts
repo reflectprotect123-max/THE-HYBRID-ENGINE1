@@ -113,6 +113,25 @@ export const newBlock = (h = 'Main', ex: CoachEx[] = [newEx()], ss = false, mins
   ex,
 });
 
+/**
+ * Insert a copy of one exercise right after itself, with a fresh id.
+ *
+ * A scoped-down twin of the engine's own `duplicateExercise`: the same rule
+ * (fresh id, sets copied by value, never by reference), applied to `CoachEx`
+ * because that shape has no `ssNext` to worry about rerouting — the coach's
+ * only superset control is still the block-level `ss` flag. Once the coach
+ * authors engine types directly, this function is retired in favour of the
+ * shared one.
+ */
+export function duplicateCoachEx(exercises: CoachEx[], ei: number): CoachEx[] {
+  const ex = exercises[ei];
+  if (!ex) return exercises;
+  const out = exercises.slice();
+  const copy: CoachEx = { ...ex, id: uid(), sets: ex.sets.map((s) => ({ ...s })) };
+  out.splice(ei + 1, 0, copy);
+  return out;
+}
+
 export const newCond = (h = 'Finisher', fmt: CondFmtKey = 'intervals', eff: EffortKey = 'medium'): CoachCond => ({
   kind: 'cond',
   h,

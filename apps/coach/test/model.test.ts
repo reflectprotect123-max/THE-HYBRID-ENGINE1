@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migrateLib, sanitizeSession, sessionToWorkout, type CoachSession } from '../src/model';
+import { duplicateCoachEx, migrateLib, sanitizeSession, sessionToWorkout, type CoachEx, type CoachSession } from '../src/model';
 
 /*
  * model.ts is the only pure module in the coach app, and it is the one that
@@ -111,5 +111,39 @@ describe('malformed libraries do not take the app down', () => {
     expect(lib.sel.p).toBeGreaterThanOrEqual(0);
     expect(lib.sel.w).toBeGreaterThanOrEqual(0);
     expect(lib.sel.d).toBeGreaterThanOrEqual(0);
+  });
+});
+
+/*
+ * duplicateCoachEx — a scoped-down twin of the engine's own duplicateExercise,
+ * because CoachEx does not carry ssNext (or mode, or tempo): those only exist
+ * on the athlete side today. Sub-project C — the coach authoring engine types
+ * directly — retires this function entirely in favour of the shared one.
+ */
+describe('duplicateCoachEx', () => {
+  const ex = (name: string, over: Partial<CoachEx> = {}): CoachEx => ({
+    id: 'orig-' + name,
+    name,
+    sets: [{ t: '5', rpe: '8' }],
+    rest: 90,
+    cue: '',
+    ...over,
+  });
+
+  it('inserts a copy immediately after the original, with a fresh id', () => {
+    const out = duplicateCoachEx([ex('Bench'), ex('Row')], 0);
+    expect(out.map((e) => e.name)).toEqual(['Bench', 'Bench', 'Row']);
+    expect(out[1].id).not.toBe(out[0].id);
+  });
+
+  it('copies sets by value, not by reference', () => {
+    const out = duplicateCoachEx([ex('Bench')], 0);
+    out[1].sets[0].t = '10';
+    expect(out[0].sets[0].t).toBe('5');
+  });
+
+  it('returns the original array unchanged for an out-of-range index', () => {
+    const exs = [ex('Bench')];
+    expect(duplicateCoachEx(exs, 5)).toBe(exs);
   });
 });

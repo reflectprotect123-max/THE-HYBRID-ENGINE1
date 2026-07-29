@@ -1,6 +1,6 @@
 import { isWarmup } from '@hybrid/engine';
 import { fmtRest, summary, type CoachEx } from '../model';
-import { IconRight, IconUp, Ltr, MICRO, WELL } from '../ui';
+import { IconCopy, IconRight, IconUp, Ltr, MICRO, WELL } from '../ui';
 
 /*
  * One exercise, as a card.
@@ -26,6 +26,7 @@ export function ExCard({
   onRest,
   onCue,
   onMove,
+  onDuplicate,
   onDelete,
   deleteArmed,
   armedClass,
@@ -41,6 +42,9 @@ export function ExCard({
   onRest: (delta: number) => void;
   onCue: (v: string) => void;
   onMove: (dir: 1 | -1) => void;
+  /** Insert a copy of this exercise right after itself — the fastest way to
+      build a superset pair, unilateral work, or a near-identical accessory. */
+  onDuplicate: () => void;
   onDelete: () => void;
   /** True when this card's delete would destroy the day and awaits a confirming press. */
   deleteArmed: boolean;
@@ -207,6 +211,9 @@ export function ExCard({
           </Ctl>
           <Ctl onClick={() => onMove(1)} label="move down">
             ↓
+          </Ctl>
+          <Ctl onClick={onDuplicate} label="duplicate this exercise">
+            <IconCopy size={13} />
           </Ctl>
           {deleteArmed ? (
             <button
