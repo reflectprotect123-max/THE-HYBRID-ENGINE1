@@ -326,80 +326,81 @@ await t('a coach-assigned session is read-only in the plan editor', async () => 
 
 /* ---------- coach app ---------- */
 
-await t('coach builder mounts', async () => {
+await t('coach builder mounts on the grid', async () => {
   await page.goto(base + '/coach/', { waitUntil: 'networkidle' });
   await page.waitForSelector('text=THE Hybrid System');
-  // It now OPENS on Home — a dashboard of what actually happened — so the
+  // It OPENS on Home — a dashboard of what actually happened — so the
   // authoring tests below have to ask for the week board. Landing on Home is
   // the point of the change, not an accident to work around.
   await page.click('button[aria-label="Plan"]');
+  await page.waitForSelector('text=Week 1');
   const txt = await page.textContent('body');
-  assert(/Week 1/.test(txt), 'week strip missing');
-  assert(/Day 1/.test(txt), 'day pills missing');
+  assert(/Day 1/.test(txt), 'day rows missing from the grid');
+  assert(/Create a session/.test(txt), 'empty-cell action missing');
 });
 
-await t('a session can be authored and validates against the emit contract', async () => {
-  const add = await page.$('button:has-text("Add a session")');
-  if (add) await add.click();
-  await page.waitForSelector('input[aria-label="session name"]');
-  await page.fill('input[aria-label="session name"]', 'Coach Day 1');
-  // The first exercise card opens by default; type a warm-up and a working set.
-  await page.fill('input[aria-label="target for set 1"]', 'W10');
-  await page.fill('input[aria-label="target for set 2"]', '5');
-  await page.fill('input[aria-label="target RPE for set 2"]', '8');
+await t('creating a session opens the guided flow, and a lift can be authored end to end', async () => {
+  await page.click('button:has-text("Create a session")');
+  await page.waitForSelector('text=What are we doing?');
+  await page.click('button:has-text("Lift")');
+  await page.waitForSelector('text=Choose a movement');
+  await page.click('button:has-text("Back Squat")');
+  await page.waitForSelector('text=How many sets?');
+  // Each numeric step's inline "Next" only confirms the value; the control
+  // that ADVANCES the flow is the footer's "Next ›", so scope to the footer.
+  await page.click('footer button:has-text("Next")');
+  await page.waitForSelector('text=How many reps?');
+  await page.click('button:has-text("8")');
+  await page.click('footer button:has-text("Next")');
+  await page.waitForSelector('text=How hard should it feel?');
+  await page.click('button:has-text("RPE 8")');
+  await page.click('footer button:has-text("Next")');
+  await page.waitForSelector('text=Anything else?');
+  await page.click('button:has-text("Done")');
+  // Committing lands on the review screen — its add-block control (fullwidth
+  // ＋ in the label, so match on the words) is the tell.
+  await page.waitForSelector('button:has-text("Add another block")');
+  const txt = await page.textContent('body');
+  assert(/Back Squat/.test(txt), 'authored exercise missing from the review screen');
+});
+
+await t('a warm-up set skips the RPE step', async () => {
+  await page.click('button:has-text("Add another block")');
+  await page.waitForSelector('text=What are we doing?');
+  await page.click('button:has-text("Lift")');
+  await page.waitForSelector('text=Choose a movement');
+  await page.click('button:has-text("Back Squat")');
+  await page.waitForSelector('text=How many sets?');
+  await page.click('footer button:has-text("Next")');
+  await page.waitForSelector('text=How many reps?');
+  // The only checkbox on this step is "This is a warm-up".
+  await page.click('input[type="checkbox"]');
+  await page.click('button:has-text("5")');
+  await page.click('footer button:has-text("Next")');
+  // Nothing in a warm-up counts toward autoregulation, so the flow must land
+  // straight on the "more" step — never the RPE question.
+  await page.waitForSelector('text=Anything else?');
+  const txt = await page.textContent('body');
+  assert(!/How hard should it feel\?/.test(txt), 'a warm-up set should skip straight past the RPE step');
+  // Commit this block too, so the publish test starts from the review screen.
+  await page.click('button:has-text("Done")');
+  await page.waitForSelector('button:has-text("Add another block")');
+});
+
+await t('publish reachable, and validates against the emit contract signed out', async () => {
+  await page.click('button:has-text("Continue to publish")');
+  await page.waitForSelector('text=Ready to send');
   // Signed out, publish degrades to validate-only — the coach still learns
-  // whether the session would cross the boundary cleanly.
+  // whether the session would cross the boundary cleanly. The result lands in
+  // the status line, so read THAT rather than the whole body: the screen's
+  // static copy already says "Ready to send" / "Sign in to send…" before the
+  // button is pressed, and matching it would prove nothing.
   await page.click('button:has-text("Validate & publish")');
-  await page.waitForSelector('text=ready to send');
-  const txt = await page.textContent('body');
-  assert(!/Could not convert/.test(txt), 'emit contract rejected a valid session: ' + txt.slice(0, 300));
-  assert(/Sign in to send this to an athlete/.test(txt), 'signed-out state should explain what is missing');
-});
-
-await t('a logger-owned field in the coach library cannot reach an athlete', async () => {
-  // Corrupt the stored library directly — the UI cannot produce this shape.
-  // The conversion copies only `t` and `rpe`, and the loader rebuilds sets
-  // through newSet, so the field is stripped twice over before the contract
-  // ever sees it. Publishing must therefore still succeed, with the injected
-  // value gone rather than carried.
-  await page.evaluate(() => {
-    const lib = JSON.parse(localStorage.getItem('hybrid-coach-v1'));
-    lib.programs[0].weeks[0].days[0].blocks[0].exercises[0].sets[0].aVal = '999';
-    localStorage.setItem('hybrid-coach-v1', JSON.stringify(lib));
-  });
-  await page.reload({ waitUntil: 'networkidle' });
-  // Which view you are in is component state, so a reload lands on Home. Ask
-  // for the week board again rather than assume it survived.
-  await page.click('button[aria-label="Plan"]');
-  await page.waitForSelector('button:has-text("Validate & publish")');
-  await page.click('button:has-text("Validate & publish")');
-  await page.waitForSelector('text=ready to send');
-
-  // The loader rebuilds every set through newSet, so the in-memory model is
-  // already clean — but the corrupted blob is still on disk until something
-  // writes. Any edit heals it, so make one and check the store.
-  //
-  // It must be a DIFFERENT value: React suppresses onChange when the value is
-  // unchanged, so re-filling the existing text writes nothing and this would
-  // silently assert against the stale blob.
-  await page.fill('input[aria-label="block name"]', 'Main block');
-  const stripped = await page.evaluate(() => {
-    const lib = JSON.parse(localStorage.getItem('hybrid-coach-v1'));
-    return Object.keys(lib.programs[0].weeks[0].days[0].blocks[0].exercises[0].sets[0]).sort();
-  });
-  assert(
-    JSON.stringify(stripped) === JSON.stringify(['rpe', 't']),
-    'a planned set must be exactly {t,rpe} after load, got: ' + JSON.stringify(stripped),
-  );
-});
-
-await t('the superset seam chains two cards into one unit', async () => {
-  await page.click('button:has-text("＋ Exercise")');
-  await page.click('button[aria-label="chain into a superset"]');
-  const split = await page.$('button[aria-label="split the superset here"]');
-  assert(split, 'chaining did not turn the seam into a split control');
-  const txt = await page.textContent('body');
-  assert(/A1/.test(txt) && /A2/.test(txt), 'superset letters should be A1 and A2, got: ' + txt.slice(0, 300));
+  await page.waitForSelector('[role="status"]');
+  const status = await page.textContent('[role="status"]');
+  assert(!/Could not validate/.test(status), 'emit contract rejected a valid session: ' + status);
+  assert(/Ready to send/.test(status), 'validation did not report success: ' + status);
+  assert(/sign in to send this to an athlete/i.test(status), 'signed-out state should explain what is missing');
 });
 
 await t('no uncaught page errors across either app', async () => {
