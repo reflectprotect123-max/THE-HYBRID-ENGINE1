@@ -138,6 +138,8 @@ export interface Workout<S extends AnySet = LoggedSet> {
   assignmentId?: string;
   _rev?: string;
   sample?: boolean;
+  /** Coach instructions, written once and carried with the session. */
+  note?: string;
 }
 
 export type SessionStatus = 'active' | 'completed' | 'incomplete';
