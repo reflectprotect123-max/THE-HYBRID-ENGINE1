@@ -1,5 +1,9 @@
 node_modules/
 
+# Subagent-driven-development scratch — ledgers, briefs, review packages.
+# Per-plan working state, not a project artifact.
+.superpowers/sdd/
+
 # Claude's per-machine state — local settings, caches, session scratch — is
 # noise in a diff and differs per developer. Its SKILLS are the opposite:
 # shared tooling that should arrive with a clone, the same as anything in
