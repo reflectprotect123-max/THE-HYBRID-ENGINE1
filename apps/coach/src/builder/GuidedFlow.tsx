@@ -54,15 +54,27 @@ export function GuidedFlow({
   const go = (dir: 'next' | 'prev') => {
     const s = dir === 'next' ? nextStep(step, flowState) : prevStep(step, flowState);
     if (s) setStep(s);
-    else if (dir === 'prev') onClose();
+    else if (dir === 'prev') {
+      // prevStep is null at index 0 of every sequence, i.e. only ever on
+      // 'block-type'. Re-entering 'block-type' from "＋ Add another block"
+      // on the review screen is index 0 too, so without this check Back
+      // there would exit the WHOLE flow instead of returning to the review
+      // list the coach came from. Only a session with nothing in it yet
+      // (the very first block) has nowhere to go back TO.
+      if (step === 'block-type' && session.blocks.length > 0) setStep('review');
+      else onClose();
+    }
   };
 
-  /** Turns the draft into a real block, appends it, and returns to the overview. */
+  /**
+   * Turns the draft into a real block, appends it, and returns to the
+   * overview. `cond` is committed directly from BlockTypeStep's onPick
+   * instead — see below — since a conditioning block has nothing left to
+   * author (CondBlock has no note/rest/tempo/mode field to hold a `more`
+   * step's input) and 'more' is never shown for it (flowSteps.ts).
+   */
   const commitBlock = () => {
-    if (draft.blockKind === 'cond') {
-      const cb = newCondBlock();
-      onChange({ ...session, blocks: [...session.blocks, cb] });
-    } else if (draft.blockKind === 'metcon') {
+    if (draft.blockKind === 'metcon') {
       onChange({ ...session, blocks: [...session.blocks, { ...newTextBlock(), body: draft.note }] });
     } else {
       const target = draft.isWarmup ? 'W' + draft.reps : draft.reps;
@@ -135,7 +147,22 @@ export function GuidedFlow({
       </header>
       <div className="flex-1">
         {step === 'block-type' ? (
-          <BlockTypeStep onPick={(kind) => { setDraft((d) => ({ ...d, blockKind: kind })); go('next'); }} />
+          <BlockTypeStep
+            onPick={(kind) => {
+              if (kind === 'cond') {
+                // Commit immediately: a cond block is complete as soon as its
+                // kind is picked, and going through setDraft + go('next') +
+                // commitBlock would read stale state (setDraft's update
+                // isn't visible until the next render), so this stays a
+                // direct branch rather than a call into commitBlock.
+                onChange({ ...session, blocks: [...session.blocks, newCondBlock()] });
+                setStep('review');
+                return;
+              }
+              setDraft((d) => ({ ...d, blockKind: kind }));
+              go('next');
+            }}
+          />
         ) : step === 'movement' ? (
           <MovementStep current={draft.movementName} onPick={(name) => { setDraft((d) => ({ ...d, movementName: name })); go('next'); }} />
         ) : step === 'sets' ? (

@@ -15,7 +15,10 @@ describe('stepsFor', () => {
   });
 
   it('conditioning and metcon blocks skip movement/sets/reps/rpe entirely', () => {
-    expect(stepsFor({ blockKind: 'cond', isWarmupSet: false })).toEqual(['block-type', 'more', 'review']);
+    // Conditioning has nowhere to put a note (CondBlock has no such field),
+    // so it skips 'more' too and goes straight to review. Metcon's note IS
+    // wired to TextBlock.body, so it keeps the 'more' step.
+    expect(stepsFor({ blockKind: 'cond', isWarmupSet: false })).toEqual(['block-type', 'review']);
     expect(stepsFor({ blockKind: 'metcon', isWarmupSet: false })).toEqual(['block-type', 'more', 'review']);
   });
 });

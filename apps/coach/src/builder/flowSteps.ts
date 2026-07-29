@@ -7,16 +7,24 @@ export interface FlowState {
 }
 
 const LIFT_SEQUENCE: FlowStep[] = ['block-type', 'movement', 'sets', 'reps', 'rpe', 'more', 'review'];
-const NON_LIFT_SEQUENCE: FlowStep[] = ['block-type', 'more', 'review'];
+const METCON_SEQUENCE: FlowStep[] = ['block-type', 'more', 'review'];
+// A conditioning block (packages/engine/src/types.ts CondBlock) has no field
+// at all to hold a note/rest/tempo/mode, so 'more' is never shown for it —
+// showing that field and then silently dropping whatever was typed into it
+// would be dishonest. Metcon's 'more' step stays: its note IS wired to
+// TextBlock.body.
+const COND_SEQUENCE: FlowStep[] = ['block-type', 'review'];
 
 /**
- * The ordered steps for the current state. A conditioning or metcon block has
- * no movement/sets/reps/RPE to author — it goes straight from "what kind of
- * work" to the free-form "more" step. A warm-up set skips RPE, since nothing
- * in a warm-up counts toward autoregulation (packages/engine/src/autoreg.ts).
+ * The ordered steps for the current state. A conditioning block has nothing
+ * left to author after picking its kind, so it goes straight to the review
+ * screen. A metcon has no movement/sets/reps/RPE, but does have a free-form
+ * "more" step for its note. A warm-up set skips RPE, since nothing in a
+ * warm-up counts toward autoregulation (packages/engine/src/autoreg.ts).
  */
 export function stepsFor(state: FlowState): FlowStep[] {
-  if (state.blockKind === 'cond' || state.blockKind === 'metcon') return NON_LIFT_SEQUENCE;
+  if (state.blockKind === 'cond') return COND_SEQUENCE;
+  if (state.blockKind === 'metcon') return METCON_SEQUENCE;
   return state.isWarmupSet ? LIFT_SEQUENCE.filter((s) => s !== 'rpe') : LIFT_SEQUENCE;
 }
 
