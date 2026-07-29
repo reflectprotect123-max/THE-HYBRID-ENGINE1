@@ -14,6 +14,7 @@ export * from './num';
 export * from './autoreg';
 export * from './plates';
 export * from './hr';
+export * from './geo';
 export * from './conditioning';
 export * from './session';
 export * from './lift';

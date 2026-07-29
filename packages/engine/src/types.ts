@@ -85,6 +85,23 @@ export interface StrengthBlock<S extends AnySet = LoggedSet> {
   exercises: Exercise<S>[];
 }
 
+/** One GPS fix during a tracked conditioning session. */
+export interface GeoSample {
+  /** seconds since session start, matching HrSample's `t` */
+  t: number;
+  lat: number;
+  lon: number;
+}
+
+/**
+ * A downsampled route, stored the same spirit as `Downsampled` (the HR
+ * trace) but carrying coordinate pairs instead of a single number.
+ */
+export interface GeoDownsampled {
+  every: number;
+  pts: ({ lat: number; lon: number } | null)[];
+}
+
 export interface CondBlock {
   id: string;
   kind: 'conditioning';
