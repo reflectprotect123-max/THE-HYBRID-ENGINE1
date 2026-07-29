@@ -1,5 +1,6 @@
-import { isWarmup } from '@hybrid/engine';
-import { fmtRest, summary, type CoachEx } from '../model';
+import { useState } from 'react';
+import { isWarmup, rxLine, MODE_KEYS, MODES, type Exercise, type ModeKey, type PlannedSet } from '@hybrid/engine';
+import { fmtRest } from '../model';
 import { IconCopy, IconRight, IconUp, Ltr, MICRO, WELL } from '../ui';
 
 /*
@@ -25,13 +26,15 @@ export function ExCard({
   onDelSet,
   onRest,
   onCue,
+  onMode,
+  onTempo,
   onMove,
   onDuplicate,
   onDelete,
   deleteArmed,
   armedClass,
 }: {
-  ex: CoachEx;
+  ex: Exercise<PlannedSet>;
   letter: string;
   open: boolean;
   onToggle: () => void;
@@ -41,6 +44,8 @@ export function ExCard({
   onDelSet: (si: number) => void;
   onRest: (delta: number) => void;
   onCue: (v: string) => void;
+  onMode: (m: ModeKey) => void;
+  onTempo: (v: string) => void;
   onMove: (dir: 1 | -1) => void;
   /** Insert a copy of this exercise right after itself — the fastest way to
       build a superset pair, unilateral work, or a near-identical accessory. */
@@ -50,6 +55,7 @@ export function ExCard({
   deleteArmed: boolean;
   armedClass: string;
 }) {
+  const [advanced, setAdvanced] = useState(false);
   const COLS = 'grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)_40px]';
   const CELL =
     'num w-full border-l border-line bg-transparent px-1 py-1 text-5 font-[750] outline-none ' +
@@ -63,7 +69,7 @@ export function ExCard({
           <Ltr>{letter}</Ltr>
           <span className="min-w-0 flex-1">
             <b className="block truncate text-5 font-[750]">{ex.name || 'Exercise'}</b>
-            <span className="num mt-0.5 block truncate text-3 text-muted">{summary(ex)}</span>
+            <span className="num mt-0.5 block truncate text-3 text-muted">{rxLine(ex)}</span>
           </span>
           <span className="num shrink-0 text-3 font-[750] text-dim">{ex.sets.length} sets</span>
           <span className="shrink-0 text-dim" aria-hidden="true">
@@ -89,7 +95,7 @@ export function ExCard({
               ✎
             </span>
           </button>
-          <span className="num mt-0.5 block truncate text-3 text-muted">{summary(ex)}</span>
+          <span className="num mt-0.5 block truncate text-3 text-muted">{rxLine(ex)}</span>
         </span>
         <button
           onClick={onToggle}
@@ -166,6 +172,43 @@ export function ExCard({
             <b className="text-muted">W</b> or <b className="text-muted">W10</b>). A different number per set makes a
             ladder.
           </p>
+
+          <button
+            onClick={() => setAdvanced((a) => !a)}
+            aria-expanded={advanced}
+            className="mt-1 text-2 font-[650] text-muted hover:text-gold2"
+          >
+            {advanced ? '▴ Fewer options' : '▾ Mode, tempo'}
+          </button>
+          {advanced ? (
+            <div className="mt-1 flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-0.5">
+                <span className={MICRO}>Mode</span>
+                <select
+                  value={ex.mode}
+                  onChange={(e) => onMode(e.target.value as ModeKey)}
+                  aria-label="exercise mode"
+                  className={WELL + ' h-4 px-1 text-3'}
+                >
+                  {MODE_KEYS.map((m) => (
+                    <option key={m} value={m}>
+                      {MODES[m].label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={MICRO}>Tempo</span>
+                <input
+                  value={ex.tempo || ''}
+                  onChange={(e) => onTempo(e.target.value)}
+                  placeholder="3-1-1-0"
+                  aria-label="tempo"
+                  className={WELL + ' h-4 w-16 px-1 text-3'}
+                />
+              </label>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-start gap-2">
@@ -179,7 +222,7 @@ export function ExCard({
               >
                 −
               </button>
-              <span className="num grid min-w-10 place-items-center px-1 text-5 font-[800]">{fmtRest(ex.rest)}</span>
+              <span className="num grid min-w-10 place-items-center px-1 text-5 font-[800]">{fmtRest(ex.rest || 0)}</span>
               <button
                 onClick={() => onRest(15)}
                 aria-label="more rest"
