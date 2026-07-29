@@ -31,6 +31,7 @@ import { buzz, createGeoTracker, createHeartRateMonitor, setKeepAwake } from '..
 import type { RootStackParams } from '../App';
 import { color } from '@hybrid/design';
 import { Btn, Card, Chip, Kicker, Ring, Row, Screen, SectionHead, T, Title, zoneInk, zoneNeon } from '../ui';
+import { RouteMap } from '../ui/RouteMap';
 
 /*
  * Conditioning, run by live heart rate off a real strap.
@@ -313,6 +314,11 @@ export function ConditioningScreen() {
               )}
               {bpm == null && hrMsg ? <T className="mt-1 text-3 text-muted">{hrMsg}</T> : null}
               {geoMsg ? <T className="mt-1 text-3 text-muted">{geoMsg}</T> : null}
+              {geoSamples.current.length > 1 ? (
+                <View className="mt-1">
+                  <RouteMap route={geoDownsample(geoSamples.current, elapsed)} live />
+                </View>
+              ) : null}
             </View>
           </Card>
           <Btn variant="brass" size="lg" className="mt-3" onPress={finish}>

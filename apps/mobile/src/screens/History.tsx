@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { blockExercises, byMonth, dayLabel, epley, fmtDistance, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Card, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
+import { RouteMap } from '../ui/RouteMap';
 
 export function HistoryScreen() {
   const { db } = useDb();
@@ -83,7 +84,13 @@ function Detail({ s }: { s: Session }) {
               {b.condResult?.dur ? ` · ${Math.round(b.condResult.dur / 60)} min` : ''}
               {b.condResult?.distanceM ? ` · ${fmtDistance(b.condResult.distanceM)}` : ''}
             </T>
-          ) : (
+          ) : null}
+          {isCond(b) && b.condResult?.route ? (
+            <View className="mt-1">
+              <RouteMap route={b.condResult.route} />
+            </View>
+          ) : null}
+          {!isCond(b) ? (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
               const logged = ex.sets.filter((st) => st.done);
               if (!logged.length) return null;
@@ -101,7 +108,7 @@ function Detail({ s }: { s: Session }) {
                 </View>
               );
             })
-          )}
+          ) : null}
         </View>
       ))}
     </View>

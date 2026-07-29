@@ -19,6 +19,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Btn, Card, Kicker, Screen, SectionHead, T, Title } from '../ui';
+import { RouteMap } from '../ui/RouteMap';
 import type { RootStackParams } from '../App';
 
 /* PRs first, because that is the thing worth knowing; then the honest totals.
@@ -138,7 +139,13 @@ export function RecapScreen() {
               {b.condResult?.avgPaceSecPerKm ? ` · ${fmtPace(b.condResult.avgPaceSecPerKm)}` : ''}
               {b.condResult?.hrr != null ? ` · HRR ${b.condResult.hrr}bpm` : ''}
             </T>
-          ) : (
+          ) : null}
+          {isCond(b) && b.condResult?.route ? (
+            <View className="mt-1">
+              <RouteMap route={b.condResult.route} />
+            </View>
+          ) : null}
+          {!isCond(b) ? (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
               const done = ex.sets.filter((st) => st.done);
               if (!done.length) return null;
@@ -159,7 +166,7 @@ export function RecapScreen() {
                 </View>
               );
             })
-          )}
+          ) : null}
         </Card>
       ))}
 
