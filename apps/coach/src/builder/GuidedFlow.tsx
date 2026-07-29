@@ -62,6 +62,10 @@ export function GuidedFlow({
   // review screen's per-block "＋ Add exercise") rather than creating a new
   // one — this is how a real A1/A2 superset gets its second movement.
   const [targetBlock, setTargetBlock] = useState<number | null>(null);
+  // When set, the flow is EDITING this existing exercise (the review screen's
+  // tap-the-name path): the steps run pre-filled from the row's current
+  // values, and commit replaces the row in place instead of appending.
+  const [editTarget, setEditTarget] = useState<{ bi: number; ei: number } | null>(null);
   const flowState: FlowState = { blockKind: draft.blockKind, isWarmupSet: draft.isWarmup };
 
   const go = (dir: 'next' | 'prev') => {
@@ -70,10 +74,12 @@ export function GuidedFlow({
     // authoritative backstop, not the only defense.
     if (dir === 'next' && !canAdvance(step, draft)) return;
     // Backing out of the movement picker while appending to an existing
-    // block returns to the review screen — 'block-type' would offer to
-    // change the kind of a block that already exists.
-    if (dir === 'prev' && step === 'movement' && targetBlock != null) {
+    // block — or while editing an existing exercise — returns to the review
+    // screen: 'block-type' would offer to change the kind of a block that
+    // already exists.
+    if (dir === 'prev' && step === 'movement' && (targetBlock != null || editTarget != null)) {
       setTargetBlock(null);
+      setEditTarget(null);
       setDraft(EMPTY_DRAFT);
       setStep('review');
       return;
@@ -115,8 +121,18 @@ export function GuidedFlow({
       // the athlete apps read from `ex.cue` (packages/engine/src/types.ts),
       // so it belongs on the exercise, not dropped on the floor.
       const ex = { ...newEx(), name: draft.movementName, sets, rest: draft.rest, tempo: draft.tempo, mode: draft.mode, cue: draft.note };
+      const editing = editTarget != null ? session.blocks[editTarget.bi] : null;
       const existing = targetBlock != null ? session.blocks[targetBlock] : null;
-      if (existing && !isCond(existing) && !isText(existing)) {
+      if (editing && !isCond(editing) && !isText(editing)) {
+        // Editing an existing row (the tap-the-name path): replace in place.
+        // Keep the row's id and chain flag — editing a movement must not
+        // break an existing A1/A2 pairing or remount the row.
+        const exs = [...blockExercises(editing)];
+        exs[editTarget!.ei] = { ...ex, id: exs[editTarget!.ei].id, ssNext: exs[editTarget!.ei].ssNext };
+        const blocks = [...session.blocks];
+        blocks[editTarget!.bi] = { ...editing, exercises: exs };
+        onChange({ ...session, blocks });
+      } else if (existing && !isCond(existing) && !isText(existing)) {
         // Appending to an existing block (the "＋ Add exercise" path): the
         // new movement joins the block's exercise list, where the chain seam
         // can then pair it into an A1/A2 superset.
@@ -130,6 +146,7 @@ export function GuidedFlow({
       }
     }
     setTargetBlock(null);
+    setEditTarget(null);
     setDraft(EMPTY_DRAFT);
     setStep('review');
   };
@@ -178,6 +195,52 @@ export function GuidedFlow({
           setTargetBlock(bi);
           setStep('movement');
         }}
+        onEditExercise={(bi, ei) => {
+          const b = session.blocks[bi];
+          if (isCond(b) || isText(b)) return;
+          const ex = blockExercises(b)[ei];
+          if (!ex) return;
+          // Pre-fill every step from the row's current values, then walk the
+          // same steps — commit replaces the row (see commitBlock).
+          const allWarm = ex.sets.length > 0 && ex.sets.every((st) => /^\s*w/i.test(st.t));
+          const first = ex.sets[0];
+          setDraft({
+            blockKind: isWarmupBlock(b) ? 'warmup' : 'lift',
+            movementName: ex.name,
+            sets: Math.max(1, ex.sets.length),
+            reps: first ? first.t.replace(/^\s*w/i, '') : '',
+            isWarmup: allWarm,
+            rpe: first?.rpe ?? '',
+            rest: ex.rest ?? 90,
+            tempo: ex.tempo ?? '',
+            mode: ex.mode,
+            note: ex.cue ?? '',
+            condFmt: '', effort: 'medium', minutes: 0,
+          });
+          setEditTarget({ bi, ei });
+          setStep('movement');
+        }}
+        onDeleteExercise={(bi, ei) => {
+          const b = session.blocks[bi];
+          if (isCond(b) || isText(b)) return;
+          const exs = blockExercises(b).filter((_, i) => i !== ei);
+          const blocks = [...session.blocks];
+          if (!exs.length) {
+            // A strength block with nothing in it has no reason to stay.
+            blocks.splice(bi, 1);
+          } else {
+            // The last row can't chain into anything below it.
+            exs[exs.length - 1] = { ...exs[exs.length - 1], ssNext: undefined };
+            blocks[bi] = { ...b, exercises: exs };
+          }
+          onChange({ ...session, blocks });
+        }}
+        onDeleteBlock={(bi) => {
+          const blocks = [...session.blocks];
+          blocks.splice(bi, 1);
+          onChange({ ...session, blocks });
+        }}
+        onRename={(name) => onChange({ ...session, name })}
         onDuplicate={(bi, ei) => {
           const b = session.blocks[bi];
           if (isCond(b) || isText(b)) return;
@@ -286,12 +349,16 @@ export function GuidedFlow({
 /** The session overview reached at the end of the flow — the same block/exercise
  *  list and superset seam Editor.tsx had, just as this flow's landing screen. */
 function ReviewScreen({
-  session, letters, onAddBlock, onAddExercise, onDuplicate, onChainToggle, onPublish, onClose,
+  session, letters, onAddBlock, onAddExercise, onEditExercise, onDeleteExercise, onDeleteBlock, onRename, onDuplicate, onChainToggle, onPublish, onClose,
 }: {
   session: CoachSession;
   letters: Record<number, string[]>;
   onAddBlock: () => void;
   onAddExercise: (blockIndex: number) => void;
+  onEditExercise: (blockIndex: number, exIndex: number) => void;
+  onDeleteExercise: (blockIndex: number, exIndex: number) => void;
+  onDeleteBlock: (blockIndex: number) => void;
+  onRename: (name: string) => void;
   onDuplicate: (blockIndex: number, exIndex: number) => void;
   onChainToggle: (blockIndex: number, exIndex: number) => void;
   onPublish: () => void;
@@ -301,18 +368,35 @@ function ReviewScreen({
     <div className="flex min-h-full flex-col gap-2 p-3">
       <header className="flex items-center gap-1">
         <button onClick={onClose} className={GHOST}>‹ Done for now</button>
-        <h1 className="ml-1 text-7 font-[800]">{session.name || 'Session'}</h1>
+        <input
+          value={session.name}
+          onChange={(e) => onRename(e.target.value)}
+          aria-label="session name"
+          placeholder="Session"
+          className="ml-1 min-w-0 flex-1 bg-transparent text-7 font-[800] outline-none focus:text-gold2"
+        />
       </header>
       {session.blocks.map((b, bi) => (
         <section key={b.id} className="rounded-md border border-line p-2">
-          <div className={'text-3 font-[750] uppercase tracking-[.12em] text-gold2'}>{b.heading || 'Block'}</div>
-          {isCond(b) || isText(b) ? null : (
+          {isCond(b) || isText(b) ? (
+            <div className="flex items-center gap-1">
+              <div className={'text-3 font-[750] uppercase tracking-[.12em] text-gold2'}>{b.heading || 'Block'}</div>
+              <button onClick={() => onDeleteBlock(bi)} aria-label="delete block" className={GHOST + ' ml-auto'}>✕</button>
+            </div>
+          ) : (
             <>
+              <div className={'text-3 font-[750] uppercase tracking-[.12em] text-gold2'}>{b.heading || 'Block'}</div>
               <ul className="mt-1 flex flex-col gap-1">
                 {blockExercises(b).map((ex, ei, exs) => (
                   <li key={ex.id} className="flex items-center gap-1">
                     <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
-                    <span className="min-w-0 flex-1 truncate text-4">{ex.name || 'Exercise'}</span>
+                    <button
+                      onClick={() => onEditExercise(bi, ei)}
+                      aria-label={'edit ' + (ex.name || 'exercise')}
+                      className="min-w-0 flex-1 truncate text-left text-4 hover:text-gold2"
+                    >
+                      {ex.name || 'Exercise'}
+                    </button>
                     <button onClick={() => onDuplicate(bi, ei)} className={GHOST}>Duplicate</button>
                     {/* ssNext chains an exercise to the one BELOW it — the
                         last row has nothing below, so no seam is offered
@@ -320,6 +404,7 @@ function ReviewScreen({
                     {ei < exs.length - 1 ? (
                       <button onClick={() => onChainToggle(bi, ei)} className={GHOST}>{ex.ssNext ? 'Split' : 'Chain'}</button>
                     ) : null}
+                    <button onClick={() => onDeleteExercise(bi, ei)} aria-label={'delete ' + (ex.name || 'exercise')} className={GHOST}>✕</button>
                   </li>
                 ))}
               </ul>
