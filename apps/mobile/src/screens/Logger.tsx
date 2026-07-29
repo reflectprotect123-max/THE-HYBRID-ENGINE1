@@ -192,7 +192,9 @@ export function LoggerScreen({ route, navigation }: Props) {
       // was actually typed. Writing it unconditionally blanks a previously
       // logged value on every mode that renders a single input.
       if (v2 !== '' || dex.mode === 'reps_kg' || dex.mode === 'reps_seconds') dst.aVal2 = sanNumStr(v2);
-      dst.felt = fmtRpe(rpe);
+      // A warm-up is never rated — same rule as web: no wasted tap, and no
+      // fabricated 7.5 stored as if the athlete rated it.
+      if (!isWarmup(dst)) dst.felt = fmtRpe(rpe);
       dst.done = true;
 
       // A warm-up must never move the working weight.
@@ -487,7 +489,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                   ) : null}
                 </View>
 
-                <Btn variant="brass" size="lg" className="mt-2" onPress={() => setPhase('rpe')}>
+                <Btn variant="brass" size="lg" className="mt-2" onPress={() => (st && isWarmup(st) ? confirmSet() : setPhase('rpe'))}>
                   Finish Set
                 </Btn>
               </>

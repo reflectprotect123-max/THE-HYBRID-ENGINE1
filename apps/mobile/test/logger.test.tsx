@@ -205,3 +205,27 @@ describe('coach instructions', () => {
     expect(screen.queryByText('From your coach')).toBeNull();
   });
 });
+
+describe('warm-up sets and RPE', () => {
+  it('a warm-up set confirms directly — no RPE stage, no felt recorded', () => {
+    const w = liftWorkout('Back squat', 2);
+    (w.blocks[0] as StrengthBlock).exercises[0].sets[0].t = 'W10';
+    const s: Session = {
+      id: uid(), date: ymd(new Date()), name: 'Lower', status: 'active',
+      blocks: freshSessionBlocks(w.blocks), startedAt: Date.now(), workoutId: w.id,
+    };
+    seed({ workouts: [w], sessions: [s] });
+    mount();
+    fireEvent.changeText(screen.getByLabelText('kg'), '60');
+    fireEvent.changeText(screen.getByLabelText('reps'), '10');
+    fireEvent.press(screen.getByText('Finish Set'));
+    // No rating stage for a warm-up: the set is already confirmed.
+    expect(screen.queryByText(/How hard was that/i)).toBeNull();
+    // Writes are debounce-coalesced (400ms) — flush before reading disk.
+    act(() => jest.advanceTimersByTime(500));
+    const stored = persisted().sessions.find((x) => x.id === s.id)!;
+    const st = (stored.blocks[0] as StrengthBlock).exercises[0].sets[0];
+    expect(st.done).toBe(true);
+    expect(st.felt).toBeUndefined();
+  });
+});

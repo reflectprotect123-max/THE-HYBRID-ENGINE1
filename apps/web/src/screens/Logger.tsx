@@ -190,7 +190,10 @@ export function Logger() {
       // reload.
       dst.aVal = lift ? sanNumStr(v1) : String(v1 || '').trim();
       if (v2 !== '' || dex.mode === 'reps_kg' || dex.mode === 'reps_seconds') dst.aVal2 = sanNumStr(v2);
-      dst.felt = fmtRpe(rpe);
+      // A warm-up is never rated: the engine ignores warm-up RPE everywhere
+      // (sessionRpe, autoregulation), so asking was one wasted tap — and the
+      // untouched 7.5 default then displayed as data the athlete never gave.
+      if (!isWarmup(dst)) dst.felt = fmtRpe(rpe);
       dst.done = true;
 
       // A warm-up at RPE 4 would otherwise tell the engine to add weight, and a
@@ -398,7 +401,7 @@ export function Logger() {
                   onTogglePlates={() => setPlatesOpen((o) => !o)}
                 />
 
-                <Button variant="brass" size="lg" className="mt-2 w-full" onClick={() => setPhase('rpe')}>
+                <Button variant="brass" size="lg" className="mt-2 w-full" onClick={() => (st && isWarmup(st) ? confirmSet() : setPhase('rpe'))}>
                   Finish Set
                 </Button>
               </>
