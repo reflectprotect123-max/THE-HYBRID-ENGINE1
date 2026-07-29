@@ -7,6 +7,7 @@ import {
   bestE1rmByLift,
   conZones,
   fmtClock,
+  fmtDistance,
   isCond,
   condEfforts,
   insights,
@@ -39,6 +40,7 @@ export function ProgressScreen() {
 
   const weeks = useMemo(() => weekly(db.sessions, 8), [db.sessions]);
   const zoneWeek = useMemo(() => thisWeek(db.sessions, db.settings), [db.sessions, db.settings]);
+  const distWeek = useMemo(() => distanceThisWeek(db.sessions, db.settings), [db.sessions, db.settings]);
 
   const whoopHist = useMemo(
     () =>
@@ -280,6 +282,9 @@ export function ProgressScreen() {
                 value={fmtClock(zoneWeek[k])}
               />
             ))}
+            {distWeek > 0 ? (
+              <T num className="mt-1 border-t border-line pt-1 text-3 text-dim">{fmtDistance(distWeek)} this week</T>
+            ) : null}
           </Card>
         </>
       ) : null}
@@ -480,4 +485,11 @@ function thisWeek(sessions: Session[], settings: { conditioning?: CondResult[] }
       });
     });
   return acc;
+}
+
+function distanceThisWeek(sessions: Session[], settings: { conditioning?: CondResult[] }): number {
+  const since = Date.now() - 7 * 864e5;
+  return condEfforts(sessions, settings)
+    .filter((r) => (r.startedAt || 0) >= since)
+    .reduce((sum, r) => sum + (r.distanceM || 0), 0);
 }

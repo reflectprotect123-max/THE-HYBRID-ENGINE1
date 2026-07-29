@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { blockExercises, byMonth, dayLabel, epley, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
+import { blockExercises, byMonth, dayLabel, epley, fmtDistance, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Card, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
 
@@ -81,6 +81,7 @@ function Detail({ s }: { s: Session }) {
             <T num className="text-4 text-muted">
               {b.condFmt}
               {b.condResult?.dur ? ` · ${Math.round(b.condResult.dur / 60)} min` : ''}
+              {b.condResult?.distanceM ? ` · ${fmtDistance(b.condResult.distanceM)}` : ''}
             </T>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
