@@ -1,4 +1,4 @@
-import { CON_EFFORTS, CON_EFFORT_KEYS, CON_FORMATS, CON_FORMAT_KEYS, condEffortRpe, type CondFmtKey, type EffortKey } from '@hybrid/engine';
+import { CON_EFFORTS, CON_EFFORT_KEYS, CON_FORMATS, CON_FORMAT_KEYS, condEffortRpe, fmtDistance, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { IconRight, IconUp, Ltr, MICRO } from '../ui';
 
 /*
@@ -10,20 +10,24 @@ import { IconRight, IconUp, Ltr, MICRO } from '../ui';
 export function CondCard({
   fmt,
   eff,
+  targetDistanceM,
   open,
   onToggle,
   onFmt,
   onEff,
+  onTargetDistance,
 }: {
   fmt: CondFmtKey;
   eff: EffortKey;
+  targetDistanceM?: number;
   open: boolean;
   onToggle: () => void;
   onFmt: (v: CondFmtKey) => void;
   onEff: (v: EffortKey) => void;
+  onTargetDistance: (v: number | undefined) => void;
 }) {
   const label = CON_FORMATS[fmt].name;
-  const sum = `${CON_EFFORTS[eff].name} · ${CON_EFFORTS[eff].cue} · runs by heart rate`;
+  const sum = `${CON_EFFORTS[eff].name} · ${CON_EFFORTS[eff].cue} · runs by heart rate${targetDistanceM ? ` · Target ${fmtDistance(targetDistanceM)}` : ''}`;
 
   return (
     <section
@@ -64,6 +68,24 @@ export function CondCard({
                 </Pill>
               ))}
             </div>
+          </div>
+          <div>
+            <div className={MICRO + ' mb-1'}>Target distance (optional)</div>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              inputMode="decimal"
+              value={targetDistanceM ? String(targetDistanceM / 1000) : ''}
+              onChange={(e) => {
+                const km = parseFloat(e.target.value);
+                onTargetDistance(Number.isFinite(km) && km > 0 ? Math.round(km * 1000) : undefined);
+              }}
+              placeholder="5"
+              aria-label="target distance in kilometres"
+              className="h-4 w-20 rounded-sm border border-line2 bg-panel3 px-1 text-3 outline-none focus:border-gold-line"
+            />
+            <span className="ml-1 text-2 text-dim">km</span>
           </div>
         </div>
       ) : null}

@@ -277,6 +277,7 @@ export function Editor({
                 <CondCard
                   fmt={b.condFmt}
                   eff={condEffort(b).key}
+                  targetDistanceM={b.targetDistanceM}
                   open={open?.b === bi}
                   onToggle={() => setOpen(open?.b === bi ? null : { b: bi, e: 0 })}
                   onFmt={(v) => edit((d) => void ((d.blocks[bi] as never as { condFmt: CondFmtKey }).condFmt = v))}
@@ -286,6 +287,9 @@ export function Editor({
                       cb.effort = v;
                       cb.targetZone = CON_EFFORTS[v].zone;
                     })
+                  }
+                  onTargetDistance={(v) =>
+                    edit((d) => void ((d.blocks[bi] as never as { targetDistanceM?: number }).targetDistanceM = v))
                   }
                 />
               ) : (

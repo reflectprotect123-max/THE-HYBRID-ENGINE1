@@ -101,6 +101,18 @@ describe('assertPublishable is now a thin validation pass, not a translation', (
     const w = assertPublishable(empty);
     expect(w.blocks.length).toBe(1);
   });
+
+  it('a conditioning block carries an authored target distance through', () => {
+    const s: CoachSession = {
+      id: 'w1',
+      name: 'Row day',
+      blocks: [
+        { id: 'b1', kind: 'conditioning', heading: 'Row', condFmt: 'steady', effort: 'medium', targetZone: 'mod', minutes: 20, targetDistanceM: 5000 },
+      ],
+    };
+    const w = assertPublishable(s);
+    expect((w.blocks[0] as { targetDistanceM?: number }).targetDistanceM).toBe(5000);
+  });
 });
 
 describe('newSession', () => {
