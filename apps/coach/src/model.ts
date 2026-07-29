@@ -100,7 +100,7 @@ const sVal = (v: unknown): string =>
  * Only used here, at migration time, for exactly that reason: a FRESH
  * exercise is authored with an explicit mode from the moment it exists
  * (defaulting to reps_kg via the engine's own `newEx`), so this heuristic —
- * the same one `toAthleteEx` used to run on every publish — only has
+ * the same one the old publish-time conversion used to run — only has
  * migrated data left to apply to.
  *
  * The `> 30` test is what separates a duration from a rep count: nobody

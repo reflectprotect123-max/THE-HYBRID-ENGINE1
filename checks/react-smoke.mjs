@@ -364,7 +364,7 @@ await t('a logger-owned field in the coach library cannot reach an athlete', asy
   // value gone rather than carried.
   await page.evaluate(() => {
     const lib = JSON.parse(localStorage.getItem('hybrid-coach-v1'));
-    lib.programs[0].weeks[0].days[0].blocks[0].ex[0].sets[0].aVal = '999';
+    lib.programs[0].weeks[0].days[0].blocks[0].exercises[0].sets[0].aVal = '999';
     localStorage.setItem('hybrid-coach-v1', JSON.stringify(lib));
   });
   await page.reload({ waitUntil: 'networkidle' });
@@ -385,7 +385,7 @@ await t('a logger-owned field in the coach library cannot reach an athlete', asy
   await page.fill('input[aria-label="block name"]', 'Main block');
   const stripped = await page.evaluate(() => {
     const lib = JSON.parse(localStorage.getItem('hybrid-coach-v1'));
-    return Object.keys(lib.programs[0].weeks[0].days[0].blocks[0].ex[0].sets[0]).sort();
+    return Object.keys(lib.programs[0].weeks[0].days[0].blocks[0].exercises[0].sets[0]).sort();
   });
   assert(
     JSON.stringify(stripped) === JSON.stringify(['rpe', 't']),
