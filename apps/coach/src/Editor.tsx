@@ -247,14 +247,18 @@ export function Editor({
 
               {isCond(b) ? (
                 <CondCard
-                  fmt={b.fmt}
-                  eff={b.eff}
+                  fmt={b.condFmt}
+                  eff={b.effort}
                   open={open?.b === bi}
-                  summary={condSummary(b)}
-                  label={fmtLabel(b.fmt)}
                   onToggle={() => setOpen(open?.b === bi ? null : { b: bi, e: 0 })}
-                  onFmt={(v) => edit((d) => void ((d.blocks[bi] as never as { fmt: CondFmtKey }).fmt = v))}
-                  onEff={(v) => edit((d) => void ((d.blocks[bi] as never as { eff: EffortKey }).eff = v))}
+                  onFmt={(v) => edit((d) => void ((d.blocks[bi] as never as { condFmt: CondFmtKey }).condFmt = v))}
+                  onEff={(v) =>
+                    edit((d) => {
+                      const cb = d.blocks[bi] as never as { effort: EffortKey; targetZone: string };
+                      cb.effort = v;
+                      cb.targetZone = CON_EFFORTS[v].zone;
+                    })
+                  }
                 />
               ) : (
                 /* A chained block gets the concept mock's gold rail rather than

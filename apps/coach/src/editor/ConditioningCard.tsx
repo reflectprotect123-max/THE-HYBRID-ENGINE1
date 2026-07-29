@@ -1,5 +1,4 @@
-import { type CondFmtKey, type EffortKey } from '@hybrid/engine';
-import { COND_FORMATS, EFFORTS } from '../model';
+import { CON_EFFORTS, CON_EFFORT_KEYS, CON_FORMATS, CON_FORMAT_KEYS, condEffortRpe, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { IconRight, IconUp, Ltr, MICRO } from '../ui';
 
 /*
@@ -12,8 +11,6 @@ export function CondCard({
   fmt,
   eff,
   open,
-  summary: sum,
-  label,
   onToggle,
   onFmt,
   onEff,
@@ -21,12 +18,13 @@ export function CondCard({
   fmt: CondFmtKey;
   eff: EffortKey;
   open: boolean;
-  summary: string;
-  label: string;
   onToggle: () => void;
   onFmt: (v: CondFmtKey) => void;
   onEff: (v: EffortKey) => void;
 }) {
+  const label = CON_FORMATS[fmt].name;
+  const sum = `${CON_EFFORTS[eff].name} · ${CON_EFFORTS[eff].cue} · runs by heart rate`;
+
   return (
     <section
       className={
@@ -49,9 +47,9 @@ export function CondCard({
           <div>
             <div className={MICRO + ' mb-1'}>Format</div>
             <div className="flex flex-wrap gap-1">
-              {COND_FORMATS.map(([k, name]) => (
+              {CON_FORMAT_KEYS.map((k) => (
                 <Pill key={k} on={k === fmt} onClick={() => onFmt(k)}>
-                  {name}
+                  {CON_FORMATS[k].name}
                 </Pill>
               ))}
             </div>
@@ -59,10 +57,10 @@ export function CondCard({
           <div>
             <div className={MICRO + ' mb-1'}>Effort</div>
             <div className="flex flex-wrap gap-1">
-              {EFFORTS.map(([k, name, band]) => (
+              {CON_EFFORT_KEYS.map((k) => (
                 <Pill key={k} on={k === eff} onClick={() => onEff(k)} zone={k}>
-                  {name}
-                  <i className="ml-0.5 text-1 font-[650] not-italic opacity-70">{band}</i>
+                  {CON_EFFORTS[k].name}
+                  <i className="ml-0.5 text-1 font-[650] not-italic opacity-70">RPE {condEffortRpe(CON_EFFORTS[k])}</i>
                 </Pill>
               ))}
             </div>
