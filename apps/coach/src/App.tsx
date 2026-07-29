@@ -72,7 +72,7 @@ function Shell() {
 
   return (
     <div className="grid h-full min-w-[1080px] grid-cols-[80px_320px_minmax(0,1fr)] grid-rows-[64px_minmax(0,1fr)]">
-      <Rail view={view} onView={setView} week={lib.sel.w} weeks={prog.weeks.length} written={written} onSelect={(w) => select({ w })} onCreate={addWeek} />
+      <Rail view={view} onView={setView} week={lib.sel.w} weeks={prog.weeks.length} written={written} onSelect={(w) => { setEditingDay(null); select({ w }); }} onCreate={() => { setEditingDay(null); addWeek(); }} />
       <TopBar programme={prog.name} />
       <aside className="flex min-h-0 flex-col border-r border-line bg-panel3">
         <div className="flex shrink-0 items-baseline gap-1 border-b border-line px-2 py-1">
