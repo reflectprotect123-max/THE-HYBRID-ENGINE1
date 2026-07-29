@@ -15,10 +15,10 @@ describe('stepsFor', () => {
   });
 
   it('conditioning and metcon blocks skip movement/sets/reps/rpe entirely', () => {
-    // Conditioning has nowhere to put a note (CondBlock has no such field),
-    // so it skips 'more' too and goes straight to review. Metcon's note IS
-    // wired to TextBlock.body, so it keeps the 'more' step.
-    expect(stepsFor({ blockKind: 'cond', isWarmupSet: false })).toEqual(['block-type', 'review']);
+    // Conditioning authors its format/effort/minutes on a dedicated
+    // 'cond-detail' step; it still has no note field, so 'more' never shows.
+    // Metcon's note IS wired to TextBlock.body, so it keeps the 'more' step.
+    expect(stepsFor({ blockKind: 'cond', isWarmupSet: false })).toEqual(['block-type', 'cond-detail', 'review']);
     expect(stepsFor({ blockKind: 'metcon', isWarmupSet: false })).toEqual(['block-type', 'more', 'review']);
   });
 });
@@ -49,8 +49,8 @@ describe('nextStep / prevStep', () => {
 });
 
 describe('canAdvance — what each step requires before moving on', () => {
-  const draft = (over: Partial<{ movementName: string; reps: string; rpe: string }> = {}) => ({
-    movementName: '', reps: '', rpe: '', ...over,
+  const draft = (over: Partial<{ movementName: string; reps: string; rpe: string; condFmt: string }> = {}) => ({
+    movementName: '', reps: '', rpe: '', condFmt: '', ...over,
   });
 
   it('movement requires a picked movement', () => {
@@ -61,6 +61,11 @@ describe('canAdvance — what each step requires before moving on', () => {
   it('reps requires a target', () => {
     expect(canAdvance('reps', draft())).toBe(false);
     expect(canAdvance('reps', draft({ reps: '8' }))).toBe(true);
+  });
+
+  it('cond-detail requires a picked format', () => {
+    expect(canAdvance('cond-detail', draft())).toBe(false);
+    expect(canAdvance('cond-detail', draft({ condFmt: 'steady' }))).toBe(true);
   });
 
   it('rpe requires a value', () => {
