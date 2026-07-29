@@ -6,6 +6,7 @@ import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
 import { isPersistent } from '../store/storage';
+import { parseBackup } from '../store/restore';
 import { Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
 
 /*
@@ -159,7 +160,85 @@ function BackupCard({ db }: { db: EngineDB }) {
         <T className="mt-1 text-3 text-dim">
           Everything on this device as plain JSON, sent wherever you keep files. Keeping one is worth the ten seconds.
         </T>
+        <RestoreSection />
       </Card>
+    </View>
+  );
+}
+
+/*
+ * The way back for the export above. Paste-based on purpose: the share-sheet
+ * export needs no file-system dependency, and neither does this — the JSON
+ * comes back through the clipboard the same way it left. Replace is guarded
+ * by an explicit confirm that says exactly what was found and what "Replace"
+ * will do, because this is the one control in the app that can erase a
+ * phone's entire history in a tap.
+ */
+function RestoreSection() {
+  const { update } = useDb();
+  const [text, setText] = useState('');
+  const [found, setFound] = useState<ReturnType<typeof parseBackup> | null>(null);
+  const [msg, setMsg] = useState('');
+
+  const inspect = () => {
+    const r = parseBackup(text);
+    if ('error' in r) {
+      setFound(null);
+      setMsg(r.error);
+      return;
+    }
+    setMsg('');
+    setFound(r);
+  };
+  const replace = () => {
+    if (!found || 'error' in found) return;
+    update((d) => {
+      d.workouts = found.db.workouts;
+      d.sessions = found.db.sessions;
+      d.settings = found.db.settings;
+    });
+    setText('');
+    setFound(null);
+    setMsg('Restored.');
+  };
+
+  return (
+    <View className="mt-2 border-t border-line pt-1.5">
+      <Kicker>Restore from a backup</Kicker>
+      <Input
+        value={text}
+        onChangeText={(t: string) => { setText(t); setFound(null); if (msg) setMsg(''); }}
+        placeholder="Paste the backup JSON here"
+        multiline
+        numberOfLines={3}
+        accessibilityLabel="backup JSON"
+        className="mt-1"
+      />
+      {found && !('error' in found) ? (
+        <View className="mt-1">
+          <T className="text-3 text-text">
+            Found {found.sessions} logged session{found.sessions === 1 ? '' : 's'}
+            {found.lastDate ? ` (last: ${found.lastDate})` : ''}. Replace everything on this phone?
+          </T>
+          <View className="mt-1 flex-row gap-1">
+            <Tap box={{ h: 42 }} onPress={replace} className="flex-1 items-center rounded-md border border-gold-line bg-gold-wash py-1.5">
+              <T w="med" className="text-4 text-gold2">Replace</T>
+            </Tap>
+            <Tap box={{ h: 42 }} onPress={() => setFound(null)} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
+              <T w="med" className="text-4 text-text">Cancel</T>
+            </Tap>
+          </View>
+        </View>
+      ) : (
+        <Tap box={{ h: 42 }}
+          onPress={inspect}
+          disabled={!text.trim()}
+          className={`mt-1 items-center rounded-md border border-line2 bg-panel2 py-1.5 ${text.trim() ? '' : 'opacity-40'}`}
+        >
+          <T w="med" className="text-4 text-text">Restore</T>
+        </Tap>
+      )}
+      {msg ? <T className="mt-1 text-3 text-muted">{msg}</T> : null}
     </View>
   );
 }
