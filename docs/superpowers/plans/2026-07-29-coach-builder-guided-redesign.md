@@ -705,15 +705,11 @@ export function PublishStep({ sess }: { sess: CoachSession }) {
 
   const publish = async () => {
     setPublishing(true);
-    try {
-      const w = assertPublishable(sess);
-      await cloud.assign(athlete, date, w);
-      setMsg('Sent to athlete.');
-    } catch (e) {
-      setMsg('Could not send: ' + (e as Error).message);
-    } finally {
-      setPublishing(false);
-    }
+    // cloud.publish already calls assertPublishable internally and returns
+    // an error string on failure, null on success — see apps/coach/src/cloud.tsx.
+    const err = await cloud.publish(sess, athlete, date);
+    setMsg(err || 'Sent to athlete.');
+    setPublishing(false);
   };
 
   return (
@@ -752,18 +748,9 @@ export function PublishStep({ sess }: { sess: CoachSession }) {
 - [ ] **Step 3: Typecheck**
 
 Run: `pnpm --filter @hybrid/coach typecheck`
-Expected: FAIL if `useCoachCloud`'s actual shape differs from `{ user, athletes, assign }` assumed above.
+Expected: PASS — `cloud.publish(sess, athlete, date)` returns `Promise<string | null>` per `apps/coach/src/cloud.tsx`, matching the code above exactly.
 
-- [ ] **Step 4: Fix against the real `CoachCloud` shape**
-
-Run: `grep -n "export function useCoachCloud\|assign\|athletes" apps/coach/src/cloud.tsx` and adjust `PublishStep.tsx`'s destructuring and the `assign` call to match whatever the real return type and publish function signature are — `Editor.tsx`'s current Deliver panel (the block this step replaces) is the reference for the correct calls.
-
-- [ ] **Step 5: Typecheck again**
-
-Run: `pnpm --filter @hybrid/coach typecheck`
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add apps/coach/src/builder/steps/MoreStep.tsx apps/coach/src/builder/steps/PublishStep.tsx
