@@ -1,4 +1,5 @@
-import { isCond, type CoachSession } from '../model';
+import { blockExercises, isCond, type StrengthBlock } from '@hybrid/engine';
+import type { CoachSession } from '../model';
 import { Field, MICRO } from '../ui';
 
 /* The read-only count of what the coach has written. Split out of Editor.tsx. */
@@ -19,10 +20,11 @@ export function Glance({ sess }: { sess: CoachSession }) {
       hr += 1;
       continue;
     }
-    const m = parseInt(b.mins, 10);
+    const m = parseInt(String((b as StrengthBlock).minutes || ''), 10);
     if (Number.isFinite(m)) mins += m;
-    movements += b.ex.length;
-    for (const e of b.ex) sets += e.sets.length;
+    const exs = blockExercises(b as StrengthBlock);
+    movements += exs.length;
+    for (const e of exs) sets += e.sets.length;
   }
 
   const stat = 'rounded-md border border-line bg-panel3 px-1 py-1 text-center';
