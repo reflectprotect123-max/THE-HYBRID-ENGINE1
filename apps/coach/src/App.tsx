@@ -40,7 +40,7 @@ export function App() {
 /* ------------------------------------------------------------------ shell -- */
 
 function Shell() {
-  const { lib, day, setDay, select, addWeek } = useLib();
+  const { lib, setDay, select, addWeek } = useLib();
   const prog = lib.programs[lib.sel.p];
   const week = prog.weeks[lib.sel.w];
   const [view, setView] = useState<'home' | 'plan'>('home');
@@ -301,8 +301,8 @@ function WeekMenu({
 /**
  * 05-coach-01. Programme identity on the left, status on the right, and
  * nothing operable in between. The card's "Assign to phone" button is not here
- * on purpose: assigning needs an athlete and a date, both of which live in the
- * editor's Deliver panel, and separating a button from its inputs is how a
+ * on purpose: assigning needs an athlete and a date, both of which live on the
+ * guided flow's publish step, and separating a button from its inputs is how a
  * publish path gets used wrong.
  */
 function TopBar({ programme, cols = 'col-span-2' }: { programme: string; cols?: string }) {

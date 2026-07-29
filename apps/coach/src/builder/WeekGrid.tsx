@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { uid } from '@hybrid/engine';
 import { cellSummary, libraryCandidates } from './grid';
 import { useLib } from '../store';
 import { newSession, type CoachSession } from '../model';
@@ -58,7 +59,7 @@ export function WeekGrid({
                 <LibraryPicker
                   candidates={candidates}
                   onPick={(s) => {
-                    onCreate(i, { ...s, id: crypto.randomUUID(), updatedAt: Date.now() });
+                    onCreate(i, { ...s, id: uid(), updatedAt: Date.now() });
                     setLibraryFor(null);
                   }}
                   onClose={() => setLibraryFor(null)}

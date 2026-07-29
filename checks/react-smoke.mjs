@@ -346,15 +346,15 @@ await t('creating a session opens the guided flow, and a lift can be authored en
   await page.waitForSelector('text=Choose a movement');
   await page.click('button:has-text("Back Squat")');
   await page.waitForSelector('text=How many sets?');
-  // Each numeric step's inline "Next" only confirms the value; the control
-  // that ADVANCES the flow is the footer's "Next ›", so scope to the footer.
-  await page.click('footer button:has-text("Next")');
+  // One "Next" per step now, and it both confirms and advances — gated by
+  // flowSteps.canAdvance, so it is disabled until the step has a value.
+  await page.click('button:has-text("Next")');
   await page.waitForSelector('text=How many reps?');
   await page.click('button:has-text("8")');
-  await page.click('footer button:has-text("Next")');
+  await page.click('button:has-text("Next")');
   await page.waitForSelector('text=How hard should it feel?');
   await page.click('button:has-text("RPE 8")');
-  await page.click('footer button:has-text("Next")');
+  await page.click('button:has-text("Next")');
   await page.waitForSelector('text=Anything else?');
   await page.click('button:has-text("Done")');
   // Committing lands on the review screen — its add-block control (fullwidth
@@ -364,6 +364,32 @@ await t('creating a session opens the guided flow, and a lift can be authored en
   assert(/Back Squat/.test(txt), 'authored exercise missing from the review screen');
 });
 
+await t('a second exercise joins the first block and chains into a superset', async () => {
+  // The per-block "＋ Add exercise" appends to THAT block — this is the
+  // superset path: two movements in one block, chained by the seam.
+  await page.click('section button:has-text("Add exercise")');
+  await page.waitForSelector('text=Choose a movement');
+  await page.click('button:has-text("Barbell Row")');
+  await page.waitForSelector('text=How many sets?');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How many reps?');
+  await page.click('button:has-text("8")');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How hard should it feel?');
+  await page.click('button:has-text("RPE 8")');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=Anything else?');
+  await page.click('button:has-text("Done")');
+  await page.waitForSelector('button:has-text("Add another block")');
+  const txt = await page.textContent('body');
+  assert(/Back Squat/.test(txt) && /Barbell Row/.test(txt), 'both movements should sit on the review screen');
+  // Chain the pair: the first row's seam relabels both to A1/A2.
+  await page.click('button:has-text("Chain")');
+  await page.waitForSelector('text=A1');
+  const chained = await page.textContent('body');
+  assert(/A1/.test(chained) && /A2/.test(chained), 'chaining two exercises should reletter them A1/A2');
+});
+
 await t('a warm-up set skips the RPE step', async () => {
   await page.click('button:has-text("Add another block")');
   await page.waitForSelector('text=What are we doing?');
@@ -371,12 +397,12 @@ await t('a warm-up set skips the RPE step', async () => {
   await page.waitForSelector('text=Choose a movement');
   await page.click('button:has-text("Back Squat")');
   await page.waitForSelector('text=How many sets?');
-  await page.click('footer button:has-text("Next")');
+  await page.click('button:has-text("Next")');
   await page.waitForSelector('text=How many reps?');
   // The only checkbox on this step is "This is a warm-up".
   await page.click('input[type="checkbox"]');
   await page.click('button:has-text("5")');
-  await page.click('footer button:has-text("Next")');
+  await page.click('button:has-text("Next")');
   // Nothing in a warm-up counts toward autoregulation, so the flow must land
   // straight on the "more" step — never the RPE question.
   await page.waitForSelector('text=Anything else?');
@@ -390,6 +416,8 @@ await t('a warm-up set skips the RPE step', async () => {
 await t('publish reachable, and validates against the emit contract signed out', async () => {
   await page.click('button:has-text("Continue to publish")');
   await page.waitForSelector('text=Ready to send');
+  // Coach instructions are authored on this same screen (Workout.note).
+  await page.fill('textarea', 'Long warm-up today — take the bar walk seriously.');
   // Signed out, publish degrades to validate-only — the coach still learns
   // whether the session would cross the boundary cleanly. The result lands in
   // the status line, so read THAT rather than the whole body: the screen's
@@ -401,6 +429,37 @@ await t('publish reachable, and validates against the emit contract signed out',
   assert(!/Could not validate/.test(status), 'emit contract rejected a valid session: ' + status);
   assert(/Ready to send/.test(status), 'validation did not report success: ' + status);
   assert(/sign in to send this to an athlete/i.test(status), 'signed-out state should explain what is missing');
+});
+
+await t('a logger-owned field in the stored library cannot reach an athlete, and sessions survive reload', async () => {
+  // Poison the stored session with a logger-only field (done: true) and
+  // reload. migrateLib strips logger fields at LOAD (rebuilding every set as
+  // a plain {t, rpe}), so the poison never reaches the emit contract — and
+  // the same reload proves the authored session round-trips intact, which is
+  // exactly what broke when migration only understood the old disk shape.
+  await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => /coach/i.test(k));
+    const lib = JSON.parse(localStorage.getItem(key));
+    const day = lib.programs[0].weeks[0].days.find(Boolean);
+    day.blocks[0].exercises[0].sets[0].done = true;
+    localStorage.setItem(key, JSON.stringify(lib));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.click('button[aria-label="Plan"]');
+  await page.waitForSelector('button:has-text("Edit")');
+  const grid = await page.textContent('body');
+  assert(/Back Squat/.test(grid), 'authored session should survive a reload — migration wiped it');
+  await page.click('button:has-text("Edit")');
+  await page.waitForSelector('button:has-text("Continue to publish")');
+  const review = await page.textContent('body');
+  assert(/Back Squat/.test(review) && /Barbell Row/.test(review), 'review screen should still hold both movements after reload');
+  await page.click('button:has-text("Continue to publish")');
+  await page.waitForSelector('text=Ready to send');
+  await page.click('button:has-text("Validate & publish")');
+  await page.waitForSelector('[role="status"]');
+  const status = await page.textContent('[role="status"]');
+  assert(!/logger field/.test(status), 'a logger-owned field leaked through load-time stripping into emit: ' + status);
+  assert(/Ready to send/.test(status), 'validation should pass once the poison is stripped, got: ' + status);
 });
 
 await t('no uncaught page errors across either app', async () => {

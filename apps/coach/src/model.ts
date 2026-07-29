@@ -1,11 +1,16 @@
 import {
   CON_EFFORTS,
+  CON_FORMATS,
+  MODES,
   emit,
   isCond,
+  isText,
   newBlock,
   newCondBlock,
   newEx,
   newSet,
+  newTextBlock,
+  newWarmupBlock,
   uid,
   type Block,
   type CondFmtKey,
@@ -54,9 +59,14 @@ export const LIBRARY = [
   'Weighted Pull-up', 'Overhead Press', 'Walking Lunge', 'Bulgarian Split Squat', 'Farmer Carry', 'Plank',
 ];
 
-/** A fresh, id-bearing session with one starter block — engine-shaped from the start. */
+/**
+ * A fresh, id-bearing session — engine-shaped and genuinely EMPTY. The guided
+ * flow authors every block explicitly; seeding a starter block here made a
+ * blank, unnamed exercise publishable to athletes (the emit contract does not
+ * reject blank names) and an empty "Exercise" row on the review screen.
+ */
 export function newSession(title = 'Session'): CoachSession {
-  return { id: uid(), name: title, blocks: [newBlock()], updatedAt: Date.now() };
+  return { id: uid(), name: title, blocks: [], updatedAt: Date.now() };
 }
 
 export function emptyWeek(): CoachWeek {
@@ -132,6 +142,58 @@ interface OldBlock {
   eff?: unknown;
 }
 
+/**
+ * A block the NEW builder wrote — already engine-shaped. It passes through
+ * with its content intact, but its sets are still rebuilt as plain {t, rpe}
+ * literals: that is the load-time strip that keeps logger-owned fields
+ * (done/aVal/felt/...) from ever entering the coach's library, the same
+ * boundary the old-shape path enforces.
+ */
+function passThroughEngineBlock(b: Record<string, unknown>): Block<PlannedSet> | null {
+  if (b.kind === 'conditioning') {
+    const fmt = b.condFmt as CondFmtKey;
+    if (!(fmt in CON_FORMATS)) return null;
+    const eff = (b.effort as EffortKey) in CON_EFFORTS ? (b.effort as EffortKey) : 'medium';
+    const cb = newCondBlock();
+    cb.heading = s0(b.heading, cb.heading);
+    cb.condFmt = fmt;
+    cb.effort = eff;
+    cb.targetZone = CON_EFFORTS[eff].zone;
+    if (typeof b.minutes === 'number' || typeof b.minutes === 'string') cb.minutes = b.minutes;
+    if (typeof b.targetDistanceM === 'number') cb.targetDistanceM = b.targetDistanceM;
+    return cb;
+  }
+  if (b.kind === 'text') {
+    const tb = newTextBlock();
+    tb.heading = s0(b.heading, tb.heading);
+    tb.body = s0(b.body);
+    return tb;
+  }
+  // Strength/warm-up: `exercises` is the tell (the old shape used `ex`).
+  const exercises = (Array.isArray(b.exercises) ? (b.exercises as Record<string, unknown>[]) : [])
+    .filter((e) => !!e && typeof e === 'object')
+    .map((e) => {
+      const sets: PlannedSet[] = (Array.isArray(e.sets) ? (e.sets as { t?: unknown; rpe?: unknown }[]) : [])
+        .map((st) => ({ t: sVal(st?.t), rpe: sVal(st?.rpe) }));
+      const ex = newEx();
+      ex.name = s0(e.name);
+      ex.mode = (e.mode as ModeKey) in MODES ? (e.mode as ModeKey) : inferMode(sets);
+      ex.sets = sets.length ? sets : [newSet()];
+      const r = typeof e.rest === 'number' ? e.rest : parseInt(String(e.rest), 10);
+      ex.rest = Number.isFinite(r) && r >= 0 ? Math.min(r, 3600) : 90;
+      if (s0(e.tempo)) ex.tempo = s0(e.tempo);
+      if (s0(e.cue)) ex.cue = s0(e.cue);
+      if (e.ssNext === true) ex.ssNext = true;
+      return ex;
+    });
+  const sb: StrengthBlock<PlannedSet> = b.warmup === true ? newWarmupBlock() : newBlock();
+  sb.heading = s0(b.heading, sb.heading);
+  if (typeof b.minutes === 'number' || typeof b.minutes === 'string') sb.minutes = b.minutes;
+  sb.superset = b.superset === true;
+  sb.exercises = exercises.length ? exercises : [newEx()];
+  return sb;
+}
+
 /** One migrated strength block — h/mins/ss/ex → heading/minutes/superset/exercises. */
 function migrateBlock(b: OldBlock): Block<PlannedSet> {
   if (b.kind === 'cond') {
@@ -177,8 +239,18 @@ function migrateDay(raw: unknown): CoachSession | null {
   const r = raw as { title?: unknown; name?: unknown; note?: unknown; blocks?: unknown };
   const blocks = (Array.isArray(r.blocks) ? r.blocks : [])
     .filter((b): b is OldBlock => !!b && typeof b === 'object')
-    .map(migrateBlock)
-    .filter((b) => isCond(b) || (b as StrengthBlock).exercises.length);
+    .map((b) => {
+      // Engine-shaped (written by the new builder) vs old dense-editor shape
+      // (h/mins/ss/ex): `exercises`/'conditioning'/'text' only exist on the
+      // former. Without this split, a reload fed authored sessions through
+      // the old-shape converter, which read none of their fields and wiped
+      // every one of them to a single blank block.
+      const rec = b as Record<string, unknown>;
+      const engine = Array.isArray(rec.exercises) || rec.kind === 'conditioning' || rec.kind === 'text';
+      return engine ? passThroughEngineBlock(rec) : migrateBlock(b);
+    })
+    .filter((b): b is Block<PlannedSet> => b != null)
+    .filter((b) => isCond(b) || isText(b) || (b as StrengthBlock).exercises.length);
   if (!blocks.length) return null;
 
   return {
@@ -236,11 +308,12 @@ export function fmtRest(sec: number): string {
  * Publish-time validation, so a bad session fails here and not on a phone.
  *
  * `sess` is already workout-shaped, so there is no translation left to do —
- * this is now the emit contract and nothing else. The empty-blocks fallback
- * is defensive: the UI unmounts the editor once a day's blocks hit zero (see
- * Editor.tsx's `requestRemove`), so this should not be reachable in practice.
+ * this is now the emit contract and nothing else. An empty session is a hard
+ * error rather than a silently-substituted blank block: since newSession()
+ * starts with zero blocks, "nothing authored yet" is an ordinary state and
+ * publishing it should say so instead of shipping an unnamed exercise.
  */
 export function assertPublishable(sess: CoachSession): Workout<PlannedSet> {
-  const blocks = sess.blocks.length ? sess.blocks : [newBlock()];
-  return emit.assertWorkout({ ...sess, blocks });
+  if (!sess.blocks.length) throw new Error('Nothing in this session yet — add at least one block before publishing.');
+  return emit.assertWorkout({ ...sess, blocks: sess.blocks });
 }

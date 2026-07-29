@@ -39,3 +39,19 @@ export function prevStep(current: FlowStep, state: FlowState): FlowStep | null {
   const i = seq.indexOf(current);
   return i > 0 ? seq[i - 1] : null;
 }
+
+/**
+ * What each step requires before the flow may advance past it. The gate lives
+ * here — pure and tested — rather than scattered across the step components,
+ * so the button that ACTUALLY advances and the one that merely looks primary
+ * can never disagree about whether advancing is allowed.
+ */
+export function canAdvance(
+  step: FlowStep,
+  draft: { movementName: string; reps: string; rpe: string },
+): boolean {
+  if (step === 'movement') return draft.movementName.trim().length > 0;
+  if (step === 'reps') return draft.reps.trim().length > 0;
+  if (step === 'rpe') return draft.rpe.trim().length > 0;
+  return true;
+}

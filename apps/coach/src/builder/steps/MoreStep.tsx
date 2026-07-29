@@ -6,6 +6,7 @@ export function MoreStep({
   tempo,
   mode,
   note,
+  metcon = false,
   onChange,
   onDone,
 }: {
@@ -13,6 +14,9 @@ export function MoreStep({
   tempo: string;
   mode: ModeKey;
   note: string;
+  /** A metcon is a TextBlock — its body text is the ONLY thing it stores, so
+   *  the rest/mode/tempo fields (which have nowhere to go) are not shown. */
+  metcon?: boolean;
   onChange: (patch: { rest?: number; tempo?: string; mode?: ModeKey; note?: string }) => void;
   onDone: () => void;
 }) {
@@ -20,6 +24,7 @@ export function MoreStep({
     <div className="flex min-h-full flex-col items-center justify-center gap-2 p-3">
       <h1 className="text-8 font-[800]">Anything else? (optional)</h1>
       <div className="flex w-full max-w-[360px] flex-col gap-2">
+        {metcon ? null : (<>
         <label className="flex flex-col gap-0.5">
           <span className={MICRO}>Rest (seconds)</span>
           <input
@@ -41,8 +46,9 @@ export function MoreStep({
           <span className={MICRO}>Tempo</span>
           <input value={tempo} onChange={(e) => onChange({ tempo: e.target.value })} placeholder="3-1-1-0" className={WELL + ' px-1 py-1 text-4'} />
         </label>
+        </>)}
         <label className="flex flex-col gap-0.5">
-          <span className={MICRO}>Note for the athlete</span>
+          <span className={MICRO}>{metcon ? 'The workout, as the athlete reads it' : 'Note for the athlete'}</span>
           <textarea value={note} onChange={(e) => onChange({ note: e.target.value })} rows={3} className={WELL + ' resize-y px-1 py-1 text-4'} />
         </label>
       </div>

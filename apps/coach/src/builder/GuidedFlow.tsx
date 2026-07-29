@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import {
-  blockExercises, duplicateExercise, isCond, isText,
+  blockExercises, duplicateExercise, isCond, isText, isWarmupBlock,
   newBlock, newCondBlock, newEx, newTextBlock, newWarmupBlock, sessionLetters,
   type ModeKey,
 } from '@hybrid/engine';
-import { nextStep, prevStep, stepsFor, type FlowState, type FlowStep } from './flowSteps';
+import { canAdvance, nextStep, prevStep, stepsFor, type FlowState, type FlowStep } from './flowSteps';
 import { BlockTypeStep } from './steps/BlockTypeStep';
 import { MovementStep } from './steps/MovementStep';
 import { SetsStep } from './steps/SetsStep';
@@ -13,7 +13,7 @@ import { RpeStep } from './steps/RpeStep';
 import { MoreStep } from './steps/MoreStep';
 import { PublishStep } from './steps/PublishStep';
 import type { CoachSession } from '../model';
-import { GHOST, Ltr } from '../ui';
+import { GHOST, Ltr, MICRO, WELL } from '../ui';
 
 interface Draft {
   blockKind: 'lift' | 'warmup' | 'cond' | 'metcon' | null;
@@ -42,16 +42,37 @@ export function GuidedFlow({
   onChange: (s: CoachSession) => void;
   onClose: () => void;
 }) {
-  const [step, setStep] = useState<FlowStep>('block-type');
+  // A session that already has content opens on its overview — the grid's
+  // filled-cell button says "Edit", and landing on "What are we doing?"
+  // (which authors a NEW block) would contradict it. Only a genuinely empty
+  // session starts at the first authoring question.
+  const [step, setStep] = useState<FlowStep>(session.blocks.length ? 'review' : 'block-type');
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   // `publish` is deliberately NOT a FlowStep — flowSteps.ts's FlowStep union
   // ('block-type' | 'movement' | 'sets' | 'reps' | 'rpe' | 'more' | 'review')
   // has no 'publish' member, so it lives beside `step` rather than as a fake
   // value forced into it.
   const [showPublish, setShowPublish] = useState(false);
+  // When set, the flow is appending an exercise to this EXISTING block (the
+  // review screen's per-block "＋ Add exercise") rather than creating a new
+  // one — this is how a real A1/A2 superset gets its second movement.
+  const [targetBlock, setTargetBlock] = useState<number | null>(null);
   const flowState: FlowState = { blockKind: draft.blockKind, isWarmupSet: draft.isWarmup };
 
   const go = (dir: 'next' | 'prev') => {
+    // The gate lives in flowSteps.canAdvance (pure, tested) — the advancing
+    // button is disabled on the same condition, so this guard is the
+    // authoritative backstop, not the only defense.
+    if (dir === 'next' && !canAdvance(step, draft)) return;
+    // Backing out of the movement picker while appending to an existing
+    // block returns to the review screen — 'block-type' would offer to
+    // change the kind of a block that already exists.
+    if (dir === 'prev' && step === 'movement' && targetBlock != null) {
+      setTargetBlock(null);
+      setDraft(EMPTY_DRAFT);
+      setStep('review');
+      return;
+    }
     const s = dir === 'next' ? nextStep(step, flowState) : prevStep(step, flowState);
     if (s) setStep(s);
     else if (dir === 'prev') {
@@ -83,10 +104,21 @@ export function GuidedFlow({
       // the athlete apps read from `ex.cue` (packages/engine/src/types.ts),
       // so it belongs on the exercise, not dropped on the floor.
       const ex = { ...newEx(), name: draft.movementName, sets, rest: draft.rest, tempo: draft.tempo, mode: draft.mode, cue: draft.note };
-      const block = draft.blockKind === 'warmup' ? newWarmupBlock() : newBlock();
-      block.exercises = [ex];
-      onChange({ ...session, blocks: [...session.blocks, block] });
+      const existing = targetBlock != null ? session.blocks[targetBlock] : null;
+      if (existing && !isCond(existing) && !isText(existing)) {
+        // Appending to an existing block (the "＋ Add exercise" path): the
+        // new movement joins the block's exercise list, where the chain seam
+        // can then pair it into an A1/A2 superset.
+        const blocks = [...session.blocks];
+        blocks[targetBlock!] = { ...existing, exercises: [...blockExercises(existing), ex] };
+        onChange({ ...session, blocks });
+      } else {
+        const block = draft.blockKind === 'warmup' ? newWarmupBlock() : newBlock();
+        block.exercises = [ex];
+        onChange({ ...session, blocks: [...session.blocks, block] });
+      }
     }
+    setTargetBlock(null);
     setDraft(EMPTY_DRAFT);
     setStep('review');
   };
@@ -102,6 +134,20 @@ export function GuidedFlow({
           </button>
         </header>
         <div className="flex-1">
+          {/* Coach instructions ride the session itself (Workout.note) and are
+              read by the athlete before the first block — authored here, on
+              the same screen that sends them, per the design spec. */}
+          <div className="mx-auto w-full max-w-[360px] px-3 pt-3">
+            <label className="flex flex-col gap-0.5">
+              <span className={MICRO}>Coach instructions (the athlete reads these first)</span>
+              <textarea
+                value={session.note || ''}
+                onChange={(e) => onChange({ ...session, note: e.target.value })}
+                rows={3}
+                className={WELL + ' resize-y px-1 py-1 text-4'}
+              />
+            </label>
+          </div>
           <PublishStep sess={session} />
         </div>
       </div>
@@ -114,6 +160,13 @@ export function GuidedFlow({
         session={session}
         letters={letters}
         onAddBlock={() => setStep('block-type')}
+        onAddExercise={(bi) => {
+          const b = session.blocks[bi];
+          if (isCond(b) || isText(b)) return;
+          setDraft({ ...EMPTY_DRAFT, blockKind: isWarmupBlock(b) ? 'warmup' : 'lift' });
+          setTargetBlock(bi);
+          setStep('movement');
+        }}
         onDuplicate={(bi, ei) => {
           const b = session.blocks[bi];
           if (isCond(b) || isText(b)) return;
@@ -185,31 +238,41 @@ export function GuidedFlow({
             }}
           />
         ) : step === 'movement' ? (
-          <MovementStep current={draft.movementName} onPick={(name) => { setDraft((d) => ({ ...d, movementName: name })); go('next'); }} />
+          <MovementStep
+            current={draft.movementName}
+            onPick={(name) => {
+              // Same stale-closure rule as the block-type pick above: this
+              // render's `draft.movementName` is still the OLD value, so the
+              // gate is checked against the freshly-picked name directly.
+              setDraft((d) => ({ ...d, movementName: name }));
+              if (canAdvance('movement', { ...draft, movementName: name })) {
+                const s = nextStep('movement', flowState);
+                if (s) setStep(s);
+              }
+            }}
+            onBack={() => go('prev')}
+          />
         ) : step === 'sets' ? (
-          <SetsStep count={draft.sets} onChange={(n) => setDraft((d) => ({ ...d, sets: n }))} />
+          <SetsStep count={draft.sets} onChange={(n) => setDraft((d) => ({ ...d, sets: n }))} onNext={() => go('next')} />
         ) : step === 'reps' ? (
           <RepsStep
             value={draft.reps}
             isWarmup={draft.isWarmup}
             onChange={(v) => setDraft((d) => ({ ...d, reps: v }))}
             onWarmupToggle={(v) => setDraft((d) => ({ ...d, isWarmup: v }))}
+            onNext={() => go('next')}
           />
         ) : step === 'rpe' ? (
-          <RpeStep value={draft.rpe} onChange={(v) => setDraft((d) => ({ ...d, rpe: v }))} />
+          <RpeStep value={draft.rpe} onChange={(v) => setDraft((d) => ({ ...d, rpe: v }))} onNext={() => go('next')} />
         ) : step === 'more' ? (
           <MoreStep
             rest={draft.rest} tempo={draft.tempo} mode={draft.mode} note={draft.note}
+            metcon={draft.blockKind === 'metcon'}
             onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
             onDone={commitBlock}
           />
         ) : null}
       </div>
-      {step !== 'sets' && step !== 'reps' && step !== 'rpe' ? null : (
-        <footer className="flex justify-end gap-1 border-t border-line p-1">
-          <button onClick={() => go('next')} className={GHOST}>Next ›</button>
-        </footer>
-      )}
     </div>
   );
 }
@@ -217,11 +280,12 @@ export function GuidedFlow({
 /** The session overview reached at the end of the flow — the same block/exercise
  *  list and superset seam Editor.tsx had, just as this flow's landing screen. */
 function ReviewScreen({
-  session, letters, onAddBlock, onDuplicate, onChainToggle, onPublish, onClose,
+  session, letters, onAddBlock, onAddExercise, onDuplicate, onChainToggle, onPublish, onClose,
 }: {
   session: CoachSession;
   letters: Record<number, string[]>;
   onAddBlock: () => void;
+  onAddExercise: (blockIndex: number) => void;
   onDuplicate: (blockIndex: number, exIndex: number) => void;
   onChainToggle: (blockIndex: number, exIndex: number) => void;
   onPublish: () => void;
@@ -237,16 +301,26 @@ function ReviewScreen({
         <section key={b.id} className="rounded-md border border-line p-2">
           <div className={'text-3 font-[750] uppercase tracking-[.12em] text-gold2'}>{b.heading || 'Block'}</div>
           {isCond(b) || isText(b) ? null : (
-            <ul className="mt-1 flex flex-col gap-1">
-              {blockExercises(b).map((ex, ei) => (
-                <li key={ex.id} className="flex items-center gap-1">
-                  <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
-                  <span className="min-w-0 flex-1 truncate text-4">{ex.name || 'Exercise'}</span>
-                  <button onClick={() => onDuplicate(bi, ei)} className={GHOST}>Duplicate</button>
-                  <button onClick={() => onChainToggle(bi, ei)} className={GHOST}>{ex.ssNext ? 'Split' : 'Chain'}</button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="mt-1 flex flex-col gap-1">
+                {blockExercises(b).map((ex, ei, exs) => (
+                  <li key={ex.id} className="flex items-center gap-1">
+                    <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
+                    <span className="min-w-0 flex-1 truncate text-4">{ex.name || 'Exercise'}</span>
+                    <button onClick={() => onDuplicate(bi, ei)} className={GHOST}>Duplicate</button>
+                    {/* ssNext chains an exercise to the one BELOW it — the
+                        last row has nothing below, so no seam is offered
+                        (duplicateExercise documents the same rule). */}
+                    {ei < exs.length - 1 ? (
+                      <button onClick={() => onChainToggle(bi, ei)} className={GHOST}>{ex.ssNext ? 'Split' : 'Chain'}</button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              <button onClick={() => onAddExercise(bi)} className={GHOST + ' mt-1'}>
+                ＋ Add exercise
+              </button>
+            </>
           )}
         </section>
       ))}

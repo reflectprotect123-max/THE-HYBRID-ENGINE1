@@ -7,11 +7,13 @@ export function RepsStep({
   isWarmup,
   onChange,
   onWarmupToggle,
+  onNext,
 }: {
   value: string;
   isWarmup: boolean;
   onChange: (v: string) => void;
   onWarmupToggle: (v: boolean) => void;
+  onNext: () => void;
 }) {
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-2 p-3">
@@ -39,7 +41,7 @@ export function RepsStep({
         aria-label="custom rep target"
         className="mt-1 w-full max-w-[280px] rounded-md border border-line2 bg-panel2 px-1.5 py-1 text-center text-4"
       />
-      <button onClick={() => onChange(value)} className={BRASS + ' mt-2'} disabled={!value}>
+      <button onClick={onNext} className={BRASS + ' mt-2'} disabled={!value.trim()}>
         Next
       </button>
     </div>

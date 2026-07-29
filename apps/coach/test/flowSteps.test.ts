@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextStep, prevStep, stepsFor } from '../src/builder/flowSteps';
+import { canAdvance, nextStep, prevStep, stepsFor } from '../src/builder/flowSteps';
 
 describe('stepsFor', () => {
   it('a lift block walks movement through review, including RPE', () => {
@@ -45,5 +45,37 @@ describe('nextStep / prevStep', () => {
     // advancing: the RPE step should no longer be next.
     const warm = { blockKind: 'lift' as const, isWarmupSet: true };
     expect(nextStep('reps', warm)).toBe('more');
+  });
+});
+
+describe('canAdvance — what each step requires before moving on', () => {
+  const draft = (over: Partial<{ movementName: string; reps: string; rpe: string }> = {}) => ({
+    movementName: '', reps: '', rpe: '', ...over,
+  });
+
+  it('movement requires a picked movement', () => {
+    expect(canAdvance('movement', draft())).toBe(false);
+    expect(canAdvance('movement', draft({ movementName: 'Back Squat' }))).toBe(true);
+  });
+
+  it('reps requires a target', () => {
+    expect(canAdvance('reps', draft())).toBe(false);
+    expect(canAdvance('reps', draft({ reps: '8' }))).toBe(true);
+  });
+
+  it('rpe requires a value', () => {
+    expect(canAdvance('rpe', draft())).toBe(false);
+    expect(canAdvance('rpe', draft({ rpe: '8' }))).toBe(true);
+  });
+
+  it('sets and the optional more step never block', () => {
+    expect(canAdvance('sets', draft())).toBe(true);
+    expect(canAdvance('more', draft())).toBe(true);
+    expect(canAdvance('block-type', draft())).toBe(true);
+  });
+
+  it('whitespace-only input does not count', () => {
+    expect(canAdvance('movement', draft({ movementName: '   ' }))).toBe(false);
+    expect(canAdvance('reps', draft({ reps: ' ' }))).toBe(false);
   });
 });
