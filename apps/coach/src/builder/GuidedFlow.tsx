@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-  blockExercises, CON_EFFORTS, duplicateExercise, isCond, isText, isWarmupBlock,
-  newBlock, newCondBlock, newEx, newTextBlock, newWarmupBlock, sessionLetters,
+  blockExercises, CON_EFFORTS, CON_FORMATS, duplicateExercise, isCond, isText, isWarmupBlock,
+  newBlock, newCondBlock, newEx, newTextBlock, newWarmupBlock, rxLine, sessionLetters,
   type CondFmtKey, type EffortKey, type ModeKey,
 } from '@hybrid/engine';
 import { canAdvance, nextStep, prevStep, stepsFor, type FlowState, type FlowStep } from './flowSteps';
@@ -379,16 +379,31 @@ function ReviewScreen({
       {session.blocks.map((b, bi) => (
         <section key={b.id} className="rounded-md border border-line p-2">
           {isCond(b) || isText(b) ? (
-            <div className="flex items-center gap-1">
-              <div className={'text-3 font-[750] uppercase tracking-[.12em] text-gold2'}>{b.heading || 'Block'}</div>
-              <button onClick={() => onDeleteBlock(bi)} aria-label="delete block" className={GHOST + ' ml-auto'}>✕</button>
-            </div>
+            <>
+              <div className="flex items-center gap-1">
+                <div className={'text-3 font-[750] uppercase tracking-[.12em] text-gold2'}>{b.heading || 'Block'}</div>
+                <button onClick={() => onDeleteBlock(bi)} aria-label="delete block" className={GHOST + ' ml-auto'}>✕</button>
+              </div>
+              {isText(b) ? (
+                <p className="mt-1 whitespace-pre-wrap text-4 text-text">
+                  {b.body?.trim() || 'Nothing written for this one yet.'}
+                </p>
+              ) : null}
+              {isCond(b) ? (
+                <p className="num mt-1 text-3 text-muted">
+                  {(CON_FORMATS[b.condFmt]?.name ?? b.condFmt) +
+                    ' · ' + (b.effort ? (CON_EFFORTS[b.effort]?.name ?? b.effort) : 'Medium') +
+                    (b.minutes ? ' · ' + b.minutes + ' min' : '')}
+                </p>
+              ) : null}
+            </>
           ) : (
             <>
               <div className={'text-3 font-[750] uppercase tracking-[.12em] text-gold2'}>{b.heading || 'Block'}</div>
               <ul className="mt-1 flex flex-col gap-1">
                 {blockExercises(b).map((ex, ei, exs) => (
-                  <li key={ex.id} className="flex items-center gap-1">
+                  <li key={ex.id} className="flex flex-col">
+                    <div className="flex items-center gap-1">
                     <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
                     <button
                       onClick={() => onEditExercise(bi, ei)}
@@ -405,6 +420,11 @@ function ReviewScreen({
                       <button onClick={() => onChainToggle(bi, ei)} className={GHOST}>{ex.ssNext ? 'Split' : 'Chain'}</button>
                     ) : null}
                     <button onClick={() => onDeleteExercise(bi, ei)} aria-label={'delete ' + (ex.name || 'exercise')} className={GHOST}>✕</button>
+                    </div>
+                    {/* What was actually prescribed — the review screen exists
+                        to answer "did I set 8 or 12?" without re-entering. */}
+                    <p className="num ml-4 text-3 text-muted">{rxLine(ex)}</p>
+                    {ex.cue ? <p className="ml-4 text-3 text-gold2">{ex.cue}</p> : null}
                   </li>
                 ))}
               </ul>

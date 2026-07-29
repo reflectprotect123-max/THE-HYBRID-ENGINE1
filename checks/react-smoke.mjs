@@ -176,16 +176,20 @@ await t('opening an exercise goes full-screen with no bottom nav', async () => {
   assert(/warm-up/.test(txt), 'W10 was not recognised as a warm-up');
 });
 
-await t('a warm-up does NOT move the working weight', async () => {
+await t('a warm-up confirms in one tap, records no felt RPE, and does NOT move the working weight', async () => {
   await page.fill('input[aria-label="Weight"]', '40');
   await page.fill('input[aria-label="Reps"]', '10');
+  // A warm-up is never rated: Finish Set confirms directly — no RPE stage,
+  // no Confirm Set. The stored set must carry no `felt` either.
   await page.click('button:has-text("Finish Set")');
-  await page.click('button:has-text("Confirm Set")');
-  const next = await page.evaluate(() => {
+  const after = await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
-    return db.sessions[0].blocks[0].exercises[0].sets[1].aVal;
+    const sets = db.sessions[0].blocks[0].exercises[0].sets;
+    return { felt: sets[0].felt, done: sets[0].done, next: sets[1].aVal };
   });
-  assert(!next, 'a warm-up wrote a prescription onto the next set: ' + next);
+  assert(after.done === true, 'the warm-up set should be logged by Finish Set alone');
+  assert(after.felt === undefined, 'a warm-up must not record a felt RPE, got: ' + after.felt);
+  assert(!after.next, 'a warm-up wrote a prescription onto the next set: ' + after.next);
 });
 
 await t('a working set is logged and autoregulation moves the next one', async () => {
@@ -423,7 +427,7 @@ await t('publish reachable, and validates against the emit contract signed out',
   // the status line, so read THAT rather than the whole body: the screen's
   // static copy already says "Ready to send" / "Sign in to send…" before the
   // button is pressed, and matching it would prove nothing.
-  await page.click('button:has-text("Validate & publish")');
+  await page.click('button:has-text("Validate")');
   await page.waitForSelector('[role="status"]');
   const status = await page.textContent('[role="status"]');
   assert(!/Could not validate/.test(status), 'emit contract rejected a valid session: ' + status);
@@ -455,7 +459,7 @@ await t('a logger-owned field in the stored library cannot reach an athlete, and
   assert(/Back Squat/.test(review) && /Barbell Row/.test(review), 'review screen should still hold both movements after reload');
   await page.click('button:has-text("Continue to publish")');
   await page.waitForSelector('text=Ready to send');
-  await page.click('button:has-text("Validate & publish")');
+  await page.click('button:has-text("Validate")');
   await page.waitForSelector('[role="status"]');
   const status = await page.textContent('[role="status"]');
   assert(!/logger field/.test(status), 'a logger-owned field leaked through load-time stripping into emit: ' + status);
