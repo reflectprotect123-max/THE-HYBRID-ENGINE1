@@ -154,13 +154,34 @@ export function GuidedFlow({
                 // kind is picked, and going through setDraft + go('next') +
                 // commitBlock would read stale state (setDraft's update
                 // isn't visible until the next render), so this stays a
-                // direct branch rather than a call into commitBlock.
+                // direct branch rather than a call into commitBlock. Reset
+                // the draft too, so nothing from an abandoned lift/metcon
+                // attempt earlier in the session leaks into the next block.
                 onChange({ ...session, blocks: [...session.blocks, newCondBlock()] });
+                setDraft(EMPTY_DRAFT);
                 setStep('review');
                 return;
               }
               setDraft((d) => ({ ...d, blockKind: kind }));
-              go('next');
+              // go('next') would read `flowState`, which is computed from
+              // THIS render's `draft` — the setDraft above hasn't landed yet
+              // (React batches it), so flowState.blockKind here is still the
+              // PREVIOUS value, not `kind`. For 'lift'/'warmup' that happens
+              // to be harmless, since stepsFor's fallback for anything except
+              // 'cond'/'metcon' (including null) is LIFT_SEQUENCE anyway —
+              // but for 'metcon' it would send the coach to 'movement'
+              // (LIFT_SEQUENCE's next step) instead of 'more', and the
+              // following transition would then evaluate against
+              // METCON_SEQUENCE, find 'movement' isn't in it, and silently
+              // go nowhere — stranding metcon authoring for good. So this one
+              // transition computes the next step directly from the
+              // freshly-known `kind` instead of trusting go('next')'s stale
+              // closure.
+              {
+                const s = nextStep('block-type', { blockKind: kind, isWarmupSet: false });
+                if (s) setStep(s);
+                else onClose();
+              }
             }}
           />
         ) : step === 'movement' ? (
