@@ -3,6 +3,7 @@ import { Alert, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
+  CON_FORMATS,
   agoLabel,
   blockExercises,
   isCond,
@@ -340,7 +341,7 @@ function Detail({ w }: { w: Workout }) {
           <T w="semi" className="text-3 uppercase tracking-widest text-dim">{b.heading || 'Block'}</T>
           {isCond(b) ? (
             <T className="text-4 text-muted">
-              {b.condFmt} · {b.effort || b.targetZone}
+              {CON_FORMATS[b.condFmt]?.name ?? b.condFmt} · {b.effort || b.targetZone}
             </T>
           ) : (
             blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => (

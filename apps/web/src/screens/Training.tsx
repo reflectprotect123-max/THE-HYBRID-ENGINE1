@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  CON_FORMATS,
   blockExercises,
   condEffort,
   condEffortRpe,
@@ -189,7 +190,7 @@ export function Training() {
               <Card className={cx(b.condResult && 'border-done-line bg-done-bg')}>
                 <div className="flex items-center gap-1">
                   <LetterChip letter="♥" />
-                  <span className="flex-1 text-5 font-[750]">{b.condFmt}</span>
+                  <span className="flex-1 text-5 font-[750]">{CON_FORMATS[b.condFmt]?.name ?? b.condFmt}</span>
                   {b.condResult ? <span className="text-3 text-done-ink">logged</span> : null}
                 </div>
                 <p className="mt-0.5 text-3 text-dim">

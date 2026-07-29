@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  CON_FORMATS,
   agoLabel,
   blockExercises,
   isCond,
@@ -273,7 +274,7 @@ function WorkoutDetail({ w }: { w: Workout }) {
           <div className="text-3 font-[750] uppercase tracking-[.12em] text-dim">{b.heading || 'Block'}</div>
           {isCond(b) ? (
             <p className="mt-0.5 text-4 text-muted">
-              {b.condFmt} · {b.effort || b.targetZone}
+              {CON_FORMATS[b.condFmt]?.name ?? b.condFmt} · {b.effort || b.targetZone}
             </p>
           ) : (
             <ul className="mt-0.5 flex flex-col gap-0.5">

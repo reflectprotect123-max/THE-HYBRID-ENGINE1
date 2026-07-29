@@ -78,7 +78,18 @@ export function Conditioning() {
   const [params] = useSearchParams();
   const sinkBid = params.get('block') || '';
   const sinkBi = Number(params.get('bi'));
-  const [fmt, setFmtState] = useState<CondFmtKey>(RUN.fmt);
+  // The block this run was launched from, when there is one. Resolved by id
+  // first so an edited session still lands on the right block; `bi` is the
+  // fallback the result-sink already used.
+  const sb = activeSession
+    ? (activeSession.blocks.find((b) => b.id === sinkBid) ?? activeSession.blocks[sinkBi])
+    : undefined;
+  const sinkBlock = isCond(sb) ? sb : null;
+  // The module RUN still wins while a run is live — a mid-run remount must
+  // not flip the format under the athlete's feet.
+  const [fmt, setFmtState] = useState<CondFmtKey>(() =>
+    RUN.live ? RUN.fmt : sinkBlock?.condFmt && CON_FORMATS[sinkBlock.condFmt] ? sinkBlock.condFmt : RUN.fmt,
+  );
   const [live, setLive] = useState(RUN.live);
   const [elapsed, setElapsed] = useState(RUN.live ? RUN.elapsed : 0);
   const [bpm, setBpm] = useState<number | null>(RUN.live ? RUN.bpm : null);
@@ -154,7 +165,9 @@ export function Conditioning() {
     const rec: CondResult = {
       id: uid(),
       fmt,
-      effort: fmt === 'steady' ? 'easy' : 'hard',
+      // The block's authored effort when this run came from one — the coach's
+      // prescription, not a guess from the format.
+      effort: sinkBlock?.effort ?? (fmt === 'steady' ? 'easy' : 'hard'),
       zsec,
       dur,
       rec: zones.rec,

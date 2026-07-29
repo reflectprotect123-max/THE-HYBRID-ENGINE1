@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
+  CON_FORMATS,
   blockExercises,
   detectPRs,
   epley,
@@ -133,7 +134,7 @@ export function RecapScreen() {
           <T w="semi" className="text-3 uppercase tracking-widest text-dim">{b.heading || 'Block'}</T>
           {isCond(b) ? (
             <T num className="mt-0.5 text-4 text-muted">
-              {b.condFmt}
+              {CON_FORMATS[b.condFmt]?.name ?? b.condFmt}
               {b.condResult?.dur ? ` · ${fmtClock(b.condResult.dur)}` : ''}
               {b.condResult?.distanceM ? ` · ${fmtDistance(b.condResult.distanceM)}` : ''}
               {b.condResult?.avgPaceSecPerKm ? ` · ${fmtPace(b.condResult.avgPaceSecPerKm)}` : ''}

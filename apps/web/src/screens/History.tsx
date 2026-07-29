@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  CON_FORMATS,
   bestE1rmByLift,
   blockExercises,
   byMonth,
@@ -155,7 +156,7 @@ function SessionDetail({ s }: { s: Session }) {
           <div className="text-3 font-[750] uppercase tracking-[.12em] text-dim">{b.heading || 'Block'}</div>
           {isCond(b) ? (
             <p className="num mt-0.5 text-4 text-muted">
-              {b.condFmt}
+              {CON_FORMATS[b.condFmt]?.name ?? b.condFmt}
               {b.condResult?.dur ? ` · ${Math.round(b.condResult.dur / 60)} min` : ''}
               {b.condResult?.distanceM ? ` · ${fmtDistance(b.condResult.distanceM)}` : ''}
               {b.condResult?.felt ? ` · felt RPE ${b.condResult.felt}` : ''}

@@ -1,4 +1,5 @@
-import { CON_EFFORTS, condEffort, condEffortRpe, type CondBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
+import {
+  CON_FORMATS, CON_EFFORTS, condEffort, condEffortRpe, type CondBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { Card, Chip, LetterChip } from '../../ui';
 
 const FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo', 'free'];
@@ -19,7 +20,7 @@ export function CondBlockCard({
     <Card>
       <div className="flex items-center gap-1">
         <LetterChip letter="♥" />
-        <span className="flex-1 text-5 font-[750]">{b.condFmt}</span>
+        <span className="flex-1 text-5 font-[750]">{CON_FORMATS[b.condFmt]?.name ?? b.condFmt}</span>
       </div>
       <p className="mt-0.5 text-3 text-dim">
         {condEffort(b).name} · RPE {condEffortRpe(condEffort(b))} · {CON_EFFORTS[condEffort(b).key].cue}

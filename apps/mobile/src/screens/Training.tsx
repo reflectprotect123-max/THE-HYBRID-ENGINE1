@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
+  CON_FORMATS,
   blockExercises,
   detectPRs,
   exFinished,
@@ -197,7 +198,7 @@ export function TrainingScreen() {
               }
               className={`rounded-lg border p-2 ${b.condResult ? 'border-done-line bg-done-bg' : 'border-line bg-panel'}`}
             >
-              <T w="semi" className="text-5 text-text">{b.condFmt}</T>
+              <T w="semi" className="text-5 text-text">{CON_FORMATS[b.condFmt]?.name ?? b.condFmt}</T>
               <T className="text-3 text-dim">
                 {b.condResult ? 'logged · tap to review' : 'runs by heart rate · tap to start'}
               </T>

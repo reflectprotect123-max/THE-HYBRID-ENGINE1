@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  CON_FORMATS,
   blockExercises,
   detectPRs,
   epley,
@@ -138,7 +139,7 @@ export function Recap() {
             <div className="text-3 font-[750] uppercase tracking-[.12em] text-dim">{b.heading || 'Block'}</div>
             {isCond(b) ? (
               <p className="num mt-0.5 text-4 text-muted">
-                {b.condFmt}
+                {CON_FORMATS[b.condFmt]?.name ?? b.condFmt}
                 {b.condResult?.dur ? ` · ${fmtClock(b.condResult.dur)}` : ''}
                 {b.condResult?.distanceM ? ` · ${fmtDistance(b.condResult.distanceM)}` : ''}
                 {b.condResult?.avgPaceSecPerKm ? ` · ${fmtPace(b.condResult.avgPaceSecPerKm)}` : ''}

@@ -55,7 +55,15 @@ export function ConditioningScreen() {
   const route = useRoute<RouteProp<RootStackParams, 'Conditioning'>>();
   const sinkBid = route.params?.bid ?? '';
   const sinkBi = route.params?.bi ?? -1;
-  const [fmt, setFmt] = useState<CondFmtKey>('intervals');
+  // The block this run was launched from, when there is one — its authored
+  // format/effort are the prescription this screen should open on.
+  const sb = activeSession
+    ? (activeSession.blocks.find((b) => b.id === sinkBid) ?? activeSession.blocks[sinkBi])
+    : undefined;
+  const sinkBlock = isCond(sb) ? sb : null;
+  const [fmt, setFmt] = useState<CondFmtKey>(() =>
+    sinkBlock?.condFmt && CON_FORMATS[sinkBlock.condFmt] ? sinkBlock.condFmt : 'intervals',
+  );
   const [live, setLive] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [bpm, setBpm] = useState<number | null>(null);
@@ -187,7 +195,8 @@ export function ConditioningScreen() {
     const rec: CondResult = {
       id: uid(),
       fmt,
-      effort: fmt === 'steady' ? 'easy' : 'hard',
+      // The block's authored effort when this run came from one.
+      effort: sinkBlock?.effort ?? (fmt === 'steady' ? 'easy' : 'hard'),
       zsec: zoneSeconds(trace, zones),
       dur,
       rec: zones.rec,
