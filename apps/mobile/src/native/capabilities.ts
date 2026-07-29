@@ -1,4 +1,5 @@
 import { PermissionsAndroid, Platform, Vibration } from 'react-native';
+import type { GeoSample } from '@hybrid/engine';
 
 /*
  * The native bridges, re-implemented.
@@ -26,6 +27,19 @@ export interface HeartRateMonitor {
    * been told why it did not. Samples arrive on `onBpm`.
    */
   start(onBpm: (bpm: number) => void, onState?: (state: HrState, msg: string) => void): Promise<void>;
+  stop(): void;
+}
+
+export type GeoState = 'tracking' | 'error';
+
+export interface GeoTracker {
+  /**
+   * Resolves once tracking has begun — or, on a failure, once `onState` has
+   * been told why it did not. Samples arrive on `onSample`. Degrades like
+   * the HR monitor: a denied permission means no samples, never a thrown
+   * error mid-session.
+   */
+  start(onSample: (s: GeoSample) => void, onState?: (state: GeoState, msg: string) => void): Promise<void>;
   stop(): void;
 }
 
@@ -296,6 +310,108 @@ export async function setKeepAwake(on: boolean): Promise<void> {
   } catch {
     /* not available */
   }
+}
+
+const GEO_TASK = 'hybrid-geo-tracking';
+let taskRegistered = false;
+
+/**
+ * Foreground permission first, background only if the athlete accepts it —
+ * both platforms gate background location behind a second, explicit prompt,
+ * and bundling the two into one ask is the surest way to get both denied.
+ */
+async function ensureLocationPermissions(): Promise<{ foreground: boolean; background: boolean }> {
+  const Location = await import('expo-location');
+  const fg = await Location.requestForegroundPermissionsAsync();
+  if (!fg.granted) return { foreground: false, background: false };
+  const bg = await Location.requestBackgroundPermissionsAsync();
+  return { foreground: true, background: bg.granted };
+}
+
+export function createGeoTracker(): GeoTracker {
+  let stopped = false;
+  let onSampleRef: ((s: GeoSample) => void) | null = null;
+  let startedAt = 0;
+  let subscription: { remove(): void } | null = null;
+
+  return {
+    async start(onSample, onState) {
+      stopped = false;
+      onSampleRef = onSample;
+      startedAt = Date.now();
+      const say = (state: GeoState, msg = '') => {
+        if (!stopped) onState?.(state, msg);
+      };
+      try {
+        const perms = await ensureLocationPermissions();
+        if (!perms.foreground) {
+          say('error', 'Location permission was refused — the route and distance will not be recorded.');
+          return;
+        }
+
+        const Location = await import('expo-location');
+        const TaskManager = await import('expo-task-manager');
+
+        if (!taskRegistered && !TaskManager.isTaskDefined(GEO_TASK)) {
+          TaskManager.defineTask(GEO_TASK, async ({ data, error }: { data?: unknown; error?: unknown }) => {
+            if (error || !data) return;
+            const { locations } = data as { locations: { coords: { latitude: number; longitude: number }; timestamp: number }[] };
+            locations.forEach((loc) => {
+              onSampleRef?.({
+                t: Math.floor((loc.timestamp - startedAt) / 1000),
+                lat: loc.coords.latitude,
+                lon: loc.coords.longitude,
+              });
+            });
+          });
+          taskRegistered = true;
+        }
+
+        if (perms.background) {
+          await Location.startLocationUpdatesAsync(GEO_TASK, {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 2000,
+            distanceInterval: 0,
+            foregroundService: {
+              notificationTitle: 'Tracking your session',
+              notificationBody: 'Recording your route and pace.',
+            },
+          });
+        } else {
+          subscription = await Location.watchPositionAsync(
+            { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2000, distanceInterval: 0 },
+            (loc) => {
+              onSampleRef?.({
+                t: Math.floor((loc.timestamp - startedAt) / 1000),
+                lat: loc.coords.latitude,
+                lon: loc.coords.longitude,
+              });
+            },
+          );
+        }
+        say('tracking');
+      } catch (e) {
+        say('error', String((e as Error)?.message || 'GPS is not available on this build.'));
+      }
+    },
+    stop() {
+      stopped = true;
+      onSampleRef = null;
+      try {
+        subscription?.remove();
+        subscription = null;
+        void (async () => {
+          const Location = await import('expo-location');
+          const TaskManager = await import('expo-task-manager');
+          if (await TaskManager.isTaskRegisteredAsync(GEO_TASK)) {
+            await Location.stopLocationUpdatesAsync(GEO_TASK);
+          }
+        })();
+      } catch {
+        /* already stopped, or never started */
+      }
+    },
+  };
 }
 
 /*
