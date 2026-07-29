@@ -50,9 +50,9 @@ function Shell() {
   if (view === 'plan') {
     return (
       <div className="grid h-full min-w-[1080px] grid-cols-[80px_minmax(0,1fr)] grid-rows-[64px_minmax(0,1fr)]">
-        <Rail view={view} onView={setView} week={lib.sel.w} weeks={prog.weeks.length} written={written} onSelect={(w) => select({ w })} onCreate={addWeek} />
-        <TopBar programme={prog.name} />
-        <main className="col-span-2 min-h-0 overflow-y-auto">
+        <Rail view={view} onView={setView} week={lib.sel.w} weeks={prog.weeks.length} written={written} onSelect={(w) => { setEditingDay(null); select({ w }); }} onCreate={() => { setEditingDay(null); addWeek(); }} />
+        <TopBar programme={prog.name} cols="col-start-2" />
+        <main className="col-start-2 min-h-0 overflow-y-auto">
           {editingDay != null && week.days[editingDay] ? (
             <GuidedFlow
               session={week.days[editingDay]!}
@@ -305,7 +305,7 @@ function WeekMenu({
  * editor's Deliver panel, and separating a button from its inputs is how a
  * publish path gets used wrong.
  */
-function TopBar({ programme }: { programme: string }) {
+function TopBar({ programme, cols = 'col-span-2' }: { programme: string; cols?: string }) {
   const { enabled, user } = useCoachCloud();
   const initials =
     programme
@@ -317,7 +317,7 @@ function TopBar({ programme }: { programme: string }) {
       .toUpperCase() || 'P';
 
   return (
-    <header className="col-span-2 flex items-center gap-2 border-b border-line bg-panel3 px-2">
+    <header className={cols + ' flex items-center gap-2 border-b border-line bg-panel3 px-2'}>
       <span className="text-5 font-[800] tracking-[-.01em] text-gold2">THE Hybrid System</span>
       <span className={MICRO}>Coach</span>
 
