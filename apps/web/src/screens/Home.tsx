@@ -16,6 +16,7 @@ import {
   type Zones,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { sessionFrom } from '../lib/session';
 import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
 
 /*
@@ -41,7 +42,7 @@ const ZONE_NEON: Record<string, string> = {
 
 export function Home() {
   const nav = useNavigate();
-  const { db, whoop, hr, activeSession, sessions } = useDb();
+  const { db, whoop, hr, activeSession, sessions, update } = useDb();
 
   const today = ymd(new Date());
   const rec = todayRecovery(whoop);
@@ -129,7 +130,15 @@ export function Home() {
                 key={w.id}
                 w={w}
                 primary={i === 0 && !activeSession}
-                onStart={() => nav('/training')}
+                onStart={() => {
+                  // The label is a promise. If nothing is live, Start creates
+                  // the session HERE; landing on /training then shows it in
+                  // progress rather than a second identically-worded Start.
+                  // A live session means Start only navigates — two active
+                  // sessions is a merge conflict waiting to happen.
+                  if (!activeSession) update((draft) => { draft.sessions.push(sessionFrom(w, today)); });
+                  nav('/training');
+                }}
               />
             ))}
           </ul>

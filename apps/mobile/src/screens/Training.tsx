@@ -7,7 +7,6 @@ import {
   blockExercises,
   detectPRs,
   exFinished,
-  freshSessionBlocks,
   isCond,
   isText,
   liftAdapt,
@@ -15,7 +14,6 @@ import {
   sessionLetters,
   sessionProgress,
   sessionVolume,
-  uid,
   ymd,
   type LoggedSet,
   type Session,
@@ -23,6 +21,7 @@ import {
   type TextBlock,
   type Workout,
 } from '@hybrid/engine';
+import { sessionFrom } from '../store/session';
 import { useDb } from '../store/db';
 import { Btn, Card, Kicker, Ltr, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
@@ -44,18 +43,8 @@ export function TrainingScreen() {
   );
 
   const start = (w: Workout) => {
-    const s: Session = {
-      id: uid(),
-      date: today,
-      name: w.name || 'Session',
-      status: 'active',
-      blocks: freshSessionBlocks(w.blocks),
-      startedAt: Date.now(),
-      updatedAt: Date.now(),
-      workoutId: w.id,
-    };
     update((draft) => {
-      draft.sessions.push(s);
+      draft.sessions.push(sessionFrom(w, today));
     });
   };
 

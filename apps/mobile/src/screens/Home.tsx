@@ -19,6 +19,7 @@ import {
 } from '@hybrid/engine';
 import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
+import { sessionFrom } from '../store/session';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
 
@@ -36,7 +37,7 @@ import type { RootStackParams } from '../App';
  */
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { db, hr, whoop, activeSession } = useDb();
+  const { db, hr, whoop, activeSession, update } = useDb();
   const sessions = db.sessions;
 
   const today = ymd(new Date());
@@ -127,7 +128,17 @@ export function HomeScreen() {
         <>
           <SectionHead title="Today's plan" />
           {plannedToShow.map((w, i) => (
-            <PlanRow key={w.id} w={w} primary={i === 0 && !activeSession} onStart={toTraining} />
+            <PlanRow
+              key={w.id}
+              w={w}
+              primary={i === 0 && !activeSession}
+              onStart={() => {
+                // Same promise as web's Home: Start MINTS the session unless
+                // one is already live, then lands on Training mid-flight.
+                if (!activeSession) update((draft) => { draft.sessions.push(sessionFrom(w, today)); });
+                toTraining();
+              }}
+            />
           ))}
         </>
       ) : activeSession ? null : (

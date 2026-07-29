@@ -6,7 +6,6 @@ import {
   condEffortRpe,
   detectPRs,
   exFinished,
-  freshSessionBlocks,
   isCond,
   isText,
   liftAdapt,
@@ -14,7 +13,6 @@ import {
   sessionLetters,
   sessionProgress,
   sessionVolume,
-  uid,
   ymd,
   type LoggedSet,
   type Session,
@@ -22,6 +20,7 @@ import {
   type TextBlock,
   type Workout,
 } from '@hybrid/engine';
+import { sessionFrom } from '../lib/session';
 import { useDb } from '../store/db';
 import { Button, Card, Empty, Kicker, LetterChip, Meter, ScreenTitle, SectionHead, cx } from '../ui';
 
@@ -45,18 +44,8 @@ export function Training() {
   );
 
   function startWorkout(w: Workout) {
-    const s: Session = {
-      id: uid(),
-      date: today,
-      name: w.name || 'Session',
-      status: 'active',
-      blocks: freshSessionBlocks(w.blocks),
-      startedAt: Date.now(),
-      updatedAt: Date.now(),
-      workoutId: w.id,
-    };
     update((draft) => {
-      draft.sessions.push(s);
+      draft.sessions.push(sessionFrom(w, today));
     });
   }
 
