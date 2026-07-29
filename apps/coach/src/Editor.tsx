@@ -1,11 +1,32 @@
 import { useEffect, useState } from 'react';
-import { fillLinkedSets, ymd, type CondFmtKey, type EffortKey } from '@hybrid/engine';
+import {
+  CON_EFFORTS,
+  blockExercises,
+  condEffort,
+  duplicateExercise,
+  fillLinkedSets,
+  isCond,
+  isText,
+  newBlock,
+  newCondBlock,
+  newEx,
+  newTextBlock,
+  newWarmupBlock,
+  sessionLetters,
+  ymd,
+  type CondFmtKey,
+  type EffortKey,
+  type ModeKey,
+  type StrengthBlock,
+  type TextBlock,
+} from '@hybrid/engine';
 import { useLib } from './store';
 import { useCoachCloud } from './cloud';
-import { assertPublishable, condSummary, duplicateCoachEx, fmtLabel, isCond, letters, newCond, newEx, newBlock, newSet, summary, type CoachBlock, type CoachSession } from './model';
+import { assertPublishable, type CoachSession } from './model';
 import { ADD, BRASS, Field, IconLink, IconSend, MICRO, WELL } from './ui';
 import { ExCard } from './editor/ExerciseCard';
 import { CondCard } from './editor/ConditioningCard';
+import { TextBlockCard } from './editor/TextBlockCard';
 import { Picker } from './editor/MovementPicker';
 import { Glance } from './editor/SessionGlance';
 
@@ -84,7 +105,7 @@ export function Editor({
 
   if (!day) return null;
   const s = day;
-  const LTR = letters(s);
+  const LTR = sessionLetters({ id: s.id, date: '', status: 'completed', blocks: s.blocks });
 
   /** Every edit goes through here so "saves as you go" stays true. */
   const edit = (fn: (sess: CoachSession) => void) =>
@@ -113,7 +134,7 @@ export function Editor({
       const target = slot.days[d.sel.d];
       if (!target) return false;
       fn(target);
-      target.blocks = target.blocks.filter((b) => isCond(b) || b.ex.length);
+      target.blocks = target.blocks.filter((b) => isCond(b) || isText(b) || blockExercises(b as StrengthBlock).length);
       if (!target.blocks.length) slot.days[d.sel.d] = null;
     });
   };
@@ -122,7 +143,7 @@ export function Editor({
   const destroysDay = (fn: (sess: CoachSession) => void) => {
     const probe = structuredClone(s);
     fn(probe);
-    return probe.blocks.filter((b) => isCond(b) || b.ex.length).length === 0;
+    return probe.blocks.filter((b) => isCond(b) || isText(b) || blockExercises(b as StrengthBlock).length).length === 0;
   };
 
   /**
@@ -183,8 +204,8 @@ export function Editor({
         </div>
 
         <input
-          value={s.title}
-          onChange={(e) => edit((d) => void (d.title = e.target.value))}
+          value={s.name || ''}
+          onChange={(e) => edit((d) => void (d.name = e.target.value))}
           spellCheck={false}
           aria-label="session name"
           className="mt-0.5 w-full rounded-md border border-transparent bg-transparent px-0.5 py-0.5 text-8 font-[800] tracking-[-.02em] outline-none transition-colors duration-150 hover:border-line2 focus:border-gold-line focus:bg-well"
@@ -198,21 +219,23 @@ export function Editor({
                   `.sech`, which is the answer this repo already reached. */}
               <div className="mb-1 flex items-center gap-1">
                 <input
-                  value={b.h}
-                  onChange={(e) => edit((d) => void (d.blocks[bi].h = e.target.value))}
+                  value={b.heading || ''}
+                  onChange={(e) => edit((d) => void (d.blocks[bi].heading = e.target.value))}
                   spellCheck={false}
                   aria-label="block name"
-                  size={Math.max(6, Math.min(28, b.h.length + 1))}
+                  size={Math.max(6, Math.min(28, (b.heading || '').length + 1))}
                   className="min-w-0 rounded-sm border border-transparent bg-transparent px-0.5 py-0.5 text-3 font-[800] tracking-[.14em] text-gold2 uppercase outline-none transition-colors duration-150 hover:border-line2 focus:border-gold-line focus:bg-well"
                 />
                 <span className="h-px flex-1 bg-line" />
                 {isCond(b) ? (
                   <span className={MICRO}>Heart rate</span>
+                ) : isText(b) ? (
+                  <span className={MICRO}>Metcon</span>
                 ) : (
                   <>
                     <input
-                      value={b.mins}
-                      onChange={(e) => edit((d) => void ((d.blocks[bi] as CoachBlock).mins = e.target.value))}
+                      value={(b as StrengthBlock).minutes || ''}
+                      onChange={(e) => edit((d) => void ((d.blocks[bi] as StrengthBlock).minutes = e.target.value))}
                       placeholder="—"
                       aria-label="block duration"
                       /* The only genuinely numeric field on this screen. The
@@ -245,10 +268,15 @@ export function Editor({
                 )}
               </div>
 
-              {isCond(b) ? (
+              {isText(b) ? (
+                <TextBlockCard
+                  body={(b as TextBlock).body || ''}
+                  onChange={(v) => edit((d) => void ((d.blocks[bi] as TextBlock).body = v))}
+                />
+              ) : isCond(b) ? (
                 <CondCard
                   fmt={b.condFmt}
-                  eff={b.effort}
+                  eff={condEffort(b).key}
                   open={open?.b === bi}
                   onToggle={() => setOpen(open?.b === bi ? null : { b: bi, e: 0 })}
                   onFmt={(v) => edit((d) => void ((d.blocks[bi] as never as { condFmt: CondFmtKey }).condFmt = v))}
@@ -261,70 +289,73 @@ export function Editor({
                   }
                 />
               ) : (
-                /* A chained block gets the concept mock's gold rail rather than
-                   a tinted box: at this width a filled panel behind four cards
-                   reads as a container, and the rail reads as "these flow on". */
-                <div className={b.ss ? 'border-l-2 border-gold pl-2' : undefined}>
-                  {b.ex.map((ex, ei) => (
-                    <div key={ex.id}>
-                      <ExCard
-                        ex={ex}
-                        letter={LTR[bi + '-' + ei] || '?'}
-                        open={open?.b === bi && open?.e === ei}
-                        onToggle={() => setOpen(open?.b === bi && open?.e === ei ? null : { b: bi, e: ei })}
-                        onPick={() => setPick({ b: bi, e: ei })}
-                        onSet={(si, key, v) =>
-                          // Type once, it fills the rest: fillLinkedSets carries the
-                          // edit forward into any later set still at its untouched
-                          // blank default, so a plain 3x5 is one field, not three.
-                          edit((d) => void ((d.blocks[bi] as CoachBlock).ex[ei].sets = fillLinkedSets(
-                            (d.blocks[bi] as CoachBlock).ex[ei].sets,
-                            si,
-                            key,
-                            v,
-                          )))
-                        }
-                        onAddSet={() => edit((d) => void (d.blocks[bi] as CoachBlock).ex[ei].sets.push(newSet()))}
-                        onDelSet={(si) => edit((d) => void (d.blocks[bi] as CoachBlock).ex[ei].sets.splice(si, 1))}
-                        onRest={(delta) =>
-                          edit((d) => {
-                            const e2 = (d.blocks[bi] as CoachBlock).ex[ei];
-                            e2.rest = Math.max(0, Math.min(3600, e2.rest + delta));
-                          })
-                        }
-                        onCue={(v) => edit((d) => void ((d.blocks[bi] as CoachBlock).ex[ei].cue = v))}
-                        onMove={(dir) =>
-                          edit((d) => {
-                            const arr = (d.blocks[bi] as CoachBlock).ex;
-                            const j = ei + dir;
-                            if (j < 0 || j >= arr.length) return;
-                            [arr[ei], arr[j]] = [arr[j], arr[ei]];
-                          })
-                        }
-                        onDuplicate={() => {
-                          // Open the new copy, not the original left behind —
-                          // that is the one the coach is about to edit.
-                          setOpen({ b: bi, e: ei + 1 });
-                          edit((d) => void ((d.blocks[bi] as CoachBlock).ex = duplicateCoachEx((d.blocks[bi] as CoachBlock).ex, ei)));
-                        }}
-                        deleteArmed={armed === 'e' + bi + '-' + ei}
-                        armedClass={ARMED_BTN}
-                        onDelete={() =>
-                          requestRemove('e' + bi + '-' + ei, (d) => void (d.blocks[bi] as CoachBlock).ex.splice(ei, 1))
-                        }
-                      />
-                      {ei < b.ex.length - 1 ? (
-                        <Seam
-                          on={b.ss}
-                          onClick={() =>
-                            edit((d) => void ((d.blocks[bi] as CoachBlock).ss = !(d.blocks[bi] as CoachBlock).ss))
+                <div className={(b as StrengthBlock).warmup ? 'rounded-lg border border-dashed border-line2 p-1' : undefined}>
+                  {blockExercises(b as StrengthBlock).map((ex, ei, exs) => {
+                    const next = exs[ei + 1];
+                    return (
+                      <div key={ex.id}>
+                        <ExCard
+                          ex={ex}
+                          letter={LTR[bi]?.[ei] ?? '?'}
+                          open={open?.b === bi && open?.e === ei}
+                          onToggle={() => setOpen(open?.b === bi && open?.e === ei ? null : { b: bi, e: ei })}
+                          onPick={() => setPick({ b: bi, e: ei })}
+                          onSet={(si, key, v) =>
+                            // Type once, it fills the rest: fillLinkedSets carries the
+                            // edit forward into any later set still at its untouched
+                            // blank default, so a plain 3x5 is one field, not three.
+                            edit((d) => {
+                              const target = (d.blocks[bi] as StrengthBlock).exercises[ei];
+                              target.sets = fillLinkedSets(target.sets, si, key, v);
+                            })
+                          }
+                          onAddSet={() => edit((d) => void (d.blocks[bi] as StrengthBlock).exercises[ei].sets.push({ t: '', rpe: '' }))}
+                          onDelSet={(si) => edit((d) => void (d.blocks[bi] as StrengthBlock).exercises[ei].sets.splice(si, 1))}
+                          onRest={(delta) =>
+                            edit((d) => {
+                              const e2 = (d.blocks[bi] as StrengthBlock).exercises[ei];
+                              e2.rest = Math.max(0, Math.min(3600, (e2.rest || 0) + delta));
+                            })
+                          }
+                          onCue={(v) => edit((d) => void ((d.blocks[bi] as StrengthBlock).exercises[ei].cue = v))}
+                          onMode={(m: ModeKey) => edit((d) => void ((d.blocks[bi] as StrengthBlock).exercises[ei].mode = m))}
+                          onTempo={(v) => edit((d) => void ((d.blocks[bi] as StrengthBlock).exercises[ei].tempo = v))}
+                          onMove={(dir) =>
+                            edit((d) => {
+                              const arr = (d.blocks[bi] as StrengthBlock).exercises;
+                              const j = ei + dir;
+                              if (j < 0 || j >= arr.length) return;
+                              [arr[ei], arr[j]] = [arr[j], arr[ei]];
+                            })
+                          }
+                          onDuplicate={() => {
+                            // Open the new copy, not the original left behind —
+                            // that is the one the coach is about to edit.
+                            setOpen({ b: bi, e: ei + 1 });
+                            edit((d) => void ((d.blocks[bi] as StrengthBlock).exercises = duplicateExercise((d.blocks[bi] as StrengthBlock).exercises, ei)));
+                          }}
+                          deleteArmed={armed === 'e' + bi + '-' + ei}
+                          armedClass={ARMED_BTN}
+                          onDelete={() =>
+                            requestRemove('e' + bi + '-' + ei, (d) => void (d.blocks[bi] as StrengthBlock).exercises.splice(ei, 1))
                           }
                         />
-                      ) : null}
-                    </div>
-                  ))}
+                        {next ? (
+                          <Seam
+                            on={!!ex.ssNext}
+                            onClick={() =>
+                              edit((d) => {
+                                const t = (d.blocks[bi] as StrengthBlock).exercises[ei];
+                                t.ssNext = !t.ssNext;
+                              })
+                            }
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
                   <button
-                    onClick={() => edit((d) => void (d.blocks[bi] as CoachBlock).ex.push(newEx()))}
+                    onClick={() => edit((d) => void (d.blocks[bi] as StrengthBlock).exercises.push(newEx()))}
                     className={ADD + ' mt-1 h-5 text-3'}
                   >
                     ＋ Exercise
@@ -336,11 +367,17 @@ export function Editor({
         </div>
 
         <div className="mt-2 flex flex-wrap gap-1">
-          <button onClick={() => edit((d) => void d.blocks.push(newBlock('New block')))} className={ADD}>
+          <button onClick={() => edit((d) => void d.blocks.push(newBlock()))} className={ADD}>
             ＋ Block
           </button>
-          <button onClick={() => edit((d) => void d.blocks.push(newCond()))} className={ADD}>
+          <button onClick={() => edit((d) => void d.blocks.push(newWarmupBlock()))} className={ADD}>
+            ☀ Warm-up / Cooldown
+          </button>
+          <button onClick={() => edit((d) => void d.blocks.push(newCondBlock()))} className={ADD}>
             ♥ Conditioning
+          </button>
+          <button onClick={() => edit((d) => void d.blocks.push(newTextBlock()))} className={ADD}>
+            ✎ Metcon / notes
           </button>
         </div>
       </div>
@@ -434,10 +471,10 @@ export function Editor({
 
       {pick ? (
         <Picker
-          current={(s.blocks[pick.b] as CoachBlock).ex[pick.e]?.name || ''}
+          current={blockExercises(s.blocks[pick.b] as StrengthBlock)[pick.e]?.name || ''}
           onClose={() => setPick(null)}
           onPick={(name) => {
-            edit((d) => void ((d.blocks[pick.b] as CoachBlock).ex[pick.e].name = name));
+            edit((d) => void ((d.blocks[pick.b] as StrengthBlock).exercises[pick.e].name = name));
             setPick(null);
           }}
         />
