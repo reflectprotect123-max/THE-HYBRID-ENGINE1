@@ -1,11 +1,12 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { LibProvider, useLib } from './store';
 import { CoachCloudProvider, useCoachCloud } from './cloud';
-import { Editor } from './Editor';
 import { Dashboard } from './Dashboard';
+import { GuidedFlow } from './builder/GuidedFlow';
+import { WeekGrid } from './builder/WeekGrid';
 import { CON_FORMATS, blockExercises, isCond } from '@hybrid/engine';
-import { newSession, type CoachSession } from './model';
-import { BRASS, Chip, Field, GHOST, IconCheck, IconDown, IconRest, IconUp, MICRO, WELL } from './ui';
+import { type CoachSession } from './model';
+import { BRASS, Chip, Field, GHOST, IconCheck, IconDown, IconUp, MICRO, WELL } from './ui';
 
 /*
  * The coach builder. Laptop-only by design: the athlete's phone is the logger,
@@ -42,50 +43,52 @@ function Shell() {
   const { lib, day, setDay, select, addWeek } = useLib();
   const prog = lib.programs[lib.sel.p];
   const week = prog.weeks[lib.sel.w];
-  const [publishing, setPublishing] = useState(false);
-  /* Two views, one shell. Home answers 'what has actually happened';
-     the week board answers 'what happens next'. */
   const [view, setView] = useState<'home' | 'plan'>('home');
+  const [editingDay, setEditingDay] = useState<number | null>(null);
   const written = week.days.filter(Boolean).length;
+
+  if (view === 'plan') {
+    return (
+      <div className="grid h-full min-w-[1080px] grid-cols-[80px_minmax(0,1fr)] grid-rows-[64px_minmax(0,1fr)]">
+        <Rail view={view} onView={setView} week={lib.sel.w} weeks={prog.weeks.length} written={written} onSelect={(w) => select({ w })} onCreate={addWeek} />
+        <TopBar programme={prog.name} />
+        <main className="col-span-2 min-h-0 overflow-y-auto">
+          {editingDay != null && week.days[editingDay] ? (
+            <GuidedFlow
+              session={week.days[editingDay]!}
+              onChange={(s) => { select({ d: editingDay }); setDay(s); }}
+              onClose={() => setEditingDay(null)}
+            />
+          ) : (
+            <WeekGrid
+              onEdit={(i) => setEditingDay(i)}
+              onCreate={(i, s) => { select({ d: i }); setDay(s); setEditingDay(i); }}
+            />
+          )}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="grid h-full min-w-[1080px] grid-cols-[80px_320px_minmax(0,1fr)] grid-rows-[64px_minmax(0,1fr)]">
-      <Rail
-        view={view}
-        onView={setView}
-        week={lib.sel.w}
-        weeks={prog.weeks.length}
-        written={written}
-        onSelect={(w) => select({ w })}
-        onCreate={addWeek}
-      />
-
+      <Rail view={view} onView={setView} week={lib.sel.w} weeks={prog.weeks.length} written={written} onSelect={(w) => select({ w })} onCreate={addWeek} />
       <TopBar programme={prog.name} />
-
       <aside className="flex min-h-0 flex-col border-r border-line bg-panel3">
         <div className="flex shrink-0 items-baseline gap-1 border-b border-line px-2 py-1">
           <h2 className={MICRO}>Week</h2>
           <span className="num text-7 leading-none font-[800] text-gold2">{lib.sel.w + 1}</span>
           <span className="num ml-auto text-2 text-muted">{written} of 7 written</span>
         </div>
-
         <ol className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1">
           {week.days.map((s, i) => (
             <DayRow key={i} index={i} sess={s} on={i === lib.sel.d} onClick={() => select({ d: i })} />
           ))}
         </ol>
-
         <AccountPanel />
       </aside>
-
       <main className="min-h-0 overflow-y-auto">
-        {view === 'home' ? (
-          <Dashboard />
-        ) : day ? (
-          <Editor publishing={publishing} setPublishing={setPublishing} />
-        ) : (
-          <RestDay week={lib.sel.w} day={lib.sel.d} onAdd={() => setDay(newSession('Session'))} />
-        )}
+        <Dashboard />
       </main>
     </div>
   );
@@ -575,31 +578,6 @@ function AccountPanel() {
           </div>
         )}
       </Field>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------ empty state -- */
-
-/** 03-shared-04. One brass-plated glyph, one sentence, one way forward. */
-function RestDay({ week, day, onAdd }: { week: number; day: number; onAdd: () => void }) {
-  return (
-    <div className="flex min-h-full items-center justify-center p-3">
-      <div className="w-full max-w-[480px] rounded-lg border border-line2 bg-panel p-4 text-center shadow-card">
-        <span className="mx-auto mb-1 grid h-6 w-6 place-items-center rounded-md border border-gold-line text-gold2 shadow-brass [background:var(--brass-wash)]">
-          <IconRest />
-        </span>
-        <div className={MICRO}>
-          Week {week + 1} · Day {day + 1}
-        </div>
-        <h1 className="mt-1 text-8 font-[800] tracking-[-.02em]">Rest day</h1>
-        <p className="mx-auto mt-1 max-w-[36ch] text-4 text-muted">
-          Nothing is written for this day. Leave it as recovery, or start a session — it saves as you go.
-        </p>
-        <button className={BRASS + ' mt-2 h-6 px-3 text-5'} onClick={onAdd}>
-          ＋ Add a session to this day
-        </button>
-      </div>
     </div>
   );
 }
