@@ -77,7 +77,9 @@ export function Conditioning() {
   const { hr, settings, whoop, activeSession, update } = useDb();
   const [params] = useSearchParams();
   const sinkBid = params.get('block') || '';
-  const sinkBi = Number(params.get('bi'));
+  // -1 when absent — Number(null) is 0, which silently aimed a
+  // standalone run at the session's first block.
+  const sinkBi = params.has('bi') ? Number(params.get('bi')) : -1;
   // The block this run was launched from, when there is one. Resolved by id
   // first so an edited session still lands on the right block; `bi` is the
   // fallback the result-sink already used.

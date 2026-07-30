@@ -136,7 +136,14 @@ export function Home() {
                   // progress rather than a second identically-worded Start.
                   // A live session means Start only navigates — two active
                   // sessions is a merge conflict waiting to happen.
-                  if (!activeSession) update((draft) => { draft.sessions.push(sessionFrom(w, today)); });
+                  // Guard INSIDE the write: the render-scope activeSession
+                  // is stale for a second tap in the same frame, and two
+                  // live sessions is exactly the conflict this exists to
+                  // prevent.
+                  update((draft) => {
+                    if (draft.sessions.some((x) => x.status === 'active')) return false;
+                    draft.sessions.push(sessionFrom(w, today));
+                  });
                   nav('/training');
                 }}
               />

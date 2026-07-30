@@ -1,4 +1,4 @@
-import { sanitizeDB, type EngineDB } from '@hybrid/engine';
+import { expireStaleSessions, sanitizeDB, type EngineDB } from '@hybrid/engine';
 
 /*
  * The validating half of restore-from-paste (Settings' BackupCard).
@@ -28,6 +28,11 @@ export function parseBackup(
   if (!looksLikeBackup) return { error: "That doesn't look like a Hybrid backup." };
 
   const db = sanitizeDB(raw);
+  // The boot path expires yesterday's still-'active' sessions; a restore is
+  // a boot in disguise, so it runs the same pass — otherwise an old backup
+  // resurrects a phantom "In progress" card until the next real restart.
+  // (It FILTERS rather than mutating: keep its returned array.)
+  db.sessions = expireStaleSessions(db.sessions).sessions;
   let lastDate: string | null = null;
   for (const s of db.sessions) if (s.date && (!lastDate || s.date > lastDate)) lastDate = s.date;
   return { db, sessions: db.sessions.length, lastDate };

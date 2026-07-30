@@ -103,8 +103,12 @@ export function TrainingScreen() {
           ))
         ) : (
           <Empty
-            title="Nothing scheduled for today"
-            body="Anything in your Library can be started now — scheduling is a convenience, not a gate."
+            title={db.workouts.length ? 'Nothing scheduled for today' : 'Nothing in your library yet'}
+            body={
+              db.workouts.length
+                ? 'Anything in your Library can be started now — scheduling is a convenience, not a gate.'
+                : 'Sessions your coach assigns will appear here — or build one in the Library.'
+            }
           />
         )}
 

@@ -135,7 +135,12 @@ export function HomeScreen() {
               onStart={() => {
                 // Same promise as web's Home: Start MINTS the session unless
                 // one is already live, then lands on Training mid-flight.
-                if (!activeSession) update((draft) => { draft.sessions.push(sessionFrom(w, today)); });
+                // Guard INSIDE the write — same rule as web: a second tap
+                // in the same frame sees a stale activeSession.
+                update((draft) => {
+                  if (draft.sessions.some((x) => x.status === 'active')) return false;
+                  draft.sessions.push(sessionFrom(w, today));
+                });
                 toTraining();
               }}
             />

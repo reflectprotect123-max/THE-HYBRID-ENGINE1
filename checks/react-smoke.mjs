@@ -151,7 +151,10 @@ await t('Training starts a session without one existing beforehand', async () =>
   await page.waitForSelector('text=Start a session');
   const before = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.length);
   assert(before === 0, 'a session existed before Start was pressed — phantom session regression');
-  await page.click('button:has-text("Start")');
+  await Promise.all([
+    page.click('button:has-text("Start")'),
+    page.click('button:has-text("Start")').catch(() => {}),
+  ]);
   await page.waitForSelector('text=In progress');
   const after = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.length);
   assert(after === 1, 'Start did not create exactly one session, got ' + after);
@@ -319,7 +322,12 @@ await t('Home\'s "Start today\'s session →" actually starts one', async () => 
   const before = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.length);
   // The rendered apostrophe is a typographic ’ (’), not the ASCII ' this
   // file is written in — match on the unambiguous half of the label instead.
-  await page.click('button:has-text("Start today")');
+  // Two taps in quick succession — the guard lives INSIDE the store write,
+  // so the second tap must be a no-op rather than a second live session.
+  await Promise.all([
+    page.click('button:has-text("Start today")'),
+    page.click('button:has-text("Start today")').catch(() => {}),
+  ]);
   await page.waitForURL(/\/training/);
   await page.waitForSelector('text=In progress');
   const after = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.length);
