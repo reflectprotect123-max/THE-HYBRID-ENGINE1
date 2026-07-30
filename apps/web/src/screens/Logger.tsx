@@ -61,7 +61,7 @@ export function Logger() {
   const bi = Number(biStr);
   const ei = Number(eiStr);
   const nav = useNavigate();
-  const { activeSession, sessions, settings, whoop, workouts, update } = useDb();
+  const { activeSession, sessions, settings, whoop, workouts, updateSession } = useDb();
   const rest = useRest();
 
   // `replace`, so the back arrow still leaves the stage for the session list
@@ -147,10 +147,9 @@ export function Logger() {
 
   function toggleSuperset() {
     if (!s) return;
-    update((draft) => {
-      const ds = draft.sessions.find((x) => x.id === s.id);
-      const src = ds && (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei];
-      if (!ds || !src) return false;
+    updateSession(s.id, (ds) => {
+      const src = (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei];
+      if (!src) return false;
       src.ssNext = !src.ssNext;
       ds.updatedAt = Date.now();
     });
@@ -160,10 +159,9 @@ export function Logger() {
     if (slot === 1) setV1(val);
     else setV2(val);
     if (!s || si < 0) return;
-    update((draft) => {
-      const ds = draft.sessions.find((x) => x.id === s.id);
-      const dst = ds && (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei]?.sets?.[si];
-      if (!ds || !dst) return false;
+    updateSession(s.id, (ds) => {
+      const dst = (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei]?.sets?.[si];
+      if (!dst) return false;
       if (slot === 1) dst.aVal = val;
       else dst.aVal2 = val;
       ds.updatedAt = Date.now();
@@ -177,9 +175,7 @@ export function Logger() {
     const isFinal = si >= ex.sets.length - 1;
     let nextHint: typeof hint = null;
 
-    update((draft) => {
-      const ds = draft.sessions.find((x) => x.id === s!.id);
-      if (!ds) return false;
+    updateSession(s.id, (ds) => {
       const db = ds.blocks[bi] as StrengthBlock<LoggedSet>;
       const dex = db.exercises[ei];
       const dst = dex.sets[si];
@@ -391,10 +387,10 @@ export function Logger() {
                   noteOpen={noteOpen}
                   onToggleNote={() => setNoteOpen((o) => !o)}
                   onNote={(txt) =>
-                    update((draft) => {
-                      const ds = draft.sessions.find((x) => x.id === s.id);
-                      if (!ds) return false;
-                      (ds.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].sets[si].note = txt;
+                    updateSession(s.id, (ds) => {
+                      const dst = (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei]?.sets?.[si];
+                      if (!dst) return false;
+                      dst.note = txt;
                     })
                   }
                   weightKg={lift ? parseFloat(v1) || 0 : 0}
