@@ -38,6 +38,8 @@ export const color = {
   doneBg: 'rgba(192,147,88,.14)',
   doneLine: 'rgba(224,188,135,.5)',
   doneInk: '#e6c795',
+  /* Ink ON brass/gold — the doc's --on-accent gap, closed. */
+  onAccent: '#1b1509',
 
   blue: '#82a8e9',
   blue2: '#6793ee',

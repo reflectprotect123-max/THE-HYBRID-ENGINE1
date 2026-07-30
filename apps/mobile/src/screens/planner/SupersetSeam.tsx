@@ -30,8 +30,8 @@ export function SupersetSeam({
           on ? 'border-gold bg-gold' : 'border-dashed border-line2 bg-panel2'
         }`}
       >
-        <View className={`h-1.5 w-2 rounded-pill border ${on ? 'border-[#1b1509]' : 'border-muted'}`} />
-        <View className={`-ml-1 h-1.5 w-2 rounded-pill border ${on ? 'border-[#1b1509]' : 'border-muted'}`} />
+        <View className={`h-1.5 w-2 rounded-pill border ${on ? 'border-on-accent' : 'border-muted'}`} />
+        <View className={`-ml-1 h-1.5 w-2 rounded-pill border ${on ? 'border-on-accent' : 'border-muted'}`} />
       </Tap>
     </View>
   );

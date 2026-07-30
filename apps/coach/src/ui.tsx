@@ -24,7 +24,7 @@ export const MICRO = 'text-1 font-[800] uppercase tracking-[.14em] text-dim';
 
 /** 03-shared-01 `.bigbtn` — the one brass control on a surface. */
 export const BRASS =
-  'inline-flex h-5 items-center justify-center gap-1 rounded-md px-2 text-4 font-[800] text-[#1b1509] ' +
+  'inline-flex h-5 items-center justify-center gap-1 rounded-md px-2 text-4 font-[800] text-on-accent ' +
   'shadow-brass transition-[filter] duration-150 [background:var(--brass)] hover:brightness-110 disabled:opacity-40';
 
 /** A quiet bordered control. */

@@ -247,8 +247,9 @@ export function ProgressScreen() {
                 <T
                   w="semi"
                   num
-                  className="w-8 text-right text-4"
-                  style={{ color: d.delta == null ? '#847d73' : d.delta > 0 ? '#9fc59b' : d.delta < 0 ? '#cf7f7c' : '#aaa49a' }}
+                  className={`w-8 text-right text-4 ${
+                    d.delta == null ? 'text-dim' : d.delta > 0 ? 'text-ok' : d.delta < 0 ? 'text-bad' : 'text-muted'
+                  }`}
                 >
                   {d.delta == null ? '—' : (d.delta > 0 ? '+' : '') + Math.round(d.delta)}
                 </T>
@@ -295,7 +296,7 @@ export function ProgressScreen() {
         <>
           <SectionHead title="Recovery · 30 days" />
           <Card>
-            <Trend data={recovery} color="#9fc59b" unit="%" min={0} max={100} />
+            <Trend data={recovery} color={color.ok} unit="%" min={0} max={100} />
           </Card>
         </>
       ) : null}
@@ -313,7 +314,7 @@ export function ProgressScreen() {
         <>
           <SectionHead title="Heart-rate recovery" />
           <Card>
-            <Trend data={hrrTrend} color="#cf9d4f" unit="bpm" />
+            <Trend data={hrrTrend} color={color.zMod} unit="bpm" />
             <T className="mt-1 text-2 text-dim">
               Drop in the minute after your session peak. Recorded and shown — it does not gate progression, because
               its day-to-day noise is larger than the effect.

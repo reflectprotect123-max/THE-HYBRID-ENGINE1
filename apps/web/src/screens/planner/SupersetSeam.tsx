@@ -29,7 +29,7 @@ export function SupersetSeam({
         className={cx(
           'relative grid h-3 w-6 place-items-center rounded-pill border transition-colors duration-150',
           on
-            ? 'border-gold text-[#1b1509] [background:var(--brass)]'
+            ? 'border-gold text-on-accent [background:var(--brass)]'
             : 'border-dashed border-line2 bg-panel2 text-muted hover:border-gold-line hover:text-gold2',
         )}
       >

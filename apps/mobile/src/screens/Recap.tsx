@@ -113,8 +113,7 @@ export function RecapScreen() {
                 <T
                   w="semi"
                   num
-                  className="text-4"
-                  style={{ color: m.delta > 0 ? '#9fc59b' : m.delta < 0 ? '#cf7f7c' : '#aaa49a' }}
+                  className={`text-4 ${m.delta > 0 ? 'text-ok' : m.delta < 0 ? 'text-bad' : 'text-muted'}`}
                 >
                   {m.to}kg
                 </T>

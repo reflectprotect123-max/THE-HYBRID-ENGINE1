@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { conMaxHr, conZones, restingHr, todayRecovery, type EngineDB, type Profile } from '@hybrid/engine';
+import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
@@ -284,7 +285,7 @@ function CoachLinkCard() {
               disabled={busy || !code.trim()}
               className={`mt-1.5 items-center rounded-md bg-gold py-1.5 ${busy || !code.trim() ? 'opacity-40' : ''}`}
             >
-              <T w="med" className="text-4" style={{ color: '#1b1509' }}>{busy ? 'Linking…' : 'Link to coach'}</T>
+              <T w="med" className="text-4" style={{ color: color.onAccent }}>{busy ? 'Linking…' : 'Link to coach'}</T>
             </Tap>
           </>
         )}
@@ -350,7 +351,7 @@ function CloudCard() {
             {msg ? <T className="mt-1 text-3 text-warn">{msg}</T> : null}
             <View className="mt-1.5 flex-row gap-1">
               <Tap box={{ h: 42 }} onPress={() => void go(signIn)} className="flex-1 items-center rounded-md bg-gold py-1.5">
-                <T w="med" className="text-4" style={{ color: '#1b1509' }}>Sign in</T>
+                <T w="med" className="text-4" style={{ color: color.onAccent }}>Sign in</T>
               </Tap>
               <Tap box={{ h: 42 }} onPress={() => void go(signUp)} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
                 <T w="med" className="text-4 text-text">Create account</T>
@@ -397,7 +398,7 @@ function WhoopCard() {
               hard line down.
             </T>
             <Tap box={{ h: 42 }} onPress={connect} className="mt-1.5 items-center rounded-md bg-gold py-1.5">
-              <T w="med" className="text-4" style={{ color: '#1b1509' }}>Connect WHOOP</T>
+              <T w="med" className="text-4" style={{ color: color.onAccent }}>Connect WHOOP</T>
             </Tap>
             {/* The connection IS visible back in the app now: it is filed under
                 the Supabase user rather than a browser cookie this app could

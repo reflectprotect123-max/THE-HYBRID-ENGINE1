@@ -65,7 +65,7 @@ export function Button({ variant = 'ghost', size = 'md', className, ...rest }: B
   }[size];
   const variants = {
     brass:
-      'text-[#1b1509] shadow-brass [background:var(--brass)] hover:brightness-110 active:brightness-95',
+      'text-on-accent shadow-brass [background:var(--brass)] hover:brightness-110 active:brightness-95',
     ghost: 'border border-line2 bg-panel2 text-text hover:border-gold-line hover:bg-well',
     quiet: 'text-muted hover:text-text',
   }[variant];

@@ -18,6 +18,7 @@ module.exports = {
         gold: '#c09358', gold2: '#e0bc87',
         'gold-wash': 'rgba(192,147,88,.09)', 'gold-line': 'rgba(224,188,135,.22)',
         'done-bg': 'rgba(192,147,88,.14)', 'done-line': 'rgba(224,188,135,.5)', 'done-ink': '#e6c795',
+        'on-accent': '#1b1509',
         ok: '#9fc59b', warn: '#d1a464', bad: '#cf7f7c',
         'z-low': '#5b8def', 'z-mod': '#cf9d4f', 'z-high': '#e0524d',
         track: 'rgba(255,255,255,.08)',

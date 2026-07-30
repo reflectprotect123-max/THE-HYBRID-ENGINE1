@@ -31,7 +31,7 @@ Target direction: **one shared language, both dark** (coach moves out of light).
 | Accent bright | `--gold2` | — | coach lacks it |
 | Accent tint fill | `--gold-wash` | `--orange-soft` | |
 | Accent border tint | `--gold-line` | — | |
-| Ink ON accent | (implicit) | `--on-accent`, `--on-accent-deep` | |
+| Ink ON accent | `--color-on-accent` | `--on-accent`, `--on-accent-deep` | closed on the athlete side — `packages/design/src/tokens.css`'s `--color-on-accent` (`color.onAccent` in `tokens.ts`) is the shared token every brass/gold control's ink now resolves through |
 | Ink ON dark fill | — | `--on-dark`, `--on-dark-ink` | |
 | Metal gradient / edge | `--brass-grad`, `--brass-edge` | — | athlete-only signature |
 

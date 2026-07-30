@@ -297,7 +297,7 @@ export function Btn({
          which is what makes the CTA read as a machined button, not a fill. */
       style={brass ? { boxShadow: 'inset 0 1px 0 rgba(255,255,255,.14), 0 1px 0 rgba(0,0,0,.35)' } : undefined}
     >
-      <T w="med" className={size === 'lg' ? 'text-6' : 'text-5'} style={{ color: brass ? '#1b1509' : color.text }}>
+      <T w="med" className={size === 'lg' ? 'text-6' : 'text-5'} style={{ color: brass ? color.onAccent : color.text }}>
         {children}
       </T>
     </Tap>

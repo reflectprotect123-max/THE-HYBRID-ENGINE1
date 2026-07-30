@@ -67,7 +67,7 @@ export function UpdateBanner() {
             asked.current = true;
             waiting.postMessage({ type: 'SKIP_WAITING' });
           }}
-          className="h-5 shrink-0 rounded-md px-1.5 text-3 font-[750] text-[#1b1509] [background:var(--brass)]"
+          className="h-5 shrink-0 rounded-md px-1.5 text-3 font-[750] text-on-accent [background:var(--brass)]"
         >
           Reload
         </button>
