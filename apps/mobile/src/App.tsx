@@ -34,6 +34,7 @@ import { CalendarScreen } from './screens/Calendar';
 import { ExerciseScreen } from './screens/Exercise';
 import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
+import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
 import { ConditioningScreen } from './screens/Conditioning';
 
 /*
@@ -65,6 +66,7 @@ export type RootStackParams = {
   Tabs: NavigatorScreenParams<TabParams> | undefined;
   Logger: { bi: number; ei: number };
   Planner: { id: string };
+  GuidedBuilder: { id: string };
   Recap: { id: string };
   /* Optional sink: which block of the live session this run belongs to. Absent
      when conditioning is started standalone from Home. */
@@ -199,6 +201,7 @@ export function App() {
               <Stack.Screen name="Tabs" component={TabNav} />
               <Stack.Screen name="Logger" component={LoggerScreen} />
               <Stack.Screen name="Planner" component={PlannerScreen} />
+              <Stack.Screen name="GuidedBuilder" component={GuidedBuilderScreen} />
               <Stack.Screen name="Recap" component={RecapScreen} />
               <Stack.Screen name="Conditioning" component={ConditioningScreen} />
               <Stack.Screen name="History" component={HistoryScreen} />

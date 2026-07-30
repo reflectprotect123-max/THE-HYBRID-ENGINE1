@@ -9,7 +9,6 @@ import {
   isCond,
   isCondWorkout,
   knownMovements,
-  newBlock,
   rxLine,
   sessionOpeners,
   uid,
@@ -64,14 +63,14 @@ export function LibraryScreen() {
     return (k ? list.filter((m) => m.toLowerCase().includes(k)) : list).slice(0, 40);
   }, [tab, q, movements, mobility]);
 
-  /** Straight into the full editor. There was briefly a guided wizard in front
-   *  of this; it earned nothing the Planner did not already do better. */
+  /** Into the guided builder, one step at a time, rather than dropping you
+   *  straight into a blank editor. */
   const add = () => {
-    const w: Workout = { id: uid(), name: 'New session', blocks: [newBlock()], updatedAt: Date.now() };
+    const w: Workout = { id: uid(), name: 'New session', blocks: [], updatedAt: Date.now() };
     update((d) => {
       d.workouts.push(w);
     });
-    nav.navigate('Planner', { id: w.id });
+    nav.navigate('GuidedBuilder', { id: w.id });
   };
 
   const toggleDay = (id: string, i: number) =>
