@@ -236,6 +236,14 @@ export function sessionProgress(s: Session): { done: number; total: number; pct:
       if (b.condResult) done += 1;
       return;
     }
+    if (isText(b)) {
+      // A ticked metcon is training that happened — hasLoggedWork already
+      // counts it (session.ts:232-243); without this the meter sat at 0% with
+      // the metcon done, and the finish button never turned brass.
+      total += 1;
+      if (b.done) done += 1;
+      return;
+    }
     blockExercises(b).forEach((e) => {
       total += e.sets.length;
       done += e.sets.filter((st) => st.done).length;

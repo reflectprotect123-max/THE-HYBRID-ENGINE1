@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sanitizeDB } from '../src/db';
 import { hasLoggedWork, isText, newTextBlock, sessionVolume } from '../src/session';
-import { ssGroups } from '../src/logger';
+import { sessionProgress, ssGroups } from '../src/logger';
 import type { Session, TextBlock } from '../src/types';
 
 /*
@@ -59,5 +59,15 @@ describe('text blocks', () => {
 
   it('has no superset chains to compute', () => {
     expect(ssGroups(withText().blocks[0])).toEqual([]);
+  });
+
+  it('a ticked metcon counts as done, and a metcon-only session can reach 100%', () => {
+    const s: Session = {
+      id: 's',
+      date: '2026-01-01',
+      status: 'active',
+      blocks: [{ id: 'b', kind: 'text', heading: 'Metcon', body: 'AMRAP 12', done: true } as TextBlock],
+    };
+    expect(sessionProgress(s)).toEqual({ done: 1, total: 1, pct: 100 });
   });
 });
