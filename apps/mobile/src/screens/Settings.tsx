@@ -71,7 +71,11 @@ export function SettingsScreen() {
       <Kicker>Settings</Kicker>
       <Title>Your numbers</Title>
 
-      {saveFailed || !isPersistent ? (
+      {saveFailed ? (
+        <T className="mt-2 rounded-md border border-bad bg-panel p-2 text-4 text-bad">
+          The last save failed — usually a full disk. Export a backup below, then try again.
+        </T>
+      ) : !isPersistent ? (
         <T className="mt-2 rounded-md border border-bad bg-panel p-2 text-4 text-bad">
           Storage is not persisting on this build. Anything you log now may not survive a restart — export a backup
           below before you train again.
@@ -312,7 +316,7 @@ function CloudCard() {
             <T className="text-4 text-muted">
               Signed in as <T w="semi" className="text-text">{user.email}</T>
             </T>
-            <T className="mt-0.5 text-3 text-dim">
+            <T accessibilityLiveRegion="polite" className="mt-0.5 text-3 text-dim">
               {busy ? 'Syncing…' : syncedAt ? 'Last synced ' + new Date(syncedAt).toLocaleTimeString() : 'Not synced yet.'}
             </T>
             {!isPersistent ? (
@@ -320,7 +324,7 @@ function CloudCard() {
                 Storage is not persisting in this build, so this sign-in will not survive a restart.
               </T>
             ) : null}
-            {error ? <T className="mt-1 text-3 text-bad">{error}</T> : null}
+            {error ? <T accessibilityLiveRegion="assertive" className="mt-1 text-3 text-bad">{error}</T> : null}
             <View className="mt-1.5 flex-row gap-1">
               <Tap box={{ h: 42 }} onPress={() => void syncNow()} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
                 <T w="med" className="text-4 text-text">Sync now</T>
@@ -409,7 +413,7 @@ function WhoopCard() {
             </T>
           </>
         )}
-        {error ? <T className="mt-1 text-3 text-dim">{error}</T> : null}
+        {error ? <T accessibilityLiveRegion="assertive" className="mt-1 text-3 text-dim">{error}</T> : null}
       </Card>
     </View>
   );

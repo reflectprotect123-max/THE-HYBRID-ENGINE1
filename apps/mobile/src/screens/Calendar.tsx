@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { hasLoggedWork, ymd, type Session, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Btn, Card, Kicker, Screen, T, Title } from '../ui';
+import { Btn, Card, Kicker, Screen, T, Tap, Title } from '../ui';
+import type { RootStackParams } from '../App';
 
 /*
  * Planned and trained are drawn differently on purpose. A dot you intended is
@@ -10,6 +13,7 @@ import { Btn, Card, Kicker, Screen, T, Title } from '../ui';
  * than you did.
  */
 export function CalendarScreen() {
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { db } = useDb();
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -21,17 +25,33 @@ export function CalendarScreen() {
 
   return (
     <Screen>
+      <Tap
+        onPress={() => nav.goBack()}
+        label="back"
+        box={40}
+        className="mb-1 h-5 w-5 items-center justify-center self-start rounded-md border border-line2 bg-panel2"
+      >
+        <T className="text-6 text-muted">←</T>
+      </Tap>
       <Kicker>Calendar</Kicker>
       <Title>{cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</Title>
 
       <View className="mt-2 flex-row gap-1">
-        <Btn className="flex-1" onPress={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>
+        <Btn
+          className="flex-1"
+          label="previous month"
+          onPress={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
+        >
           ‹
         </Btn>
         <Btn className="flex-[2]" onPress={() => setCursor(new Date())}>
           Today
         </Btn>
-        <Btn className="flex-1" onPress={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>
+        <Btn
+          className="flex-1"
+          label="next month"
+          onPress={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
+        >
           ›
         </Btn>
       </View>
@@ -74,6 +94,10 @@ export function CalendarScreen() {
           </View>
         </View>
       </Card>
+
+      <Btn className="mt-2" onPress={() => nav.navigate('Tabs', { screen: 'Library' })}>
+        Schedule something
+      </Btn>
     </Screen>
   );
 }

@@ -104,6 +104,17 @@ describe('Logger', () => {
     expect(screen.getByLabelText('kg').props.value).toBe('105');
   });
 
+  it('shows a confirmed set in the logged list, weight and reps together', () => {
+    liveSession();
+    mount();
+    fireEvent.changeText(screen.getByLabelText('kg'), '100');
+    fireEvent.changeText(screen.getByLabelText('reps'), '5');
+    fireEvent.press(screen.getByText('Finish Set'));
+    fireEvent.press(screen.getByText('Confirm Set'));
+
+    expect(screen.getByText('100kg × 5')).toBeTruthy();
+  });
+
   it('moves to the next set after a confirm', () => {
     liveSession();
     mount();

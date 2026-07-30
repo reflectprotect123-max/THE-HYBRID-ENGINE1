@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
-import { useRoute, type RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   CON_FORMATS,
   conAdapt,
@@ -30,7 +31,7 @@ import { useDb } from '../store/db';
 import { buzz, createGeoTracker, createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
 import { color } from '@hybrid/design';
-import { Btn, Card, Chip, Kicker, Ring, Row, Screen, SectionHead, T, Title, zoneInk, zoneNeon } from '../ui';
+import { Btn, Card, Chip, Kicker, Ring, Row, Screen, SectionHead, T, Tap, Title, zoneInk, zoneNeon } from '../ui';
 import { RouteMap } from '../ui/RouteMap';
 
 /*
@@ -49,6 +50,7 @@ import { RouteMap } from '../ui/RouteMap';
 const MIN_LOGGABLE_SEC = 20;
 
 export function ConditioningScreen() {
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { db, hr, whoop, update, activeSession } = useDb();
   // Which block of the live session this run belongs to, when it was started
   // from one. Absent for a standalone run off Home.
@@ -244,6 +246,20 @@ export function ConditioningScreen() {
 
   return (
     <Screen>
+      {/* Only when there is nothing running to lose: this screen keeps its
+          clock, strap and GPS trace in component state, not the store, so
+          unmounting mid-run (which `goBack` does) would discard it silently.
+          Setup and a banked result are safe to leave; a live run is not. */}
+      {!live ? (
+        <Tap
+          onPress={() => nav.goBack()}
+          label="back"
+          box={40}
+          className="mb-1 h-5 w-5 items-center justify-center self-start rounded-md border border-line2 bg-panel2"
+        >
+          <T className="text-6 text-muted">←</T>
+        </Tap>
+      ) : null}
       <Kicker>Conditioning</Kicker>
       <Title>{live ? (phaseNow?.p.name ?? 'Running') : 'Set up'}</Title>
 

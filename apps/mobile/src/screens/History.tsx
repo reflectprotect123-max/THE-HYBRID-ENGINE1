@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import {
   CON_FORMATS, blockExercises, byMonth, dayLabel, epley, fmtDistance, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useDb } from '../store/db';
@@ -7,6 +8,7 @@ import { Card, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
 import { RouteMap } from '../ui/RouteMap';
 
 export function HistoryScreen() {
+  const nav = useNavigation();
   const { db } = useDb();
   const [open, setOpen] = useState<string | null>(null);
 
@@ -19,6 +21,14 @@ export function HistoryScreen() {
 
   return (
     <Screen>
+      <Tap
+        onPress={() => nav.goBack()}
+        label="back"
+        box={40}
+        className="mb-1 h-5 w-5 items-center justify-center self-start rounded-md border border-line2 bg-panel2"
+      >
+        <T className="text-6 text-muted">←</T>
+      </Tap>
       <Kicker>History</Kicker>
       <Title>What you&apos;ve done</Title>
 
@@ -84,6 +94,7 @@ function Detail({ s }: { s: Session }) {
               {CON_FORMATS[b.condFmt]?.name ?? b.condFmt}
               {b.condResult?.dur ? ` · ${Math.round(b.condResult.dur / 60)} min` : ''}
               {b.condResult?.distanceM ? ` · ${fmtDistance(b.condResult.distanceM)}` : ''}
+              {b.condResult?.felt ? ` · felt RPE ${b.condResult.felt}` : ''}
             </T>
           ) : null}
           {isCond(b) && b.condResult?.route ? (

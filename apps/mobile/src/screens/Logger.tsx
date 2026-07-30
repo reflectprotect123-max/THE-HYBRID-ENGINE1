@@ -27,6 +27,7 @@ import {
   sessionLetters,
   sessionProgress,
   targetLine,
+  type Exercise,
   type LoggedSet,
   type StrengthBlock,
 } from '@hybrid/engine';
@@ -588,6 +589,8 @@ export function LoggerScreen({ route, navigation }: Props) {
         {hint ? (
           <T num className={`mt-2 text-4 ${hint.cls === 'good' ? 'text-gold2' : 'text-bad'}`}>{hint.txt}</T>
         ) : null}
+
+        <LoggedList ex={ex} />
       </View>
 
       {/* Moving on without going back through the session list. `next` never
@@ -610,5 +613,27 @@ export function LoggerScreen({ route, navigation }: Props) {
         ) : null}
       </View>
     </ScrollView>
+  );
+}
+
+/** Every set already confirmed this stage, so a mid-session glance answers
+ *  "what did I just do" without scrolling back through Training. Transcribed
+ *  from the web logger's `LoggedList` — same shape, same order. */
+function LoggedList({ ex }: { ex: Exercise<LoggedSet> }) {
+  const done = ex.sets.map((st, i) => ({ st, i })).filter((x) => x.st.done);
+  if (!done.length) return null;
+  return (
+    <View className="mt-2 border-t border-line">
+      {done.map(({ st, i }) => (
+        <View key={i} className="flex-row items-center gap-1 border-b border-line py-1">
+          <T num className="w-4 text-4 text-dim">{i + 1}</T>
+          <T num className="flex-1 text-4 text-text">
+            {(st.aVal || '—') + (isLiftMode(ex.mode) ? 'kg' : '') + (st.aVal2 ? ' × ' + st.aVal2 : '')}
+            {isWarmup(st) ? '  warm-up' : ''}
+          </T>
+          {st.felt ? <T num className="text-4 text-gold2">RPE {st.felt}</T> : null}
+        </View>
+      ))}
+    </View>
   );
 }

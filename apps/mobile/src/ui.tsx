@@ -271,6 +271,7 @@ export function Btn({
   size = 'md',
   className,
   disabled,
+  label,
 }: {
   children: ReactNode;
   onPress?: () => void;
@@ -278,6 +279,8 @@ export function Btn({
   size?: 'md' | 'lg';
   className?: string;
   disabled?: boolean;
+  /** Spoken name, when the visible child is a glyph (‹, ›) rather than words. */
+  label?: string;
 }) {
   const brass = variant === 'brass';
   /* py-1.5 + a 14px line box came to ~42px — under the bar by a hair, and the
@@ -289,7 +292,7 @@ export function Btn({
       onPress={onPress}
       disabled={disabled}
       box={{ h: boxH }}
-      label={typeof children === 'string' ? children : undefined}
+      label={label ?? (typeof children === 'string' ? children : undefined)}
       className={`items-center justify-center rounded-md ${size === 'lg' ? 'px-3 py-2' : 'px-2 py-1.5'} ${
         brass ? 'bg-gold' : 'border border-line2 bg-panel2'
       } ${disabled ? 'opacity-40' : ''} ${className || ''}`}

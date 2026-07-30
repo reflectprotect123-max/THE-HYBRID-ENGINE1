@@ -8,6 +8,7 @@ import {
   blockExercises,
   detectPRs,
   exFinished,
+  fmtRest,
   isCond,
   isText,
   liftAdapt,
@@ -24,7 +25,8 @@ import {
 } from '@hybrid/engine';
 import { sessionFrom } from '../store/session';
 import { useDb } from '../store/db';
-import { Btn, Card, Kicker, Ltr, T, Tap, Title } from '../ui';
+import { useRest } from '../store/rest';
+import { Btn, Card, Empty, Kicker, Ltr, SectionHead, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -36,6 +38,7 @@ export function TrainingScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const insets = useSafeAreaInsets();
   const { db, activeSession, update } = useDb();
+  const { running: restRunning, left: restLeft, stop: stopRest } = useRest();
   const today = ymd(new Date());
   const dow = new Date().getDay();
 
@@ -81,26 +84,42 @@ export function TrainingScreen() {
       <ScrollView className="flex-1 bg-bg" contentContainerStyle={pad}>
         <Kicker>Training</Kicker>
         <Title>Start a session</Title>
-        {(candidates.length ? candidates : db.workouts).map((w) => (
-          <View key={w.id} className="mt-1 flex-row items-center rounded-lg border border-line bg-panel p-2">
-            <View className="flex-1">
-              <T w="semi" className="text-5 text-text" numberOfLines={1}>
-                {w.name || 'Session'}
-              </T>
-              <T num className="text-3 text-dim">
-                {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
-                {w.origin === 'coach' ? ' · from your coach' : ''}
-              </T>
+        {candidates.length ? (
+          candidates.map((w) => (
+            <View key={w.id} className="mt-1 flex-row items-center rounded-lg border border-line bg-panel p-2">
+              <View className="flex-1">
+                <T w="semi" className="text-5 text-text" numberOfLines={1}>
+                  {w.name || 'Session'}
+                </T>
+                <T num className="text-3 text-dim">
+                  {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
+                  {w.origin === 'coach' ? ' · from your coach' : ''}
+                </T>
+              </View>
+              <Btn variant="brass" onPress={() => start(w)}>
+                Start
+              </Btn>
             </View>
-            <Btn variant="brass" onPress={() => start(w)}>
-              Start
-            </Btn>
-          </View>
-        ))}
-        {!db.workouts.length ? (
-          <T className="mt-2 text-4 text-muted">
-            Nothing in your library yet. Sessions your coach assigns will appear here automatically.
-          </T>
+          ))
+        ) : (
+          <Empty
+            title="Nothing scheduled for today"
+            body="Anything in your Library can be started now — scheduling is a convenience, not a gate."
+          />
+        )}
+
+        {db.workouts.length && !candidates.length ? (
+          <>
+            <SectionHead title="Everything else" />
+            {db.workouts.map((w) => (
+              <View key={w.id} className="mt-1 flex-row items-center rounded-lg border border-line bg-panel p-2">
+                <T w="semi" className="min-w-0 flex-1 text-5 text-text" numberOfLines={1}>
+                  {w.name || 'Session'}
+                </T>
+                <Btn onPress={() => start(w)}>Start</Btn>
+              </View>
+            ))}
+          </>
         ) : null}
       </ScrollView>
     );
@@ -157,6 +176,17 @@ export function TrainingScreen() {
         </T>
         <T num className="text-2 text-dim">{volume.toLocaleString()} kg</T>
       </View>
+
+      {/* How much longer, at a glance — not a floating overlay, since the
+          scheduled notification already covers the screen going dark. */}
+      {restRunning ? (
+        <View className="mt-1 flex-row items-center gap-1 self-start rounded-pill border border-gold-line bg-panel2 px-1.5 py-0.5">
+          <T num className="text-3 text-gold2">Rest · {fmtRest(restLeft)}</T>
+          <Tap onPress={stopRest} label="skip rest" box={{ h: 32 }}>
+            <T className="text-3 text-dim">Skip</T>
+          </Tap>
+        </View>
+      ) : null}
 
       {s.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mt-2">

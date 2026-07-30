@@ -65,4 +65,14 @@ describe('Training', () => {
     renderScreen(<TrainingScreen />);
     expect(screen.getByText('Start a session')).toBeTruthy();
   });
+
+  it('shows an honest empty state when nothing is scheduled today, with the rest of the library still reachable', () => {
+    // Nobody today, but the library is not empty — a silent list of everything
+    // used to read as "these are all scheduled for today", which they are not.
+    seed({ workouts: [liftWorkout()] });
+    renderScreen(<TrainingScreen />);
+    expect(screen.getByText('Nothing scheduled for today')).toBeTruthy();
+    expect(screen.getByText('Everything else')).toBeTruthy();
+    expect(screen.getByText('Lower')).toBeTruthy();
+  });
 });

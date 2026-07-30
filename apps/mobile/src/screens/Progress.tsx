@@ -21,7 +21,7 @@ import {
 } from '@hybrid/engine';
 import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
-import { Card, Empty, Kicker, Row, Screen, SectionHead, T, Tap, Title, zoneInk } from '../ui';
+import { Card, Empty, Kicker, Link, Row, Screen, SectionHead, T, Tap, Title, zoneInk } from '../ui';
 import type { RootStackParams } from '../App';
 
 /*
@@ -228,7 +228,10 @@ export function ProgressScreen() {
 
       {lifts.length ? (
         <>
-          <SectionHead title="Top lifts · 8-week change" />
+          <SectionHead
+            title="Top lifts · 8-week change"
+            right={<Link onPress={() => nav.navigate('History')}>Full history ›</Link>}
+          />
           <Card>
             {/* Each lift is a door into its own history — the per-movement
                 trend `exLogFor` has always been able to produce and nothing

@@ -61,6 +61,14 @@ export function ExerciseScreen() {
 
   return (
     <Screen>
+      <Tap
+        onPress={() => nav.goBack()}
+        label="back"
+        box={40}
+        className="mb-1 h-5 w-5 items-center justify-center self-start rounded-md border border-line2 bg-panel2"
+      >
+        <T className="text-6 text-muted">←</T>
+      </Tap>
       <Kicker>Exercise</Kicker>
       <Title>{movement || 'Pick a movement'}</Title>
 

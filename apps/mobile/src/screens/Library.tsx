@@ -7,6 +7,7 @@ import {
   agoLabel,
   blockExercises,
   isCond,
+  isCondWorkout,
   knownMovements,
   newBlock,
   rxLine,
@@ -158,7 +159,9 @@ export function LibraryScreen() {
                   {w.name || 'Session'}
                 </T>
                 <T num className="ml-1 text-3 text-dim">
-                  {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
+                  {isCondWorkout(w) || !w.blocks.length
+                    ? 'conditioning'
+                    : `${w.blocks.length} ${w.blocks.length === 1 ? 'block' : 'blocks'}`}
                 </T>
               </Tap>
               <Tap

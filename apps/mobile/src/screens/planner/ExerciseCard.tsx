@@ -92,6 +92,7 @@ export function ExerciseCard({
             editable={!readOnly}
             onChangeText={onNameChange}
             placeholder="Movement"
+            accessibilityLabel="movement name"
             className="h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
           />
           {!readOnly ? <Suggest typed={ex.name} known={suggestPool} onPick={onNameChange} /> : null}
@@ -107,6 +108,7 @@ export function ExerciseCard({
                 // Type once, it fills the rest — see fillLinkedSets.
                 onChangeText={(v) => onSet(si, 't', v)}
                 placeholder="reps"
+                accessibilityLabel="set target"
                 className="h-5 w-14 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
               />
               <Input
@@ -115,6 +117,7 @@ export function ExerciseCard({
                 editable={!readOnly}
                 onChangeText={(v) => onSet(si, 'rpe', v)}
                 placeholder={isWarmup(st) ? '—' : 'RPE'}
+                accessibilityLabel="RPE"
                 className="h-5 w-12 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
               />
               {!readOnly && ex.sets.length > 1 ? (
