@@ -124,9 +124,10 @@ export function conProgLevel(fmtKey: string, settings?: Settings): number {
 /** Resolve a block's authored effort, falling back to its legacy zone. */
 export function condEffort(b: Partial<CondBlock> | CondResult | null | undefined) {
   const e = b && (b as CondBlock).effort;
-  if (e && CON_EFFORTS[e]) return CON_EFFORTS[e];
+  if (e && Object.prototype.hasOwnProperty.call(CON_EFFORTS, e)) return CON_EFFORTS[e];
   const zone = b && ((b as CondBlock).targetZone as ZoneKey | undefined);
-  return (zone && CON_EFFORTS[ZONE_TO_EFFORT[zone]]) || CON_EFFORTS.medium;
+  if (zone && Object.prototype.hasOwnProperty.call(ZONE_TO_EFFORT, zone)) return CON_EFFORTS[ZONE_TO_EFFORT[zone]];
+  return CON_EFFORTS.medium;
 }
 
 /**
@@ -279,6 +280,10 @@ export function conAdapt(rec: CondResult | null | undefined, settings: Settings 
 
   const z = rec.zsec || { low: 0, mod: 0, high: 0 };
   const zoned = (z.low || 0) + (z.mod || 0) + (z.high || 0);
+  // No zone time banked at all means no heart-rate data — a strapless run, not
+  // a failed one. Neither earn nor deload from a session the app could not
+  // measure. A run WITH data that stayed out of zone still counts as a miss.
+  if (zoned <= 0) return none;
   const total = Math.max(1, zoned || rec.dur || 0);
   const workSec = fmtKey === 'steady' ? (z.low || 0) + (z.mod || 0) : (z.mod || 0) + (z.high || 0);
   const frac = fmtKey === 'steady' ? 0.6 : 0.45; // PROVISIONAL
