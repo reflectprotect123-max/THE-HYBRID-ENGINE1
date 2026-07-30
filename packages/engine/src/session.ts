@@ -188,7 +188,10 @@ export function sessionVolume(s: Session): number {
 export function sessionRpe(s: Session): { target: number | null; felt: number | null } {
   const t: number[] = [];
   const f: number[] = [];
-  s.blocks.forEach((b) =>
+  s.blocks.forEach((b) => {
+    if (isWarmupBlock(b)) return; // whole-block prep is not rated effort — the
+    // per-set isWarmup guard misses a warm-up block whose sets carry an
+    // ordinary target ("10"), the same skip every sibling opens with.
     blockExercises(b).forEach((e) =>
       e.sets.forEach((st) => {
         if (isWarmup(st)) return;
@@ -198,8 +201,8 @@ export function sessionRpe(s: Session): { target: number | null; felt: number | 
         if (Number.isFinite(tt)) t.push(tt);
         if (Number.isFinite(ff)) f.push(ff);
       }),
-    ),
-  );
+    );
+  });
   const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
   return { target: avg(t), felt: avg(f) };
 }
@@ -302,32 +305,33 @@ export function exBest(
 /** Any lift in a finishing session whose best set beats all prior history. */
 export function detectPRs(s: Session, sessions: Session[]): PrRecord[] {
   const prs: PrRecord[] = [];
-  const seen = new Set<string>();
+  const bestByKey = new Map<string, { name: string; kg: number; reps: number; e1: number }>();
 
   s.blocks.forEach((b) => {
     if (isWarmupBlock(b)) return;
     blockExercises(b).forEach((e) => {
       if (!isLiftMode(e.mode)) return;
       const key = String(e.name || '').trim().toLowerCase();
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-
-      let best: { kg: number; reps: number; e1: number } | null = null;
+      if (!key) return;
       e.sets.forEach((st) => {
         if (isWarmup(st)) return;
         const e1 = epley(st.aVal, st.aVal2);
-        if (st.done && e1 != null && (!best || e1 > best.e1)) {
-          best = { kg: Number(st.aVal), reps: Number(st.aVal2), e1 };
+        if (st.done && e1 != null) {
+          const cur = bestByKey.get(key);
+          // scan EVERY block for this movement's best — a heavy single in a
+          // later block used to be skipped by the old dedupe-before-scan, so
+          // the PR banner never fired while the chart jumped.
+          if (!cur || e1 > cur.e1) bestByKey.set(key, { name: e.name, kg: Number(st.aVal), reps: Number(st.aVal2), e1 });
         }
       });
-      if (!best) return;
-      const b2 = best as { kg: number; reps: number; e1: number };
-
-      const prev = exBest(e.name, sessions, s.id);
-      if (!prev || b2.e1 > prev.e1 + 0.01) {
-        prs.push({ name: e.name, kg: b2.kg, reps: b2.reps, e1: b2.e1, prevE1: prev ? prev.e1 : null });
-      }
     });
+  });
+
+  bestByKey.forEach((best) => {
+    const prev = exBest(best.name, sessions, s.id);
+    if (!prev || best.e1 > prev.e1 + 0.01) {
+      prs.push({ name: best.name, kg: best.kg, reps: best.reps, e1: best.e1, prevE1: prev ? prev.e1 : null });
+    }
   });
 
   return prs;
@@ -354,15 +358,17 @@ export function rpeGapInfo(
 
   for (const s of done) {
     const gaps: number[] = [];
-    s.blocks.forEach((b) =>
+    s.blocks.forEach((b) => {
+      if (isWarmupBlock(b)) return;
       blockExercises(b).forEach((e) =>
         e.sets.forEach((st) => {
+          if (isWarmup(st)) return;
           const t = parseFloat(String(st.rpe));
           const f = parseFloat(String(st.felt));
           if (st.done && Number.isFinite(t) && Number.isFinite(f)) gaps.push(f - t);
         }),
-      ),
-    );
+      );
+    });
     s.blocks.forEach((b) => {
       if (!isCond(b) || !b.condResult) return;
       // condEffort() is the ONLY safe resolver: it hasOwnProperty-guards the
@@ -417,7 +423,8 @@ export function bestE1rmByLift(
     .forEach((s) => {
       const t = Date.parse(s.date + 'T12:00:00');
       if (!Number.isFinite(t) || t < fromMs || t >= toMs) return;
-      s.blocks.forEach((b) =>
+      s.blocks.forEach((b) => {
+        if (isWarmupBlock(b)) return;
         blockExercises(b).forEach((e) => {
           if (!isLiftMode(e.mode)) return;
           const k = String(e.name || '').trim();
@@ -432,8 +439,8 @@ export function bestE1rmByLift(
               }
             }
           });
-        }),
-      );
+        });
+      });
     });
   return names;
 }

@@ -12,8 +12,8 @@
  * it diverges and the chain breaks there, for every set after it too.
  */
 import { describe, expect, it } from 'vitest';
-import { duplicateExercise, fillLinkedSets } from '../src/session';
-import type { Exercise, PlannedSet } from '../src/types';
+import { detectPRs, duplicateExercise, fillLinkedSets } from '../src/session';
+import type { Exercise, LoggedSet, PlannedSet, Session } from '../src/types';
 
 const set = (t: string, rpe: string): PlannedSet => ({ t, rpe });
 const ex = (name: string, over: Partial<Exercise> = {}): Exercise => ({
@@ -113,5 +113,69 @@ describe('duplicateExercise', () => {
   it('returns the original array unchanged for an out-of-range index', () => {
     const exs = [ex('Bench Press')];
     expect(duplicateExercise(exs, 5)).toBe(exs);
+  });
+});
+
+/*
+ * detectPRs — E3: dedupe-BEFORE-scan meant the first block seen for a name
+ * "claimed" it, so a heavier set of the SAME lift sitting in a later block
+ * (a "Heavy single" block after the main work, a common authoring pattern)
+ * was never even looked at, and the PR banner stayed silent while the
+ * Progress chart jumped.
+ */
+const loggedSet = (kg: string, reps: string): LoggedSet =>
+  ({ done: true, aVal: kg, aVal2: reps }) as LoggedSet;
+
+describe('detectPRs scans every block for a lift, not just the first (E3)', () => {
+  it('reports a PR set in a LATER block under the same exercise name', () => {
+    const s: Session = {
+      id: 'today',
+      date: '2026-01-05',
+      status: 'completed',
+      completedAt: Date.parse('2026-01-05T18:00:00Z'),
+      blocks: [
+        {
+          id: 'main',
+          heading: 'Main work',
+          superset: false,
+          exercises: [
+            { id: 'e1', name: 'Back squat', mode: 'reps_kg', rest: 90, sets: [loggedSet('100', '5')] },
+          ],
+        },
+        {
+          id: 'heavy',
+          heading: 'Heavy single',
+          superset: false,
+          exercises: [
+            { id: 'e2', name: 'Back squat', mode: 'reps_kg', rest: 90, sets: [loggedSet('150', '1')] },
+          ],
+        },
+      ],
+    } as unknown as Session;
+
+    const prior: Session = {
+      id: 'prior',
+      date: '2025-12-20',
+      status: 'completed',
+      completedAt: Date.parse('2025-12-20T18:00:00Z'),
+      blocks: [
+        {
+          id: 'main',
+          heading: 'Main work',
+          superset: false,
+          exercises: [
+            { id: 'e1', name: 'Back squat', mode: 'reps_kg', rest: 90, sets: [loggedSet('110', '5')] },
+          ],
+        },
+      ],
+    } as unknown as Session;
+
+    const prs = detectPRs(s, [prior, s]);
+    expect(prs).toHaveLength(1);
+    expect(prs[0].name).toBe('Back squat');
+    expect(prs[0].kg).toBe(150);
+    expect(prs[0].reps).toBe(1);
+    expect(prs[0].e1).toBeCloseTo(150, 2);
+    expect(prs[0].prevE1).toBeCloseTo(128.33, 2);
   });
 });
