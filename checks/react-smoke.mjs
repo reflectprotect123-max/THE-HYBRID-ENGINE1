@@ -333,25 +333,73 @@ await t('Home\'s "Start today\'s session →" actually starts one', async () => 
 /* ---------- planner ---------- */
 
 await t('the Library creates a session and opens it in the plan editor', async () => {
+  // The guided builder (Task 5) is now the "＋ New session" entry point — it
+  // creates the workout up front, same as before, but hands off to /build/:id
+  // rather than dropping straight into the Planner with a blank block.
   await page.goto(base + '/library', { waitUntil: 'networkidle' });
-  await page.click('button:has-text("New session")');
-  await page.waitForURL(/\/planner\//);
-  await page.waitForSelector('input[aria-label="session name"]');
+  await page.click('button:has-text("＋ New session")');
+  await page.waitForURL(/\/build\//);
+  await page.waitForSelector('text=What are we doing?');
   const made = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts.some((w) => w.name === 'New session'),
   );
   assert(made, 'the Library did not write the session it navigated to');
 });
 
+await t('the guided builder replaces "New session" and can build a full session', async () => {
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  await page.click('button:has-text("＋ New session")');
+  await page.waitForSelector('text=What are we doing?');
+
+  // Lift block.
+  await page.click('button:has-text("Lift")');
+  await page.waitForSelector('text=Which movement?');
+  await page.fill('input[aria-label="movement name"]', 'Back Squat');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How many sets?');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How many reps?');
+  await page.click('button:has-text("8")');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How hard should it feel?');
+  await page.click('button:has-text("RPE 8")');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=Add another block?');
+  const afterFirst = await page.textContent('body');
+  assert(/Back Squat added/.test(afterFirst), 'the running summary should name the block just added');
+
+  // Warm-up/Cooldown block, as a single open text box.
+  await page.click('button:has-text("Yes, add another")');
+  await page.waitForSelector('text=What are we doing?');
+  await page.click('button:has-text("Warm-up / Cooldown")');
+  await page.waitForSelector("text=What's the warm-up?");
+  await page.fill('textarea', '10 min bike, band work');
+  await page.click('button:has-text("Done")');
+  await page.waitForSelector('text=Add another block?');
+  const afterSecond = await page.textContent('body');
+  assert(/Warm-up \/ Cooldown added/.test(afterSecond), 'the warm-up block should show in the running summary');
+
+  // Finish — lands in the existing Planner with both blocks present.
+  await page.click('button:has-text("No, I\'m done")');
+  await page.waitForSelector('text=Back Squat');
+  const plannerText = await page.textContent('body');
+  assert(/Back Squat/.test(plannerText), 'the lift block should carry into the Planner');
+  assert(/10 min bike, band work/.test(plannerText), 'the warm-up note should carry into the Planner');
+});
+
 await t('the plan editor edits a target and it persists', async () => {
+  // Scoped by the workout id in the current URL rather than by name: the
+  // previous test (and the one before it) both mint sessions named "New
+  // session", so matching on name alone would risk grabbing the wrong one.
   await page.waitForSelector('input[aria-label="target for set 1"]');
+  const workoutId = new URL(page.url()).pathname.split('/').pop();
   await page.fill('input[aria-label="target for set 1"]', 'W10');
   await page.fill('input[aria-label="target for set 2"]', '3');
-  const stored = await page.evaluate(() => {
+  const stored = await page.evaluate((id) => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
-    const w = db.workouts.find((x) => x.name === 'New session');
+    const w = db.workouts.find((x) => x.id === id);
     return w.blocks[0].exercises[0].sets.slice(0, 2).map((s) => s.t);
-  });
+  }, workoutId);
   assert(stored[0] === 'W10' && stored[1] === '3', 'targets not saved: ' + JSON.stringify(stored));
 });
 
