@@ -45,6 +45,8 @@ packages/engine     every training decision. No DOM, no globals, no React.
                     The one place web and mobile must agree.
 packages/design     colour, type and spacing tokens on an 8px grid.
 packages/config     Supabase URL/anon key and site origin.
+packages/guided-flow the pure step-sequencing logic shared by the web and
+                    mobile guided session builders.
 
 apps/web            the athlete PWA. This is the deployed origin.
 apps/mobile         the Android app (Expo/EAS), with BLE heart rate.

@@ -19,14 +19,30 @@
  *   node checks/mobile-touch.mjs
  */
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 const root = resolve(process.cwd(), process.argv.slice(2).find((a) => !a.startsWith('-')) || '.');
 const screens = join(root, 'apps/mobile/src/screens');
 
+/*
+ * Every screen, at any depth.
+ *
+ * This was a flat `readdirSync`, which silently stopped at the top level — so
+ * the guided builder's eight screens under `screens/guided/` were never scanned
+ * at all, and the sweep reported green over a directory it had not read. A check
+ * that quietly covers less than it claims is worse than one that fails.
+ */
+function walk(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) return walk(p);
+    return e.name.endsWith('.tsx') ? [p] : [];
+  });
+}
+
 let files;
 try {
-  files = readdirSync(screens).filter((n) => n.endsWith('.tsx'));
+  files = walk(screens);
 } catch {
   console.error(`cannot read ${screens} — run this from the repo root, or pass the root as an argument.`);
   process.exit(1);
@@ -40,10 +56,10 @@ if (!files.length) {
 
 const offenders = [];
 for (const f of files) {
-  readFileSync(join(screens, f), 'utf8')
+  readFileSync(f, 'utf8')
     .split(/\r?\n/)
     .forEach((line, i) => {
-      if (/<Pressable[\s>]/.test(line)) offenders.push(`${f}:${i + 1}`);
+      if (/<Pressable[\s>]/.test(line)) offenders.push(`${relative(screens, f)}:${i + 1}`);
     });
 }
 
