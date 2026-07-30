@@ -87,6 +87,37 @@ describe('GuidedBuilderScreen', () => {
     expect(screen.getByLabelText('custom reps target').props.value).toBe('8-12');
   });
 
+  it('does not clobber a custom reps target while it is being typed', () => {
+    // A native TextInput always reports the FULL new text on each keystroke,
+    // built from whatever the box is currently showing -- not from some
+    // separate intended-final-string. Deriving the shown value from `value`
+    // by blanking it whenever `value` happens to equal a preset ('8', '5', ...)
+    // used to reset the box to '' the instant the typed-so-far text matched
+    // one, so the next keystroke landed on an empty field: typing "8-12"
+    // produced a box (and a stored value) of "-12".
+    seed({ workouts: [newWorkout()] });
+    renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
+
+    fireEvent.press(screen.getByText('🏋 Lift'));
+    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
+    fireEvent.press(screen.getByText('Next'));
+    fireEvent.press(screen.getByText('Next'));
+
+    for (const ch of '8-12') {
+      const shown = screen.getByLabelText('custom reps target').props.value;
+      fireEvent.changeText(screen.getByLabelText('custom reps target'), shown + ch);
+    }
+    expect(screen.getByLabelText('custom reps target').props.value).toBe('8-12');
+
+    fireEvent.press(screen.getByText('Next'));
+    fireEvent.press(screen.getByText('RPE 8'));
+    fireEvent.press(screen.getByText('Next'));
+
+    flushSave();
+    const w = persisted().workouts.find((x) => x.id === 'w1')!;
+    expect(w.blocks[0].exercises![0].sets.map((s) => s.t)).toEqual(['8-12', '8-12', '8-12']);
+  });
+
   it('cancelling the first question takes the phantom session with it', () => {
     // The Library writes the workout BEFORE this screen opens, so backing out of
     // the first question used to leave a permanent, blockless session behind —

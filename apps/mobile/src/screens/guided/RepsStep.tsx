@@ -21,15 +21,14 @@ export function RepsStep({
   disabled: boolean;
 }) {
   /*
-   * Derived, never held in local state.
-   *
-   * As a `useState` this reset to '' every time the step unmounted — which is
-   * every Back navigation — while the orchestrator's `value` still held what was
-   * typed. The step then showed an empty box and no chip selected with Next
-   * enabled and nothing to say why. Deriving it removes the desync by
-   * construction: anything that is not a preset IS the custom target.
+   * The custom box shows `value` directly rather than tracking its own state:
+   * a `useState` here reset to '' on every Back navigation (a remount) while
+   * the orchestrator's `value` still held what was typed, desyncing the two.
+   * Blanking the box whenever `value` happens to match a preset string
+   * (e.g. mid-typing "8-12", the moment the box reads "8") clobbers a custom
+   * value while it's being typed, so it isn't blanked at all — a preset chip
+   * being selected shows in the chip's own highlighted state.
    */
-  const custom = PRESETS.includes(value) ? '' : value;
   return (
     <View className="flex-1 items-center justify-center gap-3 p-4">
       <Title>How many reps?</Title>
@@ -57,7 +56,7 @@ export function RepsStep({
         ))}
       </View>
       <Input
-        value={custom}
+        value={value}
         onChangeText={onChange}
         placeholder="or type a custom target, e.g. 8-12"
         accessibilityLabel="custom reps target"

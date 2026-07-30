@@ -481,6 +481,26 @@ await t('a custom reps target is still there after stepping back onto it', async
   assert(shown === '8-12', 'the custom target should still be shown, got ' + JSON.stringify(shown));
 });
 
+await t('typing a custom reps target does not get clobbered mid-keystroke', async () => {
+  // page.fill sets the whole string in one DOM event, which can't catch this:
+  // the custom box derived its shown value by blanking itself whenever the
+  // typed-so-far text happened to equal a preset ('8', '5', ...), so the box
+  // reset to empty the instant it read "8" and the rest of a real keystroke
+  // sequence landed on an empty field. page.type() fires one real keydown per
+  // character, the only way to reproduce that.
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  await page.click('button:has-text("＋ New session")');
+  await page.waitForSelector('text=What are we doing?');
+  await page.click('button:has-text("Lift")');
+  await page.fill('input[aria-label="movement name"]', 'Back Squat');
+  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How many reps?');
+  await page.type('input[aria-label="custom reps target"]', '8-12');
+  const shown = await page.inputValue('input[aria-label="custom reps target"]');
+  assert(shown === '8-12', 'typing "8-12" one key at a time should show "8-12", got ' + JSON.stringify(shown));
+});
+
 await t('cancelling the first question drops the session the Library minted', async () => {
   // Library writes the Workout BEFORE the wizard opens, so with no way out of
   // the first question an accidental tap left a permanent, blockless session —
