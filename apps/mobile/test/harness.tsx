@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
+import { View } from 'react-native';
 import { render } from '@testing-library/react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { newBlock, newEx, newSet, uid, ymd, type EngineDB, type Session, type Workout } from '@hybrid/engine';
@@ -52,6 +53,39 @@ export function renderScreen(ui: ReactElement, params?: object) {
       </DbProvider>
     </SafeAreaProvider>,
   );
+}
+
+/**
+ * Mount a screen with another route BELOW it in the stack, and hand back the
+ * container ref.
+ *
+ * `renderScreen` puts the screen under test at the ROOT of a one-route stack,
+ * where a back action has nowhere to go — so a screen that guards the native
+ * back (Android's hardware button and the swipe-back gesture, which
+ * react-navigation delivers as one POP action and one `beforeRemove` event)
+ * cannot be tested at all. This gives that action somewhere to pop to, and the
+ * ref to fire it with.
+ */
+export function renderStack(ui: ReactElement, params?: object) {
+  const Stack = createNativeStackNavigator();
+  const navRef = createNavigationContainerRef<{ Below: undefined; 'Under test': object | undefined }>();
+  const r = render(
+    <SafeAreaProvider initialMetrics={{ frame: FRAME, insets: INSETS }}>
+      <DbProvider>
+        <RestProvider>
+          <NavigationContainer ref={navRef}>
+            <Stack.Navigator screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="Below">{() => <View />}</Stack.Screen>
+              <Stack.Screen name="Under test" initialParams={params}>
+                {() => ui}
+              </Stack.Screen>
+            </Stack.Navigator>
+          </NavigationContainer>
+        </RestProvider>
+      </DbProvider>
+    </SafeAreaProvider>,
+  );
+  return { ...r, navRef };
 }
 
 /**
