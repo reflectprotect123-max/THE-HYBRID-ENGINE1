@@ -15,6 +15,7 @@ import { Conditioning } from './screens/Conditioning';
 import { History } from './screens/History';
 import { Progress } from './screens/Progress';
 import { Exercise } from './screens/Exercise';
+import { GuidedBuilder } from './screens/guided/GuidedBuilder';
 import { UpdateBanner } from './UpdateBanner';
 import { Calendar } from './screens/Calendar';
 import { Recap } from './screens/Recap';
@@ -46,6 +47,7 @@ export function App() {
               <Routes>
                 <Route path="/log/:bi/:ei" element={<Logger />} />
                 <Route path="/planner/:id" element={<Planner />} />
+                <Route path="/build/:id" element={<GuidedBuilder />} />
                 <Route element={<Shell />}>
                   <Route path="/" element={<Home />} />
                   <Route path="/training" element={<Training />} />

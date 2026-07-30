@@ -8,7 +8,6 @@ import {
   isCond,
   isCondWorkout,
   knownMovements,
-  newBlock,
   rxLine,
   sessionOpeners,
   uid,
@@ -74,11 +73,11 @@ export function Library() {
   };
 
   function addWorkout() {
-    const w: Workout = { id: uid(), name: 'New session', blocks: [newBlock()], updatedAt: Date.now() };
+    const w: Workout = { id: uid(), name: 'New session', blocks: [], updatedAt: Date.now() };
     update((draft) => {
       draft.workouts.push(w);
     });
-    nav(`/planner/${w.id}`);
+    nav(`/build/${w.id}`);
   }
 
   function toggleDay(id: string, d: number) {
