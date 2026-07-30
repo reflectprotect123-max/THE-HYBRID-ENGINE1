@@ -69,6 +69,7 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
   if (!s) return [];
   const out: LiftMove[] = [];
 
+  const seen = new Set<string>();
   s.blocks.forEach((b) => {
     // THE important guard. Without it, warming bench up with an empty bar at
     // RPE 3 teaches the progression that your working weight is 20kg, and the
@@ -78,13 +79,20 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
       if (!isLiftMode(ex.mode)) return;
       const name = String(ex.name || '').trim();
       const key = name.toLowerCase();
-      if (!key) return;
+      if (!key || seen.has(key)) return; // one move per movement — the FIRST
+      // (working) occurrence wins; a back-off/burnout block written after the
+      // main lift must not overwrite the working weight it earned.
 
       const st = lastWorkingSet(ex);
       if (!st) return;
 
       const from = saneKg(st.aVal);
       const reps = parseInt(String(st.aVal2), 10) || 0;
+      // Reps are what make it a set — exLogFor/sessionVolume/epley all require
+      // reps > 0. Progression used not to, so a 0-rep AMRAP (aVal2 unwritten)
+      // read reps 0 and moved the working weight UP.
+      if (!(reps > 0)) return;
+      seen.add(key);
       // `felt` is what the athlete RATED the set at; `rpe` is what was asked
       // for. Judging a set against its own target would score everything as
       // perfect and the weight would never move.

@@ -98,6 +98,27 @@ describe('which set decides the next weight', () => {
     const s = session([ex('Back squat', [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', done: true }])]);
     expect(liftMoves(s)).toEqual([]);
   });
+
+  it('banks the working effort, not a later lighter block', () => {
+    const s: Session = { id: 's', date: '2026-01-01', status: 'completed', completedAt: 1, blocks: [
+      { id: 'b1', exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg',
+        sets: [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true }] }] },
+      { id: 'b2', exercises: [{ id: 'e2', name: 'Back Squat', mode: 'reps_kg',
+        sets: [{ t: '3', rpe: '9', aVal: '60', aVal2: '3', felt: '6', done: true }] }] },
+    ] };
+    const mv = liftMoves(s);
+    expect(mv.length).toBe(1);
+    expect(mv[0].from).toBe(100);
+    expect(liftAdapt(s, {}).liftProgress['back squat'].kg).toBe(100);
+  });
+
+  it('a set with zero reps earns no progression', () => {
+    const s: Session = { id: 's', date: '2026-01-01', status: 'completed', completedAt: 1, blocks: [
+      { id: 'b1', exercises: [{ id: 'e1', name: 'Snatch', mode: 'amrap',
+        sets: [{ t: 'max', rpe: '5', aVal: '100', aVal2: '0', felt: '5', done: true }] }] },
+    ] };
+    expect(liftMoves(s)).toEqual([]);
+  });
 });
 
 describe('banking it', () => {

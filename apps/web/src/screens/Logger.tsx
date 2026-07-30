@@ -200,9 +200,10 @@ export function Logger() {
       // heavy single warm-up to take it off. Neither reads working effort.
       if (lift && !isWarmup(dst)) {
         const weight = saneKg(dst.aVal);
-        if (weight > 0) {
+        const reps = parseInt(String(dst.aVal2), 10) || 0;
+        if (weight > 0 && reps > 0) {
           const adj = computeSetAdjustment(
-            parseInt(String(dst.aVal2), 10) || 0,
+            reps,
             rpe,
             repFloorOf(dst.t),
             weight,
