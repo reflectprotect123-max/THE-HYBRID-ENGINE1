@@ -148,6 +148,9 @@ importers:
       '@hybrid/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@hybrid/guided-flow':
+        specifier: workspace:*
+        version: link:../../packages/guided-flow
       '@supabase/supabase-js':
         specifier: ^2.110.8
         version: 2.110.8
