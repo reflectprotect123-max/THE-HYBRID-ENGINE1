@@ -711,7 +711,7 @@ git commit -m "web: guided builder — conditioning detail and text steps"
 - Modify: `apps/web/src/screens/Library.tsx:76-82` (the `addWorkout` function)
 
 **Interfaces:**
-- Consumes: everything from Task 2–4 (`BlockTypeStep`, `MovementStep`, `SetsStep`, `RepsStep`, `RpeStep`, `CondDetailStep`, `TextStep`); `stepsFor`, `nextStep`, `prevStep`, `canAdvance`, `type FlowStep`, `type BlockKind`, `type FlowDraft` from `@hybrid/guided-flow`; `newBlock`, `newTextBlock`, `newCondBlock`, `knownMovements`, `type Workout` from `@hybrid/engine`; `useDb` from `../store/db`.
+- Consumes: everything from Task 2–4 (`BlockTypeStep`, `MovementStep`, `SetsStep`, `RepsStep`, `RpeStep`, `CondDetailStep`, `TextStep`); `stepsFor`, `nextStep`, `prevStep`, `canAdvance`, `type FlowStep`, `type BlockKind`, `type FlowDraft` from `@hybrid/guided-flow`; `newBlock`, `newTextBlock`, `newCondBlock`, `CON_EFFORTS`, `knownMovements`, `type Workout` from `@hybrid/engine`; `useDb` from `../store/db`.
 - Produces: `GuidedBuilder()` — the screen mounted at route `/build/:id`.
 
 - [ ] **Step 1: Write `GuidedBuilder.tsx`**
@@ -728,7 +728,7 @@ import {
   type FlowDraft,
   type FlowStep,
 } from '@hybrid/guided-flow';
-import { knownMovements, newBlock, newCondBlock, newTextBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
+import { CON_EFFORTS, knownMovements, newBlock, newCondBlock, newTextBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { Button, Kicker } from '../../ui';
 import { BlockTypeStep } from './BlockTypeStep';
@@ -809,7 +809,19 @@ export function GuidedBuilder() {
         w.blocks.push(block);
         label = draft.movementName;
       } else if (kind === 'cond') {
-        const block = newCondBlock('Conditioning', draft.condFmt, draft.effort, draft.minutes || undefined);
+        // @hybrid/engine's flat-exported `newCondBlock` (from session.ts) is
+        // zero-argument — the 4-arg version only exists as `emit.newCondBlock`,
+        // reachable through the namespaced `emit` export, not this flat import.
+        // Build with the zero-arg constructor, then set the fields by hand;
+        // CON_EFFORTS[effort].zone reproduces the same zone derivation
+        // emit.newCondBlock does internally (confirmed identical mapping:
+        // easy→low, medium→mod, hard→high, in both CON_EFFORTS and emit's
+        // own EFFORTS table).
+        const block = newCondBlock();
+        block.condFmt = (draft.condFmt || 'intervals') as CondFmtKey;
+        block.effort = draft.effort;
+        block.targetZone = CON_EFFORTS[draft.effort].zone;
+        block.minutes = draft.minutes || '';
         w.blocks.push(block);
         label = 'Conditioning';
       } else {
@@ -1517,7 +1529,7 @@ git commit -m "mobile: guided builder — conditioning detail and text steps"
 - Modify: `apps/mobile/src/screens/Library.tsx` (the create-session function and its call sites)
 
 **Interfaces:**
-- Consumes: everything from Task 7–9; `stepsFor`, `nextStep`, `prevStep`, `canAdvance`, types from `@hybrid/guided-flow`; `newBlock`, `newTextBlock`, `newCondBlock`, `knownMovements` from `@hybrid/engine`; `useDb` from `../../store/db`; `RootStackParams` from `../../App`.
+- Consumes: everything from Task 7–9; `stepsFor`, `nextStep`, `prevStep`, `canAdvance`, types from `@hybrid/guided-flow`; `newBlock`, `newTextBlock`, `newCondBlock`, `CON_EFFORTS`, `knownMovements` from `@hybrid/engine`; `useDb` from `../../store/db`; `RootStackParams` from `../../App`.
 - Produces: `GuidedBuilderScreen()` — the screen registered as the `GuidedBuilder` stack route.
 
 - [ ] **Step 1: Write `GuidedBuilder.tsx`**
@@ -1536,7 +1548,7 @@ import {
   type FlowDraft,
   type FlowStep,
 } from '@hybrid/guided-flow';
-import { knownMovements, newBlock, newCondBlock, newTextBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
+import { CON_EFFORTS, knownMovements, newBlock, newCondBlock, newTextBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { Btn, Kicker, Screen } from '../../ui';
 import type { RootStackParams } from '../../App';
@@ -1609,7 +1621,19 @@ export function GuidedBuilderScreen() {
         w.blocks.push(block);
         label = draft.movementName;
       } else if (kind === 'cond') {
-        const block = newCondBlock('Conditioning', draft.condFmt, draft.effort, draft.minutes || undefined);
+        // @hybrid/engine's flat-exported `newCondBlock` (from session.ts) is
+        // zero-argument — the 4-arg version only exists as `emit.newCondBlock`,
+        // reachable through the namespaced `emit` export, not this flat import.
+        // Build with the zero-arg constructor, then set the fields by hand;
+        // CON_EFFORTS[effort].zone reproduces the same zone derivation
+        // emit.newCondBlock does internally (confirmed identical mapping:
+        // easy→low, medium→mod, hard→high, in both CON_EFFORTS and emit's
+        // own EFFORTS table).
+        const block = newCondBlock();
+        block.condFmt = (draft.condFmt || 'intervals') as CondFmtKey;
+        block.effort = draft.effort;
+        block.targetZone = CON_EFFORTS[draft.effort].zone;
+        block.minutes = draft.minutes || '';
         w.blocks.push(block);
         label = 'Conditioning';
       } else {
