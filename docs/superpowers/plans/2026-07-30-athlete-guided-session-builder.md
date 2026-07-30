@@ -1194,7 +1194,7 @@ git commit -m "mobile: guided builder — block-type and movement steps"
 
 - [ ] **Step 1: Write `SetsStep.tsx`**
 
-These −/+ circles render at 40dp (`h-10 w-10`), under the 48dp minimum — `Tap`'s `box={{ h: 40, w: 40 }}` tells it the real rendered size, and it pads the hit area to 48dp on its own (see Global Constraints; don't pass `hitSlop` directly).
+This app's spacing scale is 8px per unit (`apps/mobile/tailwind.config.js`: `{ ..., 5: 40, 6: 48, 8: 64, 10: 80, ... }`), not Tailwind's stock 4px scale — so a 40dp circle is `h-5 w-5`, not `h-10 w-10`. These −/+ circles render at 40dp, under the 48dp minimum — `Tap`'s `box={{ h: 40, w: 40 }}` tells it the real rendered size, and it pads the hit area to 48dp on its own (see Global Constraints; don't pass `hitSlop` directly).
 
 ```tsx
 import { View } from 'react-native';
@@ -1219,7 +1219,7 @@ export function SetsStep({
           onPress={() => onChange(Math.max(1, value - 1))}
           label="fewer sets"
           box={{ h: 40, w: 40 }}
-          className="h-10 w-10 items-center justify-center rounded-full border border-line2"
+          className="h-5 w-5 items-center justify-center rounded-full border border-line2"
         >
           <T className="text-8">−</T>
         </Tap>
@@ -1228,7 +1228,7 @@ export function SetsStep({
           onPress={() => onChange(Math.min(20, value + 1))}
           label="more sets"
           box={{ h: 40, w: 40 }}
-          className="h-10 w-10 items-center justify-center rounded-full border border-line2"
+          className="h-5 w-5 items-center justify-center rounded-full border border-line2"
         >
           <T className="text-8">+</T>
         </Tap>
@@ -1275,7 +1275,8 @@ export function RepsStep({
       <Tap
         onPress={() => onWarmupSetChange(!isWarmupSet)}
         label="this is a warm-up"
-        box={{ h: 48 }}
+        selected={isWarmupSet}
+        box={{ h: 40 }}
         className="flex-row items-center gap-1.5"
       >
         <View
@@ -1425,7 +1426,7 @@ export function CondDetailStep({
           onPress={() => onChange({ minutes: Math.max(0, minutes - 5) })}
           label="fewer minutes"
           box={{ h: 40, w: 40 }}
-          className="h-10 w-10 items-center justify-center rounded-full border border-line2"
+          className="h-5 w-5 items-center justify-center rounded-full border border-line2"
         >
           <T className="text-8">−</T>
         </Tap>
@@ -1434,7 +1435,7 @@ export function CondDetailStep({
           onPress={() => onChange({ minutes: Math.min(120, (minutes || 0) + 5) })}
           label="more minutes"
           box={{ h: 40, w: 40 }}
-          className="h-10 w-10 items-center justify-center rounded-full border border-line2"
+          className="h-5 w-5 items-center justify-center rounded-full border border-line2"
         >
           <T className="text-8">+</T>
         </Tap>
