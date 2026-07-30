@@ -55,6 +55,10 @@ import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '
  * Deliberately not persisted: a run is over when the tab is, and resuming an
  * hours-old run from storage would bank time nobody trained.
  */
+/** Below this, a run is a mis-tap rather than training, and is not recorded —
+ *  parity with mobile's MIN_LOGGABLE_SEC (apps/mobile/.../Conditioning.tsx:50). */
+const MIN_LOGGABLE_SEC = 20;
+
 const RUN: {
   live: boolean;
   fmt: CondFmtKey;
@@ -65,7 +69,22 @@ const RUN: {
   timer: number | null;
   /** The mounted screen, when there is one, so beats reach the ring. */
   onBpm: ((n: number) => void) | null;
-} = { live: false, fmt: 'intervals', startedAt: 0, elapsed: 0, bpm: null, samples: [], timer: null, onBpm: null };
+  /** Where the result belongs, captured at start() so it survives a mid-run
+   *  hop to Home and back — the launching URL's query params do not. */
+  sinkBid: string;
+  sinkBi: number;
+} = {
+  live: false,
+  fmt: 'intervals',
+  startedAt: 0,
+  elapsed: 0,
+  bpm: null,
+  samples: [],
+  timer: null,
+  onBpm: null,
+  sinkBid: '',
+  sinkBi: -1,
+};
 
 function runTick() {
   const t = Math.floor((Date.now() - RUN.startedAt) / 1000);
@@ -145,6 +164,11 @@ export function Conditioning() {
     RUN.startedAt = Date.now();
     RUN.elapsed = 0;
     RUN.live = true;
+    // The URL that launched this run carries where the result belongs. The run
+    // outlives the screen in RUN, but the URL does not survive a hop to Home
+    // and back — so capture the sink onto RUN now, and read it at finish().
+    RUN.sinkBid = sinkBid;
+    RUN.sinkBi = sinkBi;
     RUN.timer = window.setInterval(runTick, 1000);
     setBpm(null);
     setElapsed(0);
@@ -161,6 +185,16 @@ export function Conditioning() {
     RUN.timer = null;
     RUN.live = false;
     setLive(false);
+    // A run too short to be training is discarded, not banked — a Start→Finish
+    // mis-tap used to write a 1-second run, which conAdapt then treated as a
+    // session and (with the no-data guard) still counts as time on the clock.
+    if (RUN.elapsed < MIN_LOGGABLE_SEC) {
+      RUN.samples = [];
+      RUN.elapsed = 0;
+      setElapsed(0);
+      setResult(null);
+      return;
+    }
     const dur = Math.max(1, RUN.elapsed);
     const trace = conDownsample(RUN.samples, dur);
     const zsec = zoneSeconds(trace, zones);
@@ -190,8 +224,10 @@ export function Conditioning() {
       // work already done, and the recap showed none of it. Match by block id
       // first so an edited or reordered session still lands on the right one.
       const ds = activeSession ? draft.sessions.find((x) => x.id === activeSession.id) : undefined;
-      let cb = ds && sinkBid ? ds.blocks.find((b) => b.id === sinkBid) : undefined;
-      if (ds && !isCond(cb)) cb = ds.blocks[sinkBi];
+      let cb = ds && RUN.sinkBid ? ds.blocks.find((b) => b.id === RUN.sinkBid) : undefined;
+      // Guard the index fallback on the -1 sentinel, matching mobile (:237) —
+      // a standalone run (sinkBi -1) must not resolve blocks[-1].
+      if (ds && !isCond(cb) && RUN.sinkBi >= 0) cb = ds.blocks[RUN.sinkBi];
       if (ds && isCond(cb)) {
         cb.condResult = rec;
         ds.updatedAt = Date.now();
@@ -292,6 +328,11 @@ export function Conditioning() {
           <Button variant="brass" size="lg" className="mt-3 w-full" onClick={finish}>
             Finish
           </Button>
+          {elapsed < MIN_LOGGABLE_SEC ? (
+            <p className="mt-1 text-center text-3 text-dim">
+              Runs under {MIN_LOGGABLE_SEC}s are discarded, not logged.
+            </p>
+          ) : null}
         </>
       ) : null}
 
