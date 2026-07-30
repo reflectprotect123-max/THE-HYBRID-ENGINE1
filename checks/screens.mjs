@@ -1,6 +1,6 @@
 /*
- * Screenshot every screen of both web apps, against a realistically populated
- * database.
+ * Screenshot every screen of the athlete web app, against a realistically
+ * populated database.
  *
  * This is not a test — nothing here can fail except the harness itself. It
  * exists so a visual change can be judged by looking at it, before and after,
@@ -31,19 +31,15 @@ const TYPES = {
 
 function serve(port) {
   const web = resolve(root, 'apps/web/dist');
-  const coach = resolve(root, 'apps/coach/dist');
-  if (!existsSync(web) || !existsSync(coach)) {
+  if (!existsSync(web)) {
     console.error('Build first: pnpm run build');
     process.exit(1);
   }
   return new Promise((ok) => {
     const s = createServer(async (req, res) => {
-      let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-      const isCoach = p === '/coach' || p.startsWith('/coach/');
-      const base = isCoach ? coach : web;
-      if (isCoach) p = p.replace(/^\/coach\/?/, '/') || '/';
-      let file = join(base, p);
-      if (p === '/' || !existsSync(file)) file = join(base, 'index.html');
+      const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+      let file = join(web, p);
+      if (p === '/' || !existsSync(file)) file = join(web, 'index.html');
       try {
         const buf = await readFile(file);
         res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream' });
@@ -307,27 +303,10 @@ for (const [label, path] of SHOTS) {
   }
 }
 
-/* The coach app is desktop by construction — a 420px shot would only prove it
-   does not collapse, which is a known and accepted property. */
-const wide = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
-const cpage = await wide.newPage();
-cpage.on('pageerror', (e) => problems.push('coach pageerror: ' + e));
-cpage.on('console', (m) => {
-  if (m.type() === 'error') problems.push('coach console: ' + m.text());
-});
-try {
-  await cpage.goto(base + '/coach/', { waitUntil: 'networkidle' });
-  await cpage.waitForTimeout(400);
-  await cpage.screenshot({ path: join(OUT, '20-coach.png'), fullPage: true });
-  console.log('  20-coach');
-} catch (e) {
-  problems.push('coach: ' + e.message);
-}
-
 await browser.close();
 server.close();
 
-console.log('\nWrote ' + SHOTS.length + ' athlete screens + 1 coach screen to ' + OUT);
+console.log('\nWrote ' + SHOTS.length + ' athlete screens to ' + OUT);
 if (problems.length) {
   console.log('\nProblems observed while capturing (these are real, fix them):');
   for (const p of [...new Set(problems)]) console.log('  ' + p);

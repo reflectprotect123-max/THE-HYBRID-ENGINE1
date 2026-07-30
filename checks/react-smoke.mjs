@@ -1,10 +1,10 @@
 /*
  * React app smoke test.
  *
- * Serves the BUILT output of apps/web and apps/coach and drives them in a real
- * browser. A green `vite build` only proves the modules resolved; this proves
- * the app renders, the guided set flow logs a set, autoregulation moves the
- * next weight, and the coach's session survives the emit contract.
+ * Serves the BUILT output of apps/web and drives it in a real browser. A
+ * green `vite build` only proves the modules resolved; this proves the app
+ * renders, the guided set flow logs a set, and autoregulation moves the
+ * next weight.
  *
  * Run: node checks/react-smoke.mjs   (from the repo root)
  */
@@ -35,18 +35,14 @@ const TYPES = {
   '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.map': 'application/json',
 };
 
-/** One server, both apps: / is the athlete app, /coach/ is the builder. */
+/** Serves the athlete app's built output. */
 function serve(port) {
   const web = resolve(root, 'apps/web/dist');
-  const coach = resolve(root, 'apps/coach/dist');
   return new Promise((ok) => {
     const s = createServer(async (req, res) => {
-      let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-      const isCoach = p === '/coach' || p.startsWith('/coach/');
-      const base = isCoach ? coach : web;
-      if (isCoach) p = p.replace(/^\/coach\/?/, '/') || '/';
-      let file = join(base, p);
-      if (p === '/' || !existsSync(file)) file = join(base, 'index.html'); // SPA fallback
+      const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+      let file = join(web, p);
+      if (p === '/' || !existsSync(file)) file = join(web, 'index.html'); // SPA fallback
       try {
         const buf = await readFile(file);
         res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream' });
@@ -374,241 +370,7 @@ await t('a coach-assigned session is read-only in the plan editor', async () => 
   assert(ro !== null, 'a coach session must not be locally editable');
 });
 
-/* ---------- coach app ---------- */
-
-await t('coach builder mounts on the grid', async () => {
-  await page.goto(base + '/coach/', { waitUntil: 'networkidle' });
-  await page.waitForSelector('text=THE Hybrid System');
-  // It OPENS on Home — a dashboard of what actually happened — so the
-  // authoring tests below have to ask for the week board. Landing on Home is
-  // the point of the change, not an accident to work around.
-  await page.click('button[aria-label="Plan"]');
-  await page.waitForSelector('text=Week 1');
-  const txt = await page.textContent('body');
-  assert(/Day 1/.test(txt), 'day rows missing from the grid');
-  assert(/Create a session/.test(txt), 'empty-cell action missing');
-});
-
-await t('creating a session opens the guided flow, and a lift can be authored end to end', async () => {
-  await page.click('button:has-text("Create a session")');
-  await page.waitForSelector('text=What are we doing?');
-  await page.click('button:has-text("Lift")');
-  await page.waitForSelector('text=Choose a movement');
-  await page.click('button:has-text("Back Squat")');
-  await page.waitForSelector('text=How many sets?');
-  // One "Next" per step now, and it both confirms and advances — gated by
-  // flowSteps.canAdvance, so it is disabled until the step has a value.
-  await page.click('button:has-text("Next")');
-  await page.waitForSelector('text=How many reps?');
-  await page.click('button:has-text("8")');
-  await page.click('button:has-text("Next")');
-  await page.waitForSelector('text=How hard should it feel?');
-  await page.click('button:has-text("RPE 8")');
-  await page.click('button:has-text("Next")');
-  await page.waitForSelector('text=Anything else?');
-  await page.click('button:has-text("Done")');
-  // Committing lands on the review screen — its add-block control (fullwidth
-  // ＋ in the label, so match on the words) is the tell.
-  await page.waitForSelector('button:has-text("Add another block")');
-  const txt = await page.textContent('body');
-  assert(/Back Squat/.test(txt), 'authored exercise missing from the review screen');
-});
-
-await t('a second exercise joins the first block and chains into a superset', async () => {
-  // The per-block "＋ Add exercise" appends to THAT block — this is the
-  // superset path: two movements in one block, chained by the seam.
-  await page.click('section button:has-text("Add exercise")');
-  await page.waitForSelector('text=Choose a movement');
-  await page.click('button:has-text("Barbell Row")');
-  await page.waitForSelector('text=How many sets?');
-  await page.click('button:has-text("Next")');
-  await page.waitForSelector('text=How many reps?');
-  await page.click('button:has-text("8")');
-  await page.click('button:has-text("Next")');
-  await page.waitForSelector('text=How hard should it feel?');
-  await page.click('button:has-text("RPE 8")');
-  await page.click('button:has-text("Next")');
-  await page.waitForSelector('text=Anything else?');
-  await page.click('button:has-text("Done")');
-  await page.waitForSelector('button:has-text("Add another block")');
-  const txt = await page.textContent('body');
-  assert(/Back Squat/.test(txt) && /Barbell Row/.test(txt), 'both movements should sit on the review screen');
-  // Chain the pair: the first row's seam relabels both to A1/A2.
-  await page.click('button:has-text("Chain")');
-  await page.waitForSelector('text=A1');
-  const chained = await page.textContent('body');
-  assert(/A1/.test(chained) && /A2/.test(chained), 'chaining two exercises should reletter them A1/A2');
-});
-
-await t('a warm-up set skips the RPE step', async () => {
-  await page.click('button:has-text("Add another block")');
-  await page.waitForSelector('text=What are we doing?');
-  await page.click('button:has-text("Lift")');
-  await page.waitForSelector('text=Choose a movement');
-  await page.click('button:has-text("Back Squat")');
-  await page.waitForSelector('text=How many sets?');
-  await page.click('button:has-text("Next")');
-  await page.waitForSelector('text=How many reps?');
-  // The only checkbox on this step is "This is a warm-up".
-  await page.click('input[type="checkbox"]');
-  await page.click('button:has-text("5")');
-  await page.click('button:has-text("Next")');
-  // Nothing in a warm-up counts toward autoregulation, so the flow must land
-  // straight on the "more" step — never the RPE question.
-  await page.waitForSelector('text=Anything else?');
-  const txt = await page.textContent('body');
-  assert(!/How hard should it feel\?/.test(txt), 'a warm-up set should skip straight past the RPE step');
-  // Commit this block too, so the publish test starts from the review screen.
-  await page.click('button:has-text("Done")');
-  await page.waitForSelector('button:has-text("Add another block")');
-});
-
-await t('publish reachable, and validates against the emit contract signed out', async () => {
-  await page.click('button:has-text("Continue to publish")');
-  await page.waitForSelector('text=Ready to send');
-  // The button is "Validate", not "Validate & publish" — signed out, nothing
-  // sends, and the smaller copy below it already explains why.
-  const publishBtn = page.locator('button:has-text("Validate")');
-  await publishBtn.waitFor();
-  assert(!/Validate & publish/.test((await publishBtn.textContent()) || ''), 'signed-out button still reads "Validate & publish"');
-  // Coach instructions are authored on this same screen (Workout.note).
-  await page.fill('textarea', 'Long warm-up today — take the bar walk seriously.');
-  // Signed out, publish degrades to validate-only — the coach still learns
-  // whether the session would cross the boundary cleanly. The result lands in
-  // the status line, so read THAT rather than the whole body: the screen's
-  // static copy already says "Ready to send" / "Sign in to send…" before the
-  // button is pressed, and matching it would prove nothing.
-  await page.click('button:has-text("Validate")');
-  await page.waitForSelector('[role="status"]');
-  const status = await page.textContent('[role="status"]');
-  assert(!/Could not validate/.test(status), 'emit contract rejected a valid session: ' + status);
-  assert(/Ready to send/.test(status), 'validation did not report success: ' + status);
-  assert(/sign in to send this to an athlete/i.test(status), 'signed-out state should explain what is missing');
-  // The status wears its verdict: the ok tone is the gold-wash class, not
-  // just matching prose that could as easily render in the warn styling.
-  const statusClass = (await page.getAttribute('[role="status"]', 'class')) || '';
-  assert(/bg-gold-wash/.test(statusClass), 'ok-tone status should carry bg-gold-wash, got class="' + statusClass + '"');
-});
-
-await t('a logger-owned field in the stored library cannot reach an athlete, and sessions survive reload', async () => {
-  // Poison the stored session with a logger-only field (done: true) and
-  // reload. migrateLib strips logger fields at LOAD (rebuilding every set as
-  // a plain {t, rpe}), so the poison never reaches the emit contract — and
-  // the same reload proves the authored session round-trips intact, which is
-  // exactly what broke when migration only understood the old disk shape.
-  await page.evaluate(() => {
-    const key = Object.keys(localStorage).find((k) => /coach/i.test(k));
-    const lib = JSON.parse(localStorage.getItem(key));
-    const day = lib.programs[0].weeks[0].days.find(Boolean);
-    day.blocks[0].exercises[0].sets[0].done = true;
-    localStorage.setItem(key, JSON.stringify(lib));
-  });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.click('button[aria-label="Plan"]');
-  await page.waitForSelector('button:has-text("Edit")');
-  const grid = await page.textContent('body');
-  assert(/Back Squat/.test(grid), 'authored session should survive a reload — migration wiped it');
-  await page.click('button:has-text("Edit")');
-  await page.waitForSelector('button:has-text("Continue to publish")');
-  const review = await page.textContent('body');
-  assert(/Back Squat/.test(review) && /Barbell Row/.test(review), 'review screen should still hold both movements after reload');
-  await page.click('button:has-text("Continue to publish")');
-  await page.waitForSelector('text=Ready to send');
-  await page.click('button:has-text("Validate")');
-  await page.waitForSelector('[role="status"]');
-  const status = await page.textContent('[role="status"]');
-  assert(!/logger field/.test(status), 'a logger-owned field leaked through load-time stripping into emit: ' + status);
-  assert(/Ready to send/.test(status), 'validation should pass once the poison is stripped, got: ' + status);
-});
-
-await t('a committed exercise can be edited, deleted, and the session renamed; a day can be cleared', async () => {
-  // Self-contained on Day 2 — the prior tests' Day-1 state (which the reload
-  // check depends on) stays untouched. The publish screen from the previous
-  // test is still up: walk back out to the grid first.
-  await page.click('button[aria-label="back to review"]');
-  await page.click('button:has-text("Done for now")');
-  await page.waitForSelector('text=Week 1');
-  await page.click('button:has-text("Create a session")'); // Day 2 is the first empty cell
-  await page.click('button:has-text("Lift")');
-  await page.waitForSelector('text=Choose a movement');
-  await page.click('button:has-text("DB Bench Press")');
-  await page.click('button:has-text("Next")');
-  await page.click('button:has-text("8")');
-  await page.click('button:has-text("Next")');
-  await page.click('button:has-text("RPE 8")');
-  await page.click('button:has-text("Next")');
-  await page.click('button:has-text("Done")');
-  await page.waitForSelector('button:has-text("Add another block")');
-  // EDIT: the row's name re-enters the steps pre-filled; re-pick the movement.
-  await page.click('button[aria-label="edit DB Bench Press"]');
-  await page.waitForSelector('text=Choose a movement');
-  await page.click('button:has-text("Incline DB Press")');
-  await page.waitForSelector('text=How many sets?');
-  await page.click('button:has-text("Next")');
-  await page.click('button:has-text("Next")'); // reps arrives pre-filled
-  await page.click('button:has-text("Next")'); // rpe arrives pre-filled
-  await page.waitForSelector('text=Anything else?');
-  await page.click('button:has-text("Done")');
-  await page.waitForSelector('button:has-text("Add another block")');
-  let txt = await page.textContent('body');
-  assert(/Incline DB Press/.test(txt) && !/DB Bench Press/.test(txt), 'edit should replace the movement in place');
-  // A conditioning block is authored, not hardcoded.
-  await page.click('button:has-text("Add another block")');
-  await page.click('button:has-text("Conditioning")');
-  await page.waitForSelector('text=What kind of conditioning?');
-  const doneDisabled = await page.getAttribute('button:has-text("Done")', 'disabled');
-  assert(doneDisabled !== null, 'cond Done must be gated until a format is picked');
-  await page.click('button:has-text("Steady")');
-  await page.click('button:has-text("Hard")');
-  await page.click('button:has-text("Done")');
-  await page.waitForSelector('button[aria-label="delete block"]');
-  // DELETE the cond block, then the exercise (removing its whole block).
-  await page.click('button[aria-label="delete block"]');
-  await page.click('button[aria-label="delete Incline DB Press"]');
-  txt = await page.textContent('body');
-  assert(!/Incline DB Press/.test(txt), 'delete should remove the row (and its emptied block)');
-  // RENAME reaches the grid.
-  await page.fill('input[aria-label="session name"]', 'Smoke Day Two');
-  await page.click('button:has-text("Done for now")');
-  await page.waitForSelector('text=Week 1');
-  txt = await page.textContent('body');
-  assert(/Smoke Day Two/.test(txt), 'rename should reach the WeekGrid');
-  // CLEAR DAY: two taps, the first arms.
-  await page.click('button[aria-label="clear day 2"]');
-  await page.waitForSelector('button[aria-label="really clear day 2"]');
-  await page.click('button[aria-label="really clear day 2"]');
-  await page.waitForTimeout(150);
-  txt = await page.textContent('body');
-  assert(!/Smoke Day Two/.test(txt), 'clearing should return the day to rest');
-});
-
-await t('the coach note reaches the athlete logger', async () => {
-  // Workout.note is coach-authored; no athlete UI writes it, so seed the
-  // athlete store directly: one workout with a note, one active session
-  // minted from it — then the logger must show "From your coach".
-  await page.goto(base + '/', { waitUntil: 'networkidle' });
-  await page.evaluate(() => {
-    const wId = 'smoke-w1';
-    const set = { t: '5', rpe: '8' };
-    const block = { id: 'smoke-b1', heading: 'Main', exercises: [{ id: 'smoke-e1', name: 'Back Squat', mode: 'reps_kg', sets: [set, set] }] };
-    const db = {
-      workouts: [{ id: wId, name: 'Coached day', note: 'Cap everything at RPE 8 today.', blocks: [block], updatedAt: Date.now() }],
-      sessions: [{
-        id: 'smoke-s1', date: new Date().toISOString().slice(0, 10), name: 'Coached day', status: 'active',
-        blocks: [{ ...block, exercises: block.exercises.map((e) => ({ ...e, sets: e.sets.map((x) => ({ ...x })) })) }],
-        startedAt: Date.now(), workoutId: wId,
-      }],
-      settings: {},
-    };
-    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
-  });
-  await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
-  await page.waitForSelector('text=From your coach');
-  const txt = await page.textContent('body');
-  assert(/Cap everything at RPE 8 today\./.test(txt), 'the note text should render in the panel');
-});
-
-await t('no uncaught page errors across either app', async () => {
+await t('no uncaught page errors', async () => {
   assert(errors.length === 0, errors.join(' | '));
 });
 

@@ -8,8 +8,7 @@
  *
  * This exists because the cutover's failure modes are all silent. A missing
  * icon still renders. A missing `_headers` still serves the site, just with no
- * CSP. `/coach/` falling through to the athlete app looks like a routing quirk
- * rather than a broken product.
+ * CSP.
  *
  * Run: node checks/deploy-smoke.mjs   (after `pnpm run build:site`)
  */
@@ -72,9 +71,8 @@ const REDIRECTS = readFileSync(redirectsFile, 'utf8')
   .filter((p) => p.length >= 2)
   .map(([from, to, status]) => ({ from, to, status: parseInt(status || '301', 10) }));
 
-/* netlify.toml rules are evaluated BEFORE _redirects — that ordering is the
-   whole reason /coach/* is declared there. Replicate it or the test proves
-   nothing about the real precedence. */
+/* netlify.toml rules are evaluated BEFORE _redirects. Replicate it or the
+   test proves nothing about the real precedence. */
 const toml = readFileSync(resolve(root, 'netlify.toml'), 'utf8');
 const TOML_REDIRECTS = [...toml.matchAll(/\[\[redirects\]\]\s+from\s*=\s*"([^"]+)"\s+to\s*=\s*"([^"]+)"\s+status\s*=\s*(\d+)/g)].map(
   (m) => ({ from: m[1], to: m[2], status: Number(m[3]) }),
@@ -145,18 +143,6 @@ await t('the athlete app is served at /', async () => {
   const html = await (await fetch(base + '/')).text();
   assert(/id="root"/.test(html), 'no React root');
   assert(/THE Hybrid System/.test(html), 'wrong document');
-});
-
-await t('the COACH app is served at /coach/, not the athlete app', async () => {
-  const html = await (await fetch(base + '/coach/')).text();
-  assert(/Coach/.test(html), 'no coach marker in the document');
-  const athlete = await (await fetch(base + '/')).text();
-  assert(html !== athlete, '/coach/ served the athlete app — the SPA fallback swallowed it');
-});
-
-await t('a deep link under /coach/ still lands on the coach shell', async () => {
-  const html = await (await fetch(base + '/coach/anything/deep')).text();
-  assert(/Coach/.test(html), 'deep coach route fell through to the athlete app');
 });
 
 await t('an athlete deep link falls back to the athlete shell', async () => {
@@ -256,15 +242,6 @@ page.on('pageerror', (e) => errors.push(String(e)));
 await t('the athlete app boots under the real CSP', async () => {
   await page.goto(base + '/', { waitUntil: 'networkidle' });
   await page.waitForSelector('h1', { timeout: 8000 });
-  assert(violations.length === 0, 'CSP violations: ' + violations.join(' | '));
-  assert(errors.length === 0, 'page errors: ' + errors.join(' | '));
-});
-
-await t('the coach app boots under the real CSP', async () => {
-  violations.length = 0;
-  errors.length = 0;
-  await page.goto(base + '/coach/', { waitUntil: 'networkidle' });
-  await page.waitForSelector('text=THE Hybrid System', { timeout: 8000 });
   assert(violations.length === 0, 'CSP violations: ' + violations.join(' | '));
   assert(errors.length === 0, 'page errors: ' + errors.join(' | '));
 });

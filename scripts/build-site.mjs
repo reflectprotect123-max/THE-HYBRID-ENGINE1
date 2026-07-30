@@ -33,20 +33,13 @@ if (!(await exists(OUT))) {
   console.error('apps/web/dist is missing — run `pnpm run build` first.');
   process.exit(1);
 }
-if (!(await exists(p('apps/coach/dist')))) {
-  console.error('apps/coach/dist is missing — run `pnpm run build` first.');
-  process.exit(1);
-}
 
 console.log('Assembling the site into apps/web/dist:\n');
 
-/* ---- the coach app, at /coach/ ----
-   apps/coach builds with base:'/coach/', so every asset URL it emits is
-   already /coach/assets/… — copying its dist here serves it correctly as REAL
-   FILES, which Netlify serves ahead of the athlete app's SPA fallback. */
+/* ---- a stale /coach/ from a build before the coach app was removed ----
+   Nothing copies into it anymore, but a leftover directory from a previous
+   local build would otherwise keep being served as if it were current. */
 await rm(resolve(OUT, 'coach'), { recursive: true, force: true });
-await cp(p('apps/coach/dist'), resolve(OUT, 'coach'), { recursive: true });
-say('coach app → /coach/');
 
 /* ---- assets the built HTML already references ----
    apps/web has no public/ directory, but its index.html preloads

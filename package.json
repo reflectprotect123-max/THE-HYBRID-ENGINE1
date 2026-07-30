@@ -7,15 +7,14 @@
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "build": "pnpm -r --filter \"./packages/*\" build && pnpm -r --filter \"./apps/web\" --filter \"./apps/coach\" build",
+    "build": "pnpm -r --filter \"./packages/*\" build && pnpm -r --filter \"./apps/web\" build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "check:csp": "node -e \"const fs=process.getBuiltinModule('node:fs');let bad=0;for(const f of ['apps/web/dist/index.html','apps/coach/dist/index.html'])for(const m of fs.readFileSync(f,'utf8').match(/<script\\\\b[^>]*>/gi)||[])if(!/\\\\ssrc=/i.test(m)){bad++;console.error('INLINE <script> in '+f+': '+m)}if(bad){console.error('The deployed CSP is script-src self with no unsafe-inline, so those '+bad+' inline script(s) would be blocked and the app would render blank in production.');process.exit(1)}console.log('OK - no inline <script> in built HTML')\"",
+    "check:csp": "node -e \"const fs=process.getBuiltinModule('node:fs');let bad=0;for(const f of ['apps/web/dist/index.html'])for(const m of fs.readFileSync(f,'utf8').match(/<script\\\\b[^>]*>/gi)||[])if(!/\\\\ssrc=/i.test(m)){bad++;console.error('INLINE <script> in '+f+': '+m)}if(bad){console.error('The deployed CSP is script-src self with no unsafe-inline, so those '+bad+' inline script(s) would be blocked and the app would render blank in production.');process.exit(1)}console.log('OK - no inline <script> in built HTML')\"",
     "smoke": "node checks/react-smoke.mjs",
     "smoke:deploy": "node checks/deploy-smoke.mjs",
     "verify": "pnpm run typecheck && pnpm run test && pnpm run build:site && pnpm run check:csp && pnpm run smoke && pnpm run smoke:deploy",
     "dev:web": "pnpm --filter @hybrid/web dev",
-    "dev:coach": "pnpm --filter @hybrid/coach dev",
     "build:site": "pnpm run build && node scripts/build-site.mjs"
   },
   "dependencies": {

@@ -1,18 +1,15 @@
 /*
  * Supabase contract test — the login + sync path, checked without a network.
  *
- * The React apps were ported from the vanilla `app.js` / `coach/js/app.js` by
- * hand, and until someone actually signs in nothing proves the ported queries
- * still name real tables and real columns. A typo in a `.select()` string is a
+ * Until someone actually signs in nothing proves the ported queries still
+ * name real tables and real columns. A typo in a `.select()` string is a
  * runtime 400 that only shows up as "sync failed" on a phone. So:
  *
  * (a) STATIC (always runs, no credentials, no network):
  *     Parse supabase-schema.sql for tables, columns and unique constraints,
  *     then statically extract every `.from(...)` query chain out of
  *       - apps/web/src/cloud/sync.tsx
- *       - apps/coach/src/cloud.tsx
- *       - app.js                 (the vanilla reference that is known to work)
- *       - coach/js/app.js        (ditto, coach side)
+ *       - apps/mobile/src/cloud/sync.tsx
  *     and assert every table, every selected/inserted/filtered column exists,
  *     and every `onConflict` arbiter is backed by a real unique constraint.
  *     Also pins the handful of literals RLS actually keys off — status values
@@ -346,7 +343,6 @@ function extractChains(src, file) {
 
 const SOURCES = [
   'apps/web/src/cloud/sync.tsx',
-  'apps/coach/src/cloud.tsx',
   'apps/mobile/src/cloud/sync.tsx',
 ];
 
@@ -524,18 +520,6 @@ t("assignments athlete-read is gated on status='assigned' and both sides agree",
   });
 });
 
-t("every assignments insert supplies status='assigned' so the athlete can read it", () => {
-  const ins = chains.filter((c) => c.table === 'assignments' && c.calls.some((x) => x.method === 'insert'));
-  assert(ins.length, 'no assignments insert found in any source');
-  ins.forEach((c) => {
-    const call = c.calls.find((x) => x.method === 'insert');
-    assert(
-      /status\s*:\s*'assigned'/.test(call.arg),
-      c.file + ':' + call.line + " → insert does not set status:'assigned'; as_select_athlete would hide the row",
-    );
-  });
-});
-
 t("coach_athletes reads are gated on status='active' on both sides", () => {
   const pa = schema.policies.find((x) => x.table === 'coach_athletes' && /athlete_read/.test(x.name));
   assert(pa && /status\s*=\s*'active'/.test(pa.body), "ca_athlete_read no longer pins status='active'");
@@ -546,24 +530,6 @@ t("coach_athletes reads are gated on status='active' on both sides", () => {
       if (!st) return; // the coach's own full listing legitimately reads pending rows too
       assert(/'active'|'pending'/.test(st.arg), c.file + ':' + st.line + ' → unexpected coach_athletes status literal');
     });
-});
-
-t('the assignments delete filter only uses columns the delete policy can see', () => {
-  // as_delete is `using (auth.uid() = coach_id)` — a delete that does not pin
-  // coach_id would silently match nothing for anyone but the owner, and a
-  // delete that pins the wrong column would 400.
-  const dels = chains.filter((c) => c.table === 'assignments' && c.calls.some((x) => x.method === 'delete'));
-  assert(dels.length, 'no assignments delete found in any source');
-  const cols = schema.tables.get('assignments');
-  dels.forEach((c) => {
-    c.calls.forEach((x) => {
-      if (!FILTERS.has(x.method)) return;
-      const col = firstStringArg(x.arg);
-      assert(col && cols.has(col), c.file + ':' + x.line + ' → delete filters on unknown column ' + col);
-    });
-    const pinned = c.calls.some((x) => (x.method === 'eq' && ['coach_id', 'id'].includes(firstStringArg(x.arg))));
-    assert(pinned, c.file + ':' + c.line + ' → assignments delete pins neither coach_id nor id; as_delete would match nothing');
-  });
 });
 
 t('athlete_feed is only ever written by the athlete themselves', () => {
@@ -637,7 +603,6 @@ async function loadSupabase() {
     '@supabase/supabase-js',
     resolve(root, 'node_modules/@supabase/supabase-js/dist/module/index.js'),
     resolve(root, 'apps/web/node_modules/@supabase/supabase-js/dist/module/index.js'),
-    resolve(root, 'apps/coach/node_modules/@supabase/supabase-js/dist/module/index.js'),
   ];
   for (const c of candidates) {
     try {
@@ -695,7 +660,7 @@ await t('app_state: upsert then read back (the whole athlete sync path)', async 
 await t('assignments: self-assign, read back as the athlete, then delete', async () => {
   assert(uid, 'not signed in');
   const date = new Date().toISOString().slice(0, 10);
-  // Same idempotency dance the coach app does.
+  // Clear out any leftover row from a previous run before re-inserting.
   await client.from('assignments').delete().eq('coach_id', uid).eq('athlete_id', uid).eq('scheduled_date', date).is('program_id', null);
   const { data: ins, error: e1 } = await client
     .from('assignments')

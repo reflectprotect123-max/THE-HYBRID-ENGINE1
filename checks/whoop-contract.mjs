@@ -539,7 +539,6 @@ async function main() {
     // minified copy of supabase-js as if it were a browser-facing file.
     relativePath === 'node_modules' || relativePath.endsWith('/node_modules') || relativePath.includes('node_modules/') ||
     relativePath === 'vendor' || relativePath.startsWith('vendor/') ||
-    relativePath === 'coach/vendor' || relativePath.startsWith('coach/vendor/') ||
     relativePath === 'checks' || relativePath.startsWith('checks/') ||
     /*
      * Agent scaffolding, and in particular .claude/worktrees — a git worktree

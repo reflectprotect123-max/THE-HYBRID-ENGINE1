@@ -1,7 +1,7 @@
 # THE Hybrid System
 
-A local-first training app: an athlete PWA, an Android app, and a desktop
-session builder, over one shared engine and one Supabase project.
+A local-first training app: an athlete PWA and an Android app, over one
+shared engine and one Supabase project.
 
 Everything works offline. The cloud is a sync target, never the source of
 truth — the app on the device owns the data and merges toward the server.
@@ -42,12 +42,11 @@ The fastest way into this repo. Find the symptom, go to the file.
 
 ```
 packages/engine     every training decision. No DOM, no globals, no React.
-                    The one place web/mobile/coach must agree.
+                    The one place web and mobile must agree.
 packages/design     colour, type and spacing tokens on an 8px grid.
 packages/config     Supabase URL/anon key and site origin.
 
 apps/web            the athlete PWA. This is the deployed origin.
-apps/coach          the desktop session builder, served at /coach/.
 apps/mobile         the Android app (Expo/EAS), with BLE heart rate.
 
 checks/             executable checks. Not unit tests — these drive real
@@ -105,7 +104,6 @@ Web routes and the mobile stack carry the same names.
 ```bash
 pnpm install
 pnpm run dev:web           # athlete PWA
-pnpm run dev:coach         # desktop builder
 pnpm --filter @hybrid/mobile start   # phone
 ```
 

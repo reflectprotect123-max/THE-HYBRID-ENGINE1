@@ -4,8 +4,8 @@
  * The athlete app is an installable PWA used on a phone in a gym, and its
  * `Button` renders 32px at `sm` and 40px at `md` — both under the 44pt
  * minimum. tokens.css fixes that under `@media (pointer: coarse)` so fingers
- * get 44px and a mouse does not, since a dense coach builder padded out to
- * finger size would look broken on a desktop.
+ * get 44px and a mouse does not, since a dense desktop layout padded out to
+ * finger size would look broken.
  *
  * That media query is exactly the kind of thing that is easy to write and easy
  * to get wrong — it can match nothing, or match everything. The other browser
