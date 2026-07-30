@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "device_id": "rogue_echo_bike_v3_standard_console",
+  "modality": "air_bike",
+  "submodality": "combined_arm_leg_fan_bike",
+  "manufacturer": "Rogue Fitness",
+  "model": "Echo Bike",
+  "generation": "V3.0",
+  "console": {
+    "generation": "V3",
+    "standard_or_upgrade": "standard_connected_console",
+    "do_not_merge_with": ["rogue_echo_bike_m2_monitor"]
+  },
+  "transport": {
+    "primary": "bluetooth_le",
+    "primary_protocol": "ftms",
+    "ant_plus": "present_but_bike_metric_broadcast_not_verified",
+    "wifi": "not_found_in_sources",
+    "bluetooth_service_uuid": "00001826-0000-1000-8000-00805f9b34fb",
+    "indoor_bike_data_uuid": "00002ad2-0000-1000-8000-00805f9b34fb",
+    "control_point_uuid": "00002ad9-0000-1000-8000-00805f9b34fb",
+    "machine_status_uuid": "00002ada-0000-1000-8000-00805f9b34fb",
+    "heart_rate_measurement_uuid": "00002a37-0000-1000-8000-00805f9b34fb"
+  },
+  "capabilities": {
+    "discoverable_as_ftms": true,
+    "live_metric_export_over_ble": true,
+    "receives_external_heart_rate": true,
+    "native_session_history_export": "not_verified_for_standard_v3",
+    "rogue_app_direct_connection": "treat_as_m2_feature_until_physical_v3_test_proves_otherwise",
+    "ftms_control_point_present_in_clients": true,
+    "ftms_control_point_echo_acceptance": "not_verified",
+    "ant_plus_bike_metric_export": "not_verified"
+  },
+  "expected_metrics": {
+    "power_w": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "high"},
+    "average_power_w": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "high"},
+    "cadence_rpm": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "high"},
+    "average_cadence_rpm": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "high"},
+    "speed_kmh": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "high"},
+    "distance_m": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "high"},
+    "calories_total": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "medium"},
+    "calories_per_hour": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "medium"},
+    "calories_per_minute": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "medium"},
+    "heart_rate_bpm": {"source": "ftms_or_hr_service", "required": false, "confidence": "medium"},
+    "elapsed_s": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "medium"},
+    "remaining_s": {"source": "ftms_indoor_bike_data", "required": false, "confidence": "medium"}
+  },
+  "connection_policy": {
+    "connect_from_inside_app": true,
+    "normal_os_bluetooth_pairing_required": false,
+    "first_release_mode": "read_only_telemetry",
+    "store_raw_notifications": true,
+    "store_device_and_console_metadata": true,
+    "reset_console_before_exact_benchmark": true,
+    "handle_reconnect": true,
+    "notification_rate_expected_hz": "approximately_1_but_must_measure"
+  },
+  "training_engine_policy": {
+    "power_is_laboratory_grade": false,
+    "automatic_cycling_ftp_zone_transfer": false,
+    "cross_device_metric_comparison": "disallowed_without_validation",
+    "primary_steady_progression_controls": ["duration", "rpe", "technique_quality", "local_fatigue"],
+    "primary_short_interval_completion_controls": ["completed_work", "rpe", "recovery", "technique_quality", "output_trend"],
+    "heart_rate_role": "supporting_internal_load_and_trend_signal_not_sole_short_interval_gate"
+  },
+  "evidence_ids": ["SRC-ROGUE-PRODUCT", "SRC-ROGUE-CONSOLE", "SRC-ROGUE-FTMS", "SRC-ERGZONE", "SRC-ECHO-TRACKER", "SRC-GARMIN-BRIDGE", "SRC-PYFTMS"]
+}

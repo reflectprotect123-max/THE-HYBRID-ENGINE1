@@ -1,0 +1,66 @@
+{
+  "metadata": {
+    "retrieved_on": "2026-07-31",
+    "archive_policy": "Keep source provenance and commit identity. Exclude VCS metadata and runtime/private artefacts from the distributable archive.",
+    "physical_device_tested_here": false
+  },
+  "repositories": [
+    {
+      "name": "Rogue_Echo_Bike_v3",
+      "url": "https://github.com/richiebolger/Rogue_Echo_Bike_v3",
+      "commit": "e4a30cafb33bbefb22beb50beefb3f4283b63d4a",
+      "role": "direct Echo V3 macOS client and parser",
+      "local_snapshot": "code/direct/Rogue_Echo_Bike_v3",
+      "licence_status": "README claims MIT; LICENSE file absent in retrieved commit",
+      "archive_treatment": "source snapshot retained for technical reference; no reuse-rights assumption",
+      "notable_files": ["tracker.py", "gui_tracker.py", "README.md", "requirements.txt", "entitlements.plist"],
+      "excluded_from_archive": [".git/**", "assets/certs/**"]
+    },
+    {
+      "name": "rogue_garmin_bridge",
+      "url": "https://github.com/Douglas-Christian/rogue_garmin_bridge",
+      "commit": "b3efe73a1a304bb3ea67125ca879ce4053890b3f",
+      "role": "direct Rogue FTMS client, simulator, session pipeline, and FIT export",
+      "local_snapshot": "code/direct/rogue_garmin_bridge",
+      "licence_status": "README claims MIT; LICENSE file absent in retrieved commit",
+      "archive_treatment": "source snapshot retained after private/runtime artefact exclusion",
+      "notable_files": ["src/ftms/**", "tests/**", "README.md", "requirements.txt", "docs/**"],
+      "excluded_from_archive": [".git/**", ".env*", "*.db", ".coverage", "logs/**", "fit_files/**", "user_profile.json"]
+    },
+    {
+      "name": "TrackMyIndoorWorkout",
+      "url": "https://github.com/TrackMyIndoorWorkout/TrackMyIndoorWorkout",
+      "commit": "9dc159c7f6674c2a10eef173d47a94fc2df3a3c4",
+      "role": "cross-platform FTMS workout recorder listing Echo V3.0 support",
+      "local_snapshot": "code/direct/TrackMyIndoorWorkout",
+      "licence_status": "Apache-2.0",
+      "archive_treatment": "source snapshot retained; VCS metadata and private scanner/build metadata excluded",
+      "notable_files": ["lib/devices/gatt/ftms.dart", "lib/devices/device_descriptors/**", "lib/export/**", "test/**", "README.md", "LICENSE"],
+      "excluded_from_archive": [".git/**", ".idx/**", ".privado/**", "build/**", ".dart_tool/**", "android/.gradle/**", "ios/Pods/**"]
+    },
+    {
+      "name": "python-pyftms",
+      "url": "https://github.com/dudanov/python-pyftms",
+      "commit": "2d60298fb8869f833c8a9c7f16f246b93d2f50a0",
+      "role": "generic Apache-2.0 FTMS client and field-format reference",
+      "local_snapshot": "code/reference/python-pyftms",
+      "licence_status": "Apache-2.0",
+      "archive_treatment": "source snapshot retained",
+      "notable_files": ["src/pyftms/models/realtime_data/indoor_bike.py", "src/pyftms/client/**", "examples/**", "LICENSE"],
+      "excluded_from_archive": [".git/**", "__pycache__/**", ".pytest_cache/**"]
+    },
+    {
+      "name": "cycling-app",
+      "url": "https://github.com/mishannn/cycling-app",
+      "commit": "b9a3f812f889e1062a20ff237a32a502b7646cd7",
+      "role": "mobile TypeScript/Capacitor FTMS lifecycle and parser reference",
+      "local_snapshot": "code/reference/cycling-app-selected",
+      "licence_status": "No root LICENSE file found in retrieved repository",
+      "archive_treatment": "selected files only; reference-only",
+      "notable_files": ["src/ble/indoorBikeData.ts", "src/ble/ble.ts", "src/ble/README.md", "README.md"],
+      "excluded_from_archive": ["full application snapshot", ".git/**", "node_modules/**", "docs/static/**"]
+    }
+  ],
+  "runtime_artifacts_excluded_globally": [".git/**", ".env*", "*.db", "*.sqlite*", "*.coverage", "logs/**", "fit_files/**", "user_profile.json", "private keys/certificates"],
+  "why": "The request is for implementation code and research. Public repository runtime files can contain test data, credentials, local device identifiers, generated workout records, or unrelated build output."
+}
