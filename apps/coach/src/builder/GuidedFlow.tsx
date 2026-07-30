@@ -132,7 +132,23 @@ export function GuidedFlow({
         // Keep the row's id and chain flag — editing a movement must not
         // break an existing A1/A2 pairing or remount the row.
         const exs = [...blockExercises(editing)];
-        exs[editTarget!.ei] = { ...ex, id: exs[editTarget!.ei].id, ssNext: exs[editTarget!.ei].ssNext };
+        const orig = exs[editTarget!.ei];
+        const origFirst = orig.sets[0];
+        const origReps = origFirst ? origFirst.t.replace(/^\s*w/i, '') : '';
+        const origRpe = origFirst?.rpe ?? '';
+        const origAllWarm = orig.sets.length > 0 && orig.sets.every((st) => /^\s*w/i.test(st.t));
+        // A no-op walk-through of a ramp (W5/W3/5/3/1) must NOT be flattened to
+        // N identical sets. If the coach did not touch the set-shaping fields,
+        // keep the original sets and rewrite only name/rest/tempo/mode/cue;
+        // rebuild uniformly only when they genuinely re-specified reps/RPE/count.
+        // (This is the flow's authoring model kept honest — NOT a per-set
+        // editor, which stays out of scope.)
+        const shapeUnchanged =
+          draft.sets === orig.sets.length &&
+          draft.reps === origReps &&
+          draft.rpe === origRpe &&
+          draft.isWarmup === origAllWarm;
+        exs[editTarget!.ei] = { ...ex, sets: shapeUnchanged ? orig.sets : ex.sets, id: orig.id, ssNext: orig.ssNext };
         const blocks = [...session.blocks];
         blocks[editTarget!.bi] = { ...editing, exercises: exs };
         onChange({ ...session, blocks });
