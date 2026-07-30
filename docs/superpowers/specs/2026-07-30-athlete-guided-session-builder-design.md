@@ -31,6 +31,11 @@ opening a blank session directly in the Planner.
 
 **The flow, block by block:**
 
+Every screen keeps a persistent header showing progress — "Session ·
+block 2" or similar — the same persistent-header pattern the coach
+builder used. A multi-step flow with no sense of where you are in it is
+a known, avoidable source of confusion.
+
 1. **"What are we doing?"** — Lift / Warm-up-Cooldown / Conditioning /
    Metcon-notes, as big tappable choices — same four choices the coach
    builder offered.
@@ -62,9 +67,26 @@ opening a blank session directly in the Planner.
    text-box version above — separate prep, its own row. Neither replaces
    the other.)
 6. After a block is saved to the session, **"Add another block?"** —
-   *yes* loops back to step 1 for a new block; *no* opens the session in
-   the existing Planner, for final polish (superset-chaining a pair of
-   exercises, reordering, or just reviewing before training).
+   shown with a one-line running summary of what's already in the session
+   ("Back Squat, Conditioning added") so an athlete interrupted mid-flow
+   doesn't lose track of what they've built so far. *Yes* loops back to
+   step 1 for a new block; *no* opens the session in the existing
+   Planner, for final polish (superset-chaining a pair of exercises,
+   reordering, or just reviewing before training).
+
+**Back navigation and interruption.** Each step's back control (and the
+platform back button/gesture) goes to the previous step within the
+current block, never straight out of the flow — consistent with
+"back should work predictably" everywhere else in these apps. Leaving
+the flow entirely (closing the tab, backgrounding the app, navigating
+away) can lose the in-progress, not-yet-completed block — a gym is a
+constant source of interruptions, so this is worth being an explicit,
+stated decision rather than an accidental gap: a completed block is
+saved to the session immediately (matches "saves as you go" everywhere
+else in these apps), but a block still mid-steps is only committed once
+its last step is answered, the same way the coach builder's flow worked.
+No draft-persistence beyond that is in scope here — if it turns out to
+matter in practice, it's a small, separate follow-up.
 
 There is no separate review/chain/split screen in the guided flow itself
 — that machinery already exists and works in the Planner, and this spec
@@ -79,6 +101,15 @@ function the coach builder's `flowSteps.ts` was — reused by both apps.
 Each actual screen is a separate, small component per app, since
 `apps/web` (React/Vite) and `apps/mobile` (Expo/React Native) share no UI
 code, only `packages/engine`.
+
+**Touch targets and chip accessibility.** Web keeps this app's existing
+44×44px minimum. Android's own guideline is a stricter ≥48×48dp, so
+mobile's step components target 48dp, not a straight port of web's
+number — using RN's `hitSlop` to pad any control whose visual size stays
+smaller than that. A reps/RPE chip's selected state must not be color
+alone (add a border, checkmark, or weight change too), both for
+colorblind athletes and because a training app is routinely used in
+direct sunlight, where color-only state is the first thing to wash out.
 
 ## Explicitly out of scope
 
