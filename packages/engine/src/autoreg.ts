@@ -63,10 +63,13 @@ export function computeSetAdjustment(
 ): SetAdjustment {
   const missed = low > 0 && reps < low;
   const eff = missed ? AUTOREG.missedFloorRpe : rpe;
-  const newWeight = roundToIncrement(
-    weight * (1 + ((center - eff) * AUTOREG.pctPerRpePoint) / 100),
-    AUTOREG.plateIncrement,
-  );
+  const raw = weight * (1 + ((center - eff) * AUTOREG.pctPerRpePoint) / 100);
+  // When the set hit its target exactly (eff === center, so the multiplier is
+  // 1 and `raw` IS the weight), holding is the right answer — rounding a
+  // manually-entered non-plate load (101 → 100) otherwise banked a "−1 kg"
+  // change and painted a perfect set red. A missed set has eff = 10.5 > center,
+  // so raw < weight and this never fires for it.
+  const newWeight = raw === weight ? weight : roundToIncrement(raw, AUTOREG.plateIncrement);
   const delta = Math.round((newWeight - weight) * 100) / 100;
   return {
     delta,
