@@ -13,6 +13,7 @@ import {
   emptyDB,
   expireStaleSessions,
   loadDB,
+  pruneCondTraces,
   saveDB,
   type EngineDB,
   type HrContext,
@@ -84,6 +85,13 @@ export function DbProvider({ children }: { children: ReactNode }) {
       loaded.sessions = sessions;
       saveDB(webStorage, loaded, LS_KEY);
     }
+    // Inline HR/GPS traces are unbounded otherwise and eventually cross the
+    // localStorage quota, after which every save fails forever.
+    const { sessions: pruned, changed: ch2 } = pruneCondTraces(loaded.sessions);
+    if (ch2) {
+      loaded.sessions = pruned;
+      saveDB(webStorage, loaded, LS_KEY);
+    }
     return loaded;
   });
   const [saveFailed, setSaveFailed] = useState(false);
@@ -96,12 +104,23 @@ export function DbProvider({ children }: { children: ReactNode }) {
   ref.current = db;
 
   const update = useCallback<DbCtx['update']>((fn, opts) => {
-    const draft: EngineDB = structuredClone(ref.current);
+    let draft: EngineDB = structuredClone(ref.current);
     if (fn(draft) === false) return;
     ref.current = draft;
     setDb(draft);
     if (!opts?.silent) {
-      const ok = saveDB(webStorage, draft, LS_KEY);
+      let ok = saveDB(webStorage, draft, LS_KEY);
+      if (!ok) {
+        // Quota is usually the unbounded HR/GPS trace history, not this
+        // session's own data — prune old ones and retry once before giving up.
+        const { sessions: pr, changed } = pruneCondTraces(draft.sessions);
+        if (changed) {
+          draft = { ...draft, sessions: pr };
+          ref.current = draft;
+          setDb(draft);
+          ok = saveDB(webStorage, draft, LS_KEY);
+        }
+      }
       setSaveFailed(!ok);
     }
   }, []);
@@ -121,10 +140,19 @@ export function DbProvider({ children }: { children: ReactNode }) {
     if (fn(copy) === false) return;
     const sessions = cur.sessions.slice();
     sessions[i] = copy;
-    const next: EngineDB = { ...cur, sessions };
+    let next: EngineDB = { ...cur, sessions };
     ref.current = next;
     setDb(next);
-    const ok = saveDB(webStorage, next, LS_KEY);
+    let ok = saveDB(webStorage, next, LS_KEY);
+    if (!ok) {
+      const { sessions: pr, changed } = pruneCondTraces(next.sessions);
+      if (changed) {
+        next = { ...next, sessions: pr };
+        ref.current = next;
+        setDb(next);
+        ok = saveDB(webStorage, next, LS_KEY);
+      }
+    }
     setSaveFailed(!ok);
   }, []);
 

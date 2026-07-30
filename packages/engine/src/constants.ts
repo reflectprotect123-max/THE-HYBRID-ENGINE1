@@ -105,6 +105,15 @@ export const CON_MAX_POINTS = 2700;
  */
 export const CON_RETENTION = 200;
 
+/**
+ * How many recent sessions carrying a conditioning result keep their inline
+ * HR/GPS trace. Inline traces are ~78% of the serialised blob; unbounded, they
+ * cross the localStorage quota and then EVERY save fails forever. Recap and
+ * History only ever draw the trace for a recent run, so older ones can lose
+ * the point arrays and keep everything progression actually reads.
+ */
+export const CON_TRACE_KEEP = 12;
+
 /** Formats that carry earned progression. `free` and `custom` do not. */
 export const PROGRESSED_FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo'];
 

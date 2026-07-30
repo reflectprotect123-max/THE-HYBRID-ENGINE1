@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { emptyDB, restoreDb, sanitizeDB } from '../src/db';
-import type { EngineDB, Session, Workout } from '../src/types';
+import { emptyDB, pruneCondTraces, restoreDb, sanitizeDB } from '../src/db';
+import type { CondBlock, EngineDB, Session, Workout } from '../src/types';
 
 /*
  * Restoring a backup.
@@ -103,5 +103,78 @@ describe('restoreDb', () => {
     expect(db.sessions.length).toBe(2);
     // the poison never became a prototype
     expect(Object.getPrototypeOf(db.settings)).toBe(Object.prototype);
+  });
+});
+
+/*
+ * pruneCondTraces
+ *
+ * Inline HR/GPS traces are ~78% of the serialised blob and, left unbounded,
+ * they cross the localStorage quota — after which EVERY save fails forever.
+ * These assert the fix keeps trace/route on the most recent `keep` sessions
+ * that carry a conditioning result and strips them from every older one,
+ * while leaving the zone-seconds (the numbers progression actually reads)
+ * untouched everywhere.
+ */
+const condSession = (id: string, completedAt: number): Session => {
+  const block: CondBlock = {
+    id: id + '-b',
+    kind: 'conditioning',
+    condFmt: 'steady',
+    condResult: {
+      id: id + '-c',
+      fmt: 'steady',
+      effort: 'medium',
+      dur: 600,
+      zsec: { low: 100, mod: 400, high: 100 },
+      trace: { every: 2, pts: [120, 130, 140] },
+      route: { every: 2, pts: [{ lat: 1, lon: 1 }] },
+    },
+  };
+  return {
+    id,
+    date: '2026-01-01',
+    status: 'completed',
+    completedAt,
+    blocks: [block],
+  } as unknown as Session;
+};
+
+describe('pruneCondTraces', () => {
+  it('keeps trace/route on the most recent `keep` conditioning sessions and strips older ones', () => {
+    // 15 sessions, timestamps 1..15 — keep the newest 12 (a small keep here to
+    // exercise the boundary without an unwieldy fixture).
+    const sessions = Array.from({ length: 15 }, (_, i) => condSession('s' + (i + 1), i + 1));
+    const { sessions: out, changed } = pruneCondTraces(sessions, 12);
+    expect(changed).toBe(true);
+
+    const byId = new Map(out.map((s) => [s.id, s]));
+    // The 3 oldest (s1..s3) must have trace/route stripped, zsec intact.
+    for (const id of ['s1', 's2', 's3']) {
+      const r = (byId.get(id)!.blocks[0] as CondBlock).condResult!;
+      expect(r.trace).toBeUndefined();
+      expect((r as { route?: unknown }).route).toBeUndefined();
+      expect(r.zsec).toEqual({ low: 100, mod: 400, high: 100 });
+    }
+    // The 12 most recent (s4..s15) keep both.
+    for (const id of ['s4', 's5', 's15']) {
+      const r = (byId.get(id)!.blocks[0] as CondBlock).condResult!;
+      expect(r.trace).toEqual({ every: 2, pts: [120, 130, 140] });
+      expect((r as { route?: unknown }).route).toEqual({ every: 2, pts: [{ lat: 1, lon: 1 }] });
+    }
+  });
+
+  it('returns changed: false and leaves sessions untouched when nothing needs stripping', () => {
+    const sessions = Array.from({ length: 5 }, (_, i) => condSession('s' + (i + 1), i + 1));
+    const { sessions: out, changed } = pruneCondTraces(sessions, 12);
+    expect(changed).toBe(false);
+    expect(out).toEqual(sessions);
+  });
+
+  it('leaves sessions with no conditioning result alone', () => {
+    const plain = { id: 'p1', date: '2026-01-01', status: 'completed', blocks: [] } as unknown as Session;
+    const { sessions: out, changed } = pruneCondTraces([plain], 0);
+    expect(changed).toBe(false);
+    expect(out).toEqual([plain]);
   });
 });

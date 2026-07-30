@@ -1,8 +1,10 @@
-import { CON_RETENTION, MODES } from './constants';
+import { CON_RETENTION, CON_TRACE_KEEP, MODES } from './constants';
 import { uid, uniqArr, ymd } from './num';
 import { isCond, isText, newEx, newSet, sessionScore, hasLoggedWork } from './session';
 import type {
   Block,
+  CondBlock,
+  CondResult,
   EngineDB,
   Exercise,
   LiftState,
@@ -355,6 +357,45 @@ export function expireStaleSessions(
       return true;
     }
     return false;
+  });
+  return { sessions: out, changed };
+}
+
+/** Inline HR/GPS traces are ~78% of the serialised blob; unbounded, they cross
+ *  the localStorage quota and then EVERY save fails forever. Keep the maps on
+ *  recent runs (Recap/History still draw them) and strip them from older ones —
+ *  the zone SECONDS that drive progression stay, only the point arrays go. */
+export function pruneCondTraces(
+  sessions: Session[],
+  keep = CON_TRACE_KEEP,
+): { sessions: Session[]; changed: boolean } {
+  const withCond = sessions
+    .map((s, i) => ({
+      i,
+      at: s.completedAt || s.startedAt || 0,
+      has: (s.blocks || []).some((b) => isCond(b) && !!(b as CondBlock).condResult),
+    }))
+    .filter((x) => x.has)
+    .sort((a, b) => b.at - a.at);
+  const spare = new Set(withCond.slice(0, keep).map((x) => x.i));
+  let changed = false;
+  const out = sessions.map((s, i) => {
+    if (spare.has(i)) return s;
+    let touched = false;
+    const blocks = (s.blocks || []).map((b) => {
+      if (isCond(b) && (b as CondBlock).condResult) {
+        const r = (b as CondBlock).condResult!;
+        if (r.trace || (r as { route?: unknown }).route) {
+          touched = true;
+          const { trace: _t, route: _r, ...rest } = r as CondResult & { route?: unknown };
+          return { ...b, condResult: rest };
+        }
+      }
+      return b;
+    });
+    if (!touched) return s;
+    changed = true;
+    return { ...s, blocks };
   });
   return { sessions: out, changed };
 }

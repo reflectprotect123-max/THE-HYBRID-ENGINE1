@@ -4,6 +4,7 @@ import {
   LS_KEY,
   expireStaleSessions,
   loadDB,
+  pruneCondTraces,
   saveDB,
   type EngineDB,
   type HrContext,
@@ -49,6 +50,13 @@ export function DbProvider({ children }: { children: ReactNode }) {
       loaded.sessions = sessions;
       saveDB(storage, loaded, LS_KEY);
     }
+    // Inline HR/GPS traces are unbounded otherwise and eventually cross the
+    // store's quota, after which every save fails forever.
+    const { sessions: pruned, changed: ch2 } = pruneCondTraces(loaded.sessions);
+    if (ch2) {
+      loaded.sessions = pruned;
+      saveDB(storage, loaded, LS_KEY);
+    }
     return loaded;
   });
   const [saveFailed, setSaveFailed] = useState(false);
@@ -80,10 +88,22 @@ export function DbProvider({ children }: { children: ReactNode }) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
-    const draft = pendingSave.current;
+    let draft = pendingSave.current;
     if (!draft) return;
     pendingSave.current = null;
-    setSaveFailed(!saveDB(storage, draft, LS_KEY));
+    let ok = saveDB(storage, draft, LS_KEY);
+    if (!ok) {
+      // Quota is usually the unbounded HR/GPS trace history, not this
+      // session's own data — prune old ones and retry once before giving up.
+      const { sessions: pr, changed } = pruneCondTraces(draft.sessions);
+      if (changed) {
+        draft = { ...draft, sessions: pr };
+        ref.current = draft;
+        setDb(draft);
+        ok = saveDB(storage, draft, LS_KEY);
+      }
+    }
+    setSaveFailed(!ok);
   }, []);
 
   const update = useCallback<DbCtx['update']>(
