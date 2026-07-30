@@ -56,7 +56,7 @@ export function MoreStep({
           <textarea value={note} onChange={(e) => onChange({ note: e.target.value })} rows={3} className={WELL + ' resize-y px-1 py-1 text-4'} />
         </label>
       </div>
-      <button onClick={onDone} className={BRASS + ' mt-2'}>
+      <button onClick={onDone} disabled={metcon && !note.trim()} className={BRASS + ' mt-2'}>
         Done
       </button>
     </div>

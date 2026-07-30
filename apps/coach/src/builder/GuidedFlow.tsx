@@ -233,7 +233,12 @@ export function GuidedFlow({
             // A strength block with nothing in it has no reason to stay.
             blocks.splice(bi, 1);
           } else {
-            // The last row can't chain into anything below it.
+            // Deleting a row breaks any chain THROUGH it: the row above was
+            // linked to the row we just removed, not to whatever slid up into
+            // its slot — leaving its ssNext set silently re-pointed the chain
+            // onto an unrelated exercise (A→B→C, delete B, A adopts C).
+            if (ei > 0 && exs[ei - 1]) exs[ei - 1] = { ...exs[ei - 1], ssNext: undefined };
+            // And the new last row can't chain into anything below it.
             exs[exs.length - 1] = { ...exs[exs.length - 1], ssNext: undefined };
             blocks[bi] = { ...b, exercises: exs };
           }
@@ -280,7 +285,10 @@ export function GuidedFlow({
         {step === 'block-type' ? (
           <BlockTypeStep
             onPick={(kind) => {
-              setDraft((d) => ({ ...d, blockKind: kind }));
+              // Picking a block kind starts a FRESH block — spreading the old
+              // draft carried an abandoned metcon note onto the next exercise's
+              // cue (and pre-filled its reps/RPE/rest). EMPTY_DRAFT clears it.
+              setDraft({ ...EMPTY_DRAFT, blockKind: kind });
               // go('next') would read `flowState`, which is computed from
               // THIS render's `draft` — the setDraft above hasn't landed yet
               // (React batches it), so flowState.blockKind here is still the
