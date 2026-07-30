@@ -1,6 +1,6 @@
 import { CON_RETENTION, CON_TRACE_KEEP, MODES } from './constants';
 import { uid, uniqArr, ymd } from './num';
-import { isCond, isText, newEx, newSet, sessionScore, hasLoggedWork } from './session';
+import { isCond, isText, newEx, newSet, loggedWorkCount, hasLoggedWork } from './session';
 import type {
   Block,
   CondBlock,
@@ -139,13 +139,15 @@ export function pickWorkout(x: Workout, y: Workout): Workout {
  * Which copy of a session to keep. Logged work outranks a timestamp: a session
  * with sets recorded on it always beats an empty one, however recently the
  * empty one was touched. Only when both carry the same amount of work does
- * `updatedAt` decide.
+ * recency decide — `updatedAt` when present, falling back to
+ * completedAt/startedAt for the many sessions that only ever carry those.
  */
 export function pickSession(x: Session, y: Session): Session {
-  const sx = sessionScore(x);
-  const sy = sessionScore(y);
-  if (sy !== sx) return sy > sx ? y : x;
-  return (y.updatedAt || 0) >= (x.updatedAt || 0) ? y : x;
+  const nx = loggedWorkCount(x);
+  const ny = loggedWorkCount(y);
+  if (ny !== nx) return ny > nx ? y : x;
+  const recency = (s: Session) => s.updatedAt || s.completedAt || s.startedAt || 0;
+  return recency(y) >= recency(x) ? y : x;
 }
 
 /**

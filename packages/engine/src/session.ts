@@ -208,13 +208,14 @@ export function sessionRpe(s: Session): { target: number | null; felt: number | 
 }
 
 /**
- * How much a session is "worth" when two devices disagree about it.
+ * How many pieces of logged work a session carries — a done set, or a
+ * finished conditioning block. A finished conditioning block IS logged work:
+ * counting only sets meant a session whose only work was a run scored zero.
  *
- * A finished conditioning block IS logged work. Counting only sets meant a
- * session whose only work was a run scored zero, lost the merge to the remote
- * copy, and had its whole HR record deleted on the next sync.
+ * This is the quantity `pickSession` compares first, so a session with any
+ * logged work always outranks an emptier one regardless of timestamps.
  */
-export function sessionScore(s: Session): number {
+export function loggedWorkCount(s: Session): number {
   let n = 0;
   (s.blocks || []).forEach((b) => {
     if (b && (b as CondBlock).condResult) {
@@ -227,7 +228,12 @@ export function sessionScore(s: Session): number {
       }),
     );
   });
-  return (s.completedAt || s.startedAt || 0) + n * 1e6;
+  return n;
+}
+
+/** How much a session is "worth" — kept for existing consumers of the raw number. */
+export function sessionScore(s: Session): number {
+  return (s.completedAt || s.startedAt || 0) + loggedWorkCount(s) * 1e6;
 }
 
 export function hasLoggedWork(s: Session | null | undefined): boolean {
