@@ -63,6 +63,21 @@ export function sanitizeDB(d: unknown): EngineDB {
 
   const cleanBlocks = (v: unknown): Block<LoggedSet>[] => arr<unknown>(v).map(cleanBlock);
 
+  // settings is the one hole in this trust boundary: JSON.parse materialises a
+  // hostile "__proto__" as an OWN enumerable property, and mergeSettings'
+  // Object.assign would then invoke the prototype setter, poisoning
+  // deletedIds and wiping every record. Rebuild from own keys, dropping the
+  // three keys that can re-home a prototype. Also reject an array.
+  const cleanSettings = (s: unknown): Settings => {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return {};
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(s as Record<string, unknown>)) {
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      out[k] = (s as Record<string, unknown>)[k];
+    }
+    return out as Settings;
+  };
+
   return {
     workouts: arr<unknown>(src.workouts).map((w0) => {
       const w = (w0 && typeof w0 === 'object' ? w0 : {}) as Workout;
@@ -78,7 +93,7 @@ export function sanitizeDB(d: unknown): EngineDB {
       if (!s.id) s.id = uid();
       return s;
     }),
-    settings: (src.settings && typeof src.settings === 'object' ? src.settings : {}) as Settings,
+    settings: cleanSettings(src.settings),
   };
 }
 

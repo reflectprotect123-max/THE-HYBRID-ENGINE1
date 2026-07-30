@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyDB, restoreDb } from '../src/db';
+import { emptyDB, restoreDb, sanitizeDB } from '../src/db';
 import type { EngineDB, Session, Workout } from '../src/types';
 
 /*
@@ -83,5 +83,25 @@ describe('restoreDb', () => {
     expect(out.sessions).toEqual([]);
     expect(out.workouts).toHaveLength(2);
     expect(Array.isArray(out.workouts[1].blocks)).toBe(true);
+  });
+
+  it('a __proto__ key in restored settings cannot wipe the library', () => {
+    const cur = sanitizeDB({
+      workouts: [{ id: 'w1', name: 'A', updatedAt: 1, blocks: [] }],
+      sessions: [
+        { id: 's1', date: '2026-01-01', status: 'completed', completedAt: 1, blocks: [] },
+        { id: 's2', date: '2026-01-02', status: 'completed', completedAt: 1, blocks: [] },
+      ],
+      settings: {},
+    });
+    const hostile = JSON.parse(
+      '{"workouts":[],"sessions":[],"settings":{"__proto__":{"deletedIds":' +
+        '{"w1":9007199254740991,"s1":9007199254740991,"s2":9007199254740991}}}}',
+    );
+    const { db } = restoreDb(cur, hostile, 'merge');
+    expect(db.workouts.length).toBe(1);
+    expect(db.sessions.length).toBe(2);
+    // the poison never became a prototype
+    expect(Object.getPrototypeOf(db.settings)).toBe(Object.prototype);
   });
 });
