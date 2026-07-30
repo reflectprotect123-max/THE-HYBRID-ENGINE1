@@ -17,8 +17,17 @@
  * and Library's session cards are where an athlete's thumb actually lands, and
  * both have anchors and a `select` alongside plain buttons. Seeds one workout
  * and one active session so `/training` renders in-progress rather than the
- * empty "Start a session" state, then walks `/`, `/training`, `/library` and
- * measures every `button, a, [role="button"], select` that is actually visible.
+ * empty "Start a session" state, then walks the gym path and measures every
+ * visible `button, a, [role="button"], select`.
+ *
+ * `/build/:id` — the guided builder — is walked too, and driven as far as its
+ * reps step, because that is where the one control the coarse-pointer rule
+ * cannot save lives: a native checkbox, which tokens.css deliberately excludes
+ * from the 44px minimum (a stretched checkbox looks broken). The row it sits in
+ * has to carry the target instead, which is why the selector also measures a
+ * `<label>` wrapping a checkbox — measuring the checkbox itself would only ever
+ * report 13px and confirm its own exclusion, while the label is what a thumb
+ * actually hits.
  *
  *   node checks/web-touch.mjs        (skips cleanly without playwright)
  */
@@ -127,8 +136,8 @@ const SEED = {
   settings: { profile: { age: 30, restingHr: 50 } },
 };
 
-const ROUTES = ['/', '/training', '/library'];
-const SELECTOR = 'button, a, [role="button"], select';
+const ROUTES = ['/', '/training', '/library', '/build/w1'];
+const SELECTOR = 'button, a, [role="button"], select, label:has(input[type="checkbox"])';
 
 /** Every visible control's height on every gym-path route, under a given
  *  input-device emulation. */
@@ -145,19 +154,31 @@ async function heights({ hasTouch }) {
   await page.addInitScript((seed) => {
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(seed));
   }, SEED);
-  let coarse = false;
-  const hs = [];
-  for (const route of ROUTES) {
-    await page.goto(base + route, { waitUntil: 'networkidle' });
-    coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
-    const rh = await page.evaluate(
+  const visible = () =>
+    page.evaluate(
       (sel) =>
         [...document.querySelectorAll(sel)]
           .filter((el) => el.offsetParent !== null)
           .map((el) => Math.round(el.getBoundingClientRect().height)),
       SELECTOR,
     );
-    hs.push(...rh);
+  let coarse = false;
+  const hs = [];
+  for (const route of ROUTES) {
+    await page.goto(base + route, { waitUntil: 'networkidle' });
+    coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+    hs.push(...(await visible()));
+    /* The wizard shows one question at a time, so its later screens exist only
+       at the end of a click path. Reps is the one that matters here — the
+       warm-up checkbox row. */
+    if (route.startsWith('/build/')) {
+      await page.click('button:has-text("Lift")');
+      await page.fill('input[aria-label="movement name"]', 'Back Squat');
+      await page.click('button:has-text("Next")'); // → sets
+      await page.click('button:has-text("Next")'); // → reps
+      await page.waitForSelector('label:has(input[type="checkbox"])');
+      hs.push(...(await visible()));
+    }
   }
   await ctx.close();
   return { hs, coarse };

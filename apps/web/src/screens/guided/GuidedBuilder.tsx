@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import {
   canAdvance,
   nextStep,
   prevStep,
-  stepsFor,
   type BlockKind,
   type FlowDraft,
   type FlowStep,
@@ -68,6 +67,8 @@ export function GuidedBuilder() {
   const { id } = useParams<{ id: string }>();
   const { db, update } = useDb();
   const nav = useNavigate();
+  const location = useLocation();
+  const navType = useNavigationType();
   const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
 
   const [step, setStep] = useState<FlowStep>('block-type');
@@ -75,11 +76,92 @@ export function GuidedBuilder() {
   const [added, setAdded] = useState<string[]>([]);
   const [phase, setPhase] = useState<'flow' | 'add-another'>('flow');
 
+  /*
+   * Leaving the flow, and dropping the record the Library minted for it.
+   *
+   * "＋ New session" writes the Workout BEFORE the wizard opens, so backing out
+   * of the very first question would otherwise strand a permanent, blockless
+   * session — which the Library then lists as "conditioning", since it reads
+   * any zero-block workout that way. Tombstoned rather than merely spliced out,
+   * the same as Library.tsx's own delete: without the tombstone the next sync
+   * sees a workout the remote still has and restores it.
+   *
+   * Guarded twice over. An empty `added` means nothing was committed during THIS
+   * wizard session; the blocks check inside the callback means the stored
+   * workout is genuinely empty. The second guard is what keeps a finished
+   * session safe when the browser's Back walks back into a remounted wizard
+   * from the Planner — a fresh mount has an empty `added`, but that workout is
+   * no phantom.
+   */
+  const abandon = useCallback(
+    (replace = false) => {
+      if (id && !added.length) {
+        update((d) => {
+          const w = d.workouts.find((x) => x.id === id);
+          if (!w || w.blocks.length) return false;
+          d.workouts = d.workouts.filter((x) => x.id !== id);
+          d.settings.deletedIds = { ...(d.settings.deletedIds || {}), [id]: Date.now() };
+        });
+      }
+      nav('/library', { replace });
+    },
+    [added.length, id, nav, update],
+  );
+
+  /*
+   * What a BACKWARD browser navigation means inside the wizard.
+   *
+   * The spec's rule is that back goes to the previous step within the current
+   * block, never straight out of the flow — except from the first question,
+   * where leaving IS right. The wizard's steps are React state, not routes, so
+   * there is nothing for the browser to go back to: plain Back would leave
+   * /build/:id altogether and lose the block being authored.
+   *
+   * This app's router is a declarative <BrowserRouter>, not a data router, so
+   * useBlocker does not exist here. Instead every step forward pushes a history
+   * entry for the SAME path (`guard` below), so history depth mirrors step
+   * depth, and a POP that is still on /build/:id is one of those entries being
+   * consumed — step back instead. A POP that genuinely leaves the route
+   * unmounts this screen and never reaches here, which is exactly what should
+   * happen from the first question.
+   */
+  const handleBackward = useCallback(() => {
+    if (phase === 'add-another') {
+      // Not a step, and the block is already saved, so the honest destination is
+      // the Planner — the same place "No, I'm done" goes.
+      if (id) nav(`/planner/${id}`, { replace: true });
+      return;
+    }
+    const prev = prevStep(step, { blockKind: draft.blockKind, isWarmupSet: draft.isWarmupSet });
+    if (prev) {
+      setStep(prev);
+      return;
+    }
+    // Already at the first question, on a guard entry left over from a remount.
+    abandon(true);
+  }, [abandon, draft.blockKind, draft.isWarmupSet, id, nav, phase, step]);
+
+  /* Only a location CHANGE matters, and only a backward one. The key guard also
+     covers the first render, where react-router reports POP for a plain load. */
+  const seenKey = useRef(location.key);
+  useEffect(() => {
+    if (seenKey.current === location.key) return;
+    seenKey.current = location.key;
+    if (navType !== 'POP') return;
+    handleBackward();
+  }, [handleBackward, location.key, navType]);
+
   if (!id) return null;
   const state = { blockKind: draft.blockKind, isWarmupSet: draft.isWarmupSet };
 
   function patch(p: Partial<Draft>) {
     setDraft((d) => ({ ...d, ...p }));
+  }
+
+  /** One same-path history entry per step, so the browser's Back has something
+   *  of ours to consume (see `handleBackward`). */
+  function guard(next: FlowStep) {
+    nav(location.pathname, { state: { guidedStep: next } });
   }
 
   function commitBlock() {
@@ -99,13 +181,13 @@ export function GuidedBuilder() {
         label = draft.movementName;
       } else if (kind === 'cond') {
         // @hybrid/engine's top-level `newCondBlock` (packages/engine/src/session.ts)
-        // takes no arguments and returns sensible defaults; the emit.ts
-        // overload with (heading, condFmt, effort, minutes) params lives only
-        // under the `emit` namespace export, not here. Build the default block
-        // and fill in what was authored, keeping `targetZone` in lockstep with
-        // `effort` the same way emit.newCondBlock does.
+        // takes no arguments and returns sensible defaults — `heading:
+        // 'Conditioning'` among them, so only what was authored is filled in
+        // here. The overload with (heading, condFmt, effort, minutes) params
+        // lives under the `emit` namespace export, not this flat import.
+        // `targetZone` is kept in lockstep with `effort` the same way
+        // emit.newCondBlock does.
         const block = newCondBlock();
-        block.heading = 'Conditioning';
         block.condFmt = (draft.condFmt || 'intervals') as CondFmtKey;
         block.effort = draft.effort;
         block.targetZone = CON_EFFORTS[draft.effort].zone;
@@ -129,24 +211,104 @@ export function GuidedBuilder() {
     const next = nextStep(step, state);
     if (next) {
       setStep(next);
+      guard(next);
       return;
     }
     commitBlock();
   }
 
+  /*
+   * The in-page back control, routed through history rather than straight to
+   * `setStep`, so this control and the browser's own Back consume the same
+   * entries and cannot drift apart. From the first question there is no earlier
+   * step, so this is a cancel: leave, dropping the phantom session.
+   */
   function goBack() {
-    const prev = prevStep(step, state);
-    if (prev) {
-      setStep(prev);
-      return;
-    }
-    // No earlier step than block-type: back here means abandoning the flow.
-    nav('/library');
+    if (prevStep(step, state)) nav(-1);
+    else abandon();
   }
 
   function pick(kind: Exclude<BlockKind, null>) {
-    patch({ blockKind: kind });
-    setStep(nextStep('block-type', { blockKind: kind, isWarmupSet: false }) ?? 'block-type');
+    // A fresh block starts from a clean draft: without this, `isWarmupSet` (and
+    // every other answer) leaks out of the previous block into this one.
+    setDraft({ ...EMPTY_DRAFT, blockKind: kind });
+    const next = nextStep('block-type', { blockKind: kind, isWarmupSet: false }) ?? 'block-type';
+    setStep(next);
+    guard(next);
+  }
+
+  function renderStep(): ReactNode {
+    if (step === 'block-type') return <BlockTypeStep onPick={pick} onBack={goBack} />;
+
+    if (step === 'movement') {
+      return (
+        <MovementStep
+          value={draft.movementName}
+          known={known}
+          onChange={(v) => patch({ movementName: v })}
+          onNext={goNext}
+          onBack={goBack}
+          disabled={!canAdvance('movement', draft)}
+        />
+      );
+    }
+
+    if (step === 'sets') {
+      return <SetsStep value={draft.sets} onChange={(n) => patch({ sets: n })} onNext={goNext} onBack={goBack} />;
+    }
+
+    if (step === 'reps') {
+      return (
+        <RepsStep
+          value={draft.reps}
+          isWarmupSet={draft.isWarmupSet}
+          onChange={(v) => patch({ reps: v })}
+          onWarmupSetChange={(v) => patch({ isWarmupSet: v })}
+          onNext={goNext}
+          onBack={goBack}
+          disabled={!canAdvance('reps', draft)}
+        />
+      );
+    }
+
+    if (step === 'rpe') {
+      return (
+        <RpeStep
+          value={draft.rpe}
+          onChange={(v) => patch({ rpe: v })}
+          onNext={goNext}
+          onBack={goBack}
+          disabled={!canAdvance('rpe', draft)}
+        />
+      );
+    }
+
+    if (step === 'cond-detail') {
+      return (
+        <CondDetailStep
+          condFmt={draft.condFmt as CondFmtKey | ''}
+          effort={draft.effort}
+          minutes={draft.minutes}
+          onChange={(p) => patch(p)}
+          onNext={goNext}
+          onBack={goBack}
+          disabled={!canAdvance('cond-detail', draft)}
+        />
+      );
+    }
+
+    // step === 'text'
+    const question = draft.blockKind === 'warmup' ? "What's the warm-up?" : "What's the workout?";
+    return (
+      <TextStep
+        question={question}
+        value={draft.text}
+        onChange={(v) => patch({ text: v })}
+        onNext={goNext}
+        onBack={goBack}
+        disabled={!canAdvance('text', draft)}
+      />
+    );
   }
 
   if (phase === 'add-another') {
@@ -171,75 +333,23 @@ export function GuidedBuilder() {
     );
   }
 
-  if (step === 'block-type') return <BlockTypeStep onPick={pick} />;
-
-  if (step === 'movement') {
-    return (
-      <MovementStep
-        value={draft.movementName}
-        known={known}
-        onChange={(v) => patch({ movementName: v })}
-        onNext={goNext}
-        onBack={goBack}
-        disabled={!canAdvance('movement', draft)}
-      />
-    );
-  }
-
-  if (step === 'sets') {
-    return <SetsStep value={draft.sets} onChange={(n) => patch({ sets: n })} onNext={goNext} onBack={goBack} />;
-  }
-
-  if (step === 'reps') {
-    return (
-      <RepsStep
-        value={draft.reps}
-        isWarmupSet={draft.isWarmupSet}
-        onChange={(v) => patch({ reps: v })}
-        onWarmupSetChange={(v) => patch({ isWarmupSet: v })}
-        onNext={goNext}
-        onBack={goBack}
-        disabled={!canAdvance('reps', draft)}
-      />
-    );
-  }
-
-  if (step === 'rpe') {
-    return (
-      <RpeStep
-        value={draft.rpe}
-        onChange={(v) => patch({ rpe: v })}
-        onNext={goNext}
-        onBack={goBack}
-        disabled={!canAdvance('rpe', draft)}
-      />
-    );
-  }
-
-  if (step === 'cond-detail') {
-    return (
-      <CondDetailStep
-        condFmt={draft.condFmt as CondFmtKey | ''}
-        effort={draft.effort}
-        minutes={draft.minutes}
-        onChange={(p) => patch(p)}
-        onNext={goNext}
-        onBack={goBack}
-        disabled={!canAdvance('cond-detail', draft)}
-      />
-    );
-  }
-
-  // step === 'text'
-  const question = draft.blockKind === 'warmup' ? "What's the warm-up?" : "What's the workout?";
+  /*
+   * The persistent progress header the spec asks for — "a multi-step flow with
+   * no sense of where you are in it is a known, avoidable source of confusion".
+   * It wraps the steps rather than being repeated inside all seven of them, and
+   * is left off the "add another?" screen, which already carries its own running
+   * summary and would otherwise say where you are twice.
+   *
+   * `h-full` on the wrapper rather than `min-h-full`: each step centres itself
+   * with `min-h-full`, which needs a parent whose height is definite to resolve
+   * a percentage against.
+   */
   return (
-    <TextStep
-      question={question}
-      value={draft.text}
-      onChange={(v) => patch({ text: v })}
-      onNext={goNext}
-      onBack={goBack}
-      disabled={!canAdvance('text', draft)}
-    />
+    <div className="flex h-full flex-col">
+      <header className="mx-auto w-full max-w-[560px] shrink-0 px-2 pt-2 text-center">
+        <Kicker>Session · block {added.length + 1}</Kicker>
+      </header>
+      <div className="min-h-0 flex-1">{renderStep()}</div>
+    </div>
   );
 }

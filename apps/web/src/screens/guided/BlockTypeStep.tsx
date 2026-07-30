@@ -8,7 +8,21 @@ const CHOICES: { kind: Exclude<BlockKind, null>; label: string; glyph: string }[
   { kind: 'metcon', label: 'Metcon / notes', glyph: '✎' },
 ];
 
-export function BlockTypeStep({ onPick }: { onPick: (kind: Exclude<BlockKind, null>) => void }) {
+/**
+ * The flow's first question.
+ *
+ * `onBack` is a cancel rather than a step back — there is no earlier step — and
+ * it is the only way out of the wizard: without it an athlete who opened this by
+ * accident was stuck here, and the empty session the Library minted on the way
+ * in survived as a phantom (see GuidedBuilder's `abandon`).
+ */
+export function BlockTypeStep({
+  onPick,
+  onBack,
+}: {
+  onPick: (kind: Exclude<BlockKind, null>) => void;
+  onBack: () => void;
+}) {
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-2 p-3">
       <h1 className="text-8 font-[800]">What are we doing?</h1>
@@ -26,6 +40,9 @@ export function BlockTypeStep({ onPick }: { onPick: (kind: Exclude<BlockKind, nu
           </Button>
         ))}
       </div>
+      <Button className="mt-1" onClick={onBack} aria-label="cancel and go back to the library">
+        ‹ Cancel
+      </Button>
     </div>
   );
 }

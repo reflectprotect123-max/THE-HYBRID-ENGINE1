@@ -332,7 +332,7 @@ await t('Home\'s "Start today\'s session →" actually starts one', async () => 
 
 /* ---------- planner ---------- */
 
-await t('the Library creates a session and opens it in the plan editor', async () => {
+await t('the Library creates a session and opens the guided builder', async () => {
   // The guided builder (Task 5) is now the "＋ New session" entry point — it
   // creates the workout up front, same as before, but hands off to /build/:id
   // rather than dropping straight into the Planner with a blank block.
@@ -416,6 +416,90 @@ await t('a coach-assigned session is read-only in the plan editor', async () => 
   await page.waitForSelector('text=read-only');
   const ro = await page.getAttribute('input[aria-label="session name"]', 'readonly');
   assert(ro !== null, 'a coach session must not be locally editable');
+});
+
+/* ---------- guided builder: leaving it ---------- */
+
+/*
+ * The browser's own Back button, which no other check touches.
+ *
+ * The wizard's steps are React state, so there is nothing for Back to go back
+ * to: without the same-path history entry each step-forward pushes, one press
+ * would leave /build/:id and take the block being authored with it. This is the
+ * only place that behaviour is observable — it cannot be reached from jsdom, and
+ * `useBlocker` is not available to this app's declarative BrowserRouter, so the
+ * mechanism is worth pinning.
+ */
+await t('the browser Back steps back inside the guided builder', async () => {
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  await page.click('button:has-text("＋ New session")');
+  await page.waitForURL(/\/build\//);
+  const url = page.url();
+
+  await page.click('button:has-text("Lift")');
+  await page.waitForSelector('text=Which movement?');
+  // The spec's persistent progress header, on every step-answering screen.
+  assert(/Session · block 1/.test(await page.textContent('body')), 'the progress header should say which block this is');
+  await page.fill('input[aria-label="movement name"]', 'Back Squat');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How many sets?');
+
+  await page.goBack();
+  await page.waitForSelector('text=Which movement?');
+  assert(page.url() === url, 'Back inside the flow must not change the route, got ' + page.url());
+  const kept = await page.inputValue('input[aria-label="movement name"]');
+  assert(kept === 'Back Squat', 'stepping back must keep what was already answered, got ' + JSON.stringify(kept));
+
+  await page.goBack();
+  await page.waitForSelector('text=What are we doing?');
+  assert(page.url() === url, 'still inside the flow at the first question, got ' + page.url());
+
+  // From the first question there is no earlier step, so this one really leaves.
+  await page.goBack();
+  await page.waitForURL(/\/library/);
+});
+
+await t('a custom reps target is still there after stepping back onto it', async () => {
+  // The custom box was local state, so it emptied on the unmount that every Back
+  // causes while the reps value itself survived: an empty box, no chip selected,
+  // and Next enabled with nothing on screen to say what was chosen.
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  await page.click('button:has-text("＋ New session")');
+  await page.waitForSelector('text=What are we doing?');
+  await page.click('button:has-text("Lift")');
+  await page.fill('input[aria-label="movement name"]', 'Back Squat');
+  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How many reps?');
+  await page.fill('input[aria-label="custom reps target"]', '8-12');
+  await page.click('button:has-text("Next")');
+  await page.waitForSelector('text=How hard should it feel?');
+
+  await page.click('button:has-text("Back")');
+  await page.waitForSelector('text=How many reps?');
+  const shown = await page.inputValue('input[aria-label="custom reps target"]');
+  assert(shown === '8-12', 'the custom target should still be shown, got ' + JSON.stringify(shown));
+});
+
+await t('cancelling the first question drops the session the Library minted', async () => {
+  // Library writes the Workout BEFORE the wizard opens, so with no way out of
+  // the first question an accidental tap left a permanent, blockless session —
+  // which the Library then lists as "conditioning".
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts.length);
+  await page.click('button:has-text("＋ New session")');
+  await page.waitForURL(/\/build\//);
+  const id = new URL(page.url()).pathname.split('/').pop();
+
+  await page.click('button:has-text("Cancel")');
+  await page.waitForURL(/\/library/);
+  const after = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    return { n: db.workouts.length, tombs: db.settings.deletedIds || {} };
+  });
+  assert(after.n === before, 'the phantom session should be gone, ' + after.n + ' vs ' + before);
+  // A tombstone, not just a local splice: without one the next sync restores it.
+  assert(after.tombs[id], 'the phantom session should be tombstoned, not just removed');
 });
 
 await t('no uncaught page errors', async () => {
