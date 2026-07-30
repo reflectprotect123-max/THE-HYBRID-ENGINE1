@@ -20,7 +20,7 @@ export function SetsStep({
           onPress={() => onChange(Math.max(1, value - 1))}
           label="fewer sets"
           box={{ h: 40, w: 40 }}
-          className="h-10 w-10 items-center justify-center rounded-full border border-line2"
+          className="h-5 w-5 items-center justify-center rounded-full border border-line2"
         >
           <T className="text-8">−</T>
         </Tap>
@@ -29,7 +29,7 @@ export function SetsStep({
           onPress={() => onChange(Math.min(20, value + 1))}
           label="more sets"
           box={{ h: 40, w: 40 }}
-          className="h-10 w-10 items-center justify-center rounded-full border border-line2"
+          className="h-5 w-5 items-center justify-center rounded-full border border-line2"
         >
           <T className="text-8">+</T>
         </Tap>

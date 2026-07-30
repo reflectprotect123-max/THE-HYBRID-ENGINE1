@@ -28,7 +28,8 @@ export function RepsStep({
       <Tap
         onPress={() => onWarmupSetChange(!isWarmupSet)}
         label="this is a warm-up"
-        box={{ h: 48 }}
+        box={{ h: 40 }}
+        selected={isWarmupSet}
         className="flex-row items-center gap-1.5"
       >
         <View
