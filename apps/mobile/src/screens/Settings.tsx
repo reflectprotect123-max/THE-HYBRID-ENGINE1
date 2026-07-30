@@ -8,6 +8,7 @@ import { useWhoop } from '../cloud/whoop';
 import { isPersistent } from '../store/storage';
 import { parseBackup } from '../store/restore';
 import { Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
+import { humanizeError } from '../errors';
 
 /*
  * Declared at MODULE scope, not inside SettingsScreen.
@@ -136,7 +137,7 @@ function BackupCard({ db }: { db: EngineDB }) {
       });
       setMsg(`${Math.round(json.length / 1024)} kB sent.`);
     } catch (e) {
-      setMsg(`Export failed: ${String((e as Error)?.message || e)}`);
+      setMsg('Export failed: ' + humanizeError(e, 'backup'));
     } finally {
       setBusy(false);
     }

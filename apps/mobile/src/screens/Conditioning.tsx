@@ -67,8 +67,8 @@ export function ConditioningScreen() {
   const [live, setLive] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [bpm, setBpm] = useState<number | null>(null);
-  const [hrMsg, setHrMsg] = useState('');
-  const [geoMsg, setGeoMsg] = useState('');
+  const [hrMsg, setHrMsg] = useState<{ text: string; warn: boolean } | null>(null);
+  const [geoMsg, setGeoMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const [result, setResult] = useState<CondResult | null>(null);
   const samples = useRef<HrSample[]>([]);
   const geoSamples = useRef<GeoSample[]>([]);
@@ -151,7 +151,7 @@ export function ConditioningScreen() {
     startedAt.current = Date.now();
     setElapsed(0);
     setResult(null);
-    setHrMsg('');
+    setHrMsg(null);
     setBpm(null);
     setLive(true);
     void setKeepAwake(true);
@@ -160,14 +160,18 @@ export function ConditioningScreen() {
     // scan that found nothing, an adapter that is off. Without it the screen
     // could only ever show a dash and the athlete had no idea why.
     await monitor.current.start(setBpm, (state, msg) =>
-      setHrMsg(state === 'connected' ? '' : state === 'scanning' ? 'Looking for your strap…' : msg),
+      setHrMsg(
+        state === 'connected'
+          ? null
+          : { text: state === 'scanning' ? 'Looking for your strap…' : msg, warn: state === 'error' },
+      ),
     );
     geoSamples.current = [];
     geoTracker.current = createGeoTracker();
-    setGeoMsg('');
+    setGeoMsg(null);
     await geoTracker.current.start(
       (s) => geoSamples.current.push(s),
-      (state, msg) => setGeoMsg(state === 'tracking' ? '' : msg),
+      (state, msg) => setGeoMsg(state === 'tracking' ? null : { text: msg, warn: state === 'error' }),
     );
   };
 
@@ -321,8 +325,12 @@ export function ConditioningScreen() {
                   Prescription complete — tap Finish
                 </T>
               )}
-              {bpm == null && hrMsg ? <T className="mt-1 text-3 text-muted">{hrMsg}</T> : null}
-              {geoMsg ? <T className="mt-1 text-3 text-muted">{geoMsg}</T> : null}
+              {bpm == null && hrMsg ? (
+                <T className={'mt-1 text-3 ' + (hrMsg.warn ? 'text-warn' : 'text-muted')}>{hrMsg.text}</T>
+              ) : null}
+              {geoMsg ? (
+                <T className={'mt-1 text-3 ' + (geoMsg.warn ? 'text-warn' : 'text-muted')}>{geoMsg.text}</T>
+              ) : null}
               {geoSamples.current.length > 1 ? (
                 <View className="mt-1">
                   <RouteMap route={geoDownsample(geoSamples.current, elapsed)} live />

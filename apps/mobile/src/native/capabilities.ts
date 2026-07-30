@@ -130,7 +130,8 @@ export function createHeartRateMonitor(): HeartRateMonitor {
           // how a broken strap became indistinguishable from a missing one.
           if (err) {
             if (timer) clearTimeout(timer);
-            say('error', String((err as { message?: string })?.message || 'Bluetooth scan failed.'));
+            console.warn('[ble]', err);
+            say('error', 'Bluetooth scan failed — check that Bluetooth is on, then try again.');
             return;
           }
           if (!device || stopped) return;
@@ -163,7 +164,8 @@ export function createHeartRateMonitor(): HeartRateMonitor {
             });
             say('connected');
           } catch (e) {
-            say('error', String((e as Error)?.message || 'Could not connect to that strap.'));
+            console.warn('[ble]', e);
+            say('error', 'Could not connect to that strap — move closer and try again.');
           }
         });
       } catch {
@@ -391,7 +393,8 @@ export function createGeoTracker(): GeoTracker {
         }
         say('tracking');
       } catch (e) {
-        say('error', String((e as Error)?.message || 'GPS is not available on this build.'));
+        console.warn('[gps]', e);
+        say('error', 'GPS is not available right now — the run still counts by time and heart rate.');
       }
     },
     stop() {

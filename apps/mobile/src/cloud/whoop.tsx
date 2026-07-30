@@ -6,6 +6,7 @@ import { ymd, type WhoopSample } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useSync } from './sync';
 import { storage } from '../store/storage';
+import { humanizeError } from '../errors';
 
 /*
  * WHOOP, native edition.
@@ -184,7 +185,7 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         // A silent background refresh must not put an error banner in front of
         // someone mid-session.
-        if (!silent) setS((p) => ({ ...p, error: String((e as Error)?.message || e) }));
+        if (!silent) setS((p) => ({ ...p, error: humanizeError(e, 'whoop') }));
       } finally {
         busyRef.current = false;
         setS((p) => ({ ...p, busy: false }));
@@ -213,7 +214,7 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
         loaded: true,
         connected: false,
         sample: null,
-        error: String((e as Error)?.message || e),
+        error: humanizeError(e, 'whoop'),
       }));
     }
   }, [apply, sync]);
@@ -279,7 +280,7 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
             if (!/^https:\/\//i.test(authorizeUrl)) throw new Error('WHOOP is unavailable right now.');
             await Linking.openURL(authorizeUrl);
           } catch (e) {
-            setS((p) => ({ ...p, error: String((e as Error)?.message || e) }));
+            setS((p) => ({ ...p, error: humanizeError(e, 'whoop') }));
           } finally {
             setS((p) => ({ ...p, busy: false }));
           }
