@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
  *   Field          → 05-coach-04 (coach instructions field: floating label
  *                    sitting on the top border of a panel)
  *   Toast          → 03-shared-03 (toast), rendered inline — see Editor
- *   BRASS/GHOST/ADD→ 03-shared-01 (buttons: bigbtn / addbtn / markall)
+ *   BRASS/GHOST     → 03-shared-01 (buttons: bigbtn / markall)
  *   MICRO          → the uppercase tracked micro-label idiom the token doc
  *                    tells us to preserve
  *
@@ -32,15 +32,10 @@ export const GHOST =
   'inline-flex h-4 items-center justify-center gap-0.5 rounded-md border border-line2 px-1.5 text-3 ' +
   'font-[650] text-muted transition-colors duration-150 hover:border-gold-line hover:text-gold2';
 
-/** 03-shared-01 `.addbtn` — dashed, reads as "there could be more here". */
-export const ADD =
-  'inline-flex h-6 items-center justify-center gap-0.5 rounded-md border border-dashed border-line2 px-2 ' +
-  'text-4 font-[750] text-muted transition-colors duration-150 hover:border-gold-line hover:text-gold2';
-
 /** A sunk text field. `--well` + `--shadow-well`, gold on focus. */
 export const WELL =
-  'rounded-md border border-line bg-well text-text shadow-well outline-none transition-colors duration-150 ' +
-  'placeholder:text-dim focus:border-gold-line';
+  'rounded-md border border-line bg-well text-text shadow-well transition-colors duration-150 ' +
+  'placeholder:text-dim focus:border-gold-line focus:outline-2 focus:outline-gold-line focus:outline-offset-0';
 
 /**
  * The letter chip.
@@ -124,12 +119,6 @@ export const IconDown = ({ size = 16 }: { size?: number }) => (
   </svg>
 );
 
-export const IconRight = ({ size = 16 }: { size?: number }) => (
-  <svg {...S} width={size} height={size}>
-    <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 /** 05-coach-01 `.c-assign` carries this paper-plane next to "Assign to phone". */
 export const IconSend = ({ size = 16 }: { size?: number }) => (
   <svg {...S} width={size} height={size} strokeWidth={2}>
@@ -137,29 +126,8 @@ export const IconSend = ({ size = 16 }: { size?: number }) => (
   </svg>
 );
 
-export const IconLink = ({ size = 14 }: { size?: number }) => (
-  <svg {...S} width={size} height={size} strokeWidth={2}>
-    <path d="M9 12h6M8 8.5 5.5 11a3.5 3.5 0 0 0 5 5L13 13.5M16 15.5l2.5-2.5a3.5 3.5 0 0 0-5-5L11 10.5" />
-  </svg>
-);
-
-/** 03-shared-04's empty state pairs its copy with one brass-plated glyph. */
-export const IconRest = ({ size = 22 }: { size?: number }) => (
-  <svg {...S} width={size} height={size}>
-    <rect x="3" y="5" width="18" height="16" rx="3" />
-    <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
-  </svg>
-);
-
 export const IconCheck = ({ size = 14 }: { size?: number }) => (
   <svg {...S} width={size} height={size} strokeWidth={2.4}>
     <path d="m5 13 4 4 10-10" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-export const IconCopy = ({ size = 16 }: { size?: number }) => (
-  <svg {...S} width={size} height={size}>
-    <rect x="9" y="9" width="12" height="12" rx="2" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
   </svg>
 );

@@ -182,6 +182,10 @@ await t('a warm-up confirms in one tap, records no felt RPE, and does NOT move t
   // A warm-up is never rated: Finish Set confirms directly — no RPE stage,
   // no Confirm Set. The stored set must carry no `felt` either.
   await page.click('button:has-text("Finish Set")');
+  // The RPE question must never have rendered for a warm-up — not "flashed
+  // and moved on", never appeared at all.
+  const txtAfterFinish = await page.textContent('body');
+  assert(!/How hard was that/.test(txtAfterFinish), 'the RPE stage appeared for a warm-up set');
   const after = await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
     const sets = db.sessions[0].blocks[0].exercises[0].sets;
@@ -192,8 +196,20 @@ await t('a warm-up confirms in one tap, records no felt RPE, and does NOT move t
   assert(!after.next, 'a warm-up wrote a prescription onto the next set: ' + after.next);
 });
 
+await t('the rest control reads "Skip rest", lowercase r', async () => {
+  // The warm-up had rest 120, so the stage is mid-rest. Playwright's
+  // :has-text() is a case-insensitive substring match, so it would happily
+  // click "Skip Rest" too — read the literal DOM text instead to pin the
+  // casing consistency batch actually landed.
+  await page.waitForSelector('button:has-text("Skip rest")');
+  const txt = await page.textContent('body');
+  // No word boundary after "rest": the DOM's text nodes butt straight up
+  // against the next element's text with no space, so \b there never matches.
+  assert(txt.includes('Skip rest'), 'expected the literal "Skip rest" control, got: ' + txt.slice(0, 200));
+  assert(!txt.includes('Skip Rest'), 'the rest control regressed to title-case "Skip Rest"');
+});
+
 await t('a working set is logged and autoregulation moves the next one', async () => {
-  // The warm-up had rest 120, so the stage is mid-rest; skip it.
   const skip = await page.$('button:has-text("Skip rest")');
   if (skip) await skip.click();
   await page.waitForSelector('text=Set 2 of 3');
@@ -286,6 +302,28 @@ await t('Settings offers cloud sign-in and a WHOOP connect', async () => {
   // The functions are not served here, so the status call fails. That must
   // degrade to "not connected", never to a broken screen.
   assert(/Karvonen|percent of max/.test(txt), 'zone summary missing after a failed WHOOP status call');
+  // The WHOOP card's error line must carry the humanized sentence, never the
+  // raw fetch/JSON-parse noise the pre-humanizer version leaked.
+  await page.waitForSelector('text=WHOOP');
+  const whoopTxt = await page.textContent('body');
+  assert(!/Unexpected token/.test(whoopTxt), 'raw JSON-parse error reached the WHOOP card: ' + whoopTxt.slice(0, 300));
+});
+
+await t('Home\'s "Start today\'s session →" actually starts one', async () => {
+  // The earlier "Training starts a session" test drives the CTA that lives on
+  // the Training screen itself; this drives the OTHER Start — Home's own
+  // button, a separate code path (`Home.tsx`'s `onStart`) that must mint the
+  // session and land the same way. The prior session finished (status
+  // 'completed'), so `Lower A` — scheduled every day — is offered again.
+  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.length);
+  // The rendered apostrophe is a typographic ’ (’), not the ASCII ' this
+  // file is written in — match on the unambiguous half of the label instead.
+  await page.click('button:has-text("Start today")');
+  await page.waitForURL(/\/training/);
+  await page.waitForSelector('text=In progress');
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.length);
+  assert(after === before + 1, 'Home\'s Start did not mint exactly one session, got ' + after + ' from ' + before);
 });
 
 /* ---------- planner ---------- */
@@ -420,6 +458,11 @@ await t('a warm-up set skips the RPE step', async () => {
 await t('publish reachable, and validates against the emit contract signed out', async () => {
   await page.click('button:has-text("Continue to publish")');
   await page.waitForSelector('text=Ready to send');
+  // The button is "Validate", not "Validate & publish" — signed out, nothing
+  // sends, and the smaller copy below it already explains why.
+  const publishBtn = page.locator('button:has-text("Validate")');
+  await publishBtn.waitFor();
+  assert(!/Validate & publish/.test((await publishBtn.textContent()) || ''), 'signed-out button still reads "Validate & publish"');
   // Coach instructions are authored on this same screen (Workout.note).
   await page.fill('textarea', 'Long warm-up today — take the bar walk seriously.');
   // Signed out, publish degrades to validate-only — the coach still learns
@@ -433,6 +476,10 @@ await t('publish reachable, and validates against the emit contract signed out',
   assert(!/Could not validate/.test(status), 'emit contract rejected a valid session: ' + status);
   assert(/Ready to send/.test(status), 'validation did not report success: ' + status);
   assert(/sign in to send this to an athlete/i.test(status), 'signed-out state should explain what is missing');
+  // The status wears its verdict: the ok tone is the gold-wash class, not
+  // just matching prose that could as easily render in the warn styling.
+  const statusClass = (await page.getAttribute('[role="status"]', 'class')) || '';
+  assert(/bg-gold-wash/.test(statusClass), 'ok-tone status should carry bg-gold-wash, got class="' + statusClass + '"');
 });
 
 await t('a logger-owned field in the stored library cannot reach an athlete, and sessions survive reload', async () => {

@@ -289,7 +289,7 @@ function Finding({ i }: { i: Insight }) {
         {movement ? (
           <Link
             to={`/exercise/${encodeURIComponent(movement)}`}
-            className="min-w-0 flex-1 truncate rounded-sm text-4 font-[650] hover:text-gold2"
+            className="min-w-0 flex-1 line-clamp-2 rounded-sm text-4 font-[650] hover:text-gold2"
           >
             {i.title} <span aria-hidden className="text-3 text-dim">›</span>
           </Link>

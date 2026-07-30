@@ -279,7 +279,7 @@ function WeekMenu({
             key={i}
             role="menuitem"
             autoFocus={i === current}
-            aria-current={i === current}
+            aria-current={i === current ? 'true' : undefined}
             onClick={() => onPick(i)}
             className={
               'flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left text-4 transition-colors duration-150 hover:bg-panel3 hover:text-gold2 ' +
@@ -398,7 +398,7 @@ function DayRow({
     <li>
       <button
         onClick={onClick}
-        aria-current={on}
+        aria-current={on ? 'true' : undefined}
         className={
           'flex w-full items-start gap-1 rounded-md border p-1 text-left transition-colors duration-150 ' +
           (on

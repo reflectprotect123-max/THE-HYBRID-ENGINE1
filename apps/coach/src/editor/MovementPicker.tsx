@@ -72,7 +72,7 @@ export function Picker({ current, onClose, onPick }: { current: string; onClose:
               <li key={n}>
                 <button
                   onClick={() => onPick(n)}
-                  aria-current={on}
+                  aria-current={on ? 'true' : undefined}
                   className={
                     'flex w-full items-center gap-1 rounded-sm px-1 py-1 text-left text-4 hover:bg-panel2 hover:text-gold2 ' +
                     (on ? 'font-[750] text-gold2' : '')

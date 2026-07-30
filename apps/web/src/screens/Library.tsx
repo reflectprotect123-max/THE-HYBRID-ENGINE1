@@ -4,6 +4,7 @@ import {
   CON_FORMATS,
   agoLabel,
   blockExercises,
+  dayLabel,
   isCond,
   isCondWorkout,
   knownMovements,
@@ -231,7 +232,9 @@ export function Library() {
                     <span className="text-2 font-[750] uppercase tracking-[.14em] text-gold2">assigned</span>
                   </div>
                   {(w.dates || []).length ? (
-                    <p className="num mt-0.5 text-3 text-dim">for {(w.dates || []).join(', ')}</p>
+                    <p className="num mt-0.5 text-3 text-dim">
+                      for {(w.dates || []).map((d) => dayLabel(d) || d).join(', ')}
+                    </p>
                   ) : null}
                   <WorkoutDetail w={w} />
                   <Button size="sm" className="mt-1.5" onClick={() => nav(`/planner/${w.id}`)}>

@@ -224,26 +224,32 @@ function Picker({
           <ScreenTitle>Pick a movement</ScreenTitle>
         </>
       ) : null}
-      <Field
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder={`Search ${movements.length} movements`}
-        aria-label="Search movements"
-        className="mt-1"
-      />
-      <ul className="mt-1 flex flex-col gap-0.5">
-        {hits.map((m) => (
-          <li key={m}>
-            <button
-              onClick={() => onPick(m)}
-              className="w-full rounded-md border border-line bg-panel3 p-1.5 text-left text-4 font-[650] hover:border-gold-line"
-            >
-              {m}
-            </button>
-          </li>
-        ))}
-        {!hits.length ? <li className="p-1.5 text-4 text-dim">Nothing matches “{q}”.</li> : null}
-      </ul>
+      {movements.length === 0 ? (
+        <Empty title="Nothing logged yet" body="Movements appear here as you train them." />
+      ) : (
+        <>
+          <Field
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={`Search ${movements.length} movements`}
+            aria-label="Search movements"
+            className="mt-1"
+          />
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {hits.map((m) => (
+              <li key={m}>
+                <button
+                  onClick={() => onPick(m)}
+                  className="w-full rounded-md border border-line bg-panel3 p-1.5 text-left text-4 font-[650] hover:border-gold-line"
+                >
+                  {m}
+                </button>
+              </li>
+            ))}
+            {!hits.length ? <li className="p-1.5 text-4 text-dim">Nothing matches “{q}”.</li> : null}
+          </ul>
+        </>
+      )}
     </>
   );
 }
