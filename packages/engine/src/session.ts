@@ -365,7 +365,13 @@ export function rpeGapInfo(
     );
     s.blocks.forEach((b) => {
       if (!isCond(b) || !b.condResult) return;
-      const eff = (b.condResult.effort && CON_EFFORTS[b.condResult.effort]) || condEffort(b.condResult);
+      // condEffort() is the ONLY safe resolver: it hasOwnProperty-guards the
+      // CON_EFFORTS lookup. A direct `CON_EFFORTS[effort]` short-circuit here
+      // resolved a prototype-named effort ("constructor") to Object's own
+      // constructor (truthy, no `.rpe`), which then threw in condEffortGap and
+      // white-screened Home. condEffort handles effort→zone→medium identically
+      // for every valid input, so this is a pure hardening. (E9.)
+      const eff = condEffort(b.condResult);
       const g = condEffortGap(eff, b.condResult.felt);
       if (g != null && b.condResult.targetRpe != null) gaps.push(g);
     });
