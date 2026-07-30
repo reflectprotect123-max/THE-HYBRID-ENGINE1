@@ -43,6 +43,9 @@ interface DbCtx {
    *  weight. Same abort contract as `update`. Mirrors the mobile store. */
   updateSession: (id: string, fn: (s: Session) => void | false) => void;
   saveFailed: boolean;
+  /** true when the stored data was unreadable at boot and this DB is a fresh,
+   *  empty fallback rather than what the athlete actually had. */
+  dataRecovered: boolean;
   whoop: WhoopSample | null;
   setWhoop: (w: WhoopSample | null) => void;
   /** Everything the HR model needs, assembled from profile + live sample. */
@@ -76,8 +79,12 @@ const webStorage = {
 };
 
 export function DbProvider({ children }: { children: ReactNode }) {
+  // Written by the `db` lazy initializer below, on the same render, before
+  // this is read — the two useState calls run in declaration order on mount.
+  const recoveredAtBoot = useRef(false);
   const [db, setDb] = useState<EngineDB>(() => {
-    const { db: loaded } = loadDB(webStorage, LS_KEY);
+    const { db: loaded, recovered } = loadDB(webStorage, LS_KEY);
+    recoveredAtBoot.current = recovered;
     // An abandoned session from a past day would otherwise keep presenting
     // itself as today's live session forever.
     const { sessions, changed } = expireStaleSessions(loaded.sessions);
@@ -94,6 +101,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
     }
     return loaded;
   });
+  const [dataRecovered] = useState(() => recoveredAtBoot.current);
   const [saveFailed, setSaveFailed] = useState(false);
   const [whoop, setWhoop] = useState<WhoopSample | null>(null);
 
@@ -177,6 +185,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
       update,
       updateSession,
       saveFailed,
+      dataRecovered,
       whoop,
       setWhoop,
       hr: { profile: db.settings.profile, whoop },
@@ -185,7 +194,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
       sessions: db.sessions,
       settings: db.settings,
     };
-  }, [db, update, updateSession, saveFailed, whoop]);
+  }, [db, update, updateSession, saveFailed, dataRecovered, whoop]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

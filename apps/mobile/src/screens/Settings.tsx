@@ -50,7 +50,7 @@ function Field({
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { db, hr, whoop, update, saveFailed } = useDb();
+  const { db, hr, whoop, update, saveFailed, dataRecovered } = useDb();
   const profile = db.settings.profile || {};
   const zones = useMemo(() => conZones(hr), [hr]);
 
@@ -71,7 +71,11 @@ export function SettingsScreen() {
       <Kicker>Settings</Kicker>
       <Title>Your numbers</Title>
 
-      {saveFailed ? (
+      {dataRecovered ? (
+        <T className="mt-2 rounded-md border border-bad bg-panel p-2 text-4 text-bad">
+          Your saved data couldn&apos;t be read and had to be reset. If you have a backup, restore it below.
+        </T>
+      ) : saveFailed ? (
         <T className="mt-2 rounded-md border border-bad bg-panel p-2 text-4 text-bad">
           The last save failed — usually a full disk. Export a backup below, then try again.
         </T>

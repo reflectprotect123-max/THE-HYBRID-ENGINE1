@@ -30,6 +30,9 @@ interface DbCtx {
    */
   updateSession: (id: string, fn: (s: Session) => void | false) => void;
   saveFailed: boolean;
+  /** true when the stored data was unreadable at boot and this DB is a fresh,
+   *  empty fallback rather than what the athlete actually had. */
+  dataRecovered: boolean;
   whoop: WhoopSample | null;
   setWhoop: (w: WhoopSample | null) => void;
   hr: HrContext;
@@ -43,8 +46,12 @@ const Ctx = createContext<DbCtx | null>(null);
 const SAVE_DEBOUNCE_MS = 400;
 
 export function DbProvider({ children }: { children: ReactNode }) {
+  // Written by the `db` lazy initializer below, on the same render, before
+  // this is read — the two useState calls run in declaration order on mount.
+  const recoveredAtBoot = useRef(false);
   const [db, setDb] = useState<EngineDB>(() => {
-    const { db: loaded } = loadDB(storage, LS_KEY);
+    const { db: loaded, recovered } = loadDB(storage, LS_KEY);
+    recoveredAtBoot.current = recovered;
     const { sessions, changed } = expireStaleSessions(loaded.sessions);
     if (changed) {
       loaded.sessions = sessions;
@@ -59,6 +66,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
     }
     return loaded;
   });
+  const [dataRecovered] = useState(() => recoveredAtBoot.current);
   const [saveFailed, setSaveFailed] = useState(false);
   const [whoop, setWhoop] = useState<WhoopSample | null>(null);
 
@@ -163,12 +171,13 @@ export function DbProvider({ children }: { children: ReactNode }) {
       update,
       updateSession,
       saveFailed,
+      dataRecovered,
       whoop,
       setWhoop,
       hr: { profile: db.settings.profile, whoop },
       activeSession: db.sessions.find((s) => s.status === 'active') || null,
     }),
-    [db, update, updateSession, saveFailed, whoop],
+    [db, update, updateSession, saveFailed, dataRecovered, whoop],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
