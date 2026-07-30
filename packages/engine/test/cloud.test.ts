@@ -15,6 +15,7 @@ import {
   type AssignmentRow,
 } from '../src/cloud';
 import type { EngineDB, Session, Settings, Workout } from '../src/types';
+import { ymd } from '../src/num';
 
 const wk = (id: string, extra: Partial<Workout> = {}): Workout => ({
   id,
@@ -301,6 +302,16 @@ describe('coachDigest', () => {
     expect(ids).not.toContain('s2'); // outside 90 days
     expect(ids).not.toContain('s3'); // still in progress
     expect(ids).toEqual(['s1']);
+  });
+
+  it('windows standalone conditioning on startedAt and dates it', () => {
+    const db2: EngineDB = { workouts: [], sessions: [], settings: {
+      conditioning: [{ id: 'c1', fmt: 'steady', effort: 'easy', dur: 1200,
+        zsec: { low: 600, mod: 600, high: 0 }, hrr: 10, startedAt: NOW - 3_600_000 }],
+    } };
+    const d = coachDigest(db2, NOW);
+    expect(d.conditioning.length).toBe(1);
+    expect(d.conditioning[0].date).toBe(ymd(new Date(NOW - 3_600_000)));
   });
 
   it('windows on `date`, so an unfinished session still reaches the coach', () => {

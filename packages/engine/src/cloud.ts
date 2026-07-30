@@ -157,6 +157,7 @@ export function applyPull(local: EngineDB, remote: EngineDB | null): PullOutcome
  */
 export function coachDigest(db: EngineDB, now = Date.now(), days = 90) {
   const cut = ymd(new Date(now - days * 864e5));
+  const cutMs = now - days * 864e5;
 
   const sessions = db.sessions
     .filter((s) => s.status !== 'active' && s.date && s.date >= cut)
@@ -194,7 +195,7 @@ export function coachDigest(db: EngineDB, now = Date.now(), days = 90) {
      nothing to a review view. */
   const slim = (r: CondResult) => ({
     id: r.id,
-    date: (r as { date?: string }).date,
+    date: (r as { date?: string }).date ?? (r.startedAt ? ymd(new Date(r.startedAt)) : undefined),
     fmt: r.fmt,
     dur: r.dur,
     avg: (r as { avg?: number }).avg,
@@ -210,7 +211,7 @@ export function coachDigest(db: EngineDB, now = Date.now(), days = 90) {
   const cond: ReturnType<typeof slim>[] = (
     Array.isArray(db.settings.conditioning) ? db.settings.conditioning : []
   )
-    .filter((r) => r && ((r as { date?: string }).date ?? '') >= cut)
+    .filter((r) => r && (r.startedAt || 0) >= cutMs)
     .map(slim);
   db.sessions.forEach((s) => {
     if (s.date >= cut) {
