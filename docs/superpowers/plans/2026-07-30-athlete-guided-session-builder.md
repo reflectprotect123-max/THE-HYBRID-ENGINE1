@@ -573,7 +573,7 @@ git commit -m "web: guided builder — sets, reps, RPE steps"
 
 **Interfaces:**
 - Consumes: `CON_FORMATS`, `CON_FORMAT_KEYS`, `CON_EFFORTS`, `CON_EFFORT_KEYS`, `type CondFmtKey`, `type EffortKey` from `@hybrid/engine`; `Button`, `Chip` from `../../ui`.
-- Produces: `CondDetailStep({ condFmt, effort, minutes, onChange, onNext, onBack, disabled }: {...})`; `TextStep({ heading, value, onChange, onNext, onBack, disabled }: {...})` — `TextStep` is shared by both Warm-up/Cooldown and Metcon/notes, parameterized by `heading` and the question copy.
+- Produces: `CondDetailStep({ condFmt, effort, minutes, onChange, onNext, onBack, disabled }: {...})`; `TextStep({ question, value, onChange, onNext, onBack, disabled }: {...})` — `TextStep` is shared by both Warm-up/Cooldown and Metcon/notes, parameterized by the `question` copy (e.g. "What's the warm-up?" vs. "What's the workout?").
 
 - [ ] **Step 1: Write `CondDetailStep.tsx`**
 
