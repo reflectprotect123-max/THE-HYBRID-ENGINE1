@@ -26,5 +26,8 @@ export function humanizeError(e: unknown, context?: string): string {
   if (context === 'invite') return "That code didn't work — check it with your coach and try again.";
   if (m.includes('unexpected token') || m.includes('not valid json'))
     return 'The server sent back something unexpected — try again in a minute.';
+  // restoreDb authors plain, actionable sentences about a bad backup file —
+  // surface them verbatim instead of the generic fallback.
+  if (m.includes('not a backup') || m.includes('no workouts, sessions or settings')) return String(raw);
   return 'Something went wrong. Try again, or check your connection.';
 }

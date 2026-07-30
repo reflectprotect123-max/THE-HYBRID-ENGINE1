@@ -48,7 +48,7 @@ export function PublishStep({ sess }: { sess: CoachSession }) {
               )}
               <label className={MICRO} htmlFor="rx-date">Scheduled date</label>
               <input id="rx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={WELL + ' h-5 px-1 text-4'} />
-              <button onClick={() => void publish()} disabled={publishing || !athlete} className={BRASS + ' mt-1 w-full'}>
+              <button onClick={() => void publish()} disabled={publishing || !athlete || !date} className={BRASS + ' mt-1 w-full'}>
                 {publishing ? 'Sending…' : 'Send to athlete'}
               </button>
             </>

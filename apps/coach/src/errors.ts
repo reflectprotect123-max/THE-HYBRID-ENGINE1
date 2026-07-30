@@ -24,5 +24,8 @@ export function humanizeError(e: unknown, context?: string): string {
   if (m.includes('emit:')) return "This session isn't sendable yet — reopen it in the builder and check each block.";
   if (m.includes('unexpected token') || m.includes('not valid json'))
     return 'The server sent back something unexpected — try again in a minute.';
+  // assertPublishable authors a plain, actionable sentence (no driver prefix) —
+  // surface it verbatim instead of flattening it to the generic fallback.
+  if (m.includes('nothing in this session yet')) return String(raw);
   return 'Something went wrong. Try again, or check your connection.';
 }
