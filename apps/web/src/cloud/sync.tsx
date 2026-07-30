@@ -100,7 +100,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // than against what we last saw.
       let existing = knownRemote;
       if (!existing) {
-        const { data } = await client.from('app_state').select('state').eq('user_id', user.id).maybeSingle();
+        // A swallowed read error was indistinguishable from an empty row, so a
+        // network blip / 500 / RLS refusal turned the next push into a
+        // truncating overwrite of another device's records and unrelated state
+        // keys. Treat a read failure as fatal for this push, like reconcile
+        // (:186) already does.
+        const { data, error: e } = await client
+          .from('app_state').select('state').eq('user_id', user.id).maybeSingle();
+        if (e) throw e;
         existing = (data?.state ?? {}) as Record<string, unknown>;
       }
 
