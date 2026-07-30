@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { View } from 'react-native';
 import { Btn, Chip, Input, T, Tap, Title } from '../../ui';
 
@@ -21,7 +20,16 @@ export function RepsStep({
   onBack: () => void;
   disabled: boolean;
 }) {
-  const [custom, setCustom] = useState('');
+  /*
+   * Derived, never held in local state.
+   *
+   * As a `useState` this reset to '' every time the step unmounted — which is
+   * every Back navigation — while the orchestrator's `value` still held what was
+   * typed. The step then showed an empty box and no chip selected with Next
+   * enabled and nothing to say why. Deriving it removes the desync by
+   * construction: anything that is not a preset IS the custom target.
+   */
+  const custom = PRESETS.includes(value) ? '' : value;
   return (
     <View className="flex-1 items-center justify-center gap-3 p-4">
       <Title>How many reps?</Title>
@@ -30,7 +38,7 @@ export function RepsStep({
         label="this is a warm-up"
         box={{ h: 40 }}
         selected={isWarmupSet}
-        className="flex-row items-center gap-1.5"
+        className="flex-row items-center gap-1"
       >
         <View
           className={`h-5 w-5 items-center justify-center rounded border ${
@@ -41,16 +49,16 @@ export function RepsStep({
         </View>
         <T className="text-4">This is a warm-up</T>
       </Tap>
-      <View className="flex-row flex-wrap justify-center gap-1.5">
+      <View className="flex-row flex-wrap justify-center gap-1">
         {PRESETS.map((r) => (
-          <Chip key={r} on={value === r} onPress={() => { onChange(r); setCustom(''); }}>
+          <Chip key={r} on={value === r} onPress={() => onChange(r)}>
             {(value === r ? '✓ ' : '') + r}
           </Chip>
         ))}
       </View>
       <Input
         value={custom}
-        onChangeText={(v) => { setCustom(v); onChange(v); }}
+        onChangeText={onChange}
         placeholder="or type a custom target, e.g. 8-12"
         accessibilityLabel="custom reps target"
       />

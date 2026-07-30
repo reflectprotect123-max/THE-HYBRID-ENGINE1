@@ -22,7 +22,7 @@ export function CondDetailStep({
   return (
     <View className="flex-1 items-center justify-center gap-3 p-4">
       <Title>What kind of conditioning?</Title>
-      <View className="flex-row flex-wrap justify-center gap-1.5">
+      <View className="flex-row flex-wrap justify-center gap-1">
         {CON_FORMAT_KEYS.map((k) => (
           <Chip key={k} on={condFmt === k} onPress={() => onChange({ condFmt: k })}>
             {(condFmt === k ? '✓ ' : '') + CON_FORMATS[k].name}
@@ -30,7 +30,7 @@ export function CondDetailStep({
         ))}
       </View>
       <T className="text-2 uppercase text-dim">Effort</T>
-      <View className="flex-row flex-wrap justify-center gap-1.5">
+      <View className="flex-row flex-wrap justify-center gap-1">
         {CON_EFFORT_KEYS.map((k) => (
           <Chip key={k} on={effort === k} onPress={() => onChange({ effort: k })}>
             {(effort === k ? '✓ ' : '') + CON_EFFORTS[k].name}

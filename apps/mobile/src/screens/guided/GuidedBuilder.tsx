@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -11,7 +13,7 @@ import {
 } from '@hybrid/guided-flow';
 import { CON_EFFORTS, knownMovements, newBlock, newCondBlock, newTextBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useDb } from '../../store/db';
-import { Btn, Kicker, Screen } from '../../ui';
+import { Btn, Kicker, Title } from '../../ui';
 import type { RootStackParams } from '../../App';
 import { BlockTypeStep } from './BlockTypeStep';
 import { MovementStep } from './MovementStep';
@@ -52,6 +54,7 @@ const BLOCK_LABEL: Record<Exclude<BlockKind, null>, string> = {
 export function GuidedBuilderScreen() {
   const { params } = useRoute<RouteProp<RootStackParams, 'GuidedBuilder'>>();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
+  const insets = useSafeAreaInsets();
   const { db, update } = useDb();
   const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
 
@@ -65,6 +68,30 @@ export function GuidedBuilderScreen() {
   function patch(p: Partial<Draft>) {
     setDraft((d) => ({ ...d, ...p }));
   }
+
+  /*
+   * Dropping the record the Library minted for a flow that authored nothing.
+   *
+   * "＋ New session" writes the Workout BEFORE this screen opens, so leaving the
+   * first question would otherwise strand a permanent, blockless session — which
+   * the Library then lists as "conditioning", since it reads any zero-block
+   * workout that way. Tombstoned rather than merely spliced out, the same as
+   * Library.tsx's own delete: without the tombstone the next sync sees a workout
+   * the remote still has and restores it.
+   *
+   * Guarded twice: an empty `added` means nothing was committed in THIS wizard
+   * session, and the blocks check means the stored workout is genuinely empty,
+   * so a session that already has work in it can never be caught by this.
+   */
+  const dropPhantom = useCallback(() => {
+    if (added.length) return;
+    update((d) => {
+      const w = d.workouts.find((x) => x.id === params.id);
+      if (!w || w.blocks.length) return false;
+      d.workouts = d.workouts.filter((x) => x.id !== params.id);
+      d.settings.deletedIds = { ...(d.settings.deletedIds || {}), [params.id]: Date.now() };
+    });
+  }, [added.length, params.id, update]);
 
   function commitBlock() {
     const kind = draft.blockKind;
@@ -125,94 +152,149 @@ export function GuidedBuilderScreen() {
       setStep(prev);
       return;
     }
+    // No earlier step than block-type: this is a cancel, so leave — and take the
+    // phantom session with us.
+    dropPhantom();
     nav.navigate('Tabs', { screen: 'Library' } as never);
   }
 
+  /*
+   * Android's hardware back and the swipe-back gesture both POP this screen,
+   * which would drop the whole flow — and the block being authored — from any
+   * step. The spec's rule is that back goes to the previous step within the
+   * current block and only leaves from the first question, so intercept the
+   * native action and step backward instead. `beforeRemove` fires for both the
+   * button and the gesture, which is why it is what Conditioning.tsx guards a
+   * live run with (apps/mobile/src/screens/Conditioning.tsx:156).
+   *
+   * Left to proceed on the first question (leaving IS right there, and the
+   * phantom is dropped on the way out) and on "add another?", which is not a
+   * step and whose blocks are already saved.
+   */
+  useEffect(() => {
+    const unsub = nav.addListener('beforeRemove', (e) => {
+      if (phase !== 'flow') return;
+      const prev = prevStep(step, state);
+      if (!prev) {
+        dropPhantom();
+        return;
+      }
+      e.preventDefault();
+      setStep(prev);
+    });
+    return unsub;
+  }, [nav, phase, step, draft.blockKind, draft.isWarmupSet, dropPhantom]);
+
   function pick(kind: Exclude<BlockKind, null>) {
-    patch({ blockKind: kind });
+    // A fresh block starts from a clean draft: without this, `isWarmupSet` (and
+    // every other answer) leaks out of the previous block into this one.
+    setDraft({ ...EMPTY_DRAFT, blockKind: kind });
     setStep(nextStep('block-type', { blockKind: kind, isWarmupSet: false }) ?? 'block-type');
   }
 
+  function renderStep() {
+    if (step === 'block-type') return <BlockTypeStep onPick={pick} onBack={goBack} />;
+
+    if (step === 'movement') {
+      return (
+        <MovementStep
+          value={draft.movementName}
+          known={known}
+          onChange={(v) => patch({ movementName: v })}
+          onNext={goNext}
+          onBack={goBack}
+          disabled={!canAdvance('movement', draft)}
+        />
+      );
+    }
+
+    if (step === 'sets') {
+      return <SetsStep value={draft.sets} onChange={(n) => patch({ sets: n })} onNext={goNext} onBack={goBack} />;
+    }
+
+    if (step === 'reps') {
+      return (
+        <RepsStep
+          value={draft.reps}
+          isWarmupSet={draft.isWarmupSet}
+          onChange={(v) => patch({ reps: v })}
+          onWarmupSetChange={(v) => patch({ isWarmupSet: v })}
+          onNext={goNext}
+          onBack={goBack}
+          disabled={!canAdvance('reps', draft)}
+        />
+      );
+    }
+
+    if (step === 'rpe') {
+      return (
+        <RpeStep
+          value={draft.rpe}
+          onChange={(v) => patch({ rpe: v })}
+          onNext={goNext}
+          onBack={goBack}
+          disabled={!canAdvance('rpe', draft)}
+        />
+      );
+    }
+
+    if (step === 'cond-detail') {
+      return (
+        <CondDetailStep
+          condFmt={draft.condFmt as CondFmtKey | ''}
+          effort={draft.effort}
+          minutes={draft.minutes}
+          onChange={(p) => patch(p)}
+          onNext={goNext}
+          onBack={goBack}
+          disabled={!canAdvance('cond-detail', draft)}
+        />
+      );
+    }
+
+    const question = draft.blockKind === 'warmup' ? "What's the warm-up?" : "What's the workout?";
+    return (
+      <TextStep
+        question={question}
+        value={draft.text}
+        onChange={(v) => patch({ text: v })}
+        onNext={goNext}
+        onBack={goBack}
+        disabled={!canAdvance('text', draft)}
+      />
+    );
+  }
+
   if (phase === 'add-another') {
+    // The same centred layout the seven step screens use, rather than <Screen>'s
+    // top-aligned ScrollView — one flow should not change shape halfway through.
     return (
-      <Screen>
+      <View className="flex-1 items-center justify-center gap-3 p-4">
         <Kicker>{added.join(', ')} added</Kicker>
-        <Btn variant="brass" onPress={() => { setDraft(EMPTY_DRAFT); setStep('block-type'); setPhase('flow'); }}>
-          Yes, add another
-        </Btn>
-        <Btn onPress={() => nav.navigate('Planner', { id: params.id })}>No, I&apos;m done</Btn>
-      </Screen>
+        <Title>Add another block?</Title>
+        <View className="mt-2 flex-row gap-2">
+          <Btn variant="brass" onPress={() => { setDraft(EMPTY_DRAFT); setStep('block-type'); setPhase('flow'); }}>
+            Yes, add another
+          </Btn>
+          <Btn onPress={() => nav.navigate('Planner', { id: params.id })}>No, I&apos;m done</Btn>
+        </View>
+      </View>
     );
   }
 
-  if (step === 'block-type') return <BlockTypeStep onPick={pick} />;
-
-  if (step === 'movement') {
-    return (
-      <MovementStep
-        value={draft.movementName}
-        known={known}
-        onChange={(v) => patch({ movementName: v })}
-        onNext={goNext}
-        onBack={goBack}
-        disabled={!canAdvance('movement', draft)}
-      />
-    );
-  }
-
-  if (step === 'sets') {
-    return <SetsStep value={draft.sets} onChange={(n) => patch({ sets: n })} onNext={goNext} onBack={goBack} />;
-  }
-
-  if (step === 'reps') {
-    return (
-      <RepsStep
-        value={draft.reps}
-        isWarmupSet={draft.isWarmupSet}
-        onChange={(v) => patch({ reps: v })}
-        onWarmupSetChange={(v) => patch({ isWarmupSet: v })}
-        onNext={goNext}
-        onBack={goBack}
-        disabled={!canAdvance('reps', draft)}
-      />
-    );
-  }
-
-  if (step === 'rpe') {
-    return (
-      <RpeStep
-        value={draft.rpe}
-        onChange={(v) => patch({ rpe: v })}
-        onNext={goNext}
-        onBack={goBack}
-        disabled={!canAdvance('rpe', draft)}
-      />
-    );
-  }
-
-  if (step === 'cond-detail') {
-    return (
-      <CondDetailStep
-        condFmt={draft.condFmt as CondFmtKey | ''}
-        effort={draft.effort}
-        minutes={draft.minutes}
-        onChange={(p) => patch(p)}
-        onNext={goNext}
-        onBack={goBack}
-        disabled={!canAdvance('cond-detail', draft)}
-      />
-    );
-  }
-
-  const question = draft.blockKind === 'warmup' ? "What's the warm-up?" : "What's the workout?";
+  /*
+   * The persistent progress header the spec asks for — "a multi-step flow with
+   * no sense of where you are in it is a known, avoidable source of confusion".
+   * It wraps the steps rather than being repeated inside all seven of them, and
+   * is left off the "add another?" screen above, which already carries its own
+   * running summary and would otherwise say where you are twice.
+   */
   return (
-    <TextStep
-      question={question}
-      value={draft.text}
-      onChange={(v) => patch({ text: v })}
-      onNext={goNext}
-      onBack={goBack}
-      disabled={!canAdvance('text', draft)}
-    />
+    <View className="flex-1">
+      <View className="px-4" style={{ paddingTop: insets.top + 16 }}>
+        <Kicker>{`Session · block ${added.length + 1}`}</Kicker>
+      </View>
+      {renderStep()}
+    </View>
   );
 }

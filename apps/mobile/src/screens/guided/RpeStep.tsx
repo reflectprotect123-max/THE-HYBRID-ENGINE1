@@ -19,7 +19,7 @@ export function RpeStep({
   return (
     <View className="flex-1 items-center justify-center gap-3 p-4">
       <Title>How hard should it feel?</Title>
-      <View className="flex-row flex-wrap justify-center gap-1.5">
+      <View className="flex-row flex-wrap justify-center gap-1">
         {RPE_VALUES.map((r) => (
           <Chip key={r} on={value === r} onPress={() => onChange(r)}>
             {(value === r ? '✓ ' : '') + 'RPE ' + r}
