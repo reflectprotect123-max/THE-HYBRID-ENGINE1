@@ -67,7 +67,7 @@ export function RecapScreen() {
             <T key={p.name} w="semi" num className="mt-0.5 text-5 text-gold2">
               {p.name} — {p.kg}kg × {p.reps}
               <T num className="text-3 text-muted">
-                {'  '}e1RM {Math.round(p.e1)}kg{p.prevE1 != null ? ` (was ${Math.round(p.prevE1)})` : ' — first on record'}
+                {'  '}e1RM {Math.round(p.e1)}kg{p.prevE1 != null ? ` (was ${Math.round(p.prevE1)})` : ' — first one on record'}
               </T>
             </T>
           ))}

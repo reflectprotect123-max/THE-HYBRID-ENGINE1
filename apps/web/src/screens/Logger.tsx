@@ -273,7 +273,7 @@ export function Logger() {
             {block.heading || 'Block'}
             {!isCond(block) && !isText(block) && block.superset ? ' · superset' : ''}
           </Kicker>
-          <h1 className="text-7 leading-tight font-[800] [overflow-wrap:anywhere]">{s.name || 'Workout'}</h1>
+          <h1 className="text-7 leading-tight font-[800] [overflow-wrap:anywhere]">{s.name || 'Session'}</h1>
         </div>
       </header>
 
@@ -427,7 +427,7 @@ export function Logger() {
                       setPhase('input');
                     }}
                   >
-                    Skip Rest
+                    Skip rest
                   </Button>
                 </div>
               </div>

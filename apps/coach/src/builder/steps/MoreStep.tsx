@@ -1,5 +1,6 @@
 import { MODE_KEYS, MODES, type ModeKey } from '@hybrid/engine';
 import { BRASS, MICRO, WELL } from '../../ui';
+import { fmtRest } from '../../model';
 
 export function MoreStep({
   rest,
@@ -26,7 +27,10 @@ export function MoreStep({
       <div className="flex w-full max-w-[360px] flex-col gap-2">
         {metcon ? null : (<>
         <label className="flex flex-col gap-0.5">
-          <span className={MICRO}>Rest (seconds)</span>
+          <span className={MICRO + ' flex items-center justify-between'}>
+            Rest (seconds)
+            <span className="num text-3 text-dim">{fmtRest(rest)}</span>
+          </span>
           <input
             type="number"
             value={rest || ''}
@@ -48,7 +52,7 @@ export function MoreStep({
         </label>
         </>)}
         <label className="flex flex-col gap-0.5">
-          <span className={MICRO}>{metcon ? 'The workout, as the athlete reads it' : 'Note for the athlete'}</span>
+          <span className={MICRO}>{metcon ? 'The session, as the athlete reads it' : 'Note for the athlete'}</span>
           <textarea value={note} onChange={(e) => onChange({ note: e.target.value })} rows={3} className={WELL + ' resize-y px-1 py-1 text-4'} />
         </label>
       </div>

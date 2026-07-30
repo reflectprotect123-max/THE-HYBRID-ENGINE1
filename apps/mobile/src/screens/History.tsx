@@ -48,7 +48,7 @@ export function HistoryScreen() {
       ) : (
         <>
           <SectionHead title="Sessions" />
-          <Empty title="No finished sessions yet" body="Your first one shows up here the moment you finish it." />
+          <Empty title="No finished sessions yet" body="Your first one will show up here the moment you finish it." />
         </>
       )}
     </Screen>

@@ -146,7 +146,7 @@ export function Library() {
       {tab !== 'sessions' ? null : (
       <>
       <Button variant="brass" className="mt-2 w-full" onClick={addWorkout}>
-        + New session
+        ＋ New session
       </Button>
 
       <SectionHead title="Yours" />

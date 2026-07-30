@@ -194,7 +194,7 @@ await t('a warm-up confirms in one tap, records no felt RPE, and does NOT move t
 
 await t('a working set is logged and autoregulation moves the next one', async () => {
   // The warm-up had rest 120, so the stage is mid-rest; skip it.
-  const skip = await page.$('button:has-text("Skip Rest")');
+  const skip = await page.$('button:has-text("Skip rest")');
   if (skip) await skip.click();
   await page.waitForSelector('text=Set 2 of 3');
   await page.fill('input[aria-label="Weight"]', '100');
@@ -229,8 +229,8 @@ await t('the rest timer survives a reload', async () => {
 
 await t('a weight of 1e309 cannot poison the record', async () => {
   await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
-  await page.waitForSelector('button:has-text("Skip Rest"), button:has-text("Finish Set")');
-  const skip = await page.$('button:has-text("Skip Rest")');
+  await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
+  const skip = await page.$('button:has-text("Skip rest")');
   if (skip) await skip.click();
   await page.waitForSelector('input[aria-label="Weight"]');
   await page.fill('input[aria-label="Weight"]', '1e309');

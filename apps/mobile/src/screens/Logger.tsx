@@ -275,7 +275,7 @@ export function LoggerScreen({ route, navigation }: Props) {
             {block.heading || 'Block'}
             {!isCond(block) && !isText(block) && block.superset ? ' · superset' : ''}
           </T>
-          <T w="bold" className="text-7 text-text">{s.name || 'Workout'}</T>
+          <T w="bold" className="text-7 text-text">{s.name || 'Session'}</T>
         </View>
       </View>
 
@@ -571,7 +571,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                     box={{ h: 34 }}
                     className="rounded-md border border-line2 px-2 py-1"
                   >
-                    <T w="med" className="text-4 text-muted">Skip Rest</T>
+                    <T w="med" className="text-4 text-muted">Skip rest</T>
                   </Tap>
                 </View>
               </View>

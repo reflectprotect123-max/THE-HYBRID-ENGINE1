@@ -249,18 +249,18 @@ export function PlannerScreen() {
       ))}
 
       {!readOnly ? (
-        <View className="mt-2 flex-row gap-1">
-          <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newBlock() as never))}>
+        <View className="mt-2 flex-row flex-wrap gap-1">
+          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newBlock() as never))}>
             ＋ Block
           </Btn>
-          <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
-            ☀ Warm-up
+          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
+            ☀ Warm-up / Cooldown
           </Btn>
-          <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newTextBlock()))}>
-            ✎ Metcon
-          </Btn>
-          <Btn className="flex-1" onPress={() => edit((d) => void d.blocks.push(newCondBlock()))}>
+          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newCondBlock()))}>
             ♥ Conditioning
+          </Btn>
+          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newTextBlock()))}>
+            ✎ Metcon / notes
           </Btn>
         </View>
       ) : null}
