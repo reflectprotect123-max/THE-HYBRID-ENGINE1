@@ -48,6 +48,10 @@ export function TrainingScreen() {
 
   const start = (w: Workout) => {
     update((draft) => {
+      // Guard inside the write — same rule as Home and web Training: a second
+      // Start in the same frame sees a stale activeSession, and two active
+      // sessions leaves the second invisible/unfinishable.
+      if (draft.sessions.some((x) => x.status === 'active')) return false;
       draft.sessions.push(sessionFrom(w, today));
     });
   };

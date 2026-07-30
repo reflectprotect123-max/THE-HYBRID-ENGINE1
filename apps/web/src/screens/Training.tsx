@@ -46,6 +46,13 @@ export function Training() {
 
   function startWorkout(w: Workout) {
     update((draft) => {
+      // Guard INSIDE the write, mirroring Home's onStart — the render-scope
+      // activeSession is stale for a second Start in the same frame, and two
+      // workouts scheduled today render two Start buttons side by side, so
+      // this needs no double-tap. Two active sessions is a merge conflict,
+      // and the second would be invisible/unfinishable (activeSession picks
+      // the first active it finds).
+      if (draft.sessions.some((x) => x.status === 'active')) return false;
       draft.sessions.push(sessionFrom(w, today));
     });
   }
