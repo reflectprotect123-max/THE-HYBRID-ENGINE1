@@ -12,6 +12,7 @@ import {
   type EngineDB,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { humanizeError } from '../errors';
 
 /*
  * Cloud sync.
@@ -202,7 +203,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
       setSyncedAt(Date.now());
     } catch (e) {
-      setError(String((e as Error)?.message || e));
+      setError(humanizeError(e, 'sync'));
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -244,7 +245,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (cloudFp(db) === lastFp.current) return;
     if (pushTimer.current) window.clearTimeout(pushTimer.current);
     pushTimer.current = window.setTimeout(() => {
-      void pushNow(false).catch((e) => setError(String((e as Error)?.message || e)));
+      void pushNow(false).catch((e) => setError(humanizeError(e, 'sync')));
     }, 900);
     return () => {
       if (pushTimer.current) window.clearTimeout(pushTimer.current);
@@ -261,12 +262,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       signIn: async (email, password) => {
         if (!client) return 'Cloud sync is not configured.';
         const { error: e } = await client.auth.signInWithPassword({ email: email.trim(), password });
-        return e ? e.message : null;
+        return e ? humanizeError(e, 'sign-in') : null;
       },
       signUp: async (email, password) => {
         if (!client) return 'Cloud sync is not configured.';
         const { data, error: e } = await client.auth.signUp({ email: email.trim(), password });
-        if (e) return e.message;
+        if (e) return humanizeError(e, 'sign-up');
         // Without email confirmation there is no session yet — say so rather
         // than leaving the user staring at an unchanged screen.
         return data.session ? null : 'Account created. Check your email to confirm, then sign in.';
@@ -295,7 +296,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         const token = code.trim().toUpperCase();
         if (!token) return 'Enter the code your coach gave you.';
         const { error: e } = await client.rpc('claim_invite', { p_token: token });
-        if (e) return e.message;
+        if (e) return humanizeError(e, 'invite');
         await reconcile();
         return null;
       },

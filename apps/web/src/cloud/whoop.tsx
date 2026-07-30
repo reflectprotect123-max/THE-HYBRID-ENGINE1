@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { FN } from '@hybrid/config';
 import { ymd, type WhoopSample } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { humanizeError } from '../errors';
 
 /*
  * WHOOP.
@@ -101,7 +102,7 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         // A silent background refresh must not put an error banner in front of
         // someone mid-session.
-        if (!silent) setS((p) => ({ ...p, error: String((e as Error)?.message || e) }));
+        if (!silent) setS((p) => ({ ...p, error: humanizeError(e, 'whoop') }));
       } finally {
         busyRef.current = false;
         setS((p) => ({ ...p, busy: false }));
@@ -130,7 +131,7 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
         loaded: true,
         connected: false,
         sample: null,
-        error: String((e as Error)?.message || e),
+        error: humanizeError(e, 'whoop'),
       }));
     }
   }, [apply, sync]);

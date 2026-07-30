@@ -4,6 +4,7 @@ import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
 import { Button, Card, Kicker, ScreenTitle, SectionHead } from '../ui';
+import { humanizeError } from '../errors';
 
 /*
  * Settings is short on purpose. The only values here are the ones that change
@@ -71,7 +72,7 @@ export function Settings() {
       );
     } catch (err) {
       setRestoreErr(true);
-      setRestoreMsg(err instanceof SyntaxError ? "That file isn't valid JSON." : String((err as Error).message || err));
+      setRestoreMsg(err instanceof SyntaxError ? "That file isn't valid JSON." : humanizeError(err, 'restore'));
     } finally {
       setBusy(false);
       input.value = '';
