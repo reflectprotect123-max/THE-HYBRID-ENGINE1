@@ -26,7 +26,12 @@ const COND_SEQUENCE: FlowStep[] = ['block-type', 'cond-detail', 'review'];
 export function stepsFor(state: FlowState): FlowStep[] {
   if (state.blockKind === 'cond') return COND_SEQUENCE;
   if (state.blockKind === 'metcon') return METCON_SEQUENCE;
-  return state.isWarmupSet ? LIFT_SEQUENCE.filter((s) => s !== 'rpe') : LIFT_SEQUENCE;
+  // A warm-up BLOCK is a stronger claim than a warm-up set — isWarmupBlock
+  // makes the engine ignore the whole block in sessionVolume/exLogFor/
+  // detectPRs/autoreg — so its RPE is meaningless, and forcing one would
+  // contaminate sessionRpe/rpeGapInfo. Skip it, exactly as a warm-up set does.
+  const warm = state.isWarmupSet || state.blockKind === 'warmup';
+  return warm ? LIFT_SEQUENCE.filter((s) => s !== 'rpe') : LIFT_SEQUENCE;
 }
 
 export function nextStep(current: FlowStep, state: FlowState): FlowStep | null {

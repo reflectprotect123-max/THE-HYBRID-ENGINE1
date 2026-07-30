@@ -84,3 +84,11 @@ describe('canAdvance — what each step requires before moving on', () => {
     expect(canAdvance('reps', draft({ reps: ' ' }))).toBe(false);
   });
 });
+
+describe('warm-up BLOCK step sequence', () => {
+  it('a warm-up BLOCK skips the RPE step, like a warm-up set', () => {
+    expect(stepsFor({ blockKind: 'warmup', isWarmupSet: false })).toEqual([
+      'block-type', 'movement', 'sets', 'reps', 'more', 'review',
+    ]);
+  });
+});

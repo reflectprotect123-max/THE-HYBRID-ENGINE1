@@ -115,8 +115,12 @@ export function GuidedFlow({
     } else if (draft.blockKind === 'metcon') {
       onChange({ ...session, blocks: [...session.blocks, { ...newTextBlock(), body: draft.note }] });
     } else {
-      const target = draft.isWarmup ? 'W' + draft.reps : draft.reps;
-      const sets = Array.from({ length: draft.sets }, () => ({ t: target, rpe: draft.isWarmup ? '' : draft.rpe }));
+      // A warm-up BLOCK carries no RPE for the same reason a warm-up SET
+      // doesn't (flowSteps.stepsFor skips the RPE step for both), so encode
+      // both as warm-up: 'W'-prefixed target, empty rpe.
+      const isWarm = draft.isWarmup || draft.blockKind === 'warmup';
+      const target = isWarm ? 'W' + draft.reps : draft.reps;
+      const sets = Array.from({ length: draft.sets }, () => ({ t: target, rpe: isWarm ? '' : draft.rpe }));
       // `draft.note` is MoreStep's "Note for the athlete" field — the label
       // the athlete apps read from `ex.cue` (packages/engine/src/types.ts),
       // so it belongs on the exercise, not dropped on the floor.
