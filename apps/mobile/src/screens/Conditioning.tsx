@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -145,6 +145,37 @@ export function ConditioningScreen() {
     geoTracker.current?.stop();
     void setKeepAwake(false);
   }, []);
+
+  // Android hardware back and the enabled swipe-back both POP this screen, and
+  // the cleanup effect above then tears down strap + GPS — losing the clock,
+  // every HR sample and the whole route with no warning. beforeRemove fires for
+  // both, so intercept it while live and confirm before discarding. (The web
+  // app hoists the run to module scope instead; mobile keeps it in refs, so it
+  // guards the exit rather than surviving it.)
+  useEffect(() => {
+    const unsub = nav.addListener('beforeRemove', (e) => {
+      if (!live) return;
+      e.preventDefault();
+      Alert.alert(
+        'Discard this run?',
+        'Leaving now loses the clock and every heart-rate sample banked so far.',
+        [
+          { text: 'Keep running', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => {
+              monitor.current?.stop();
+              geoTracker.current?.stop();
+              void setKeepAwake(false);
+              nav.dispatch(e.data.action);
+            },
+          },
+        ],
+      );
+    });
+    return unsub;
+  }, [nav, live]);
 
   const zone = bpm == null ? null : conZoneOf(bpm, zones);
 
