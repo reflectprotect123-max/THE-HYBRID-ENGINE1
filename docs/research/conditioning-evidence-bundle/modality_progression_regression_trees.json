@@ -1,0 +1,415 @@
+{
+  "metadata": {
+    "title": "Five-modality progression and regression trees",
+    "version": "1.0",
+    "date": "2026-07-31",
+    "purpose": "Machine-readable handoff for training-app implementation and Claude review",
+    "population_default": "Recreational, self-directed adult athletes",
+    "important_note": "The shared state machine is a product design. The modality-specific evidence supports the signals and templates, not the exact app thresholds or transition counts."
+  },
+  "states": {
+    "ADVANCE_ONE_LEVER": "Progress one primary dose variable after target work, RPE, symptoms, technique, and recent comparable execution support it.",
+    "REPEAT": "Repeat the same prescription when execution is borderline, data are uncertain, or confirmation is needed.",
+    "REDUCE_OR_STOP": "Reduce or stop after pain, unsafe technique, marked performance failure, illness, or concerning symptoms.",
+    "HOLD_AFTER_ABSENCE": "An absence is not a failed session; resume the last successful dose unless readiness or symptoms require reduction.",
+    "CARDIO_PASS_MECHANICAL_FAIL": "The cardiovascular signal reached its target but the prescribed mechanical/technical work was not completed; do not advance.",
+    "REASSESS": "Recheck device, setup, sensor, recovery, recent load, and benchmark protocol before changing the prescription."
+  },
+  "common_tree": {
+    "root": "pre_session_screen",
+    "nodes": {
+      "pre_session_screen": {
+        "type": "decision",
+        "question": "Pain, acute illness, unsafe setup, or unsafe technique today?",
+        "yes": "reduce_or_stop",
+        "no": "session_type"
+      },
+      "reduce_or_stop": {
+        "type": "action",
+        "state": "REDUCE_OR_STOP",
+        "actions": ["stop or reduce the provoking task", "record symptom/body-region/reason", "route persistent or concerning symptoms for appropriate assessment"]
+      },
+      "session_type": {
+        "type": "decision",
+        "question": "Was the session missed, steady, threshold-oriented, VO2-oriented, or sprint/interval?",
+        "missed": "hold_after_absence",
+        "steady": "steady_completion",
+        "threshold": "quality_completion",
+        "vo2_or_interval": "interval_completion",
+        "sprint": "sprint_completion"
+      },
+      "hold_after_absence": {
+        "type": "action",
+        "state": "HOLD_AFTER_ABSENCE",
+        "actions": ["do not automatically demote", "resume the last successful dose", "check readiness if the absence was illness-, pain-, or fatigue-related"]
+      },
+      "steady_completion": {
+        "type": "decision",
+        "question": "Was duration completed with acceptable RPE, sustainable technique, and no concerning symptoms?",
+        "yes": "confirm_recent_stability",
+        "borderline": "repeat",
+        "no_pain_free": "repeat_or_reduce",
+        "no_pain": "reduce_or_stop"
+      },
+      "quality_completion": {
+        "type": "decision",
+        "question": "Was controlled hard work completed with stable quality and no meaningful RPE/output mismatch?",
+        "yes": "confirm_recent_stability",
+        "borderline": "repeat",
+        "no_pain_free": "repeat_or_reduce",
+        "no_pain": "reduce_or_stop"
+      },
+      "interval_completion": {
+        "type": "decision",
+        "question": "Were prescribed repetitions and work completed with acceptable output trend, recovery, RPE, and technique?",
+        "yes": "confirm_recent_stability",
+        "cardio_target_but_mechanical_failure": "cardio_pass_mechanical_fail",
+        "borderline": "repeat",
+        "no_pain_free": "repeat_or_reduce",
+        "no_pain": "reduce_or_stop"
+      },
+      "sprint_completion": {
+        "type": "decision",
+        "question": "Was the sprint safely completed with the intended technique and without concerning symptoms?",
+        "yes": "confirm_recent_stability",
+        "local_failure": "cardio_pass_mechanical_fail",
+        "no_pain_free": "repeat_or_reduce",
+        "no_pain": "reduce_or_stop"
+      },
+      "confirm_recent_stability": {
+        "type": "decision",
+        "question": "Are recent comparable exposures stable enough to justify a product-level progression?",
+        "yes": "advance_one_lever",
+        "no": "repeat"
+      },
+      "advance_one_lever": {
+        "type": "action",
+        "state": "ADVANCE_ONE_LEVER",
+        "actions": ["change only one primary dose variable", "store the prior and new dose", "re-evaluate total internal and external load"]
+      },
+      "repeat": {
+        "type": "action",
+        "state": "REPEAT",
+        "actions": ["repeat the same dose", "log uncertainty or limiter", "do not add a second progression variable"]
+      },
+      "repeat_or_reduce": {
+        "type": "action",
+        "state": "REPEAT",
+        "actions": ["repeat if the issue was small and non-painful", "reduce one dose variable if the issue recurs or output/technique deteriorates"]
+      },
+      "cardio_pass_mechanical_fail": {
+        "type": "action",
+        "state": "CARDIO_PASS_MECHANICAL_FAIL",
+        "actions": ["record cardiovascular and mechanical outcomes separately", "do not progress", "repeat or reduce after reviewing the local limiter"]
+      }
+    },
+    "global_constraints": [
+      "Do not use one heart-rate value as the sole completion criterion for short intervals.",
+      "Do not treat two consecutive misses as a validated demotion law.",
+      "Do not treat two or three successful exposures as a published physiological requirement; it is a configurable product confirmation heuristic.",
+      "Do not use HRR >12 bpm as a healthy-athlete progression gate.",
+      "Distinguish absence, sensor failure, pain, illness, deliberate rest, and failed execution."
+    ],
+    "source_ids": ["S18", "S20", "S21", "S22", "S23", "S24"]
+  },
+  "modality_trees": [
+    {
+      "id": "running",
+      "display_name": "Running",
+      "primary_load": ["duration", "completed run/walk work", "pace or distance when repeatable"],
+      "secondary_load": ["RPE", "heart-rate trend", "gait/technique", "pain and impact symptoms", "recent longest session"],
+      "non_transferable_from_other_modalities": ["air-bike calories", "rowing pace", "SkiErg watts", "cycling FTP"],
+      "evidence_sources": ["S32", "S33", "S34", "S35", "S36", "S37", "S38", "S49"],
+      "phases": [
+        {
+          "id": "run_walk_familiarisation",
+          "evidence_status": "official_guidance",
+          "source_ids": ["S36"],
+          "known_template": "NHS Couch to 5K uses 3 runs/week over 9 weeks, begins with 1-minute running bouts alternated with 1:30 walking, and finishes with 30 minutes continuous running.",
+          "advance_levers": ["running-bout duration", "less walking within the published plan", "total easy duration"],
+          "regress_if": ["pain or gait change", "cannot complete the planned walk/run without loss of control", "unusual RPE or symptoms"],
+          "benchmark": "Use completed walk/run or submax duration; maximal testing is optional and should not be first-session onboarding."
+        },
+        {
+          "id": "continuous_easy",
+          "evidence_status": "coaching_plus_product_design",
+          "source_ids": ["S36", "S37"],
+          "advance_levers": ["duration first", "frequency only if tolerated", "distance/pace as a descriptive trend"],
+          "regress_if": ["impact pain", "gait alteration", "pace/RPE mismatch", "single-session load spike"],
+          "benchmark": "Submax duration, 1-mile/5K, or Cooper-style field test only after familiarity; preserve protocol metadata."
+        },
+        {
+          "id": "threshold_cruise",
+          "evidence_status": "established_coaching_model",
+          "source_ids": ["S37", "S38"],
+          "advance_levers": ["number of controlled blocks", "work duration", "pace only after stable execution", "recovery reduction last"],
+          "regress_if": ["pace collapse", "RPE drift with familiar pace", "form breakdown or pain"],
+          "benchmark": "Use threshold/cruise completion and RPE; do not require HR-zone time in short repetitions."
+        },
+        {
+          "id": "vo2_intervals",
+          "evidence_status": "coaching_plus_adjacent_interval_research",
+          "source_ids": ["S37", "S38"],
+          "advance_levers": ["repetitions", "work duration", "pace", "recovery reduction one variable at a time"],
+          "regress_if": ["repeated pace collapse", "gait change", "pain", "poor recovery"],
+          "benchmark": "Completed repetitions and pace; HR is secondary because short interval structure changes time above VO2max."
+        }
+      ],
+      "tree": {
+        "root": "impact_screen",
+        "nodes": {
+          "impact_screen": {"question": "Pain, illness, gait change, or impact-sensitive symptoms?", "yes": "stop_or_refer", "no": "walk_run_completion"},
+          "walk_run_completion": {"question": "Can the planned walk/run be completed with controlled form?", "yes": "easy_stability", "no_pain": "shorten_or_repeat", "pain": "stop_or_refer"},
+          "easy_stability": {"question": "Is easy duration stable across comparable exposures?", "yes": "add_duration_or_reduce_walk", "no": "repeat"},
+          "add_duration_or_reduce_walk": {"action": "Advance one lever from the published plan or configured product dose."},
+          "shorten_or_repeat": {"action": "Repeat or shorten running bouts; do not progress intensity."},
+          "repeat": {"action": "Repeat the last successful dose and reassess symptoms/RPE."},
+          "stop_or_refer": {"action": "Stop the provoking work and route persistent/concerning symptoms appropriately."}
+        }
+      }
+    },
+    {
+      "id": "rowing",
+      "display_name": "Indoor rowing",
+      "primary_load": ["duration", "completed distance/work", "pace/500 m when device and protocol match"],
+      "secondary_load": ["stroke rate", "RPE", "stroke sequence and posture", "back/rib/shoulder/hip symptoms", "recovery"],
+      "non_transferable_from_other_modalities": ["air-bike calories/RPM", "SkiErg watts", "cycling FTP", "running pace"],
+      "evidence_sources": ["S39", "S40", "S41"],
+      "phases": [
+        {
+          "id": "rowing_technique",
+          "evidence_status": "official_guidance",
+          "source_ids": ["S39", "S40"],
+          "known_template": "British Rowing beginner plan begins with 1-minute low/1-minute rest ×5; Concept2 describes approximately 18–22 spm as technique/rhythm context.",
+          "advance_levers": ["piece duration", "number of low-rate pieces", "technical consistency"],
+          "regress_if": ["catch/finish breakdown", "back/rib/shoulder/hip pain", "cannot maintain sequence"],
+          "benchmark": "Use submax duration or repeatable distance before optional 2k."
+        },
+        {
+          "id": "steady_row",
+          "evidence_status": "official_guidance_plus_product_design",
+          "source_ids": ["S39", "S40"],
+          "known_template": "Concept2 describes approximately 24–28 spm as steady-rowing context; rate alone is not intensity.",
+          "advance_levers": ["duration", "one additional piece", "distance", "pace only after technique stability"],
+          "regress_if": ["rate rises while sequence degrades", "pace/RPE mismatch", "pain"],
+          "benchmark": "Store monitor, drag/damper context, distance, time, stroke rate, RPE, and technique notes."
+        },
+        {
+          "id": "rowing_quality",
+          "evidence_status": "official_guidance",
+          "source_ids": ["S39", "S40", "S41"],
+          "advance_levers": ["work distance", "number of pieces", "higher rate only after stable sequence", "recovery reduction last"],
+          "regress_if": ["pace collapse", "high rate with poor posture", "local pain", "recovery failure"],
+          "benchmark": "Optional 2k/5k/30-minute test for trained/familiar users; not a required beginner test."
+        }
+      ],
+      "tree": {
+        "root": "row_screen",
+        "nodes": {
+          "row_screen": {"question": "Back, rib, shoulder, wrist, hip pain or unsafe catch/finish?", "yes": "stop_or_reduce", "no": "low_rate_control"},
+          "low_rate_control": {"question": "Can sequence and posture be repeated at low rate?", "yes": "steady_completion", "no": "technique_only"},
+          "technique_only": {"action": "Shorten pieces and practise technique around the beginner/low-rate context."},
+          "steady_completion": {"question": "Was low/medium work completed with stable stroke quality?", "yes": "progress_one_lever", "no_pain": "repeat_or_reduce", "pain": "stop_or_reduce"},
+          "progress_one_lever": {"action": "Increase duration, one piece, distance, or later rate; never all at once."},
+          "repeat_or_reduce": {"action": "Repeat or reduce piece length/rate while preserving technique and recovery."},
+          "stop_or_reduce": {"action": "Stop or reduce; persistent symptoms require appropriate assessment."}
+        }
+      }
+    },
+    {
+      "id": "skierg",
+      "display_name": "SkiErg / Nordic double-poling",
+      "primary_load": ["duration", "completed distance/work", "RPE", "technique quality"],
+      "secondary_load": ["same-device pace/watts", "upper-body/trunk local fatigue", "shoulder/elbow/rib/lumbar/hip symptoms", "recovery"],
+      "non_transferable_from_other_modalities": ["air-bike calories/RPM", "rowing stroke rate/pace", "cycling FTP", "running impact tolerance"],
+      "evidence_sources": ["S42", "S43", "S50", "S51"],
+      "phases": [
+        {
+          "id": "skierg_familiarisation",
+          "evidence_status": "official_guidance",
+          "source_ids": ["S42", "S43"],
+          "known_template": "Concept2 beginner programme uses 2–3 sessions/week over 6 weeks and includes 1-minute hard/1-minute easy, 30/30, 250 m, 1000 m, 1500 m, and 2000 m work.",
+          "advance_levers": ["comfortable duration", "distance", "technique consistency"],
+          "regress_if": ["shoulder/elbow/rib/lumbar/hip pain", "arm-only pulling", "hinge/finish breakdown"],
+          "benchmark": "Use repeatable 1000 m or submax duration for beginners; optional 2000 m after familiarity."
+        },
+        {
+          "id": "skierg_steady",
+          "evidence_status": "official_guidance_plus_product_design",
+          "source_ids": ["S42", "S43", "S50", "S51"],
+          "advance_levers": ["duration", "distance", "one additional piece", "output after technique stability"],
+          "regress_if": ["local upper-body fatigue changes the hinge/pull", "symptoms", "large RPE drift", "pace collapse"],
+          "benchmark": "No accepted universal SkiErg FTP equivalent; use personal same-device results."
+        },
+        {
+          "id": "skierg_intervals",
+          "evidence_status": "official_guidance_plus_product_design",
+          "source_ids": ["S42", "S43"],
+          "advance_levers": ["work duration", "repetitions", "output", "recovery density last"],
+          "regress_if": ["shoulder/elbow/rib/lumbar pain", "technique failure", "output collapse", "poor recovery"],
+          "benchmark": "Use completed pieces and technique; do not use HR-zone time alone for short work."
+        }
+      ],
+      "tree": {
+        "root": "upper_body_screen",
+        "nodes": {
+          "upper_body_screen": {"question": "Shoulder, elbow, rib, lumbar, hip pain or unsafe hinge/finish?", "yes": "stop_or_reduce", "no": "technique_control"},
+          "technique_control": {"question": "Can the athlete repeat the hinge and finish without arm-dominant pulling?", "yes": "steady_completion", "no": "technique_only"},
+          "technique_only": {"action": "Use short easy pieces and technical practice; do not add interval density."},
+          "steady_completion": {"question": "Was comfortable distance/duration completed with stable technique?", "yes": "progress_one_lever", "no_pain": "repeat_or_reduce", "pain": "stop_or_reduce"},
+          "progress_one_lever": {"action": "Increase duration/distance before hard density; later increase one interval lever."},
+          "repeat_or_reduce": {"action": "Repeat or reduce distance/work duration/repetitions while preserving recovery."},
+          "stop_or_reduce": {"action": "Stop the provoking dose and route persistent symptoms appropriately."}
+        }
+      }
+    },
+    {
+      "id": "conventional_cycling",
+      "display_name": "Conventional cycling",
+      "primary_load": ["duration", "distance", "cycling-specific watts/FTP when protocol is known"],
+      "secondary_load": ["RPE", "HR trend", "cadence", "bike fit and pain", "recovery"],
+      "non_transferable_from_other_modalities": ["air-bike watts/calories/RPM", "rowing pace", "SkiErg watts", "running pace"],
+      "evidence_sources": ["S31", "S44", "S45", "S46", "S47", "S48"],
+      "phases": [
+        {
+          "id": "cycling_consistency",
+          "evidence_status": "official_coaching_guidance",
+          "source_ids": ["S44"],
+          "known_template": "British Cycling novice plan uses 3 rides/week and progresses weekly riding time; it is a coaching template, not a universal injury law.",
+          "advance_levers": ["frequency", "duration", "easy distance"],
+          "regress_if": ["pain, unsafe fit, illness, inability to pedal smoothly, unusual RPE"],
+          "benchmark": "Use duration/distance first; store bike, power meter, and protocol."
+        },
+        {
+          "id": "cycling_endurance",
+          "evidence_status": "coaching_model",
+          "source_ids": ["S31", "S44"],
+          "known_template": "Coggan endurance zone is 56–75% FTP when a valid cycling-specific FTP is available.",
+          "advance_levers": ["duration", "frequency", "power only after protocol-specific benchmark"],
+          "regress_if": ["power/RPE mismatch", "pain", "excessive fatigue", "poor recovery"],
+          "benchmark": "Do not display FTP zones when FTP protocol is unknown or when the device is an air bike."
+        },
+        {
+          "id": "cycling_threshold_vo2",
+          "evidence_status": "established_coaching_model_with_validity_caveats",
+          "source_ids": ["S31", "S45", "S46", "S47", "S48"],
+          "known_template": "Coggan threshold 91–105% FTP and VO2 106–120% FTP are practical cycling controls; FTP95 and ramp estimates are conventions with individual error.",
+          "advance_levers": ["work duration", "repetitions", "power", "recovery density last"],
+          "regress_if": ["power collapse", "RPE drift", "pain", "recovery failure"],
+          "benchmark": "Store FTP test type: ramp, 20-minute, 60-minute, lab, or other. Never silently merge values."
+        }
+      ],
+      "tree": {
+        "root": "cycle_screen",
+        "nodes": {
+          "cycle_screen": {"question": "Pain, illness, unsafe fit, or inability to pedal smoothly?", "yes": "stop_or_refit", "no": "ftp_context"},
+          "ftp_context": {"question": "Is a cycling-specific benchmark and protocol known?", "yes": "power_control", "no": "rpe_duration_control"},
+          "power_control": {"question": "Can the planned power/duration be completed with acceptable RPE and technique?", "yes": "progress_one_lever", "no": "repeat_or_reduce"},
+          "rpe_duration_control": {"action": "Use duration, RPE, cadence, and HR trend; do not pretend FTP is known."},
+          "progress_one_lever": {"action": "Increase duration, repetitions, power, or reduce recovery one at a time."},
+          "repeat_or_reduce": {"action": "Repeat or reduce power/work/repetitions; check fit, fatigue, and protocol."},
+          "stop_or_refit": {"action": "Stop, correct fit, recover, or route symptoms appropriately."}
+        }
+      }
+    },
+    {
+      "id": "air_bike",
+      "display_name": "Combined arm-and-leg air bike",
+      "primary_load": ["duration for steady work", "completed work intervals/repetitions", "same-device output trend", "RPE", "technique and local fatigue"],
+      "secondary_load": ["HR trend", "recovery between bouts", "same-device RPM/watts/calories/distance", "pain/body-region flags"],
+      "non_transferable_from_other_modalities": ["Coggan FTP zones", "conventional cycling watts", "lower-body Wingate norms", "rowing calories/pace", "SkiErg watts", "running distance/impact tolerance"],
+      "device_subtypes": ["combined_arm_leg_fan", "lower_body_air_braked_reference_only"],
+      "required_metadata": ["manufacturer", "model", "generation", "console/firmware if known", "seat setup", "metric", "protocol", "warmup", "recovery mode", "familiarisation count"],
+      "evidence_sources": ["S01", "S04", "S05", "S07", "S08", "S09", "S10", "S11", "S15", "S16", "S17", "S56", "S57", "S58", "S59", "S60"],
+      "phases": [
+        {
+          "id": "airbike_onboarding",
+          "evidence_status": "product_design_with_manufacturer_safety_guidance",
+          "source_ids": ["S16", "S17", "S56", "S58"],
+          "known_template": "No peer-reviewed universal starting duration/frequency was located. Manufacturer setup/safety and study familiarisation are the evidence base; any 5–10 minute or 1–2 sessions/week default is a product heuristic, not a sourced rule.",
+          "advance_levers": ["safe coordination", "duration", "repeatable rhythm"],
+          "regress_if": ["pain", "unsafe mounting/dismounting", "shoulder shrugging", "trunk collapse", "uncontrolled cadence", "technique failure"],
+          "benchmark": "No maximal test on first exposure. Use submax duration and RPE/technique."
+        },
+        {
+          "id": "airbike_steady",
+          "evidence_status": "direct acute evidence_plus_product_design",
+          "source_ids": ["S01", "S05", "S07", "S16", "S17", "S56", "S58"],
+          "known_template": "Use duration, conversational/RPE control, and sustainable rhythm. Manufacturer 65–80% calculated HRmax and study 75% HRR are examples, not universal air-bike zones.",
+          "advance_levers": ["duration first", "frequency if tolerated", "same-device output as trend"],
+          "regress_if": ["local shoulder/arm/trunk/leg fatigue", "technique degradation", "pain", "unexpected RPE drift", "output collapse"],
+          "benchmark": "Same-device submax duration or optional field test after familiarisation; no universal calorie/min or distance standard."
+        },
+        {
+          "id": "airbike_threshold_oriented",
+          "evidence_status": "evidence_absent_for_universal_threshold",
+          "source_ids": ["S01", "S04", "S05", "S58"],
+          "known_template": "No universal air-bike VT/LT, RPM, watt, calorie, or FTP boundary. Use personal lab/device threshold or controlled hard RPE/work prescription.",
+          "advance_levers": ["work-block duration", "number of blocks", "same-device output", "recovery reduction last"],
+          "regress_if": ["local mechanical failure", "technique degradation", "output/RPE mismatch", "pain", "recovery failure"],
+          "benchmark": "Threshold test only with device-specific or laboratory anchor; otherwise call it controlled hard work, not a validated threshold zone."
+        },
+        {
+          "id": "airbike_repeated_intervals",
+          "evidence_status": "direct_intervention_evidence_not_beginner_standard",
+          "source_ids": ["S08", "S09", "S10", "S11", "S58"],
+          "known_template": "10/5 and 20/10 have a four-week recreationally-active intervention; Echo 15/45 and 40/20 variants have a small eight-week active-adult study; supervised all-extremity 4×4 protocols exist in older/clinical populations.",
+          "advance_levers": ["repetitions", "work duration", "output target", "recovery density last"],
+          "regress_if": ["cardio target reached but work incomplete", "local failure", "output collapse", "poor recovery", "pain"],
+          "benchmark": "Training protocols are not reliability standards. Do not label 30/30 or 60/60 validated for beginners."
+        },
+        {
+          "id": "airbike_vo2_or_sprint",
+          "evidence_status": "device_specific_benchmark_and_limited_intervention_evidence",
+          "source_ids": ["S05", "S07", "S08", "S09", "S15", "S57", "S59"],
+          "known_template": "Device-specific staged ramp/VO2peak testing is the strongest reliability category. Sprint, 5-minute, 10-minute, 2-mile, and Wingate-style tests lack universal combined-air-bike reliability/validity.",
+          "advance_levers": ["only after familiarisation: repetitions, work duration, output, or recovery density"],
+          "regress_if": ["technique breakdown", "local failure", "pain", "large output drop-off", "unusual recovery"],
+          "benchmark": "Store device/protocol; compare only within the same device/protocol. Maximal test is optional, not onboarding."
+        }
+      ],
+      "tree": {
+        "root": "airbike_safety_screen",
+        "nodes": {
+          "airbike_safety_screen": {"question": "Pain, illness, unsafe setup, or unsafe mounting/dismounting?", "yes": "stop_or_safety_route", "no": "coordination"},
+          "coordination": {"question": "Can the athlete coordinate linked handles and pedals at easy effort with stable trunk/shoulder technique?", "yes": "steady_readiness", "no": "familiarisation"},
+          "familiarisation": {"action": "Use submaximal easy exposure, repeatable rhythm, and no maximal benchmark. Record local limiter and technique."},
+          "steady_readiness": {"question": "Can easy duration be completed with acceptable RPE, rhythm, technique, and local fatigue?", "yes": "choose_quality_phase", "no_pain": "repeat_or_reduce_steady", "pain": "stop_or_safety_route"},
+          "repeat_or_reduce_steady": {"action": "Repeat or shorten duration/output; do not add interval density."},
+          "choose_quality_phase": {"question": "Is there a personal/device-specific threshold or is this only a controlled-hard prescription?", "threshold_anchor": "threshold_work", "no_anchor": "controlled_hard_work"},
+          "threshold_work": {"question": "Were work blocks completed with stable output, RPE, recovery, and technique?", "yes": "confirm_and_progress", "cardio_target_but_local_fail": "cardio_pass_mechanical_fail", "no_pain": "repeat_or_reduce_intervals", "pain": "stop_or_safety_route"},
+          "controlled_hard_work": {"action": "Use RPE, completed work, and same-device output; do not display universal air-bike threshold zones."},
+          "confirm_and_progress": {"action": "After comparable stability, advance one lever: duration, reps, work length, output, or recovery density."},
+          "repeat_or_reduce_intervals": {"action": "Repeat or reduce one variable; inspect local fatigue, technique, setup, sleep, and device data."},
+          "cardio_pass_mechanical_fail": {"state": "CARDIO_PASS_MECHANICAL_FAIL", "action": "Record cardiovascular target as reached but mechanical session as incomplete; do not progress."},
+          "stop_or_safety_route": {"action": "Stop the provoking dose; record body region/reason and route persistent or concerning symptoms appropriately."}
+        }
+      },
+      "scoring_rules": {
+        "steady": {
+          "pass": ["duration complete", "RPE appropriate", "technique stable", "no concerning symptoms"],
+          "hr_role": "advisory/trend"
+        },
+        "short_interval": {
+          "pass": ["work/reps complete", "output not collapsing", "recovery acceptable", "RPE appropriate", "technique stable", "no concerning symptoms"],
+          "hr_role": "secondary; never sole completion criterion"
+        },
+        "local_failure": {
+          "if": "cardiovascular signal reached but shoulder, arm, trunk, or leg fatigue prevents planned work",
+          "outcome": "CARDIO_PASS_MECHANICAL_FAIL",
+          "next_action": "repeat or reduce; no progression"
+        }
+      },
+      "benchmark_policy": {
+        "directly_supported": ["device-specific staged ramp/VO2peak with gas analysis", "same-device personal trends after familiarisation"],
+        "not_directly_validated_as_universal": ["30-second sprint", "1-minute/repeated sprint", "5-minute max calories", "10-minute max calories", "2-mile/distance", "combined-air-bike Wingate", "critical power/W'"],
+        "required_fields": ["device", "model", "generation", "console", "protocol", "warmup", "recovery", "familiarisation", "RPE scale", "raw RPM/watts/calories/distance", "local fatigue", "technique", "pain"]
+      }
+    }
+  ],
+  "cross_modality_rule": {
+    "compare_at": ["intended internal stress", "completed work quality", "RPE", "symptoms", "adherence", "same-modality longitudinal trend"],
+    "do_not_equate": ["air-bike calories with rower calories", "air-bike watts with cycling FTP", "air-bike RPM with running pace", "SkiErg watts with rowing pace", "one modality's distance with another's"],
+    "source_ids": ["S01", "S13", "S18", "S19", "S31"]
+  }
+}
