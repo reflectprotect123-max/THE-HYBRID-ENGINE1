@@ -197,11 +197,17 @@ function passThroughEngineBlock(b: Record<string, unknown>): Block<PlannedSet> |
 /** One migrated strength block — h/mins/ss/ex → heading/minutes/superset/exercises. */
 function migrateBlock(b: OldBlock): Block<PlannedSet> {
   if (b.kind === 'cond') {
-    const fmt = b.fmt as CondFmtKey;
     const eff = (b.eff as EffortKey) in CON_EFFORTS ? (b.eff as EffortKey) : 'medium';
     const cb = newCondBlock();
     cb.heading = s0(b.h, 'Finisher');
-    cb.condFmt = fmt;
+    // Validate the legacy fmt the way passThroughEngineBlock does (:154-155).
+    // An absent/unknown fmt used to be written straight through, and
+    // App.preview / grid.cellSummary then read CON_FORMATS[condFmt].name
+    // unguarded and white-screened the whole app on load. Keep newCondBlock's
+    // 'intervals' default instead — the block survives with a valid format.
+    if (typeof b.fmt === 'string' && Object.prototype.hasOwnProperty.call(CON_FORMATS, b.fmt)) {
+      cb.condFmt = b.fmt as CondFmtKey;
+    }
     cb.effort = eff;
     cb.targetZone = CON_EFFORTS[eff].zone;
     return cb;

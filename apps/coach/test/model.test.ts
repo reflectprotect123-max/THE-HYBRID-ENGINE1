@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CON_FORMATS,
+  isCond,
   isLiftMode,
   isText,
   isWarmupBlock,
@@ -12,6 +14,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { assertPublishable, migrateLib, newSession, type CoachSession } from '../src/model';
+import { cellSummary } from '../src/builder/grid';
 
 /*
  * model.ts is the only pure module in the coach app, and it is the one that
@@ -201,6 +204,27 @@ describe('migrateLib converts the current on-disk shape into engine shape', () =
     expect(b.condFmt).toBe('intervals');
     expect((b as { effort?: string }).effort).toBe('hard');
     expect(b.targetZone).toBe('high');
+  });
+
+  it('a legacy cond block with no/unknown fmt migrates to a valid format, not a crash', () => {
+    const lib = migrateLib({
+      programs: [{ id: 'p1', name: 'P', weeks: [{ days: [
+        { title: 'D', blocks: [{ kind: 'cond', h: 'Finisher', eff: 'hard' }] },
+        null, null, null, null, null, null] }] }],
+      sel: { p: 0, w: 0, d: 0 },
+    });
+    const day = lib.programs[0].weeks[0].days[0]!;
+    const cb = day.blocks[0];
+    expect(isCond(cb) && cb.condFmt in CON_FORMATS).toBe(true);
+    expect(() => cellSummary(day)).not.toThrow();
+  });
+
+  it('a legacy cond block with a bogus fmt does not keep the bogus value', () => {
+    const lib = migrateLib({ programs: [{ id: 'p1', name: 'P', weeks: [{ days: [
+      { title: 'D', blocks: [{ kind: 'cond', h: 'F', fmt: 'emom', eff: 'hard' }] },
+      null, null, null, null, null, null] }] }], sel: { p: 0, w: 0, d: 0 } });
+    const cb = lib.programs[0].weeks[0].days[0]!.blocks[0];
+    expect(isCond(cb) && cb.condFmt in CON_FORMATS).toBe(true);
   });
 
   it('never throws on malformed input — converts what parses, drops the rest', () => {

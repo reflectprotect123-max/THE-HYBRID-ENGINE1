@@ -16,7 +16,7 @@ export function cellSummary(sess: CoachSession | null): CellSummary {
   let sets = 0;
   for (const b of sess.blocks) {
     if (isCond(b)) {
-      cond.push(CON_FORMATS[b.condFmt].name);
+      cond.push(CON_FORMATS[b.condFmt]?.name ?? b.condFmt);
       continue;
     }
     for (const e of blockExercises(b)) {
