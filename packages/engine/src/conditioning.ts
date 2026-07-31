@@ -11,6 +11,7 @@ import type {
   CondFmtKey,
   CondResult,
   EffortKey,
+  Modality,
   Phase,
   Prescription,
   ProgressState,
@@ -101,6 +102,16 @@ export const CON_FORMAT_KEYS = Object.keys(CON_FORMATS) as CondFmtKey[];
 
 export function isProgressedFmt(k: string): k is CondFmtKey {
   return (PROGRESSED_FORMATS as string[]).includes(k);
+}
+
+/**
+ * The key a conditioning progression is tracked under: just the format when the
+ * block is unlabeled, `format:modality` when a modality is set. Later tasks key
+ * `conProgress` by this so an athlete's interval level on the rower does not
+ * bleed into their runs.
+ */
+export function progressionKey(fmtKey: CondFmtKey, modality?: Modality): string {
+  return modality ? fmtKey + ':' + modality : fmtKey;
 }
 
 /** The athlete's own custom format, clamped to values a session can survive. */

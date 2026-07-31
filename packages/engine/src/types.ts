@@ -16,6 +16,7 @@
 
 export type ModeKey = 'reps_kg' | 'amrap' | 'seconds' | 'reps_seconds' | 'reps' | 'completion';
 export type CondFmtKey = 'steady' | 'intervals' | 'tempo' | 'custom' | 'free';
+export type Modality = 'row' | 'run' | 'ski' | 'bike' | 'air_bike';
 export type ZoneKey = 'low' | 'mod' | 'high';
 export type EffortKey = 'easy' | 'medium' | 'hard';
 export type RecoveryBand = 'good' | 'watch' | 'low';
@@ -114,6 +115,12 @@ export interface CondBlock {
   minutes?: number | string;
   /** coach-authored target, purely a display chip — no progression tie-in */
   targetDistanceM?: number;
+  /** Orthogonal to condFmt — row/run/ski/bike/air_bike. Absent means unlabeled/general conditioning. */
+  modality?: Modality;
+  /** Only ever set alongside modality: 'air_bike' — raw output units are not
+   *  portable across air-bike brands/generations, so a same-device baseline
+   *  needs this stored with every result (see docs/research/echo-v3-connectivity-bundle). */
+  device?: { manufacturer?: string; model?: string; generation?: string; consoleMetric?: string };
   exercises?: undefined;
   condResult?: CondResult;
 }
@@ -200,6 +207,15 @@ export interface CondResult {
   avgPaceSecPerKm?: number;
   /** downsampled GPS route, capped like the HR trace */
   route?: GeoDownsampled;
+  modality?: Modality;
+  device?: { manufacturer?: string; model?: string; generation?: string; consoleMetric?: string };
+  /** Did the cardiovascular signal (HR zone time) reach its target this session? */
+  cardioCompletion?: 'met' | 'borderline' | 'not_met';
+  /** Self-reported: did the prescribed mechanical work actually get completed? */
+  mechanicalCompletion?: 'met' | 'borderline' | 'local_fatigue' | 'technique_fail' | 'pain_stop';
+  /** Live FTMS telemetry, when the session came from a connected device. */
+  avgPowerW?: number;
+  avgCadenceRpm?: number;
 }
 
 export interface Downsampled {

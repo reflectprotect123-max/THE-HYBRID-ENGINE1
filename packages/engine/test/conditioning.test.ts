@@ -17,3 +17,46 @@ describe('condEffort prototype guard', () => {
     expect(condEffort({ effort: 'constructor' } as never)).toEqual(CON_EFFORTS.medium);
   });
 });
+
+import { progressionKey } from '../src/conditioning';
+import type { CondBlock, CondResult, Modality } from '../src/types';
+
+test('progressionKey is just the format when modality is absent', () => {
+  expect(progressionKey('intervals', undefined)).toBe('intervals');
+});
+
+test('progressionKey composes format and modality when both are present', () => {
+  expect(progressionKey('intervals', 'row')).toBe('intervals:row');
+});
+
+describe('modality, device, and completion fields', () => {
+  it('CondBlock and CondResult accept the new optional fields', () => {
+    const modality: Modality = 'air_bike';
+    const block: CondBlock = {
+      id: 'b1',
+      kind: 'conditioning',
+      condFmt: 'intervals',
+      modality,
+      device: { manufacturer: 'Rogue', model: 'Echo Bike', generation: 'V3', consoleMetric: 'watts' },
+    };
+    const result: CondResult = {
+      id: 'r1',
+      fmt: 'intervals',
+      modality: 'air_bike',
+      device: { manufacturer: 'Rogue', model: 'Echo Bike', generation: 'V3', consoleMetric: 'watts' },
+      cardioCompletion: 'met',
+      mechanicalCompletion: 'local_fatigue',
+      avgPowerW: 210,
+      avgCadenceRpm: 62,
+    };
+    expect(block.modality).toBe('air_bike');
+    expect(result.cardioCompletion).toBe('met');
+    expect(result.mechanicalCompletion).toBe('local_fatigue');
+  });
+
+  it('the new fields stay optional — existing shapes still compile untouched', () => {
+    const bare: CondResult = { id: 'r2', fmt: 'steady' };
+    expect(bare.modality).toBeUndefined();
+    expect(bare.device).toBeUndefined();
+  });
+});
