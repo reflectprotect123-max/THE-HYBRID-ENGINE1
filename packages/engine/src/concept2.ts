@@ -112,7 +112,13 @@ export function concept2ToCondResult(result: Concept2Result): Partial<CondResult
   // Concept2's `time` (→ durationRaw) is in tenths of a second (e.g. `152350`
   // for "4:13:55.0" = 15235.0s); every other engine `dur` is plain seconds.
   if (result.durationRaw != null) out.dur = result.durationRaw / 10;
-  if (result.distanceRaw != null) out.distanceM = result.distanceRaw;
+  // NOT distanceM: that field means "GPS-tracked metres" (types.ts) and is
+  // summed into Progress's distance trend. An erg's own distance is real and
+  // accurate (unlike FTMS's console-cumulative odometer, which Task 8 left
+  // display-only), but it is not a GPS distance — bank it under its own name
+  // so it survives without corrupting that invariant. See I2 in the final
+  // review for the failure this replaces.
+  if (result.distanceRaw != null) out.deviceDistanceM = result.distanceRaw;
 
   return out;
 }

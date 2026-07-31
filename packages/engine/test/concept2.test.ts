@@ -163,19 +163,29 @@ describe('concept2ToCondResult', () => {
     expect(out.splits).toBeUndefined();
   });
 
-  test('converts startedAt to epoch ms, converts durationRaw from tenths-of-a-second to seconds, and passes distance through as meters', () => {
+  test('converts startedAt to epoch ms, converts durationRaw from tenths-of-a-second to seconds, and carries distance as deviceDistanceM (not distanceM)', () => {
     // Concept2's own documented example: time: 152350 (tenths of a second) ==
     // time_formatted "4:13:55.0" == 15235.0 seconds. distanceRaw is already meters.
     const out = concept2ToCondResult(makeResult({ startedAt: '2026-07-31T12:00:00.000Z', durationRaw: 152350, distanceRaw: 23000 }));
     expect(out.startedAt).toBe(Date.parse('2026-07-31T12:00:00.000Z'));
     expect(out.dur).toBe(15235);
-    expect(out.distanceM).toBe(23000);
+    expect(out.deviceDistanceM).toBe(23000);
   });
 
-  test('leaves startedAt/dur/distanceM unset when the source has none', () => {
+  test('leaves startedAt/dur/deviceDistanceM unset when the source has none', () => {
     const out = concept2ToCondResult(makeResult({ startedAt: null, durationRaw: null, distanceRaw: null }));
     expect(out.startedAt).toBeUndefined();
     expect(out.dur).toBeUndefined();
-    expect(out.distanceM).toBeUndefined();
+    expect(out.deviceDistanceM).toBeUndefined();
+  });
+
+  // I2: distanceM is documented as GPS-only ("absent means not GPS-tracked")
+  // and is summed into Progress's distance trend — an erg result is not a
+  // GPS-tracked distance, so it must never land there, regardless of what
+  // distanceRaw carries (Task 8 made the identical call for FTMS distance).
+  test('never sets distanceM, no matter what distanceRaw carries', () => {
+    expect(concept2ToCondResult(makeResult({ distanceRaw: 23000 })).distanceM).toBeUndefined();
+    expect(concept2ToCondResult(makeResult({ distanceRaw: 0 })).distanceM).toBeUndefined();
+    expect(concept2ToCondResult(makeResult({ distanceRaw: null })).distanceM).toBeUndefined();
   });
 });

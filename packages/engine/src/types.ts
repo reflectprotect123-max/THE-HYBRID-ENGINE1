@@ -223,6 +223,16 @@ export interface CondResult {
    * a future feature could use. See `concept2ToCondResult` in `concept2.ts`.
    */
   splits?: unknown[];
+  /**
+   * Total metres from a synced erg/console result (e.g. Concept2), carried
+   * through so it isn't lost — but deliberately NOT `distanceM`: that field's
+   * invariant is GPS-only ("absent means not GPS-tracked", used to gate the
+   * distance trend in Progress and the GPS-route affordances in History/
+   * Recap), and an erg's own odometer is not a GPS distance. Task 8 made the
+   * identical call for FTMS Total Distance. Never summed into distance
+   * trends; display-only if surfaced at all.
+   */
+  deviceDistanceM?: number;
 }
 
 export interface Downsampled {

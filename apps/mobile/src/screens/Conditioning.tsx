@@ -258,6 +258,7 @@ export function ConditioningScreen() {
               onPress: () => {
                 const rec = pending.current;
                 pending.current = null;
+                setRating(false);
                 if (rec) bank(rec);
                 nav.dispatch(e.data.action);
               },
@@ -397,8 +398,11 @@ export function ConditioningScreen() {
 
   /** The single write path for a finished run. submitMechanical() and the
    *  exit guard's "Bank & leave" both land here, so a fully-answered and a
-   *  part-answered run bank identically. */
+   *  part-answered run bank identically. cardioCompletion is DERIVED from
+   *  zsec/dur (never asked of the athlete), so it belongs here — not in
+   *  submitMechanical — so every write path sets it the same way. */
   const bank = (rec: CondResult) => {
+    rec.cardioCompletion = cardioCompletionFor(rec.fmt ?? fmt, rec.zsec, rec.dur ?? 0);
     update((d) => {
       const { conProgress } = conAdapt(rec, d.settings);
       d.settings.conProgress = conProgress;
@@ -442,7 +446,6 @@ export function ConditioningScreen() {
     const rec = pending.current;
     if (!rec) return;
     rec.mechanicalCompletion = m;
-    rec.cardioCompletion = cardioCompletionFor(rec.fmt ?? fmt, rec.zsec, rec.dur ?? 0);
     pending.current = null;
     setRating(false);
     setResult(rec);

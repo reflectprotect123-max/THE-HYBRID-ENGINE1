@@ -425,8 +425,9 @@ function WhoopCard() {
   );
 }
 
-/* Same shape as WhoopCard: connection only. The synced results themselves are
-   matched to conditioning sessions elsewhere — this card just owns the link. */
+/* Same shape as WhoopCard: connection only. Synced results are pulled and
+   stored, but automatic matching into History/Progress isn't wired up yet —
+   this card just owns the link and shows how many results have been pulled. */
 function Concept2Card() {
   const { connected, results, busy, error, lastSyncAt, connect, sync, disconnect } = useConcept2();
   return (

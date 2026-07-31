@@ -185,6 +185,25 @@ Rotate any WHOOP secret ever pasted into chat, source, or a ZIP.
 The server keeps encrypted provider tokens in Netlify Blobs. The browser and
 the service worker never receive or cache them.
 
+### Concept2 Logbook
+
+- `CONCEPT2_CLIENT_ID` / `CONCEPT2_CLIENT_SECRET` — Netlify environment
+  variables, read the same way as the WHOOP pair above. A deploy missing
+  either returns `configuration_error` on every connect attempt.
+
+Register as the Concept2 redirect URL:
+
+```
+https://thehybridengine1.netlify.app/.netlify/functions/concept2-callback
+```
+
+Same token-storage, deep-link, and secret-rotation model as WHOOP above: the
+server keeps encrypted tokens in Netlify Blobs, the browser and service worker
+never receive or cache them, and the callback bounces the system browser back
+to `hybridengine://whoop` (stamped `integration=concept2` so mobile can tell
+the two providers' returns apart). Rotate any Concept2 secret ever pasted into
+chat, source, or a ZIP.
+
 ---
 
 ## Conventions worth knowing before you change anything

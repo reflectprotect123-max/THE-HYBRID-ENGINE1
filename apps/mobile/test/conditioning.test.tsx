@@ -145,13 +145,15 @@ describe('ConditioningScreen felt RPE', () => {
 
     // …and the run survived it: banked once, with every unanswered field left
     // unset. A run past MIN_LOGGABLE_SEC always ends up in the store, fully
-    // answered or not.
+    // answered or not. cardioCompletion is DERIVED (from zsec/dur, not asked),
+    // so it is set on every bank — including this exit path — same as the
+    // normal finish path below.
     flushSave();
     const runs = persisted().settings.conditioning ?? [];
     expect(runs).toHaveLength(1);
     expect(runs[0].felt).toBeUndefined();
     expect(runs[0].mechanicalCompletion).toBeUndefined();
-    expect(runs[0].cardioCompletion).toBeUndefined();
+    expect(runs[0].cardioCompletion).toBe('not_met');
     expect(runs[0].dur).toBeGreaterThanOrEqual(20);
   });
 
@@ -196,7 +198,9 @@ describe('ConditioningScreen felt RPE', () => {
     expect(runs).toHaveLength(1);
     expect(runs[0].felt).toBe('7');
     expect(runs[0].mechanicalCompletion).toBeUndefined();
-    expect(runs[0].cardioCompletion).toBeUndefined();
+    // cardioCompletion is derived from zsec/dur, not from the unanswered
+    // mechanical-completion question — it is set on this exit path too.
+    expect(runs[0].cardioCompletion).toBe('not_met');
     expect(runs[0].dur).toBeGreaterThanOrEqual(20);
   });
 });

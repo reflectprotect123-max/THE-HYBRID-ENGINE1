@@ -95,6 +95,7 @@ async function main() {
   console.log(`Concept2 contract check — ${appRoot}`);
 
   const requiredFiles = [
+    'README.md',
     'netlify.toml',
     'package.json',
     'pnpm-lock.yaml',
@@ -124,6 +125,7 @@ async function main() {
     }
   }
 
+  const readme = sources.get('README.md') || '';
   const concept2 = sources.get('netlify/functions/_lib/concept2.mjs') || '';
   const config = sources.get('netlify/functions/_lib/config.mjs') || '';
   const connect = sources.get('netlify/functions/concept2-connect.mjs') || '';
@@ -356,7 +358,12 @@ async function main() {
   const requiredEnv = ['CONCEPT2_CLIENT_ID', 'CONCEPT2_CLIENT_SECRET'];
   for (const name of requiredEnv) {
     check(new RegExp(`process\\.env\\.${name}\\b`).test(config), `server reads required environment variable ${name}`);
+    // Mirrors whoop-contract.mjs's README env-var check: an integration whose
+    // deployment vars are not written down is one an operator cannot deploy
+    // (I4 in the 2026-07-31 final review — this pair was undocumented).
+    check(new RegExp(`\\b${name}\\b`).test(readme), `deployment docs name environment variable ${name}`);
   }
+  check(/https:\/\/thehybridengine1\.netlify\.app\/\.netlify\/functions\/concept2-callback/.test(readme), 'production Concept2 OAuth callback URL is documented');
 
   check(/concept2Connect/.test(ui) && /concept2Sync/.test(ui), 'client uses the integration function endpoints');
   check(/FN\.concept2Connect/.test(ui) && /FN\.concept2Sync/.test(ui), 'client reaches those endpoints through the shared table, not by hand-written path');
