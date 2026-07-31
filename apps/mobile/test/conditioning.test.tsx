@@ -38,6 +38,7 @@ jest.mock('../src/native/capabilities', () => ({
   setKeepAwake: jest.fn(async () => {}),
   createHeartRateMonitor: () => ({ start: jest.fn(async () => {}), stop: jest.fn() }),
   createGeoTracker: () => ({ start: jest.fn(async () => {}), stop: jest.fn() }),
+  createFtmsMonitor: () => ({ start: jest.fn(async () => {}), stop: jest.fn() }),
   scheduleRestAlarm: jest.fn(async () => null),
   cancelRestAlarm: jest.fn(async () => {}),
 }));

@@ -29,7 +29,7 @@ import {
   type Phase,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { buzz, createGeoTracker, createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
+import { buzz, createFtmsMonitor, createGeoTracker, createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
 import { color } from '@hybrid/design';
 import { Btn, Card, Chip, Kicker, Ring, Row, Screen, SectionHead, T, Tap, Title, zoneInk, zoneNeon } from '../ui';
@@ -98,6 +98,67 @@ export function ConditioningScreen() {
   const bpmRef = useRef<number | null>(null);
   bpmRef.current = bpm;
 
+  /*
+   * Live Echo Bike V3 telemetry over FTMS, same lifecycle as `bpm`: written by
+   * the monitor's notification callback, sampled once a second by the ticker,
+   * drawn while live. FTMS frames are flag-gated — one that carries only
+   * cadence must not wipe the last known power — so each field is kept
+   * per-notification and only overwritten when present. The link itself, like
+   * web's RUN.echo, outlives finish(): connect once, ride several runs. It is
+   * only torn down with the screen (the unmount cleanup below) or on error.
+   */
+  const ftms = useRef<ReturnType<typeof createFtmsMonitor> | null>(null);
+  const [echoConnected, setEchoConnected] = useState(false);
+  const [echoMsg, setEchoMsg] = useState<{ text: string; warn: boolean } | null>(null);
+  const [echoPowerW, setEchoPowerW] = useState<number | null>(null);
+  const [echoCadenceRpm, setEchoCadenceRpm] = useState<number | null>(null);
+  const [echoDistanceM, setEchoDistanceM] = useState<number | null>(null);
+  // Refs for the 1s ticker, for the same reason as bpmRef: values in the
+  // interval's deps would tear it down on every notification.
+  const powerRef = useRef<number | null>(null);
+  powerRef.current = echoPowerW;
+  const cadenceRef = useRef<number | null>(null);
+  cadenceRef.current = echoCadenceRpm;
+  /** 1Hz power/cadence samples banked while the bike is reporting, averaged
+   *  into the record at finish(). FTMS Total Distance is cumulative from the
+   *  console's own session, so it is displayed live but never banked. */
+  const powerSamples = useRef<number[]>([]);
+  const cadenceSamples = useRef<number[]>([]);
+
+  const connectEcho = async () => {
+    if (ftms.current) return;
+    ftms.current = createFtmsMonitor();
+    await ftms.current.start(
+      (m) => {
+        if (m.power_w != null) setEchoPowerW(m.power_w);
+        if (m.cadence_rpm != null) setEchoCadenceRpm(m.cadence_rpm);
+        if (m.distance_m != null) setEchoDistanceM(m.distance_m);
+      },
+      (state, msg) => {
+        if (state === 'connected') {
+          setEchoConnected(true);
+          setEchoMsg(null);
+          return;
+        }
+        if (state === 'error') {
+          // Refused, no bike in range, or no BLE in this build. Clear the
+          // failed monitor so the button offers a retry, and stop showing
+          // stale numbers — but keep any banked samples: the ride up to a
+          // mid-run drop really happened.
+          ftms.current?.stop();
+          ftms.current = null;
+          setEchoConnected(false);
+          setEchoPowerW(null);
+          setEchoCadenceRpm(null);
+          setEchoDistanceM(null);
+          setEchoMsg({ text: msg, warn: true });
+          return;
+        }
+        setEchoMsg({ text: 'Looking for your Echo Bike…', warn: false });
+      },
+    );
+  };
+
   const zones = useMemo(() => conZones(hr), [hr]);
   const rx = useMemo(() => conPrescription(fmt, { settings: db.settings, whoop }), [fmt, db.settings, whoop]);
   const phases = useMemo<Phase[]>(() => CON_FORMATS[fmt].build(paramsFor(fmt, rx)), [fmt, rx]);
@@ -149,6 +210,8 @@ export function ConditioningScreen() {
       setElapsed(t);
       const b = bpmRef.current;
       if (b != null) samples.current.push({ t, bpm: b });
+      if (powerRef.current != null) powerSamples.current.push(powerRef.current);
+      if (cadenceRef.current != null) cadenceSamples.current.push(cadenceRef.current);
     }, 1000);
     return () => clearInterval(iv);
   }, [live]);
@@ -157,6 +220,7 @@ export function ConditioningScreen() {
   useEffect(() => () => {
     monitor.current?.stop();
     geoTracker.current?.stop();
+    ftms.current?.stop();
     void setKeepAwake(false);
   }, []);
 
@@ -213,6 +277,7 @@ export function ConditioningScreen() {
             onPress: () => {
               monitor.current?.stop();
               geoTracker.current?.stop();
+              ftms.current?.stop();
               void setKeepAwake(false);
               nav.dispatch(e.data.action);
             },
@@ -231,6 +296,14 @@ export function ConditioningScreen() {
     pending.current = null;
     setRating(false);
     samples.current = [];
+    // Bike telemetry resets WITH the run, not just bpm — a still-connected
+    // bike repopulates these on its next notification, but a restart must
+    // never open on the previous run's stale numbers or samples.
+    powerSamples.current = [];
+    cadenceSamples.current = [];
+    setEchoPowerW(null);
+    setEchoCadenceRpm(null);
+    setEchoDistanceM(null);
     startedAt.current = Date.now();
     setElapsed(0);
     setResult(null);
@@ -273,6 +346,8 @@ export function ConditioningScreen() {
     if (elapsed < MIN_LOGGABLE_SEC) {
       setElapsed(0);
       samples.current = [];
+      powerSamples.current = [];
+      cadenceSamples.current = [];
       return;
     }
 
@@ -298,6 +373,20 @@ export function ConditioningScreen() {
           }
         : {}),
     };
+    // A run with Echo V3 telemetry is an air-bike session and says so. The
+    // modality tag is what routes it into the per-format-per-modality
+    // progression bucket (progressionKey) instead of the bare-format one, and
+    // the device identity is stored with the result because air-bike output is
+    // not portable across devices — a same-device baseline needs to know what
+    // produced the numbers. Banked samples count even if the link dropped
+    // mid-run (echoConnected is false then): the ride up to the drop happened.
+    if (echoConnected || powerSamples.current.length > 0 || cadenceSamples.current.length > 0) {
+      rec.modality = 'air_bike';
+      rec.device = { manufacturer: 'Rogue', model: 'Echo Bike', generation: 'V3.0' };
+      const avg = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+      if (powerSamples.current.length > 0) rec.avgPowerW = avg(powerSamples.current);
+      if (cadenceSamples.current.length > 0) rec.avgCadenceRpm = avg(cadenceSamples.current);
+    }
     // Don't bank it yet — ask how it felt, then whether the work was
     // mechanically completed. submitMechanical() finishes the job, and the
     // beforeRemove guard banks it part-answered on a confirmed exit.
@@ -412,6 +501,19 @@ export function ConditioningScreen() {
           <Btn variant="brass" size="lg" className="mt-3" onPress={() => void start()}>
             Start
           </Btn>
+          {/* Manual, not gated on the block's modality: nothing in the app
+              sets CondBlock.modality ahead of a session, so a gate would
+              simply never show the control — same reasoning as web. */}
+          {echoConnected ? (
+            <T className="mt-1 text-center text-3 text-dim">Echo Bike connected</T>
+          ) : (
+            <Btn className="mt-1" onPress={() => void connectEcho()}>
+              Connect Echo Bike
+            </Btn>
+          )}
+          {echoMsg ? (
+            <T className={'mt-1 text-center text-3 ' + (echoMsg.warn ? 'text-warn' : 'text-muted')}>{echoMsg.text}</T>
+          ) : null}
         </>
       ) : null}
 
@@ -459,8 +561,22 @@ export function ConditioningScreen() {
                   Prescription complete — tap Finish
                 </T>
               )}
+              {echoPowerW != null || echoCadenceRpm != null || echoDistanceM != null ? (
+                <T num className="mt-1 text-4 text-muted">
+                  {[
+                    echoPowerW != null ? `${Math.round(echoPowerW)}W` : null,
+                    echoCadenceRpm != null ? `${Math.round(echoCadenceRpm)}rpm` : null,
+                    echoDistanceM != null ? `${(echoDistanceM / 1000).toFixed(1)}km` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </T>
+              ) : null}
               {bpm == null && hrMsg ? (
                 <T className={'mt-1 text-3 ' + (hrMsg.warn ? 'text-warn' : 'text-muted')}>{hrMsg.text}</T>
+              ) : null}
+              {echoMsg ? (
+                <T className={'mt-1 text-3 ' + (echoMsg.warn ? 'text-warn' : 'text-muted')}>{echoMsg.text}</T>
               ) : null}
               {geoMsg ? (
                 <T className={'mt-1 text-3 ' + (geoMsg.warn ? 'text-warn' : 'text-muted')}>{geoMsg.text}</T>
@@ -479,6 +595,11 @@ export function ConditioningScreen() {
             <T className="mt-1 text-center text-3 text-dim">
               Runs under {MIN_LOGGABLE_SEC}s are discarded, not logged.
             </T>
+          ) : null}
+          {!echoConnected ? (
+            <Btn className="mt-1" onPress={() => void connectEcho()}>
+              Connect Echo Bike
+            </Btn>
           ) : null}
         </>
       ) : null}

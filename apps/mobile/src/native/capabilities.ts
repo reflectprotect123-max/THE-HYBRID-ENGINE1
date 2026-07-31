@@ -189,6 +189,246 @@ export function createHeartRateMonitor(): HeartRateMonitor {
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * FTMS — the standard Fitness Machine Service a Rogue Echo Bike V3.0 console
+ * broadcasts. Same BLE stack, same permission flow, same degrade-not-throw
+ * policy as the heart-rate monitor above; only the service and the payload
+ * differ. The parser is a byte-for-byte port of the web adapter
+ * (apps/web/src/native/echoV3.ts) onto the plain number[] that base64Bytes
+ * yields — there is no shared native/web code layer, so this duplication
+ * matches how connectStrap/createHeartRateMonitor already coexist.
+ * ------------------------------------------------------------------ */
+
+export type FtmsState = 'scanning' | 'connected' | 'error';
+
+/** One decoded FTMS Indoor Bike Data notification. Every field is flag-gated
+ *  per notification — a frame that carries only cadence has no power in it,
+ *  and the consumer must keep its own last-known values. */
+export interface FtmsMetrics {
+  flags: number;
+  speed_kmh?: number;
+  average_speed_kmh?: number;
+  cadence_rpm?: number;
+  average_cadence_rpm?: number;
+  distance_m?: number;
+  resistance_level?: number;
+  power_w?: number;
+  average_power_w?: number;
+  calories_total?: number;
+  calories_per_hour?: number;
+  calories_per_minute?: number;
+  heart_rate_bpm?: number;
+  metabolic_equivalent?: number;
+  elapsed_s?: number;
+  remaining_s?: number;
+}
+
+export interface FtmsMonitor {
+  /**
+   * Resolves once scanning has begun — or, on a failure, once `onState` has
+   * been told why it did not. Decoded notifications arrive on `onEvent`.
+   */
+  start(onEvent: (m: FtmsMetrics) => void, onState?: (state: FtmsState, msg: string) => void): Promise<void>;
+  stop(): void;
+}
+
+/** FTMS service (0x1826) and its Indoor Bike Data characteristic (0x2AD2) —
+ *  from the Echo V3 capability registry, identical to the web adapter. */
+const FTMS_SERVICE = '00001826-0000-1000-8000-00805f9b34fb';
+const FTMS_INDOOR_BIKE_DATA = '00002ad2-0000-1000-8000-00805f9b34fb';
+
+/**
+ * Decode one FTMS Indoor Bike Data notification.
+ *
+ * The field order is fixed and every offset depends on EVERY preceding flag
+ * being decoded in order — skipping a field this app doesn't display would
+ * misalign everything after it, which is why the walk is complete even though
+ * the screen only surfaces power, cadence and distance. Bit 0 is inverted:
+ * instantaneous speed is present when the bit is CLEAR. All multi-byte fields
+ * are little-endian. Throws RangeError on a truncated frame, exactly like the
+ * web parser; the monitor's notification handler catches and drops those.
+ */
+export function parseIndoorBikeData(bytes: number[]): FtmsMetrics {
+  const need = (offset: number, size: number, field: string) => {
+    if (offset + size > bytes.length) {
+      throw new RangeError(`Truncated FTMS Indoor Bike Data before ${field}`);
+    }
+  };
+  const readU8 = (o: number, field: string) => {
+    need(o, 1, field);
+    return bytes[o];
+  };
+  const readU16 = (o: number, field: string) => {
+    need(o, 2, field);
+    return bytes[o] | (bytes[o + 1] << 8);
+  };
+  // Sign-extended: resistance and power are sint16 in the spec.
+  const readI16 = (o: number, field: string) => (readU16(o, field) << 16) >> 16;
+  const readU24 = (o: number, field: string) => {
+    need(o, 3, field);
+    return bytes[o] | (bytes[o + 1] << 8) | (bytes[o + 2] << 16);
+  };
+
+  const flags = readU16(0, 'flags');
+  let offset = 2;
+  const result: FtmsMetrics = { flags };
+
+  if ((flags & 0x0001) === 0) {
+    result.speed_kmh = readU16(offset, 'instantaneous speed') * 0.01;
+    offset += 2;
+  }
+  if (flags & 0x0002) {
+    result.average_speed_kmh = readU16(offset, 'average speed') * 0.01;
+    offset += 2;
+  }
+  if (flags & 0x0004) {
+    result.cadence_rpm = readU16(offset, 'instantaneous cadence') * 0.5;
+    offset += 2;
+  }
+  if (flags & 0x0008) {
+    result.average_cadence_rpm = readU16(offset, 'average cadence') * 0.5;
+    offset += 2;
+  }
+  if (flags & 0x0010) {
+    result.distance_m = readU24(offset, 'total distance');
+    offset += 3;
+  }
+  if (flags & 0x0020) {
+    result.resistance_level = readI16(offset, 'resistance level');
+    offset += 2;
+  }
+  if (flags & 0x0040) {
+    result.power_w = readI16(offset, 'instantaneous power');
+    offset += 2;
+  }
+  if (flags & 0x0080) {
+    result.average_power_w = readI16(offset, 'average power');
+    offset += 2;
+  }
+  if (flags & 0x0100) {
+    result.calories_total = readU16(offset, 'total energy');
+    offset += 2;
+    result.calories_per_hour = readU16(offset, 'energy per hour');
+    offset += 2;
+    result.calories_per_minute = readU8(offset, 'energy per minute');
+    offset += 1;
+  }
+  if (flags & 0x0200) {
+    result.heart_rate_bpm = readU8(offset, 'heart rate');
+    offset += 1;
+  }
+  if (flags & 0x0400) {
+    result.metabolic_equivalent = readU8(offset, 'metabolic equivalent') * 0.1;
+    offset += 1;
+  }
+  if (flags & 0x0800) {
+    result.elapsed_s = readU16(offset, 'elapsed time');
+    offset += 2;
+  }
+  if (flags & 0x1000) {
+    result.remaining_s = readU16(offset, 'remaining time');
+  }
+
+  return result;
+}
+
+export function createFtmsMonitor(): FtmsMonitor {
+  // Imported lazily for the same reason as the heart-rate monitor: a build
+  // without native BLE (Expo Go) must degrade into the error callback, not
+  // crash on load.
+  let manager: BleManagerLike | null = null;
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  return {
+    async start(onEvent, onState) {
+      stopped = false;
+      const say = (state: FtmsState, msg = '') => {
+        if (!stopped) onState?.(state, msg);
+      };
+      try {
+        if (!(await ensureBlePermissions())) {
+          say('error', 'Bluetooth permission was refused — allow it to read the bike.');
+          return;
+        }
+
+        const { BleManager } = (await import('react-native-ble-plx')) as unknown as {
+          BleManager: new () => BleManagerLike;
+        };
+        const m = new BleManager();
+        manager = m;
+        say('scanning');
+
+        // A scan that finds nothing never calls back at all, so the window is
+        // closed here rather than left spinning for the whole session.
+        timer = setTimeout(() => {
+          if (stopped || !manager) return;
+          try {
+            m.stopDeviceScan();
+          } catch {
+            /* already stopped */
+          }
+          say('error', 'No Echo Bike found. Wake the console (start pedalling), then try again.');
+        }, SCAN_MS);
+
+        m.startDeviceScan([FTMS_SERVICE], null, async (err, device) => {
+          if (err) {
+            if (timer) clearTimeout(timer);
+            console.warn('[ble]', err);
+            say('error', 'Bluetooth scan failed — check that Bluetooth is on, then try again.');
+            return;
+          }
+          if (!device || stopped) return;
+          if (timer) clearTimeout(timer);
+          m.stopDeviceScan();
+          const d = device as {
+            connect(): Promise<{
+              discoverAllServicesAndCharacteristics(): Promise<unknown>;
+              monitorCharacteristicForService(
+                s: string,
+                c: string,
+                cb: (e: unknown, ch: { value?: string | null } | null) => void,
+              ): void;
+            }>;
+          };
+          try {
+            const conn = await d.connect();
+            await conn.discoverAllServicesAndCharacteristics();
+            conn.monitorCharacteristicForService(FTMS_SERVICE, FTMS_INDOOR_BIKE_DATA, (e, ch) => {
+              if (e || !ch?.value || stopped) return;
+              try {
+                onEvent(parseIndoorBikeData(base64Bytes(ch.value)));
+              } catch {
+                /* a truncated or malformed frame — drop it, keep streaming */
+              }
+            });
+            say('connected');
+          } catch (e) {
+            console.warn('[ble]', e);
+            say('error', 'Could not connect to that bike — move closer and try again.');
+          }
+        });
+      } catch {
+        // No BLE stack in this build (Expo Go). The session runs on the clock
+        // and banks no bike telemetry — but say so rather than showing nothing.
+        say('error', 'This build has no Bluetooth support — the session still runs on the clock.');
+      }
+    },
+    stop() {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      try {
+        manager?.stopDeviceScan();
+        manager?.destroy();
+      } catch {
+        /* already gone */
+      }
+      manager = null;
+    },
+  };
+}
+
 function base64Bytes(b64: string): number[] {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const clean = b64.replace(/=+$/, '');
