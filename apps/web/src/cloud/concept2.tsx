@@ -15,8 +15,10 @@ import { humanizeError } from '../errors';
  * (rower, SkiErg, BikeErg). The status poll deliberately does NOT carry that
  * list — it can be hundreds of records — so `refresh` only learns
  * connected/lastSyncAt and the first `sync` fetches the results themselves.
- * Nothing here writes to the training database: matching results to sessions
- * belongs to a later layer, so this provider is state + fetch and no more.
+ * Nothing here writes to the training database: this provider is state + fetch
+ * and no more. The engine's matcher (packages/engine/src/concept2.ts) exists
+ * for attaching results to sessions but is NOT wired up yet — synced results
+ * are viewable, not merged into History/Progress.
  */
 
 export interface Concept2State {
