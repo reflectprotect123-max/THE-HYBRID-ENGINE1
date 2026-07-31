@@ -6,6 +6,7 @@ import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
+import { useConcept2 } from '../cloud/concept2';
 import { isPersistent } from '../store/storage';
 import { parseBackup } from '../store/restore';
 import { Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
@@ -93,6 +94,7 @@ export function SettingsScreen() {
       <CloudCard />
       <CoachLinkCard />
       <WhoopCard />
+      <Concept2Card />
 
       <SectionHead title="What that produces" />
       <Card>
@@ -411,6 +413,52 @@ function WhoopCard() {
             {/* The connection IS visible back in the app now: it is filed under
                 the Supabase user rather than a browser cookie this app could
                 never read. Come back here after consenting and pull. */}
+            <T className="mt-1 text-3 text-dim">
+              Opens your browser to consent. Come back here afterwards — the connection is filed against your account,
+              so this screen picks it up.
+            </T>
+          </>
+        )}
+        {error ? <T accessibilityLiveRegion="assertive" className="mt-1 text-3 text-dim">{error}</T> : null}
+      </Card>
+    </View>
+  );
+}
+
+/* Same shape as WhoopCard: connection only. The synced results themselves are
+   matched to conditioning sessions elsewhere — this card just owns the link. */
+function Concept2Card() {
+  const { connected, results, busy, error, lastSyncAt, connect, sync, disconnect } = useConcept2();
+  return (
+    <View>
+      <SectionHead title="Concept2 Logbook" />
+      <Card>
+        {connected ? (
+          <>
+            <T num className="text-4 text-muted">
+              Connected{results.length ? ` · ${results.length} synced result${results.length === 1 ? '' : 's'}` : ' · no results synced yet'}
+            </T>
+            {lastSyncAt ? (
+              <T className="mt-1.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</T>
+            ) : null}
+            <View className="mt-1.5 flex-row gap-1">
+              <Tap box={{ h: 42 }} onPress={() => void sync()} disabled={busy} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
+                <T w="med" className="text-4 text-text">{busy ? 'Pulling…' : 'Pull now'}</T>
+              </Tap>
+              <Tap box={{ h: 42 }} onPress={() => void disconnect()} className="flex-1 items-center rounded-md py-1.5">
+                <T className="text-4 text-muted">Disconnect</T>
+              </Tap>
+            </View>
+          </>
+        ) : (
+          <>
+            <T className="text-4 text-muted">
+              Connect your Concept2 Logbook and rower, SkiErg and BikeErg sessions pull in with their real splits — no
+              re-typing what the erg already measured.
+            </T>
+            <Tap box={{ h: 42 }} onPress={connect} className="mt-1.5 items-center rounded-md bg-gold py-1.5">
+              <T w="med" className="text-4" style={{ color: color.onAccent }}>Connect Concept2</T>
+            </Tap>
             <T className="mt-1 text-3 text-dim">
               Opens your browser to consent. Come back here afterwards — the connection is filed against your account,
               so this screen picks it up.

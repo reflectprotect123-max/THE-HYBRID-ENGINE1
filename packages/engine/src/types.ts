@@ -318,6 +318,33 @@ export interface WhoopSample {
   at?: number;
 }
 
+/**
+ * One synced Concept2 Logbook result, exactly as the server's
+ * `normalizeConcept2Result` stores it. `modality` is Concept2's RAW machine
+ * type (`'rower'`/`'skierg'`/`'bike'`…), NOT this app's `Modality` union —
+ * mapping between the two belongs to the result-matching layer, not here.
+ */
+export interface Concept2Result {
+  provider: string;
+  externalId: string | null;
+  providerUserId: string | null;
+  modality: string | null;
+  startedAt: string | null;
+  durationRaw: number | null;
+  distanceRaw: number | null;
+  durationDisplay: string | null;
+  workoutType: string;
+  source?: string | null;
+  verified?: boolean | null;
+  ranked?: boolean | null;
+  privacy?: string | null;
+  workout?: unknown;
+  metadata?: unknown;
+  strokes?: unknown;
+  strokeDataAvailable?: boolean;
+  syncedAt?: string;
+}
+
 /** Everything the HR model needs, passed in rather than read off a global. */
 export interface HrContext {
   profile?: Profile;

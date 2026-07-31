@@ -240,6 +240,10 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
   const handleReturn = useCallback(
     (url: string | null) => {
       if (!url) return;
+      // The return scheme is shared by every integration; only Concept2 (and
+      // any later provider) stamps its URL with `integration=`. WHOOP's own
+      // callback sends none, so a URL WITHOUT the param is still WHOOP's.
+      if (/[?&]integration=(?!whoop\b)[a-z_]+/i.test(url)) return;
       const status = /[?&]status=([a-z_]+)/i.exec(url)?.[1] || '';
       if (status === 'denied') setS((p) => ({ ...p, error: 'WHOOP authorization was cancelled.' }));
       else if (status === 'error') setS((p) => ({ ...p, error: 'WHOOP could not be connected. Please try again.' }));

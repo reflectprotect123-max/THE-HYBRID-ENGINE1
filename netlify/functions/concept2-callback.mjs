@@ -23,7 +23,7 @@ function result(location) {
  * watches for to go and ask what the server now knows.
  */
 function finish(kind, outcome) {
-  return kind === 'native' ? result(`${NATIVE_RETURN_URL}?${outcome}`) : result(`/?integration=concept2&${outcome}`);
+  return kind === 'native' ? result(`${NATIVE_RETURN_URL}?integration=concept2&${outcome}`) : result(`/?integration=concept2&${outcome}`);
 }
 
 /*

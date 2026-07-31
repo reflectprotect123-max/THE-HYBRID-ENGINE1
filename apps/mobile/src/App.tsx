@@ -23,6 +23,7 @@ import { DbProvider } from './store/db';
 import { RestProvider } from './store/rest';
 import { SyncProvider } from './cloud/sync';
 import { WhoopProvider } from './cloud/whoop';
+import { Concept2Provider } from './cloud/concept2';
 import { HomeScreen } from './screens/Home';
 import { TrainingScreen } from './screens/Training';
 import { LoggerScreen } from './screens/Logger';
@@ -183,6 +184,7 @@ export function App() {
       <DbProvider>
         <SyncProvider>
           <WhoopProvider>
+            <Concept2Provider>
             <RestProvider>
           <NavigationContainer theme={theme}>
             <StatusBar style="light" />
@@ -210,6 +212,7 @@ export function App() {
             </Stack.Navigator>
               </NavigationContainer>
             </RestProvider>
+            </Concept2Provider>
           </WhoopProvider>
         </SyncProvider>
       </DbProvider>

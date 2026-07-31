@@ -17,9 +17,11 @@ export async function handler(event) {
     const response = authErrorResponse(error);
     return json(response.body, response.status);
   }
-  const [whoopToken, whoop] = await Promise.all([
+  const [whoopToken, whoop, concept2Token, concept2] = await Promise.all([
     loadToken('whoop', owner),
     loadData('whoop', owner),
+    loadToken('concept2', owner),
+    loadData('concept2', owner),
   ]);
   const normalized = whoop?.normalized && typeof whoop.normalized === 'object'
     ? {
@@ -33,7 +35,17 @@ export async function handler(event) {
         capturedAt: whoop.normalized.capturedAt || null,
       }
     : null;
+  // Concept2's stored snapshot can hold up to 500 normalized results, and this
+  // endpoint is a cheap poll — so status reports counts and timestamps only,
+  // and the full list stays behind concept2-sync's own response.
+  const concept2Results = Array.isArray(concept2?.normalized) ? concept2.normalized : [];
   return json({
     whoop: { connected: Boolean(whoopToken), lastSyncAt: whoop?.syncedAt || null, sampleDate: normalized?.date || null, normalized },
+    concept2: {
+      connected: Boolean(concept2Token),
+      lastSyncAt: concept2?.syncedAt || null,
+      resultCount: concept2Results.length,
+      latest: concept2Results[0]?.startedAt || null,
+    },
   });
 }

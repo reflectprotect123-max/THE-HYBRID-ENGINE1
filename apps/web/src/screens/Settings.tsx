@@ -3,6 +3,7 @@ import { conMaxHr, conZones, restingHr, restoreDb, todayRecovery, type Profile, 
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
+import { useConcept2 } from '../cloud/concept2';
 import { Button, Card, Kicker, ScreenTitle, SectionHead } from '../ui';
 import { humanizeError } from '../errors';
 
@@ -140,6 +141,7 @@ export function Settings() {
       <CloudCard />
       <CoachLinkCard />
       <WhoopCard />
+      <Concept2Card />
 
       <SectionHead title="Your data" />
       <Card className="flex flex-col gap-1">
@@ -365,6 +367,48 @@ function WhoopCard() {
             </p>
             <Button variant="brass" className="mt-1.5" onClick={connect}>
               Connect WHOOP
+            </Button>
+          </>
+        )}
+        {error ? <p className="mt-1 text-3 text-dim">{error}</p> : null}
+      </Card>
+    </>
+  );
+}
+
+/* Same shape as WhoopCard: connection only. The synced results themselves are
+   matched to conditioning sessions elsewhere — this card just owns the link. */
+function Concept2Card() {
+  const { connected, results, busy, error, lastSyncAt, connect, sync, disconnect } = useConcept2();
+  return (
+    <>
+      <SectionHead title="Concept2 Logbook" />
+      <Card>
+        {connected ? (
+          <>
+            <p className="num text-4 text-muted">
+              Connected{results.length ? ` · ${results.length} synced result${results.length === 1 ? '' : 's'}` : ' · no results synced yet'}
+            </p>
+            {lastSyncAt ? (
+              <p className="mt-1.5 text-3 text-dim">Last pulled {new Date(lastSyncAt).toLocaleString()}</p>
+            ) : null}
+            <div className="mt-1.5 flex gap-1">
+              <Button onClick={() => void sync()} disabled={busy}>
+                {busy ? 'Pulling…' : 'Pull now'}
+              </Button>
+              <Button variant="quiet" onClick={() => void disconnect()}>
+                Disconnect
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-4 text-muted">
+              Connect your Concept2 Logbook and rower, SkiErg and BikeErg sessions pull in with their real splits —
+              no re-typing what the erg already measured.
+            </p>
+            <Button variant="brass" className="mt-1.5" onClick={connect}>
+              Connect Concept2
             </Button>
           </>
         )}

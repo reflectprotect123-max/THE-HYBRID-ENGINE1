@@ -41,6 +41,8 @@ export const SITE_ORIGIN = env('VITE_SITE_ORIGIN') || 'https://thehybridengine1.
 export const FN = {
   whoopConnect: '/.netlify/functions/whoop-connect',
   whoopSync: '/.netlify/functions/whoop-sync',
+  concept2Connect: '/.netlify/functions/concept2-connect',
+  concept2Sync: '/.netlify/functions/concept2-sync',
   integrationsStatus: '/.netlify/functions/integrations-status',
   integrationsDisconnect: '/.netlify/functions/integrations-disconnect',
 } as const;

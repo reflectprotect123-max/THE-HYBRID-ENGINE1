@@ -3,6 +3,7 @@ import { DbProvider } from './store/db';
 import { RestProvider } from './store/rest';
 import { SyncProvider } from './cloud/sync';
 import { WhoopProvider } from './cloud/whoop';
+import { Concept2Provider } from './cloud/concept2';
 import { BottomNav } from './components/BottomNav';
 import { RestChip } from './components/RestChip';
 import { SaveAlert } from './components/SaveAlert';
@@ -42,6 +43,7 @@ export function App() {
       <SaveAlert />
       <SyncProvider>
         <WhoopProvider>
+          <Concept2Provider>
           <RestProvider>
             <BrowserRouter>
               <Routes>
@@ -65,6 +67,7 @@ export function App() {
               </Routes>
             </BrowserRouter>
           </RestProvider>
+          </Concept2Provider>
         </WhoopProvider>
       </SyncProvider>
     </DbProvider>
