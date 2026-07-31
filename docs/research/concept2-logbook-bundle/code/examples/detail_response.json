@@ -1,0 +1,41 @@
+{
+  "data": {
+    "id": 9,
+    "date": "2026-01-07 18:30:00",
+    "distance": 5000,
+    "type": "rower",
+    "time": 12000,
+    "calories_total": 300,
+    "metadata": {
+      "device": "PM5"
+    },
+    "workout": {
+      "splits": [
+        {
+          "time": 3000,
+          "distance": 887,
+          "calories_total": 43,
+          "stroke_rate": 25,
+          "heart_rate": {
+            "average": 125,
+            "min": 86,
+            "max": 139,
+            "ending": 136
+          }
+        }
+      ],
+      "intervals": [
+        {
+          "type": "time",
+          "time": 3000,
+          "distance": 887,
+          "rest_time": 0,
+          "rest_distance": 0,
+          "stroke_rate": 25,
+          "calories_total": 43
+        }
+      ]
+    }
+  },
+  "_fixture_status": "mocked_open_source_client_shape_not_live_capture"
+}

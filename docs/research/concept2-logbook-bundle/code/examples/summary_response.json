@@ -1,0 +1,33 @@
+{
+  "data": [
+    {
+      "id": 3,
+      "user_id": 1,
+      "date": "2013-06-21 00:00:00",
+      "timezone": null,
+      "date_utc": null,
+      "distance": 23000,
+      "type": "rower",
+      "time": 152350,
+      "time_formatted": "4:13:55.0",
+      "workout_type": "unknown",
+      "source": "Web",
+      "weight_class": "H",
+      "verified": false,
+      "ranked": false,
+      "comments": null,
+      "privacy": "partners"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 9,
+      "count": 9,
+      "per_page": 50,
+      "current_page": 1,
+      "total_pages": 1,
+      "links": []
+    }
+  },
+  "_fixture_status": "documentation_shaped_example_not_live_capture"
+}

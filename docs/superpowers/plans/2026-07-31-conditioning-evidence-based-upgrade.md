@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fold the conditioning-science research (docs/research/2026-07-30-conditioning-progression-science.md, docs/research/2026-07-31-conditioning-evidence-cross-reference.md) and the Echo Bike V3 FTMS connectivity research (docs/research/echo-v3-connectivity-bundle/) into the app: capture felt RPE (a real pre-existing gap), reweight the conditioning progression algorithm so short-interval formats use RPE/completed-work rather than HR-zone-time alone, add a modality tag (row/run/ski/bike/air_bike), add a cardio-vs-mechanical completion split, and connect to a Rogue Echo Bike V3 over BLE/FTMS for live telemetry.
+**Goal:** Fold the conditioning-science research (docs/research/2026-07-30-conditioning-progression-science.md, docs/research/2026-07-31-conditioning-evidence-cross-reference.md), the Echo Bike V3 FTMS connectivity research (docs/research/echo-v3-connectivity-bundle/), and the Concept2 Logbook API research (docs/research/concept2-logbook-bundle/) into the app: capture felt RPE (a real pre-existing gap), reweight the conditioning progression algorithm so short-interval formats use RPE/completed-work rather than HR-zone-time alone, add a modality tag (row/run/ski/bike/air_bike), add a cardio-vs-mechanical completion split, connect to a Rogue Echo Bike V3 over BLE/FTMS for live telemetry, and sync completed rowing/SkiErg results (with splits) from the Concept2 Logbook.
 
 **Architecture:** Engine-first (packages/engine): new optional fields on `CondBlock`/`CondResult`, a per-format-per-modality progression key, and a reweighted `conAdapt()` — all additive and backward-compatible with existing stored data (no field is required, absent modality means "general conditioning," exactly as today). Then UI work on both apps' `Conditioning.tsx`, reusing existing chip/RPE patterns. Then the Echo V3 FTMS adapter, ported from the already-verified starter code in `docs/research/echo-v3-connectivity-bundle/code/starter/typescript/echo-v3-ftms.ts` into `apps/web`, with a native-BLE equivalent for mobile.
 
@@ -14,7 +14,7 @@
 - Every new field on `CondBlock`/`CondResult` is optional. Absent modality/device/completion data must behave exactly as it does today — this is additive, not a migration.
 - `conAdapt()`'s existing behavior for `steady` (HR-zone-time gated) does not change. Only `intervals`/`tempo` (the short-interval formats) get the RPE-aware reweighting, per the explicit design decision: short work uses RPE, duration work uses HR.
 - Do not implement FTMS Control Point writes (target power/cadence/HR, start/stop-via-BLE). Read-only telemetry only, per the connectivity research's own recommendation — Echo-specific acceptance of control procedures is unverified.
-- Concept2 Logbook API integration (Phase 6) is explicitly NOT implemented against a guessed API shape. Its one task is a research gate: get the real, verified API contract before writing any OAuth/sync code. Do not invent endpoint paths or field names.
+- Concept2 Logbook integration (Phase 6) mirrors the existing WHOOP integration's architecture exactly — same generic `netlify/functions/_lib/oauth.mjs` (`loadToken`/`saveToken`/`syncRecord`/`newState`/`savePending`, already provider-keyed, not WHOOP-specific), same per-provider lib shape as `netlify/functions/_lib/whoop.mjs`, same three-function split (`*-connect.mjs`/`*-callback.mjs`/`*-sync.mjs`), same client-side Context/Provider shape as `apps/web/src/cloud/whoop.tsx`. Read those files before writing anything — this is an established, security-reviewed pattern (proper OAuth state, token refresh with rotation-safety, native-vs-browser dual path via Supabase identity, typed errors), not one to reinvent ad hoc. The API contract itself (endpoints, fields, scopes) is verified research, not a guess — see `docs/research/concept2-logbook-bundle/`.
 - Do not touch `apps/*/src/screens/Planner.tsx`, `screens/planner/*`, or the guided builder (`screens/guided/*`) — this plan is scoped to the live Conditioning screens and the engine.
 - Every new UI step must meet this app's existing touch-target rules: web 44×44px minimum, mobile 48×48dp minimum (via `Tap`'s `box` prop, matching established patterns — see `apps/mobile/src/ui.tsx`'s `Tap` component).
 
@@ -484,19 +484,174 @@ git commit -m "mobile: connect to a Rogue Echo Bike V3 over FTMS for live teleme
 
 ---
 
-## Phase 6: Concept2 Logbook integration — research gate first
+## Phase 6: Concept2 Logbook integration
 
-### Task 10: Verify the real Concept2 Logbook API contract before writing any integration code
+The API contract is verified research, not a guess — real endpoints, real
+documented response shapes, cross-checked against multiple independent
+working clients (`pyconcept2`, `concept2-mcp-server`, live integration
+reports from Intervals.icu and Browser Erg Analyzer). See
+`docs/research/concept2-logbook-bundle/RESEARCH_REPORT.md` for the full
+source-backed answer and `KNOWN_GAPS.md` for what still needs a real-account
+test. The bundle's own starter code (`code/src/concept2-api.mjs`,
+`code/src/sync.mjs`, `code/src/serverless-shape.mjs`) was independently
+verified in this session: its 6 contract tests were run and passed, and its
+three-function shape (`startConcept2OAuth`/`handleConcept2Callback`/
+`syncConcept2Account`) already maps directly onto this app's existing
+provider-agnostic OAuth plumbing.
 
-**Files:** none (research only — no code in this task)
+### Task 10: `_lib/concept2.mjs` — the provider module, mirroring `_lib/whoop.mjs`
 
-- [ ] **Step 1: Do not implement against a guessed API shape.** Neither this plan's author nor prior research in this project has independently verified Concept2's actual Logbook API endpoints, OAuth flow details, or split-data field names against live documentation — this environment's network access is blocked, so it hasn't been checked.
+**Files:**
+- Create: `netlify/functions/_lib/concept2.mjs`
+- Test: `netlify/functions/_lib/concept2.test.mjs` (check whether WHOOP's lib has a sibling test file with this naming; if the repo tests Netlify functions differently, follow whatever pattern already covers `_lib/whoop.mjs` instead of introducing a new one)
 
-- [ ] **Step 2: Get the real contract.** Either dispatch a scoped deep-research prompt (same pattern as `docs/research/2026-07-30-conditioning-progression-science.md`'s and the Echo Bike prompt's handoffs) asking specifically for: the OAuth2 authorization/token endpoints, the results-list endpoint and its exact response shape (especially the per-split fields: time, distance, pace, stroke rate, heart rate), rate limits, and whether SkiErg results come through the same endpoint as rowing results — or have the user supply Concept2's developer documentation directly.
+**Interfaces:**
+- Consumes: `_lib/config.mjs`'s `config`/`requireConfig` (same as WHOOP — add `concept2ClientId`/`concept2ClientSecret`/`concept2Callback` alongside the existing `whoop*` config keys).
+- Produces: `createConcept2AuthUrl(state)`, `exchangeConcept2Code(code)`, `refreshConcept2Token(refreshToken)`, `concept2Fetch(path, token, params?)`, `normalizeConcept2Result(result, opts)`, a `Concept2Error` class, `tokenNeedsRefresh`-equivalent (reuse WHOOP's if it's provider-agnostic — check before duplicating), `mergeConcept2Token`.
 
-- [ ] **Step 3: Once verified, write a follow-up plan** (a new plan doc, not an amendment to this one — this plan's scope ends here) for the actual OAuth-connect/callback/sync serverless functions, mirroring the existing WHOOP integration's shape (`whoop-connect`/`whoop-callback`/`whoop-sync` — read those functions first) and the Settings UI toggle pattern already established for WHOOP.
+- [ ] **Step 1: Read `_lib/whoop.mjs` in full before writing anything.** This task's job is to produce the Concept2-shaped twin of that file, not a fresh design — same error-class shape, same `requireConfig`/`nonEmptyString`/`timeoutSignal` conventions, same token-normalization approach (`normalizeTokenResponse`-equivalent using `expires_in`).
 
-- [ ] **Step 4: Report status.** This task's only deliverable is either a verified API contract handed off for a new plan, or an explicit "blocked, need the user to get this via ChatGPT deep research" status — not code.
+- [ ] **Step 2: Write failing tests first**, porting the bundle's own `docs/research/concept2-logbook-bundle/code/tests/contract.test.mjs` assertions (already verified passing standalone) into this repo's test conventions:
+
+```js
+test('posts the documented authorization-code form', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url: String(url), body: init.body.toString() });
+    return { ok: true, text: async () => JSON.stringify({ access_token: 'a', token_type: 'Bearer', expires_in: 604800, refresh_token: 'r' }) };
+  };
+  const token = await exchangeConcept2Code('CODE', { fetchImpl });
+  expect(calls[0].url).toBe('https://log.concept2.com/oauth/access_token');
+  expect(calls[0].body).toContain('grant_type=authorization_code');
+  expect(token.access_token).toBe('a');
+});
+
+test('treats a stroke 404 as valid summary-only data, not an error', async () => {
+  const fetchImpl = async () => ({ ok: false, status: 404, text: async () => '{"error":"no strokes"}' });
+  const strokes = await getConcept2Strokes('RESULT_ID', TOKEN, { fetchImpl });
+  expect(strokes).toBeNull();
+});
+```
+
+Run the test file — expect FAIL (module doesn't exist yet).
+
+- [ ] **Step 3: Implement `_lib/concept2.mjs`**, using `https://log.concept2.com` as the base, `/oauth/authorize` and `/oauth/access_token` for auth, `/api/users/me/results` (+ `{id}` and `{id}/strokes`) for data, `Accept: application/vnd.c2logbook.v1+json` on every API GET, and scopes `user:read,results:read` (comma-delimited per the documented format — do not use WHOOP's space-delimited convention here, they differ). Port `normalizeResult()`'s field mapping from the bundle's `concept2-api.mjs` (Task 10's research already verified this against the official documented shape). Treat a 404 from the strokes endpoint as "no stroke data" (return `null`), not a thrown error — this is documented, expected behavior for summary-only/manually-entered results, confirmed in `KNOWN_GAPS.md`.
+
+- [ ] **Step 4: Run tests, verify pass.** Run the engine/functions test command this repo actually uses for `netlify/functions/_lib/*` (check `package.json` — likely the same Vitest/Node test runner as elsewhere).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add netlify/functions/_lib/concept2.mjs netlify/functions/_lib/concept2.test.mjs
+git commit -m "netlify: Concept2 Logbook provider module, mirroring the WHOOP integration"
+```
+
+---
+
+### Task 11: `concept2-connect`/`concept2-callback`/`concept2-sync` functions
+
+**Files:**
+- Create: `netlify/functions/concept2-connect.mjs`
+- Create: `netlify/functions/concept2-callback.mjs`
+- Create: `netlify/functions/concept2-sync.mjs`
+
+**Interfaces:**
+- Consumes: `_lib/concept2.mjs` (Task 10), `_lib/oauth.mjs`'s `newState`/`savePending`/`loadToken`/`saveToken`/`syncRecord` (already provider-agnostic — confirm by reading `_lib/oauth.mjs` before assuming), `_lib/identity.mjs`'s `ownerFromEvent`, `_lib/session.mjs`, `_lib/store.mjs`'s `connectNetlifyBlobs`.
+
+- [ ] **Step 1: Read `whoop-connect.mjs`, `whoop-callback.mjs`, and `whoop-sync.mjs` in full.** These three files are the exact shape to reproduce, with `'whoop'` replaced by `'concept2'` as the provider key passed to `_lib/oauth.mjs`'s functions, and `_lib/whoop.mjs`'s calls replaced with `_lib/concept2.mjs`'s equivalents. Preserve the native-vs-browser dual path (`?client=native`), the `state` CSRF protection, and the token-rotation-safe refresh logic (`refreshWithoutDiscardingRotation`'s pattern in `whoop-sync.mjs`) exactly — these exist for real security reasons documented in those files' own comments, not incidental style.
+
+- [ ] **Step 2: Write `concept2-connect.mjs`**, structurally identical to `whoop-connect.mjs`.
+
+- [ ] **Step 3: Write `concept2-callback.mjs`**, structurally identical to `whoop-callback.mjs` (read it — not shown in this plan's research, but Task 9's file list confirms it exists at `netlify/functions/whoop-callback.mjs`).
+
+- [ ] **Step 4: Write `concept2-sync.mjs`**, structurally identical to `whoop-sync.mjs`, but calling `listConcept2Results`/`getConcept2Result`/`getConcept2Strokes` and normalizing via Task 10's `normalizeConcept2Result`. Use `updated_after` (not a fixed lookback window) for regular syncs once a prior sync timestamp exists, falling back to a first-sync backfill window (e.g. `from` = 90 days back) — mirroring WHOOP sync's own regular-vs-backfill distinction (`REGULAR_SYNC_HISTORY_DAYS` vs `BACKFILL_SYNC_HISTORY_DAYS`).
+
+- [ ] **Step 5: Add the required config keys** (`concept2ClientId`, `concept2ClientSecret`, `concept2Callback`) to `_lib/config.mjs`, matching how `whoopClientId`/`whoopClientSecret`/`whoopCallback` are declared there.
+
+- [ ] **Step 6: Typecheck/lint whatever this repo runs for Netlify functions** (check root `package.json` scripts — there may not be a dedicated typecheck for `.mjs` functions; if not, a syntax-level `node --check` on each new file is the minimum bar).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add netlify/functions/concept2-connect.mjs netlify/functions/concept2-callback.mjs netlify/functions/concept2-sync.mjs netlify/functions/_lib/config.mjs
+git commit -m "netlify: Concept2 OAuth connect/callback/sync functions"
+```
+
+---
+
+### Task 12: Client-side Concept2 provider + Settings connect button (both platforms)
+
+**Files:**
+- Create: `apps/web/src/cloud/concept2.tsx`
+- Create: `apps/mobile/src/cloud/concept2.tsx` (check whether mobile has a `cloud/whoop.tsx` equivalent first — mirror it; if mobile's WHOOP integration lives somewhere else, follow that location instead)
+- Modify: `apps/web/src/screens/Settings.tsx`, `apps/mobile/src/screens/Settings.tsx` (add a "Connect Concept2" control alongside the existing WHOOP one)
+- Modify: wherever the app's top-level provider tree is assembled (find where `WhoopProvider` is mounted — likely `App.tsx` on both platforms — and add `Concept2Provider` alongside it)
+
+**Interfaces:**
+- Produces: `Concept2Provider`, `useConcept2()` — same shape as `WhoopProvider`/`useWhoop()` (`connected`, `busy`, `error`, `connect()`, `sync()`, `disconnect()`).
+
+- [ ] **Step 1: Read `apps/web/src/cloud/whoop.tsx` in full.** Reproduce its Context/Provider/hook shape exactly, swapping WHOOP's endpoint paths and sample-data shape for Concept2's (a list of recent results with modality/`type`, distance, time, and — when present — splits).
+
+- [ ] **Step 2: Wire the provider into the app root**, mirroring wherever `WhoopProvider` is mounted today.
+
+- [ ] **Step 3: Add a "Connect Concept2" button to Settings**, next to the existing WHOOP control, following that control's exact layout/copy conventions.
+
+- [ ] **Step 4: Typecheck + build web; typecheck mobile.**
+
+Run: `pnpm --filter @hybrid/web typecheck && pnpm --filter @hybrid/web build && pnpm --filter @hybrid/mobile typecheck`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/cloud/concept2.tsx apps/mobile/src/cloud/concept2.tsx apps/web/src/screens/Settings.tsx apps/mobile/src/screens/Settings.tsx
+git commit -m "apps: Concept2 connect UI, mirroring the WHOOP settings control"
+```
+
+---
+
+### Task 13: Attach synced Concept2 results to rowing/ski conditioning blocks
+
+**Files:**
+- Modify: `packages/engine/src/conditioning.ts` or a new `packages/engine/src/concept2.ts` (implementer's judgment — follow whichever pattern keeps `conditioning.ts` from growing unwieldy, matching this repo's established preference for splitting a file once it's doing too much)
+- Test: corresponding test file
+
+**Interfaces:**
+- Consumes: normalized Concept2 results from Task 11's sync (`modality`, `startedAt`, `durationRaw`, `distanceRaw`, `workout.splits`).
+- Produces: a pure function matching a synced result to the right `CondBlock`/session by time proximity, and mapping split data onto `CondResult`'s existing `zsec`/new `device` fields.
+
+- [ ] **Step 1: Write the failing test** for a pure `matchConcept2Result(result, sessions)` function: given a synced result's `startedAt` and a list of the athlete's sessions with rowing/ski `CondBlock`s, return the best time-proximity match within a reasonable window (e.g. ±2 hours), or `null` if nothing's close enough — same idea as how a live conditioning run already matches `sinkBid`/`sinkBi` to a block, just matching by time instead of an explicit ID since a Concept2-logged row didn't originate from this app's own "Start" button.
+
+- [ ] **Step 2: Implement it**, and a second pure function converting a normalized Concept2 result's `workout.splits` into whatever shape is most useful downstream — at minimum, store the raw `splits` array on `CondResult` alongside `device = { manufacturer: 'Concept2', model: <inferred from modality>, consoleMetric: 'pace' }`, since (per both evidence bundles) a Concept2 split's pace is meaningfully comparable across sessions and even machines, unlike air-bike watts.
+
+- [ ] **Step 3: Run tests, verify pass. Run the full engine suite, confirm golden 33/33 stays untouched.**
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/engine/src/conditioning.ts packages/engine/test/conditioning.test.ts
+git commit -m "engine: match synced Concept2 results to rowing/ski conditioning blocks"
+```
+
+---
+
+### Task 14: Concept2 contract check
+
+**Files:**
+- Create: `checks/concept2-contract.mjs`, mirroring `checks/whoop-contract.mjs`'s structure (source-scan-based static checks — read that file first for its exact pattern before writing a new one)
+- Modify: root `package.json`'s `verify` script or wherever `whoop-contract` is currently invoked, to add the new check alongside it
+
+- [ ] **Step 1: Read `checks/whoop-contract.mjs` in full**, then write the Concept2 equivalent checking for the same class of thing (correct scopes used, correct endpoint hosts referenced, no secrets logged, webhook/HMAC handling present if implemented, error responses shaped correctly) adapted to Concept2's actual contract from Task 10-13's implementation.
+
+- [ ] **Step 2: Run it, confirm it passes against the real implementation.**
+
+Run: `node checks/concept2-contract.mjs`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add checks/concept2-contract.mjs package.json
+git commit -m "checks: add a Concept2 integration contract check"
+```
 
 ---
 
@@ -505,5 +660,5 @@ git commit -m "mobile: connect to a Rogue Echo Bike V3 over FTMS for live teleme
 **Files:** none (verification only)
 
 - [ ] **Step 1:** Run `pnpm run verify` — typecheck, full test suite (engine incl. golden 33/33, zero fixtures touched), build, CSP, web smoke, deploy smoke all green.
-- [ ] **Step 2:** Confirm `git diff --stat` against the base commit touches only the files listed across Tasks 1-9 (Task 10 makes no code changes).
-- [ ] **Step 3:** Report back: what shipped, what's manual-verification-required (Echo V3 hardware test per `known_gaps.md`), and that Concept2 integration is deliberately deferred pending the Task 10 research gate.
+- [ ] **Step 2:** Confirm `git diff --stat` against the base commit touches only the files listed across Tasks 1-14.
+- [ ] **Step 3:** Report back: what shipped, and what's manual-verification-required before either integration is trusted in production — the Echo V3 physical-device test plan (`docs/research/echo-v3-connectivity-bundle/evidence/known_gaps.md`) and the Concept2 real-account fixture checklist (`docs/research/concept2-logbook-bundle/KNOWN_GAPS.md`), neither of which can be satisfied without the real hardware/account in hand.

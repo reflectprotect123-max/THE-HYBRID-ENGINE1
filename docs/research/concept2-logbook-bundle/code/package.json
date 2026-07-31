@@ -1,0 +1,8 @@
+{
+  "name": "concept2-logbook-starter",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

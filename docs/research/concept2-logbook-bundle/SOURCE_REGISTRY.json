@@ -1,0 +1,168 @@
+{
+  "prepared": "2026-07-31",
+  "notes": [
+    "Official sources establish the contract where available.",
+    "Open-source projects corroborate implementation shape but are not normative.",
+    "Community reports are behaviour evidence only.",
+    "Claims marked no_current_source_found are intentionally unresolved."
+  ],
+  "sources": [
+    {
+      "id": "C2-OFFICIAL-DOCS",
+      "class": "official",
+      "title": "Concept2 Developer Documentation",
+      "url": "https://log.concept2.com/developers/documentation/",
+      "supports": [
+        "OAuth authorization and token endpoints",
+        "grant types and scopes",
+        "result list/detail/stroke endpoints",
+        "pagination and filters",
+        "workout/split/interval schema",
+        "webhook events",
+        "rate-limit wording"
+      ],
+      "confidence": "primary"
+    },
+    {
+      "id": "C2-OFFICIAL-KEYS",
+      "class": "official",
+      "title": "Concept2 API Keys Portal",
+      "url": "https://log.concept2.com/developers/keys",
+      "supports": ["developer app registration location", "client credentials management"],
+      "confidence": "primary"
+    },
+    {
+      "id": "C2-OFFICIAL-HOME",
+      "class": "official",
+      "title": "Concept2 Developer Home",
+      "url": "https://log.concept2.com/developers/home",
+      "supports": ["developer portal context"],
+      "confidence": "primary"
+    },
+    {
+      "id": "C2-OFFICIAL-TERMS",
+      "class": "official",
+      "title": "Concept2 Logbook Terms",
+      "url": "https://log.concept2.com/terms",
+      "supports": ["commercial-use consent wording", "load/abuse restrictions"],
+      "confidence": "primary"
+    },
+    {
+      "id": "C2-SOFTWARE",
+      "class": "official",
+      "title": "Concept2 Software Development Resources",
+      "url": "https://www.concept2.com/support/software-development",
+      "supports": ["PM5 and software integration context", "distinction from Logbook API"],
+      "confidence": "primary"
+    },
+    {
+      "id": "C2-ERGDATA",
+      "class": "official",
+      "title": "Concept2 ErgData",
+      "url": "https://www.concept2.com/ergdata",
+      "supports": ["PM5 workout capture and Logbook sync context"],
+      "confidence": "primary"
+    },
+    {
+      "id": "C2-PRIVACY",
+      "class": "official",
+      "title": "Concept2 Privacy Policy",
+      "url": "https://www.concept2.com/privacy",
+      "supports": ["health-data/privacy consideration for heart rate"],
+      "confidence": "primary"
+    },
+    {
+      "id": "C2-PM5",
+      "class": "official",
+      "title": "Concept2 PM5 support documentation",
+      "url": "https://www.concept2.com/support/monitors/pm5/how-to-use",
+      "supports": ["PM5 machine/workout context"],
+      "confidence": "primary"
+    },
+    {
+      "id": "C2-PYCONCEPT2",
+      "class": "implementation",
+      "title": "pyconcept2 GitHub repository",
+      "url": "https://github.com/gickowtf/pyconcept2",
+      "supports": ["current Python client scope", "read-only implementation context"],
+      "confidence": "corroborating",
+      "reuse_note": "Check repository licence and current revision before reuse."
+    },
+    {
+      "id": "C2-PYCONCEPT2-CLIENT",
+      "class": "implementation",
+      "title": "pyconcept2 client source",
+      "url": "https://github.com/gickowtf/pyconcept2/blob/main/src/pyconcept2/client.py",
+      "supports": ["result/detail/strokes/export paths", "pagination client shape"],
+      "confidence": "corroborating"
+    },
+    {
+      "id": "C2-PYCONCEPT2-MODELS",
+      "class": "implementation",
+      "title": "pyconcept2 models source",
+      "url": "https://github.com/gickowtf/pyconcept2/blob/main/src/pyconcept2/models.py",
+      "supports": ["modeled workout/splits/intervals/strokes shape", "tolerant field interpretation"],
+      "confidence": "corroborating"
+    },
+    {
+      "id": "C2-PYCONCEPT2-TEST",
+      "class": "implementation",
+      "title": "pyconcept2 test fixture",
+      "url": "https://github.com/gickowtf/pyconcept2/blob/main/tests/test_client.py",
+      "supports": ["mocked detailed-result fixture with workout and strokes"],
+      "confidence": "corroborating_mocked_fixture"
+    },
+    {
+      "id": "C2-MCP",
+      "class": "implementation",
+      "title": "Concept2 MCP server",
+      "url": "https://github.com/aaronarnold2/concept2-mcp-server",
+      "supports": ["OAuth and result/stroke/export tool implementation evidence"],
+      "confidence": "low_to_medium",
+      "reuse_note": "Low-maturity corroboration; follow official scope formatting."
+    },
+    {
+      "id": "C2-OPENROWING",
+      "class": "implementation",
+      "title": "OpenRowing Community c2logbook",
+      "url": "https://github.com/OpenRowingCommunity/c2logbook",
+      "supports": ["OAuth development/production domain model"],
+      "confidence": "corroborating_incomplete"
+    },
+    {
+      "id": "C2-INTERVALS",
+      "class": "community_integration",
+      "title": "Intervals.icu Concept2 integration discussion",
+      "url": "https://forum.intervals.icu/t/wip-need-tester-integration-with-concept2-logbook/31908?page=2",
+      "supports": ["2025 real-world OAuth use", "reports of incomplete/truncated workout data"],
+      "confidence": "community"
+    },
+    {
+      "id": "C2-ERG-ANALYZER",
+      "class": "community_integration",
+      "title": "Browser Erg Analyzer Concept2 import discussion",
+      "url": "https://www.reddit.com/r/concept2/comments/1rus3xs/concept2_rowing_analyzer_tool_now_pulls_directly/",
+      "supports": ["browser Logbook authentication/import", "stroke-data availability caveat"],
+      "confidence": "community"
+    },
+    {
+      "id": "C2-SECURITY-REPORT",
+      "class": "independent_report",
+      "title": "Concept2 Logbook access-control report",
+      "url": "https://khevans.com/2024/01/22/concept2-logbook-safety.html",
+      "supports": ["historical access-control issue and defensive use of me/scopes"],
+      "confidence": "secondary_historical",
+      "note": "Not evidence of a current vulnerability."
+    }
+  ],
+  "unresolved_source_questions": [
+    "PKCE support",
+    "read-only approval timing",
+    "HTTP Basic token authentication",
+    "webhook registration path",
+    "webhook authentication/signatures/retries",
+    "guaranteed nested workout detail shape",
+    "public live Logbook stream",
+    "API v2/deprecation/migration status"
+  ]
+}

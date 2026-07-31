@@ -1,0 +1,12 @@
+{
+  "data": [
+    {
+      "t": 1,
+      "d": 10,
+      "p": 500,
+      "spm": 24,
+      "hr": 140
+    }
+  ],
+  "_fixture_status": "documentation_shaped_example_not_live_capture"
+}
