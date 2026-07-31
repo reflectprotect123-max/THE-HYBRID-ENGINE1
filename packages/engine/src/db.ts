@@ -77,6 +77,16 @@ export function sanitizeDB(d: unknown): EngineDB {
       if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
       out[k] = (s as Record<string, unknown>)[k];
     }
+    // `conditioning` is read by condEfforts/datedEfforts/pushCondHistory with
+    // no per-record guard (unlike insights.ts), so a null/non-object entry —
+    // reachable via backup restore in 'replace' mode or a stale local blob —
+    // crashes those reads. Drop anything that isn't a real record; this is
+    // the same shape mergeSettings already enforces on its own merge path.
+    if (Array.isArray(out.conditioning)) {
+      out.conditioning = (out.conditioning as unknown[]).filter(
+        (r) => r != null && typeof r === 'object' && !Array.isArray(r),
+      );
+    }
     return out as Settings;
   };
 

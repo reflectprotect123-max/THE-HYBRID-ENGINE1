@@ -18,8 +18,23 @@ describe('condEffort prototype guard', () => {
   });
 });
 
-import { cardioCompletionFor, progressionKey } from '../src/conditioning';
+import { cardioCompletionFor, progressionKey, pushCondHistory } from '../src/conditioning';
+import { sanitizeDB } from '../src/db';
 import type { CondBlock, CondResult, Modality } from '../src/types';
+
+describe('pushCondHistory survives a poisoned settings.conditioning array', () => {
+  it('does not throw sorting past a null/garbage entry once sanitizeDB has run, and keeps the good ones plus the new record', () => {
+    // Same reachability as the balance.ts crash: a backup restore (replace
+    // mode) or stale local blob carries a settings.conditioning array with a
+    // null/non-object entry through to this consumer, which used to throw on
+    // `list.sort` reading `.startedAt`.
+    const db = sanitizeDB({ settings: { conditioning: [null, 'garbage', { id: 'c1', startedAt: 100 }, 42] } });
+    const rec: CondResult = { id: 'new', startedAt: 999 };
+    expect(() => pushCondHistory(db.settings, rec)).not.toThrow();
+    const list = pushCondHistory(db.settings, rec);
+    expect(list).toEqual([{ id: 'c1', startedAt: 100 }, rec]);
+  });
+});
 
 test('progressionKey is just the format when modality is absent', () => {
   expect(progressionKey('intervals', undefined)).toBe('intervals');

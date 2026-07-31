@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { loadBalance } from '../src/balance';
+import { condEfforts, loadBalance } from '../src/balance';
+import { sanitizeDB } from '../src/db';
 import type { CondResult, Session, Settings } from '../src/types';
 
 /*
@@ -200,5 +201,22 @@ describe('loadBalance — is one side costing the other', () => {
     const settings = { conditioning: 'nonsense' } as unknown as Settings;
     expect(() => loadBalance(bothWindowLifts(0), settings, { now: NOW })).not.toThrow();
     expect(loadBalance(bothWindowLifts(0), settings, { now: NOW })).toBeNull();
+  });
+
+  it('survives the investigation repro: a settings.conditioning array poisoned via sanitizeDB', () => {
+    // Reachable via backup restore (replace mode) and stale local blobs — a
+    // null/non-object entry inside settings.conditioning used to survive
+    // sanitizeDB untouched, then crash datedEfforts reading `.startedAt` off
+    // it. This is the exact Progress-screen crash from the investigation.
+    const good = run(10, 30);
+    const db = sanitizeDB({ settings: { conditioning: [null, 'garbage', good, 42] } });
+    expect(() => loadBalance(bothWindowLifts(0), db.settings, { now: NOW })).not.toThrow();
+  });
+
+  it('condEfforts skips null/garbage entries in settings.conditioning instead of throwing', () => {
+    const good = run(10, 30);
+    const db = sanitizeDB({ settings: { conditioning: [null, 'garbage', good, 42] } });
+    expect(() => condEfforts([], db.settings)).not.toThrow();
+    expect(condEfforts([], db.settings)).toEqual([good]);
   });
 });

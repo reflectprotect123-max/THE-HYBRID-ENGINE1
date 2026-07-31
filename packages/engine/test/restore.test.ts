@@ -85,6 +85,17 @@ describe('restoreDb', () => {
     expect(Array.isArray(out.workouts[1].blocks)).toBe(true);
   });
 
+  it('drops non-object entries from settings.conditioning, keeping the valid record', () => {
+    // A backup restore in 'replace' mode (or a stale local blob) can carry a
+    // poisoned settings.conditioning array straight through sanitizeDB — which
+    // then crashes condEfforts/datedEfforts/pushCondHistory on the null/number
+    // entries. sanitizeDB is the trust boundary, so it should scrub these.
+    const out = sanitizeDB({
+      settings: { conditioning: [null, 'garbage', { id: 'c1', startedAt: 123 }, 42] },
+    });
+    expect(out.settings.conditioning).toEqual([{ id: 'c1', startedAt: 123 }]);
+  });
+
   it('a __proto__ key in restored settings cannot wipe the library', () => {
     const cur = sanitizeDB({
       workouts: [{ id: 'w1', name: 'A', updatedAt: 1, blocks: [] }],
