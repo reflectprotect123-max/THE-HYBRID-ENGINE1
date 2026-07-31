@@ -21,6 +21,7 @@ import {
   type Phase,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { connectEchoV3, type EchoV3Connection, type EchoV3Event } from '../native/echoV3';
 import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
 
 /*
@@ -67,9 +68,27 @@ const RUN: {
   elapsed: number;
   bpm: number | null;
   samples: HrSample[];
+  /** Live Echo Bike V3 telemetry, same lifecycle as `bpm`: written by the
+   *  module's FTMS subscription, sampled once a second by runTick, drawn by
+   *  whichever screen is mounted. Null until the bike has reported. */
+  power_w: number | null;
+  cadence_rpm: number | null;
+  /** FTMS Total Distance is cumulative from the console's own session, so it
+   *  is displayed live but never banked as the run's distance. */
+  distance_m: number | null;
+  /** 1Hz power/cadence samples banked by runTick while a bike is reporting,
+   *  averaged into the record at finish(). */
+  powerSamples: number[];
+  cadenceSamples: number[];
+  /** The open Echo V3 link, held at module scope like the run itself so a
+   *  mid-run hop to Home doesn't drop the bike. Null when not connected. */
+  echo: EchoV3Connection | null;
   timer: number | null;
   /** The mounted screen, when there is one, so beats reach the ring. */
   onBpm: ((n: number) => void) | null;
+  /** The mounted screen's redraw poke for bike telemetry. The values live on
+   *  RUN (they must survive unmount); this only tells React to re-read them. */
+  onFtms: (() => void) | null;
   /** Where the result belongs, captured at start() so it survives a mid-run
    *  hop to Home and back — the launching URL's query params do not. */
   sinkBid: string;
@@ -91,8 +110,15 @@ const RUN: {
   elapsed: 0,
   bpm: null,
   samples: [],
+  power_w: null,
+  cadence_rpm: null,
+  distance_m: null,
+  powerSamples: [],
+  cadenceSamples: [],
+  echo: null,
   timer: null,
   onBpm: null,
+  onFtms: null,
   sinkBid: '',
   sinkBi: -1,
   pending: null,
@@ -102,6 +128,45 @@ function runTick() {
   const t = Math.floor((Date.now() - RUN.startedAt) / 1000);
   RUN.elapsed = t;
   if (RUN.bpm != null) RUN.samples.push({ t, bpm: RUN.bpm });
+  if (RUN.power_w != null) RUN.powerSamples.push(RUN.power_w);
+  if (RUN.cadence_rpm != null) RUN.cadenceSamples.push(RUN.cadence_rpm);
+}
+
+/**
+ * FTMS Indoor Bike Data notifications land here. Fields are flag-gated per
+ * notification, so each is kept only when present — a frame that carries only
+ * cadence must not wipe the last known power.
+ */
+function onEchoEvent(ev: EchoV3Event) {
+  if (ev.power_w != null) RUN.power_w = ev.power_w;
+  if (ev.cadence_rpm != null) RUN.cadence_rpm = ev.cadence_rpm;
+  if (ev.distance_m != null) RUN.distance_m = ev.distance_m;
+  RUN.onFtms?.();
+}
+
+/**
+ * Manual, gesture-driven connect — Web Bluetooth's chooser needs a user
+ * gesture, and unlike the HR strap this cannot ride the Start tap because two
+ * device choosers cannot share one gesture. Module scope for the same reason
+ * as connectStrap's subscription: the link must outlive the screen.
+ */
+async function connectEcho(): Promise<void> {
+  if (RUN.echo) return;
+  try {
+    RUN.echo = await connectEchoV3(onEchoEvent, () => {
+      // Link loss: stop showing stale numbers, but keep any banked samples —
+      // the ride up to the drop really happened.
+      RUN.echo = null;
+      RUN.power_w = null;
+      RUN.cadence_rpm = null;
+      RUN.distance_m = null;
+      RUN.onFtms?.();
+    });
+    RUN.onFtms?.();
+  } catch {
+    // Refused, unsupported, or no bike in range. The session still runs — it
+    // just banks no bike telemetry, same policy as a missing strap.
+  }
 }
 
 export function Conditioning() {
@@ -138,6 +203,9 @@ export function Conditioning() {
   // RUN is module state, so mutating RUN.pending.felt doesn't re-render on
   // its own — submitFelt() bumps this to advance to the second question.
   const [, setQuestionV] = useState(0);
+  // Same again for bike telemetry: the values live on RUN, this only makes
+  // React re-read them when a notification (or connect/drop) lands.
+  const [, setFtmsV] = useState(0);
 
   const setFmt = (k: CondFmtKey) => {
     RUN.fmt = k;
@@ -151,8 +219,10 @@ export function Conditioning() {
   // banked, for exactly the athletes who own the hardware.
   useEffect(() => {
     RUN.onBpm = setBpm;
+    RUN.onFtms = () => setFtmsV((v) => v + 1);
     return () => {
       RUN.onBpm = null;
+      RUN.onFtms = null;
     };
   }, []);
 
@@ -186,6 +256,8 @@ export function Conditioning() {
     // the rating chips are up (the setup screen is hidden), but cheap to pin.
     RUN.pending = null;
     RUN.samples = [];
+    RUN.powerSamples = [];
+    RUN.cadenceSamples = [];
     RUN.bpm = null;
     RUN.startedAt = Date.now();
     RUN.elapsed = 0;
@@ -216,6 +288,8 @@ export function Conditioning() {
     // session and (with the no-data guard) still counts as time on the clock.
     if (RUN.elapsed < MIN_LOGGABLE_SEC) {
       RUN.samples = [];
+      RUN.powerSamples = [];
+      RUN.cadenceSamples = [];
       RUN.elapsed = 0;
       setElapsed(0);
       setResult(null);
@@ -237,6 +311,20 @@ export function Conditioning() {
       hrr: conHrr(trace).hrr,
       trace,
     };
+    // A run with Echo V3 telemetry is an air-bike session and says so. The
+    // modality tag is what routes it into the per-format-per-modality
+    // progression bucket (progressionKey) instead of the bare-format one, and
+    // the device identity is stored with the result because air-bike output is
+    // not portable across devices — a same-device baseline needs to know what
+    // produced the numbers. Banked samples count even if the link dropped
+    // mid-run (RUN.echo is null then): the ride up to the drop happened.
+    if (RUN.echo != null || RUN.powerSamples.length > 0 || RUN.cadenceSamples.length > 0) {
+      rec.modality = 'air_bike';
+      rec.device = { manufacturer: 'Rogue', model: 'Echo Bike', generation: 'V3.0' };
+      const avg = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+      if (RUN.powerSamples.length > 0) rec.avgPowerW = avg(RUN.powerSamples);
+      if (RUN.cadenceSamples.length > 0) rec.avgCadenceRpm = avg(RUN.cadenceSamples);
+    }
     // Don't bank it yet — ask how it felt, then whether the work was
     // mechanically completed. submitMechanical() finishes the job.
     RUN.pending = rec;
@@ -341,6 +429,19 @@ export function Conditioning() {
           <Button variant="brass" size="lg" className="mt-3 w-full" onClick={start}>
             Start
           </Button>
+          {/* Manual, not gated on the block's modality: nothing in the app
+              sets CondBlock.modality ahead of a session, so a gate would
+              simply never show the control. Start's tap handles the HR strap;
+              the bike's chooser needs its own gesture. */}
+          {RUN.echo ? (
+            <p className="mt-1 text-center text-3 text-dim">
+              Echo Bike connected{RUN.echo.device.name ? ` · ${RUN.echo.device.name}` : ''}
+            </p>
+          ) : (
+            <Button className="mt-1 w-full" onClick={() => void connectEcho()}>
+              Connect Echo Bike
+            </Button>
+          )}
         </>
       ) : null}
 
@@ -374,6 +475,17 @@ export function Conditioning() {
                   {phaseNow.p.name} · {fmtClock(phaseNow.p.dur - phaseNow.into)} left
                 </p>
               ) : null}
+              {RUN.power_w != null || RUN.cadence_rpm != null || RUN.distance_m != null ? (
+                <p className="num mt-1 text-4 text-muted">
+                  {[
+                    RUN.power_w != null ? `${Math.round(RUN.power_w)}W` : null,
+                    RUN.cadence_rpm != null ? `${Math.round(RUN.cadence_rpm)}rpm` : null,
+                    RUN.distance_m != null ? `${(RUN.distance_m / 1000).toFixed(1)}km` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              ) : null}
             </div>
           </Card>
 
@@ -384,6 +496,11 @@ export function Conditioning() {
             <p className="mt-1 text-center text-3 text-dim">
               Runs under {MIN_LOGGABLE_SEC}s are discarded, not logged.
             </p>
+          ) : null}
+          {!RUN.echo ? (
+            <Button className="mt-1 w-full" onClick={() => void connectEcho()}>
+              Connect Echo Bike
+            </Button>
           ) : null}
         </>
       ) : null}
