@@ -16,6 +16,7 @@ export * from './plates';
 export * from './hr';
 export * from './geo';
 export * from './conditioning';
+export * from './concept2';
 export * from './session';
 export * from './lift';
 export * from './balance';

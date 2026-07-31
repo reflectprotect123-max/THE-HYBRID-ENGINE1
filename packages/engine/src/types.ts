@@ -216,6 +216,13 @@ export interface CondResult {
   /** Live FTMS telemetry, when the session came from a connected device. */
   avgPowerW?: number;
   avgCadenceRpm?: number;
+  /**
+   * Raw per-split data carried through from a synced Concept2 result's
+   * `workout.splits`, untouched — this app does not yet derive anything from
+   * split-level detail, but drops it on the floor would throw away real data
+   * a future feature could use. See `concept2ToCondResult` in `concept2.ts`.
+   */
+  splits?: unknown[];
 }
 
 export interface Downsampled {
