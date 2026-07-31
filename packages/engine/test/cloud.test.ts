@@ -279,7 +279,10 @@ describe('coachDigest', () => {
     expect(s.setsTotal).toBe(2);
     expect(s.minutes).toBe(45);
     expect(s.exercises).toEqual(['Squat']);
-    expect(s.rpeFelt).toBe(9);
+    // Squat's one done set felt '9' and the conditioning block's banked
+    // result felt '8' — sessionRpe now folds a conditioning block's felt
+    // into the average (session.ts sessionRpe fix), so 8.5, not 9 alone.
+    expect(s.rpeFelt).toBe(8.5);
   });
 
   it('publishes conditioning and WHOOP as their own top-level arrays', () => {

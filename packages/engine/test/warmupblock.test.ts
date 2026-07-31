@@ -9,7 +9,7 @@ import {
   sessionVolume,
 } from '../src/session';
 import { liftMoves } from '../src/lift';
-import type { LoggedSet, Session, StrengthBlock } from '../src/types';
+import type { CondBlock, LoggedSet, Session, StrengthBlock } from '../src/types';
 
 /*
  * A whole block of prep.
@@ -124,5 +124,71 @@ describe('rpeGapInfo excludes a warm-up BLOCK (E4)', () => {
     const s = twoBlockSess(rated('5', '8'), rated('5', '5'));
     const info = rpeGapInfo([s], Date.parse('2026-01-02T19:00:00Z'));
     expect(info).toEqual({ gap: 3, date: '2026-01-02', n: 1 });
+  });
+});
+
+/*
+ * sessionRpe folds a conditioning block's banked felt RPE into the felt
+ * average (it previously only ever walked `blockExercises(b)`, which is
+ * always `[]` for a CondBlock — a conditioning-only or hybrid session's felt
+ * effort silently never counted).
+ *
+ * Target is deliberately NOT pulled from the conditioning side: `condResult`
+ * only ever carries `targetRpe` as a coach-authored BAND CENTER (e.g.
+ * "Hard" = RPE 8-9.5, center 8.5 — see CON_EFFORTS), not a single number
+ * aimed at the way a strength set's own `rpe` is. Averaging a band midpoint
+ * into a set-level target average would conflate two different kinds of
+ * number, and it would also retroactively change `sessionRpe`'s `target` for
+ * every already-recorded conditioning result that carries a `targetRpe` —
+ * which golden's own session fixture (`s2`, a conditioning block with
+ * `targetRpe: 8.5`) proves happens on a real, previously-harvested input, not
+ * just a hypothetical one. So only `felt` is contributed for a conditioning
+ * block.
+ */
+const condBlock = (felt?: string): CondBlock => ({
+  id: 'c',
+  kind: 'conditioning',
+  condFmt: 'intervals',
+  condResult: felt == null ? {} : { felt },
+});
+
+describe('sessionRpe folds in a conditioning block’s felt RPE', () => {
+  it('averages a rated strength set (felt 7) with a conditioning block (felt 9) to felt 8', () => {
+    const s: Session = {
+      id: 's',
+      date: '2026-01-02',
+      status: 'completed',
+      completedAt: Date.parse('2026-01-02T18:00:00Z'),
+      blocks: [
+        {
+          id: 'main',
+          exercises: [{ id: 'e1', name: 'Bench press', mode: 'reps_kg', sets: [rated('7', '7')] }],
+        },
+        condBlock('9'),
+      ],
+    } as unknown as Session;
+    expect(sessionRpe(s)).toEqual({ target: 7, felt: 8 });
+  });
+
+  it('a conditioning block with no felt rating contributes nothing', () => {
+    const s: Session = {
+      id: 's',
+      date: '2026-01-02',
+      status: 'completed',
+      completedAt: Date.parse('2026-01-02T18:00:00Z'),
+      blocks: [
+        {
+          id: 'main',
+          exercises: [{ id: 'e1', name: 'Bench press', mode: 'reps_kg', sets: [rated('7', '7')] }],
+        },
+        condBlock(),
+      ],
+    } as unknown as Session;
+    expect(sessionRpe(s)).toEqual({ target: 7, felt: 7 });
+  });
+
+  it('a strength-only session is byte-identical to before (no conditioning block present)', () => {
+    const s = twoBlockSess(rated('7', '9'), rated('1', '3'));
+    expect(sessionRpe(s)).toEqual({ target: 7, felt: 9 });
   });
 });

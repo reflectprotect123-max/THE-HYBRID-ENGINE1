@@ -184,7 +184,20 @@ export function sessionVolume(s: Session): number {
   return Math.round(v);
 }
 
-/** Mean target RPE and mean felt RPE for a session. Warm-ups excluded. */
+/**
+ * Mean target RPE and mean felt RPE for a session. Warm-ups excluded.
+ *
+ * A conditioning block's banked felt RPE (`condResult.felt`) is on the same
+ * 1-10 slider a strength set's `felt` is, so it belongs in the felt average —
+ * `blockExercises(b)` is always `[]` for a CondBlock, so without this a
+ * conditioning-only or hybrid session's rated effort never contributed at
+ * all. `target` is deliberately left alone for a conditioning block: the only
+ * candidate, `condResult.targetRpe`, is a coach-authored BAND CENTER (e.g.
+ * "Hard" = RPE 8-9.5, center 8.5), not a single number aimed at the way a
+ * strength set's own `rpe` is — folding it in would conflate two different
+ * kinds of number and would change `target` for every already-recorded
+ * conditioning result that carries a `targetRpe`.
+ */
 export function sessionRpe(s: Session): { target: number | null; felt: number | null } {
   const t: number[] = [];
   const f: number[] = [];
@@ -192,6 +205,11 @@ export function sessionRpe(s: Session): { target: number | null; felt: number | 
     if (isWarmupBlock(b)) return; // whole-block prep is not rated effort — the
     // per-set isWarmup guard misses a warm-up block whose sets carry an
     // ordinary target ("10"), the same skip every sibling opens with.
+    if (isCond(b)) {
+      const ff = parseFloat(String(b.condResult?.felt));
+      if (Number.isFinite(ff)) f.push(ff);
+      return;
+    }
     blockExercises(b).forEach((e) =>
       e.sets.forEach((st) => {
         if (isWarmup(st)) return;
