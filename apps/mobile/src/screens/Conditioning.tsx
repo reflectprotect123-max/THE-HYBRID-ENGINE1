@@ -72,6 +72,14 @@ export function ConditioningScreen() {
   const [hrMsg, setHrMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const [geoMsg, setGeoMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const [result, setResult] = useState<CondResult | null>(null);
+  // The rating phase between finishing a run and seeing it banked: the built
+  // record waits on `pending` until the athlete says how it felt, so `felt`
+  // rides in on the same store update as the result. A component ref, NOT the
+  // module scope web moved to — this screen guards its exit (the beforeRemove
+  // listener below now covers `rating` too) rather than surviving it, so the
+  // record only has to live exactly as long as the screen does.
+  const [rating, setRating] = useState(false);
+  const pending = useRef<CondResult | null>(null);
   const samples = useRef<HrSample[]>([]);
   const geoSamples = useRef<GeoSample[]>([]);
   const startedAt = useRef(0);
@@ -152,10 +160,37 @@ export function ConditioningScreen() {
   // both, so intercept it while live and confirm before discarding. (The web
   // app hoists the run to module scope instead; mobile keeps it in refs, so it
   // guards the exit rather than surviving it.)
+  //
+  // The guard covers the RATING phase too, not just `live`. finish() flips
+  // `live` off on its first line, so the moment the "How did that feel?" chips
+  // are up, the old `if (!live) return` let a back gesture pop the screen and
+  // silently drop a finished, already-bankable run. In that branch nothing
+  // about the clock or samples is at stake — the record already exists in
+  // `pending` — so a confirmed exit BANKS it unrated rather than discarding it:
+  // a run past MIN_LOGGABLE_SEC always ends up banked, rated or not.
   useEffect(() => {
     const unsub = nav.addListener('beforeRemove', (e) => {
-      if (!live) return;
+      if (!live && !rating) return;
       e.preventDefault();
+      if (!live) {
+        Alert.alert(
+          'Leave without rating?',
+          'This run is finished and will be banked either way — leaving now only skips how it felt.',
+          [
+            { text: 'Keep rating', style: 'cancel' },
+            {
+              text: 'Bank & leave',
+              onPress: () => {
+                const rec = pending.current;
+                pending.current = null;
+                if (rec) bank(rec);
+                nav.dispatch(e.data.action);
+              },
+            },
+          ],
+        );
+        return;
+      }
       Alert.alert(
         'Discard this run?',
         'Leaving now loses the clock and every heart-rate sample banked so far.',
@@ -175,11 +210,15 @@ export function ConditioningScreen() {
       );
     });
     return unsub;
-  }, [nav, live]);
+  }, [nav, live, rating]);
 
   const zone = bpm == null ? null : conZoneOf(bpm, zones);
 
   const start = async () => {
+    // A fresh run must never inherit a stale unrated record. Unreachable while
+    // the rating chips are up (the setup screen is hidden), but cheap to pin.
+    pending.current = null;
+    setRating(false);
     samples.current = [];
     startedAt.current = Date.now();
     setElapsed(0);
@@ -248,8 +287,17 @@ export function ConditioningScreen() {
           }
         : {}),
     };
-    setResult(rec);
+    // Don't bank it yet — ask how it felt first. submitFelt() finishes the
+    // job, and the beforeRemove guard banks it unrated on a confirmed exit.
+    pending.current = rec;
+    setRating(true);
     void buzz();
+  };
+
+  /** The single write path for a finished run. submitFelt() and the exit
+   *  guard's "Bank & leave" both land here, so a rated and an unrated run
+   *  bank identically. */
+  const bank = (rec: CondResult) => {
     update((d) => {
       const { conProgress } = conAdapt(rec, d.settings);
       d.settings.conProgress = conProgress;
@@ -275,12 +323,24 @@ export function ConditioningScreen() {
     });
   };
 
+  const submitFelt = (felt: string) => {
+    const rec = pending.current;
+    if (!rec) return;
+    rec.felt = felt;
+    pending.current = null;
+    setRating(false);
+    setResult(rec);
+    bank(rec);
+  };
+
   return (
     <Screen>
       {/* Only when there is nothing running to lose: this screen keeps its
           clock, strap and GPS trace in component state, not the store, so
           unmounting mid-run (which `goBack` does) would discard it silently.
-          Setup and a banked result are safe to leave; a live run is not. */}
+          Setup and a banked result are safe to leave; a live run is not.
+          During the rating phase the arrow shows, but the beforeRemove guard
+          intercepts it and banks the pending run before letting the pop by. */}
       {!live ? (
         <Tap
           onPress={() => nav.goBack()}
@@ -294,7 +354,7 @@ export function ConditioningScreen() {
       <Kicker>Conditioning</Kicker>
       <Title>{live ? (phaseNow?.p.name ?? 'Running') : 'Set up'}</Title>
 
-      {!live && !result ? (
+      {!live && !result && !rating ? (
         <>
           <View className="mt-2 flex-row flex-wrap gap-1">
             {(Object.keys(CON_FORMATS) as CondFmtKey[]).map((k) => (
@@ -393,6 +453,19 @@ export function ConditioningScreen() {
               Runs under {MIN_LOGGABLE_SEC}s are discarded, not logged.
             </T>
           ) : null}
+        </>
+      ) : null}
+
+      {rating ? (
+        <>
+          <SectionHead title="How did that feel?" />
+          <View className="flex-row flex-wrap justify-center gap-1">
+            {['3', '4', '5', '6', '7', '8', '9', '10'].map((r) => (
+              <Chip key={r} on={false} onPress={() => submitFelt(r)}>
+                RPE {r}
+              </Chip>
+            ))}
+          </View>
         </>
       ) : null}
 
