@@ -259,6 +259,9 @@ export function Conditioning() {
     RUN.powerSamples = [];
     RUN.cadenceSamples = [];
     RUN.bpm = null;
+    RUN.power_w = null;
+    RUN.cadence_rpm = null;
+    RUN.distance_m = null;
     RUN.startedAt = Date.now();
     RUN.elapsed = 0;
     RUN.live = true;
