@@ -548,7 +548,16 @@ async function main() {
      * fixture literals and the real server-side functions as browser-facing
      * secrets. Nothing under .claude is source or is published.
      */
-    relativePath === '.claude' || relativePath.startsWith('.claude/')
+    relativePath === '.claude' || relativePath.startsWith('.claude/') ||
+    /*
+     * Planning docs and research bundles — plans, specs, and vendored research
+     * reports full of illustrative example code (mock OAuth token fixtures,
+     * sample request/response payloads). None of it ships: the publish
+     * directory is apps/web/dist, and docs/ never enters that build. Left
+     * unexcluded, the scanner flagged its own planning artifacts as
+     * browser-facing secret leaks.
+     */
+    relativePath === 'docs' || relativePath.startsWith('docs/')
   ));
   const secretPatterns = [
     { label: 'OpenRouter key', pattern: /sk-or-v1-[A-Za-z0-9_-]{20,}/i },
