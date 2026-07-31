@@ -279,7 +279,7 @@ await t('History shows the finished work', async () => {
   assert(/Lower A/.test(txt), 'finished session missing from History');
 });
 
-await t('a conditioning run asks how it felt, and banks the felt RPE onto its block', async () => {
+await t('a conditioning run asks how it felt, then if the work was completed, and banks both', async () => {
   // Seed an active session carrying a conditioning block, and make sure it is
   // the only active one — the result sink resolves through activeSession.
   await page.evaluate(() => {
@@ -321,13 +321,34 @@ await t('a conditioning run asks how it felt, and banks the felt RPE onto its bl
   await page.goBack();
   await page.waitForSelector('text=How did that feel?');
 
+  // Answering RPE advances to the SECOND question — mechanical completion —
+  // and still banks nothing: both answers must ride in on the same write.
   await page.click('button:has-text("RPE 7")');
+  await page.waitForSelector('text=Did you complete the work?');
+  const mid2 = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
+  );
+  assert(!mid2, 'the run banked after the first question, before mechanical completion was answered');
+
+  // The NEW interruption point: between the two questions. The pending record
+  // — felt answer included — still rides RUN, so a nav-away and return must
+  // land back on the second question, not the first and not the setup screen.
+  await page.click('nav[aria-label="Main"] a[href="/"]');
+  await page.waitForSelector('text=Readiness');
+  await page.goBack();
+  await page.waitForSelector('text=Did you complete the work?');
+
+  await page.click('button:has-text("Completed it")');
   await page.waitForSelector('text=Banked');
   const rec = await page.evaluate(
     () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
   );
   assert(rec, 'the rated run never reached the block');
   assert(rec.felt === '7', 'felt RPE not stored on the result, got: ' + JSON.stringify(rec.felt));
+  assert(rec.mechanicalCompletion === 'met', 'mechanical completion not stored, got: ' + JSON.stringify(rec.mechanicalCompletion));
+  // No strap in this harness, so no zone time was banked — the computed
+  // cardio verdict falls to the dur denominator and must read not_met.
+  assert(rec.cardioCompletion === 'not_met', 'computed cardio completion wrong, got: ' + JSON.stringify(rec.cardioCompletion));
   assert(rec.dur >= 20, 'the banked duration should clear MIN_LOGGABLE_SEC, got: ' + rec.dur);
 
   // History's conditioning line renders the felt value the athlete chose.

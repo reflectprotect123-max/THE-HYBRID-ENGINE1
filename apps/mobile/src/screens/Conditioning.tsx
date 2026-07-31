@@ -4,6 +4,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   CON_FORMATS,
+  cardioCompletionFor,
   conAdapt,
   conDownsample,
   conHrr,
@@ -73,13 +74,18 @@ export function ConditioningScreen() {
   const [geoMsg, setGeoMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const [result, setResult] = useState<CondResult | null>(null);
   // The rating phase between finishing a run and seeing it banked: the built
-  // record waits on `pending` until the athlete says how it felt, so `felt`
-  // rides in on the same store update as the result. A component ref, NOT the
-  // module scope web moved to — this screen guards its exit (the beforeRemove
-  // listener below now covers `rating` too) rather than surviving it, so the
-  // record only has to live exactly as long as the screen does.
+  // record waits on `pending` through TWO questions — how it felt, then
+  // whether the prescribed work was mechanically completed — and only the
+  // second answer banks, so both ride in on the same store update as the
+  // result. A component ref, NOT the module scope web moved to — this screen
+  // guards its exit (the beforeRemove listener below covers `rating` for the
+  // whole two-question stretch) rather than surviving it, so the record only
+  // has to live exactly as long as the screen does.
   const [rating, setRating] = useState(false);
   const pending = useRef<CondResult | null>(null);
+  // `pending` is a ref, so submitFelt() writing `.felt` onto it doesn't
+  // re-render on its own — this bump is what advances to the second question.
+  const [, setQuestionV] = useState(0);
   const samples = useRef<HrSample[]>([]);
   const geoSamples = useRef<GeoSample[]>([]);
   const startedAt = useRef(0);
@@ -162,12 +168,17 @@ export function ConditioningScreen() {
   // guards the exit rather than surviving it.)
   //
   // The guard covers the RATING phase too, not just `live`. finish() flips
-  // `live` off on its first line, so the moment the "How did that feel?" chips
-  // are up, the old `if (!live) return` let a back gesture pop the screen and
+  // `live` off on its first line, so the moment the post-run chips are up,
+  // the old `if (!live) return` let a back gesture pop the screen and
   // silently drop a finished, already-bankable run. In that branch nothing
   // about the clock or samples is at stake — the record already exists in
-  // `pending` — so a confirmed exit BANKS it unrated rather than discarding it:
-  // a run past MIN_LOGGABLE_SEC always ends up banked, rated or not.
+  // `pending` — so a confirmed exit BANKS it rather than discarding it. The
+  // rating stretch is now TWO questions (felt RPE, then mechanical
+  // completion), and the guard holds across both: whichever was showing, a
+  // forced exit banks whatever was actually answered — `felt` if the athlete
+  // got that far, `mechanicalCompletion`/`cardioCompletion` left unset if
+  // they never reached or never answered the second question. A run past
+  // MIN_LOGGABLE_SEC always ends up banked, fully answered or not.
   useEffect(() => {
     const unsub = nav.addListener('beforeRemove', (e) => {
       if (!live && !rating) return;
@@ -175,7 +186,7 @@ export function ConditioningScreen() {
       if (!live) {
         Alert.alert(
           'Leave without rating?',
-          'This run is finished and will be banked either way — leaving now only skips how it felt.',
+          'This run is finished and will be banked either way — leaving now only skips the unanswered questions.',
           [
             { text: 'Keep rating', style: 'cancel' },
             {
@@ -287,16 +298,17 @@ export function ConditioningScreen() {
           }
         : {}),
     };
-    // Don't bank it yet — ask how it felt first. submitFelt() finishes the
-    // job, and the beforeRemove guard banks it unrated on a confirmed exit.
+    // Don't bank it yet — ask how it felt, then whether the work was
+    // mechanically completed. submitMechanical() finishes the job, and the
+    // beforeRemove guard banks it part-answered on a confirmed exit.
     pending.current = rec;
     setRating(true);
     void buzz();
   };
 
-  /** The single write path for a finished run. submitFelt() and the exit
-   *  guard's "Bank & leave" both land here, so a rated and an unrated run
-   *  bank identically. */
+  /** The single write path for a finished run. submitMechanical() and the
+   *  exit guard's "Bank & leave" both land here, so a fully-answered and a
+   *  part-answered run bank identically. */
   const bank = (rec: CondResult) => {
     update((d) => {
       const { conProgress } = conAdapt(rec, d.settings);
@@ -323,10 +335,25 @@ export function ConditioningScreen() {
     });
   };
 
+  // First question. Answering it only advances to the second — the record
+  // stays in `pending`, un-banked, still covered by the exit guard, so
+  // backing out between the two questions is intercepted exactly like
+  // backing out before the first.
   const submitFelt = (felt: string) => {
     const rec = pending.current;
     if (!rec) return;
     rec.felt = felt;
+    setQuestionV((v) => v + 1);
+  };
+
+  // Second question, and the end of the rating stretch: only here does the
+  // record leave `pending` and reach the store, both answers riding in on
+  // the same update as the result itself.
+  const submitMechanical = (m: CondResult['mechanicalCompletion']) => {
+    const rec = pending.current;
+    if (!rec) return;
+    rec.mechanicalCompletion = m;
+    rec.cardioCompletion = cardioCompletionFor(rec.fmt ?? fmt, rec.zsec, rec.dur ?? 0);
     pending.current = null;
     setRating(false);
     setResult(rec);
@@ -456,13 +483,33 @@ export function ConditioningScreen() {
         </>
       ) : null}
 
-      {rating ? (
+      {rating && pending.current?.felt == null ? (
         <>
           <SectionHead title="How did that feel?" />
           <View className="flex-row flex-wrap justify-center gap-1">
             {['3', '4', '5', '6', '7', '8', '9', '10'].map((r) => (
               <Chip key={r} on={false} onPress={() => submitFelt(r)}>
                 RPE {r}
+              </Chip>
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      {rating && pending.current?.felt != null && pending.current.mechanicalCompletion == null ? (
+        <>
+          <SectionHead title="Did you complete the work?" />
+          <View className="flex-row flex-wrap justify-center gap-1">
+            {(
+              [
+                ['met', 'Completed it'],
+                ['local_fatigue', 'Muscles gave out'],
+                ['technique_fail', 'Form broke down'],
+                ['pain_stop', 'Stopped — pain'],
+              ] as const
+            ).map(([m, label]) => (
+              <Chip key={m} on={false} onPress={() => submitMechanical(m)}>
+                {label}
               </Chip>
             ))}
           </View>

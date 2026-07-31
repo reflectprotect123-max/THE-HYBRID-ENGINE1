@@ -18,7 +18,7 @@ describe('condEffort prototype guard', () => {
   });
 });
 
-import { progressionKey } from '../src/conditioning';
+import { cardioCompletionFor, progressionKey } from '../src/conditioning';
 import type { CondBlock, CondResult, Modality } from '../src/types';
 
 test('progressionKey is just the format when modality is absent', () => {
@@ -62,6 +62,38 @@ test('steady: still gated on zone time regardless of felt RPE', () => {
   const rec = { fmt: 'steady', effort: 'easy', felt: '9', zsec: { low: 5, mod: 0, high: 5 }, dur: 20 } as CondResult;
   const { delta } = conAdapt(rec, settings);
   expect(delta).toBe(0); // a miss, not an earn — high RPE does not override steady's HR gate
+});
+
+describe('cardioCompletionFor', () => {
+  // Interval formats gate on mod+high work at 45% of the banked zone time
+  // (dur is only the fallback denominator when no zone time exists at all);
+  // the borderline band opens at 70% of that gate (0.315).
+  it('intervals: mod+high fraction at or above 45% is met', () => {
+    expect(cardioCompletionFor('intervals', { low: 55, mod: 45, high: 0 }, 100)).toBe('met'); // exactly 0.45
+    expect(cardioCompletionFor('intervals', { low: 10, mod: 20, high: 30 }, 60)).toBe('met'); // 0.83
+  });
+
+  it('intervals: between 70% of the gate and the gate is borderline', () => {
+    expect(cardioCompletionFor('intervals', { low: 60, mod: 40, high: 0 }, 100)).toBe('borderline'); // 0.40
+    expect(cardioCompletionFor('intervals', { low: 68, mod: 0, high: 32 }, 100)).toBe('borderline'); // 0.32
+  });
+
+  it('intervals: under 70% of the gate is not met', () => {
+    expect(cardioCompletionFor('intervals', { low: 69, mod: 31, high: 0 }, 100)).toBe('not_met'); // 0.31
+    expect(cardioCompletionFor('intervals', { low: 100, mod: 0, high: 0 }, 100)).toBe('not_met'); // 0
+  });
+
+  // Steady counts low+mod as work and gates at 60% (borderline from 0.42).
+  it('steady: low+mod fraction against the 60% gate, three bands', () => {
+    expect(cardioCompletionFor('steady', { low: 30, mod: 30, high: 40 }, 100)).toBe('met'); // 0.60
+    expect(cardioCompletionFor('steady', { low: 42, mod: 0, high: 58 }, 100)).toBe('borderline'); // 0.42
+    expect(cardioCompletionFor('steady', { low: 41, mod: 0, high: 59 }, 100)).toBe('not_met'); // 0.41
+  });
+
+  it('a strapless run (no zone time at all) divides by dur and is not met', () => {
+    expect(cardioCompletionFor('intervals', { low: 0, mod: 0, high: 0 }, 1200)).toBe('not_met');
+    expect(cardioCompletionFor('intervals', undefined, 1200)).toBe('not_met');
+  });
 });
 
 describe('modality, device, and completion fields', () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CON_FORMATS,
+  cardioCompletionFor,
   conAdapt,
   conDownsample,
   conHrr,
@@ -73,12 +74,15 @@ const RUN: {
    *  hop to Home and back — the launching URL's query params do not. */
   sinkBid: string;
   sinkBi: number;
-  /** A finished run waiting on its "How did that feel?" answer. Lives on RUN
-   *  for the same reason the clock does: in component state, one tap on the
-   *  nav bar while the rating chips were up unmounted the screen and silently
-   *  threw away the whole banked run — trace, zone time, all of it. Held here,
-   *  coming back to the screen re-asks the question instead. Written and
-   *  cleared by submitFelt(). */
+  /** A finished run waiting on its post-run questions (felt RPE, then
+   *  mechanical completion). Lives on RUN for the same reason the clock does:
+   *  in component state, one tap on the nav bar while the chips were up
+   *  unmounted the screen and silently threw away the whole banked run —
+   *  trace, zone time, all of it. Held here, coming back to the screen
+   *  re-asks whichever question is unanswered instead — the felt answer
+   *  written by submitFelt() survives a nav-away between the two questions
+   *  the same way. Written by finish(), cleared only by submitMechanical(),
+   *  the single point that banks. */
   pending: CondResult | null;
 } = {
   live: false,
@@ -124,11 +128,16 @@ export function Conditioning() {
   const [bpm, setBpm] = useState<number | null>(RUN.live ? RUN.bpm : null);
   const [result, setResult] = useState<CondResult | null>(null);
   // The rating phase between finishing a run and seeing it banked. The built
-  // record waits on RUN.pending until the athlete says how it felt — only then
-  // is it written, so `felt` rides in on the same store update as the result.
-  // Initialised from RUN so a nav-away during the question re-asks it on
-  // return rather than dropping the finished run.
+  // record waits on RUN.pending through TWO questions — how it felt, then
+  // whether the prescribed work was mechanically completed — and only the
+  // second answer writes it, so both answers ride in on the same store update
+  // as the result. Initialised from RUN so a nav-away during EITHER question
+  // re-asks the unanswered one on return rather than dropping the finished
+  // run (module scope doesn't care which sub-question was showing).
   const [rating, setRating] = useState(RUN.pending != null);
+  // RUN is module state, so mutating RUN.pending.felt doesn't re-render on
+  // its own — submitFelt() bumps this to advance to the second question.
+  const [, setQuestionV] = useState(0);
 
   const setFmt = (k: CondFmtKey) => {
     RUN.fmt = k;
@@ -228,15 +237,30 @@ export function Conditioning() {
       hrr: conHrr(trace).hrr,
       trace,
     };
-    // Don't bank it yet — ask how it felt first. submitFelt() finishes the job.
+    // Don't bank it yet — ask how it felt, then whether the work was
+    // mechanically completed. submitMechanical() finishes the job.
     RUN.pending = rec;
     setRating(true);
   }
 
+  // First question. Answering it only advances to the second — the record
+  // stays on RUN.pending, un-banked, so a nav-away between the two questions
+  // is survived exactly like one before the first.
   function submitFelt(felt: string) {
     const rec = RUN.pending;
     if (!rec) return;
     rec.felt = felt;
+    setQuestionV((v) => v + 1);
+  }
+
+  // Second question, and the single write path: only here does the record
+  // leave RUN.pending and reach the store, both answers riding in on the
+  // same update as the result itself.
+  function submitMechanical(m: CondResult['mechanicalCompletion']) {
+    const rec = RUN.pending;
+    if (!rec) return;
+    rec.mechanicalCompletion = m;
+    rec.cardioCompletion = cardioCompletionFor(rec.fmt ?? fmt, rec.zsec, rec.dur ?? 0);
     RUN.pending = null;
     setResult(rec);
     setRating(false);
@@ -364,13 +388,33 @@ export function Conditioning() {
         </>
       ) : null}
 
-      {rating ? (
+      {rating && RUN.pending && RUN.pending.felt == null ? (
         <>
           <SectionHead title="How did that feel?" />
           <div className="flex flex-wrap justify-center gap-1">
             {['3', '4', '5', '6', '7', '8', '9', '10'].map((r) => (
               <Chip key={r} on={false} onClick={() => submitFelt(r)}>
                 RPE {r}
+              </Chip>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {rating && RUN.pending && RUN.pending.felt != null && RUN.pending.mechanicalCompletion == null ? (
+        <>
+          <SectionHead title="Did you complete the work?" />
+          <div className="flex flex-wrap justify-center gap-1">
+            {(
+              [
+                ['met', 'Completed it'],
+                ['local_fatigue', 'Muscles gave out'],
+                ['technique_fail', 'Form broke down'],
+                ['pain_stop', 'Stopped — pain'],
+              ] as const
+            ).map(([m, label]) => (
+              <Chip key={m} on={false} onClick={() => submitMechanical(m)}>
+                {label}
               </Chip>
             ))}
           </div>

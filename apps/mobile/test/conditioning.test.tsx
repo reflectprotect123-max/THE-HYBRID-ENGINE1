@@ -1,16 +1,20 @@
 /*
- * Conditioning: the felt-RPE ask between finishing a run and seeing it banked.
+ * Conditioning: the two-question ask (felt RPE, then mechanical completion)
+ * between finishing a run and seeing it banked.
  *
  * Two things have to be true and neither is visible from `tsc` or the engine
- * suite. First, the rating chip an athlete presses must actually reach the
+ * suite. First, the chips an athlete presses must actually reach the
  * persisted record — "Banked" on screen is component state, not evidence of a
  * write, so these read the blob back off the same key the app persists to
- * (guidedBuilder.test.tsx's persisted()/flushSave() pattern). Second, the
- * beforeRemove exit guard must cover the RATING phase: finish() flips `live`
- * off on its first line, so a guard keyed on `live` alone lets a back gesture
- * pop the screen while the chips are up and silently drop a finished,
- * already-bankable run. The fix banks it unrated instead — that is the
- * invariant the second half of this file pins.
+ * (guidedBuilder.test.tsx's persisted()/flushSave() pattern), and nothing may
+ * bank until the LAST question is answered. Second, the beforeRemove exit
+ * guard must cover the whole rating stretch: finish() flips `live` off on its
+ * first line, so a guard keyed on `live` alone lets a back gesture pop the
+ * screen while chips are up and silently drop a finished, already-bankable
+ * run. With two sequential questions there are now two interception points —
+ * before the RPE answer, and between RPE and mechanical completion — and a
+ * confirmed exit at either must bank whatever was actually answered. Those
+ * are the invariants the second half of this file pins.
  */
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { Alert, type AlertButton } from 'react-native';
@@ -63,25 +67,37 @@ const finishARun = async () => {
 describe('ConditioningScreen felt RPE', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('asks how the run felt, and banks the pressed rating onto the stored record', async () => {
+  it('asks how the run felt, then whether the work was completed, and banks both answers', async () => {
     seed({});
     renderScreen(<ConditioningScreen />, {});
 
     await finishARun();
     expect(screen.getByText('How did that feel?')).toBeTruthy();
 
-    // Nothing is banked while the question is open — `felt` must ride in on
-    // the same store update as the record itself.
+    // Nothing is banked while the first question is open — every answer must
+    // ride in on the same store update as the record itself.
     flushSave();
     expect(persisted().settings.conditioning ?? []).toHaveLength(0);
 
+    // Answering RPE advances to the mechanical-completion question — it does
+    // NOT bank. The record is still pending, still guarded.
     fireEvent.press(screen.getByText('RPE 7'));
+    expect(screen.queryByText('How did that feel?')).toBeNull();
+    expect(screen.getByText('Did you complete the work?')).toBeTruthy();
+    flushSave();
+    expect(persisted().settings.conditioning ?? []).toHaveLength(0);
+
+    fireEvent.press(screen.getByText('Completed it'));
     expect(screen.getByText('Banked')).toBeTruthy();
 
     flushSave();
     const runs = persisted().settings.conditioning ?? [];
     expect(runs).toHaveLength(1);
     expect(runs[0].felt).toBe('7');
+    expect(runs[0].mechanicalCompletion).toBe('met');
+    // Strapless run: no zone time banked at all, so the computed cardio
+    // verdict falls to the dur denominator and reads not_met.
+    expect(runs[0].cardioCompletion).toBe('not_met');
     expect(runs[0].dur).toBeGreaterThanOrEqual(20);
   });
 
@@ -126,12 +142,60 @@ describe('ConditioningScreen felt RPE', () => {
     // The screen actually left this time…
     expect(screen.queryByText('How did that feel?')).toBeNull();
 
-    // …and the run survived it: banked once, with `felt` left unset. A run
-    // past MIN_LOGGABLE_SEC always ends up in the store, rated or not.
+    // …and the run survived it: banked once, with every unanswered field left
+    // unset. A run past MIN_LOGGABLE_SEC always ends up in the store, fully
+    // answered or not.
     flushSave();
     const runs = persisted().settings.conditioning ?? [];
     expect(runs).toHaveLength(1);
     expect(runs[0].felt).toBeUndefined();
+    expect(runs[0].mechanicalCompletion).toBeUndefined();
+    expect(runs[0].cardioCompletion).toBeUndefined();
+    expect(runs[0].dur).toBeGreaterThanOrEqual(20);
+  });
+
+  it('banks the RPE answer when the athlete backs out between the two questions', async () => {
+    /*
+     * The NEW interruption point this task introduces: RPE answered, the
+     * mechanical-completion chips up, and a back gesture. The record must
+     * still be pending (answering the first question banks nothing), the
+     * guard must still intercept, and a confirmed exit must bank the felt
+     * value that WAS given — with the never-answered mechanical and computed
+     * cardio fields left unset, not defaulted.
+     */
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    seed({});
+    const { navRef } = renderStack(<ConditioningScreen />, {});
+    act(() => {
+      navRef.navigate('Under test', {});
+    });
+
+    await finishARun();
+    fireEvent.press(screen.getByText('RPE 7'));
+    expect(screen.getByText('Did you complete the work?')).toBeTruthy();
+
+    act(() => {
+      navRef.goBack();
+    });
+    // Intercepted mid-stretch: still on the second question, same guard.
+    expect(screen.getByText('Did you complete the work?')).toBeTruthy();
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+    const [title, , buttons] = alertSpy.mock.calls[0] as [string, string, AlertButton[]];
+    expect(title).toBe('Leave without rating?');
+
+    const leave = buttons.find((b) => b.text === 'Bank & leave');
+    expect(leave).toBeTruthy();
+    act(() => {
+      leave!.onPress!();
+    });
+    expect(screen.queryByText('Did you complete the work?')).toBeNull();
+
+    flushSave();
+    const runs = persisted().settings.conditioning ?? [];
+    expect(runs).toHaveLength(1);
+    expect(runs[0].felt).toBe('7');
+    expect(runs[0].mechanicalCompletion).toBeUndefined();
+    expect(runs[0].cardioCompletion).toBeUndefined();
     expect(runs[0].dur).toBeGreaterThanOrEqual(20);
   });
 });

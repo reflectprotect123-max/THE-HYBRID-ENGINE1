@@ -260,6 +260,26 @@ export function paramsFor(fmtKey: CondFmtKey, p: Prescription): FormatParams {
   return { rounds: p.rounds, work: p.work, rest: p.rest };
 }
 
+/**
+ * Did the cardiovascular signal reach its target this session?
+ *
+ * Computed, not asked: the zone-seconds are already banked, so the same
+ * work-fraction test conAdapt applies (mod+high for interval formats, low+mod
+ * for steady, against the same PROVISIONAL gates) can grade the session
+ * automatically. `borderline` opens at 70% of the gate — close enough that
+ * the miss is probably the strap or the day, not the athlete.
+ */
+export function cardioCompletionFor(fmtKey: CondFmtKey, zsec: CondResult['zsec'], dur: number): 'met' | 'borderline' | 'not_met' {
+  const z = zsec || { low: 0, mod: 0, high: 0 };
+  const total = Math.max(1, (z.low||0)+(z.mod||0)+(z.high||0) || dur || 0);
+  const workSec = fmtKey === 'steady' ? (z.low||0)+(z.mod||0) : (z.mod||0)+(z.high||0);
+  const frac = workSec / total;
+  const target = fmtKey === 'steady' ? 0.6 : 0.45;
+  if (frac >= target) return 'met';
+  if (frac >= target * 0.7) return 'borderline';
+  return 'not_met';
+}
+
 export interface AdaptResult {
   delta: -1 | 0 | 1;
   conProgress: Record<string, ProgressState>;
