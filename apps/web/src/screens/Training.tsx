@@ -59,6 +59,17 @@ export function Training() {
 
   function finishSession() {
     if (!activeSession) return;
+    // Finishing cannot be undone — nothing reopens a completed session — and
+    // this is a full-width button at the bottom of a list you thumb through
+    // mid-workout. Only ask when there is actually work left to lose.
+    const { done, total } = sessionProgress(activeSession);
+    const left = total - done;
+    if (
+      left > 0 &&
+      !window.confirm(`Finish with work left? ${left} set${left === 1 ? '' : 's'} still unlogged. Finishing cannot be undone.`)
+    ) {
+      return;
+    }
     update((draft) => {
       const ds = draft.sessions.find((x) => x.id === activeSession.id);
       if (!ds) return false;
@@ -195,25 +206,43 @@ export function Training() {
               </Card>
             ) : isCond(b) ? (
               <Card className={cx(b.condResult && 'border-done-line bg-done-bg')}>
-                <div className="flex items-center gap-1">
-                  <LetterChip letter="♥" />
-                  <span className="flex-1 text-5 font-[750]">{CON_FORMATS[b.condFmt]?.name ?? b.condFmt}</span>
-                  {b.condResult ? <span className="text-3 text-done-ink">logged</span> : null}
-                </div>
-                <p className="mt-0.5 text-3 text-dim">
-                  {condEffort(b).name} · RPE {condEffortRpe(condEffort(b))} · {condEffort(b).cue}
-                </p>
-                {!b.condResult ? (
-                  <Button
-                    className="mt-1.5 w-full"
-                    // The block travels with the navigation: without it the run
-                    // finishes into the standalone history and this block never
-                    // reads as done.
-                    onClick={() => nav(`/conditioning?block=${encodeURIComponent(b.id || '')}&bi=${bi}`)}
+                {b.condResult ? (
+                  // A logged effort stays reachable — the whole card reopens
+                  // the recap, mirroring mobile's "tap to review" rather than
+                  // dead-ending once the block is done.
+                  <button
+                    onClick={() => nav(`/recap/${s.id}`)}
+                    className="flex w-full flex-col items-start text-left"
                   >
-                    Start conditioning
-                  </Button>
-                ) : null}
+                    <div className="flex w-full items-center gap-1">
+                      <LetterChip letter="♥" />
+                      <span className="flex-1 text-5 font-[750]">{CON_FORMATS[b.condFmt]?.name ?? b.condFmt}</span>
+                      <span className="text-3 text-done-ink">logged</span>
+                    </div>
+                    <p className="mt-0.5 text-3 text-dim">
+                      {condEffort(b).name} · RPE {condEffortRpe(condEffort(b))} · {condEffort(b).cue} · tap to review
+                    </p>
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <LetterChip letter="♥" />
+                      <span className="flex-1 text-5 font-[750]">{CON_FORMATS[b.condFmt]?.name ?? b.condFmt}</span>
+                    </div>
+                    <p className="mt-0.5 text-3 text-dim">
+                      {condEffort(b).name} · RPE {condEffortRpe(condEffort(b))} · {condEffort(b).cue}
+                    </p>
+                    <Button
+                      className="mt-1.5 w-full"
+                      // The block travels with the navigation: without it the
+                      // run finishes into the standalone history and this
+                      // block never reads as done.
+                      onClick={() => nav(`/conditioning?block=${encodeURIComponent(b.id || '')}&bi=${bi}`)}
+                    >
+                      Start conditioning
+                    </Button>
+                  </>
+                )}
               </Card>
             ) : (
               <ul className="flex flex-col gap-1">

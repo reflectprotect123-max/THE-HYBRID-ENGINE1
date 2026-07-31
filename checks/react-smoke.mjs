@@ -415,6 +415,52 @@ await t('Home\'s "Start today\'s session →" actually starts one', async () => 
   assert(after === before + 1, 'Home\'s Start did not mint exactly one session, got ' + after + ' from ' + before);
 });
 
+await t('finishing early with unlogged sets asks for confirmation, and cancelling keeps the session live', async () => {
+  // Home's Start (above) just left a fresh active session with none of its
+  // sets logged — the "work left" branch mobile guards with an Alert; web
+  // must ask the same way, via window.confirm, and a Cancel must leave the
+  // session exactly as it was.
+  await page.waitForSelector('button:has-text("Finish session early")');
+  let dialogMsg = '';
+  page.once('dialog', (dialog) => {
+    dialogMsg = dialog.message();
+    dialog.dismiss(); // "Keep training"
+  });
+  await page.click('button:has-text("Finish session early")');
+  assert(/still unlogged/.test(dialogMsg), 'expected the unlogged-sets warning, got: ' + dialogMsg);
+  const txt = await page.textContent('body');
+  assert(/In progress/.test(txt), 'the session should still be in progress after cancelling the confirm');
+  const status = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    return db.sessions.find((s) => s.status === 'active')?.status;
+  });
+  assert(status === 'active', 'the session should remain active after cancelling the finish confirmation, got ' + status);
+});
+
+await t('a completed conditioning block stays clickable, reopening the recap', async () => {
+  // Independent of the earlier conditioning-run flow: seed an active session
+  // whose conditioning block already carries a condResult — the same shape a
+  // finished run leaves it in — and confirm the Training list still lets you
+  // tap back into it instead of dead-ending once logged.
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    for (const s of db.sessions) if (s.status === 'active') s.status = 'incomplete';
+    db.sessions.push({
+      id: 'condcard1', name: 'Engine day 2', date: new Date().toISOString().slice(0, 10),
+      status: 'active', updatedAt: Date.now(),
+      blocks: [{
+        id: 'condb2', kind: 'conditioning', heading: 'Conditioning', condFmt: 'intervals', effort: 'hard',
+        condResult: { felt: '7', mechanicalCompletion: 'met', cardioCompletion: 'not_met', dur: 600 },
+      }],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/training', { waitUntil: 'networkidle' });
+  await page.waitForSelector('text=tap to review');
+  await page.click('button:has-text("tap to review")');
+  await page.waitForURL(/\/recap\/condcard1/);
+});
+
 /* ---------- planner ---------- */
 
 await t('the Library creates a session and opens the guided builder', async () => {
