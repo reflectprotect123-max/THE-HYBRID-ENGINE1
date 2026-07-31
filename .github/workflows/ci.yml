@@ -145,6 +145,15 @@ jobs:
       # built bundles as well as the source, because a credential baked in at
       # build time exists nowhere in the tree.
       #
+      # concept2-contract is whoop-contract's Concept2 Logbook twin: same
+      # source-scan-plus-runtime-import shape, asserting Concept2's OWN
+      # contract (log.concept2.com hosts, comma-delimited scopes, the
+      # versioned Accept header) rather than reusing WHOOP's. It also asserts
+      # two intentional absences — no webhook integration (sync is pull-based)
+      # and no token-revocation call on disconnect (Concept2 offers no such
+      # endpoint) — rather than demanding machinery that was never part of
+      # this provider's contract.
+      #
       # mobile-touch and contrast guard two things a UI audit found and nothing
       # else can see: that every tappable in the phone app goes through <Tap>
       # (which is what makes touch targets reach 48dp and give feedback), and
@@ -168,7 +177,7 @@ jobs:
       - name: Contract + security suites (no network)
         run: |
           set -o pipefail
-          for check in pentest supabase-contract whoop-contract whoop-deployment-smoke supabase-auth mobile-touch contrast; do
+          for check in pentest supabase-contract whoop-contract concept2-contract whoop-deployment-smoke supabase-auth mobile-touch contrast; do
             echo "::group::checks/$check.mjs"
             node "checks/$check.mjs" 2>&1 | tee "$RUNNER_TEMP/$check.log"
             echo "::endgroup::"
