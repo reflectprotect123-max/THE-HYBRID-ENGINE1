@@ -27,6 +27,18 @@ name: Mobile — OTA update (EAS Update)
 # updates — but note that the gate makes a skip and a publish look identical
 # from the run list. Confirm by whether the job ran `Publish EAS Update`, not
 # by the green tick alone.
+#
+# Publishes to the "production" channel because that is the channel baked
+# into the real installed app (eas.json's "production" build profile, the
+# one matching applicationId/versionCode/signing key of the shipped build —
+# see mobile-eas.yml). This workflow originally published to "preview" from
+# Jul 27 through Jul 31, a channel no production build ever listens on — every
+# push in that window bundled and uploaded successfully but was invisible to
+# real devices, with no error on either side. Same failure shape as the
+# runtimeVersion "fingerprint" incident above: green CI, silent no-op
+# delivery. If a "preview"-channel internal test build is ever needed again,
+# publish to it as a SEPARATE step alongside this one — don't swap this one
+# back.
 
 on:
   push:
@@ -46,7 +58,7 @@ permissions:
 
 jobs:
   update:
-    name: eas update --channel preview
+    name: eas update --channel production
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -118,7 +130,7 @@ jobs:
           # problem. --platform android matches every other build script:
           # this app has no real iOS or web target.
           node_modules/.bin/eas update \
-            --channel preview \
+            --channel production \
             --platform android \
             --message "$(head -n1 <<< "$UPDATE_MESSAGE")" \
             --non-interactive
