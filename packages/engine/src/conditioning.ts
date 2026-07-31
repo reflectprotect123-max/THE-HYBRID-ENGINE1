@@ -299,7 +299,18 @@ export function conAdapt(rec: CondResult | null | undefined, settings: Settings 
   const total = Math.max(1, zoned || rec.dur || 0);
   const workSec = fmtKey === 'steady' ? (z.low || 0) + (z.mod || 0) : (z.mod || 0) + (z.high || 0);
   const frac = fmtKey === 'steady' ? 0.6 : 0.45; // PROVISIONAL
-  const onTarget = workSec / total >= frac;
+  const zoneOnTarget = workSec / total >= frac;
+  let onTarget = zoneOnTarget;
+  if (fmtKey !== 'steady' && rec.felt != null) {
+    const eff = condEffort(rec);
+    const gap = condEffortGap(eff, rec.felt);
+    // Within the asked-for band (gap === 0) or harder than asked (gap > 0, still
+    // real work done) counts as on-target; well under the target effort does not,
+    // regardless of how much zone time was banked — this is the "RPE primary,
+    // HR secondary/diagnostic" rule from the conditioning evidence review, applied
+    // only to short-interval formats. Steady keeps the original zone-time gate.
+    onTarget = gap != null ? gap >= 0 : zoneOnTarget;
+  }
   const overcooked = (z.high || 0) / total > 0.6; // PROVISIONAL
   const hrrOk = true;
 
