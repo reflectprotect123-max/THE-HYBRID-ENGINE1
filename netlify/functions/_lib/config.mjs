@@ -21,6 +21,9 @@ export const config = {
   whoopClientSecret: process.env.WHOOP_CLIENT_SECRET || '',
   whoopCallback: `${BASE_URL}/.netlify/functions/whoop-callback`,
   whoopWebhook: `${BASE_URL}/.netlify/functions/whoop-webhook`,
+  concept2ClientId: process.env.CONCEPT2_CLIENT_ID || '',
+  concept2ClientSecret: process.env.CONCEPT2_CLIENT_SECRET || '',
+  concept2Callback: `${BASE_URL}/.netlify/functions/concept2-callback`,
   /*
    * Supabase. Both are OPTIONAL for the browser, which identifies itself with
    * the signed session cookie and never needs them, and REQUIRED for the native
