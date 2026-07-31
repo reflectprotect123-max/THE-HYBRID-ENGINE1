@@ -29,6 +29,14 @@ test('progressionKey composes format and modality when both are present', () => 
   expect(progressionKey('intervals', 'row')).toBe('intervals:row');
 });
 
+test('conAdapt keys progress by format+modality, not format alone', () => {
+  const settings = {};
+  const rowResult = { fmt: 'intervals', modality: 'row', zsec: { low: 0, mod: 10, high: 0 }, dur: 20, felt: '5' } as CondResult;
+  const { conProgress } = conAdapt(rowResult, settings);
+  expect(conProgress['intervals:row']).toBeDefined();
+  expect(conProgress['intervals']).toBeUndefined();
+});
+
 describe('modality, device, and completion fields', () => {
   it('CondBlock and CondResult accept the new optional fields', () => {
     const modality: Modality = 'air_bike';

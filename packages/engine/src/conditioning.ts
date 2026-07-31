@@ -124,9 +124,9 @@ export function customFmtBase(settings?: Settings): Required<Pick<FormatParams, 
   };
 }
 
-export function conProgLevel(fmtKey: string, settings?: Settings): number {
+export function conProgLevel(fmtKey: string, settings?: Settings, modality?: Modality): number {
   const cp = (settings && settings.conProgress) || {};
-  const f = cp[fmtKey];
+  const f = cp[progressionKey(fmtKey as CondFmtKey, modality)];
   return f && Number.isFinite(f.level) ? Math.max(0, f.level | 0) : 0;
 }
 
@@ -172,6 +172,7 @@ export interface PrescriptionCtx {
   settings?: Settings;
   whoop?: WhoopSample | null;
   ignoreDaily?: boolean;
+  modality?: Modality;
 }
 
 /**
@@ -198,7 +199,7 @@ export function conPrescription(fmtKey: CondFmtKey, ctx: PrescriptionCtx = {}): 
 
   const fmt = CON_FORMATS[fmtKey] || CON_FORMATS.intervals;
   const base: FormatParams = fmtKey === 'custom' ? customFmtBase(settings) : fmt.base || {};
-  const level = isProgressedFmt(fmtKey) ? conProgLevel(fmtKey, settings) : 0;
+  const level = isProgressedFmt(fmtKey) ? conProgLevel(fmtKey, settings, ctx.modality) : 0;
 
   const p: Prescription = { level: 0, dailyAdj: 0, rec, note: '' };
 
@@ -307,7 +308,8 @@ export function conAdapt(rec: CondResult | null | undefined, settings: Settings 
   const sessionRec = Number.isFinite(rec.rec as number) ? (rec.rec as number) : null;
   const notRed = sessionRec == null || recoveryBand(sessionRec) !== 'low';
 
-  const cur: ProgressState = cp[fmtKey] || { level: 0, miss: 0 };
+  const progKey = progressionKey(fmtKey, rec.modality);
+  const cur: ProgressState = cp[progKey] || { level: 0, miss: 0 };
   let level = cur.level | 0;
   let miss = cur.miss | 0;
   let delta: -1 | 0 | 1 = 0;
@@ -325,7 +327,7 @@ export function conAdapt(rec: CondResult | null | undefined, settings: Settings 
     }
   }
 
-  cp[fmtKey] = { level, miss };
+  cp[progKey] = { level, miss };
   return { delta, conProgress: cp };
 }
 
