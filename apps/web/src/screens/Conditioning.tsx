@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CON_FORMATS,
@@ -115,6 +115,11 @@ export function Conditioning() {
   const [elapsed, setElapsed] = useState(RUN.live ? RUN.elapsed : 0);
   const [bpm, setBpm] = useState<number | null>(RUN.live ? RUN.bpm : null);
   const [result, setResult] = useState<CondResult | null>(null);
+  // The rating phase between finishing a run and seeing it banked. The built
+  // record waits in the ref until the athlete says how it felt — only then is
+  // it written, so `felt` rides in on the same store update as the result.
+  const [rating, setRating] = useState(false);
+  const pendingRec = useRef<CondResult | null>(null);
 
   const setFmt = (k: CondFmtKey) => {
     RUN.fmt = k;
@@ -211,7 +216,18 @@ export function Conditioning() {
       hrr: conHrr(trace).hrr,
       trace,
     };
+    // Don't bank it yet — ask how it felt first. submitFelt() finishes the job.
+    pendingRec.current = rec;
+    setRating(true);
+  }
+
+  function submitFelt(felt: string) {
+    const rec = pendingRec.current;
+    if (!rec) return;
+    rec.felt = felt;
+    pendingRec.current = null;
     setResult(rec);
+    setRating(false);
 
     update((draft) => {
       const { conProgress } = conAdapt(rec, draft.settings);
@@ -242,7 +258,7 @@ export function Conditioning() {
       <Kicker>Conditioning</Kicker>
       <ScreenTitle>{live ? (phaseNow?.p.name ?? 'Running') : 'Set up'}</ScreenTitle>
 
-      {!live && !result ? (
+      {!live && !result && !rating ? (
         <>
           <div className="mt-2 flex flex-wrap gap-1">
             {(Object.keys(CON_FORMATS) as CondFmtKey[]).map((k) => (
@@ -333,6 +349,19 @@ export function Conditioning() {
               Runs under {MIN_LOGGABLE_SEC}s are discarded, not logged.
             </p>
           ) : null}
+        </>
+      ) : null}
+
+      {rating ? (
+        <>
+          <SectionHead title="How did that feel?" />
+          <div className="flex flex-wrap justify-center gap-1">
+            {['3', '4', '5', '6', '7', '8', '9', '10'].map((r) => (
+              <Chip key={r} on={false} onClick={() => submitFelt(r)}>
+                RPE {r}
+              </Chip>
+            ))}
+          </div>
         </>
       ) : null}
 

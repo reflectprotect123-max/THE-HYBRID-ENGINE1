@@ -279,6 +279,60 @@ await t('History shows the finished work', async () => {
   assert(/Lower A/.test(txt), 'finished session missing from History');
 });
 
+await t('a conditioning run asks how it felt, and banks the felt RPE onto its block', async () => {
+  // Seed an active session carrying a conditioning block, and make sure it is
+  // the only active one — the result sink resolves through activeSession.
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    for (const s of db.sessions) if (s.status === 'active') s.status = 'incomplete';
+    db.sessions.push({
+      id: 'conds1', name: 'Engine day', date: new Date().toISOString().slice(0, 10),
+      status: 'active', updatedAt: Date.now(),
+      blocks: [{ id: 'condb1', kind: 'conditioning', heading: 'Conditioning', condFmt: 'intervals', effort: 'hard' }],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/conditioning?block=condb1&bi=0', { waitUntil: 'networkidle' });
+  await page.click('button:has-text("Start")');
+  // A run under MIN_LOGGABLE_SEC (20s) is discarded, and a real 20s wait would
+  // double this suite's runtime — skew the page's clock forward instead. The
+  // run's 1s tick reads Date.now(), so the next tick banks ~30s of elapsed.
+  await page.evaluate(() => {
+    const orig = Date.now;
+    Date.now = () => orig.call(Date) + 30_000;
+  });
+  await page.waitForSelector('text=0:3'); // the live clock has ticked past 20s
+  await page.click('button:has-text("Finish")');
+
+  // The rating stage, not the result: nothing may be banked until it answers.
+  await page.waitForSelector('text=How did that feel?');
+  const mid = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
+  );
+  assert(!mid, 'the run banked before the athlete said how it felt');
+
+  await page.click('button:has-text("RPE 7")');
+  await page.waitForSelector('text=Banked');
+  const rec = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
+  );
+  assert(rec, 'the rated run never reached the block');
+  assert(rec.felt === '7', 'felt RPE not stored on the result, got: ' + JSON.stringify(rec.felt));
+  assert(rec.dur >= 20, 'the banked duration should clear MIN_LOGGABLE_SEC, got: ' + rec.dur);
+
+  // History's conditioning line renders the felt value the athlete chose.
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const s = db.sessions.find((x) => x.id === 'conds1');
+    s.status = 'completed';
+    s.completedAt = Date.now();
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/history', { waitUntil: 'networkidle' });
+  await page.click('button:has-text("Engine day")');
+  await page.waitForSelector('text=felt RPE 7');
+});
+
 await t('Progress renders trends without a chart library', async () => {
   await page.goto(base + '/progress', { waitUntil: 'networkidle' });
   const txt = await page.textContent('body');
