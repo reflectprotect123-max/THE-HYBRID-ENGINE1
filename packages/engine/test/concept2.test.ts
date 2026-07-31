@@ -87,6 +87,35 @@ describe('matchConcept2Result', () => {
     expect(matchConcept2Result(makeResult(), [s])).toBeNull();
   });
 
+  test('does not match a conditioning block of an unrelated modality, even when it is the only candidate in the time window', () => {
+    const s = session({
+      startedAt: Date.parse('2026-07-31T12:01:00.000Z'),
+      blocks: [condBlock({ id: 'run-block', modality: 'run' })],
+    });
+    // a Concept2 rower result must never be pinned onto a same-day run block
+    // purely on time proximity
+    expect(matchConcept2Result(makeResult({ modality: 'rower' }), [s])).toBeNull();
+  });
+
+  test('matches only the block whose modality corresponds to the Concept2 result type when several candidates are equally close', () => {
+    const s = session({
+      startedAt: Date.parse('2026-07-31T12:01:00.000Z'),
+      blocks: [
+        condBlock({ id: 'run-block', modality: 'run' }),
+        condBlock({ id: 'row-block', modality: 'row' }),
+        condBlock({ id: 'bike-block', modality: 'bike' }),
+      ],
+    });
+    const match = matchConcept2Result(makeResult({ modality: 'rower' }), [s]);
+    expect(match).not.toBeNull();
+    expect(match!.block.id).toBe('row-block');
+  });
+
+  test('matches nothing when the Concept2 result type has no known modality mapping', () => {
+    const s = session({ startedAt: Date.parse('2026-07-31T12:01:00.000Z'), blocks: [condBlock({ modality: 'row' })] });
+    expect(matchConcept2Result(makeResult({ modality: 'paddle' }), [s])).toBeNull();
+  });
+
   test('respects a custom window', () => {
     const s = session({ startedAt: Date.parse('2026-07-31T13:00:00.000Z'), blocks: [condBlock()] });
     // one hour away — outside a 30-minute window, inside the default 2-hour one
@@ -134,11 +163,13 @@ describe('concept2ToCondResult', () => {
     expect(out.splits).toBeUndefined();
   });
 
-  test('converts startedAt to epoch ms and passes duration/distance through', () => {
-    const out = concept2ToCondResult(makeResult({ startedAt: '2026-07-31T12:00:00.000Z', durationRaw: 1200, distanceRaw: 5000 }));
+  test('converts startedAt to epoch ms, converts durationRaw from tenths-of-a-second to seconds, and passes distance through as meters', () => {
+    // Concept2's own documented example: time: 152350 (tenths of a second) ==
+    // time_formatted "4:13:55.0" == 15235.0 seconds. distanceRaw is already meters.
+    const out = concept2ToCondResult(makeResult({ startedAt: '2026-07-31T12:00:00.000Z', durationRaw: 152350, distanceRaw: 23000 }));
     expect(out.startedAt).toBe(Date.parse('2026-07-31T12:00:00.000Z'));
-    expect(out.dur).toBe(1200);
-    expect(out.distanceM).toBe(5000);
+    expect(out.dur).toBe(15235);
+    expect(out.distanceM).toBe(23000);
   });
 
   test('leaves startedAt/dur/distanceM unset when the source has none', () => {

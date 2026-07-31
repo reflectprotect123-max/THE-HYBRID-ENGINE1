@@ -18,6 +18,13 @@ export interface Concept2Match {
   block: CondBlock;
 }
 
+/** Concept2's raw machine-type vocabulary, mapped explicitly to this app's `Modality` — never passed through untranslated. */
+const CONCEPT2_TYPE_TO_MODALITY: Record<string, Modality> = {
+  rower: 'row',
+  skierg: 'ski',
+  bike: 'bike',
+};
+
 /**
  * Best time-proximity match for a synced Concept2 result among an athlete's
  * sessions, or `null` if nothing is close enough.
@@ -26,6 +33,12 @@ export interface Concept2Match {
  * started) is preferred over the session's `startedAt` when both exist —
  * a session can hold several conditioning blocks over a longer span, so the
  * block-level timestamp is the more precise signal.
+ *
+ * Candidates are also filtered by modality compatibility (via
+ * `CONCEPT2_TYPE_TO_MODALITY`) so this never relies on the caller having
+ * pre-filtered by modality — a Concept2 rower result can only ever match a
+ * `row` block, never a same-day run/bike block done nearby in time. A result
+ * whose raw type doesn't map to a known `Modality` at all matches nothing.
  */
 export function matchConcept2Result(
   result: Concept2Result,
@@ -36,12 +49,16 @@ export function matchConcept2Result(
   const resultTime = Date.parse(result.startedAt);
   if (!Number.isFinite(resultTime)) return null;
 
+  const modality = result.modality ? CONCEPT2_TYPE_TO_MODALITY[result.modality] : undefined;
+  if (!modality) return null;
+
   let best: Concept2Match | null = null;
   let bestDiff = Infinity;
 
   for (const session of sessions) {
     for (const block of session.blocks) {
       if (block.kind !== 'conditioning') continue;
+      if (block.modality !== modality) continue;
       const refTime = block.condResult?.startedAt ?? session.startedAt;
       if (refTime == null || !Number.isFinite(refTime)) continue;
       const diff = Math.abs(refTime - resultTime);
@@ -54,13 +71,6 @@ export function matchConcept2Result(
 
   return best;
 }
-
-/** Concept2's raw machine-type vocabulary, mapped explicitly to this app's `Modality` — never passed through untranslated. */
-const CONCEPT2_TYPE_TO_MODALITY: Record<string, Modality> = {
-  rower: 'row',
-  skierg: 'ski',
-  bike: 'bike',
-};
 
 /** The Concept2 console name for each machine type, used as `device.model`. */
 const CONCEPT2_TYPE_TO_MODEL: Record<string, string> = {
@@ -99,7 +109,9 @@ export function concept2ToCondResult(result: Concept2Result): Partial<CondResult
     const t = Date.parse(result.startedAt);
     if (Number.isFinite(t)) out.startedAt = t;
   }
-  if (result.durationRaw != null) out.dur = result.durationRaw;
+  // Concept2's `time` (→ durationRaw) is in tenths of a second (e.g. `152350`
+  // for "4:13:55.0" = 15235.0s); every other engine `dur` is plain seconds.
+  if (result.durationRaw != null) out.dur = result.durationRaw / 10;
   if (result.distanceRaw != null) out.distanceM = result.distanceRaw;
 
   return out;
