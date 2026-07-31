@@ -233,6 +233,14 @@ export interface CondResult {
    * trends; display-only if surfaced at all.
    */
   deviceDistanceM?: number;
+  /**
+   * The provider's own id for a synced result this record was imported from
+   * (e.g. a Concept2 Logbook result id). Its presence is the dedupe key: an
+   * externalId already present anywhere in the database means that synced
+   * result has landed and must not be imported again — on this device or,
+   * via the cloud settings merge, any other.
+   */
+  externalId?: string;
 }
 
 export interface Downsampled {

@@ -16,9 +16,9 @@ import { humanizeError } from '../errors';
  * list — it can be hundreds of records — so `refresh` only learns
  * connected/lastSyncAt and the first `sync` fetches the results themselves.
  * Nothing here writes to the training database: this provider is state + fetch
- * and no more. The engine's matcher (packages/engine/src/concept2.ts) exists
- * for attaching results to sessions but is NOT wired up yet — synced results
- * are viewable, not merged into History/Progress.
+ * and no more. Landing results in History/Progress is the Settings card's job —
+ * it plans an import with the engine's matcher (packages/engine/src/concept2.ts)
+ * and applies it only on the athlete's explicit confirmation.
  */
 
 export interface Concept2State {

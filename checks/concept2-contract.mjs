@@ -84,6 +84,11 @@ async function walkTextFiles(dir, skipDirectory) {
       if (!skipDirectory(relativePath)) textFiles.push(...await walkTextFiles(absolute, skipDirectory));
       continue;
     }
+    // Root-level markdown (README, session handoff notes) is documentation,
+    // never part of the published site — scripts/build-site.mjs copies
+    // specific files into apps/web/dist and .md is not among them. Naming the
+    // provider host in prose there is documentation, not browser leakage.
+    if (!relativePath.includes('/') && relativePath.endsWith('.md')) continue;
     if (textExtensions.has(relativePath.slice(relativePath.lastIndexOf('.'))) || ['_headers', '_redirects'].includes(entry.name)) {
       textFiles.push({ absolute, relativePath });
     }
@@ -105,6 +110,8 @@ async function main() {
     'packages/engine/src/concept2.ts',
     'apps/web/src/cloud/concept2.tsx',
     'apps/mobile/src/cloud/concept2.tsx',
+    'apps/web/src/screens/Settings.tsx',
+    'apps/mobile/src/screens/Settings.tsx',
     'packages/config/src/index.ts',
     'netlify/functions/_lib/config.mjs',
     'netlify/functions/_lib/concept2.mjs',
@@ -354,6 +361,30 @@ async function main() {
   );
   check(/CONCEPT2_TYPE_TO_MODALITY/.test(matcher) && /rower:\s*['"]row['"]/.test(matcher), 'Concept2 raw machine types are mapped to the engine Modality union, never passed through');
   check(/CONCEPT2_MATCH_WINDOW_MS/.test(matcher), 'a Concept2 result is matched to a session inside a bounded time window');
+
+  // The import wiring: results land in History/Progress only through the
+  // engine's plan/apply pair, deduped by the provider's own result id.
+  check(
+    /export function planConcept2Import/.test(matcher) && /export function applyConcept2Import/.test(matcher),
+    'engine exposes a plan/apply import pair — the only path from synced results into the database',
+  );
+  check(
+    /importedConcept2Ids/.test(matcher) && /externalId/.test(matcher),
+    'the import plan dedupes against every externalId already in the database',
+  );
+  check(
+    /concept2RecordId/.test(matcher) && /['"`]c2-['"`]/.test(matcher),
+    'an imported record id is a pure function of the provider id, so two devices importing independently merge to one record',
+  );
+  for (const [label, screen] of [
+    ['web', sources.get('apps/web/src/screens/Settings.tsx') || ''],
+    ['mobile', sources.get('apps/mobile/src/screens/Settings.tsx') || ''],
+  ]) {
+    check(
+      /planConcept2Import/.test(screen) && /applyConcept2Import/.test(screen),
+      `${label} Settings plans the Concept2 import and applies it only on explicit confirmation`,
+    );
+  }
 
   const requiredEnv = ['CONCEPT2_CLIENT_ID', 'CONCEPT2_CLIENT_SECRET'];
   for (const name of requiredEnv) {

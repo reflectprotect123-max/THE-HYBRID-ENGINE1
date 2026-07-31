@@ -1,7 +1,18 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { conMaxHr, conZones, restingHr, todayRecovery, type EngineDB, type Profile } from '@hybrid/engine';
+import {
+  applyConcept2Import,
+  concept2ImportSummary,
+  conMaxHr,
+  conZones,
+  planConcept2Import,
+  restingHr,
+  todayRecovery,
+  type Concept2ImportCounts,
+  type EngineDB,
+  type Profile,
+} from '@hybrid/engine';
 import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
@@ -425,11 +436,30 @@ function WhoopCard() {
   );
 }
 
-/* Same shape as WhoopCard: connection only. Synced results are pulled and
-   stored, but automatic matching into History/Progress isn't wired up yet —
-   this card just owns the link and shows how many results have been pulled. */
+/* Same shape as WhoopCard for the connection half; below it, the import step.
+   Pulled results stay outside the training database until the athlete says so:
+   the plan is computed to show what WOULD land ("N new"), and only the button
+   press applies it — matched results onto their session blocks, the rest into
+   the standalone history, deduped forever after by externalId. */
 function Concept2Card() {
   const { connected, results, busy, error, lastSyncAt, connect, sync, disconnect } = useConcept2();
+  const { db, update } = useDb();
+  const [importMsg, setImportMsg] = useState('');
+  // Recomputed against the live db, so an applied import self-heals to zero
+  // pending and the button disappears rather than offering the same work twice.
+  const plan = useMemo(() => planConcept2Import(results, db), [results, db]);
+  const pending = plan.merges.length + plan.standalone.length;
+
+  function importNow() {
+    let counts: Concept2ImportCounts | null = null;
+    update((draft) => {
+      // Re-plan against the draft: the memoized plan can be a render stale,
+      // and apply's own re-verification only degrades, never re-matches.
+      counts = applyConcept2Import(draft, planConcept2Import(results, draft));
+    });
+    if (counts) setImportMsg(concept2ImportSummary(counts));
+  }
+
   return (
     <View>
       <SectionHead title="Concept2 Logbook" />
@@ -450,6 +480,26 @@ function Concept2Card() {
                 <T className="text-4 text-muted">Disconnect</T>
               </Tap>
             </View>
+            {pending ? (
+              <>
+                <Tap box={{ h: 42 }} onPress={importNow} className="mt-1 items-center rounded-md bg-gold py-1.5">
+                  <T w="med" className="text-4" style={{ color: color.onAccent }}>
+                    Add {pending} new result{pending === 1 ? '' : 's'} to your history
+                  </T>
+                </Tap>
+                <T className="mt-0.5 text-3 text-dim">
+                  {plan.merges.length
+                    ? `${plan.merges.length} line${plan.merges.length === 1 ? 's' : ''} up with a logged session; the rest file on their own. `
+                    : ''}
+                  Nothing you recorded is overwritten, and each result imports once.
+                </T>
+              </>
+            ) : null}
+            {importMsg ? (
+              <T accessibilityLiveRegion="polite" className="mt-1 text-3 text-ok">
+                {importMsg}
+              </T>
+            ) : null}
           </>
         ) : (
           <>
