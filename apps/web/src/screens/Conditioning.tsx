@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CON_FORMATS,
@@ -73,6 +73,13 @@ const RUN: {
    *  hop to Home and back — the launching URL's query params do not. */
   sinkBid: string;
   sinkBi: number;
+  /** A finished run waiting on its "How did that feel?" answer. Lives on RUN
+   *  for the same reason the clock does: in component state, one tap on the
+   *  nav bar while the rating chips were up unmounted the screen and silently
+   *  threw away the whole banked run — trace, zone time, all of it. Held here,
+   *  coming back to the screen re-asks the question instead. Written and
+   *  cleared by submitFelt(). */
+  pending: CondResult | null;
 } = {
   live: false,
   fmt: 'intervals',
@@ -84,6 +91,7 @@ const RUN: {
   onBpm: null,
   sinkBid: '',
   sinkBi: -1,
+  pending: null,
 };
 
 function runTick() {
@@ -116,10 +124,11 @@ export function Conditioning() {
   const [bpm, setBpm] = useState<number | null>(RUN.live ? RUN.bpm : null);
   const [result, setResult] = useState<CondResult | null>(null);
   // The rating phase between finishing a run and seeing it banked. The built
-  // record waits in the ref until the athlete says how it felt — only then is
-  // it written, so `felt` rides in on the same store update as the result.
-  const [rating, setRating] = useState(false);
-  const pendingRec = useRef<CondResult | null>(null);
+  // record waits on RUN.pending until the athlete says how it felt — only then
+  // is it written, so `felt` rides in on the same store update as the result.
+  // Initialised from RUN so a nav-away during the question re-asks it on
+  // return rather than dropping the finished run.
+  const [rating, setRating] = useState(RUN.pending != null);
 
   const setFmt = (k: CondFmtKey) => {
     RUN.fmt = k;
@@ -164,6 +173,9 @@ export function Conditioning() {
 
   function start() {
     if (RUN.timer) window.clearInterval(RUN.timer);
+    // A fresh run must never inherit a stale unrated record. Unreachable while
+    // the rating chips are up (the setup screen is hidden), but cheap to pin.
+    RUN.pending = null;
     RUN.samples = [];
     RUN.bpm = null;
     RUN.startedAt = Date.now();
@@ -217,15 +229,15 @@ export function Conditioning() {
       trace,
     };
     // Don't bank it yet — ask how it felt first. submitFelt() finishes the job.
-    pendingRec.current = rec;
+    RUN.pending = rec;
     setRating(true);
   }
 
   function submitFelt(felt: string) {
-    const rec = pendingRec.current;
+    const rec = RUN.pending;
     if (!rec) return;
     rec.felt = felt;
-    pendingRec.current = null;
+    RUN.pending = null;
     setResult(rec);
     setRating(false);
 

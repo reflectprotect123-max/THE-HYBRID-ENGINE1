@@ -311,6 +311,16 @@ await t('a conditioning run asks how it felt, and banks the felt RPE onto its bl
   );
   assert(!mid, 'the run banked before the athlete said how it felt');
 
+  // A tap on the nav bar while the chips are up must not throw the run away —
+  // the pending record rides the module RUN object for exactly this reason, so
+  // coming back re-asks the question. Client-side navigation only: goto would
+  // reload the page and reset the module, which is the documented "a run is
+  // over when the tab is" case, not the nav-bar case being pinned here.
+  await page.click('nav[aria-label="Main"] a[href="/"]');
+  await page.waitForSelector('text=Readiness');
+  await page.goBack();
+  await page.waitForSelector('text=How did that feel?');
+
   await page.click('button:has-text("RPE 7")');
   await page.waitForSelector('text=Banked');
   const rec = await page.evaluate(
