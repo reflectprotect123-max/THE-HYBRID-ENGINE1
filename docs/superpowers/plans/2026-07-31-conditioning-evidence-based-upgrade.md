@@ -362,27 +362,22 @@ export function cardioCompletionFor(fmtKey: CondFmtKey, zsec: CondResult['zsec']
 
 Add a unit test in `conditioning.test.ts` covering all three bands.
 
-- [ ] **Step 2: Web — ask the mechanical-completion question after the RPE chips**
+**Important — this section was rewritten after Tasks 3 and 4 actually shipped (both went through a real fix round; read their reports before touching this file). The plan text below reflects their real shape, not a guess.** On both platforms, a finished run is held as a pending, not-yet-banked `CondResult` (web: `RUN.pending`, module scope; mobile: a `pending` ref, protected by an extended `beforeRemove` guard) until `submitFelt(felt)` sets `rec.felt` and immediately banks via the single write path (web: inline in `submitFelt`; mobile: a separate `bank(rec)` function `submitFelt` calls). This task adds a SECOND question after the first, so `submitFelt` can no longer be the thing that banks — banking has to move to whatever answers the LAST question. Getting this wrong reintroduces the exact bug Tasks 3/4 already found and fixed (a mid-rating navigate-away silently losing a finished run) at a new point in a now-two-step flow — the existing protections (RUN.pending / the extended beforeRemove guard) already cover "there's a pending record," but only if the pending record keeps existing across BOTH questions, not just the first.
 
-Extend the Task 3 rating phase: after `submitFelt`, before calling `update()`, add one more chip row:
+- [ ] **Step 2: Web — restructure into a two-question flow, both covered by the existing `RUN.pending` protection.**
 
-```tsx
-{['met', 'local_fatigue', 'technique_fail', 'pain_stop'].map((m) => (
-  <Chip key={m} on={false} onClick={() => submitMechanical(m)}>
-    {m === 'met' ? 'Completed it' : m === 'local_fatigue' ? 'Muscles gave out' : m === 'technique_fail' ? 'Form broke down' : 'Stopped — pain'}
-  </Chip>
-))}
-```
+  - Change `submitFelt(felt)` to just set `RUN.pending!.felt = felt` and trigger a re-render (e.g. `setRating(true)` again, or a version bump — whatever makes React notice `RUN.pending` changed, since mutating module state directly doesn't trigger one on its own) — it must NOT bank anymore, and must NOT clear `RUN.pending`.
+  - Add a new `submitMechanical(m: CondResult['mechanicalCompletion'])` that reads `RUN.pending`, sets `.mechanicalCompletion = m` and `.cardioCompletion = cardioCompletionFor(rec.fmt, rec.zsec, rec.dur)` (the Step 1 helper), clears `RUN.pending`, and does exactly what the OLD `submitFelt` used to do at the end (the `setResult`/`setRating(false)`/`update(...)` block) — this is now the single write path.
+  - In the render, while `RUN.pending` is set: show the RPE chips when `RUN.pending.felt == null`; show the mechanical-completion chips (`['met', 'local_fatigue', 'technique_fail', 'pain_stop']`, labels as originally specified: "Completed it" / "Muscles gave out" / "Form broke down" / "Stopped — pain") once `RUN.pending.felt` is set but `.mechanicalCompletion` isn't.
+  - This means a pending record can now be lost/interrupted at three points (before either question, between the two questions) instead of one — confirm `RUN.pending` genuinely survives all of them the same way Task 3's fix proved it survives navigation (module scope doesn't care which sub-question is showing).
 
-`submitMechanical` sets `rec.mechanicalCompletion`, computes `rec.cardioCompletion = cardioCompletionFor(...)`, then proceeds with the existing `update()`/`setResult()` call.
-
-- [ ] **Step 3: Mobile — same second question**, mirrored.
+- [ ] **Step 3: Mobile — the same restructuring**, mirrored onto `pending`/`submitFelt`/`bank`/the `beforeRemove` guard. The guard's "confirmed exit bank the pending record" behavior (added in Task 4's fix) must keep working no matter which of the two questions was showing when the athlete tried to leave — on a forced exit, bank with whatever was actually answered (`felt` if set, `mechanicalCompletion`/`cardioCompletion` left unset if the athlete never got that far) rather than assuming only `felt` can be missing.
 
 - [ ] **Step 4: Typecheck + build both platforms**
 
 Run: `pnpm --filter @hybrid/web typecheck && pnpm --filter @hybrid/web build && pnpm --filter @hybrid/mobile typecheck`
 
-- [ ] **Step 5: Extend both platforms' conditioning tests** to cover the new question and assert the stored `mechanicalCompletion`/`cardioCompletion` values.
+- [ ] **Step 5: Extend both platforms' conditioning tests** to cover the new question and assert the stored `mechanicalCompletion`/`cardioCompletion` values. Also extend (don't just re-verify) each platform's existing navigate-away-during-rating test from Tasks 3/4 to cover leaving BETWEEN the two questions (after answering RPE, before answering mechanical completion) — not just before the first one — since that's a new interruption point this task introduces.
 
 - [ ] **Step 6: Full verify**
 
