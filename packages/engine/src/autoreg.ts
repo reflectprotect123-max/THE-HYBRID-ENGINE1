@@ -69,7 +69,13 @@ export function computeSetAdjustment(
   // manually-entered non-plate load (101 → 100) otherwise banked a "−1 kg"
   // change and painted a perfect set red. A missed set has eff = 10.5 > center,
   // so raw < weight and this never fires for it.
-  const newWeight = raw === weight ? weight : roundToIncrement(raw, AUTOREG.plateIncrement);
+  let newWeight = raw === weight ? weight : roundToIncrement(raw, AUTOREG.plateIncrement);
+  // A missed set's RAW adjustment is always below `weight` (see above), but
+  // rounding to the nearest plate increment can round a non-multiple `weight`
+  // UP past it — e.g. 24.9 kg rounds to 25. That would recommend more load
+  // right after a failed set. Missed sets only ever move down, so once
+  // rounded, step back one increment rather than let the round trip upward.
+  if (missed && newWeight > weight) newWeight -= AUTOREG.plateIncrement;
   const delta = Math.round((newWeight - weight) * 100) / 100;
   return {
     delta,
