@@ -107,6 +107,7 @@ async function main() {
     'packages/config/src/index.ts',
     'netlify/functions/_lib/config.mjs',
     'netlify/functions/_lib/concept2.mjs',
+    'netlify/functions/_lib/oauth.mjs',
     'netlify/functions/concept2-connect.mjs',
     'netlify/functions/concept2-callback.mjs',
     'netlify/functions/concept2-sync.mjs',
@@ -279,10 +280,22 @@ async function main() {
     'native connect is JSON, requires a verified Supabase user, and never anonymous',
   );
 
+  // Concept2 has no encryption code of its own — it reuses _lib/oauth.mjs's
+  // saveToken/loadToken, whose encryption whoop-contract.mjs already exercises
+  // at runtime (AES-GCM via _lib/crypto.mjs). What THIS check owns is the half
+  // whoop-contract.mjs cannot see: that Concept2's own callback/sync actually
+  // route through that shared, encrypting store — by provider key 'concept2' —
+  // rather than reading or writing a token some other way.
+  const oauthLib = sources.get('netlify/functions/_lib/oauth.mjs') || '';
   check(
-    /encryptJson\(token\)/.test(sources.get('netlify/functions/_lib/oauth.mjs') || '') || true,
-    'Concept2 tokens reuse the shared encrypted token store',
-    'saveToken/loadToken are shared _lib/oauth.mjs helpers already covered by whoop-contract.mjs',
+    /encryptJson\(token\)/.test(oauthLib) && /decryptJson\(record\.encrypted\)/.test(oauthLib),
+    'the shared oauth store Concept2 tokens pass through encrypts on save and decrypts on load',
+  );
+  check(
+    /saveToken\(\s*['"]concept2['"]/.test(callback) &&
+      /loadTokenRecord\(\s*['"]concept2['"]/.test(sync) &&
+      !/token\s*[:=][^=]*\{[^}]*access_token/i.test(callback + sync),
+    'Concept2 callback and sync persist/load tokens only through the shared encrypted store, never a plaintext field of their own',
   );
   check(
     /refreshConcept2Token/.test(sync) && /refresh_token/.test(sync) &&
