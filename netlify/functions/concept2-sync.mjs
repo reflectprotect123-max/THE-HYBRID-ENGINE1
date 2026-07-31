@@ -167,8 +167,15 @@ export async function handler(event) {
     // concept2-callback.mjs). The first sync that sees a result learns the id
     // here and re-saves the token so the provider index points back at this
     // owner, exactly as a WHOOP connection is indexed from its callback.
+    //
+    // Saved atop the FRESHEST stored token, not finalToken: this invocation
+    // may have spent seconds fetching results, and a concurrent sync could
+    // have rotated the token in that window. Re-saving the older token here
+    // would discard that rotation — the exact clobber every other save in
+    // this file goes through refreshWithoutDiscardingRotation to avoid.
     if ((record.providerUserId === null || record.providerUserId === undefined) && snapshot.providerUserId !== null) {
-      await saveToken('concept2', owner, finalToken, snapshot.providerUserId);
+      const freshest = (await loadTokenRecord('concept2', owner))?.token || finalToken;
+      await saveToken('concept2', owner, freshest, snapshot.providerUserId);
     }
     await syncRecord('concept2', owner, snapshot);
     return json({ connected: true, provider: 'concept2', normalized: snapshot.normalized, syncedAt: snapshot.syncedAt });
