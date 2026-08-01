@@ -31,4 +31,17 @@ describe('explainSetAdjustment', () => {
     expect(explained.action).toBe('progress_load');
     expect(explained.reasonCodes).toEqual(['too_light']);
   });
+
+  it('wraps an on-target set with negative delta as hold (verdict overrides delta sign)', () => {
+    const adj = computeSetAdjustment(5, 9.0, 0, 200, 8.5);
+    // Verify the fixture: should have negative delta but "right on target" verdict
+    expect(adj.delta).toBeLessThan(0);
+    expect(adj.verdict).toBe('right on target');
+    expect(adj.newWeight).toBe(197.5);
+    const explained = explainSetAdjustment(adj);
+    // The key fix: even though delta is negative, verdict is 'right on target' so action is 'hold'
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['on_target']);
+    expect(explained.note).toBe('right on target');
+  });
 });

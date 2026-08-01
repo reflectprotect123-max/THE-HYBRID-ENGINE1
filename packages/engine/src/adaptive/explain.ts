@@ -17,7 +17,14 @@ const SET_ADJUSTMENT_REASON_CODES: Record<string, ReasonCode> = {
  * or alters `adj` — it only reshapes it into the adaptive-decision contract.
  */
 export function explainSetAdjustment(adj: SetAdjustment): TrainingDecisionExplanation {
-  const action = adj.delta < 0 ? 'reduce_load' : adj.delta > 0 ? 'progress_load' : 'hold';
+  const action =
+    adj.verdict === 'right on target'
+      ? 'hold'
+      : adj.delta < 0
+        ? 'reduce_load'
+        : adj.delta > 0
+          ? 'progress_load'
+          : 'hold';
   return {
     action,
     confidence: 'high',
