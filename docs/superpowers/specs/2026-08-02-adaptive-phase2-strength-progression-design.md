@@ -63,8 +63,9 @@ interface StrengthExposure {
   sid: string;
   completedAt: number;
   reps: number;
-  missed: boolean;    // repFloorOf(t) > 0 && reps < repFloorOf(t) — same rule computeSetAdjustment uses
-  onTarget: boolean;  // see exact definition below
+  kg: number | null;  // null for a bodyweight exercise — same convention exLogFor already uses
+  missed: boolean;     // repFloorOf(t) > 0 && reps < repFloorOf(t) — same rule computeSetAdjustment uses
+  onTarget: boolean;   // see exact definition below
 }
 ```
 
@@ -75,10 +76,15 @@ interface StrengthExposure {
 
 **Classification** (last 3 exposures, most recent first):
 - Last 2 consecutive `onTarget` → the athlete is consistently handling the current target.
-  - If `repTopOf(currentTarget.t)` is a real number and the most recent exposure's `reps` is still below it → `action: 'progress_reps'`, `prescription: { reps: lastReps + 1 }` (double progression: climb the rep range before adding load).
-  - Otherwise (already at the top of the range, or the target has no range — a flat number or "max") → `action: 'progress_load'`, `prescription: { load: roundToIncrement(lastKg + AUTOREG.stepKg, AUTOREG.plateIncrement) }`.
-- Last 2 consecutive `missed` → `action: 'deload'`, `prescription: { load: roundToIncrement(Math.max(AUTOREG.stepKg, lastKg - AUTOREG.stepKg), AUTOREG.plateIncrement) }` — same floor pattern `nextWorkingWeight`'s own recovery-ease already uses, so a deload can never suggest zero or negative weight.
+  - If the most recent exposure's `kg` is `null` (a bodyweight exercise — nothing external to add load to) → `action: 'progress_reps'`, `prescription: { reps: lastReps + 1 }`, regardless of the rep-range ceiling: a bodyweight movement's only progression axis this function knows about is reps, so the range ceiling that gates loaded exercises doesn't apply here.
+  - Else if `repTopOf(currentTarget.t)` is a real number and the most recent exposure's `reps` is still below it → `action: 'progress_reps'`, `prescription: { reps: lastReps + 1 }` (double progression: climb the rep range before adding load).
+  - Otherwise (loaded, and already at the top of the range, or the target has no range — a flat number or "max") → `action: 'progress_load'`, `prescription: { load: roundToIncrement(lastKg + AUTOREG.stepKg, AUTOREG.plateIncrement) }`.
+- Last 2 consecutive `missed`:
+  - If the most recent exposure's `kg` is `null` (bodyweight) → `action: 'hold'` — there is no load to deload and suggesting fewer reps than the movement's own floor makes no sense; a bodyweight movement that's being consistently missed is a form/readiness conversation this function has no signal for, not a number to propose. `dataLimitations: ['no_load_to_deload']`.
+  - Else → `action: 'deload'`, `prescription: { load: roundToIncrement(Math.max(AUTOREG.stepKg, lastKg - AUTOREG.stepKg), AUTOREG.plateIncrement) }` — same floor pattern `nextWorkingWeight`'s own recovery-ease already uses, so a deload can never suggest zero or negative weight.
 - Anything else (mixed) → `action: 'hold'`, no `prescription`.
+
+This means `progress_load` and `deload` both read `kg` from the MOST RECENT exposure only (`recent[0]`, i.e. `lastExposure`), not an average or a different exposure in the streak — the suggested number is always "one step from what was just lifted," matching `nextWorkingWeight`'s own single-step philosophy (`AUTOREG.stepKg`) rather than inventing a different step size for this new function.
 
 `confidence` is `'high'` whenever the gate passes (3+ real exposures is real signal); `'medium'` is reserved for a future phase with more signal sources — Phase 2 doesn't need the third tier yet, but the type already has it, so this is a real, not simulated, choice: use `'high'` here now, don't invent a fake `'medium'` case just to exercise the enum value.
 
