@@ -461,6 +461,43 @@ await t('a completed conditioning block stays clickable, reopening the recap', a
   await page.waitForURL(/\/recap\/condcard1/);
 });
 
+await t('a reported pain stop holds the setup screen until acknowledged', async () => {
+  // Seed a standalone conditioning result for 'tempo' — a format untouched by
+  // every other scenario in this file — whose most recent (only) result ended
+  // in a reported pain stop. Standalone history is exactly how condEfforts
+  // reads settings.conditioning, so this is the direct-localStorage seed the
+  // task allows in place of driving a whole live run through the chips.
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.settings.conditioning = (db.settings.conditioning || []).concat([
+      { id: 'painstop1', fmt: 'tempo', dur: 60, zsec: { low: 0, mod: 0, high: 0 }, startedAt: Date.now(), mechanicalCompletion: 'pain_stop' },
+    ]);
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/conditioning', { waitUntil: 'networkidle' });
+  await page.click('button:has-text("Tempo")');
+
+  // (a) the hold banner shows and Start is not usable.
+  await page.waitForSelector('text=ended early for reported pain');
+  const startVisible = await page.$('button:has-text("Start")');
+  assert(!startVisible, 'the Start control is still present while a pain stop is unacknowledged');
+
+  // (b) tapping the acknowledgement clears the hold and Start returns.
+  await page.click('button:has-text("I\'m ready to continue")');
+  await page.waitForSelector('button:has-text("Start")');
+  const txtAfterAck = await page.textContent('body');
+  assert(!/ended early for reported pain/.test(txtAfterAck), 'the pain-stop banner is still showing after acknowledging');
+  const ack = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.conditioningAck);
+  assert(ack && typeof ack.tempo === 'number', 'conditioningAck was not written for the bare "tempo" bucket, got: ' + JSON.stringify(ack));
+
+  // Switching to a different, unaffected format never showed the banner and
+  // never hid Start — the hold only ever gated the bucket it belonged to.
+  await page.click('button:has-text("Steady-state")');
+  const txtOther = await page.textContent('body');
+  assert(!/ended early for reported pain/.test(txtOther), 'a pain stop in tempo leaked into steady-state');
+  assert(await page.$('button:has-text("Start")'), 'Start should be usable for an unaffected format');
+});
+
 /* ---------- planner ---------- */
 
 await t('the Library creates a session and opens the guided builder', async () => {

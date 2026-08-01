@@ -11,7 +11,9 @@ import {
   conZones,
   fmtClock,
   isCond,
+  painHoldFor,
   paramsFor,
+  progressionKey,
   pushCondHistory,
   uid,
   zoneSeconds,
@@ -170,7 +172,7 @@ async function connectEcho(): Promise<void> {
 }
 
 export function Conditioning() {
-  const { hr, settings, whoop, activeSession, update } = useDb();
+  const { hr, sessions, settings, whoop, activeSession, update } = useDb();
   const [params] = useSearchParams();
   const sinkBid = params.get('block') || '';
   // -1 when absent — Number(null) is 0, which silently aimed a
@@ -228,6 +230,11 @@ export function Conditioning() {
 
   const zones = useMemo(() => conZones(hr), [hr]);
   const rx = useMemo(() => conPrescription(fmt, { settings, whoop }), [fmt, settings, whoop]);
+  // Setup-time only: modality is never known ahead of a run (the one place
+  // this screen ever sets it, `rec.modality = 'air_bike'` in finish(), only
+  // fires once Echo Bike telemetry has actually been seen mid-run), so the
+  // hold is always checked against the bare-format bucket.
+  const hold = useMemo(() => painHoldFor(fmt, sessions, settings), [fmt, sessions, settings]);
   const phases = useMemo<Phase[]>(() => CON_FORMATS[fmt].build(paramsFor(fmt, rx)), [fmt, rx]);
   const totalSec = useMemo(() => phases.reduce((n, p) => n + p.dur, 0), [phases]);
 
@@ -249,6 +256,20 @@ export function Conditioning() {
   }, [live]);
 
   const zone = bpm == null ? null : conZoneOf(bpm, zones);
+
+  // Clears the hold for THIS format's bare bucket only — an ack keyed to
+  // running says nothing about the rower. Recomputing `hold` off the fresh
+  // settings is what makes the banner disappear and Start reappear on the
+  // very next render, no separate unlock step needed.
+  function acknowledgePainHold() {
+    update((draft) => {
+      draft.settings.conditioningAck = {
+        ...(draft.settings.conditioningAck || {}),
+        [progressionKey(fmt)]: Date.now(),
+      };
+      draft.settings.updatedAt = Date.now();
+    });
+  }
 
   function start() {
     if (RUN.timer) window.clearInterval(RUN.timer);
@@ -429,9 +450,18 @@ export function Conditioning() {
             </ul>
           </Card>
 
-          <Button variant="brass" size="lg" className="mt-3 w-full" onClick={start}>
-            Start
-          </Button>
+          {hold.held ? (
+            <Card className="mt-2 border-[color:var(--color-bad)]/40 bg-[color:var(--color-bad)]/10">
+              <p className="text-4 text-bad">{hold.note}</p>
+              <Button variant="brass" size="md" className="mt-1.5 w-full" onClick={acknowledgePainHold}>
+                I&apos;m ready to continue
+              </Button>
+            </Card>
+          ) : (
+            <Button variant="brass" size="lg" className="mt-3 w-full" onClick={start}>
+              Start
+            </Button>
+          )}
           {/* Manual, not gated on the block's modality: nothing in the app
               sets CondBlock.modality ahead of a session, so a gate would
               simply never show the control. Start's tap handles the HR strap;
