@@ -1,5 +1,9 @@
 node_modules/
 
+# Local git worktrees for isolated SDD implementation work — per-machine
+# scratch, never a project artifact.
+.worktrees/
+
 # Subagent-driven-development scratch — ledgers, briefs, review packages.
 # Per-plan working state, not a project artifact.
 .superpowers/sdd/
