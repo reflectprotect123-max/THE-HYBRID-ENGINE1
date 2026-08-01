@@ -290,6 +290,12 @@ export interface Settings {
   liftProgress?: Record<string, LiftState>;
   conditioning?: CondResult[];
   /**
+   * When the athlete last confirmed they're ready to continue, per
+   * format+modality bucket (same key as `conProgress`). Only ever compared
+   * against a `pain_stop` result's own timestamp — see `painHoldFor`.
+   */
+  conditioningAck?: Record<string, number>;
+  /**
    * Prep and mobility movements — the things done before and around training
    * that carry no load and no reps to progress.
    *

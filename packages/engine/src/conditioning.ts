@@ -6,6 +6,7 @@ import {
 } from './constants';
 import { fmtRpe } from './num';
 import { recoveryBand, todayRecovery } from './hr';
+import { condEfforts } from './balance';
 import type {
   CondBlock,
   CondFmtKey,
@@ -15,6 +16,7 @@ import type {
   Phase,
   Prescription,
   ProgressState,
+  Session,
   Settings,
   WhoopSample,
   ZoneKey,
@@ -112,6 +114,53 @@ export function isProgressedFmt(k: string): k is CondFmtKey {
  */
 export function progressionKey(fmtKey: CondFmtKey, modality?: Modality): string {
   return modality ? fmtKey + ':' + modality : fmtKey;
+}
+
+export interface PainHold {
+  held: boolean;
+  reasonCode: 'pain_stop_pending_ack' | null;
+  note: string;
+  /** startedAt of the pain-stop result the hold is keyed to. */
+  since?: number;
+}
+
+const NOT_HELD: PainHold = { held: false, reasonCode: null, note: '' };
+
+/**
+ * Whether the most recent conditioning result in this exact format+modality
+ * bucket ended in a reported pain stop (`mechanicalCompletion: 'pain_stop'`)
+ * that the athlete has not yet acknowledged.
+ *
+ * Both apps' post-run completion chips have captured this field since the
+ * conditioning-evidence-based upgrade — this is the first thing that ever
+ * reads it back. A pain stop holds only THIS bucket: a rowing pain stop says
+ * nothing about whether running is safe today, matching the same
+ * format+modality partition `conAdapt` already uses (`progressionKey`).
+ *
+ * "Most recent" is the whole rule: a hold clears the moment ANY newer result
+ * lands in the bucket without `pain_stop` (including one imported later from
+ * Concept2), or the moment the athlete acknowledges via `conditioningAck`
+ * (keyed the same way, compared against the pain-stop record's own
+ * timestamp so a stale ack from an earlier incident can't clear a new one).
+ */
+export function painHoldFor(fmtKey: CondFmtKey, sessions: Session[], settings: Settings, modality?: Modality): PainHold {
+  const key = progressionKey(fmtKey, modality);
+  const bucket = condEfforts(sessions, settings).filter(
+    (r) => r && !r.sim && progressionKey((r.fmt || 'free') as CondFmtKey, r.modality) === key,
+  );
+  const last = bucket[bucket.length - 1]; // condEfforts sorts oldest-first
+  if (!last || last.mechanicalCompletion !== 'pain_stop') return NOT_HELD;
+
+  const since = last.startedAt || 0;
+  const ackAt = (settings.conditioningAck || {})[key] || 0;
+  if (ackAt >= since) return NOT_HELD;
+
+  return {
+    held: true,
+    reasonCode: 'pain_stop_pending_ack',
+    note: 'Your last session in this format ended early for reported pain. Confirm you’re ready to continue before starting another.',
+    since,
+  };
 }
 
 /** The athlete's own custom format, clamped to values a session can survive. */

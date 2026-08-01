@@ -18,9 +18,9 @@ describe('condEffort prototype guard', () => {
   });
 });
 
-import { cardioCompletionFor, progressionKey, pushCondHistory } from '../src/conditioning';
+import { cardioCompletionFor, painHoldFor, progressionKey, pushCondHistory } from '../src/conditioning';
 import { sanitizeDB } from '../src/db';
-import type { CondBlock, CondResult, Modality } from '../src/types';
+import type { CondBlock, CondResult, Modality, Session, Settings } from '../src/types';
 
 describe('pushCondHistory survives a poisoned settings.conditioning array', () => {
   it('does not throw sorting past a null/garbage entry once sanitizeDB has run, and keeps the good ones plus the new record', () => {
@@ -140,5 +140,87 @@ describe('modality, device, and completion fields', () => {
     const bare: CondResult = { id: 'r2', fmt: 'steady' };
     expect(bare.modality).toBeUndefined();
     expect(bare.device).toBeUndefined();
+  });
+});
+
+describe('painHoldFor', () => {
+  const NOW = Date.parse('2026-02-03T12:00:00Z');
+  const painResult = (over: Partial<CondResult> = {}): CondResult => ({
+    id: 'r-pain',
+    fmt: 'intervals',
+    modality: 'row',
+    startedAt: NOW - 24 * 3600_000,
+    mechanicalCompletion: 'pain_stop',
+    ...over,
+  });
+
+  it('holds nothing when there is no conditioning history at all', () => {
+    const held = painHoldFor('intervals', [], {}, 'row');
+    expect(held.held).toBe(false);
+    expect(held.reasonCode).toBeNull();
+  });
+
+  it('holds nothing when the most recent result in the bucket is not a pain stop', () => {
+    const settings: Settings = { conditioning: [painResult({ mechanicalCompletion: 'met', startedAt: NOW })] };
+    expect(painHoldFor('intervals', [], settings, 'row').held).toBe(false);
+  });
+
+  it('holds the bucket when the most recent result ended in a reported pain stop', () => {
+    const settings: Settings = { conditioning: [painResult()] };
+    const held = painHoldFor('intervals', [], settings, 'row');
+    expect(held.held).toBe(true);
+    expect(held.reasonCode).toBe('pain_stop_pending_ack');
+    expect(held.since).toBe(NOW - 24 * 3600_000);
+  });
+
+  it('clears once acknowledged at or after the pain-stop timestamp', () => {
+    const paintAt = NOW - 24 * 3600_000;
+    const settings: Settings = {
+      conditioning: [painResult({ startedAt: paintAt })],
+      conditioningAck: { 'intervals:row': paintAt },
+    };
+    expect(painHoldFor('intervals', [], settings, 'row').held).toBe(false);
+  });
+
+  it('an acknowledgement BEFORE the pain stop does not clear it (a stale ack from an earlier incident)', () => {
+    const paintAt = NOW - 3600_000;
+    const settings: Settings = {
+      conditioning: [painResult({ startedAt: paintAt })],
+      conditioningAck: { 'intervals:row': paintAt - 3600_000 },
+    };
+    expect(painHoldFor('intervals', [], settings, 'row').held).toBe(true);
+  });
+
+  it('does not bleed across modalities — a rowing pain stop says nothing about bike', () => {
+    const settings: Settings = { conditioning: [painResult({ modality: 'row' })] };
+    expect(painHoldFor('intervals', [], settings, 'bike').held).toBe(false);
+  });
+
+  it('a newer non-pain-stop result in the same bucket supersedes an older pain stop', () => {
+    const settings: Settings = {
+      conditioning: [
+        painResult({ startedAt: NOW - 48 * 3600_000 }),
+        painResult({ startedAt: NOW - 3600_000, mechanicalCompletion: 'met' }),
+      ],
+    };
+    expect(painHoldFor('intervals', [], settings, 'row').held).toBe(false);
+  });
+
+  it('ignores a simulated session even if it carries pain_stop', () => {
+    const settings: Settings = { conditioning: [painResult({ sim: true })] };
+    expect(painHoldFor('intervals', [], settings, 'row').held).toBe(false);
+  });
+
+  it('reads a result banked inline on a session block, not only settings.conditioning', () => {
+    const sessions: Session[] = [
+      {
+        id: 's1',
+        date: '2026-02-02',
+        status: 'completed',
+        blocks: [{ id: 'b1', kind: 'conditioning', condFmt: 'intervals', condResult: painResult() }],
+      },
+    ];
+    const held = painHoldFor('intervals', sessions, {}, 'row');
+    expect(held.held).toBe(true);
   });
 });
