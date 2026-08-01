@@ -24,5 +24,7 @@ export * from './insights';
 export * from './logger';
 export * from './db';
 export * from './cloud';
+export * from './adaptive/types';
+export * from './adaptive/explain';
 export * from './storage';
 export * as emit from './emit';

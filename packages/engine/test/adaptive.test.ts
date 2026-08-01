@@ -181,3 +181,11 @@ describe('explainConAdapt', () => {
     expect(explained.dataLimitations).toEqual(['simulated_or_missing_session']);
   });
 });
+
+import { explainSetAdjustment as explainSetAdjustmentFromIndex } from '../src/index';
+
+describe('adaptive exports reach @hybrid/engine\'s public surface', () => {
+  it('explainSetAdjustment is reachable from the package index, not just the adaptive module', () => {
+    expect(typeof explainSetAdjustmentFromIndex).toBe('function');
+  });
+});
