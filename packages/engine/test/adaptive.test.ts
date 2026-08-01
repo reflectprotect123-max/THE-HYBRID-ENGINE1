@@ -87,3 +87,43 @@ describe('explainWorkingWeight', () => {
     });
   });
 });
+
+import { conPrescription } from '../src/conditioning';
+import { explainConPrescription } from '../src/adaptive/explain';
+
+describe('explainConPrescription', () => {
+  it('holds at baseline with low confidence when no device is connected', () => {
+    const p = conPrescription('intervals', {});
+    expect(p.rec).toBeNull();
+    const explained = explainConPrescription(p);
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['baseline_format']);
+    expect(explained.confidence).toBe('low');
+    expect(explained.dataLimitations).toEqual(['no_recovery_data']);
+  });
+
+  it('holds at the earned level with high confidence when recovery data exists', () => {
+    const settings = { conProgress: { intervals: { level: 3, miss: 0 } } };
+    const p = conPrescription('intervals', { settings, whoop: { recoveryScore: 80 } });
+    expect(p.note).toBe('Level 3');
+    const explained = explainConPrescription(p);
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['at_earned_level']);
+    expect(explained.confidence).toBe('high');
+    expect(explained.dataLimitations).toEqual([]);
+  });
+
+  it('explains an eased day', () => {
+    const p = conPrescription('intervals', { whoop: { recoveryScore: 20 } });
+    expect(p.note).toBe('eased today for 20% recovery');
+    const explained = explainConPrescription(p);
+    expect(explained).toEqual({
+      action: 'reduce_volume',
+      confidence: 'high',
+      reasonCodes: ['eased_for_recovery'],
+      note: 'eased today for 20% recovery',
+      safetyState: 'approved',
+      dataLimitations: [],
+    });
+  });
+});

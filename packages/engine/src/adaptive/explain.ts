@@ -1,4 +1,4 @@
-import type { SetAdjustment } from '../types';
+import type { SetAdjustment, Prescription } from '../types';
 import type { WorkingWeight } from '../lift';
 import type { ReasonCode, TrainingDecisionExplanation } from './types';
 
@@ -68,5 +68,31 @@ export function explainWorkingWeight(w: WorkingWeight | null): TrainingDecisionE
     note: w.note,
     safetyState: 'approved',
     dataLimitations: [],
+  };
+}
+
+/**
+ * Explains an already-computed conditioning prescription. Read-only: never
+ * recomputes or alters `p` — it only reshapes it into the adaptive-decision contract.
+ */
+export function explainConPrescription(p: Prescription): TrainingDecisionExplanation {
+  if (p.dailyAdj < 0) {
+    return {
+      action: 'reduce_volume',
+      confidence: 'high',
+      reasonCodes: ['eased_for_recovery'],
+      note: p.note,
+      safetyState: 'approved',
+      dataLimitations: [],
+    };
+  }
+  const noRecoveryData = p.rec == null;
+  return {
+    action: 'hold',
+    confidence: noRecoveryData ? 'low' : 'high',
+    reasonCodes: [p.level > 0 ? 'at_earned_level' : 'baseline_format'],
+    note: p.note,
+    safetyState: 'approved',
+    dataLimitations: noRecoveryData ? ['no_recovery_data'] : [],
   };
 }
