@@ -24,10 +24,9 @@ export function emptyDB(): EngineDB {
  * Coerce anything that claims to be an engine DB into one that every read path
  * can survive.
  *
- * This runs on every load, every import, and every coach-authored session
- * arriving from the network, so it is the app's single trust boundary for
- * shape. It is deliberately forgiving about extra keys — per-record fields like
- * `origin` and `assignmentId` must survive — and unforgiving about structure.
+ * This runs on every load, every import, and every session arriving from the
+ * network, so it is the app's single trust boundary for shape. It is
+ * deliberately forgiving about extra keys and unforgiving about structure.
  */
 export function sanitizeDB(d: unknown): EngineDB {
   const src = (d && typeof d === 'object' ? d : {}) as Partial<EngineDB>;
@@ -311,42 +310,16 @@ export function mergeEngines(local: EngineDB, remote: EngineDB): EngineDB {
  *
  * `whoopDaily` and `devices` are excluded because they are device-local and
  * re-derived, and would otherwise churn the fingerprint on every WHOOP sample.
- * Coach-assigned workouts are excluded because they are local materialisations
- * of the authoritative assignments table — pushing them would poison shared
- * state and churn sync forever.
  */
 export function cloudFp(engine: EngineDB): string {
   try {
     const st: Settings = Object.assign({}, engine.settings || {});
     delete st.whoopDaily;
     delete st.devices;
-    const w = (engine.workouts || []).filter((x) => !x || x.origin !== 'coach');
-    return JSON.stringify({ w, s: engine.sessions || [], st });
+    return JSON.stringify({ w: engine.workouts || [], s: engine.sessions || [], st });
   } catch {
     return 'fp-' + Math.random();
   }
-}
-
-/**
- * Turn a coach assignment row into a local workout. The id is namespaced so it
- * can never collide with a locally created one, and `origin: 'coach'` keeps it
- * out of the sync fingerprint.
- */
-export function materializeAssignment(r: {
-  id: string;
-  session_snapshot?: unknown;
-  scheduled_date?: string | null;
-  updated_at?: string;
-}): Workout {
-  const snap = (r.session_snapshot && typeof r.session_snapshot === 'object' ? r.session_snapshot : {}) as Partial<Workout>;
-  const w = Object.assign({}, snap, {
-    id: 'coach:' + r.id,
-    origin: 'coach' as const,
-    assignmentId: r.id,
-    _rev: r.updated_at || '',
-    dates: r.scheduled_date ? [r.scheduled_date] : Array.isArray(snap.dates) ? snap.dates : [],
-  });
-  return sanitizeDB({ workouts: [w], sessions: [], settings: {} }).workouts[0];
 }
 
 /**

@@ -160,12 +160,8 @@ export interface Workout<S extends AnySet = LoggedSet> {
   /** one-off YYYY-MM-DD dates */
   dates?: string[];
   updatedAt?: number;
-  origin?: 'coach' | 'local';
-  assignmentId?: string;
   _rev?: string;
   sample?: boolean;
-  /** Coach instructions, written once and carried with the session. */
-  note?: string;
 }
 
 export type SessionStatus = 'active' | 'completed' | 'incomplete';
