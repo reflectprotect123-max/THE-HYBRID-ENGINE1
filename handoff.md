@@ -71,6 +71,63 @@ next roadmap phase after this is **Phase 2 — adaptive strength progression**, 
 still awaits its own go-ahead per this project's standing per-phase review gate before
 any implementation plan is written for it.
 
+**2026-08-01 — Final whole-branch review of Phase 1 landed a follow-up fix wave,
+verified, and pushed, at `97d7c7f`.** The review's core finding: the `' · estimate'`
+suffix shipped above was a confidence badge, not the "why" text the parent design
+doc's Phase 1 acceptance bar actually asks for — `explainWorkingWeight` already
+computes the real reason (`dataLimitations: ['no_recovery_data']`) but it was being
+discarded before it reached either screen. Fixed by changing the copy itself
+(`' · estimate'` → `' · no recovery data today'`, byte-for-byte identical in both
+`Logger.tsx` files, same `earnedExplained?.confidence === 'low'` gate, unchanged),
+which also closed out three more Important findings from the same review in one
+commit: the web smoke assertion was loosened to a bare `/estimate/` regex — tightened
+to one assertion on the full composed string, and the test renamed to describe the
+reason rather than the adjective; the mobile unit test's assertion string was updated
+to match; and a genuinely missing high-confidence smoke test was added to
+`checks/react-smoke.mjs` (route-intercepted WHOOP connect, mirroring
+`checks/screens.mjs`'s existing ~12-line pattern), immediately followed by a
+`page.unroute` cleanup verified not to leak into the later "Settings offers cloud
+sign-in and a WHOOP connect" scenario. Full repo `pnpm run verify` re-run fresh at
+`97d7c7f`: **exit 0** — typecheck clean, engine 323/323 (unchanged — no engine code
+touched), guided-flow 15/15 (unchanged), web 3/3 (unchanged — this slice's web
+coverage lives in react-smoke, not unit tests), mobile **73/73** (unchanged count —
+the fix updated an existing test's assertion, it did not add one), build clean, CSP
+check clean, react-smoke **31/31** (was 30/30 — net +1: the low-confidence test was
+tightened in place, and the new high-confidence test is the addition), deploy-smoke
+11/11 (unchanged).
+
+**Two inaccuracies in this handoff entry's own text, above, are corrected here rather
+than edited in place, to keep the historical record of what was actually said at ship
+time intact:**
+- The paragraph above claiming "no test harness here can simulate a connected WHOOP
+  without deeper provider mocking" was **false** — `checks/screens.mjs` already did
+  exactly this, with plain Playwright route interception, before this slice ever
+  shipped. The high-confidence path is no longer just documented by inspection: it is
+  now covered by a real, passing `react-smoke.mjs` test (see above).
+- The paragraph above claiming `explainWorkingWeight` "returns `confidence: 'low'` in
+  exactly one branch" was **false** — reading `packages/engine/src/adaptive/explain.ts`
+  directly, it returns `'low'` in **two** branches: the `!w` null-guard
+  (`action: 'pause_insufficient_data'`) and the no-recovery-data hold branch. The
+  by-inspection conclusion itself (byte-for-byte identical rendered text whenever
+  confidence is not `'low'`) still holds — both `Logger.tsx` files call
+  `explainWorkingWeight` only when `earned` is already truthy, so the `!w` branch is
+  unreachable from either screen — but the sentence describing the function itself was
+  wrong about the function, not just imprecise.
+
+**Honest remaining scope, stated plainly rather than silently deferred:** the parent
+design doc's Phase 1 acceptance criterion (§14 — "'why' text renders for at least one
+existing decision per app") is now more fully met than it was before this fix wave:
+the copy change surfaces the actual computed reason (`no_recovery_data`, one of
+`TrainingDecisionExplanation.dataLimitations`) instead of a bare confidence adjective.
+It is **not** fully met in the broader sense implied by the contract's shape — this
+still surfaces exactly ONE derived limitation string, hand-written into the JSX rather
+than read from `earnedExplained.reasonCodes` or `earnedExplained.note` (both of which
+`explainWorkingWeight` already computes and neither of which the UI touches), and the
+other three Phase 0 explainers (`explainSetAdjustment`, `explainConPrescription`,
+`explainConAdapt`) still have zero UI consumers in either app, exactly as noted above.
+This is real remaining scope for a future slice — not a gap this entry is trying to
+paper over.
+
 **2026-08-01 — Phase 0 (adaptive-decision contracts) shipped, verified, and pushed.**
 `origin/main` is at `598a1e8`. Five tasks, eight commits (Task 1 needed one fix-round
 commit after its own task review caught an action/verdict contradiction; Tasks 2-5
