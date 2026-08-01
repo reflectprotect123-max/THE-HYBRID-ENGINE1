@@ -18,7 +18,7 @@
  */
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { Alert, type AlertButton } from 'react-native';
-import { LS_KEY, type EngineDB } from '@hybrid/engine';
+import { LS_KEY, type CondResult, type EngineDB } from '@hybrid/engine';
 import { renderScreen, renderStack, seed } from './harness';
 import { storage } from '../src/store/storage';
 import { ConditioningScreen } from '../src/screens/Conditioning';
@@ -202,5 +202,79 @@ describe('ConditioningScreen felt RPE', () => {
     // mechanical-completion question — it is set on this exit path too.
     expect(runs[0].cardioCompletion).toBe('not_met');
     expect(runs[0].dur).toBeGreaterThanOrEqual(20);
+  });
+});
+
+/*
+ * The setup-screen pain-stop hold: `painHoldFor` (packages/engine/src/
+ * conditioning.ts) reads the mechanical-completion chips above back for the
+ * first time. The screen defaults to the 'intervals' format with no route
+ * params, which is the bare (no-modality) bucket `painHoldFor` is called
+ * against here — setup time never knows a modality ahead of a run (see
+ * `rec.modality` in finish(), the only place this screen ever sets one).
+ */
+describe('ConditioningScreen pain-stop hold', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const painStop = (over: Partial<CondResult> = {}): CondResult => ({
+    id: 'r-pain',
+    fmt: 'intervals',
+    startedAt: Date.now() - 3600_000,
+    mechanicalCompletion: 'pain_stop',
+    dur: 300,
+    ...over,
+  });
+
+  it('holds the setup screen and hides Start when the last result in this bucket ended in a reported pain stop', () => {
+    seed({ settings: { conditioning: [painStop()] } });
+    renderScreen(<ConditioningScreen />, {});
+
+    expect(screen.getByText(/ended early for reported pain/i)).toBeTruthy();
+    expect(screen.queryByText('Start')).toBeNull();
+  });
+
+  it('acknowledging the hold clears it, restores Start, and persists the ack keyed by progressionKey', () => {
+    seed({ settings: { conditioning: [painStop()] } });
+    renderScreen(<ConditioningScreen />, {});
+
+    expect(screen.queryByText('Start')).toBeNull();
+    fireEvent.press(screen.getByText("I'm ready to continue"));
+
+    // The hold recomputes off the fresh `settings.conditioningAck` immediately
+    // — no extra render or flush needed for the screen itself to move on.
+    expect(screen.queryByText(/ended early for reported pain/i)).toBeNull();
+    expect(screen.getByText('Start')).toBeTruthy();
+
+    flushSave();
+    const ack = persisted().settings.conditioningAck ?? {};
+    // Bare bucket: progressionKey('intervals', undefined) === 'intervals'.
+    expect(ack.intervals).toBeGreaterThan(0);
+  });
+
+  it('does not hold an unrelated format/modality bucket', () => {
+    seed({
+      settings: {
+        conditioning: [
+          // A rowing pain stop in the SAME format — its bucket is
+          // 'intervals:row', not the bare 'intervals' bucket setup reads.
+          painStop({ id: 'r-row', modality: 'row' }),
+          // A pain stop in a DIFFERENT format entirely.
+          painStop({ id: 'r-steady', fmt: 'steady', modality: undefined }),
+        ],
+      },
+    });
+    renderScreen(<ConditioningScreen />, {});
+
+    // Default format is Intervals (bare bucket): neither seeded pain stop
+    // belongs to it, so Start is untouched.
+    expect(screen.queryByText(/ended early for reported pain/i)).toBeNull();
+    expect(screen.getByText('Start')).toBeTruthy();
+
+    // Switching to the format that DOES have a bare-bucket pain stop shows
+    // the hold — proving the screen reacts to the format it is actually
+    // showing, not to conditioning history in general.
+    fireEvent.press(screen.getByText('Steady-state'));
+    expect(screen.getByText(/ended early for reported pain/i)).toBeTruthy();
+    expect(screen.queryByText('Start')).toBeNull();
   });
 });

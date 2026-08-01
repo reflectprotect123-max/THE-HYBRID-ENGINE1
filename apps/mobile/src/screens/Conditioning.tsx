@@ -17,7 +17,9 @@ import {
   geoDownsample,
   isCond,
   paceSecPerKm,
+  painHoldFor,
   paramsFor,
+  progressionKey,
   pushCondHistory,
   totalDistanceM,
   uid,
@@ -163,6 +165,27 @@ export function ConditioningScreen() {
   const rx = useMemo(() => conPrescription(fmt, { settings: db.settings, whoop }), [fmt, db.settings, whoop]);
   const phases = useMemo<Phase[]>(() => CON_FORMATS[fmt].build(paramsFor(fmt, rx)), [fmt, rx]);
   const totalSec = useMemo(() => phases.reduce((n, p) => n + p.dur, 0), [phases]);
+
+  /*
+   * Setup-time safety gate: was the most recent result in THIS format's bare
+   * bucket a reported pain stop that hasn't been acknowledged yet?
+   *
+   * Bare-format bucket, no modality — modality is only ever learned mid-run
+   * (Echo Bike telemetry, see `rec.modality` in finish()), so it is never
+   * known here for anything else, and guessing one would let a rowing pain
+   * stop silently hold (or fail to hold) an unrelated bucket.
+   */
+  const hold = useMemo(() => painHoldFor(fmt, db.sessions, db.settings), [fmt, db.sessions, db.settings]);
+
+  /** The only way past the gate: mark this format's pain stop acknowledged,
+   *  which is what lets `hold` recompute to `held: false` on the next render. */
+  const acknowledgeHold = () => {
+    update((d) => {
+      const key = progressionKey(fmt, undefined);
+      d.settings.conditioningAck = { ...(d.settings.conditioningAck || {}), [key]: Date.now() };
+      d.settings.updatedAt = Date.now();
+    });
+  };
 
   /* Indexed, not just resolved: the INDEX is what makes a phase change
      detectable, which is what the buzz below hangs off. -1 means the
@@ -483,6 +506,16 @@ export function ConditioningScreen() {
             ))}
           </View>
 
+          {hold.held ? (
+            <Card className="mt-2 border-bad bg-panel">
+              <Kicker className="text-bad">Before you continue</Kicker>
+              <T className="mt-0.5 text-4 text-text">{hold.note}</T>
+              <Btn variant="brass" size="lg" className="mt-2" onPress={acknowledgeHold}>
+                I&apos;m ready to continue
+              </Btn>
+            </Card>
+          ) : null}
+
           <Card className="mt-2">
             <Kicker>Today&apos;s prescription</Kicker>
             <T w="black" num className="mt-0.5 text-7 text-gold2">
@@ -501,9 +534,11 @@ export function ConditioningScreen() {
             ))}
           </Card>
 
-          <Btn variant="brass" size="lg" className="mt-3" onPress={() => void start()}>
-            Start
-          </Btn>
+          {hold.held ? null : (
+            <Btn variant="brass" size="lg" className="mt-3" onPress={() => void start()}>
+              Start
+            </Btn>
+          )}
           {/* Manual, not gated on the block's modality: nothing in the app
               sets CondBlock.modality ahead of a session, so a gate would
               simply never show the control — same reasoning as web. */}
