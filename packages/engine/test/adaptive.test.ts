@@ -45,3 +45,45 @@ describe('explainSetAdjustment', () => {
     expect(explained.note).toBe('right on target');
   });
 });
+
+import { nextWorkingWeight } from '../src/lift';
+import { explainWorkingWeight } from '../src/adaptive/explain';
+
+describe('explainWorkingWeight', () => {
+  it('reports pause_insufficient_data when nothing has been earned yet', () => {
+    expect(nextWorkingWeight('Back squat', {})).toBeNull();
+    const explained = explainWorkingWeight(null);
+    expect(explained).toEqual({
+      action: 'pause_insufficient_data',
+      confidence: 'low',
+      reasonCodes: ['no_earned_weight'],
+      note: 'No working weight has been earned for this movement yet.',
+      safetyState: 'approved',
+      dataLimitations: ['no_lift_history'],
+    });
+  });
+
+  it('holds at the earned weight on a green or amber day', () => {
+    const settings = { liftProgress: { 'back squat': { kg: 100, at: 1 } } };
+    const w = nextWorkingWeight('Back squat', settings, { recoveryScore: 80 });
+    const explained = explainWorkingWeight(w);
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['at_earned_weight']);
+    expect(explained.confidence).toBe('high');
+  });
+
+  it('eases and explains why on a red day', () => {
+    const settings = { liftProgress: { 'back squat': { kg: 100, at: 1 } } };
+    const w = nextWorkingWeight('Back squat', settings, { recoveryScore: 20 });
+    expect(w?.note).toBe('eased for 20% recovery');
+    const explained = explainWorkingWeight(w);
+    expect(explained).toEqual({
+      action: 'reduce_load',
+      confidence: 'high',
+      reasonCodes: ['eased_for_recovery'],
+      note: 'eased for 20% recovery',
+      safetyState: 'approved',
+      dataLimitations: [],
+    });
+  });
+});

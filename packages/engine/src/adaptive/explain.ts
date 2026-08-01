@@ -1,4 +1,5 @@
 import type { SetAdjustment } from '../types';
+import type { WorkingWeight } from '../lift';
 import type { ReasonCode, TrainingDecisionExplanation } from './types';
 
 const SET_ADJUSTMENT_REASON_CODES: Record<string, ReasonCode> = {
@@ -30,6 +31,41 @@ export function explainSetAdjustment(adj: SetAdjustment): TrainingDecisionExplan
     confidence: 'high',
     reasonCodes: [SET_ADJUSTMENT_REASON_CODES[adj.verdict] || 'unclassified'],
     note: adj.verdict,
+    safetyState: 'approved',
+    dataLimitations: [],
+  };
+}
+
+/**
+ * Explains an already-computed working-weight offer. Read-only, same
+ * discipline as `explainSetAdjustment`.
+ */
+export function explainWorkingWeight(w: WorkingWeight | null): TrainingDecisionExplanation {
+  if (!w) {
+    return {
+      action: 'pause_insufficient_data',
+      confidence: 'low',
+      reasonCodes: ['no_earned_weight'],
+      note: 'No working weight has been earned for this movement yet.',
+      safetyState: 'approved',
+      dataLimitations: ['no_lift_history'],
+    };
+  }
+  if (w.dailyAdj < 0) {
+    return {
+      action: 'reduce_load',
+      confidence: 'high',
+      reasonCodes: ['eased_for_recovery'],
+      note: w.note,
+      safetyState: 'approved',
+      dataLimitations: [],
+    };
+  }
+  return {
+    action: 'hold',
+    confidence: 'high',
+    reasonCodes: ['at_earned_weight'],
+    note: w.note,
     safetyState: 'approved',
     dataLimitations: [],
   };
