@@ -48,7 +48,11 @@ export type ReasonCode =
   | 'conditioning_level_deloaded'
   | 'conditioning_session_excluded'
   | 'conditioning_no_hr_data'
-  | 'conditioning_level_held';
+  | 'conditioning_level_held'
+  | 'insufficient_exposure_history'
+  | 'consistently_on_target'
+  | 'consistently_missed'
+  | 'mixed_recent_results';
 
 export interface TrainingDecisionExplanation {
   action: ProgressionAction;
@@ -62,4 +66,7 @@ export interface TrainingDecisionExplanation {
   safetyState: SafetyState;
   /** What's missing that would raise confidence, if anything. */
   dataLimitations: string[];
+  /** A concrete number to offer, when `action` proposes one. Absent when the
+   * action doesn't have a number to propose (hold, pause_insufficient_data). */
+  prescription?: { load?: number; reps?: number };
 }
