@@ -42,7 +42,6 @@ export function ExerciseCard({
   ex,
   letter,
   open,
-  readOnly,
   suggestPool,
   onToggle,
   onNameChange,
@@ -56,7 +55,6 @@ export function ExerciseCard({
   ex: Exercise<LoggedSet>;
   letter: string;
   open: boolean;
-  readOnly: boolean;
   /** Prep-first inside a warm-up block, logged movements everywhere else. */
   suggestPool: string[];
   onToggle: () => void;
@@ -89,13 +87,12 @@ export function ExerciseCard({
         <View className="mt-1.5 border-t border-line pt-1.5">
           <Input
             value={ex.name}
-            editable={!readOnly}
             onChangeText={onNameChange}
             placeholder="Movement"
             accessibilityLabel="movement name"
             className="h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
           />
-          {!readOnly ? <Suggest typed={ex.name} known={suggestPool} onPick={onNameChange} /> : null}
+          <Suggest typed={ex.name} known={suggestPool} onPick={onNameChange} />
           {ex.sets.map((st, si) => (
             <View key={si} className="mt-1 flex-row items-center gap-1">
               <T w="semi" num className={`w-8 text-3 ${isWarmup(st) ? 'text-gold2' : 'text-dim'}`}>
@@ -104,7 +101,6 @@ export function ExerciseCard({
               <Input
                 num
                 value={st.t}
-                editable={!readOnly}
                 // Type once, it fills the rest — see fillLinkedSets.
                 onChangeText={(v) => onSet(si, 't', v)}
                 placeholder="reps"
@@ -114,57 +110,50 @@ export function ExerciseCard({
               <Input
                 num
                 value={st.rpe}
-                editable={!readOnly}
                 onChangeText={(v) => onSet(si, 'rpe', v)}
                 placeholder={isWarmup(st) ? '—' : 'RPE'}
                 accessibilityLabel="RPE"
                 className="h-5 w-12 rounded-md border border-line bg-well px-1 text-center text-4 text-text"
               />
-              {!readOnly && ex.sets.length > 1 ? (
+              {ex.sets.length > 1 ? (
                 <Tap onPress={() => onDelSet(si)} box={{ h: 20, w: 24 }} label={`delete set ${si + 1}`}>
                   <T className="px-1 text-3 text-dim">✕</T>
                 </Tap>
               ) : null}
             </View>
           ))}
-          {!readOnly ? (
-            <Btn className="mt-1 self-start" onPress={onAddSet}>
-              ＋ Add set
-            </Btn>
-          ) : null}
+          <Btn className="mt-1 self-start" onPress={onAddSet}>
+            ＋ Add set
+          </Btn>
           <T className="mt-1 text-3 text-dim">
             Type what you want to hit — 8, 8-12, max. Start with W for a warm-up (W or W10).
           </T>
 
           <View className="mt-1.5 flex-row items-center gap-1">
             <T w="semi" className="text-2 uppercase tracking-widest text-dim">Rest</T>
-            {!readOnly ? <Btn onPress={() => onRest(-15)}>−</Btn> : null}
+            <Btn onPress={() => onRest(-15)}>−</Btn>
             <T w="semi" num className="w-10 text-center text-4 text-text">{fmtRest(ex.rest || 0)}</T>
-            {!readOnly ? <Btn onPress={() => onRest(15)}>+</Btn> : null}
+            <Btn onPress={() => onRest(15)}>+</Btn>
             {/* An exercise added by mistake was permanent: the sets could be
                 removed one by one, and the block deleted whole, but never the
                 movement itself. */}
-            {!readOnly ? (
-              <>
-                <View className="flex-1" />
-                <Tap
-                  label={`duplicate ${ex.name || 'exercise'}`}
-                  onPress={onDuplicate}
-                  box={{ h: 28 }}
-                  className="mr-1 rounded-md border border-line2 px-1 py-0.5"
-                >
-                  <T className="text-3 text-dim">Duplicate</T>
-                </Tap>
-                <Tap
-                  label={`remove ${ex.name || 'exercise'}`}
-                  onPress={onRemove}
-                  box={{ h: 28 }}
-                  className="rounded-md border border-line2 px-1 py-0.5"
-                >
-                  <T className="text-3 text-dim">Remove</T>
-                </Tap>
-              </>
-            ) : null}
+            <View className="flex-1" />
+            <Tap
+              label={`duplicate ${ex.name || 'exercise'}`}
+              onPress={onDuplicate}
+              box={{ h: 28 }}
+              className="mr-1 rounded-md border border-line2 px-1 py-0.5"
+            >
+              <T className="text-3 text-dim">Duplicate</T>
+            </Tap>
+            <Tap
+              label={`remove ${ex.name || 'exercise'}`}
+              onPress={onRemove}
+              box={{ h: 28 }}
+              className="rounded-md border border-line2 px-1 py-0.5"
+            >
+              <T className="text-3 text-dim">Remove</T>
+            </Tap>
           </View>
         </View>
       ) : null}

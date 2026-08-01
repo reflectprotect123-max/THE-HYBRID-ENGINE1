@@ -3,18 +3,15 @@ import { Card, Input, T } from '../../ui';
 /** Just words — see the web Planner's twin for why a metcon is not sets. */
 export function TextBlockCard({
   body,
-  readOnly,
   onChange,
 }: {
   body: string;
-  readOnly: boolean;
   onChange: (v: string) => void;
 }) {
   return (
     <Card>
       <Input
         value={body || ''}
-        editable={!readOnly}
         multiline
         numberOfLines={5}
         onChangeText={onChange}

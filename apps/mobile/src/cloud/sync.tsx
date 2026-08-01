@@ -6,10 +6,7 @@ import {
   applyPull,
   buildPushState,
   cloudFp,
-  coachDigest,
-  reconcileAssignments,
   sanitizeDB,
-  type AssignmentRow,
   type EngineDB,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
@@ -21,10 +18,8 @@ import { humanizeError } from '../errors';
  *
  * The protocol is identical to the web app's and deliberately so: two devices
  * must be able to schedule and log between syncs without either losing work.
- * That is why a pull MERGES by record rather than overwriting, why a push
- * merges against whatever the remote already holds, and why coach assignments
- * are reconciled separately — they live in their own table, outside the state
- * fingerprint.
+ * That is why a pull MERGES by record rather than overwriting a push merges
+ * against whatever the remote already holds.
  *
  * All of those rules live in @hybrid/engine and are tested there. This file is
  * only the network and the React wiring. What differs from the web file is
@@ -49,10 +44,6 @@ interface SyncCtx {
   signUp: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
-  /** True once an active coach link exists for this athlete. */
-  coachLinked: boolean;
-  /** Redeem a coach's invite code. Resolves to an error message, or null. */
-  claimInvite: (code: string) => Promise<string | null>;
 }
 
 const Ctx = createContext<SyncCtx | null>(null);
@@ -93,7 +84,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [syncedAt, setSyncedAt] = useState(0);
-  const [coachLinked, setCoachLinked] = useState(false);
 
   // The DB changes on every logged set; reading it through a ref keeps the
   // reconcile callback stable so the AppState listener isn't torn down and
@@ -147,50 +137,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
-  const pullAssignments = useCallback(async () => {
-    if (!client || !user) return;
-    const { data, error: e } = await client
-      .from('assignments')
-      .select('id,scheduled_date,session_snapshot,updated_at,status')
-      .eq('athlete_id', user.id)
-      .eq('status', 'assigned');
-    // A project without the assignments table provisioned must not break sync.
-    if (e) return;
-
-    const cur = dbRef.current;
-    const { workouts, changed } = reconcileAssignments(
-      cur.workouts,
-      cur.sessions,
-      cur.settings,
-      (data || []) as AssignmentRow[],
-    );
-    if (changed) {
-      update((draft) => {
-        draft.workouts = workouts;
-      });
-    }
-  }, [user, update]);
-
-  const publishDigest = useCallback(async () => {
-    if (!client || !user) return;
-    // Only when a coach link is actually active — an athlete with no coach
-    // publishes nothing at all.
-    const { data: link } = await client
-      .from('coach_athletes')
-      .select('id')
-      .eq('athlete_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle();
-    setCoachLinked(!!link);
-    if (!link) return;
-    await client
-      .from('athlete_feed')
-      .upsert(
-        { athlete_id: user.id, payload: coachDigest(dbRef.current), updated_at: new Date().toISOString() },
-        { onConflict: 'athlete_id' },
-      );
-  }, [user]);
-
   const reconcile = useCallback(async () => {
     if (!client || !user || inFlight.current) return;
     inFlight.current = true;
@@ -214,12 +160,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (mergedDb !== dbRef.current) applyMerged(mergedDb);
       if (needsPush) await pushNow(true, remoteState);
 
-      // Assignments live in their own table, outside the state fingerprint, so
-      // they are reconciled whether or not app_state changed. This is what
-      // makes a freshly assigned session appear without a manual refresh.
-      await pullAssignments();
-      await publishDigest();
-
       setSyncedAt(Date.now());
     } catch (e) {
       setError(humanizeError(e, 'sync'));
@@ -227,7 +167,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       inFlight.current = false;
       setBusy(false);
     }
-  }, [user, applyMerged, pushNow, pullAssignments, publishDigest]);
+  }, [user, applyMerged, pushNow]);
 
   /* ---- auth ---- */
   useEffect(() => {
@@ -266,9 +206,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Reconcile on sign-in, and whenever the app comes back to the foreground —
-  // this is what pulls a freshly assigned session onto the calendar. On the web
-  // this hangs off document.visibilitychange; native has no document, and
-  // AppState 'active' is the equivalent edge.
+  // this is what pulls in whatever another device pushed while this one was
+  // backgrounded. On the web this hangs off document.visibilitychange; native
+  // has no document, and AppState 'active' is the equivalent edge.
   useEffect(() => {
     if (!user) return;
     void reconcile();
@@ -323,31 +263,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         await client.auth.signOut();
         setUser(null);
         lastFp.current = null;
-        // Otherwise the next account on this device inherits the previous
-        // athlete's link state and is told it already has a coach.
-        setCoachLinked(false);
       },
       syncNow: reconcile,
-      coachLinked,
-      /*
-       * The ONLY way to establish a coach link. `claim_invite` is a
-       * security-definer RPC because the RLS policies deliberately give a coach
-       * no UPDATE on coach_athletes — otherwise a coach could flip any row to
-       * active against an athlete who never agreed. Consent flows one way: the
-       * athlete types the code.
-       */
-      claimInvite: async (code) => {
-        if (!client) return 'Cloud sync is not configured.';
-        if (!user) return 'Sign in first — a coach link is tied to your account.';
-        const token = code.trim().toUpperCase();
-        if (!token) return 'Enter the code your coach gave you.';
-        const { error: e } = await client.rpc('claim_invite', { p_token: token });
-        if (e) return humanizeError(e, 'invite');
-        await reconcile();
-        return null;
-      },
     }),
-    [user, busy, error, syncedAt, reconcile, coachLinked],
+    [user, busy, error, syncedAt, reconcile],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -68,7 +68,6 @@ export function LoggerScreen({ route, navigation }: Props) {
   const [platesOpen, setPlatesOpen] = useState(false);
 
   const s = activeSession;
-  const coachNote = (db.workouts.find((w) => w.id === s?.workoutId)?.note || '').trim();
   const block = s?.blocks[loc.bi];
   const ex = block && !isCond(block) ? blockExercises(block as StrengthBlock<LoggedSet>)[loc.ei] : undefined;
   const si = ex ? curSetIndex(ex) : -1;
@@ -290,16 +289,6 @@ export function LoggerScreen({ route, navigation }: Props) {
         </T>
         <T num className="text-2 text-dim">{prog.pct}%</T>
       </View>
-
-      {/* Session-level coach instructions — they live on the source WORKOUT
-          (Workout.note); a Session carries only workoutId, so read the note
-          off its source. Same panel the web logger shows. */}
-      {coachNote ? (
-        <View className="mt-2 rounded-md border border-gold-line bg-gold-wash p-1.5">
-          <T w="semi" className="text-2 uppercase tracking-widest text-gold2">From your coach</T>
-          <T className="mt-0.5 text-4 leading-relaxed text-text">{coachNote}</T>
-        </View>
-      ) : null}
 
       <View className="mt-2 rounded-lg border border-line bg-panel p-2">
         <View className="flex-row items-center gap-1">

@@ -103,7 +103,6 @@ export function SettingsScreen() {
       <Field label="Resting HR" hint="With this, zones use Karvonen instead of percent-of-max." value={profile.restingHr} onChange={(v) => set({ restingHr: v })} />
 
       <CloudCard />
-      <CoachLinkCard />
       <WhoopCard />
       <Concept2Card />
 
@@ -266,55 +265,6 @@ function RestoreSection() {
   );
 }
 
-function CoachLinkCard() {
-  const { enabled, user, coachLinked, claimInvite } = useSync();
-  const [code, setCode] = useState('');
-  const [msg, setMsg] = useState('');
-  const [busy, setBusy] = useState(false);
-  if (!enabled || !user) return null;
-
-  return (
-    <View>
-      <SectionHead title="Your coach" />
-      <Card>
-        {coachLinked ? (
-          <T className="text-4 text-muted">
-            Linked. Sessions your coach assigns appear in your Library automatically, and they can see a summary of
-            your training — never your heart-rate traces, notes or settings, and only the last 90 days.
-          </T>
-        ) : (
-          <>
-            <T className="text-4 text-muted">
-              Got a code from a coach? Entering it is what grants them access — they cannot link to you on their own.
-            </T>
-            <Input
-              value={code}
-              onChangeText={(v) => setCode(v.toUpperCase())}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              placeholder="INVITE CODE"
-              w="semi"
-              className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-center text-5 tracking-widest text-text"
-            />
-            {msg ? <T className="mt-1 text-3 text-warn">{msg}</T> : null}
-            <Tap box={{ h: 42 }}
-              onPress={async () => {
-                setBusy(true);
-                setMsg((await claimInvite(code)) || 'Linked — your coach can now assign you sessions.');
-                setBusy(false);
-              }}
-              disabled={busy || !code.trim()}
-              className={`mt-1.5 items-center rounded-md bg-gold py-1.5 ${busy || !code.trim() ? 'opacity-40' : ''}`}
-            >
-              <T w="med" className="text-4" style={{ color: color.onAccent }}>{busy ? 'Linking…' : 'Link to coach'}</T>
-            </Tap>
-          </>
-        )}
-      </Card>
-    </View>
-  );
-}
-
 function CloudCard() {
   const { enabled, user, busy, error, syncedAt, signIn, signUp, signOut, syncNow } = useSync();
   const [email, setEmail] = useState('');
@@ -353,7 +303,7 @@ function CloudCard() {
           </>
         ) : (
           <>
-            <T className="text-4 text-muted">Sign in to sync across devices and receive sessions from a coach.</T>
+            <T className="text-4 text-muted">Sign in to sync across devices.</T>
             <Input
               value={email}
               onChangeText={setEmail}

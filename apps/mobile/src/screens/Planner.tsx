@@ -33,8 +33,7 @@ import { SupersetSeam } from './planner/SupersetSeam';
 import { TextBlockCard } from './planner/TextBlockCard';
 
 /*
- * The athlete's own plan editor — the same shape the coach writes in, because
- * both sides share one model. Targets are typed, not chipped: chips cannot
+ * The athlete's own plan editor. Targets are typed, not chipped: chips cannot
  * express "8-12", a ladder, or a warm-up.
  *
  * This file is the SHELL: state, the `edit` call, layout, and the movement
@@ -78,7 +77,6 @@ export function PlannerScreen() {
     );
   }
 
-  const readOnly = w.origin === 'coach';
   const letters = sessionLetters({ id: w.id, date: '', status: 'completed', blocks: w.blocks });
 
   const edit = (fn: (draft: Workout) => void) =>
@@ -91,21 +89,13 @@ export function PlannerScreen() {
 
   return (
     <Screen>
-      <Kicker>{readOnly ? 'From your coach · read-only' : 'Plan editor · saves as you go'}</Kicker>
+      <Kicker>Plan editor · saves as you go</Kicker>
       <Input
         w="bold"
         value={w.name || ''}
-        editable={!readOnly}
         onChangeText={(v) => edit((d) => void (d.name = v))}
         className="text-8 text-text"
       />
-
-      {readOnly ? (
-        <T className="mt-2 rounded-md border border-gold-line bg-gold-wash px-1 py-1 text-3 text-gold2">
-          Editing this locally would silently diverge from what your coach still believes they gave you. Ask them to
-          change it instead.
-        </T>
-      ) : null}
 
       {w.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mt-2">
@@ -113,31 +103,26 @@ export function PlannerScreen() {
             <Input
               w="semi"
               value={b.heading || ''}
-              editable={!readOnly}
               onChangeText={(v) => edit((d) => void (d.blocks[bi].heading = v))}
               className="flex-1 text-5 text-text"
             />
-            {!readOnly ? (
-              <Tap
-                onPress={() => edit((d) => void d.blocks.splice(bi, 1))}
-                box={{ h: 20, w: 24 }}
-                label={`delete block ${b.heading || bi + 1}`}
-              >
-                <T className="px-1 text-3 text-dim">✕</T>
-              </Tap>
-            ) : null}
+            <Tap
+              onPress={() => edit((d) => void d.blocks.splice(bi, 1))}
+              box={{ h: 20, w: 24 }}
+              label={`delete block ${b.heading || bi + 1}`}
+            >
+              <T className="px-1 text-3 text-dim">✕</T>
+            </Tap>
           </View>
 
           {isText(b) ? (
             <TextBlockCard
               body={b.body || ''}
-              readOnly={readOnly}
               onChange={(v) => edit((d) => void ((d.blocks[bi] as TextBlock).body = v))}
             />
           ) : isCond(b) ? (
             <CondBlockCard
               b={b}
-              readOnly={readOnly}
               onFmt={(f) => edit((d) => void ((d.blocks[bi] as { condFmt: CondFmtKey }).condFmt = f))}
               onEff={(e) =>
                 edit((d) => {
@@ -160,7 +145,6 @@ export function PlannerScreen() {
                       ex={ex}
                       letter={letters[bi]?.[ei] ?? '?'}
                       open={open}
-                      readOnly={readOnly}
                       suggestPool={(b as StrengthBlock<LoggedSet>).warmup ? prepFirst : known}
                       onToggle={() => setOpenEx(open ? null : key)}
                       onNameChange={(v) =>
@@ -205,7 +189,7 @@ export function PlannerScreen() {
                         edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.splice(ei, 1))
                       }
                     />
-                    {!readOnly && next ? (
+                    {next ? (
                       <SupersetSeam
                         on={!!ex.ssNext}
                         exName={ex.name || 'this'}
@@ -222,48 +206,44 @@ export function PlannerScreen() {
                 );
               })}
 
-              {!readOnly ? (
-                <View className="flex-row gap-1">
-                  <Btn
-                    className="flex-1"
-                    onPress={() => edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.push(newEx() as never))}
-                  >
-                    ＋ Exercise
-                  </Btn>
-                  <Btn
-                    className="flex-1"
-                    onPress={() =>
-                      edit((d) => {
-                        const sb = d.blocks[bi] as StrengthBlock<LoggedSet>;
-                        sb.superset = !sb.superset;
-                      })
-                    }
-                  >
-                    {(b as StrengthBlock<LoggedSet>).superset ? 'Split' : 'Superset'}
-                  </Btn>
-                </View>
-              ) : null}
+              <View className="flex-row gap-1">
+                <Btn
+                  className="flex-1"
+                  onPress={() => edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.push(newEx() as never))}
+                >
+                  ＋ Exercise
+                </Btn>
+                <Btn
+                  className="flex-1"
+                  onPress={() =>
+                    edit((d) => {
+                      const sb = d.blocks[bi] as StrengthBlock<LoggedSet>;
+                      sb.superset = !sb.superset;
+                    })
+                  }
+                >
+                  {(b as StrengthBlock<LoggedSet>).superset ? 'Split' : 'Superset'}
+                </Btn>
+              </View>
             </>
           )}
         </View>
       ))}
 
-      {!readOnly ? (
-        <View className="mt-2 flex-row flex-wrap gap-1">
-          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newBlock() as never))}>
-            ＋ Block
-          </Btn>
-          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
-            ☀ Warm-up / Cooldown
-          </Btn>
-          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newCondBlock()))}>
-            ♥ Conditioning
-          </Btn>
-          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newTextBlock()))}>
-            ✎ Metcon / notes
-          </Btn>
-        </View>
-      ) : null}
+      <View className="mt-2 flex-row flex-wrap gap-1">
+        <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newBlock() as never))}>
+          ＋ Block
+        </Btn>
+        <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
+          ☀ Warm-up / Cooldown
+        </Btn>
+        <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newCondBlock()))}>
+          ♥ Conditioning
+        </Btn>
+        <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newTextBlock()))}>
+          ✎ Metcon / notes
+        </Btn>
+      </View>
 
       <Btn variant="brass" className="mt-3" onPress={() => nav.goBack()}>
         Done

@@ -362,9 +362,7 @@ function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; pri
   const cond = n === 0 || isCondWorkout(w);
   // The kicker already names a conditioning day; repeating it below the title
   // said nothing. Strength days get the honest block count instead.
-  const meta = [!cond && `${n} ${n === 1 ? 'block' : 'blocks'}`, w.origin === 'coach' && 'from your coach']
-    .filter(Boolean)
-    .join(' · ');
+  const meta = [!cond && `${n} ${n === 1 ? 'block' : 'blocks'}`].filter(Boolean).join(' · ');
   return (
     <SessionCard tone={primary ? 'raised' : undefined} className="mb-1">
       <Kicker className="text-1">Today · {cond ? 'Conditioning' : 'Strength'}</Kicker>

@@ -35,9 +35,7 @@ const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /*
- * Everything you can train. Coach-assigned work is listed separately and is
- * read-only — editing it here would silently diverge from what the coach still
- * believes they gave you.
+ * Everything you can train.
  */
 export function LibraryScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
@@ -50,8 +48,7 @@ export function LibraryScreen() {
   const [tab, setTab] = useState<'sessions' | 'exercises' | 'mobility'>('sessions');
   const [q, setQ] = useState('');
 
-  const mine = db.workouts.filter((w) => w.origin !== 'coach');
-  const fromCoach = db.workouts.filter((w) => w.origin === 'coach');
+  const mine = db.workouts;
   const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
   const mobility = useMemo(
     () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
@@ -206,27 +203,6 @@ export function LibraryScreen() {
       ) : (
         <Empty title="Nothing here yet" body="Tap “＋ New session” to build your first one." />
       )}
-
-      {fromCoach.length ? (
-        <>
-          <SectionHead title="From your coach" />
-          {fromCoach.map((w) => (
-            <Card key={w.id} className="mb-1 border-gold-line">
-              <View className="flex-row items-center">
-                <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
-                  {w.name || 'Session'}
-                </T>
-                <T w="semi" className="text-2 uppercase tracking-widest text-gold2">assigned</T>
-              </View>
-              {(w.dates || []).length ? <T num className="mt-0.5 text-3 text-dim">for {(w.dates || []).join(', ')}</T> : null}
-              <Detail w={w} />
-              <Btn className="mt-1.5" onPress={() => nav.navigate('Planner', { id: w.id })}>
-                View
-              </Btn>
-            </Card>
-          ))}
-        </>
-      ) : null}
       </>
       )}
     </Screen>

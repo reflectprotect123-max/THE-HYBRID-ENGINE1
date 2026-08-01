@@ -97,7 +97,6 @@ export function TrainingScreen() {
                 </T>
                 <T num className="text-3 text-dim">
                   {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
-                  {w.origin === 'coach' ? ' · from your coach' : ''}
                 </T>
               </View>
               <Btn variant="brass" onPress={() => start(w)}>
@@ -111,7 +110,7 @@ export function TrainingScreen() {
             body={
               db.workouts.length
                 ? 'Anything in your Library can be started now — scheduling is a convenience, not a gate.'
-                : 'Sessions your coach assigns will appear here — or build one in the Library.'
+                : 'Build your first session in the Library to get started.'
             }
           />
         )}

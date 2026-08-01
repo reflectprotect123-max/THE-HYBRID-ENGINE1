@@ -8,12 +8,10 @@ const EFFORTS: EffortKey[] = ['easy', 'medium', 'hard'];
 
 export function CondBlockCard({
   b,
-  readOnly,
   onFmt,
   onEff,
 }: {
   b: CondBlock;
-  readOnly: boolean;
   onFmt: (f: CondFmtKey) => void;
   onEff: (e: EffortKey) => void;
 }) {
@@ -26,24 +24,20 @@ export function CondBlockCard({
       <T num className="mt-0.5 text-3 text-dim">
         {condEffort(b).name} · RPE {condEffortRpe(condEffort(b))} · {CON_EFFORTS[condEffort(b).key].cue}
       </T>
-      {!readOnly ? (
-        <>
-          <View className="mt-1.5 flex-row flex-wrap gap-0.5">
-            {FORMATS.map((f) => (
-              <Chip key={f} on={b.condFmt === f} onPress={() => onFmt(f)}>
-                {f}
-              </Chip>
-            ))}
-          </View>
-          <View className="mt-1 flex-row flex-wrap gap-0.5">
-            {EFFORTS.map((e) => (
-              <Chip key={e} on={b.effort === e} onPress={() => onEff(e)}>
-                {CON_EFFORTS[e].name}
-              </Chip>
-            ))}
-          </View>
-        </>
-      ) : null}
+      <View className="mt-1.5 flex-row flex-wrap gap-0.5">
+        {FORMATS.map((f) => (
+          <Chip key={f} on={b.condFmt === f} onPress={() => onFmt(f)}>
+            {f}
+          </Chip>
+        ))}
+      </View>
+      <View className="mt-1 flex-row flex-wrap gap-0.5">
+        {EFFORTS.map((e) => (
+          <Chip key={e} on={b.effort === e} onPress={() => onEff(e)}>
+            {CON_EFFORTS[e].name}
+          </Chip>
+        ))}
+      </View>
     </Card>
   );
 }

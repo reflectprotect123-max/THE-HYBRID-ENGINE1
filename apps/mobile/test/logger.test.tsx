@@ -196,27 +196,6 @@ describe('Supersetting on the gym floor', () => {
   });
 });
 
-describe('coach instructions', () => {
-  it('shows the source workout note above the stage, and nothing when absent', () => {
-    const w = liftWorkout('Back squat', 2);
-    (w as { note?: string }).note = 'Cap everything at RPE 8 today.';
-    const s: Session = {
-      id: uid(), date: ymd(new Date()), name: 'Lower', status: 'active',
-      blocks: freshSessionBlocks(w.blocks), startedAt: Date.now(), workoutId: w.id,
-    };
-    seed({ workouts: [w], sessions: [s] });
-    mount();
-    expect(screen.getByText('From your coach')).toBeTruthy();
-    expect(screen.getByText('Cap everything at RPE 8 today.')).toBeTruthy();
-  });
-
-  it('renders no panel when the workout has no note', () => {
-    liveSession();
-    mount();
-    expect(screen.queryByText('From your coach')).toBeNull();
-  });
-});
-
 describe('warm-up sets and RPE', () => {
   it('a warm-up set confirms directly — no RPE stage, no felt recorded', () => {
     const w = liftWorkout('Back squat', 2);
