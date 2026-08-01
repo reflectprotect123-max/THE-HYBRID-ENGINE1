@@ -61,7 +61,7 @@ export function Logger() {
   const bi = Number(biStr);
   const ei = Number(eiStr);
   const nav = useNavigate();
-  const { activeSession, sessions, settings, whoop, workouts, updateSession } = useDb();
+  const { activeSession, sessions, settings, whoop, updateSession } = useDb();
   const rest = useRest();
 
   // `replace`, so the back arrow still leaves the stage for the session list
@@ -128,7 +128,6 @@ export function Logger() {
   }
 
   const letter = letters[bi]?.[ei] ?? '?';
-  const coachNote = (workouts.find((w) => w.id === s.workoutId)?.note || '').trim();
 
   /*
    * Every keystroke lands on the set, not just in component state.
@@ -284,18 +283,6 @@ export function Logger() {
         </div>
       </div>
 
-      {/* Session-level coach instructions — they live on the source WORKOUT
-          (Workout.note, authored on the coach publish screen); a logged
-          Session carries only workoutId, so read the note off its source.
-          Single source of truth, and it works for sessions started before
-          this panel existed. */}
-      {coachNote ? (
-        <aside className="mt-2 rounded-md border border-gold-line bg-gold-wash p-1.5">
-          <div className="text-2 font-[750] tracking-[.12em] uppercase text-gold2">From your coach</div>
-          <p className="mt-0.5 text-4 leading-relaxed [overflow-wrap:anywhere]">{coachNote}</p>
-        </aside>
-      ) : null}
-
       {/* Hugs its content: stretching it to fill the viewport left a dead
           panel below the set history with nothing in it. */}
       <Card className="mt-2 shadow-lift">
@@ -305,8 +292,6 @@ export function Logger() {
         </div>
         <div className="mt-0.5 text-3 text-dim">{meta}</div>
 
-        {/* The coach's note — and where a prescribed LOAD lives, because the set
-            model is {t,rpe} with no target-weight field. */}
         {partner ? (
           <button
             onClick={toggleSuperset}

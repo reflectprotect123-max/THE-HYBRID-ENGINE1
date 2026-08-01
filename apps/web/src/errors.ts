@@ -3,8 +3,7 @@
  *
  * Raw driver strings — Supabase auth codes, Postgrest noise, fetch internals,
  * WHOOP's API noise — are for the console. The UI gets a sentence a
- * non-engineer can act on. Wording is kept in step with the coach app's
- * errors.ts by convention (see the wave-2 spec table), never by import.
+ * non-engineer can act on.
  */
 export function humanizeError(e: unknown, context?: string): string {
   const raw =
@@ -23,7 +22,6 @@ export function humanizeError(e: unknown, context?: string): string {
   if (m.includes('already registered')) return 'That email already has an account — sign in instead.';
   if (context === 'whoop' && (m.includes('request failed') || m.includes('unexpected token') || m.includes('not valid json') || m.includes('failed to fetch') || m.includes('whoop is not connected')))
     return "Can't reach WHOOP right now — your training data on this device is unaffected.";
-  if (context === 'invite') return "That code didn't work — check it with your coach and try again.";
   if (m.includes('unexpected token') || m.includes('not valid json'))
     return 'The server sent back something unexpected — try again in a minute.';
   // restoreDb authors plain, actionable sentences about a bad backup file —

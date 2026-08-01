@@ -100,7 +100,6 @@ export function Training() {
                   <p className="truncate text-5 font-[750]">{w.name || 'Session'}</p>
                   <p className="text-3 text-dim">
                     {w.blocks.length} {w.blocks.length === 1 ? 'block' : 'blocks'}
-                    {w.origin === 'coach' ? ' · from your coach' : ''}
                   </p>
                 </div>
                 <Button variant="brass" onClick={() => startWorkout(w)}>

@@ -156,7 +156,7 @@ await t('Training starts a session without one existing beforehand', async () =>
   assert(after === 1, 'Start did not create exactly one session, got ' + after);
 });
 
-await t('the coach cue reaches the athlete card', async () => {
+await t('the exercise cue reaches the athlete card', async () => {
   const txt = await page.textContent('body');
   assert(/Prescribed load: 100kg/.test(txt), 'ex.cue not rendered on the session list');
 });
@@ -532,21 +532,6 @@ await t('the plan editor edits a target and it persists', async () => {
     return w.blocks[0].exercises[0].sets.slice(0, 2).map((s) => s.t);
   }, workoutId);
   assert(stored[0] === 'W10' && stored[1] === '3', 'targets not saved: ' + JSON.stringify(stored));
-});
-
-await t('a coach-assigned session is read-only in the plan editor', async () => {
-  await page.evaluate(() => {
-    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
-    db.workouts.push({
-      id: 'coach:zz', origin: 'coach', assignmentId: 'zz', name: 'Coach Session', updatedAt: 1,
-      blocks: [{ id: 'b', heading: 'Main', exercises: [{ id: 'e', name: 'Bench', mode: 'reps_kg', rest: 90, sets: [{ t: '5', rpe: '8' }] }] }],
-    });
-    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
-  });
-  await page.goto(base + '/planner/coach:zz', { waitUntil: 'networkidle' });
-  await page.waitForSelector('text=read-only');
-  const ro = await page.getAttribute('input[aria-label="session name"]', 'readonly');
-  assert(ro !== null, 'a coach session must not be locally editable');
 });
 
 /* ---------- guided builder: leaving it ---------- */

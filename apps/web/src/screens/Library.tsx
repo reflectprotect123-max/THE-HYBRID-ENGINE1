@@ -4,7 +4,6 @@ import {
   CON_FORMATS,
   agoLabel,
   blockExercises,
-  dayLabel,
   isCond,
   isCondWorkout,
   knownMovements,
@@ -35,18 +34,14 @@ const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /*
- * The Library is everything you can train: sessions you have written, and
- * sessions your coach has assigned. Coach-assigned work is read-only here —
- * editing it locally would silently diverge from what the coach still believes
- * you were given.
+ * The Library is everything you can train: every session you have written.
  */
 export function Library() {
   const nav = useNavigate();
   const { db, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
   const [armDel, setArmDel] = useState<string | null>(null);
-  // An armed delete disarms itself after 5s untouched — same rule as the
-  // coach's Clear day.
+  // An armed delete disarms itself after 5s untouched.
   useEffect(() => {
     if (!armDel) return;
     const t = setTimeout(() => setArmDel(null), 5000);
@@ -60,8 +55,7 @@ export function Library() {
   const [tab, setTab] = useState<'sessions' | 'exercises' | 'mobility'>('sessions');
   const [q, setQ] = useState('');
 
-  const mine = db.workouts.filter((w) => w.origin !== 'coach');
-  const fromCoach = db.workouts.filter((w) => w.origin === 'coach');
+  const mine = db.workouts;
   const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
   const mobility = useMemo(
     () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
@@ -218,33 +212,6 @@ export function Library() {
       ) : (
         <Empty title="Nothing here yet" body="Use “＋ New session” above to build your first one." />
       )}
-
-      {fromCoach.length ? (
-        <>
-          <SectionHead title="From your coach" />
-          <ul className="flex flex-col gap-1">
-            {fromCoach.map((w) => (
-              <li key={w.id}>
-                <Card className="border-gold-line">
-                  <div className="flex items-center gap-1">
-                    <span className="min-w-0 flex-1 truncate text-5 font-[750]">{w.name || 'Session'}</span>
-                    <span className="text-2 font-[750] uppercase tracking-[.14em] text-gold2">assigned</span>
-                  </div>
-                  {(w.dates || []).length ? (
-                    <p className="num mt-0.5 text-3 text-dim">
-                      for {(w.dates || []).map((d) => dayLabel(d) || d).join(', ')}
-                    </p>
-                  ) : null}
-                  <WorkoutDetail w={w} />
-                  <Button size="sm" className="mt-1.5" onClick={() => nav(`/planner/${w.id}`)}>
-                    View
-                  </Button>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
       </>
       )}
     </>

@@ -8,18 +8,15 @@ import { Card } from '../../ui';
  */
 export function TextBlockCard({
   body,
-  readOnly,
   onChange,
 }: {
   body: string;
-  readOnly: boolean;
   onChange: (v: string) => void;
 }) {
   return (
     <Card>
       <textarea
         value={body || ''}
-        readOnly={readOnly}
         onChange={(e) => onChange(e.target.value)}
         rows={5}
         placeholder={'AMRAP 12\n10 burpees\n15 KB swings\n200m run'}

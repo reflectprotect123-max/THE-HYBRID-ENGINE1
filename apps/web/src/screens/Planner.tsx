@@ -30,12 +30,10 @@ import { SupersetSeam } from './planner/SupersetSeam';
 import { TextBlockCard } from './planner/TextBlockCard';
 
 /*
- * The plan editor — full-screen, and the mirror image of the coach builder.
+ * The plan editor — full-screen.
  *
- * An athlete writing their own session should be doing the same thing a coach
- * does, in the same shape, because the athlete app and the coach app share one
- * model. Targets are typed rather than chipped for the same reason as on the
- * coach side: chips cannot express "8-12", a ladder, or a warm-up.
+ * Targets are typed rather than chipped: chips cannot express "8-12", a
+ * ladder, or a warm-up.
  *
  * This file is the SHELL: state, the `edit` call, layout, and the datalists
  * every movement field shares. Each block kind draws itself — the cards live
@@ -86,7 +84,6 @@ export function Planner() {
     );
   }
 
-  const readOnly = w.origin === 'coach';
   const letters = sessionLetters({ id: w.id, date: '', status: 'completed', blocks: w.blocks });
 
   // Typed as Workout, not `typeof w`: `typeof` reads the DECLARED type, which
@@ -113,14 +110,14 @@ export function Planner() {
        * different lifts to the history, the PR detector and the earned working
        * weight, so the cheapest fix is to make retyping unnecessary.
        */}
-      {!readOnly && known.length ? (
+      {known.length ? (
         <datalist id={MOVEMENT_LIST_ID}>
           {known.map((n) => (
             <option key={n} value={n} />
           ))}
         </datalist>
       ) : null}
-      {!readOnly && prepFirst.length ? (
+      {prepFirst.length ? (
         <datalist id={PREP_LIST_ID}>
           {prepFirst.map((n) => (
             <option key={n} value={n} />
@@ -137,10 +134,9 @@ export function Planner() {
           ←
         </button>
         <div className="min-w-0 flex-1">
-          <Kicker>{readOnly ? 'From your coach · read-only' : 'Plan editor · saves as you go'}</Kicker>
+          <Kicker>Plan editor · saves as you go</Kicker>
           <input
             value={w.name || ''}
-            readOnly={readOnly}
             onChange={(e) => edit((d) => void (d.name = e.target.value))}
             aria-label="session name"
             className="w-full rounded-md border border-transparent bg-transparent text-7 font-[800] outline-none hover:border-line focus:border-gold-line read-only:hover:border-transparent"
@@ -148,45 +144,33 @@ export function Planner() {
         </div>
       </header>
 
-      {readOnly ? (
-        <p className="mt-2 rounded-md border border-gold-line bg-gold-wash px-1 py-1 text-3 text-gold2">
-          Editing this locally would silently diverge from what your coach still believes they gave you. Ask them to
-          change it instead.
-        </p>
-      ) : null}
-
       <div className="mt-2 flex flex-col gap-2">
         {w.blocks.map((b, bi) => (
           <section key={b.id ?? bi}>
             <div className="mb-1 flex items-center gap-1">
               <input
                 value={b.heading || ''}
-                readOnly={readOnly}
                 onChange={(e) => edit((d) => void (d.blocks[bi].heading = e.target.value))}
                 aria-label="block name"
                 className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-0.5 text-5 font-[750] outline-none hover:border-line focus:border-gold-line"
               />
-              {!readOnly ? (
-                <button
-                  onClick={() => edit((d) => void d.blocks.splice(bi, 1))}
-                  aria-label="remove block"
-                  className="h-4 rounded-md border border-line2 px-1 text-3 text-dim hover:text-bad"
-                >
-                  ✕
-                </button>
-              ) : null}
+              <button
+                onClick={() => edit((d) => void d.blocks.splice(bi, 1))}
+                aria-label="remove block"
+                className="h-4 rounded-md border border-line2 px-1 text-3 text-dim hover:text-bad"
+              >
+                ✕
+              </button>
             </div>
 
             {isText(b) ? (
               <TextBlockCard
                 body={b.body || ''}
-                readOnly={readOnly}
                 onChange={(v) => edit((d) => void ((d.blocks[bi] as TextBlock).body = v))}
               />
             ) : isCond(b) ? (
               <CondBlockCard
                 b={b}
-                readOnly={readOnly}
                 onFmt={(f) => edit((d) => void ((d.blocks[bi] as { condFmt: CondFmtKey }).condFmt = f))}
                 onEff={(e) =>
                   edit((d) => {
@@ -215,14 +199,7 @@ export function Planner() {
                         ex={ex}
                         letter={letters[bi]?.[ei] ?? '?'}
                         open={open}
-                        readOnly={readOnly}
-                        listId={
-                          readOnly
-                            ? undefined
-                            : (b as StrengthBlock<LoggedSet>).warmup
-                              ? PREP_LIST_ID
-                              : MOVEMENT_LIST_ID
-                        }
+                        listId={(b as StrengthBlock<LoggedSet>).warmup ? PREP_LIST_ID : MOVEMENT_LIST_ID}
                         onToggle={() => setOpenEx(open ? null : key)}
                         onNameChange={(v) =>
                           edit((d) => void ((d.blocks[bi] as StrengthBlock<LoggedSet>).exercises[ei].name = v))
@@ -266,7 +243,7 @@ export function Planner() {
                           edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.splice(ei, 1))
                         }
                       />
-                      {!readOnly && next ? (
+                      {next ? (
                         <SupersetSeam
                           on={!!ex.ssNext}
                           exName={ex.name || 'this'}
@@ -283,43 +260,39 @@ export function Planner() {
                   );
                 })}
 
-                {!readOnly ? (
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      onClick={() => edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.push(newEx() as never))}
-                    >
-                      ＋ Exercise
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        edit((d) => {
-                          const sb = d.blocks[bi] as StrengthBlock<LoggedSet>;
-                          sb.superset = !sb.superset;
-                        })
-                      }
-                    >
-                      {(b as StrengthBlock<LoggedSet>).superset ? 'Split superset' : 'Make superset'}
-                    </Button>
-                  </div>
-                ) : null}
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    onClick={() => edit((d) => void (d.blocks[bi] as StrengthBlock<LoggedSet>).exercises.push(newEx() as never))}
+                  >
+                    ＋ Exercise
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      edit((d) => {
+                        const sb = d.blocks[bi] as StrengthBlock<LoggedSet>;
+                        sb.superset = !sb.superset;
+                      })
+                    }
+                  >
+                    {(b as StrengthBlock<LoggedSet>).superset ? 'Split superset' : 'Make superset'}
+                  </Button>
+                </div>
               </div>
             )}
           </section>
         ))}
       </div>
 
-      {!readOnly ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          <Button onClick={() => edit((d) => void d.blocks.push(newBlock() as never))}>＋ Block</Button>
-          <Button onClick={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
-            ☀ Warm-up / Cooldown
-          </Button>
-          <Button onClick={() => edit((d) => void d.blocks.push(newCondBlock()))}>♥ Conditioning</Button>
-          <Button onClick={() => edit((d) => void d.blocks.push(newTextBlock()))}>✎ Metcon / notes</Button>
-        </div>
-      ) : null}
+      <div className="mt-2 flex flex-wrap gap-1">
+        <Button onClick={() => edit((d) => void d.blocks.push(newBlock() as never))}>＋ Block</Button>
+        <Button onClick={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
+          ☀ Warm-up / Cooldown
+        </Button>
+        <Button onClick={() => edit((d) => void d.blocks.push(newCondBlock()))}>♥ Conditioning</Button>
+        <Button onClick={() => edit((d) => void d.blocks.push(newTextBlock()))}>✎ Metcon / notes</Button>
+      </div>
 
       <Button variant="brass" size="lg" className="mt-3 w-full" onClick={() => nav('/library')}>
         Done
