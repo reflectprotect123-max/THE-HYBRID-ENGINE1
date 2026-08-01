@@ -12,31 +12,65 @@ is written up but **awaiting your review before any implementation starts.**
 ## 2) Current State
 
 **2026-08-01 — Phase 0 (adaptive-decision contracts) shipped, verified, and pushed.**
-`origin/main` is at `b61c507`. Five tasks, six commits (Task 1 needed one fix-round
+`origin/main` is at `598a1e8`. Five tasks, eight commits (Task 1 needed one fix-round
 commit after its own task review caught an action/verdict contradiction; Tasks 2-5
-landed clean in one commit each):
+landed clean in one commit each; two more docs-only commits corrected this handoff
+entry itself after the fact):
 `671b085` (types + `explainSetAdjustment`), `cd4d873` (fix a verdict/action
 contradiction near the on-target band caught during Task 1's own review — pre-push,
 no golden impact), `e2d0c13` (`explainWorkingWeight`), `befd450`
-(`explainConPrescription`), `6577276` (`explainConAdapt`), and `b61c507` (export
+(`explainConPrescription`), `6577276` (`explainConAdapt`), `b61c507` (export
 `./adaptive/types` and `./adaptive/explain` from `@hybrid/engine`'s `src/index.ts`,
 plus a smoke test proving the export is reachable via the package index, not just the
-internal module path). All five wrapped functions (`explainSetAdjustment`,
-`explainWorkingWeight`, `explainConPrescription`, `explainConAdapt`) are read-only
-reshapers around already-computed results (`SetAdjustment`, `WorkingWeight`,
-`Prescription`, `CondResult`/`AdaptResult`) — none of them recompute or alter the
-underlying training math. Full repo `pnpm run verify` re-run fresh at HEAD this
-session: **exit 0** — typecheck clean (engine/guided-flow/config/design/mobile/web),
-engine suite **320/320** (was 304 before Phase 0; +16 new: 15 from Tasks 1–4's
-`adaptive.test.ts` plus 1 index-export smoke test from Task 5), **golden suite
-exactly 33/33, unchanged**, guided-flow 15/15, web 3/3, mobile 72/72, build clean, CSP
-check clean, react-smoke 29/29, deploy-smoke 11/11. Zero UI touched — only
-`packages/engine/src/index.ts` and `packages/engine/test/adaptive.test.ts` changed in
-Task 5; Tasks 1–4 touched only `packages/engine/src/adaptive/{types,explain}.ts` and
-the same test file. **Phase 1's remaining piece — surfacing a "why" string in at
-least one screen per app, per the roadmap's Phase 1 acceptance criteria — is next,
-and per this project's standing per-phase review gate, has NOT been started and is
-awaiting your go-ahead.**
+internal module path), `d8470f1` (this handoff entry, first written), and `598a1e8`
+(docs-only follow-up fixing this same entry's self-contradictory "five tasks, one
+commit each" claim, which was immediately followed by six SHAs — Task 1's fix-round
+commit meant Tasks 1-5 landed across six code commits, not five). All four wrapped
+functions (`explainSetAdjustment`, `explainWorkingWeight`, `explainConPrescription`,
+`explainConAdapt`) are read-only reshapers around already-computed results
+(`SetAdjustment`, `WorkingWeight`, `Prescription`, `CondResult`/`AdaptResult`) — none
+of them recompute or alter the underlying training math. Full repo `pnpm run verify`
+re-run fresh at HEAD this session: **exit 0** — typecheck clean
+(engine/guided-flow/config/design/mobile/web), engine suite **320/320** (was 304
+before Phase 0; +16 new: 15 from Tasks 1–4's `adaptive.test.ts` plus 1 index-export
+smoke test from Task 5), **golden suite exactly 33/33, unchanged**, guided-flow 15/15,
+web 3/3, mobile 72/72, build clean, CSP check clean, react-smoke 29/29, deploy-smoke
+11/11. Zero UI touched — only `packages/engine/src/index.ts` and
+`packages/engine/test/adaptive.test.ts` changed in Task 5; Tasks 1–4 touched only
+`packages/engine/src/adaptive/{types,explain}.ts` and the same test file. **Phase 1's
+remaining piece — surfacing a "why" string in at least one screen per app, per the
+roadmap's Phase 1 acceptance criteria — is next, and per this project's standing
+per-phase review gate, has NOT been started and is awaiting your go-ahead.**
+
+**2026-08-01 — Final whole-branch review of Phase 0 landed a follow-up fix wave,
+verified, and pushed, at `0ffd951`.** The review found five Important findings, all
+now fixed in one commit on top of `598a1e8`: (1) `explainConAdapt` was mislabeling
+real, non-simulated `custom`/`free`-format sessions as `conditioning_level_held`
+instead of recognizing those formats never carry progression at all — fixed with a
+new early branch (`!rec.fmt || !isProgressedFmt(rec.fmt)`) returning
+`conditioning_session_excluded`; (2) `explainWorkingWeight` and
+`explainConPrescription`'s default hold-branch `note` could be `''` in the
+overwhelmingly common case (non-red-day / baseline-format), violating the contract's
+own "safe to render directly" doc comment — both now fall back to a real sentence,
+and the doc comment on `TrainingDecisionExplanation.note` now says explicitly "never
+empty"; (3) `explainWorkingWeight` reported `confidence: 'high'` with no way to know
+whether WHOOP recovery data existed, disagreeing with `explainConPrescription` under
+the identical no-device condition — it now takes an optional second `rec` parameter
+and matches `explainConPrescription`'s low-confidence/`no_recovery_data` handling when
+omitted (this function had zero consumers yet, so the signature change is free); (4)
+`explainSetAdjustment`'s `action` (derived from delta) and `reasonCodes`/`note`
+(derived from verdict) can still look like a contradictory pairing for a rounding
+artifact — documented with a code comment, not new branching logic, since the
+underlying `action` value is correct; (5) this handoff entry itself had drifted (stale
+SHA, "all five" wrapped functions when only four exist) — corrected above. TDD used
+throughout: 4 new/changed tests in `packages/engine/test/adaptive.test.ts` written and
+watched fail for the right reason before the corresponding fix landed. Full repo
+`pnpm run verify` re-run fresh at `0ffd951`: **exit 0** — typecheck clean, engine
+**323/323** (golden **33/33** unchanged), guided-flow 15/15, web 3/3, mobile 72/72,
+build clean, CSP check clean, react-smoke 29/29, deploy-smoke 11/11. Only
+`packages/engine/src/adaptive/{types,explain}.ts` and
+`packages/engine/test/adaptive.test.ts` changed — zero UI touched. Full report:
+`.superpowers/sdd/2026-08-01-adaptive-training-phase0/final-review-fix-report.md`.
 
 **ALL CODE WORK THROUGH COACH REMOVAL AND PAIN-STOP WIRING IS COMPLETE, VERIFIED, AND
 PUSHED.** Only Echo Bike's physical hardware test and the items in §6 below remain
