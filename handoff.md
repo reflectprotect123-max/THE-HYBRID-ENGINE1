@@ -12,10 +12,13 @@ is written up but **awaiting your review before any implementation starts.**
 ## 2) Current State
 
 **ALL CODE WORK THROUGH COACH REMOVAL AND PAIN-STOP WIRING IS COMPLETE, VERIFIED, AND
-PUSHED.** `origin/main` is at `e712ad7`. Only Echo Bike's physical hardware test and
-your review of the new adaptive-engine design doc remain open.
+PUSHED.** `origin/main` is at `7fd4345`. Only Echo Bike's physical hardware test and
+your approval of the five §19 items (before Phase 0 implementation plan is written)
+remain open.
 
 - Working directory: `/workspace/the-hybrid-engine1`, branch `main`, in sync with origin.
+- **Status checklist created** on branch `claude/status-check-iuiycq` (commit `b763ffe`):
+  summary of the five §19 approval items that must be decided before Phase 0 plan writing.
 - Everything from the prior handoff (conditioning plan, backlog batch, epley ruling,
   Concept2 live-verified OAuth fix at `f0aa3a1`) is unchanged — see that handoff's text
   further down this file's git history, or `git log`.
@@ -133,12 +136,20 @@ carried over unchanged).
 
 ## 6) Next Steps
 
-1. **Your review of the adaptive-training-engine audit/design doc** (§19 of
+**BLOCKING ON YOUR FIVE §19 APPROVALS (approval checklist in branch `claude/status-check-iuiycq`):**
+
+1. **Your approval of the five §19 items** from the adaptive-training-engine audit/design doc:
+   - Overall sequencing (Phase 0/1 before strength/conditioning logic; AI to Phase 5)
+   - Pain-stop wiring approach (hold-until-acknowledged, already shipped — confirm UX)
+   - Confidence-scoring approach (what signals feed it; what gets surfaced)
+   - Data-sufficiency gating (e.g., "need 3 comparable sessions before progressing")
+   - Phase 6 tech-debt bundling (backup/restore unification, duplicate-workout guard, secret rotation — now or defer?)
+   
+   **Once approved:** Phase 0 implementation plan (writing-plans format) will be written and presented for review before code starts.
+
+2. **Your review of the adaptive-training-engine audit/design doc** (§19 of
    `docs/superpowers/specs/2026-08-01-adaptive-training-engine-audit-design.md`) —
-   nothing beyond the already-shipped pain-stop slice should be built until you sign off
-   on the phase sequencing, the tech-debt items to fold into Phase 6, and whether
-   Phase 3's modality-specific conditioning thresholds ship from the in-repo evidence
-   bundle as-is or need fresh review.
+   refer to the approval checklist for the five specific decisions needed.
 2. **Supabase schema-side coach removal** — `coach_library`, `coach_athletes`,
    `claim_invite()`, `programs`, `assignments`, `athlete_feed` + their RLS policies in
    `supabase-schema.sql` and the live production tables. This is a separate, irreversible
