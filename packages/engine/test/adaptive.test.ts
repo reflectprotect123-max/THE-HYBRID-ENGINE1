@@ -127,3 +127,57 @@ describe('explainConPrescription', () => {
     });
   });
 });
+
+import { conAdapt } from '../src/conditioning';
+import type { CondResult } from '../src/types';
+import { explainConAdapt } from '../src/adaptive/explain';
+
+describe('explainConAdapt', () => {
+  it('explains a progressed level', () => {
+    const rec = { fmt: 'intervals', effort: 'hard', felt: '8', zsec: { low: 10, mod: 5, high: 0 }, dur: 20 } as CondResult;
+    const result = conAdapt(rec, {});
+    expect(result.delta).toBe(1);
+    const explained = explainConAdapt(rec, result);
+    expect(explained.action).toBe('progress_load');
+    expect(explained.reasonCodes).toEqual(['conditioning_level_progressed']);
+    expect(explained.confidence).toBe('high');
+  });
+
+  it('explains a deload after two consecutive misses', () => {
+    const rec = { fmt: 'steady', effort: 'easy', felt: '9', zsec: { low: 5, mod: 0, high: 5 }, dur: 20 } as CondResult;
+    const r1 = conAdapt(rec, {});
+    expect(r1.delta).toBe(0); // first miss, not yet deloaded
+    const r2 = conAdapt(rec, { conProgress: r1.conProgress });
+    expect(r2.delta).toBe(-1);
+    const explained = explainConAdapt(rec, r2);
+    expect(explained.action).toBe('deload');
+    expect(explained.reasonCodes).toEqual(['conditioning_level_deloaded']);
+  });
+
+  it('explains a held level on a first miss (not yet deloaded)', () => {
+    const rec = { fmt: 'steady', effort: 'easy', felt: '9', zsec: { low: 5, mod: 0, high: 5 }, dur: 20 } as CondResult;
+    const result = conAdapt(rec, {});
+    expect(result.delta).toBe(0);
+    const explained = explainConAdapt(rec, result);
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['conditioning_level_held']);
+    expect(explained.confidence).toBe('medium');
+  });
+
+  it('explains a no-HR-data session as low confidence, not a miss', () => {
+    const rec = { id: 'a', fmt: 'intervals', zsec: { low: 0, mod: 0, high: 0 }, dur: 1200 } as CondResult;
+    const result = conAdapt(rec, {});
+    expect(result.delta).toBe(0);
+    const explained = explainConAdapt(rec, result);
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['conditioning_no_hr_data']);
+    expect(explained.dataLimitations).toEqual(['no_device_data']);
+  });
+
+  it('explains an excluded/simulated session', () => {
+    const explained = explainConAdapt(null, { delta: 0, conProgress: {} });
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['conditioning_session_excluded']);
+    expect(explained.dataLimitations).toEqual(['simulated_or_missing_session']);
+  });
+});

@@ -1,5 +1,6 @@
-import type { SetAdjustment, Prescription } from '../types';
+import type { SetAdjustment, Prescription, CondResult } from '../types';
 import type { WorkingWeight } from '../lift';
+import type { AdaptResult } from '../conditioning';
 import type { ReasonCode, TrainingDecisionExplanation } from './types';
 
 const SET_ADJUSTMENT_REASON_CODES: Record<string, ReasonCode> = {
@@ -94,5 +95,63 @@ export function explainConPrescription(p: Prescription): TrainingDecisionExplana
     note: p.note,
     safetyState: 'approved',
     dataLimitations: noRecoveryData ? ['no_recovery_data'] : [],
+  };
+}
+
+/**
+ * Explains an already-computed conditioning-adaptation result. Never
+ * recomputes `conAdapt`'s own gates — see the Task 4 design note in
+ * docs/superpowers/plans/2026-08-01-adaptive-training-phase0.md.
+ */
+export function explainConAdapt(rec: CondResult | null | undefined, result: AdaptResult): TrainingDecisionExplanation {
+  if (result.delta > 0) {
+    return {
+      action: 'progress_load',
+      confidence: 'high',
+      reasonCodes: ['conditioning_level_progressed'],
+      note: 'Conditioning level progressed after an on-target session.',
+      safetyState: 'approved',
+      dataLimitations: [],
+    };
+  }
+  if (result.delta < 0) {
+    return {
+      action: 'deload',
+      confidence: 'high',
+      reasonCodes: ['conditioning_level_deloaded'],
+      note: 'Conditioning level eased back after repeated missed sessions.',
+      safetyState: 'approved',
+      dataLimitations: [],
+    };
+  }
+  if (!rec || rec.sim) {
+    return {
+      action: 'hold',
+      confidence: 'low',
+      reasonCodes: ['conditioning_session_excluded'],
+      note: 'This session does not count toward conditioning progression.',
+      safetyState: 'approved',
+      dataLimitations: ['simulated_or_missing_session'],
+    };
+  }
+  const z = rec.zsec || { low: 0, mod: 0, high: 0 };
+  const zoned = (z.low || 0) + (z.mod || 0) + (z.high || 0);
+  if (zoned <= 0) {
+    return {
+      action: 'hold',
+      confidence: 'low',
+      reasonCodes: ['conditioning_no_hr_data'],
+      note: 'No heart-rate zone data was captured, so this session neither earns nor costs progression.',
+      safetyState: 'approved',
+      dataLimitations: ['no_device_data'],
+    };
+  }
+  return {
+    action: 'hold',
+    confidence: 'medium',
+    reasonCodes: ['conditioning_level_held'],
+    note: 'Conditioning level held at its current stage.',
+    safetyState: 'approved',
+    dataLimitations: [],
   };
 }
