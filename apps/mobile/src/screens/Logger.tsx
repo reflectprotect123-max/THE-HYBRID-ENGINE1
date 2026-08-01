@@ -8,6 +8,7 @@ import {
   blockExercises,
   computeSetAdjustment,
   curSetIndex,
+  explainWorkingWeight,
   fmtRest,
   fmtRpe,
   isCond,
@@ -27,6 +28,7 @@ import {
   sessionLetters,
   sessionProgress,
   targetLine,
+  todayRecovery,
   type Exercise,
   type LoggedSet,
   type StrengthBlock,
@@ -128,6 +130,12 @@ export function LoggerScreen({ route, navigation }: Props) {
   const earned = useMemo(
     () => (ex && lift ? nextWorkingWeight(ex.name, db.settings, whoop) : null),
     [ex, lift, db.settings, whoop],
+  );
+
+  const rec = todayRecovery(whoop);
+  const earnedExplained = useMemo(
+    () => (earned ? explainWorkingWeight(earned, rec) : null),
+    [earned, rec],
   );
 
   if (!s || !block || isCond(block) || !ex) {
@@ -358,9 +366,10 @@ export function LoggerScreen({ route, navigation }: Props) {
                       <T w="semi" className="text-2 uppercase tracking-widest text-dim">Weight</T>
                       {earned && !isWarmup(st) ? (
                         <T num className="text-2 text-muted">
-                          {earned.dailyAdj < 0
+                          {(earned.dailyAdj < 0
                             ? `earned ${earned.earned}kg · ${earned.note}`
-                            : `earned ${earned.earned}kg last time`}
+                            : `earned ${earned.earned}kg last time`) +
+                            (earnedExplained?.confidence === 'low' ? ' · estimate' : '')}
                         </T>
                       ) : null}
                     </View>

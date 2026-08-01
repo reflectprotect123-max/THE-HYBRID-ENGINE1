@@ -94,6 +94,17 @@ describe('Logger', () => {
     expect(screen.getByLabelText('kg').props.value).toBe('105');
   });
 
+  it('marks the earned weight as an estimate when no WHOOP recovery data is available', () => {
+    // No live WHOOP connection exists in this test harness (network
+    // required), so this is the default state for any athlete without a
+    // connected strap — not a special-cased fixture. See the existing
+    // 'eases the prefill on a red recovery morning' test above for the
+    // same reasoning.
+    liveSession({ settings: { liftProgress: { 'back squat': { kg: 105, at: 1000 } } } });
+    mount();
+    expect(screen.getByText('earned 105kg last time · estimate')).toBeTruthy();
+  });
+
   it('eases the prefill on a red recovery morning', () => {
     // WHOOP comes through the provider, which needs a network. The engine
     // decides this, and parity.test.ts pins the arithmetic; what matters here
