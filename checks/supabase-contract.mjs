@@ -418,7 +418,11 @@ t('the query extractor actually found queries in every source', () => {
     const n = chains.filter((c) => c.file === rel).length;
     assert(n > 0, 'no .from() chains extracted from ' + rel + ' — the extractor is broken, not the code');
   });
-  assert(refs.length > 20, 'suspiciously few column references extracted: ' + refs.length);
+  // Floor lowered from 20 to 10 when the coach system's assignments/
+  // athlete_feed/coach_athletes queries were removed (approved removal, not a
+  // regression) — app code now only queries app_state. Still high enough to
+  // catch the extractor itself silently breaking.
+  assert(refs.length > 10, 'suspiciously few column references extracted: ' + refs.length);
 });
 
 t('every table named by a client query exists in the schema', () => {
@@ -463,7 +467,10 @@ t('every upsert onConflict target is backed by a unique constraint', () => {
         );
     });
   });
-  assert(seen >= 3, 'expected at least 3 upserts across the sources, found ' + seen);
+  // Floor lowered from 3 to 2 when the coach system's athlete_feed digest
+  // upsert was removed (approved removal, not a regression) — web and mobile
+  // each still upsert app_state, which this floor now reflects exactly.
+  assert(seen >= 2, 'expected at least 2 upserts across the sources, found ' + seen);
   assert(!bad.length, 'bad onConflict arbiter(s):\n    ' + bad.join('\n    '));
 });
 
@@ -505,12 +512,17 @@ t('every column written by an insert/upsert is nullable or supplied', () => {
  * These are the values RLS compares against. Getting one wrong is invisible:
  * the policy simply matches nothing and the app shows an empty state. */
 
-t("assignments athlete-read is gated on status='assigned' and both sides agree", () => {
+t("assignments RLS still pins status='assigned' (schema only — app no longer queries this table)", () => {
+  // The coach system was removed from both apps (approved removal): no client
+  // source queries `assignments` any more, so this no longer asserts anything
+  // about app code, only that the schema's own policy text hasn't drifted.
+  // supabase-schema.sql itself is untouched — dropping these tables in
+  // production is a separate, explicit, user-run action (not this check's
+  // concern) — so the policy this test pins still legitimately exists.
   const p = schema.policies.find((x) => x.table === 'assignments' && /athlete/.test(x.name) && x.cmd === 'select');
   assert(p, 'as_select_athlete policy not found in the schema');
   assert(/status\s*=\s*'assigned'/.test(p.body), "policy no longer pins status='assigned'");
   const pulls = chains.filter((c) => c.table === 'assignments' && c.calls.some((x) => x.method === 'select'));
-  assert(pulls.length, 'no assignments select found in any source');
   pulls.forEach((c) => {
     const byAthlete = c.calls.some((x) => x.method === 'eq' && firstStringArg(x.arg) === 'athlete_id');
     if (!byAthlete) return; // a coach-side read is governed by as_select_coach instead
