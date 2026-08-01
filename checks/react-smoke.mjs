@@ -242,6 +242,27 @@ await t('the rest timer survives a reload', async () => {
   assert(still, 'rest did not survive the reload');
 });
 
+await t('a working weight shown with no WHOOP data connected is marked as an estimate', async () => {
+  // No WHOOP sample exists anywhere in this file's seed data, so confidence
+  // is always 'low' here — this is the default state for any athlete
+  // without a connected strap, not a special-cased fixture.
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.settings.liftProgress = Object.assign({}, db.settings.liftProgress, {
+      'back squat': { kg: 105, at: Date.now() - 1000 },
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+  await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
+  const skip = await page.$('button:has-text("Skip rest")');
+  if (skip) await skip.click();
+  await page.waitForSelector('input[aria-label="Weight"]');
+  const txt = await page.textContent('body');
+  assert(/earned 105kg last time/.test(txt), 'expected the earned-weight note, got: ' + txt.slice(0, 400));
+  assert(/estimate/.test(txt), 'expected an estimate tag with no WHOOP data connected, got: ' + txt.slice(0, 400));
+});
+
 await t('a weight of 1e309 cannot poison the record', async () => {
   await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
   await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');

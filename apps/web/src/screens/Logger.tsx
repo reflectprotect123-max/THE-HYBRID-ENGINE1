@@ -6,6 +6,7 @@ import {
   blockExercises,
   computeSetAdjustment,
   curSetIndex,
+  explainWorkingWeight,
   fmtRest,
   fmtRpe,
   isCond,
@@ -25,6 +26,7 @@ import {
   sessionLetters,
   sessionProgress,
   targetLine,
+  todayRecovery,
   type Exercise,
   type LoggedSet,
   type StrengthBlock,
@@ -111,6 +113,12 @@ export function Logger() {
   const earned = useMemo(
     () => (ex && lift ? nextWorkingWeight(ex.name, settings, whoop) : null),
     [ex, lift, settings, whoop],
+  );
+
+  const rec = todayRecovery(whoop);
+  const earnedExplained = useMemo(
+    () => (earned ? explainWorkingWeight(earned, rec) : null),
+    [earned, rec],
   );
 
   if (!s || !block || isCond(block) || !ex) {
@@ -340,9 +348,10 @@ export function Logger() {
                       label="Weight"
                       note={
                         earned && !isWarmup(st)
-                          ? earned.dailyAdj < 0
-                            ? `earned ${earned.earned}kg · ${earned.note}`
-                            : `earned ${earned.earned}kg last time`
+                          ? (earned.dailyAdj < 0
+                              ? `earned ${earned.earned}kg · ${earned.note}`
+                              : `earned ${earned.earned}kg last time`) +
+                            (earnedExplained?.confidence === 'low' ? ' · estimate' : '')
                           : ''
                       }
                       unit="kg"
