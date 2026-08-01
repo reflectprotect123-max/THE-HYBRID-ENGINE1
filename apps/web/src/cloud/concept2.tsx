@@ -107,7 +107,27 @@ export function Concept2Provider({ children }: { children: ReactNode }) {
     }
   }, [sync]);
 
+  /*
+   * The browser lands back here with the OAuth outcome stamped onto the URL
+   * (see concept2-callback.mjs's `finish`) — `status=connected/denied/error`,
+   * an optional `message` code. Reading it here is the only way a denial or a
+   * server-side failure ever reaches the athlete: without it, a failed
+   * exchange looks identical to "never connected." The one-time params are
+   * stripped afterward so a reload or Back doesn't replay a stale outcome.
+   */
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('integration') === 'concept2') {
+      const status = params.get('status') || '';
+      if (status === 'denied') setS((p) => ({ ...p, error: 'Concept2 authorization was cancelled.' }));
+      else if (status === 'error') setS((p) => ({ ...p, error: 'Concept2 could not be connected. Please try again.' }));
+      else if (status === 'connected') setS((p) => ({ ...p, error: '' }));
+      params.delete('integration');
+      params.delete('status');
+      params.delete('message');
+      const qs = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+    }
     void refresh();
   }, [refresh]);
 
