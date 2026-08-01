@@ -12,7 +12,9 @@ is written up but **awaiting your review before any implementation starts.**
 ## 2) Current State
 
 **2026-08-01 — Phase 0 (adaptive-decision contracts) shipped, verified, and pushed.**
-`origin/main` is at `b61c507`. Five tasks, one commit each:
+`origin/main` is at `b61c507`. Five tasks, six commits (Task 1 needed one fix-round
+commit after its own task review caught an action/verdict contradiction; Tasks 2-5
+landed clean in one commit each):
 `671b085` (types + `explainSetAdjustment`), `cd4d873` (fix a verdict/action
 contradiction near the on-target band caught during Task 1's own review — pre-push,
 no golden impact), `e2d0c13` (`explainWorkingWeight`), `befd450`
