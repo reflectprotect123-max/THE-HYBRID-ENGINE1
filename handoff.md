@@ -11,6 +11,66 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
+**2026-08-01 — Phase 1's working-weight confidence indicator (the UI slice) shipped,
+verified, and pushed.** `origin/main` is at `ef8f6e1`. Two app-code commits, both
+already on `main`/`origin/main` before this entry was written: `f6cd95f` (web —
+`apps/web/src/screens/Logger.tsx` + a new `checks/react-smoke.mjs` scenario) and
+`ef8f6e1` (mobile — `apps/mobile/src/screens/Logger.tsx` + a new case in
+`apps/mobile/test/logger.test.tsx`), both verified by `git show --stat` against the
+real commit objects this session, not assumed from memory. Both apps consume Phase
+0's existing `explainWorkingWeight(earned, rec)` (no engine change — `packages/engine`
+was not touched by this slice) and append a literal `' · estimate'` to the
+already-existing working-weight note string, gated on
+`earnedExplained?.confidence === 'low'`. This is the task-3 (final) gate for the
+`2026-08-01-adaptive-phase1-confidence-ui` plan: full verification plus the
+by-inspection high-confidence-identical guarantee, documented below since no test
+harness here can simulate a connected WHOOP without deeper provider mocking.
+
+Full repo `pnpm run verify` re-run fresh at `ef8f6e1` this session (run twice,
+identical results both times, second run's exit code captured directly): **exit
+0** — typecheck clean (packages/config, packages/design, packages/engine,
+packages/guided-flow, apps/mobile, apps/web), engine **323/323** (19 test files,
+**unchanged** from the last Phase 0 entry — this slice added no engine tests), golden
+suite still exactly 33/33 inside that total, guided-flow **15/15** (unchanged), web
+**3/3** unit tests (unchanged — `apps/web` has no unit test for this slice; the new
+scenario is exercised only through react-smoke), mobile **73/73** (was 72/72 before
+this slice — the +1 is `apps/mobile/test/logger.test.tsx`'s new confidence-tag case),
+build clean, CSP check clean, react-smoke **30/30** (was 29/29 — the +1 is "a working
+weight shown with no WHOOP data connected is marked as an estimate"), deploy-smoke
+**11/11** (unchanged). The handful of `console.warn([error] ...)` lines visible in the
+mobile-test output are expected stderr fixtures from the pre-existing
+`apps/mobile/test/errors.test.ts` error-message-formatting suite, not failures — no
+`FAIL` line appears anywhere in either verify run's output.
+
+**By-inspection confirmation of the "byte-for-byte identical when confidence is high"
+guarantee (task-3 brief's Step 2, not independently testable in this harness):** both
+`Logger.tsx` files append the identical expression
+`(earnedExplained?.confidence === 'low' ? ' · estimate' : '')` to the pre-existing note
+string. `Confidence` (`packages/engine/src/adaptive/types.ts`) is the closed union
+`'low' | 'medium' | 'high'`, so every value other than the literal `'low'` — including
+`'medium'`, `'high'`, and `earnedExplained` itself being `null` (which only happens
+when `earned` is `null`, and in both files the note block that reads
+`earnedExplained` only renders when `earned` is truthy, so `earnedExplained` is
+non-null whenever this expression actually runs) — falls through to the `: ''`
+branch, a no-op string concatenation. Read `packages/engine/src/adaptive/explain.ts`'s
+`explainWorkingWeight`: it returns `confidence: 'low'` in exactly one branch (the
+`hold`-action/no-`dailyAdj`-reduction case when `rec` — today's WHOOP recovery — is
+`undefined` or `null`) and `confidence: 'high'` in every other reachable branch
+(`dailyAdj < 0`, or `hold` with recovery data present). So for any athlete with a
+connected WHOOP supplying today's recovery number, the rendered note text is
+provably, structurally identical to the pre-Phase-1 string — not just believed to be
+by manual spot-check.
+
+**Deliberately out of scope for this slice, left open for later:** the other three
+Phase 0 explainers — `explainSetAdjustment`, `explainConPrescription`, and
+`explainConAdapt` — still have no UI consumer in either app. Wiring one or more of
+them into a screen is available as a future Phase 1 continuation slice, or can be
+folded into Phase 2, whenever wanted. Per the design doc's own roadmap table
+(`docs/superpowers/specs/2026-08-01-adaptive-training-engine-audit-design.md`), the
+next roadmap phase after this is **Phase 2 — adaptive strength progression**, which
+still awaits its own go-ahead per this project's standing per-phase review gate before
+any implementation plan is written for it.
+
 **2026-08-01 — Phase 0 (adaptive-decision contracts) shipped, verified, and pushed.**
 `origin/main` is at `598a1e8`. Five tasks, eight commits (Task 1 needed one fix-round
 commit after its own task review caught an action/verdict contradiction; Tasks 2-5
