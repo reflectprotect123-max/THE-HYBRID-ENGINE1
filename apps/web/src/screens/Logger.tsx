@@ -351,7 +351,7 @@ export function Logger() {
                           ? (earned.dailyAdj < 0
                               ? `earned ${earned.earned}kg · ${earned.note}`
                               : `earned ${earned.earned}kg last time`) +
-                            (earnedExplained?.confidence === 'low' ? ' · estimate' : '')
+                            (earnedExplained?.confidence === 'low' ? ' · no recovery data today' : '')
                           : ''
                       }
                       unit="kg"

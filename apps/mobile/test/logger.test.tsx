@@ -94,7 +94,7 @@ describe('Logger', () => {
     expect(screen.getByLabelText('kg').props.value).toBe('105');
   });
 
-  it('marks the earned weight as an estimate when no WHOOP recovery data is available', () => {
+  it('names the missing reason when no WHOOP recovery data is available', () => {
     // No live WHOOP connection exists in this test harness (network
     // required), so this is the default state for any athlete without a
     // connected strap — not a special-cased fixture. See the existing
@@ -102,7 +102,7 @@ describe('Logger', () => {
     // same reasoning.
     liveSession({ settings: { liftProgress: { 'back squat': { kg: 105, at: 1000 } } } });
     mount();
-    expect(screen.getByText('earned 105kg last time · estimate')).toBeTruthy();
+    expect(screen.getByText('earned 105kg last time · no recovery data today')).toBeTruthy();
   });
 
   it('eases the prefill on a red recovery morning', () => {

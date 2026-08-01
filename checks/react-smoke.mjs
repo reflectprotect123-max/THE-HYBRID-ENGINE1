@@ -242,10 +242,21 @@ await t('the rest timer survives a reload', async () => {
   assert(still, 'rest did not survive the reload');
 });
 
-await t('a working weight shown with no WHOOP data connected is marked as an estimate', async () => {
-  // No WHOOP sample exists anywhere in this file's seed data, so confidence
-  // is always 'low' here — this is the default state for any athlete
-  // without a connected strap, not a special-cased fixture.
+await t('a working weight shown with no WHOOP data connected names the missing reason', async () => {
+  // No WHOOP sample exists anywhere in this file's seed data, so this is the
+  // default state for any athlete without a connected strap — not a
+  // special-cased fixture.
+  //
+  // This scenario requires the session to be sitting on Set 3 of 3 (the
+  // second, un-warmed-up working set) — the earlier scenarios in this file
+  // log the warm-up and Set 2 in sequence, leaving Set 3 as the only set
+  // still open when this runs. Moving this test earlier would land on the
+  // warm-up (isWarmup === true), which never renders this note at all.
+  //
+  // The settings.liftProgress write below is permanent for the rest of this
+  // script (every later Logger visit sees this earned weight) — traced
+  // against every remaining scenario and confirmed harmless: nothing after
+  // this reads liftProgress except by filling the weight field explicitly.
   await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
     db.settings.liftProgress = Object.assign({}, db.settings.liftProgress, {
@@ -259,8 +270,53 @@ await t('a working weight shown with no WHOOP data connected is marked as an est
   if (skip) await skip.click();
   await page.waitForSelector('input[aria-label="Weight"]');
   const txt = await page.textContent('body');
-  assert(/earned 105kg last time/.test(txt), 'expected the earned-weight note, got: ' + txt.slice(0, 400));
-  assert(/estimate/.test(txt), 'expected an estimate tag with no WHOOP data connected, got: ' + txt.slice(0, 400));
+  assert(/earned 105kg last time · no recovery data today/.test(txt), 'expected the composed earned-weight-plus-reason note, got: ' + txt.slice(0, 400));
+});
+
+await t('a working weight shown with a connected WHOOP is NOT marked with a recovery-data reason', async () => {
+  // Mirrors checks/screens.mjs's WHOOP-connected mock (route interception,
+  // not localStorage — WHOOP state is fetched on mount, never persisted).
+  await page.route('**/.netlify/functions/integrations-status*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        whoop: {
+          connected: true,
+          lastSyncAt: new Date().toISOString(),
+          normalized: { recoveryScore: 68, restingHr: 48, strain: 12.4, date: new Date().toISOString().slice(0, 10), at: Date.now() },
+        },
+      }),
+    }),
+  );
+  await page.route('**/.netlify/functions/whoop-sync*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        connected: true,
+        normalized: { recoveryScore: 68, restingHr: 48, strain: 12.4, date: new Date().toISOString().slice(0, 10), at: Date.now() },
+      }),
+    }),
+  );
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
+    const skip = await page.$('button:has-text("Skip rest")');
+    if (skip) await skip.click();
+    await page.waitForSelector('input[aria-label="Weight"]');
+    const txt = await page.textContent('body');
+    assert(/earned 105kg last time/.test(txt), 'expected the earned-weight note with a connected WHOOP, got: ' + txt.slice(0, 400));
+    assert(!/no recovery data today/.test(txt), 'a connected WHOOP should never show the no-recovery-data reason, got: ' + txt.slice(0, 400));
+  } finally {
+    // MUST unroute before the later 'Settings offers cloud sign-in and a
+    // WHOOP connect' scenario runs — that test specifically asserts the
+    // WHOOP status call FAILS (no functions are served in this static test
+    // server) and the app degrades gracefully. A route left active here
+    // would silently break that later, unrelated test.
+    await page.unroute('**/.netlify/functions/integrations-status*');
+    await page.unroute('**/.netlify/functions/whoop-sync*');
+  }
 });
 
 await t('a weight of 1e309 cannot poison the record', async () => {
