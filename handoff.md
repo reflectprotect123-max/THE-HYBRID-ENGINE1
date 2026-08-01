@@ -11,10 +11,36 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
+**2026-08-01 — Phase 0 (adaptive-decision contracts) shipped, verified, and pushed.**
+`origin/main` is at `b61c507`. Five tasks, one commit each:
+`671b085` (types + `explainSetAdjustment`), `cd4d873` (fix a verdict/action
+contradiction near the on-target band caught during Task 1's own review — pre-push,
+no golden impact), `e2d0c13` (`explainWorkingWeight`), `befd450`
+(`explainConPrescription`), `6577276` (`explainConAdapt`), and `b61c507` (export
+`./adaptive/types` and `./adaptive/explain` from `@hybrid/engine`'s `src/index.ts`,
+plus a smoke test proving the export is reachable via the package index, not just the
+internal module path). All five wrapped functions (`explainSetAdjustment`,
+`explainWorkingWeight`, `explainConPrescription`, `explainConAdapt`) are read-only
+reshapers around already-computed results (`SetAdjustment`, `WorkingWeight`,
+`Prescription`, `CondResult`/`AdaptResult`) — none of them recompute or alter the
+underlying training math. Full repo `pnpm run verify` re-run fresh at HEAD this
+session: **exit 0** — typecheck clean (engine/guided-flow/config/design/mobile/web),
+engine suite **320/320** (was 304 before Phase 0; +16 new: 15 from Tasks 1–4's
+`adaptive.test.ts` plus 1 index-export smoke test from Task 5), **golden suite
+exactly 33/33, unchanged**, guided-flow 15/15, web 3/3, mobile 72/72, build clean, CSP
+check clean, react-smoke 29/29, deploy-smoke 11/11. Zero UI touched — only
+`packages/engine/src/index.ts` and `packages/engine/test/adaptive.test.ts` changed in
+Task 5; Tasks 1–4 touched only `packages/engine/src/adaptive/{types,explain}.ts` and
+the same test file. **Phase 1's remaining piece — surfacing a "why" string in at
+least one screen per app, per the roadmap's Phase 1 acceptance criteria — is next,
+and per this project's standing per-phase review gate, has NOT been started and is
+awaiting your go-ahead.**
+
 **ALL CODE WORK THROUGH COACH REMOVAL AND PAIN-STOP WIRING IS COMPLETE, VERIFIED, AND
-PUSHED.** `origin/main` is at `7fd4345`. Only Echo Bike's physical hardware test and
-your approval of the five §19 items (before Phase 0 implementation plan is written)
-remain open.
+PUSHED.** Only Echo Bike's physical hardware test and the items in §6 below remain
+open. (Phase 0 above proceeded from a written, reviewable implementation plan per this
+project's standing process — Phase 1 itself still needs its own explicit go-ahead
+before any of its work starts.)
 
 - Working directory: `/workspace/the-hybrid-engine1`, branch `main`, in sync with origin.
 - **Status checklist created** on branch `claude/status-check-iuiycq` (commit `b763ffe`):
