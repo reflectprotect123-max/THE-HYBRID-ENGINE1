@@ -63,13 +63,33 @@ describe('explainWorkingWeight', () => {
     });
   });
 
-  it('holds at the earned weight on a green or amber day', () => {
+  it('holds at the earned weight on a green or amber day, with a non-empty note even though WorkingWeight.note is empty', () => {
+    const settings = { liftProgress: { 'back squat': { kg: 100, at: 1 } } };
+    const w = nextWorkingWeight('Back squat', settings, { recoveryScore: 80 });
+    expect(w?.note).toBe('');
+    const explained = explainWorkingWeight(w, 80);
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['at_earned_weight']);
+    expect(explained.confidence).toBe('high');
+    expect(explained.note).toBe('At your earned working weight.');
+    expect(explained.dataLimitations).toEqual([]);
+  });
+
+  it('reports low confidence and no_recovery_data when no recovery reading is passed (default, no second arg)', () => {
     const settings = { liftProgress: { 'back squat': { kg: 100, at: 1 } } };
     const w = nextWorkingWeight('Back squat', settings, { recoveryScore: 80 });
     const explained = explainWorkingWeight(w);
     expect(explained.action).toBe('hold');
-    expect(explained.reasonCodes).toEqual(['at_earned_weight']);
+    expect(explained.confidence).toBe('low');
+    expect(explained.dataLimitations).toEqual(['no_recovery_data']);
+  });
+
+  it('reports high confidence and no data limitations when a recovery reading is passed', () => {
+    const settings = { liftProgress: { 'back squat': { kg: 100, at: 1 } } };
+    const w = nextWorkingWeight('Back squat', settings, { recoveryScore: 80 });
+    const explained = explainWorkingWeight(w, 80);
     expect(explained.confidence).toBe('high');
+    expect(explained.dataLimitations).toEqual([]);
   });
 
   it('eases and explains why on a red day', () => {
@@ -92,14 +112,16 @@ import { conPrescription } from '../src/conditioning';
 import { explainConPrescription } from '../src/adaptive/explain';
 
 describe('explainConPrescription', () => {
-  it('holds at baseline with low confidence when no device is connected', () => {
+  it('holds at baseline with low confidence when no device is connected, with a non-empty note even though Prescription.note is empty', () => {
     const p = conPrescription('intervals', {});
     expect(p.rec).toBeNull();
+    expect(p.note).toBe('');
     const explained = explainConPrescription(p);
     expect(explained.action).toBe('hold');
     expect(explained.reasonCodes).toEqual(['baseline_format']);
     expect(explained.confidence).toBe('low');
     expect(explained.dataLimitations).toEqual(['no_recovery_data']);
+    expect(explained.note).toBe('Baseline session — nothing earned for this format yet.');
   });
 
   it('holds at the earned level with high confidence when recovery data exists', () => {
@@ -179,6 +201,18 @@ describe('explainConAdapt', () => {
     expect(explained.action).toBe('hold');
     expect(explained.reasonCodes).toEqual(['conditioning_session_excluded']);
     expect(explained.dataLimitations).toEqual(['simulated_or_missing_session']);
+  });
+
+  it('explains a real, non-sim, non-progressed-format (custom) session as excluded, not as a held level', () => {
+    const rec = { fmt: 'custom', zsec: { low: 10, mod: 10, high: 0 }, dur: 600 } as CondResult;
+    const result = conAdapt(rec, {});
+    expect(result.delta).toBe(0);
+    const explained = explainConAdapt(rec, result);
+    expect(explained.action).toBe('hold');
+    expect(explained.reasonCodes).toEqual(['conditioning_session_excluded']);
+    expect(explained.note).toBe('This format does not carry earned progression.');
+    expect(explained.confidence).toBe('high');
+    expect(explained.dataLimitations).toEqual([]);
   });
 });
 

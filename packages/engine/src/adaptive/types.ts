@@ -54,7 +54,10 @@ export interface TrainingDecisionExplanation {
   action: ProgressionAction;
   confidence: Confidence;
   reasonCodes: ReasonCode[];
-  /** Plain-language note, safe to render directly. */
+  /**
+   * Plain-language note, safe to render directly. Never empty — every
+   * explainer must supply a non-empty, render-ready sentence.
+   */
   note: string;
   safetyState: SafetyState;
   /** What's missing that would raise confidence, if anything. */

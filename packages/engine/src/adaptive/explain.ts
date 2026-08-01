@@ -1,6 +1,7 @@
 import type { SetAdjustment, Prescription, CondResult } from '../types';
 import type { WorkingWeight } from '../lift';
 import type { AdaptResult } from '../conditioning';
+import { isProgressedFmt } from '../conditioning';
 import type { ReasonCode, TrainingDecisionExplanation } from './types';
 
 const SET_ADJUSTMENT_REASON_CODES: Record<string, ReasonCode> = {
@@ -19,6 +20,13 @@ const SET_ADJUSTMENT_REASON_CODES: Record<string, ReasonCode> = {
  * or alters `adj` — it only reshapes it into the adaptive-decision contract.
  */
 export function explainSetAdjustment(adj: SetAdjustment): TrainingDecisionExplanation {
+  // `action` and `reasonCodes`/`note` are orthogonal axes: `action` reports
+  // whether the engine actually changed the prescribed load (by delta), while
+  // `reasonCodes`/`note` report the effort verdict for that set. A rounding
+  // artifact can pair a 'too light' verdict with a 'hold' action when the
+  // computed delta happens to round to zero — this is not a bug; do not join
+  // these two fields into a single sentence in UI copy without accounting for
+  // this.
   const action =
     adj.verdict === 'right on target'
       ? 'hold'
@@ -41,7 +49,7 @@ export function explainSetAdjustment(adj: SetAdjustment): TrainingDecisionExplan
  * Explains an already-computed working-weight offer. Read-only, same
  * discipline as `explainSetAdjustment`.
  */
-export function explainWorkingWeight(w: WorkingWeight | null): TrainingDecisionExplanation {
+export function explainWorkingWeight(w: WorkingWeight | null, rec?: number | null): TrainingDecisionExplanation {
   if (!w) {
     return {
       action: 'pause_insufficient_data',
@@ -62,13 +70,14 @@ export function explainWorkingWeight(w: WorkingWeight | null): TrainingDecisionE
       dataLimitations: [],
     };
   }
+  const noRecoveryData = rec === undefined || rec === null;
   return {
     action: 'hold',
-    confidence: 'high',
+    confidence: noRecoveryData ? 'low' : 'high',
     reasonCodes: ['at_earned_weight'],
-    note: w.note,
+    note: w.note || 'At your earned working weight.',
     safetyState: 'approved',
-    dataLimitations: [],
+    dataLimitations: noRecoveryData ? ['no_recovery_data'] : [],
   };
 }
 
@@ -92,7 +101,7 @@ export function explainConPrescription(p: Prescription): TrainingDecisionExplana
     action: 'hold',
     confidence: noRecoveryData ? 'low' : 'high',
     reasonCodes: [p.level > 0 ? 'at_earned_level' : 'baseline_format'],
-    note: p.note,
+    note: p.note || 'Baseline session — nothing earned for this format yet.',
     safetyState: 'approved',
     dataLimitations: noRecoveryData ? ['no_recovery_data'] : [],
   };
@@ -132,6 +141,16 @@ export function explainConAdapt(rec: CondResult | null | undefined, result: Adap
       note: 'This session does not count toward conditioning progression.',
       safetyState: 'approved',
       dataLimitations: ['simulated_or_missing_session'],
+    };
+  }
+  if (!rec.fmt || !isProgressedFmt(rec.fmt)) {
+    return {
+      action: 'hold',
+      confidence: 'high',
+      reasonCodes: ['conditioning_session_excluded'],
+      note: 'This format does not carry earned progression.',
+      safetyState: 'approved',
+      dataLimitations: [],
     };
   }
   const z = rec.zsec || { low: 0, mod: 0, high: 0 };
