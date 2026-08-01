@@ -2,61 +2,50 @@
 
 ## 1) Goal
 
-Ship the conditioning-evidence-based upgrade end to end and clear the remaining bug backlog. The upgrade (14-task plan, `docs/superpowers/plans/2026-07-31-conditioning-evidence-based-upgrade.md`): modality-aware conditioning progression, felt-RPE capture on both athlete apps, conAdapt reweighting, Rogue Echo Bike V3 FTMS connectivity, full Concept2 Logbook OAuth integration (server functions, client providers, Settings UI, engine matcher + import flow, contract check). The backlog: five verified correctness bugs predating the plan.
+Ship the conditioning-evidence-based upgrade end to end, clear the pre-existing bug backlog, and get Concept2 Logbook + Echo Bike V3 verified against real accounts/hardware. The upgrade (14-task plan, `docs/superpowers/plans/2026-07-31-conditioning-evidence-based-upgrade.md`): modality-aware conditioning progression, felt-RPE capture on both athlete apps, conAdapt reweighting, Rogue Echo Bike V3 FTMS connectivity, full Concept2 Logbook OAuth integration.
 
 ## 2) Current State
 
-**ALL CODE WORK COMPLETE AND PUSHED.** `origin/main` is at `0ff6367`. What remains needs a human: two hardware/account tests and one policy ruling (see Next Steps).
+**ALL CODE WORK COMPLETE AND PUSHED. Concept2 is verified live end-to-end.** `origin/main` is at `f0aa3a1`. Only the Echo Bike physical test remains.
 
 - Working directory: `/workspace/the-hybrid-engine1`, branch `main`, clean tree, in sync with origin.
-- Conditioning plan: complete (base `cd73ef5`, final commit `494540a`), final whole-branch review passed after one fix wave. A follow-up session then wired the Concept2 import flow (`planConcept2Import`/`applyConcept2Import`, "Add N new results" in both Settings cards, dedupe by `externalId` → record id `c2-<externalId>`).
-- Backlog batch: complete (4 commits, `9439acb..0ff6367`), review-approved, full `pnpm run verify` green (exit 0, 40 smoke PASS).
-- **Concept2 is deployed live**: `CONCEPT2_CLIENT_ID`/`CONCEPT2_CLIENT_SECRET` are set on Netlify site `thehybridengine1` (secret-marked, functions scope), deploy `6a6d080b…` ready. Authorize-URL construction verified against the deployed code path: `https://log.concept2.com/oauth/authorize`, redirect `https://thehybridengine1.netlify.app/.netlify/functions/concept2-callback`, scope `user:read,results:read`.
-- Verification at HEAD: engine 308/308 (golden 33/33, fixtures byte-untouched throughout), mobile 71/71, web vitest 3/3, both typechecks clean, web build + CSP clean, concept2-contract all PASS, react-smoke 28/28 (2 new Training scenarios).
+- Conditioning plan (complete) + backlog batch (complete, 4 commits) + epley ruling (closed as won't-fix, user decision) — all from the prior handoff, unchanged.
+- **Concept2 OAuth round-trip confirmed working live** by the user: Settings → Connect → consent on log.concept2.com → back in the app → connected, pulled successfully. This was the last open verification gate on the whole plan besides Echo Bike.
+- Along the way, found and fixed a real bug: the web Concept2 provider ignored the OAuth outcome the server stamps onto the return URL, so any failure (denial, exchange error) would have looked identical to "never connected," with zero diagnostic text. Fixed in `f0aa3a1` — now parses `status`/`message` from the return URL, sets a real error message, and strips the one-time params via `history.replaceState`.
+- Also re-confirmed `CONCEPT2_CLIENT_SECRET` on Netlify (site `thehybridengine1`) during that investigation — it was the one env var that didn't show up in a full `getAllEnvVars` listing (every other secret in this project, including WHOOP's, is stored unmasked and does appear). Most likely just Netlify hiding secret-flagged values from listings, but re-upserted it to eliminate the possibility it had been lost. Live deploy `6a6d294c…` carries both that and the fix.
+- Verification at HEAD: engine 308/308 (golden 33/33 untouched throughout), mobile 71/71, web vitest 3/3, both typechecks clean (re-confirmed after the concept2.tsx fix), web build clean, concept2-contract all PASS, react-smoke 28/28.
 - Audit trails (gitignored, on disk only): `.superpowers/sdd/2026-07-31-conditioning-evidence-based-upgrade/progress.md` + `final-review.md`; backlog: `.superpowers/sdd/backlog-investigation.md`, `backlog-fixes-report.md`, `backlog/batch-review.md`.
-- This container is ephemeral: claude-mem (13.12.4) and everything not pushed dies with it.
+- Two unrelated commits landed on `main` from outside this thread: `800ed79`/`6f39123`, fixing the mobile OTA workflow to publish to the correct EAS channel. Not reviewed as part of this work; flag if it needs attention.
+- This container is ephemeral: everything not pushed (including claude-mem's memory) dies with it.
 
 ## 3) Active Files
 
-Conditioning plan (see `git diff cd73ef5..494540a --stat` for all 38):
-- `packages/engine/src/types.ts` — `Modality`, `Concept2Result`, `CondResult.deviceDistanceM`
-- `packages/engine/src/conditioning.ts` — `progressionKey(fmtKey, modality?)`, conAdapt reweighting, completion split
-- `packages/engine/src/concept2.ts` — matcher + `concept2ToCondResult` + (follow-up session) `planConcept2Import`/`applyConcept2Import`
-- `netlify/functions/_lib/concept2.mjs`, `concept2-{connect,callback,sync}.mjs`, concept2 branches in `integrations-{status,disconnect}.mjs`
-- `apps/{web,mobile}/src/cloud/concept2.tsx` — providers; `integration=` deep-link disambiguation incl. mobile whoop.tsx negative-lookahead filter
-- `apps/web/src/native/echoV3.ts`, `apps/mobile/src/native/capabilities.ts` — FTMS parsers (byte-identical logic)
-- `apps/{web,mobile}/src/screens/Conditioning.tsx`, `Settings.tsx` — live bike stats, felt-RPE, completion, Concept2Card
-- `checks/concept2-contract.mjs` — 110 assertions, wired into ci.yml's contract loop; `README.md` documents the Concept2 env vars (check-enforced)
+Conditioning plan + backlog batch: unchanged from the prior handoff (see `git diff cd73ef5..0ff6367 --stat`).
 
-Backlog batch:
-- `packages/engine/src/session.ts` — `sessionRpe` folds conditioning felt into the average
-- `packages/engine/src/db.ts` — `sanitizeDB` scrubs non-object `settings.conditioning` entries
-- `packages/engine/src/autoreg.ts` — missed-set suggestion clamped ≤ failed weight (steps down one `AUTOREG.plateIncrement`)
-- `apps/web/src/screens/Training.tsx` — finish-early confirmation + clickable completed conditioning card (mobile parity)
-- `checks/react-smoke.mjs` — 2 new Training scenarios
+New this round:
+- `apps/web/src/cloud/concept2.tsx` — provider now parses the OAuth return URL (`integration=concept2&status=...&message=...`), sets `error` accordingly, strips the params via `history.replaceState`. Mirrors the wording mobile's `handleReturn` already used (`denied`/`error`/`connected`).
 
 ## 4) Changes Made
 
-Conditioning plan (25 commits, highlights): Tasks 9–12 (`e5e3143`→`ddea8ca`) mobile FTMS + Concept2 server/client layers; Task 13 (`a5c57be`+`4fce7e1`) engine matcher — **fix round caught `durationRaw` being tenths of a second → `dur = durationRaw / 10`**; Task 14 (`a6a52c3`+`7bd68fe`) contract check — fix round removed a `|| true` fake-pass; final fix wave (`224f57c`) erg metres → `deviceDistanceM` (GPS-only invariant), mobile Bank & leave sets `cardioCompletion`, honest Settings copy, README env docs; `494540a` comment corrections. Then env vars set on Netlify + trigger deploy (`2402303`).
+Everything through the prior handoff (conditioning plan 25 commits, backlog batch 4 commits, `925ec49` epley ruling) is unchanged — see that handoff's section 4 or `git log`.
 
-Backlog batch (all review-approved):
-- `9439acb` — sessionRpe includes conditioning felt RPE (strength-only sessions byte-identical)
-- `a1f951a` — sanitizeDB filters `settings.conditioning` to real objects (fixes Progress-screen crash from poisoned backup/sync data)
-- `eb6272a` — autoreg no longer suggests a heavier weight after a missed set when logged weight isn't a plate multiple (e.g. 24.9 kg → was 25 kg "good")
-- `0ff6367` — web Training: confirmation before early finish with unlogged sets; completed conditioning card reopens recap
+New this round:
+- `f0aa3a1` — web: Concept2 provider reads `status`/`message` off the post-redirect URL instead of discarding it; Settings' existing (previously always-empty) error line now actually renders a denial/failure message on the next bad attempt.
+- Netlify: re-upserted `CONCEPT2_CLIENT_SECRET` (functions scope, secret-marked) as a precaution; a follow-up attempt to also drop its secret flag to match `WHOOP_CLIENT_SECRET`'s plaintext-listing convention was rejected by Netlify's API (422) — Netlify does not allow flipping `is_secret` on an existing var via upsert. Left as secret-marked; this did not block anything (the live connect subsequently succeeded).
+- Result: **user-confirmed live OAuth success** — connect, consent, return, connected, pull all worked.
 
 ## 5) Failed Attempts
 
-- **epley MAX_KG clamp — deliberately NOT fixed (open ruling, see Next Steps).** The clamp was implemented, empirically turned golden red (`test/golden/epley.json` pins unbounded output for kg=1999/2000/2001 as vanilla-ported behavior), and was reverted per the "golden is sacrosanct" rule. Inputs are already clamped to 2000 kg at entry, so risk is theoretical.
-- **Task 13 first pass** stored `durationRaw` unconverted (10× too large). Caught by review. Lesson: the server normalizer keeps raw API units by design; engine consumers must convert.
-- **Task 14 first pass** shipped a `|| true` assertion that could never fail. Caught by review.
-- **react-smoke guided-builder flake**: fails ~25–40% of runs under load (30s timeouts; `warm-up note carries into Planner` at checks/react-smoke.mjs:472 and `browser Back`). Reproduced at plan base `cd73ef5` → pre-existing, not a regression. Worth a stabilization pass.
-- **Live-site testing from this container is impossible**: the environment's egress proxy denies `netlify.app` (and `ollama.com`) with CONNECT 403 — network-policy change on claude.ai required to allow. Netlify MCP tools still work (different relay); its write endpoint 502'd twice before succeeding (transient).
+Unchanged from the prior handoff (epley clamp reverted against golden, Task 13/14 first-pass bugs caught by review, react-smoke guided-builder flake, this container's network policy blocking `netlify.app`/`ollama.com`).
+
+New this round:
+- **Netlify secret-flag change rejected (422):** tried to re-upsert `CONCEPT2_CLIENT_SECRET` with `envVarIsSecret: false` and full scope (`builds`/`functions`/`post_processing`/`runtime`) to match `WHOOP_CLIENT_SECRET`'s exact configuration, for elimination purposes while root-causing the "doesn't pull anything" report. Netlify's API returned 422 — flipping an existing var's secret flag via upsert isn't permitted. Non-blocking: the plain secret-scoped upsert (functions scope, `is_secret: true`) succeeded, and that turned out to be sufficient — the live connect worked without this change.
+- **Root cause of the original "connects but Settings still shows disconnected" report turned out to be moot** in the end: the user clarified their Concept2 account had no logged results, and once retried post-fix, the connection worked. The silent-failure bug in concept2.tsx (described above) may or may not have been the actual cause of that first attempt — it's fixed regardless, since it was a real gap independent of what caused that specific report.
 
 ## 6) Next Steps
 
-1. **Concept2 live round-trip (user, ~30s):** on `https://thehybridengine1.netlify.app/settings`, sign in → Connect on the Concept2 card → approve on log.concept2.com → back in Settings, Pull → results + "Add N new results". If Concept2 shows "invalid redirect_uri", the portal's registered URI must exactly match `https://thehybridengine1.netlify.app/.netlify/functions/concept2-callback`. Then work through `docs/research/concept2-logbook-bundle/KNOWN_GAPS.md`.
-2. **Echo Bike physical test (user, planned "tomorrow"):** Chrome/Edge or the Android app → Conditioning → "Connect Echo Bike" (console awake, nothing else connected, no OS pairing). First real connection doubles as the validation in `docs/research/echo-v3-connectivity-bundle/evidence/known_gaps.md`. The FTMS parser has never met a real V3 — capture any wrong numbers/disconnects for parser fixes.
-3. **epley ruling — CLOSED as won't-fix (user decision, 2026-07-31):** the unbounded Epley projection is vanilla-ported behavior pinned by golden fixtures (`test/golden/epley.json`, kg=1999/2000/2001 rows), and weight inputs are already clamped to MAX_KG at entry. Do not re-open without a decision to edit golden fixtures.
-4. **Deferred minors** (all ruled OK-to-defer): react-smoke flake stabilization, `useSyncExternalStore` migration for the RUN pending-state pattern, named `DeviceInfo` type, `felt: 0` explicit test for sessionRpe, order-dependence note in the new smoke scenario.
-5. **Also pending from the earlier secret paste:** the Concept2 client secret passed through chat — cheap insurance to rotate it in the Concept2 portal and update the Netlify var once things are verified working.
+1. **Echo Bike V3 physical test (user, only remaining item):** Chrome/Edge or the Android app → Conditioning → "Connect Echo Bike" (console awake, nothing else connected, no OS pairing). First real connection doubles as the validation in `docs/research/echo-v3-connectivity-bundle/evidence/known_gaps.md`. The FTMS parser has never met a real V3 — report any wrong numbers, disconnects, or missing fields for parser fixes.
+2. **Concept2 real-account checklist:** now that the connection works, work through `docs/research/concept2-logbook-bundle/KNOWN_GAPS.md` if deeper validation is wanted (e.g. testing with an account that has logged rower/SkiErg/BikeErg results, confirming the import flow lands them correctly in History/Progress).
+3. **Housekeeping:** rotate the Concept2 client secret in the Concept2 developer portal + update the Netlify env var — it passed through chat earlier in plaintext. Not urgent, but cheap insurance.
+4. **Deferred minors** (all ruled OK-to-defer, unchanged): react-smoke flake stabilization, `useSyncExternalStore` migration for the RUN pending-state pattern, named `DeviceInfo` type, `felt: 0` explicit test for sessionRpe.
+5. **Optional:** look at the two unrelated OTA-workflow commits (`800ed79`/`6f39123`) if the mobile release pipeline needs review — they weren't produced or reviewed as part of this thread.
