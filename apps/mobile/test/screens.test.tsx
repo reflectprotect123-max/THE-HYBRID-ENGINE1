@@ -319,9 +319,15 @@ describe('Calendar day-cell tap', () => {
 
   /* Matches the accessibilityLabel CalendarScreen puts on each cell exactly,
      so the tap lands on the specific day under test rather than any day
-     sharing its number. */
-  const cellLabel = (d: Date) =>
-    d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+     sharing its number.
+
+     The label carries the day's STATE as well as its date, because an
+     accessibility label replaces everything inside the Tap — the trained and
+     planned dots are invisible to VoiceOver unless the distinction is spoken
+     as part of the name. Callers that seed nothing pass no state and get the
+     bare date, which is what those cells are actually named. */
+  const cellLabel = (d: Date, state: '' | ', trained' | ', planned' = '') =>
+    d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) + state;
 
   it("tapping a trained day lands on that day's Recap, not a generic Calendar view", () => {
     const trained = liftSession(0, 'Back squat', 100);
@@ -332,9 +338,22 @@ describe('Calendar day-cell tap', () => {
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
 
     renderScreen(<CalendarScreen />);
-    fireEvent.press(screen.getByLabelText(cellLabel(date)));
+    fireEvent.press(screen.getByLabelText(cellLabel(date, ', trained')));
 
     expect(navigate).toHaveBeenCalledWith('Recap', { id: trained.id });
+  });
+
+  it('names a planned day as planned, so the dot is not the only way to know', () => {
+    // The dots are a visual difference only; the label is the whole of what a
+    // screen reader gets. A day with a workout scheduled on it must say so.
+    const date = sameMonthOffset(9);
+    seed({ workouts: [{ ...liftWorkout(), dates: [ymd(date)] }], sessions: [] });
+    (useNavigation as jest.Mock).mockReturnValue({ navigate: jest.fn() });
+
+    renderScreen(<CalendarScreen />);
+    expect(screen.getByLabelText(cellLabel(date, ', planned'))).toBeTruthy();
+    // ...and a day with nothing on it stays a plain date, not "planned".
+    expect(screen.getByLabelText(cellLabel(sameMonthOffset(10)))).toBeTruthy();
   });
 
   it('tapping today lands on Training, when nothing is logged yet', () => {

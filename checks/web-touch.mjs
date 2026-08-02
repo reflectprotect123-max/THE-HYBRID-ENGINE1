@@ -200,6 +200,39 @@ check(short.length === 0, `every visible control is >=${MIN}px on touch (smalles
 const grew = Math.min(...mouse.hs) < MIN;
 check(grew, `a mouse still gets the compact sizes (smallest ${Math.min(...mouse.hs)}px) — the rule is not global`);
 
+/*
+ * The other side of the 44px rule: what it must NOT reach.
+ *
+ * Calendar's day cells are buttons in a 7-column grid, and a column on a
+ * 360px phone is ~38.6px. A 44px minimum on a square cell is wider than its
+ * own track, so the month spills out of the card sideways — a real regression
+ * the moment those cells stopped being <div>s. `min-h-0` on the cell opts out,
+ * which only works while utilities out-rank the base layer; this measures the
+ * result rather than trusting the cascade, and is scoped to the grid because
+ * the surrounding month/legend controls are still thumb targets.
+ *
+ * Calendar is deliberately absent from ROUTES above for the same reason: its
+ * cells are the one control on the gym path that must be under 44px.
+ */
+for (const width of [320, 360, 390]) {
+  const ctx = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width, height: 844 } });
+  const page = await ctx.newPage();
+  await page.addInitScript((seed) => {
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(seed));
+  }, SEED);
+  await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
+  await page.waitForSelector('.grid-cols-7 button');
+  const grid = await page.evaluate(() => {
+    const g = document.querySelector('.grid-cols-7');
+    return { client: g.clientWidth, scroll: g.scrollWidth };
+  });
+  check(
+    grid.scroll <= grid.client,
+    `Calendar's month fits its column track at ${width}px on touch (client ${grid.client}px, scroll ${grid.scroll}px)`,
+  );
+  await ctx.close();
+}
+
 await browser.close();
 server.close();
 console.log(fails ? `\n${fails} failure(s).` : '\nAll web touch checks passed.');
