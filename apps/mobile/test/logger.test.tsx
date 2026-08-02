@@ -33,8 +33,16 @@ function liveSession(over: Partial<EngineDB> = {}) {
   return s;
 }
 
-/** 3 completed, on-target history sessions for `name`, plus a live session on it. */
-function liveSessionWithStrengthHistory(name = 'Back squat') {
+/**
+ * 3 completed, on-target history sessions for `name`, plus a live session on it.
+ *
+ * `reps` is what each history session was logged at against an 8-10 target. 10
+ * is AT the top of that range, which is where a suggestion can genuinely improve
+ * on what the fields already show: the Reps field opens at `repTopOf('8-10')` —
+ * 10 — so anything the rep branch could propose from an 8-rep history would be a
+ * step DOWN from what is on screen, and the decision holds instead.
+ */
+function liveSessionWithStrengthHistory(name = 'Back squat', reps = 10) {
   const onTargetSet = (reps: number): LoggedSet =>
     ({ done: true, aVal: '100', aVal2: String(reps), felt: '8', t: '8-10', rpe: '8' }) as LoggedSet;
   const histSession = (id: string, at: number, reps: number): Session => ({
@@ -53,12 +61,10 @@ function liveSessionWithStrengthHistory(name = 'Back squat') {
   }) as unknown as Session;
 
   const w = liftWorkout(name, 2);
-  // liftWorkout's default target is a flat '5' (no range), which would leave
-  // no room to progress reps (repTopOf('5') === 5, already at last.reps === 8)
-  // and push decideStrengthProgression onto its load-progression branch
-  // instead. An 8-10 rep-range target — matching the on-target history above
-  // and web's react-smoke scratch workout for this same scenario — is what
-  // actually leaves room for a rep suggestion.
+  // liftWorkout's default target is a flat '5' (no range). An 8-10 rep-range
+  // target — matching the history above and web's react-smoke scratch workout
+  // for this same scenario — is what the decision is judged against, and what
+  // the Reps field is prefilled from.
   (w.blocks[0] as StrengthBlock).exercises[0].sets.forEach((st) => {
     st.t = '8-10';
   });
@@ -73,7 +79,12 @@ function liveSessionWithStrengthHistory(name = 'Back squat') {
   };
   seed({
     workouts: [w],
-    sessions: [histSession('h1', 1000, 8), histSession('h2', 2000, 8), histSession('h3', 3000, 8), live],
+    sessions: [
+      histSession('h1', 1000, reps),
+      histSession('h2', 2000, reps),
+      histSession('h3', 3000, reps),
+      live,
+    ],
   });
   return live;
 }
@@ -190,12 +201,30 @@ describe('Logger', () => {
     expect(screen.getByText('No live session')).toBeTruthy();
   });
 
-  it('surfaces an opt-in rep suggestion after a 2-session on-target streak, and Apply writes it into the Reps field', () => {
-    liveSessionWithStrengthHistory('Back squat');
+  it('surfaces an opt-in load suggestion after a 2-session on-target streak at the top of the range, and Apply writes it into the kg field', () => {
+    // 3 sessions of 100kg × 10 against an 8-10 target: the reps are already at
+    // the top of the range, so the only axis left is load — and 102.5 is real
+    // progress on the 100 the field is showing.
+    liveSessionWithStrengthHistory('Back squat', 10);
     mount();
     expect(screen.getByText(/On target the last 2 sessions/)).toBeTruthy();
+    expect(screen.getByLabelText('kg').props.value).toBe('100');
     fireEvent.press(screen.getByText('Apply'));
-    expect(screen.getByLabelText('reps').props.value).toBe('9');
+    expect(screen.getByLabelText('kg').props.value).toBe('102.5');
+  });
+
+  it('says nothing when the "progression" would write a smaller number than the field already shows', () => {
+    /*
+     * The shipped bug: 3 sessions of 100kg × 8 against an 8-10 target used to
+     * render "try 9 reps next time" over a Reps field already prefilled with 10
+     * — Apply downgraded it. There is nothing to suggest here, so the strip must
+     * not appear at all.
+     */
+    liveSessionWithStrengthHistory('Back squat', 8);
+    mount();
+    expect(screen.getByLabelText('reps').props.value).toBe('10');
+    expect(screen.queryByText(/On target the last 2 sessions/)).toBeNull();
+    expect(screen.queryByText('Apply')).toBeNull();
   });
 });
 

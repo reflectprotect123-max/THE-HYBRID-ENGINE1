@@ -1,28 +1,45 @@
 import { AUTOREG } from '../constants';
 import { roundToIncrement } from '../num';
 import { isWarmup, repFloorOf, repTopOf, rpeCenterOf, verdictForRpe } from '../autoreg';
+import { liftMoves } from '../lift';
 import { blockExercises, isLiftMode, isWarmupBlock } from '../session';
 import type { LoggedSet, Session } from '../types';
 import type { TrainingDecisionExplanation } from './types';
 
 interface StrengthExposure {
-  sid: string;
-  completedAt: number;
   reps: number;
   /** null for a bodyweight exercise — same convention `exLogFor` already uses. */
   kg: number | null;
   missed: boolean;
   onTarget: boolean;
+  /**
+   * The session this exposure was logged in. Kept so the decision can re-derive
+   * what `lift.ts` ALREADY earned from it (see `earnedKgFrom`) rather than
+   * guessing at what the Logger's weight field is showing.
+   */
+  source: Session;
 }
 
 const MIN_EXPOSURES = 3;
 
 /**
  * The exercise's last completed, non-warmup working set per session, oldest
- * first — mirrors `session.ts`'s `exLogFor` filtering exactly, but keeps each
- * set's own recorded target (`t`/`rpe`) alongside its logged values, which
- * `exLogFor`'s `ExerciseHistoryEntry` shape discards. A separate, local scan;
- * does not reuse or modify `exLogFor`.
+ * first, keeping each set's own recorded target (`t`/`rpe`) alongside its
+ * logged values — which `exLogFor`'s `ExerciseHistoryEntry` shape discards. A
+ * separate, local scan; does not reuse or modify `exLogFor`.
+ *
+ * It is NOT a copy of `exLogFor`'s filtering, and deliberately diverges twice:
+ *
+ * 1. `completedAt != null` rather than `exLogFor`'s truthy `s.completedAt`. A
+ *    session stamped at epoch 0 is a real, finished session, and dropping it
+ *    would silently shorten an exposure streak.
+ * 2. One exposure per session, from the FIRST occurrence of the movement that
+ *    has a completed working set — `lift.ts`'s rule (`liftMoves`, the `seen`
+ *    set), not `exLogFor`'s, which has no such rule because it is building a
+ *    full history list rather than picking the one set that decides a
+ *    progression. A back-off/burnout block written after the main lift must not
+ *    overwrite what the working set earned: taking the last occurrence recorded
+ *    Bench at the back-off's 70kg and corrupted the progression history.
  */
 function strengthExposuresFor(name: string, sessions: Session[]): StrengthExposure[] {
   const key = String(name || '').trim().toLowerCase();
@@ -33,11 +50,16 @@ function strengthExposuresFor(name: string, sessions: Session[]): StrengthExposu
     .filter((s) => s.status !== 'active' && s.completedAt != null)
     .sort((a, b) => (a.completedAt || 0) - (b.completedAt || 0))
     .forEach((s) => {
-      let last: LoggedSet | null = null;
+      let found: LoggedSet | null = null;
       s.blocks.forEach((b) => {
         if (isWarmupBlock(b)) return;
         blockExercises(b).forEach((e) => {
+          // First occurrence wins — but only one that actually logged a working
+          // set claims the slot, exactly as `liftMoves` only adds to `seen`
+          // once it has a set with reps.
+          if (found) return;
           if (!isLiftMode(e.mode) || String(e.name || '').trim().toLowerCase() !== key) return;
+          let last: LoggedSet | null = null;
           e.sets.forEach((st) => {
             if (isWarmup(st)) return;
             if (!st.done) return;
@@ -45,10 +67,11 @@ function strengthExposuresFor(name: string, sessions: Session[]): StrengthExposu
             if (!(reps > 0)) return;
             last = st;
           });
+          if (last) found = last;
         });
       });
-      if (last) {
-        const finalSet = last as LoggedSet;
+      if (found) {
+        const finalSet = found as LoggedSet;
         const reps = Number(finalSet.aVal2);
         const kgVal = parseFloat(String(finalSet.aVal ?? ''));
         const kg = Number.isFinite(kgVal) && kgVal > 0 ? kgVal : null;
@@ -58,7 +81,7 @@ function strengthExposuresFor(name: string, sessions: Session[]): StrengthExposu
         const felt = parseFloat(String(finalSet.felt ?? ''));
         const verdict = Number.isFinite(felt) ? verdictForRpe(felt, center) : null;
         const onTarget = !missed && (verdict === 'right on target' || verdict === 'a touch under target');
-        out.push({ sid: s.id, completedAt: s.completedAt as number, reps, kg, missed, onTarget });
+        out.push({ reps, kg, missed, onTarget, source: s });
       }
     });
 
@@ -66,10 +89,36 @@ function strengthExposuresFor(name: string, sessions: Session[]): StrengthExposu
 }
 
 /**
+ * The weight the Logger's field is ALREADY showing for this movement: whatever
+ * `liftMoves` earned from that session — the exact number `liftAdapt` banks
+ * into `settings.liftProgress` and `prefillPrimary` reads back through
+ * `nextWorkingWeight`.
+ *
+ * Read from `lift.ts`, never recomputed with a second formula: a suggestion
+ * that disagrees with the prefill is not a suggestion, it is two numbers
+ * contradicting each other on the same card. Null when that session earned
+ * nothing for the movement (an unrated set, say) — the caller then falls back
+ * to what was actually lifted.
+ */
+function earnedKgFrom(name: string, exposure: StrengthExposure): number | null {
+  const key = String(name || '').trim().toLowerCase();
+  const m = liftMoves(exposure.source).find((x) => x.key === key);
+  return m ? m.to : null;
+}
+
+/**
  * A new, per-exercise, cross-session decision layered atop `nextWorkingWeight`
  * — never replacing it, never writing to settings. Pure: recomputes from
  * `sessions` on every call, no persisted streak counter. See
  * docs/superpowers/specs/2026-08-02-adaptive-phase2-strength-progression-design.md.
+ *
+ * THE RULE THAT MAKES IT A SUGGESTION: a prescription is only ever returned
+ * when it actually moves the number the athlete is already looking at. The
+ * fields are not blank — `prefillSecondary` has already put `repTopOf(t)` in
+ * Reps and `prefillPrimary` the earned weight in kg — so a "progression" that
+ * lands at or below those is a downgrade dressed as advice. Every branch below
+ * compares against what the field shows and falls through to a hold when there
+ * is nothing to add.
  */
 export function decideStrengthProgression(
   name: string,
@@ -92,27 +141,63 @@ export function decideStrengthProgression(
 
   if (last.onTarget && prev.onTarget) {
     const repTop = parseInt(repTopOf(currentTarget.t), 10);
-    const canProgressReps = last.kg == null || (Number.isFinite(repTop) && last.reps < repTop);
-    if (canProgressReps) {
+    // What the Reps field ALREADY shows, via `prefillSecondary`. Null for a
+    // target with no number at all ("max", ""), where the field opens empty and
+    // any rep count is new information.
+    const shownReps = Number.isFinite(repTop) ? repTop : null;
+    // Double progression: climb the rep range before adding load. A bodyweight
+    // movement has no load axis at all, so it always takes the rep route.
+    const repsRoute = last.kg == null || (shownReps != null && last.reps < shownReps);
+
+    if (repsRoute) {
+      const reps = last.reps + 1;
+      if (shownReps == null || reps > shownReps) {
+        return {
+          action: 'progress_reps',
+          confidence: 'high',
+          reasonCodes: ['consistently_on_target'],
+          note: `On target the last 2 sessions — try ${reps} reps next time.`,
+          safetyState: 'approved',
+          dataLimitations: [],
+          prescription: { reps },
+        };
+      }
+      // One more rep than last time is still FEWER than the plan already asks
+      // for — the field is showing the top of the range. Saying "try 9" over a
+      // field reading 10 would talk the athlete down.
       return {
-        action: 'progress_reps',
+        action: 'hold',
         confidence: 'high',
-        reasonCodes: ['consistently_on_target'],
-        note: `On target the last 2 sessions — try ${last.reps + 1} reps next time.`,
+        reasonCodes: ['already_at_rep_target'],
+        note: `On target the last 2 sessions — the plan already asks for ${shownReps} reps, so go and take those before anything else moves.`,
         safetyState: 'approved',
         dataLimitations: [],
-        prescription: { reps: last.reps + 1 },
       };
     }
-    const load = roundToIncrement((last.kg as number) + AUTOREG.stepKg, AUTOREG.plateIncrement);
+
+    const kg = last.kg as number;
+    const shownKg = earnedKgFrom(name, last) ?? kg;
+    const load = roundToIncrement(kg + AUTOREG.stepKg, AUTOREG.plateIncrement);
+    if (load > shownKg) {
+      return {
+        action: 'progress_load',
+        confidence: 'high',
+        reasonCodes: ['consistently_on_target'],
+        note: `On target the last 2 sessions — try ${load}kg next time.`,
+        safetyState: 'approved',
+        dataLimitations: [],
+        prescription: { load },
+      };
+    }
+    // The in-session autoregulation already banked this step or more, and the
+    // weight field is showing it. Repeating the number adds nothing.
     return {
-      action: 'progress_load',
+      action: 'hold',
       confidence: 'high',
-      reasonCodes: ['consistently_on_target'],
-      note: `On target the last 2 sessions — try ${load}kg next time.`,
+      reasonCodes: ['already_at_earned_load'],
+      note: `On target the last 2 sessions — the ${shownKg}kg already earned for today is the step up; take it and see.`,
       safetyState: 'approved',
       dataLimitations: [],
-      prescription: { load },
     };
   }
 
@@ -127,15 +212,34 @@ export function decideStrengthProgression(
         dataLimitations: ['no_load_to_deload'],
       };
     }
-    const load = roundToIncrement(Math.max(AUTOREG.stepKg, last.kg - AUTOREG.stepKg), AUTOREG.plateIncrement);
+    const kg = last.kg;
+    // A missed set has already cost ~6.25% through `computeSetAdjustment`, and
+    // that drop is what the field is prefilled with. A flat `stepKg` off what
+    // was LIFTED can therefore be more weight than is already on offer — the
+    // deload has to be measured against the earned number, never past it.
+    const shownKg = earnedKgFrom(name, last) ?? kg;
+    const load = roundToIncrement(
+      Math.max(AUTOREG.stepKg, Math.min(kg - AUTOREG.stepKg, shownKg)),
+      AUTOREG.plateIncrement,
+    );
+    if (load < shownKg) {
+      return {
+        action: 'deload',
+        confidence: 'high',
+        reasonCodes: ['consistently_missed'],
+        note: `Missed the last 2 sessions — try ${load}kg next time.`,
+        safetyState: 'approved',
+        dataLimitations: [],
+        prescription: { load },
+      };
+    }
     return {
-      action: 'deload',
+      action: 'hold',
       confidence: 'high',
-      reasonCodes: ['consistently_missed'],
-      note: `Missed the last 2 sessions — try ${load}kg next time.`,
+      reasonCodes: ['already_at_earned_load'],
+      note: `Missed the last 2 sessions — the weight has already come down to ${shownKg}kg; hold there rather than cutting twice for the same miss.`,
       safetyState: 'approved',
       dataLimitations: [],
-      prescription: { load },
     };
   }
 

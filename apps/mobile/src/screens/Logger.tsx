@@ -140,12 +140,16 @@ export function LoggerScreen({ route, navigation }: Props) {
   );
 
   const isFirstWorkingSet = !!ex && ex.sets.findIndex((s2) => !isWarmup(s2)) === si;
+  /* Gated on `isFirstWorkingSet` — the only place it is rendered — BEFORE
+     `db.sessions` is touched. Every keystroke writes through to the session,
+     which hands the store a fresh array, so an ungated memo re-scanned the
+     whole training history on each character typed on the gym-floor screen. */
   const strengthSuggestion = useMemo(
     () =>
-      ex && lift && st && !isWarmup(st)
+      isFirstWorkingSet && ex && lift && st && !isWarmup(st)
         ? decideStrengthProgression(ex.name, db.sessions, { t: st.t, rpe: st.rpe })
         : null,
-    [ex, lift, st, db.sessions],
+    [isFirstWorkingSet, ex, lift, st, db.sessions],
   );
 
   if (!s || !block || isCond(block) || !ex) {

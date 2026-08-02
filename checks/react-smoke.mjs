@@ -319,11 +319,17 @@ await t('a working weight shown with a connected WHOOP is NOT marked with a reco
   }
 });
 
-await t('a consistent 2-session on-target streak surfaces an opt-in rep suggestion, and Apply writes it into the field', async () => {
-  // Seed 3 completed, standalone sessions for 'Back Squat' — independent of
+await t('a consistent 2-session on-target streak surfaces an opt-in load suggestion, and Apply writes it into the field', async () => {
+  // Seed 3 completed, standalone sessions for 'Front squat' — independent of
   // the live session state the earlier scenarios in this file built up —
   // each on-target against an 8-10 rep-range target, so the last two count
   // as a consistent streak per decideStrengthProgression's own rule.
+  //
+  // Logged at TEN reps — the top of that 8-10 range, which is exactly what the
+  // Reps field is already prefilled with. A suggestion is only offered when it
+  // beats what the fields already show, so a history of 8s produces silence
+  // (correctly: "try 9 reps" over a field reading 10 is a downgrade). What is
+  // left here is the load axis: 100kg → 102.5kg.
   //
   // The suggestion only ever renders on the FIRST working set of an exercise
   // (`isFirstWorkingSet` in Logger.tsx), but by this point in the suite the
@@ -332,7 +338,7 @@ await t('a consistent 2-session on-target streak surfaces an opt-in rep suggesti
   // after this one) is already sitting on its SECOND working set — Set 3 of
   // 3. Rather than disturb that shared session's position (which those
   // later, order-dependent scenarios rely on), this scenario temporarily
-  // swaps in its own isolated active session — a fresh Back Squat exercise
+  // swaps in its own isolated active session — a fresh Front squat exercise
   // with no warm-up, so its very first set is already the first working
   // set — then restores the original session's 'active' status and removes
   // its own scratch session/workout before returning, so nothing below is
@@ -346,13 +352,13 @@ await t('a consistent 2-session on-target streak surfaces an opt-in rep suggesti
       id, date: '2026-01-01', status: 'completed', completedAt: at,
       blocks: [{
         id: 'b', heading: 'Main', superset: false,
-        exercises: [{ id: 'e', name: 'Back Squat', mode: 'reps_kg', rest: 90, sets: [onTargetSet(reps)] }],
+        exercises: [{ id: 'e', name: 'Front squat', mode: 'reps_kg', rest: 90, sets: [onTargetSet(reps)] }],
       }],
     });
     db.sessions.push(
-      histSession('strength-hist-1', 1000, 8),
-      histSession('strength-hist-2', 2000, 8),
-      histSession('strength-hist-3', 3000, 8),
+      histSession('strength-hist-1', 1000, 10),
+      histSession('strength-hist-2', 2000, 10),
+      histSession('strength-hist-3', 3000, 10),
     );
 
     const origSession = db.sessions.find((s) => s.status === 'active');
@@ -362,7 +368,7 @@ await t('a consistent 2-session on-target streak surfaces an opt-in rep suggesti
       id: 'w-strength-scratch', name: 'Strength scratch', days: [], updatedAt: Date.now(),
       blocks: [{
         id: 'sb', heading: 'Main', superset: false,
-        exercises: [{ id: 'se', name: 'Back Squat', mode: 'reps_kg', rest: 90, sets: [{ t: '8-10', rpe: '8' }] }],
+        exercises: [{ id: 'se', name: 'Front squat', mode: 'reps_kg', rest: 90, sets: [{ t: '8-10', rpe: '8' }] }],
       }],
     });
     db.sessions.push({
@@ -370,7 +376,7 @@ await t('a consistent 2-session on-target streak surfaces an opt-in rep suggesti
       startedAt: Date.now(), workoutId: 'w-strength-scratch',
       blocks: [{
         id: 'sb', heading: 'Main', superset: false,
-        exercises: [{ id: 'se', name: 'Back Squat', mode: 'reps_kg', rest: 90, sets: [{ t: '8-10', rpe: '8' }] }],
+        exercises: [{ id: 'se', name: 'Front squat', mode: 'reps_kg', rest: 90, sets: [{ t: '8-10', rpe: '8' }] }],
       }],
     });
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
@@ -386,6 +392,15 @@ await t('a consistent 2-session on-target streak surfaces an opt-in rep suggesti
   assert(/On target the last 2 sessions/.test(txt), 'expected the strength suggestion note, got: ' + txt.slice(0, 400));
   assert(/Apply/.test(txt), 'expected an Apply control, got: ' + txt.slice(0, 400));
 
+  // What the fields ALREADY show, before anything is applied — a suggestion is
+  // only honest if it beats these. ('Front squat' rather than the Back Squat an
+  // earlier scenario banked a liftProgress entry for, so this prefill comes from
+  // the seeded history above and nothing else.)
+  const kgBefore = await page.inputValue('input[aria-label="Weight"]');
+  const repsBefore = await page.inputValue('input[aria-label="Reps"]');
+  assert(kgBefore === '100', 'expected the weight field prefilled from the seeded history, got: ' + kgBefore);
+  assert(repsBefore === '10', 'expected the reps field prefilled at the rep-range top, got: ' + repsBefore);
+
   // Confirm Apply never touched settings.liftProgress — the write goes
   // through the same local field the athlete's own typing uses, not a
   // separate path. An earlier scenario in this file already permanently set
@@ -396,8 +411,12 @@ await t('a consistent 2-session on-target streak surfaces an opt-in rep suggesti
   );
 
   await page.click('button:has-text("Apply")');
+  const kg = await page.inputValue('input[aria-label="Weight"]');
+  assert(kg === '102.5', 'expected Apply to write the suggested load into the Weight field, got: ' + kg);
+  // And it moved the number FORWARD — the whole point of the fix. The Reps
+  // field is untouched at the top of the planned range.
   const reps = await page.inputValue('input[aria-label="Reps"]');
-  assert(reps === '9', 'expected Apply to write the suggested rep count into the Reps field, got: ' + reps);
+  assert(reps === '10', 'expected the Reps field left at the planned rep top, got: ' + reps);
 
   const liftProgressAfter = await page.evaluate(
     () => JSON.stringify(JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.liftProgress || null),
