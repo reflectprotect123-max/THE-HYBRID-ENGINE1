@@ -136,9 +136,17 @@ function build(cursor: Date, workouts: Workout[], sessions: Session[]): (Cell | 
   const m = cursor.getMonth();
   const first = new Date(y, m, 1);
   const total = new Date(y, m + 1, 0).getDate();
-  const trainedByDate = new Map(
-    sessions.filter((s) => s.status !== 'active' && hasLoggedWork(s)).map((s) => [s.date, s.id]),
-  );
+  /* Two completed sessions can share a date. The FIRST one wins — the same
+     "take the first" rule `workouts.find(...)` below already applies to a
+     multi-match workout, and the one the design doc specifies
+     (docs/superpowers/specs/2026-08-02-calendar-day-jump-design.md §1).
+     `new Map(entries)` keeps the LAST entry for a repeated key, so the map
+     is filled by hand rather than built from the mapped array. */
+  const trainedByDate = new Map<string, string>();
+  for (const s of sessions) {
+    if (s.status === 'active' || !hasLoggedWork(s)) continue;
+    if (!trainedByDate.has(s.date)) trainedByDate.set(s.date, s.id);
+  }
 
   const out: (Cell | null)[] = [];
   for (let i = 0; i < first.getDay(); i++) out.push(null);
