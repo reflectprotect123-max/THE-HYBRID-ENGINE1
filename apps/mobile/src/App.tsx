@@ -21,6 +21,7 @@ import './global.css';
 
 import { DbProvider } from './store/db';
 import { RestProvider } from './store/rest';
+import { SetTimerProvider } from './store/setTimer';
 import { SyncProvider } from './cloud/sync';
 import { WhoopProvider } from './cloud/whoop';
 import { Concept2Provider } from './cloud/concept2';
@@ -186,6 +187,7 @@ export function App() {
           <WhoopProvider>
             <Concept2Provider>
             <RestProvider>
+            <SetTimerProvider>
           <NavigationContainer theme={theme}>
             <StatusBar style="light" />
             <Stack.Navigator
@@ -211,6 +213,7 @@ export function App() {
               <Stack.Screen name="Exercise" component={ExerciseScreen} />
             </Stack.Navigator>
               </NavigationContainer>
+            </SetTimerProvider>
             </RestProvider>
             </Concept2Provider>
           </WhoopProvider>
