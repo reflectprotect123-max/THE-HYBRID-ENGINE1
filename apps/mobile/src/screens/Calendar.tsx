@@ -73,8 +73,8 @@ export function CalendarScreen() {
                 >
                   <T num className={`text-2 ${c.key === today ? 'text-gold2' : 'text-muted'}`}>{c.n}</T>
                   <View className="mt-0.5 flex-row gap-0.5">
-                    {c.trained ? <View className="h-1 w-1 rounded-pill bg-gold2" /> : null}
-                    {c.planned && !c.trained ? <View className="h-1 w-1 rounded-pill border border-gold2" /> : null}
+                    {c.sessionId ? <View className="h-1 w-1 rounded-pill bg-gold2" /> : null}
+                    {c.workoutId && !c.sessionId ? <View className="h-1 w-1 rounded-pill border border-gold2" /> : null}
                   </View>
                 </View>
               ) : (
@@ -105,8 +105,8 @@ export function CalendarScreen() {
 interface Cell {
   key: string;
   n: number;
-  planned: boolean;
-  trained: boolean;
+  workoutId?: string;
+  sessionId?: string;
 }
 
 function build(cursor: Date, workouts: Workout[], sessions: Session[]): (Cell | null)[] {
@@ -114,18 +114,22 @@ function build(cursor: Date, workouts: Workout[], sessions: Session[]): (Cell | 
   const m = cursor.getMonth();
   const first = new Date(y, m, 1);
   const total = new Date(y, m + 1, 0).getDate();
-  const trained = new Set(sessions.filter((s) => s.status !== 'active' && hasLoggedWork(s)).map((s) => s.date));
+  const trainedByDate = new Map(
+    sessions.filter((s) => s.status !== 'active' && hasLoggedWork(s)).map((s) => [s.date, s.id]),
+  );
 
   const out: (Cell | null)[] = [];
   for (let i = 0; i < first.getDay(); i++) out.push(null);
   for (let n = 1; n <= total; n++) {
     const date = new Date(y, m, n);
     const key = ymd(date);
+    const dow = date.getDay();
+    const matchedWorkout = workouts.find((w) => (w.dates || []).includes(key) || (w.days || []).includes(dow));
     out.push({
       key,
       n,
-      planned: workouts.some((w) => (w.dates || []).includes(key) || (w.days || []).includes(date.getDay())),
-      trained: trained.has(key),
+      workoutId: matchedWorkout?.id,
+      sessionId: trainedByDate.get(key),
     });
   }
   return out;

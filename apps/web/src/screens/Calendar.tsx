@@ -58,8 +58,8 @@ export function Calendar() {
               >
                 <div className="num text-2 text-muted">{d.n}</div>
                 <div className="mt-0.5 flex justify-center gap-0.5">
-                  {d.trained ? <span className="h-1 w-1 rounded-pill bg-gold2" title="trained" /> : null}
-                  {d.planned && !d.trained ? (
+                  {d.sessionId ? <span className="h-1 w-1 rounded-pill bg-gold2" title="trained" /> : null}
+                  {d.workoutId && !d.sessionId ? (
                     <span className="h-1 w-1 rounded-pill border border-gold2" title="planned" />
                   ) : null}
                 </div>
@@ -89,8 +89,8 @@ export function Calendar() {
 interface Cell {
   key: string;
   n: number;
-  planned: boolean;
-  trained: boolean;
+  workoutId?: string;
+  sessionId?: string;
 }
 
 function buildMonth(cursor: Date, workouts: Workout[], sessions: Session[]): (Cell | null)[] {
@@ -99,8 +99,8 @@ function buildMonth(cursor: Date, workouts: Workout[], sessions: Session[]): (Ce
   const first = new Date(y, m, 1);
   const total = new Date(y, m + 1, 0).getDate();
 
-  const trainedKeys = new Set(
-    sessions.filter((s) => s.status !== 'active' && hasLoggedWork(s)).map((s) => s.date),
+  const trainedByDate = new Map(
+    sessions.filter((s) => s.status !== 'active' && hasLoggedWork(s)).map((s) => [s.date, s.id]),
   );
 
   const cells: (Cell | null)[] = [];
@@ -109,8 +109,8 @@ function buildMonth(cursor: Date, workouts: Workout[], sessions: Session[]): (Ce
     const date = new Date(y, m, n);
     const key = ymd(date);
     const dow = date.getDay();
-    const planned = workouts.some((w) => (w.dates || []).includes(key) || (w.days || []).includes(dow));
-    cells.push({ key, n, planned, trained: trainedKeys.has(key) });
+    const matchedWorkout = workouts.find((w) => (w.dates || []).includes(key) || (w.days || []).includes(dow));
+    cells.push({ key, n, workoutId: matchedWorkout?.id, sessionId: trainedByDate.get(key) });
   }
   return cells;
 }
