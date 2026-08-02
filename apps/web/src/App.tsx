@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { DbProvider } from './store/db';
 import { RestProvider } from './store/rest';
+import { SetTimerProvider } from './store/setTimer';
 import { SyncProvider } from './cloud/sync';
 import { WhoopProvider } from './cloud/whoop';
 import { Concept2Provider } from './cloud/concept2';
@@ -45,6 +46,7 @@ export function App() {
         <WhoopProvider>
           <Concept2Provider>
           <RestProvider>
+          <SetTimerProvider>
             <BrowserRouter>
               <Routes>
                 <Route path="/log/:bi/:ei" element={<Logger />} />
@@ -66,6 +68,7 @@ export function App() {
                 </Route>
               </Routes>
             </BrowserRouter>
+          </SetTimerProvider>
           </RestProvider>
           </Concept2Provider>
         </WhoopProvider>
