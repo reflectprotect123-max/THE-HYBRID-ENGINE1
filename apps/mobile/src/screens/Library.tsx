@@ -163,6 +163,10 @@ export function LibraryScreen() {
             d.workouts.forEach((w) => {
               if ((w.folderIds || []).includes(f.id)) w.folderIds = (w.folderIds || []).filter((id) => id !== f.id);
             });
+            // A tombstone, not just a local delete: without one the next sync
+            // sees a folder the remote still has and cheerfully restores it —
+            // see `remove` above for the same pattern applied to a workout id.
+            d.settings.deletedIds = { ...(d.settings.deletedIds || {}), [f.id]: Date.now() };
           }),
       },
     ]);

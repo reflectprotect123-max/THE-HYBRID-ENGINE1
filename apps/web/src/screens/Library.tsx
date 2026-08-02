@@ -138,6 +138,10 @@ export function Library() {
       draft.workouts = draft.workouts.map((w) =>
         (w.folderIds || []).includes(f.id) ? { ...w, folderIds: (w.folderIds || []).filter((id) => id !== f.id) } : w,
       );
+      // A tombstone, not just a local delete: without one the next sync sees a
+      // folder the remote still has and cheerfully restores it — see
+      // `removeWorkout` above for the same pattern applied to a workout id.
+      draft.settings.deletedIds = { ...(draft.settings.deletedIds || {}), [f.id]: Date.now() };
     });
   }
 
