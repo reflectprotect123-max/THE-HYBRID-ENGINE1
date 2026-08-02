@@ -52,6 +52,13 @@ export type ReasonCode =
   | 'insufficient_exposure_history'
   | 'consistently_on_target'
   | 'consistently_missed'
+  // The two "there is nothing to add" codes. A progression decision is judged
+  // against what the Logger's field is ALREADY prefilled with, so a streak can
+  // be real and the right answer still be silence.
+  /** The plan's own rep target already asks for at least what a rep step would. */
+  | 'already_at_rep_target'
+  /** The earned/prefilled load already meets or beats the load change. */
+  | 'already_at_earned_load'
   | 'mixed_recent_results';
 
 export interface TrainingDecisionExplanation {
