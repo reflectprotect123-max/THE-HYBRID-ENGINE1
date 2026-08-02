@@ -14,3 +14,14 @@ export function sessionFrom(w: Workout, date: string): Session {
     workoutId: w.id,
   };
 }
+
+export type DayTarget =
+  | { kind: 'recap'; id: string }
+  | { kind: 'today' }
+  | { kind: 'preview'; date: string; workoutId?: string };
+
+export function resolveDayTarget(dateKey: string, today: string, workoutId?: string, sessionId?: string): DayTarget {
+  if (sessionId) return { kind: 'recap', id: sessionId };
+  if (dateKey === today) return { kind: 'today' };
+  return { kind: 'preview', date: dateKey, workoutId };
+}
