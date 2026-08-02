@@ -851,6 +851,50 @@ await t('Calendar marks a trained day differently from a planned one', async () 
   assert(trained.length >= 1, 'the session logged above should mark today as trained');
 });
 
+await t('Day preview shows "Nothing scheduled" for a day with nothing planned', async () => {
+  // Day is reached directly by date — Task 5 wires the actual Calendar/Home
+  // tap-through, this pins the screen's own two states in isolation.
+  // 'Lower A' (seeded at boot) is scheduled on every day of the week, so
+  // proving the empty state means clearing workouts for the moment, restored
+  // immediately after so nothing below is able to tell this ran.
+  const saved = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const workouts = db.workouts;
+    db.workouts = [];
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return workouts;
+  });
+  try {
+    await page.goto(base + '/day/2030-06-15', { waitUntil: 'networkidle' });
+    await page.waitForSelector('text=Nothing scheduled for this day.');
+    const txt = await page.textContent('body');
+    assert(!/Invalid Date/.test(txt), 'the date heading failed to format: ' + txt.slice(0, 200));
+    assert(!/Back Squat/.test(txt), 'a workout leaked into the empty-day state');
+  } finally {
+    await page.evaluate((workouts) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.workouts = workouts;
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, saved);
+  }
+});
+
+await t('Day preview shows the matched workout for a scheduled day, read-only', async () => {
+  // 'Lower A' is scheduled every day of the week, so any date lands on it —
+  // picked far enough in the future that no logged session could collide.
+  await page.goto(base + '/day/2030-06-15', { waitUntil: 'networkidle' });
+  await page.waitForSelector('text=Back Squat');
+  const txt = await page.textContent('body');
+  assert(/Back Squat/.test(txt), 'the matched workout did not render on Day');
+  assert(!/Nothing scheduled/.test(txt), 'the empty state showed even though a workout matched');
+  // Read-only: no Start/Edit/Delete/Duplicate control — those are
+  // Library/Training's job, not this preview's.
+  assert(!(await page.$('button:has-text("Start")')), 'Day must not offer a Start control');
+  assert(!(await page.$('button:has-text("Edit")')), 'Day must not offer an Edit control');
+  assert(!(await page.$('button:has-text("Delete session")')), 'Day must not offer a Delete control');
+  assert(!(await page.$('button:has-text("Duplicate")')), 'Day must not offer a Duplicate control');
+});
+
 await t('Settings offers cloud sign-in and a WHOOP connect', async () => {
   await page.goto(base + '/settings', { waitUntil: 'networkidle' });
   await page.waitForSelector('text=Cloud sync');

@@ -20,6 +20,7 @@ import { Exercise } from './screens/Exercise';
 import { GuidedBuilder } from './screens/guided/GuidedBuilder';
 import { UpdateBanner } from './UpdateBanner';
 import { Calendar } from './screens/Calendar';
+import { Day } from './screens/Day';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
 
@@ -62,6 +63,7 @@ export function App() {
                   <Route path="/exercise" element={<Exercise />} />
                   <Route path="/exercise/:name" element={<Exercise />} />
                   <Route path="/calendar" element={<Calendar />} />
+                  <Route path="/day/:date" element={<Day />} />
                   <Route path="/recap/:id" element={<Recap />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
