@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, Modal, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -49,6 +49,7 @@ export function LibraryScreen() {
   // 'NEW' while creating a folder, a folder id while renaming one, else null.
   const [editingFolder, setEditingFolder] = useState<string | null>(null);
   const [folderName, setFolderName] = useState('');
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
 
   /* Three slices of one library, not three destinations. Sessions are things
      you START; exercises and mobility are things you LOOK UP. In one list the
@@ -166,6 +167,16 @@ export function LibraryScreen() {
       },
     ]);
 
+  const toggleFolderForWorkout = (workoutId: string, folderId: string) =>
+    update((d) => {
+      const w = d.workouts.find((x) => x.id === workoutId);
+      if (!w) return false;
+      const set = new Set(w.folderIds || []);
+      if (set.has(folderId)) set.delete(folderId);
+      else set.add(folderId);
+      w.folderIds = Array.from(set);
+    });
+
   return (
     <Screen>
       <Kicker>Library</Kicker>
@@ -206,6 +217,16 @@ export function LibraryScreen() {
         ＋ New session
       </Btn>
 
+      {/* The whole "Yours" section — folder management plus every row — sits
+          out while the picker Modal is up. It is not just tidiness: the
+          folder list and its own "+ New folder"/"Add" controls are the exact
+          same labels the Modal renders for the same purpose, and a screen
+          reader (or a test query) cannot tell two same-named live controls
+          apart. A native Modal already visually and functionally blocks the
+          page behind it, so this only makes the accessibility tree agree
+          with what the eye already sees. */}
+      {pickerFor != null ? null : (
+      <>
       <SectionHead title="Yours" />
       <Btn variant="ghost" className="mb-1" onPress={startNewFolder}>
         + New folder
@@ -291,6 +312,7 @@ export function LibraryScreen() {
                     confirmRemove={confirmRemove}
                     nav={nav}
                     toggleDay={toggleDay}
+                    onOpenFolders={setPickerFor}
                   />
                 ))}
               </View>
@@ -309,6 +331,7 @@ export function LibraryScreen() {
             confirmRemove={confirmRemove}
             nav={nav}
             toggleDay={toggleDay}
+            onOpenFolders={setPickerFor}
           />
         ))
       ) : !folders.length ? (
@@ -316,6 +339,57 @@ export function LibraryScreen() {
       ) : null}
       </>
       )}
+      </>
+      )}
+
+      <Modal visible={pickerFor != null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
+        <View className="flex-1 items-center justify-center bg-black/50 p-2">
+          <Card className="w-full">
+            <T w="semi" className="text-6 text-text">
+              Folders
+            </T>
+            {folders.map((f) => {
+              const w = mine.find((x) => x.id === pickerFor);
+              const on = pickerFor ? (w?.folderIds || []).includes(f.id) : false;
+              return (
+                <View key={f.id} className="mt-1">
+                  <Chip
+                    on={on}
+                    onPress={() => pickerFor && toggleFolderForWorkout(pickerFor, f.id)}
+                    label={`${f.name}, ${on ? 'in folder' : 'not in folder'}`}
+                  >
+                    {f.name}
+                  </Chip>
+                </View>
+              );
+            })}
+            {!folders.length ? (
+              <T className="mt-1 text-4 text-dim">No folders yet.</T>
+            ) : null}
+            {editingFolder === 'NEW' ? (
+              <View className="mt-1 flex-row items-center gap-1">
+                <Input
+                  value={folderName}
+                  onChangeText={setFolderName}
+                  placeholder="Folder name"
+                  accessibilityLabel="New folder name"
+                  className="h-5 flex-1 rounded-md border border-line bg-well px-1.5 text-4 text-text"
+                />
+                <Btn variant="brass" onPress={commitFolderEdit}>
+                  Add
+                </Btn>
+              </View>
+            ) : (
+              <Btn variant="ghost" className="mt-1" onPress={startNewFolder}>
+                + New folder
+              </Btn>
+            )}
+            <Btn variant="brass" className="mt-1.5" onPress={() => setPickerFor(null)}>
+              Done
+            </Btn>
+          </Card>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -433,6 +507,7 @@ function WorkoutRow({
   confirmRemove,
   nav,
   toggleDay,
+  onOpenFolders,
 }: {
   w: Workout;
   open: string | null;
@@ -441,6 +516,7 @@ function WorkoutRow({
   confirmRemove: (w: Workout) => void;
   nav: NativeStackNavigationProp<RootStackParams>;
   toggleDay: (id: string, i: number) => void;
+  onOpenFolders: (workoutId: string) => void;
 }) {
   return (
     <Card className="mb-1">
@@ -491,6 +567,19 @@ function WorkoutRow({
           </View>
         ))}
       </View>
+
+      {/* Folders lives outside the expand gate, alongside the day chips: it
+          is a quick assign/remove action, not something that only makes
+          sense once the card's full detail is on screen — unlike
+          Edit/Duplicate below, which act on content you can only see open. */}
+      <Btn
+        variant="ghost"
+        className="mt-1.5"
+        label={`folders for ${w.name || 'session'}`}
+        onPress={() => onOpenFolders(w.id)}
+      >
+        Folders
+      </Btn>
 
       {open === w.id ? (
         <>

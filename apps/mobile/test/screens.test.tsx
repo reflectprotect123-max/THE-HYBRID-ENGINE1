@@ -565,3 +565,55 @@ describe('Library folders', () => {
     expect(screen.getByText('Folder CRUD Target')).toBeTruthy();
   });
 });
+
+describe('Library folders picker', () => {
+  it('checking a folder in the picker adds the workout, unchecking removes it — without touching other folders', () => {
+    seed({
+      settings: {
+        folders: [
+          { id: 'pick-a', name: 'Folder A' },
+          { id: 'pick-b', name: 'Folder B' },
+        ],
+      },
+      workouts: [{ id: 'pick-target', name: 'Pick Target', updatedAt: 1, blocks: [], folderIds: ['pick-a'] }],
+    });
+    renderScreen(<LibraryScreen />);
+
+    // The workout starts grouped in Folder A, and folders open collapsed —
+    // Task 4's own contract — so its row (and the "folders for…" button on
+    // it) only exists once that folder is expanded.
+    fireEvent.press(screen.getByLabelText('expand Folder A folder'));
+    fireEvent.press(screen.getByLabelText('folders for Pick Target'));
+    expect(screen.getByText('Folder A')).toBeTruthy();
+    expect(screen.getByText('Folder B')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('Folder B, not in folder'));
+    fireEvent.press(screen.getByText('Done'));
+
+    // The store debounces its write — flush it before reading persisted().
+    act(() => jest.advanceTimersByTime(500));
+    const db = persisted();
+    const w = db.workouts.find((x) => x.id === 'pick-target');
+    expect((w?.folderIds || []).sort()).toEqual(['pick-a', 'pick-b']);
+  });
+
+  it('lets you create a new folder from inside the picker', () => {
+    seed({ workouts: [{ id: 'pick-target-2', name: 'Pick Target Two', updatedAt: 1, blocks: [] }] });
+    renderScreen(<LibraryScreen />);
+
+    fireEvent.press(screen.getByLabelText('folders for Pick Target Two'));
+    fireEvent.press(screen.getByText('+ New folder'));
+    fireEvent.changeText(screen.getByLabelText('New folder name'), 'Made In Picker');
+    fireEvent.press(screen.getByText('Add'));
+    fireEvent.press(screen.getByLabelText('Made In Picker, not in folder'));
+    fireEvent.press(screen.getByText('Done'));
+
+    // The store debounces its write — flush it before reading persisted().
+    act(() => jest.advanceTimersByTime(500));
+    const db = persisted();
+    const folder = (db.settings.folders || []).find((f) => f.name === 'Made In Picker');
+    const w = db.workouts.find((x) => x.id === 'pick-target-2');
+    expect(folder).toBeTruthy();
+    expect(w?.folderIds).toEqual([folder!.id]);
+  });
+});
