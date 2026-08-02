@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -65,6 +65,22 @@ export function HomeScreen() {
     () => planned.filter((w) => !(activeSession && activeSession.workoutId === w.id)),
     [planned, activeSession],
   );
+
+  // Same tombstone as Library's remove — this deletes it everywhere, not just
+  // off today's card, so it asks first, same wording as Library's confirm.
+  const deleteWorkout = (w: Workout) =>
+    Alert.alert(`Delete "${w.name || 'Session'}"?`, 'This removes it from every device. It cannot be undone.', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () =>
+          update((draft) => {
+            draft.workouts = draft.workouts.filter((x) => x.id !== w.id);
+            draft.settings.deletedIds = { ...(draft.settings.deletedIds || {}), [w.id]: Date.now() };
+          }),
+      },
+    ]);
 
   const week7 = useMemo(
     () =>
@@ -148,6 +164,7 @@ export function HomeScreen() {
               key={w.id}
               w={w}
               primary={i === 0 && !activeSession}
+              onDelete={() => deleteWorkout(w)}
               onStart={() => {
                 // Same promise as web's Home: Start MINTS the session unless
                 // one is already live, then lands on Training mid-flight.
@@ -394,7 +411,17 @@ function SessionCard({
   );
 }
 
-function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; primary?: boolean }) {
+function PlanRow({
+  w,
+  onStart,
+  onDelete,
+  primary,
+}: {
+  w: Workout;
+  onStart: () => void;
+  onDelete: () => void;
+  primary?: boolean;
+}) {
   const n = w.blocks.length;
   const cond = n === 0 || isCondWorkout(w);
   // The kicker already names a conditioning day; repeating it below the title
@@ -402,7 +429,19 @@ function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; pri
   const meta = [!cond && `${n} ${n === 1 ? 'block' : 'blocks'}`].filter(Boolean).join(' · ');
   return (
     <SessionCard tone={primary ? 'raised' : undefined} className="mb-1">
-      <Kicker className="text-1">Today · {cond ? 'Conditioning' : 'Strength'}</Kicker>
+      <View className="flex-row items-start justify-between gap-1">
+        <Kicker className="text-1">Today · {cond ? 'Conditioning' : 'Strength'}</Kicker>
+        <Tap
+          onPress={onDelete}
+          box={32}
+          label={`delete ${w.name || 'session'}`}
+          className="-mt-0.5 -mr-0.5 h-4 w-4 items-center justify-center rounded-md border border-line2 bg-panel2"
+        >
+          <T w="med" className="text-4 text-muted">
+            ✕
+          </T>
+        </Tap>
+      </View>
       <View className="mt-0.5 flex-row items-center gap-1">
         <View className="min-w-0 flex-1">
           <T w="bold" className="text-7 text-text" numberOfLines={1}>

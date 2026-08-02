@@ -9,7 +9,8 @@
  *
  * A screen must always render SOMETHING. That is the rule these assert.
  */
-import { fireEvent, screen } from '@testing-library/react-native';
+import { Alert, type AlertButton } from 'react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 import { useNavigation } from '@react-navigation/native';
 import { liftSession, liftWorkout, renderScreen, runEffort, seed, volumeSession } from './harness';
 import { ProgressScreen } from '../src/screens/Progress';
@@ -18,7 +19,10 @@ import { ExerciseScreen } from '../src/screens/Exercise';
 import { DayScreen } from '../src/screens/Day';
 import { CalendarScreen } from '../src/screens/Calendar';
 import { HomeScreen } from '../src/screens/Home';
-import { ymd } from '@hybrid/engine';
+import { ymd, LS_KEY, type EngineDB, type Workout } from '@hybrid/engine';
+import { storage } from '../src/store/storage';
+
+const persisted = (): EngineDB => JSON.parse(storage.getItem(LS_KEY) || '{}');
 
 /* Real navigation by default — every screen here mounts under `renderScreen`'s
    genuine NavigationContainer, exactly as it does in the app. Only the
@@ -453,6 +457,31 @@ describe("Home's week strip tap", () => {
     // No workoutId in the params — same as Calendar, Day re-derives the
     // match from db.workouts itself rather than trusting an id through nav.
     expect(navigate).toHaveBeenCalledWith('Day', { date: ymd(date) });
+  });
+});
+
+describe("Home's Today's plan delete", () => {
+  it('tombstones the workout and drops its card, same contract as Library delete', () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const w: Workout = { id: 'home-del-1', name: 'Home Delete Target', updatedAt: 1, blocks: [], dates: [ymd(new Date())] };
+    seed({ workouts: [w] });
+
+    renderScreen(<HomeScreen />);
+    fireEvent.press(screen.getByLabelText('delete Home Delete Target'));
+
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+    const [title, , buttons] = alertSpy.mock.calls[0] as [string, string, AlertButton[]];
+    expect(title).toBe('Delete "Home Delete Target"?');
+    const del = buttons.find((b) => b.text === 'Delete');
+    act(() => del!.onPress!());
+
+    expect(screen.queryByText('Home Delete Target')).toBeNull();
+    // The store debounces its write — same 500ms flush every other test here
+    // that reads persisted() back uses (see conditioning.test.tsx/logger.test.tsx).
+    act(() => jest.advanceTimersByTime(500));
+    const db = persisted();
+    expect(db.workouts.some((x) => x.id === 'home-del-1')).toBe(false);
+    expect(db.settings.deletedIds?.['home-del-1']).toBeTruthy();
   });
 });
 

@@ -70,6 +70,16 @@ export function Home() {
     [planned, activeSession],
   );
 
+  // Same tombstone as Library's removeWorkout — this deletes it everywhere,
+  // not just off today's card, so it asks first.
+  const deleteWorkout = (w: Workout) => {
+    if (!window.confirm(`Delete "${w.name || 'Session'}"? This removes it from every device. It cannot be undone.`)) return;
+    update((draft) => {
+      draft.workouts = draft.workouts.filter((x) => x.id !== w.id);
+      draft.settings.deletedIds = { ...(draft.settings.deletedIds || {}), [w.id]: Date.now() };
+    });
+  };
+
   const week7 = useMemo(
     () =>
       sessions.filter(
@@ -146,6 +156,7 @@ export function Home() {
                 key={w.id}
                 w={w}
                 primary={i === 0 && !activeSession}
+                onDelete={() => deleteWorkout(w)}
                 onStart={() => {
                   // The label is a promise. If nothing is live, Start creates
                   // the session HERE; landing on /training then shows it in
@@ -402,7 +413,17 @@ function SessionCard({
   );
 }
 
-function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; primary?: boolean }) {
+function PlanRow({
+  w,
+  onStart,
+  onDelete,
+  primary,
+}: {
+  w: Workout;
+  onStart: () => void;
+  onDelete: () => void;
+  primary?: boolean;
+}) {
   const n = w.blocks.length;
   const cond = n === 0 || isCondWorkout(w);
   // The kicker already names a conditioning day; repeating it below the title
@@ -411,7 +432,16 @@ function PlanRow({ w, onStart, primary }: { w: Workout; onStart: () => void; pri
   return (
     <li>
       <SessionCard tone={primary ? 'raised' : undefined}>
-        <Kicker className="text-1">Today · {cond ? 'Conditioning' : 'Strength'}</Kicker>
+        <div className="flex items-start justify-between gap-1">
+          <Kicker className="text-1">Today · {cond ? 'Conditioning' : 'Strength'}</Kicker>
+          <button
+            onClick={onDelete}
+            aria-label={`Delete ${w.name || 'session'}`}
+            className="-mt-0.5 -mr-0.5 shrink-0 rounded-md border border-line2 bg-panel2 px-1 py-0.5 text-3 font-[650] text-muted"
+          >
+            ✕
+          </button>
+        </div>
         <div className="mt-0.5 flex items-center gap-1">
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-7 font-[800]">{w.name || 'Session'}</h3>

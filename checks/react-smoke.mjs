@@ -1701,6 +1701,41 @@ await t('cancelling the first question drops the session the Library minted', as
   assert(after.tombs[id], 'the phantom session should be tombstoned, not just removed');
 });
 
+await t("deleting a workout from Home's Today's plan tombstones it and drops the card", async () => {
+  // Seeded under a name distinct from every other workout in this run, and
+  // scheduled today via `dates` (not `days`), so it shows up as a second
+  // "Today's plan" card without disturbing 'Lower A' (scheduled every day).
+  const id = await page.evaluate(() => {
+    const p = (n) => String(n).padStart(2, '0');
+    const d = new Date();
+    const today = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const wid = 'home-del-1';
+    db.workouts.push({ id: wid, name: 'Home Delete Target', updatedAt: 1, blocks: [], dates: [today] });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return wid;
+  });
+
+  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  const txtBefore = await page.textContent('body');
+  assert(/Home Delete Target/.test(txtBefore), 'seeded second Today\'s plan card not shown on Home');
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.click('button[aria-label="Delete Home Delete Target"]');
+  await page.waitForFunction(
+    () => !document.body.textContent.includes('Home Delete Target'),
+  );
+
+  const after = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    return { has: db.workouts.some((w) => w.id === 'home-del-1'), tomb: db.settings.deletedIds || {} };
+  });
+  assert(!after.has, 'workout deleted from Home should be gone from db.workouts');
+  assert(after.tomb['home-del-1'], 'workout deleted from Home should be tombstoned, not just spliced');
+  const txtAfter = await page.textContent('body');
+  assert(/Lower A/.test(txtAfter), 'deleting the second card should not touch the unrelated seeded workout');
+});
+
 await t('no uncaught page errors', async () => {
   assert(errors.length === 0, errors.join(' | '));
 });
