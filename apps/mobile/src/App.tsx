@@ -34,6 +34,7 @@ import { ProgressScreen } from './screens/Progress';
 import { HistoryScreen } from './screens/History';
 import { CalendarScreen } from './screens/Calendar';
 import { ExerciseScreen } from './screens/Exercise';
+import { DayScreen } from './screens/Day';
 import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
@@ -77,6 +78,9 @@ export type RootStackParams = {
   Calendar: undefined;
   /** One movement's whole history. No param = the movement picker. */
   Exercise: { name?: string } | undefined;
+  /* Only the date — see Day.tsx's own doc comment for why a workoutId is
+     deliberately NOT threaded through navigation params here. */
+  Day: { date: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParams>();
@@ -211,6 +215,7 @@ export function App() {
               <Stack.Screen name="History" component={HistoryScreen} />
               <Stack.Screen name="Calendar" component={CalendarScreen} />
               <Stack.Screen name="Exercise" component={ExerciseScreen} />
+              <Stack.Screen name="Day" component={DayScreen} />
             </Stack.Navigator>
               </NavigationContainer>
             </SetTimerProvider>

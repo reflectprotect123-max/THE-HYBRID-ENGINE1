@@ -333,7 +333,13 @@ function Signal({ w }: { w: Workout }) {
   );
 }
 
-function Detail({ w }: { w: Workout }) {
+/**
+ * The block/exercise listing for one workout, read-only.
+ *
+ * Exported so the Day preview screen (`../screens/Day.tsx`) can reuse it
+ * rather than growing a second copy of the same block-by-block render.
+ */
+export function Detail({ w }: { w: Workout }) {
   return (
     <View className="mt-1.5 border-t border-line pt-1.5">
       {w.blocks.map((b, bi) => (
