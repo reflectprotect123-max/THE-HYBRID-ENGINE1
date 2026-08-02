@@ -93,6 +93,24 @@ export function renderStack(ui: ReactElement, params?: object) {
   return { ...r, navRef };
 }
 
+/*
+ * Every key the timer providers persist OUTSIDE the main blob.
+ *
+ * Rest and the set timer each keep an end timestamp of their own, and the
+ * in-memory storage map lives for the whole test FILE — so a test that starts a
+ * hold and never stops it hands the next test a provider that resumes it. The
+ * next screen then opens showing "Stop" where it should show "Start", which
+ * reads as a bug in whatever that test was actually about.
+ */
+const TIMER_KEYS = [
+  LS_KEY + '-rest-ends',
+  LS_KEY + '-rest-total',
+  LS_KEY + '-rest-alarm',
+  LS_KEY + '-set-timer-ends',
+  LS_KEY + '-set-timer-total',
+  LS_KEY + '-set-timer-owner',
+];
+
 /**
  * Seed the store before mounting.
  *
@@ -100,9 +118,13 @@ export function renderStack(ui: ReactElement, params?: object) {
  * writing the blob first is enough — there is no async gap to wait on, which is
  * the same property that lets a set survive the phone going straight into a
  * pocket.
+ *
+ * Seeding is also where a test's state RESETS, so the live-timer keys are
+ * cleared here: "a fresh store" has to mean a fresh clock too.
  */
 export function seed(db: Partial<EngineDB>) {
   const full: EngineDB = { workouts: [], sessions: [], settings: {}, ...db };
+  TIMER_KEYS.forEach((k) => storage.removeItem(k));
   storage.setItem(LS_KEY, JSON.stringify(full));
   return full;
 }

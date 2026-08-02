@@ -488,6 +488,7 @@ await t('a seconds-mode set shows a Start control, and letting it run to zero fi
       if (origSession) origSession.status = 'active';
       localStorage.removeItem('hybrid-engine-v1-set-timer-ends');
       localStorage.removeItem('hybrid-engine-v1-set-timer-total');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-owner');
       localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
     }, { origId: orig.id });
   }
@@ -539,6 +540,177 @@ await t('stopping a seconds-mode timer early writes the actual elapsed time', as
       if (origSession) origSession.status = 'active';
       localStorage.removeItem('hybrid-engine-v1-set-timer-ends');
       localStorage.removeItem('hybrid-engine-v1-set-timer-total');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-owner');
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, { origId: orig.id });
+  }
+});
+
+await t('tapping Finish Set mid-countdown logs the seconds actually HELD, not the prefilled target', async () => {
+  /*
+   * The shipped bug. Finish Set is live for the whole hold, and while the
+   * countdown runs the box shows the timer's remaining seconds — but the
+   * field's own state was never touched, so it still held the TARGET. An
+   * athlete who quit a 30s plank early and tapped Finish Set instead of Stop
+   * logged a full 30.
+   */
+  const orig = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const origSession = db.sessions.find((s) => s.status === 'active');
+    origSession.status = 'incomplete';
+    const blocks = [{
+      id: 'tb3', heading: 'Main', superset: false,
+      exercises: [{ id: 'te3', name: 'Plank', mode: 'seconds', rest: 0, sets: [{ t: '30', rpe: '' }] }],
+    }];
+    db.workouts.push({ id: 'w-timer-scratch3', name: 'Timer scratch 3', days: [], updatedAt: Date.now(), blocks });
+    db.sessions.push({
+      id: 'timer-scratch-session3', name: 'Timer scratch 3', date: '2026-08-02', status: 'active',
+      startedAt: Date.now(), workoutId: 'w-timer-scratch3', blocks: JSON.parse(JSON.stringify(blocks)),
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return { id: origSession.id };
+  });
+
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('input[aria-label="Secs"]');
+    assert(
+      (await page.inputValue('input[aria-label="Secs"]')) === '30',
+      'the field should open prefilled with the target, which is what made the bug invisible',
+    );
+    await page.click('button:has-text("Start")');
+    await page.waitForTimeout(1500);
+    // Finish Set, NOT Stop — the whole point of the regression.
+    await page.click('button:has-text("Finish Set")');
+    await page.click('button:has-text("Confirm Set")');
+    const logged = await page.evaluate(() => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      return db.sessions.find((s) => s.id === 'timer-scratch-session3').blocks[0].exercises[0].sets[0];
+    });
+    assert(logged.done === true, 'the set should be logged');
+    const n = Number(logged.aVal);
+    assert(Number.isFinite(n) && n > 0 && n < 30, 'expected the seconds actually held, got: ' + logged.aVal);
+  } finally {
+    await page.evaluate(({ origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'timer-scratch-session3');
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-timer-scratch3');
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.removeItem('hybrid-engine-v1-set-timer-ends');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-total');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-owner');
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, { origId: orig.id });
+  }
+});
+
+await t('a hold that expires while its own field is gone does not write into a different set', async () => {
+  /*
+   * `finished`/`total` wait in the provider for someone to ack them, and the
+   * field's effect runs on MOUNT as well as on the transition — so the hold
+   * armed on the Plank used to be claimed by whatever seconds field happened
+   * to be on screen when it ran out, against a target it had nothing to do
+   * with. Two blocks, one hold each, and deliberately different targets so a
+   * duration written into the wrong set is unmistakable.
+   */
+  const orig = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const origSession = db.sessions.find((s) => s.status === 'active');
+    origSession.status = 'incomplete';
+    const blocks = [
+      {
+        id: 'tb4a', heading: 'Plank', superset: false,
+        exercises: [{ id: 'te4a', name: 'Plank', mode: 'seconds', rest: 0, sets: [{ t: '3', rpe: '' }] }],
+      },
+      {
+        id: 'tb4b', heading: 'Side plank', superset: false,
+        exercises: [{ id: 'te4b', name: 'Side plank', mode: 'seconds', rest: 0, sets: [{ t: '45', rpe: '' }] }],
+      },
+    ];
+    db.workouts.push({ id: 'w-timer-scratch4', name: 'Timer scratch 4', days: [], updatedAt: Date.now(), blocks });
+    db.sessions.push({
+      id: 'timer-scratch-session4', name: 'Timer scratch 4', date: '2026-08-02', status: 'active',
+      startedAt: Date.now(), workoutId: 'w-timer-scratch4', blocks: JSON.parse(JSON.stringify(blocks)),
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return { id: origSession.id };
+  });
+
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('input[aria-label="Secs"]');
+    await page.click('button:has-text("Start")');
+    // Move to the other hold while the Plank is still counting down.
+    await page.click('button:has-text("Side plank")');
+    await page.waitForURL(/\/log\/1\/0/);
+    // Now let the Plank run out, with only the Side plank's field mounted.
+    await page.waitForTimeout(4000);
+    const after = await page.inputValue('input[aria-label="Secs"]');
+    assert(after === '45', 'the Side plank field should still show its own target, got: ' + after);
+    const stored = await page.evaluate(() => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      return db.sessions.find((s) => s.id === 'timer-scratch-session4').blocks[1].exercises[0].sets[0].aVal;
+    });
+    assert(stored == null || stored === '45', 'the Plank\'s seconds were written onto the Side plank: ' + stored);
+  } finally {
+    await page.evaluate(({ origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'timer-scratch-session4');
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-timer-scratch4');
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.removeItem('hybrid-engine-v1-set-timer-ends');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-total');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-owner');
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, { origId: orig.id });
+  }
+});
+
+await t("a RANGE target like '20-30s' still arms the timer", async () => {
+  // The design doc's own motivating example — "20-30s/side Pec Stretch".
+  // `Number('20-30s')` is NaN, which fell through to 0 and left Start
+  // permanently disabled with nothing on screen to explain why.
+  const orig = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const origSession = db.sessions.find((s) => s.status === 'active');
+    origSession.status = 'incomplete';
+    const blocks = [{
+      id: 'tb5', heading: 'Main', superset: false,
+      exercises: [{ id: 'te5', name: 'Pec stretch', mode: 'seconds', rest: 0, sets: [{ t: '20-30s', rpe: '' }] }],
+    }];
+    db.workouts.push({ id: 'w-timer-scratch5', name: 'Timer scratch 5', days: [], updatedAt: Date.now(), blocks });
+    db.sessions.push({
+      id: 'timer-scratch-session5', name: 'Timer scratch 5', date: '2026-08-02', status: 'active',
+      startedAt: Date.now(), workoutId: 'w-timer-scratch5', blocks: JSON.parse(JSON.stringify(blocks)),
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return { id: origSession.id };
+  });
+
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('input[aria-label="Secs"]');
+    assert(
+      !(await page.isDisabled('button:has-text("Start")')),
+      'Start is disabled on a range target — Number() made NaN of it again',
+    );
+    await page.click('button:has-text("Start")');
+    // Armed at the TOP of the range, which is what the athlete aims at.
+    await page.waitForSelector('button:has-text("Stop")');
+    const shown = Number(await page.inputValue('input[aria-label="Secs"]'));
+    assert(shown > 0 && shown <= 30, 'expected a countdown from the top of the range, got: ' + shown);
+  } finally {
+    await page.evaluate(({ origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'timer-scratch-session5');
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-timer-scratch5');
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.removeItem('hybrid-engine-v1-set-timer-ends');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-total');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-owner');
       localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
     }, { origId: orig.id });
   }
