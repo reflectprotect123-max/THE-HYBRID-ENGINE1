@@ -12,8 +12,11 @@ import {
   knownMovements,
   rxLine,
   sessionOpeners,
+  ungroupedWorkouts,
   uid,
   workoutStats,
+  workoutsInFolder,
+  type Folder,
   type LoggedSet,
   type StrengthBlock,
   type Workout,
@@ -42,6 +45,10 @@ export function LibraryScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { db, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+  // 'NEW' while creating a folder, a folder id while renaming one, else null.
+  const [editingFolder, setEditingFolder] = useState<string | null>(null);
+  const [folderName, setFolderName] = useState('');
 
   /* Three slices of one library, not three destinations. Sessions are things
      you START; exercises and mobility are things you LOOK UP. In one list the
@@ -50,6 +57,8 @@ export function LibraryScreen() {
   const [q, setQ] = useState('');
 
   const mine = db.workouts;
+  const folders = db.settings.folders || [];
+  const ungrouped = useMemo(() => ungroupedWorkouts(mine, folders), [mine, folders]);
   const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
   const mobility = useMemo(
     () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
@@ -112,6 +121,51 @@ export function LibraryScreen() {
       { text: 'Delete', style: 'destructive', onPress: () => remove(w.id) },
     ]);
 
+  const startNewFolder = () => {
+    setEditingFolder('NEW');
+    setFolderName('');
+  };
+
+  const startRenameFolder = (f: Folder) => {
+    setEditingFolder(f.id);
+    setFolderName(f.name);
+  };
+
+  const commitFolderEdit = () => {
+    const name = folderName.trim();
+    if (!name) {
+      setEditingFolder(null);
+      return;
+    }
+    if (editingFolder === 'NEW') {
+      update((d) => {
+        d.settings.folders = [...(d.settings.folders || []), { id: uid(), name }];
+      });
+    } else if (editingFolder) {
+      const id = editingFolder;
+      update((d) => {
+        d.settings.folders = (d.settings.folders || []).map((x) => (x.id === id ? { ...x, name } : x));
+      });
+    }
+    setEditingFolder(null);
+  };
+
+  const removeFolder = (f: Folder) =>
+    Alert.alert(`Delete folder "${f.name}"?`, 'Workouts inside stay in your library.', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () =>
+          update((d) => {
+            d.settings.folders = (d.settings.folders || []).filter((x) => x.id !== f.id);
+            d.workouts.forEach((w) => {
+              if ((w.folderIds || []).includes(f.id)) w.folderIds = (w.folderIds || []).filter((id) => id !== f.id);
+            });
+          }),
+      },
+    ]);
+
   return (
     <Screen>
       <Kicker>Library</Kicker>
@@ -153,78 +207,113 @@ export function LibraryScreen() {
       </Btn>
 
       <SectionHead title="Yours" />
-      {mine.length ? (
-        mine.map((w) => (
-          <Card key={w.id} className="mb-1">
-            {/* Delete sits on the ROW, not behind the expand. It used to only
-                appear once you had tapped the card open, which is not
-                somewhere anyone looks for it. */}
-            <View className="flex-row items-center">
-              <Tap
-                className="min-w-0 flex-1 flex-row items-center"
-                onPress={() => setOpen(open === w.id ? null : w.id)}
-                label={`${open === w.id ? 'collapse' : 'expand'} ${w.name || 'session'}`}
-              >
-                <T w="semi" className="min-w-0 flex-1 text-5 text-text" numberOfLines={1}>
-                  {w.name || 'Session'}
-                </T>
-                <T num className="ml-1 text-3 text-dim">
-                  {isCondWorkout(w) || !w.blocks.length
-                    ? 'conditioning'
-                    : `${w.blocks.length} ${w.blocks.length === 1 ? 'block' : 'blocks'}`}
-                </T>
-              </Tap>
-              <Tap
-                onPress={() => confirmRemove(w)}
-                box={32}
-                label={`delete ${w.name || 'session'}`}
-                className="ml-1 h-4 w-4 items-center justify-center rounded-md border border-line2 bg-panel2"
-              >
-                <T w="med" className="text-4 text-muted">
-                  ✕
-                </T>
-              </Tap>
-            </View>
-
-            <Signal w={w} />
-
-            <View className="mt-1 flex-row gap-0.5">
-              {DAYS.map((d, i) => (
-                // The cell owns the width; the chip stretches to fill it, so
-                // seven always land on one row whatever the label does.
-                <View key={d} className="flex-1">
-                  <Chip
-                    on={(w.days || []).includes(i)}
-                    onPress={() => toggleDay(w.id, i)}
-                    label={`${DAY_NAMES[i]} — ${(w.days || []).includes(i) ? 'scheduled' : 'not scheduled'}`}
-                  >
-                    {d}
-                  </Chip>
-                </View>
-              ))}
-            </View>
-
-            {open === w.id ? (
-              <>
-                <Detail w={w} />
-                <Btn variant="brass" className="mt-1.5" onPress={() => nav.navigate('Planner', { id: w.id })}>
-                  Edit
+      <Btn variant="ghost" className="mb-1" onPress={startNewFolder}>
+        + New folder
+      </Btn>
+      {editingFolder === 'NEW' ? (
+        <View className="mb-1 flex-row items-center gap-1">
+          <Input
+            value={folderName}
+            onChangeText={setFolderName}
+            placeholder="Folder name"
+            accessibilityLabel="New folder name"
+            className="h-5 flex-1 rounded-md border border-line bg-well px-1.5 text-4 text-text"
+          />
+          <Btn variant="brass" onPress={commitFolderEdit}>
+            Add
+          </Btn>
+        </View>
+      ) : null}
+      {folders.map((f) => {
+        const inFolder = workoutsInFolder(mine, f.id);
+        const isOpen = !!openFolders[f.id];
+        return (
+          <View key={f.id} className="mb-1">
+            {editingFolder === f.id ? (
+              <View className="flex-row items-center gap-1">
+                <Input
+                  value={folderName}
+                  onChangeText={setFolderName}
+                  placeholder="Folder name"
+                  accessibilityLabel="New folder name"
+                  className="h-5 flex-1 rounded-md border border-line bg-well px-1.5 text-4 text-text"
+                />
+                <Btn variant="brass" onPress={commitFolderEdit}>
+                  Add
                 </Btn>
-                <Btn
-                  variant="ghost"
-                  className="mt-1.5"
-                  label={`duplicate ${w.name || 'session'}`}
-                  onPress={() => duplicate(w)}
+              </View>
+            ) : (
+              <Card className="flex-row items-center">
+                <Tap
+                  className="min-w-0 flex-1 flex-row items-center"
+                  onPress={() => setOpenFolders((o) => ({ ...o, [f.id]: !o[f.id] }))}
+                  label={`${isOpen ? 'collapse' : 'expand'} ${f.name} folder`}
                 >
-                  Duplicate
-                </Btn>
-              </>
+                  <T className="text-4 text-dim">{isOpen ? '▾' : '▸'}</T>
+                  <T w="semi" className="ml-1 min-w-0 flex-1 text-5 text-text" numberOfLines={1}>
+                    {f.name}
+                  </T>
+                  <T num className="text-3 text-dim">
+                    {inFolder.length}
+                  </T>
+                </Tap>
+                <Tap
+                  onPress={() => startRenameFolder(f)}
+                  box={32}
+                  label={`rename ${f.name}`}
+                  className="ml-1 h-4 w-4 items-center justify-center rounded-md border border-line2 bg-panel2"
+                >
+                  <T w="med" className="text-3 text-muted">
+                    ✎
+                  </T>
+                </Tap>
+                <Tap
+                  onPress={() => removeFolder(f)}
+                  box={32}
+                  label={`delete folder ${f.name}`}
+                  className="ml-1 h-4 w-4 items-center justify-center rounded-md border border-line2 bg-panel2"
+                >
+                  <T w="med" className="text-4 text-muted">
+                    ✕
+                  </T>
+                </Tap>
+              </Card>
+            )}
+            {isOpen ? (
+              <View className="mt-0.5 pl-2">
+                {inFolder.map((w) => (
+                  <WorkoutRow
+                    key={w.id}
+                    w={w}
+                    open={open}
+                    setOpen={setOpen}
+                    duplicate={duplicate}
+                    confirmRemove={confirmRemove}
+                    nav={nav}
+                    toggleDay={toggleDay}
+                  />
+                ))}
+              </View>
             ) : null}
-          </Card>
+          </View>
+        );
+      })}
+      {ungrouped.length ? (
+        ungrouped.map((w) => (
+          <WorkoutRow
+            key={w.id}
+            w={w}
+            open={open}
+            setOpen={setOpen}
+            duplicate={duplicate}
+            confirmRemove={confirmRemove}
+            nav={nav}
+            toggleDay={toggleDay}
+          />
         ))
-      ) : (
+      ) : !folders.length ? (
         <Empty title="Nothing here yet" body="Tap “＋ New session” to build your first one." />
-      )}
+      ) : null}
       </>
       )}
     </Screen>
@@ -330,6 +419,96 @@ function Signal({ w }: { w: Workout }) {
         </T>
       ) : null}
     </View>
+  );
+}
+
+/** One workout's card: expand/Detail, day chips, Edit/Duplicate, the
+ *  row-level delete ✕. Extracted so folder groups and the flat ungrouped
+ *  list can both render the same row without duplicating this markup. */
+function WorkoutRow({
+  w,
+  open,
+  setOpen,
+  duplicate,
+  confirmRemove,
+  nav,
+  toggleDay,
+}: {
+  w: Workout;
+  open: string | null;
+  setOpen: (id: string | null) => void;
+  duplicate: (w: Workout) => void;
+  confirmRemove: (w: Workout) => void;
+  nav: NativeStackNavigationProp<RootStackParams>;
+  toggleDay: (id: string, i: number) => void;
+}) {
+  return (
+    <Card className="mb-1">
+      {/* Delete sits on the ROW, not behind the expand. It used to only
+          appear once you had tapped the card open, which is not
+          somewhere anyone looks for it. */}
+      <View className="flex-row items-center">
+        <Tap
+          className="min-w-0 flex-1 flex-row items-center"
+          onPress={() => setOpen(open === w.id ? null : w.id)}
+          label={`${open === w.id ? 'collapse' : 'expand'} ${w.name || 'session'}`}
+        >
+          <T w="semi" className="min-w-0 flex-1 text-5 text-text" numberOfLines={1}>
+            {w.name || 'Session'}
+          </T>
+          <T num className="ml-1 text-3 text-dim">
+            {isCondWorkout(w) || !w.blocks.length
+              ? 'conditioning'
+              : `${w.blocks.length} ${w.blocks.length === 1 ? 'block' : 'blocks'}`}
+          </T>
+        </Tap>
+        <Tap
+          onPress={() => confirmRemove(w)}
+          box={32}
+          label={`delete ${w.name || 'session'}`}
+          className="ml-1 h-4 w-4 items-center justify-center rounded-md border border-line2 bg-panel2"
+        >
+          <T w="med" className="text-4 text-muted">
+            ✕
+          </T>
+        </Tap>
+      </View>
+
+      <Signal w={w} />
+
+      <View className="mt-1 flex-row gap-0.5">
+        {DAYS.map((d, i) => (
+          // The cell owns the width; the chip stretches to fill it, so
+          // seven always land on one row whatever the label does.
+          <View key={d} className="flex-1">
+            <Chip
+              on={(w.days || []).includes(i)}
+              onPress={() => toggleDay(w.id, i)}
+              label={`${DAY_NAMES[i]} — ${(w.days || []).includes(i) ? 'scheduled' : 'not scheduled'}`}
+            >
+              {d}
+            </Chip>
+          </View>
+        ))}
+      </View>
+
+      {open === w.id ? (
+        <>
+          <Detail w={w} />
+          <Btn variant="brass" className="mt-1.5" onPress={() => nav.navigate('Planner', { id: w.id })}>
+            Edit
+          </Btn>
+          <Btn
+            variant="ghost"
+            className="mt-1.5"
+            label={`duplicate ${w.name || 'session'}`}
+            onPress={() => duplicate(w)}
+          >
+            Duplicate
+          </Btn>
+        </>
+      ) : null}
+    </Card>
   );
 }
 

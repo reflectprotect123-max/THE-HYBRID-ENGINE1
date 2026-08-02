@@ -514,3 +514,54 @@ describe('Library tabs', () => {
     expect(screen.getByLabelText('Mobility, 0')).toBeTruthy();
   });
 });
+
+describe('Library folders', () => {
+  it('groups a workout under its folder, collapsed by default, and lists an ungrouped one flat', () => {
+    seed({
+      settings: { folders: [{ id: 'folder-1', name: 'Week 1' }] },
+      workouts: [
+        { id: 'grouped-1', name: 'Grouped Session', updatedAt: 1, blocks: [], folderIds: ['folder-1'] },
+        { id: 'loose-1', name: 'Loose Session', updatedAt: 1, blocks: [] },
+      ],
+    });
+    renderScreen(<LibraryScreen />);
+
+    expect(screen.getByText('Loose Session')).toBeTruthy();
+    expect(screen.queryByText('Grouped Session')).toBeNull();
+    expect(screen.getByText('Week 1')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('expand Week 1 folder'));
+    expect(screen.getByText('Grouped Session')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('collapse Week 1 folder'));
+    expect(screen.queryByText('Grouped Session')).toBeNull();
+  });
+
+  it('creates, renames, and deletes a folder — the workout survives, ungrouped', () => {
+    seed({ workouts: [{ id: 'cru-1', name: 'Folder CRUD Target', updatedAt: 1, blocks: [], folderIds: [] }] });
+    renderScreen(<LibraryScreen />);
+
+    fireEvent.press(screen.getByText('+ New folder'));
+    fireEvent.changeText(screen.getByLabelText('New folder name'), 'Test Folder');
+    fireEvent.press(screen.getByText('Add'));
+    expect(screen.getByText('Test Folder')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('rename Test Folder'));
+    fireEvent.changeText(screen.getByLabelText('New folder name'), 'Renamed Folder');
+    fireEvent.press(screen.getByText('Add'));
+    expect(screen.getByText('Renamed Folder')).toBeTruthy();
+
+    // `jest.spyOn` on an already-mocked method (Alert.alert was spied by an
+    // earlier test in this file and never restored) returns that SAME mock
+    // rather than a fresh one, so its call history carries over — clear it
+    // here so `mock.calls[0]` below is this press, not a leftover one.
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    alertSpy.mockClear();
+    fireEvent.press(screen.getByLabelText('delete folder Renamed Folder'));
+    const [, , buttons] = alertSpy.mock.calls[0] as [string, string, AlertButton[]];
+    act(() => buttons.find((b) => b.text === 'Delete')!.onPress!());
+
+    expect(screen.queryByText('Renamed Folder')).toBeNull();
+    expect(screen.getByText('Folder CRUD Target')).toBeTruthy();
+  });
+});
