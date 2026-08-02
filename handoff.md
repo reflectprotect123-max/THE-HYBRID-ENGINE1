@@ -11,6 +11,83 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
+**2026-08-02 — Set timer shipped on branch `set-timer`, verified, and pushed to that
+branch (not merged to `main` — a separate final whole-branch review still has to
+happen first).** Five tasks, six commits: `1f99fa1` (web — new `SetTimerProvider`/
+`useSetTimer` in `apps/web/src/store/setTimer.tsx`, mirroring `rest.tsx`'s
+end-timestamp/localStorage-survival pattern, mounted in `App.tsx`), `cd82e5c` (mobile —
+the same store shape in `apps/mobile/src/store/setTimer.tsx`, adapted to mobile's own
+patterns: the `storage` wrapper instead of raw `localStorage`, `buzz()` from
+`../native/capabilities` instead of `navigator.vibrate`, and the zero-effect keyed off
+`running` the way `rest.tsx` already does rather than off `ends`), `750447e` (web —
+`SecondsTimerField` wired into `Logger.tsx`'s `seconds`-mode branch, plus two new
+`checks/react-smoke.mjs` scenarios), `9e82655` (docs — the implementation plans this
+branch and the duplicate-workout branch both execute against), `f44aa81` (mobile — the
+same `SecondsTimerField` wired into `apps/mobile/src/screens/Logger.tsx`, plus two new
+cases in `apps/mobile/test/logger.test.tsx`). All four build tasks (Tasks 1-4) were
+reviewed clean before this final task started.
+
+**What shipped:** a live countdown timer for `seconds`-mode Logger sets (stretches,
+planks, holds) in both apps. `seconds`-mode fields now render a `SecondsTimerField`
+with a Start control that arms a countdown against the set's `t` target; while running,
+the field shows the live count-down and locks against manual typing; on completion it
+buzzes (`navigator.vibrate` on web, `buzz()` on mobile) and fills the field with the
+held duration; Stop ends the hold early and writes the actual elapsed seconds instead
+of `0` or the full target. The timer is driven by a new `useSetTimer` hook backed by a
+`SetTimerProvider` in each app — a direct sibling of the existing `useRest`/`RestProvider`,
+built the same way (an end-timestamp persisted to storage, not a plain in-memory
+countdown, so it survives a reload or the browser reclaiming a backgrounded tab) but
+kept as a genuinely separate provider rather than folded into `useRest`: rest and a
+set-hold are different concerns that can be live at different points in the same flow
+and complete differently (rest expiring just buzzes; a set timer finishing has to hand
+back the seconds held so the Logger can write them into the set). Mobile's rest timer
+additionally schedules a native background-notification alarm so it still buzzes if the
+app is backgrounded mid-rest; the set timer deliberately skips that — an athlete holding
+a stretch is watching the screen, unlike resting between heavy sets — so it's in-app
+buzz only, no alarm scheduling.
+
+**Heart rate is deliberately NOT part of this.** Live BPM/zone stays exactly where it
+already lives — the Conditioning screen — and this timer has no HR input or output at
+all. Nothing about `seconds`-mode strength sets (planks, holds, stretches) reads or
+displays heart rate; that was never in scope for this feature and nothing here changes
+the existing Conditioning-only HR surface.
+
+**"Per side" needs no data-model change.** A per-side hold (e.g. a single-arm plank)
+is authored as two ordinary consecutive sets in the plan, exactly like any other
+multi-set exercise — the existing `t`/`rpe` target fields on each of those two sets
+carry the per-side split (e.g. each set's own `t` target is the per-side duration).
+The timer control itself has no notion of "sides" at all; it just runs once per set,
+so doing a per-side hold means pressing Start twice, once per set, the same as doing
+any other two-set exercise.
+
+**One parked finding from Task 3's review, flagged as a known limitation rather than
+fixed here.** The set timer is session-wide and singular, exactly like `useRest` —
+starting it only arms the countdown, and the countdown's zero-write lands on whichever
+`seconds`-mode field happens to be mounted when it completes or is stopped (this is
+documented behavior, not a bug: see `docs/superpowers/specs/2026-08-02-set-timer-design.md`).
+The corner case this leaves open: if an athlete starts a hold, navigates away before it
+finishes, and then starts typing a hand-edited value into a *different* `seconds`-mode
+set before the original timer completes, the timer's completion write can land on and
+overwrite that hand-edit — because the write always targets "whatever `seconds`-mode
+field is on screen right now," not "the field that started the timer." This is narrow
+(it requires navigating away mid-countdown AND hand-editing a different seconds field
+before the first timer finishes) and is the same shape of trade-off `useRest` already
+accepts today for rest periods, so it's being carried forward as a known limitation for
+a future pass rather than blocking this ship.
+
+Full repo `pnpm run verify` re-run fresh at `f44aa81`: **exit 0** — typecheck clean
+(packages/config, packages/design, packages/engine, packages/guided-flow, apps/mobile,
+apps/web), engine **511/511** across 20 test files (unchanged — this feature touches no
+engine code), guided-flow **15/15** (unchanged), web **3/3** unit tests (unchanged —
+this feature's web coverage lives in react-smoke, not a unit test), mobile **77/77**
+(was 75/75 before this branch; the +2 are "running a seconds-mode set to zero fills the
+field with the held duration" and "stopping a seconds-mode timer early writes the
+actual elapsed time, not 0 or the full target" in `apps/mobile/test/logger.test.tsx`),
+build clean, CSP check clean, react-smoke **34/34** (was 32/32 before this branch; the
++2 are "a seconds-mode set shows a Start control, and letting it run to zero fills the
+field" and "stopping a seconds-mode timer early writes the actual elapsed time"),
+deploy-smoke **11/11** (unchanged).
+
 **2026-08-02 — Phase 2 (adaptive strength progression) shipped on branch
 `phase2-strength-progression`, verified, and pushed to that branch (not merged to
 `main` — a separate final whole-branch review still has to happen first).** Six tasks,
