@@ -412,7 +412,9 @@ await t('a consistent 2-session on-target streak surfaces an opt-in rep suggesti
   // one having run.
   await page.evaluate(({ origId }) => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
-    db.sessions = db.sessions.filter((s) => s.id !== 'strength-scratch-session');
+    db.sessions = db.sessions.filter(
+      (s) => s.id !== 'strength-scratch-session' && !s.id.startsWith('strength-hist-'),
+    );
     db.workouts = db.workouts.filter((w) => w.id !== 'w-strength-scratch');
     const origSession = db.sessions.find((s) => s.id === origId);
     if (origSession) origSession.status = 'active';
