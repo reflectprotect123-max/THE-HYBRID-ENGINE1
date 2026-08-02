@@ -109,3 +109,76 @@ describe('decideStrengthProgression — mixed results', () => {
     expect(out.reasonCodes).toEqual(['mixed_recent_results']);
   });
 });
+
+describe('decideStrengthProgression — decision table', () => {
+  type Kind = 'on' | 'miss' | 'mid';
+  const PATTERNS: Array<[Kind, Kind]> = [
+    ['on', 'on'],
+    ['miss', 'miss'],
+    ['on', 'miss'],
+    ['miss', 'on'],
+    ['mid', 'on'],
+    ['on', 'mid'],
+    ['mid', 'mid'],
+    ['mid', 'miss'],
+    ['miss', 'mid'],
+  ];
+  const REP_RANGES = ['5', '5-8', '8-12'] as const;
+
+  function repsFor(kind: Kind, repRange: string): number {
+    if (kind === 'miss') return 3; // below any floor used here (5 or 8)
+    // 'on' and 'mid' both stay at-or-above the floor; only felt differs.
+    return repRange === '5' ? 5 : repRange === '5-8' ? 6 : 9;
+  }
+  function feltFor(kind: Kind): string {
+    return kind === 'mid' ? '3' : '8'; // '3' is 5 points under an rpe:'8' center — 'way too light', neither missed nor on-target
+  }
+
+  for (const [prevKind, lastKind] of PATTERNS) {
+    for (const loaded of [true, false]) {
+      for (const repRange of REP_RANGES) {
+        for (const exposureCount of [3, 6] as const) {
+          it(`prev=${prevKind} last=${lastKind} loaded=${loaded} range=${repRange} exposures=${exposureCount}`, () => {
+            const kg = loaded ? '100' : '';
+            const older = set(kg, String(repsFor('on', repRange)), '8', repRange, '8');
+            const prevSet = set(kg, String(repsFor(prevKind, repRange)), feltFor(prevKind), repRange, '8');
+            const lastSet = set(kg, String(repsFor(lastKind, repRange)), feltFor(lastKind), repRange, '8');
+
+            const filler = Array.from({ length: exposureCount - 2 }, (_, i) => sessionWith('f' + i, i, older));
+            const sessions = [...filler, sessionWith('sp', exposureCount - 1, prevSet), sessionWith('sl', exposureCount, lastSet)];
+
+            const out = decideStrengthProgression('Bench press', sessions, { t: repRange, rpe: '8' });
+
+            const prevOn = prevKind === 'on';
+            const lastOn = lastKind === 'on';
+            const prevMiss = prevKind === 'miss';
+            const lastMiss = lastKind === 'miss';
+
+            if (lastOn && prevOn) {
+              const repTop = parseInt(repRange.includes('-') ? repRange.split(/[-–]/)[1] : repRange, 10);
+              const lastReps = repsFor(lastKind, repRange);
+              if (!loaded || lastReps < repTop) {
+                expect(out.action).toBe('progress_reps');
+                expect(out.prescription).toEqual({ reps: lastReps + 1 });
+              } else {
+                expect(out.action).toBe('progress_load');
+                expect(out.prescription?.load).toBeCloseTo(102.5);
+              }
+            } else if (lastMiss && prevMiss) {
+              if (!loaded) {
+                expect(out.action).toBe('hold');
+                expect(out.dataLimitations).toContain('no_load_to_deload');
+              } else {
+                expect(out.action).toBe('deload');
+                expect(out.prescription?.load).toBeCloseTo(97.5);
+              }
+            } else {
+              expect(out.action).toBe('hold');
+              expect(out.prescription).toBeUndefined();
+            }
+          });
+        }
+      }
+    }
+  }
+});
