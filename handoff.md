@@ -11,6 +11,61 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
+**2026-08-02 — Duplicate Workout shipped on branch `duplicate-workout`, verified, and
+pushed to that branch (not merged to `main`).** Four tasks, four commits: `6c602b9`
+(engine — `duplicateWorkout(w)` added to `packages/engine/src/session.ts`, plus a new
+`describe('duplicateWorkout', ...)` block in `packages/engine/test/session.test.ts`),
+`858d9df` (web — a Duplicate button on Library workout cards in
+`apps/web/src/screens/Library.tsx`, plus a new `checks/react-smoke.mjs` scenario),
+`0801a70` (mobile — the same Duplicate button on Library workout cards in
+`apps/mobile/src/screens/Library.tsx`, plus a new case in
+`apps/mobile/test/screens.test.tsx`), and this doc-only commit on top.
+
+**What shipped:** `duplicateWorkout` is a new, pure `packages/engine` function that
+clones a `Workout` end to end — the workout itself, every block, and every exercise
+within each block all get a fresh `uid()`, mirroring `duplicateExercise`'s own
+reasoning (a shared id would let an edit to the copy reach back into the original,
+directly or via a sync-layer merge keyed on that id), and sets are copied by value for
+the same reason. `days`/`dates` are cleared rather than copied (inheriting the
+original's scheduled slot would silently double-book that weekday until the athlete
+manually reassigns it), `_rev` is cleared as sync bookkeeping specific to the original
+record, `sample` is cleared, `updatedAt` is refreshed to `Date.now()` like any new
+record, and a `CondBlock` carrying a `condResult` has it stripped so a template
+doesn't inherit another session's logged result. The clone's name gets a " copy"
+suffix (a nameless original becomes `'Session copy'`) so two cards aren't visually
+identical in the collapsed Library list. Both apps got a matching Duplicate button on
+Library workout cards, styled as a plain secondary action rather than the brass
+"Edit" treatment, that calls `duplicateWorkout`, pushes the clone into the store, and
+routes to **Planner** — `/planner/:id` on web, `nav.navigate('Planner', { id })` on
+mobile — never to GuidedBuilder, because GuidedBuilder is append-only and cannot be
+opened pre-populated with existing content (confirmed by survey before Task 1 was
+written).
+
+**One Minor parked from Task 2's review, not fixed in this pass:** the web
+react-smoke scenario (`checks/react-smoke.mjs`, `'Duplicate clones a workout and
+lands on Planner with independent content'`) seeds a scratch workout directly into
+`localStorage` and, after duplicating it and asserting the clone is independent,
+never removes either the seeded original or the clone it creates — unlike this
+file's established teardown convention elsewhere (see the `f29b0f7` entry above,
+where the Phase 2 react-smoke scenario was retrofitted with exactly this cleanup
+after it was flagged for leaking state into later scenarios). Confirmed currently
+harmless: the scenario runs last among the Library-focused tests and its seeded
+name (`'Dup Source'`) doesn't collide with any other scenario's seed data, so nothing
+downstream is affected today. Worth tidying in a future pass so the file stays
+consistent and doesn't bite a later test that happens to run after it.
+
+Full repo `pnpm run verify` re-run fresh at `0801a70` (the branch tip, before this
+doc-only commit): **exit 0** — typecheck clean across all 6 workspace projects
+(packages/config, packages/design, packages/engine, packages/guided-flow, apps/mobile,
+apps/web), engine **520/520** across 20 test files (was 511/511 before this task; the
+new `duplicateWorkout` describe block in `session.test.ts` added the other 9), guided-flow
+**15/15** (unchanged), web **3/3** unit tests (unchanged — this task's web coverage lives
+in the react-smoke scenario, not a unit test), mobile **76/76** (was 75/75 before this
+task; the +1 is the new Duplicate case in `screens.test.tsx`), `build:site` clean,
+`check:csp` clean, react-smoke **33/33** (was 32/32 before this task; the +1 is
+"Duplicate clones a workout and lands on Planner with independent content"),
+deploy-smoke **11/11** (unchanged).
+
 **2026-08-02 — Phase 2 (adaptive strength progression) shipped on branch
 `phase2-strength-progression`, verified, and pushed to that branch (not merged to
 `main` — a separate final whole-branch review still has to happen first).** Six tasks,
