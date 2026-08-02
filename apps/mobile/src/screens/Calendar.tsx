@@ -79,11 +79,16 @@ export function CalendarScreen() {
               {c ? (
                 <Tap
                   onPress={() => openDay(c)}
-                  label={new Date(c.key + 'T00:00:00').toLocaleDateString(undefined, {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                  })}
+                  /* The accessibility label replaces everything inside the Tap,
+                     so the trained/planned dot is invisible to VoiceOver unless
+                     the state is spoken as part of the name. */
+                  label={
+                    new Date(c.key + 'T00:00:00').toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                    }) + (c.sessionId ? ', trained' : c.workoutId ? ', planned' : '')
+                  }
                   className={`aspect-square items-center rounded-sm border py-0.5 ${
                     c.key === today ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel2'
                   }`}

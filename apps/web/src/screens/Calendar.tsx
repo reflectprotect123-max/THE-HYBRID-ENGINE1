@@ -64,14 +64,28 @@ export function Calendar() {
                 key={i}
                 type="button"
                 onClick={() => openDay(d)}
-                aria-label={new Date(d.key + 'T00:00:00').toLocaleDateString(undefined, {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+                /* aria-label overrides everything inside the cell, so the dot's
+                   `title` no longer reaches a screen reader — the state has to
+                   be part of the name itself or the calendar reads as 42
+                   identical dates. */
+                aria-label={
+                  new Date(d.key + 'T00:00:00').toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                  }) + (d.sessionId ? ', trained' : d.workoutId ? ', planned' : '')
+                }
                 aria-current={d.key === today ? 'date' : undefined}
+                /* `min-h-0` is load-bearing, not decoration. tokens.css gives
+                   every <button> a 44px min-height under `pointer: coarse`,
+                   which is right for a control a thumb hits and wrong for a
+                   cell in a 7-column grid: on a 360px phone the track is
+                   ~38.6px, so 44px + `aspect-square` pushes each cell past its
+                   column and the month overflows sideways. The utilities layer
+                   ships after `base`, so this wins the cascade. The whole grid
+                   is the touch target here; a single date is not. */
                 className={cx(
-                  'aspect-square rounded-sm border p-0.5 text-center transition-colors duration-120',
+                  'aspect-square min-h-0 rounded-sm border p-0.5 text-center transition-colors duration-120',
                   d.key === today ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel2 hover:border-line2',
                 )}
               >

@@ -849,6 +849,26 @@ await t('Calendar marks a trained day differently from a planned one', async () 
   await page.waitForSelector('text=trained');
   const trained = await page.$$('[title="trained"]');
   assert(trained.length >= 1, 'the session logged above should mark today as trained');
+
+  /* The dots are a visual difference only. Each cell is a button carrying its
+     own aria-label, and aria-label wins over everything inside the element —
+     so unless the state is spelled into the name, a screen reader hears a
+     month of identical dates and the distinction the dots draw is not there. */
+  const named = await page.evaluate(() => {
+    const cells = [...document.querySelectorAll('.grid-cols-7 button')];
+    const label = (c) => c.getAttribute('aria-label') || '';
+    return {
+      total: cells.length,
+      trained: cells.filter((c) => label(c).endsWith(', trained')).length,
+      planned: cells.filter((c) => label(c).endsWith(', planned')).length,
+    };
+  });
+  assert(
+    named.trained === trained.length,
+    `${trained.length} trained dot(s) but ${named.trained} cell(s) announced as trained`,
+  );
+  assert(named.planned >= 1, 'Lower A is scheduled every day, so cells should be announced as planned');
+  assert(named.trained + named.planned <= named.total, 'a day was announced as both trained and planned');
 });
 
 await t('Day preview shows "Nothing scheduled" for a day with nothing planned', async () => {
@@ -909,7 +929,16 @@ await t('Day preview shows the matched workout for a scheduled day, read-only', 
  * character, whatever Calendar.tsx itself renders as the cell's aria-label —
  * both run in the same Chromium process, so there is no host/locale drift to
  * account for.
+ *
+ * A cell's aria-label is that date PLUS its state (", trained" / ", planned"),
+ * because aria-label overrides the dots inside the cell and a screen reader
+ * would otherwise hear a month of indistinguishable dates. `dayCell` matches
+ * the bare date OR the date followed by a state, so these three tap tests stay
+ * about routing; the suffix itself is pinned by its own scenario below. The
+ * ", " in the prefix form is what stops "June 1" matching "June 15".
  */
+const dayCell = (label) => `button[aria-label="${label}"], button[aria-label^="${label}, "]`;
+
 const dayOffsetInPage = (n) =>
   page.evaluate((n) => {
     const now = new Date();
@@ -972,7 +1001,7 @@ await t("tapping a trained day on Calendar lands on that day's Recap", async () 
   }, iso);
   await clearRestTimer();
   await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
-  await page.click(`button[aria-label="${label}"]`);
+  await page.click(dayCell(label));
   await page.waitForURL(/\/recap\/calTapRecap1/);
 });
 
@@ -997,7 +1026,7 @@ await t('tapping today on Calendar lands on Training', async () => {
     const label = await page.evaluate(() =>
       new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
     );
-    await page.click(`button[aria-label="${label}"]`);
+    await page.click(dayCell(label));
     await page.waitForURL(/\/training/);
   } finally {
     await page.evaluate((removed) => {
@@ -1012,7 +1041,7 @@ await t('tapping an empty, untrained day on Calendar lands on the Day preview fo
   const { iso, label } = await dayOffsetInPage(11);
   await clearRestTimer();
   await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
-  await page.click(`button[aria-label="${label}"]`);
+  await page.click(dayCell(label));
   await page.waitForURL(new RegExp('/day/' + iso));
   // 'Lower A' (seeded at boot) is scheduled every day of the week, so this
   // always lands on ITS preview, never the "Nothing scheduled" empty state —
