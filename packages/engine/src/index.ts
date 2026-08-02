@@ -26,5 +26,6 @@ export * from './db';
 export * from './cloud';
 export * from './adaptive/types';
 export * from './adaptive/explain';
+export * from './adaptive/strength';
 export * from './storage';
 export * as emit from './emit';
