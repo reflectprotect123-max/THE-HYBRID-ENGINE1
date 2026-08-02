@@ -23,17 +23,49 @@ plus a new `checks/react-smoke.mjs` scenario), `f29b0f7` (test — fully tear do
 seeded strength-history sessions the new react-smoke scenario plants, so it doesn't leak
 state into later scenarios), `e1230ee` (mobile — the same opt-in suggestion UI on
 `apps/mobile/src/screens/Logger.tsx` plus a new case in `apps/mobile/test/logger.test.tsx`).
-This entry is written at `e1230ee`, the current tip of `phase2-strength-progression`.
+
+**2026-08-02 — final whole-branch review, one fix wave applied (commit `7fbb082`, now the
+tip of `phase2-strength-progression`; still NOT merged to `main`).** The review found
+three real logic defects in the shipped Phase 2 code, all of the same family — the
+decision proposed numbers without asking what the Logger was already showing:
+
+1. **`progress_reps` could never raise the Reps field.** `prefillSecondary` opens that
+   field at `repTopOf(t)` — 10 on an `8-10` target — while the branch only fired when
+   `lastReps < repTop`, so it prescribed 9 and Apply *wrote 9 over the 10 already there*.
+   Every branch is now gated on beating the value the field would already show, and
+   returns a `hold` with no `prescription` (new reason codes `'already_at_rep_target'` /
+   `'already_at_earned_load'`) when it would not. Silence is the right answer when the
+   prefill is already the better number.
+2. **`deload` could propose MORE weight than the prefill.** A missed set already costs
+   ~6.25% through `computeSetAdjustment`, so 100 → 95 → 90 earned, against which a flat
+   `lastKg - 2.5` "deload" of 92.5 was an increase — on the same card as the "earned 90kg
+   last time" note. The deload is now clamped to `Math.min(lastKg - stepKg, earnedKg)`,
+   where `earnedKg` is read from `lift.ts`'s own `liftMoves` rather than recomputed.
+3. **The wrong exposure was recorded when a movement appears twice in a session.** The
+   scan kept the LAST match, so a 70kg back-off block written after a 100kg working set
+   recorded the exposure as 70kg. It now follows `liftMoves`'s first-occurrence-wins rule.
+
+Also in that wave: both Logger suggestion memos are short-circuited on `isFirstWorkingSet`
+before they touch the sessions array (the array identity changes on every keystroke, so
+the history scan was re-running per character typed on the gym-floor screen); the design
+doc's `onTarget` line was corrected to match the shipped code (`rpeCenterOf(exposureSet)`,
+not `currentTarget.rpe`) and amended with both algorithm changes; the unread
+`StrengthExposure.sid`/`.completedAt` fields were dropped; and the engine suite gained
+verdict-band boundary rows, statelessness/non-mutation tests and first-occurrence-wins
+tests. This entry is written immediately after `7fbb082`, which is the code commit it
+describes; this doc-only commit sits on top of it.
 
 **What shipped:** `decideStrengthProgression(name, sessions, currentTarget)` — a new,
-pure `packages/engine` function that looks at an exercise's last 1-2 logged exposures
-and decides whether to progress the load, hold it, or (after a genuine miss streak)
-propose a deload, reusing `verdictForRpe`'s existing RPE-band logic rather than
-inventing a new one and needing no e1RM-trend data at all. It's backed by a 100+-row
-generated decision-table suite (`packages/engine/test/strength.test.ts`, 117 tests
-total once the hand-written TDD cases from Task 1 are added in) covering the full
-cross product of verdict × streak-length × exercise-type the function's branches can
-reach. `TrainingDecisionExplanation.prescription` (`{ load?: number; reps?: number }`)
+pure `packages/engine` function that needs at least 3 logged exposures of the exercise
+before it will say anything, then judges the most recent 2 of them to decide whether to
+progress the load, progress the reps, hold, or (after a genuine miss streak) propose a
+deload, reusing `verdictForRpe`'s existing RPE-band logic rather than inventing a new
+one and needing no e1RM-trend data at all. It's backed by a generated decision-table
+suite (`packages/engine/test/strength.test.ts`) crossing streak pattern × load kind
+(heavy/light/bodyweight) × rep-range shape × exposure count, plus hand-written rows
+walking every one of `verdictForRpe`'s seven verdict bands and its non-numeric-`felt`
+guard, the first-occurrence-wins exposure rule, and statelessness (same array twice,
+same answer; the caller's array is never reordered). `TrainingDecisionExplanation.prescription` (`{ load?: number; reps?: number }`)
 is a small, additive extension to Phase 0's existing explain contract, used identically
 by both apps' Logger screens to render the suggestion. Both Logger screens (web and
 mobile) got the same opt-in UI: a suggestion strip that appears only when
@@ -63,17 +95,18 @@ session-repeat trigger) that would ever justify emitting either, so both remain
 theoretical values on the type until some future phase gives a function a reason to
 return them.
 
-Full repo `pnpm run verify` re-run fresh at `e1230ee` this session: **exit 0** —
+Full repo `pnpm run verify` re-run fresh at `7fbb082` (after the fix wave): **exit 0** —
 typecheck clean (packages/config, packages/design, packages/engine,
-packages/guided-flow, apps/mobile, apps/web), engine **440/440** across 20 test files
-(was 323/323 before this phase; +117, all from the new `strength.test.ts`), golden
-suite untouched inside that total, guided-flow **15/15** (unchanged), web **3/3** unit
-tests (unchanged count, as the plan predicted — this phase's web coverage lives in the
-new react-smoke scenario, not a unit test), mobile **74/74** (was 73/73 — the +1 is
-`apps/mobile/test/logger.test.tsx`'s new suggestion-and-Apply case), build clean, CSP
-check clean, react-smoke **32/32** (was 31/31 — the +1 is "a consistent 2-session
-on-target streak surfaces an opt-in rep suggestion, and Apply writes it into the
-field"), deploy-smoke **11/11** (unchanged).
+packages/guided-flow, apps/mobile, apps/web), engine **511/511** across 20 test files
+(was 323/323 before this phase and 440/440 at `e1230ee`; `strength.test.ts` is now 188
+of that total, up from 117), golden suite untouched inside that total, guided-flow
+**15/15** (unchanged), web **3/3** unit tests (unchanged count, as the plan predicted —
+this phase's web coverage lives in the react-smoke scenario, not a unit test), mobile
+**75/75** (was 73/73 before the phase, 74/74 at `e1230ee`; the extra case proves the
+suggestion stays SILENT when it would write a smaller number than the field shows),
+build clean, CSP check clean, react-smoke **32/32** (was 31/31 before the phase — the
++1 is "a consistent 2-session on-target streak surfaces an opt-in load suggestion, and
+Apply writes it into the field"), deploy-smoke **11/11** (unchanged).
 
 **Next roadmap item, per the design doc's own roadmap table**
 (`docs/superpowers/specs/2026-08-01-adaptive-training-engine-audit-design.md`):
