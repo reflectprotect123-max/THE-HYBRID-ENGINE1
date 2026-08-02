@@ -63,9 +63,15 @@ could have it silently revived by a stale sync from a device that hadn't
 caught up yet — exactly the bug tombstones already exist to prevent for
 workouts.
 
-`Workout.folderIds` needs no special merge rule of its own: it merges as part
-of whatever wins for that whole workout record already (same as `blocks` or
-`days` today).
+**Correction from an earlier draft of this doc:** `Workout.folderIds` does
+need its own merge rule — `pickWorkout` (`packages/engine/src/db.ts`) already
+unions `days` and `dates` explicitly, even though every other field on a
+workout takes whichever side has the newer `updatedAt`. That's for the same
+reason `mobility` gets a union above: a workout tagged into "Week 1" on the
+phone and separately tagged into "Conditioning" on web, before either syncs,
+are both real edits — newer-wins on the whole record would silently drop
+one. `folderIds` gets the same treatment as `days`/`dates`: unioned via
+`uniqArr`, not inherited from whichever side is "newer."
 
 ## Web UX (`apps/web/src/screens/Library.tsx`, Sessions tab)
 
