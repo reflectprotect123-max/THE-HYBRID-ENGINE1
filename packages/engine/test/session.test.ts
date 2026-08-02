@@ -213,6 +213,31 @@ describe('duplicateWorkout', () => {
     const copy = duplicateWorkout(w);
     expect(copy._rev).toBeUndefined();
   });
+
+  // `updatedAt` is load-bearing for sync, not cosmetic. `notTombstoned` in
+  // db.ts drops any record whose `updatedAt` is at or below a tombstone's
+  // timestamp, so a clone that inherited an old original's stamp could be
+  // deleted on the next merge by a tombstone that was never meant for it.
+  // `pickWorkout` likewise resolves a conflict purely on `updatedAt`, so a
+  // stale stamp makes the clone lose to whatever the remote already holds.
+  it('refreshes updatedAt to now rather than copying the original\'s stale stamp', () => {
+    const before = Date.now();
+    const w = workout({ updatedAt: 1 });
+    const copy = duplicateWorkout(w);
+    expect(copy.updatedAt).toBeGreaterThanOrEqual(before);
+    expect(copy.updatedAt).not.toBe(w.updatedAt);
+  });
+
+  // `sample` marks a record as seeded demo content rather than the athlete's
+  // own. A clone is authored by the athlete the moment they press Duplicate,
+  // so the marker must not ride along — same reasoning as `_rev`, it describes
+  // the original record's provenance, not the copy's.
+  it('clears sample even when the original is flagged as sample content', () => {
+    const w = workout({ sample: true });
+    const copy = duplicateWorkout(w);
+    expect(copy.sample).toBeUndefined();
+    expect(w.sample).toBe(true);
+  });
 });
 
 /*

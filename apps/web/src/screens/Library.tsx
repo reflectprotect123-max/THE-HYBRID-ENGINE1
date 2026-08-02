@@ -192,7 +192,7 @@ export function Library() {
                 {open === w.id ? (
                   <>
                     <WorkoutDetail w={w} />
-                    <div className="mt-1.5 flex gap-1">
+                    <div className="mt-1.5 flex flex-wrap gap-1">
                       <Button size="sm" variant="brass" onClick={() => nav(`/planner/${w.id}`)}>
                         Edit
                       </Button>
