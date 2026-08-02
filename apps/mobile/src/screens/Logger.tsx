@@ -23,6 +23,7 @@ import {
   prefillPrimary,
   prefillSecondary,
   repFloorOf,
+  repTopOf,
   rpeCenterOf,
   sanNumStr,
   saneKg,
@@ -65,23 +66,47 @@ function SecondsTimerField({
   value,
   onChange,
   targetSec,
+  setKey,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   targetSec: number;
+  /** Which set this field is showing — `bi-ei-si`. Handed to `start` so the
+   *  provider can name the owner of the hold, and checked again on completion. */
+  setKey: string;
 }) {
   const timer = useSetTimer();
 
-  // Deliberately depends only on `timer.finished` — this should fire once on
-  // the transition to finished, not on every render where `onChange`/`timer`
-  // identity happens to change. The project has no lint script enforcing
-  // exhaustive-deps, so no eslint-disable comment is needed here.
+  /*
+   * Claim a completed hold — but only this set's own.
+   *
+   * `finished`/`total` sit in the provider until someone acks them, and this
+   * effect also runs on MOUNT, not just on the transition. So a hold that
+   * expired while this field was unmounted — the athlete was rating the last
+   * set, or had moved to another exercise entirely — used to be claimed by
+   * whichever seconds field mounted next, writing a duration counted for a
+   * different movement against a different target.
+   *
+   * The ack happens either way: a stale finish left in the provider would
+   * otherwise haunt every field that mounts after it. Only the WRITE is gated.
+   *
+   * Deliberately depends only on `timer.finished` — this should fire once on
+   * the transition to finished, not on every render where `onChange`/`timer`
+   * identity happens to change. The project has no lint script enforcing
+   * exhaustive-deps, so no eslint-disable comment is needed here.
+   */
   useEffect(() => {
     if (!timer.finished) return;
-    onChange(String(timer.total));
+    if (timer.owner === setKey) onChange(String(timer.total));
     timer.ack();
   }, [timer.finished]);
+
+  /* Only THIS set's hold takes over the field. One timer serves the whole app,
+     so without the same ownership check a field for another set mirrored a
+     countdown it never started — and its Stop button wrote those seconds
+     straight into the wrong set. */
+  const mine = timer.running && timer.owner === setKey;
 
   return (
     <>
@@ -91,20 +116,20 @@ function SecondsTimerField({
       <View className="mt-0.5 flex-row items-center gap-1">
         <Input
           accessibilityLabel="seconds"
-          value={timer.running ? String(timer.left) : value}
+          value={mine ? String(timer.left) : value}
           onChangeText={onChange}
-          editable={!timer.running}
+          editable={!mine}
           keyboardType="number-pad"
           w="semi"
           num
           className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 text-text"
         />
-        {timer.running ? (
+        {mine ? (
           <Btn variant="ghost" size="md" onPress={() => onChange(String(timer.stop()))}>
             Stop
           </Btn>
         ) : (
-          <Btn variant="ghost" size="md" onPress={() => timer.start(targetSec)} disabled={!targetSec}>
+          <Btn variant="ghost" size="md" onPress={() => timer.start(targetSec, setKey)} disabled={!targetSec}>
             Start
           </Btn>
         )}
@@ -117,6 +142,11 @@ export function LoggerScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { activeSession, db, whoop, updateSession } = useDb();
   const rest = useRest();
+  /* Consumed by the SCREEN, not only by the field. While a hold runs the box
+     shows `timer.left` and `v1` still holds the prefilled target, so the
+     confirm flow has to be able to stop the clock and commit what was
+     actually held — see `stopSetTimerIfRunning`. */
+  const setTimer = useSetTimer();
 
   const [loc, setLoc] = useState({ bi: route.params.bi, ei: route.params.ei });
   const [phase, setPhase] = useState<Phase>('input');
@@ -142,9 +172,16 @@ export function LoggerScreen({ route, navigation }: Props) {
 
   const setKey = `${loc.bi}-${loc.ei}-${si}`;
   const lastKey = useRef('');
+  /* Seconds actually held, captured the instant the countdown was stopped —
+     see `stopSetTimerIfRunning`. A ref rather than state because `confirmSet`
+     can run in the SAME tick as the stop, before `setV1` has re-rendered. */
+  const heldRef = useRef<string | null>(null);
   useEffect(() => {
     if (!ex || si < 0 || lastKey.current === setKey) return;
     lastKey.current = setKey;
+    // A held duration belongs to the set it was held for. Moving the cursor
+    // drops it, or a stop on one set would be committed onto the next.
+    heldRef.current = null;
     setV1(prefillPrimary(ex, si, db.sessions, { settings: db.settings, whoop }));
     setV2(prefillSecondary(ex, si));
     setNoteOpen(false);
@@ -255,8 +292,33 @@ export function LoggerScreen({ route, navigation }: Props) {
     });
   }
 
+  /*
+   * Stop a still-running hold and commit what it actually counted.
+   *
+   * The Finish Set button is live for the whole countdown, and while the
+   * countdown runs the field displays `timer.left` — but `v1` was never
+   * touched, so it still holds the prefilled TARGET. Confirming from there
+   * logged "held 30s" for a plank abandoned at 9. This does precisely what the
+   * Stop button does, one step earlier in the flow, so whatever Stop would
+   * have written is what gets logged.
+   */
+  function stopSetTimerIfRunning() {
+    // `owner`, not just `running`: a hold armed on a DIFFERENT set is not this
+    // set's to stop, and certainly not its seconds to log.
+    if (!setTimer.running || setTimer.owner !== setKey || !ex || ex.mode !== 'seconds') return;
+    const held = String(setTimer.stop());
+    heldRef.current = held;
+    writeVal(1, held);
+  }
+
   function confirmSet() {
     if (!s || !ex || si < 0 || !st) return;
+    stopSetTimerIfRunning();
+    /* `heldRef` over `v1`: the write above lands in state for the NEXT render,
+       and this one is committing now. Null for every set that is not a
+       stopped hold, which is where `v1` is the truth. */
+    const primary = heldRef.current ?? v1;
+    heldRef.current = null;
     const isFinal = si >= ex.sets.length - 1;
     let nextHint: typeof hint = null;
 
@@ -266,7 +328,7 @@ export function LoggerScreen({ route, navigation }: Props) {
 
       // Sanitised on the way in — "1e309" stored verbatim parses back to
       // Infinity everywhere it is later read, and survives every restart.
-      dst.aVal = lift ? sanNumStr(v1) : String(v1 || '').trim();
+      dst.aVal = lift ? sanNumStr(primary) : String(primary || '').trim();
       // Only write the second field when this mode HAS one, or when something
       // was actually typed. Writing it unconditionally blanks a previously
       // logged value on every mode that renders a single input.
@@ -529,7 +591,26 @@ export function LoggerScreen({ route, navigation }: Props) {
                     />
                   </>
                 ) : ex.mode === 'seconds' ? (
-                  <SecondsTimerField label="Secs" value={v1} onChange={(t) => writeVal(1, t)} targetSec={Number(st.t) || 0} />
+                  <SecondsTimerField
+                    /* Keyed on the set, so moving the cursor gives the field a
+                       FRESH instance rather than reusing the one that armed a
+                       hold for some other set. `loc` and `si` both change
+                       without unmounting this subtree — without the key React
+                       reconciles the same element in the same slot and the
+                       instance, effect and all, survives the move. */
+                    key={setKey}
+                    setKey={setKey}
+                    label="Secs"
+                    value={v1}
+                    onChange={(t) => writeVal(1, t)}
+                    /* `st.t` is free text — '20-30', '30s', '20-30s/side' are
+                       all legal authored targets, and Number() makes NaN of
+                       every one of them, which left Start disabled with no
+                       explanation. `repTopOf` is the parser the rest of this
+                       screen already targets: the top of a range is what the
+                       athlete is aiming at. */
+                    targetSec={Number(repTopOf(st.t)) || 0}
+                  />
                 ) : (
                   <>
                     <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">
@@ -582,7 +663,21 @@ export function LoggerScreen({ route, navigation }: Props) {
                   ) : null}
                 </View>
 
-                <Btn variant="brass" size="lg" className="mt-2" onPress={() => (st && isWarmup(st) ? confirmSet() : setPhase('rpe'))}>
+                <Btn
+                  variant="brass"
+                  size="lg"
+                  className="mt-2"
+                  onPress={() => {
+                    /* Finish Set is the moment the hold ended — stop the clock
+                       HERE, not two taps later at Confirm, or the seconds spent
+                       dialling in an RPE are counted as part of the set. */
+                    if (st && isWarmup(st)) confirmSet();
+                    else {
+                      stopSetTimerIfRunning();
+                      setPhase('rpe');
+                    }
+                  }}
+                >
                   Finish Set
                 </Btn>
               </>

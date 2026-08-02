@@ -68,6 +68,35 @@ function secondsSession(t = '2') {
 }
 
 /**
+ * A live session on TWO `seconds`-mode holds, one per block.
+ *
+ * Separate blocks rather than one, so the first exercise has no superset
+ * partner and "Side plank" appears exactly once on the stage — in the footer
+ * control that moves to it. The targets differ so a duration written into the
+ * WRONG set is unmistakable rather than coincidentally right.
+ */
+function twoSecondsSession(t1 = '4', t2 = '45') {
+  const mk = (name: string, t: string) => ({
+    ...newBlock(),
+    id: uid(),
+    heading: name,
+    exercises: [{ ...newEx(), id: uid(), name, mode: 'seconds' as const, sets: [{ ...newSet(), t }] }],
+  });
+  const w: Workout = { id: uid(), name: 'Core', blocks: [mk('Plank', t1), mk('Side plank', t2)], updatedAt: Date.now() };
+  const s: Session = {
+    id: uid(),
+    date: ymd(new Date()),
+    name: 'Core',
+    status: 'active',
+    blocks: freshSessionBlocks(w.blocks),
+    startedAt: Date.now(),
+    workoutId: w.id,
+  };
+  seed({ workouts: [w], sessions: [s] });
+  return s;
+}
+
+/**
  * 3 completed, on-target history sessions for `name`, plus a live session on it.
  *
  * `reps` is what each history session was logged at against an 8-10 target. 10
@@ -269,6 +298,67 @@ describe('Logger', () => {
     const held = Number(screen.getByLabelText('seconds').props.value);
     expect(held).toBeGreaterThan(0);
     expect(held).toBeLessThan(10);
+  });
+
+  it('tapping Finish Set mid-countdown logs the seconds actually HELD, not the prefilled target', () => {
+    /*
+     * The shipped bug. Finish Set stays live for the whole hold, and while the
+     * countdown runs the box shows `timer.left` — but `v1` was never touched,
+     * so it still held the target. An athlete who quit a 30s plank at four
+     * seconds and tapped Finish Set instead of Stop logged a full 30.
+     */
+    const s = secondsSession('30');
+    mount();
+    expect(screen.getByLabelText('seconds').props.value).toBe('30');
+
+    fireEvent.press(screen.getByText('Start'));
+    act(() => jest.advanceTimersByTime(4000));
+    // Finish Set, NOT Stop — the whole point of the regression.
+    fireEvent.press(screen.getByText('Finish Set'));
+    fireEvent.press(screen.getByText('Confirm Set'));
+    act(() => jest.advanceTimersByTime(500));
+
+    const set = persisted().sessions.find((x) => x.id === s.id)!.blocks[0].exercises![0].sets[0];
+    expect(set.done).toBe(true);
+    expect(Number(set.aVal)).toBe(4);
+  });
+
+  it('a hold that expires while its own field is gone does not write into a different set', () => {
+    /*
+     * `finished`/`total` wait in the provider for someone to ack them, and the
+     * field's effect runs on MOUNT as well as on the transition — so the hold
+     * armed on the Plank used to be claimed by whatever seconds field was on
+     * screen when it ran out, against a target it had nothing to do with.
+     */
+    const s = twoSecondsSession('4', '45');
+    mount();
+    expect(screen.getByLabelText('seconds').props.value).toBe('4');
+    fireEvent.press(screen.getByText('Start'));
+
+    // Move to the other exercise while the Plank is still counting down.
+    fireEvent.press(screen.getByText(/Side plank ›/));
+    // Now let it run out, with only the Side plank's field mounted.
+    act(() => jest.advanceTimersByTime(5000));
+
+    // 45 — its own target — not the 4 seconds the Plank counted.
+    expect(screen.getByLabelText('seconds').props.value).toBe('45');
+    act(() => jest.advanceTimersByTime(500));
+    const other = persisted().sessions.find((x) => x.id === s.id)!.blocks[1].exercises![0].sets[0];
+    expect(other.aVal).toBeUndefined();
+  });
+
+  it("arms the timer from a RANGE target like '20-30s', where Number() alone yielded NaN", () => {
+    // The design doc's own motivating example — "20-30s/side Pec Stretch".
+    // `Number('20-30')` is NaN, which fell through to 0 and left Start
+    // permanently disabled with nothing on screen to explain why.
+    secondsSession('20-30s');
+    mount();
+    const start = screen.getByLabelText('Start');
+    expect(start.props.accessibilityState.disabled).toBe(false);
+    fireEvent.press(start);
+    // Started at the TOP of the range, which is what the athlete aims at.
+    expect(screen.getByLabelText('seconds').props.value).toBe('30');
+    expect(screen.getByText('Stop')).toBeTruthy();
   });
 
   it('says nothing when the "progression" would write a smaller number than the field already shows', () => {
