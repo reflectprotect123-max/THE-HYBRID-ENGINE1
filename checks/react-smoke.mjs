@@ -319,6 +319,107 @@ await t('a working weight shown with a connected WHOOP is NOT marked with a reco
   }
 });
 
+await t('a consistent 2-session on-target streak surfaces an opt-in rep suggestion, and Apply writes it into the field', async () => {
+  // Seed 3 completed, standalone sessions for 'Back Squat' — independent of
+  // the live session state the earlier scenarios in this file built up —
+  // each on-target against an 8-10 rep-range target, so the last two count
+  // as a consistent streak per decideStrengthProgression's own rule.
+  //
+  // The suggestion only ever renders on the FIRST working set of an exercise
+  // (`isFirstWorkingSet` in Logger.tsx), but by this point in the suite the
+  // shared main session (used by every scenario above and by "a weight of
+  // 1e309 cannot poison the record" and "finishing a session..." right
+  // after this one) is already sitting on its SECOND working set — Set 3 of
+  // 3. Rather than disturb that shared session's position (which those
+  // later, order-dependent scenarios rely on), this scenario temporarily
+  // swaps in its own isolated active session — a fresh Back Squat exercise
+  // with no warm-up, so its very first set is already the first working
+  // set — then restores the original session's 'active' status and removes
+  // its own scratch session/workout before returning, so nothing below is
+  // able to tell this ever ran.
+  const orig = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const onTargetSet = (reps) => ({
+      done: true, aVal: '100', aVal2: String(reps), felt: '8', t: '8-10', rpe: '8',
+    });
+    const histSession = (id, at, reps) => ({
+      id, date: '2026-01-01', status: 'completed', completedAt: at,
+      blocks: [{
+        id: 'b', heading: 'Main', superset: false,
+        exercises: [{ id: 'e', name: 'Back Squat', mode: 'reps_kg', rest: 90, sets: [onTargetSet(reps)] }],
+      }],
+    });
+    db.sessions.push(
+      histSession('strength-hist-1', 1000, 8),
+      histSession('strength-hist-2', 2000, 8),
+      histSession('strength-hist-3', 3000, 8),
+    );
+
+    const origSession = db.sessions.find((s) => s.status === 'active');
+    origSession.status = 'incomplete';
+
+    db.workouts.push({
+      id: 'w-strength-scratch', name: 'Strength scratch', days: [], updatedAt: Date.now(),
+      blocks: [{
+        id: 'sb', heading: 'Main', superset: false,
+        exercises: [{ id: 'se', name: 'Back Squat', mode: 'reps_kg', rest: 90, sets: [{ t: '8-10', rpe: '8' }] }],
+      }],
+    });
+    db.sessions.push({
+      id: 'strength-scratch-session', name: 'Strength scratch', date: '2026-08-02', status: 'active',
+      startedAt: Date.now(), workoutId: 'w-strength-scratch',
+      blocks: [{
+        id: 'sb', heading: 'Main', superset: false,
+        exercises: [{ id: 'se', name: 'Back Squat', mode: 'reps_kg', rest: 90, sets: [{ t: '8-10', rpe: '8' }] }],
+      }],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return { id: origSession.id };
+  });
+
+  await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+  await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
+  const skip = await page.$('button:has-text("Skip rest")');
+  if (skip) await skip.click();
+  await page.waitForSelector('input[aria-label="Weight"]');
+  const txt = await page.textContent('body');
+  assert(/On target the last 2 sessions/.test(txt), 'expected the strength suggestion note, got: ' + txt.slice(0, 400));
+  assert(/Apply/.test(txt), 'expected an Apply control, got: ' + txt.slice(0, 400));
+
+  // Confirm Apply never touched settings.liftProgress — the write goes
+  // through the same local field the athlete's own typing uses, not a
+  // separate path. An earlier scenario in this file already permanently set
+  // settings.liftProgress['back squat'], so this must compare before/after
+  // rather than assert absence.
+  const liftProgressBefore = await page.evaluate(
+    () => JSON.stringify(JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.liftProgress || null),
+  );
+
+  await page.click('button:has-text("Apply")');
+  const reps = await page.inputValue('input[aria-label="Reps"]');
+  assert(reps === '9', 'expected Apply to write the suggested rep count into the Reps field, got: ' + reps);
+
+  const liftProgressAfter = await page.evaluate(
+    () => JSON.stringify(JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.liftProgress || null),
+  );
+  assert(
+    liftProgressAfter === liftProgressBefore,
+    'Apply must not write to settings.liftProgress — it only fills the editable field',
+  );
+
+  // Restore the shared main session and drop the scratch workout/session, so
+  // every scenario below sees exactly the state it would have without this
+  // one having run.
+  await page.evaluate(({ origId }) => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.sessions = db.sessions.filter((s) => s.id !== 'strength-scratch-session');
+    db.workouts = db.workouts.filter((w) => w.id !== 'w-strength-scratch');
+    const origSession = db.sessions.find((s) => s.id === origId);
+    if (origSession) origSession.status = 'active';
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  }, { origId: orig.id });
+});
+
 await t('a weight of 1e309 cannot poison the record', async () => {
   await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
   await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
