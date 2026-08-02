@@ -15,6 +15,7 @@ import { liftSession, liftWorkout, renderScreen, runEffort, seed, volumeSession 
 import { ProgressScreen } from '../src/screens/Progress';
 import { LibraryScreen } from '../src/screens/Library';
 import { ExerciseScreen } from '../src/screens/Exercise';
+import { DayScreen } from '../src/screens/Day';
 import { ymd } from '@hybrid/engine';
 
 /* Real navigation by default — every screen here mounts under `renderScreen`'s
@@ -253,6 +254,46 @@ describe('Exercise history', () => {
     seed({ sessions: SQUATS });
     renderScreen(<ExerciseScreen />, {});
     expect(screen.getByText('Pick a movement')).toBeTruthy();
+  });
+});
+
+describe('Day preview', () => {
+  /*
+   * Mirrors web's react-smoke scenarios for `apps/web/src/screens/Day.tsx`
+   * (`checks/react-smoke.mjs`, "Day preview shows..."): an empty day and a
+   * scheduled one, read-only. Reached directly by `date` — Task 5 wires the
+   * actual Calendar/Home tap-through, this pins the screen's own two states
+   * in isolation, same split web's smoke suite uses.
+   *
+   * Only `date` is passed as a route param here, never `workoutId` — see
+   * Day.tsx's own doc comment for why this screen re-derives the matched
+   * workout from `db.workouts` instead of trusting an id through navigation.
+   */
+  it('shows "Nothing scheduled" for a day with nothing planned', () => {
+    seed({ workouts: [] });
+    renderScreen(<DayScreen />, { date: '2030-06-15' });
+    expect(screen.getByText('Nothing scheduled')).toBeTruthy();
+    expect(screen.getByText('Nothing scheduled for this day.')).toBeTruthy();
+    expect(screen.queryByText('Back squat')).toBeNull();
+    // The date heading must format, not fall through to the raw route param.
+    expect(screen.queryByText('2030-06-15')).toBeNull();
+  });
+
+  it('shows the matched workout for a scheduled day, read-only', () => {
+    // liftWorkout()'s workout name is always 'Lower'; its first arg names the
+    // EXERCISE ('Back squat' by default) — see harness.tsx.
+    const w = { ...liftWorkout(), dates: ['2030-06-15'] };
+    seed({ workouts: [w] });
+    renderScreen(<DayScreen />, { date: '2030-06-15' });
+    expect(screen.getByText('Lower')).toBeTruthy();
+    expect(screen.getByText('Back squat')).toBeTruthy();
+    expect(screen.queryByText('Nothing scheduled')).toBeNull();
+    // Read-only: no Start/Edit/Delete/Duplicate control — those are
+    // Library/Training's job, not this preview's.
+    expect(screen.queryByText('Start')).toBeNull();
+    expect(screen.queryByText('Edit')).toBeNull();
+    expect(screen.queryByText('Duplicate')).toBeNull();
+    expect(screen.queryByLabelText(/^delete /)).toBeNull();
   });
 });
 
