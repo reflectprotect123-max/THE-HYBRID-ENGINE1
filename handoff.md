@@ -11,6 +11,68 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
+**2026-08-02 — Calendar day-jump shipped on branch `calendar-day-jump`
+(tip `2cf6416`), verified, not yet merged — this SDD execution merges to `main` only
+after a separate final whole-branch review.** Seven tasks, seven commits:
+`9376633` (Calendar's `Cell` carries `workoutId`/`sessionId` instead of collapsed
+booleans, both apps), `1dd81da` (`resolveDayTarget` — recap/today/preview resolution,
+added alongside `sessionFrom` in both apps' session helper, with tests), `65abc4f` /
+`c5bad5d` (new read-only Day preview screen, web then mobile), `59b4043` (Calendar's
+day-cell tap wired to `resolveDayTarget`, both apps), `9ae319a` (fix wave — see below),
+`2cf6416` (Home's WeekStrip per-day tap wired the same way, both apps).
+
+**What shipped:** Calendar's day cells and Home's week strip both now route to the
+tapped day's actual content instead of just opening a generic Calendar view. Tap a day
+that has a completed session with logged work and it opens that session's Recap; tap
+today and it opens Training; tap any other day (future, rest, or planned-but-not-yet-
+trained) and it opens a new read-only Day preview screen showing the matched workout
+(or "Nothing scheduled" if none). The mechanism enabling this: `Cell`'s data shape
+changed from two collapsed booleans (`planned`/`trained`) to the actual ids
+(`workoutId`/`sessionId`) behind them, so the tap handler has something to navigate to
+instead of just a yes/no dot. `resolveDayTarget` is a small pure function, one per app,
+that takes those ids plus the date and returns which of the three destinations wins —
+a session id always wins (a completed session that happens to be today still shows its
+Recap, not a "start" prompt), otherwise today wins over preview.
+
+**Explicit scope cut:** the Day preview screen is look-only — no Start button, no
+write path of any kind, no retroactive logging and no future pre-loading. Starting a
+workout stays anchored to today exactly as it already was; this feature only changes
+where a *tap* lands, not what dates can be trained.
+
+**Two real bugs a review caught and fixed mid-plan, both in `9ae319a`:** (a) converting
+Calendar's day cell from a bare `<div>` to a real `<button>` (needed for the tap
+handler) triggered the design system's `pointer: coarse` 44px minimum touch-target
+rule in `tokens.css` — right for an ordinary button, wrong for one cell in a 7-column
+month grid, so on phones ≤390px wide the grid overflowed its column track sideways.
+Fixed with a targeted `min-h-0` override (utilities layer ships after `base`, so it
+wins the cascade), verified with real Playwright viewport measurements at 320/360/390px
+in `checks/web-touch.mjs`, which also gained a permanent regression guard — three new
+"Calendar's month fits its column track at Npx on touch" checks — so this can't
+silently regress again. (b) The new `aria-label` on the day-cell button overrides
+everything nested inside it, which silently dropped the trained/planned state that was
+previously visible to a screen reader via a `title` span on the dot — fixed by
+appending `, trained` / `, planned` to the label itself in both apps, so the
+accessible name carries the state instead of relying on a child element the label now
+shadows.
+
+**Bonus fix in Task 6:** Home's WeekStrip "trained" dot didn't check `hasLoggedWork`
+the way Calendar's `buildMonth` did — it just checked session status, so a session that
+existed but had no actual logged sets could show as "trained" on Home while Calendar
+correctly showed it as not-yet-trained for the same date. Now both screens use the
+same `status !== 'active' && hasLoggedWork(s)` filter, so a day that looks trained on
+one screen looks trained on the other, and a tap on either lands on the same Recap.
+
+Full repo `pnpm run verify` re-run fresh at the tip (`2cf6416`): **exit 0** —
+typecheck clean (all 6 packages/apps), engine **522/522**, guided-flow **15/15**, web
+**7/7**, mobile **94/94**, react-smoke **46/46** (includes the new Day-preview and
+day-jump-routing scenarios for both Calendar and Home's week strip), deploy-smoke
+**11/11**. `checks/web-touch.mjs` (Playwright-driven, not part of the `verify` chain,
+run separately since it needs a browser) also re-confirmed clean: all touch-target
+checks pass, including the three new Calendar-overflow regression guards at
+320/360/390px.
+
+---
+
 **2026-08-02 — Set timer shipped on branch `set-timer`, verified (including a
 final-whole-branch-review fix wave), and merged to `main`.** Five tasks, plus a final
 whole-branch review that found 1 Critical and 2 Important real bugs, all fixed in one
