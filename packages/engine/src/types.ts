@@ -159,6 +159,10 @@ export interface Workout<S extends AnySet = LoggedSet> {
   days?: number[];
   /** one-off YYYY-MM-DD dates */
   dates?: string[];
+  /** ids of every Folder (Settings.folders) this workout is filed under —
+   *  empty or absent means it renders in Library's ungrouped list. A workout
+   *  can be in several folders at once. */
+  folderIds?: string[];
   updatedAt?: number;
   _rev?: string;
   sample?: boolean;
@@ -283,6 +287,14 @@ export interface LiftState {
   reps?: number;
 }
 
+/** A user-named grouping of workouts in Library — organizational only, never
+ *  scheduling, never progression state. Deleting one never deletes the
+ *  workouts inside it (see `ungroupedWorkouts`). */
+export interface Folder {
+  id: string;
+  name: string;
+}
+
 export interface Settings {
   profile?: Profile;
   conProgress?: Record<string, ProgressState>;
@@ -305,6 +317,12 @@ export interface Settings {
    * never has to guess whether "Bench Press Warm-up" is mobility.
    */
   mobility?: string[];
+  /**
+   * User-created folders for organizing Library's Sessions list — see
+   * `Workout.folderIds`. A flat list, same shape as `mobility`: nothing here
+   * is derived, the app never guesses which folders exist.
+   */
+  folders?: Folder[];
   customFmt?: { rounds?: number | string; work?: number | string; rest?: number | string };
   /**
    * The shorthand the vanilla app's importer has been taught — `kw` maps a word

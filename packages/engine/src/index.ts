@@ -23,6 +23,7 @@ export * from './balance';
 export * from './insights';
 export * from './logger';
 export * from './db';
+export * from './folders';
 export * from './cloud';
 export * from './adaptive/types';
 export * from './adaptive/explain';

@@ -7,6 +7,7 @@ import type {
   CondResult,
   EngineDB,
   Exercise,
+  Folder,
   LiftState,
   LoggedSet,
   ProgressState,
@@ -86,6 +87,16 @@ export function sanitizeDB(d: unknown): EngineDB {
         (r) => r != null && typeof r === 'object' && !Array.isArray(r),
       );
     }
+    // Same shape guard as `conditioning` above: only touch it when it IS an
+    // array, and require both fields to actually be strings — a folder with a
+    // missing/garbage id can never be targeted by workoutsInFolder/removal,
+    // and a missing name would render an empty pill with no way to identify it.
+    if (Array.isArray(out.folders)) {
+      out.folders = (out.folders as unknown[])
+        .filter((f): f is Record<string, unknown> => f != null && typeof f === 'object' && !Array.isArray(f))
+        .filter((f) => typeof f.id === 'string' && f.id && typeof f.name === 'string')
+        .map((f) => ({ id: f.id as string, name: f.name as string }));
+    }
     return out as Settings;
   };
 
@@ -96,6 +107,7 @@ export function sanitizeDB(d: unknown): EngineDB {
       if (!w.id) w.id = uid();
       if ('days' in w) w.days = arr<number>(w.days).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
       if ('dates' in w) w.dates = arr<string>(w.dates).filter((k) => typeof k === 'string');
+      if ('folderIds' in w) w.folderIds = arr<string>(w.folderIds).filter((id) => typeof id === 'string' && id);
       return w;
     }),
     sessions: arr<unknown>(src.sessions).map((s0) => {
@@ -141,6 +153,7 @@ export function pickWorkout(x: Workout, y: Workout): Workout {
   return Object.assign({}, newer, {
     days: uniqArr((x.days || []).concat(y.days || [])).sort((m, n) => m - n),
     dates: uniqArr((x.dates || []).concat(y.dates || [])).sort(),
+    folderIds: uniqArr((x.folderIds || []).concat(y.folderIds || [])),
   });
 }
 
@@ -278,6 +291,23 @@ export function mergeSettings(base: Settings = {}, winner: Settings = {}): Setti
         .forEach((k) => delete dd[k]);
     }
     out.deletedIds = dd;
+  }
+
+  // Folders: union by id, same reasoning as mobility above — creating a
+  // folder on two devices before either syncs are both real edits. But a
+  // folder whose id is tombstoned in the MERGED deletedIds map (just computed
+  // above) must not be revived by a stale copy the other side still carries
+  // — the same protection workouts and sessions already get via
+  // `notTombstoned`, applied here to a Settings-level list instead of an
+  // EngineDB-level array.
+  const bf = base.folders || [];
+  const wf = winner.folders || [];
+  if (bf.length || wf.length) {
+    const byId = new Map<string, Folder>();
+    bf.forEach((f) => f && f.id && byId.set(f.id, f));
+    wf.forEach((f) => f && f.id && byId.set(f.id, f)); // winner's copy wins an id present on both sides
+    const tomb = out.deletedIds || {};
+    out.folders = Array.from(byId.values()).filter((f) => !tomb[f.id]);
   }
 
   const bv = base.devices || {};
