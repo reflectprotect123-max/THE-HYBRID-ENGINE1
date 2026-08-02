@@ -11,6 +11,149 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
+**2026-08-02 — % of 1RM + rep ranges: brainstormed and spec'd, NOT yet planned
+or built.** Design doc committed and pushed at `1b4064d`:
+`docs/superpowers/specs/2026-08-02-pct-1rm-rep-ranges-design.md`. Covers a new
+optional `PlannedSet.pct1rm?: { lo: number; hi: number }` field (purely
+additive, no migration), generalizing `t`'s existing range-parsing
+(`"20-30s"` today, seconds-mode only) to `reps_kg` mode too so rep targets can
+be ranges ("8-12"), and a 1RM source decision (auto, off the engine's
+existing `bestE1rmByMovement` — no manually-entered training max). The
+distinctive piece: a `%1RM` **range** (e.g. "60-65%") ramps automatically
+across an exercise's sets by where each set's own authored RPE falls between
+that exercise's lowest and highest RPE — `pct(set) = lo + (rpe(set) - rpeMin)
+/ (rpeMax - rpeMin) * (hi - lo)`, ceiling if all RPEs match — so a coach never
+types a % per set, only the range once. Builder gets a 4-way selector (Reps /
+Seconds / % flat + reps / % range + reps); Logger prefills the computed kg
+(via the same `roundToIncrement`/`AUTOREG.plateIncrement` rounding
+`nextWorkingWeight` already uses), fully editable, same suggestion-not-lock
+contract as today. Concept art (Builder radio group + per-set %1RM badges,
+Logger target card) approved by you before the doc was written — an Artifact,
+not committed to the repo. **Open question the spec explicitly carries
+forward rather than deciding: whether the guided step-by-step builder gets
+this in the same pass or later** (its append-only shape doesn't fit a
+radio-plus-conditional-fields well). **Awaiting your go-ahead to turn this
+into an implementation plan — nothing beyond the spec has been built.**
+
+**2026-08-02 — Full real-workout verification, both platforms, zero app
+defects found.** Not a request from the roadmap — you asked for a genuine
+end-to-end check after the folders work below. Web: a hand-driven Playwright
+script (`checks/_chromium.mjs`'s launcher, ad hoc — not part of the
+`checks/` suite) walked Home → Library → create a folder → drag a workout
+into it → start a session → log a warm-up set → log two rated working sets
+(rest timer, felt-RPE confirm) → a seconds-mode hold (Start/Stop) → a
+conditioning finisher (Start, felt RPE, completion rating, banked) → finish
+the session → Recap → History → confirm the folder still holds the workout
+after the full session. 17/17 steps green on the first run that used correct
+selectors; every earlier failure across several iterations was a wrong
+assumption in the *script* (warm-up detection keys on a `"W"` prefix in `t`,
+not an `rpe:'easy'` string; rest fires after every set, not once; the last
+set of an exercise shows a completion summary rather than auto-navigating;
+`addInitScript` re-seeds on every `page.goto` unless guarded, the exact trap
+the real `react-smoke.mjs` already comments on) — never the app itself.
+Numbers cross-checked consistent between Recap and History (1,025kg volume,
+felt RPE 7.6, Back Squat 123kg e1RM as a new PR, next-session bump to
+110kg). Mobile: an equivalent RNTL probe (`apps/mobile/test/tmp-full-workout
+.test.tsx`, deleted after the run — throwaway, not a permanent addition)
+mounted the real multi-screen navigator (Tabs + Logger + Conditioning +
+Recap + History, minus fonts/Sync/Whoop/Concept2 providers, matching this
+repo's existing test-harness precedent) and drove the identical flow via
+real `fireEvent` taps, asserting the final numbers straight off `storage`
+rather than trusting on-screen text. Passed once two script bugs were fixed
+(missing `SafeAreaProvider initialMetrics` blocks the whole tree from
+rendering in the RNTL environment; mobile's weight/reps inputs are
+labelled `"kg"`/`"reps"`, not `"Weight"`/`"Reps"` like web). No code changes
+resulted from either run — this was verification, not a fix pass.
+
+**2026-08-02 — Library folders shipped on branch `library-folders`
+(range `5faba51..18417e9`), verified, merged to `main`, deployed, and
+confirmed live by you.** Full brainstorm → spec → plan → 6-task SDD cycle,
+including a final whole-branch review that caught one real Critical bug
+before merge. Spec: `docs/superpowers/specs/2026-08-02-library-folders-
+design.md`. Plan: `docs/superpowers/plans/2026-08-02-library-folders.md`.
+
+**What shipped:** user-created, user-named folders in Library's Sessions
+tab, both platforms. A workout can belong to zero, one, or several folders;
+deleting a folder never deletes a workout, only strips that folder's id from
+`Workout.folderIds`. New engine surface: `Folder` type, `Settings.folders`,
+`Workout.folderIds`, a union-with-tombstone merge rule for both (mirroring
+the existing `mobility`/`days`/`dates` union precedent in `mergeSettings`/
+`pickWorkout`), and two pure helpers (`workoutsInFolder`,
+`ungroupedWorkouts` — the second guards against a stale `folderId` surviving
+a sync race and stranding a workout invisible in neither the folder nor the
+flat list). Web assigns a workout to a folder via native HTML5 drag-and-drop
+(a deliberate, confirmed choice — no picker fallback on web, even though it
+means phone-browser users can create/rename/delete folders there but can
+only actually file a workout into one from the mobile app). Mobile assigns
+via a "Folders" checklist picker (`Modal` + `Chip` multi-select) since touch
+drag-and-drop was ruled out up front. Both platforms: collapsed-by-default
+folder headers, create/rename/delete, ungrouped workouts still list flat
+below.
+
+**The Critical bug the final review caught (fixed pre-merge, commit
+`3d5a309`):** `removeFolder` on both platforms spliced the folder out of
+`settings.folders` and stripped the id from every workout's `folderIds`, but
+never wrote a `settings.deletedIds` tombstone — the exact mechanism
+`mergeSettings` already had correct, unit-tested logic to honor, but nothing
+in the app ever populated it for a folder delete. On a cloud-synced device
+this meant deleting a folder was silently undone on the next sync — the
+folder *and* every workout tag it had just stripped both revived. The origin
+was the plan's own `removeFolder` code snippet, not an implementer
+deviation — missed by three task-scoped reviews because each one correctly
+verified its own task's code matched the plan text, and the plan itself was
+wrong. Fixed by adding the tombstone write (mirroring the existing
+`removeWorkout`/`remove` pattern exactly) plus a new regression test that
+replicates the *actual app write path* object-for-object and runs it through
+the real `mergeEngines` against a stale remote — closing the precise gap a
+hand-built `deletedIds` map in the pre-existing tests couldn't catch. Also
+fixed in the same wave (commit `18417e9`): the mobile Folders picker Modal
+had no `ScrollView`, so with enough folders "Done" went off-screen and
+became unreachable (fixed with `maxHeight`, input/Done kept outside the
+scroll region so they're always reachable); web's remove-from-folder ✕ had
+a sub-44px tap target and a broken flex layout; a picker-state leak where
+creating a folder from inside the picker also mounted a duplicate, uncommitted
+create-input in the accessibility-hidden background; `apps/mobile/jest.config
+.js` was missing `restoreMocks: true`, a standing test-isolation foot-gun a
+prior task had to work around manually rather than fix at the root.
+
+Two operational notes worth knowing for next time, not code issues: (1) a
+background implementer agent twice replied with a vague "waiting on a
+background monitor" instead of a real status line, both times while the
+actual work was either incomplete (once) or fully committed (once) — caught
+both times by checking the worktree's real git state directly rather than
+trusting the reply, per this project's own established practice. (2) the
+Netlify deploy command returned `403 Forbidden` on three consecutive manual
+attempts after this branch merged, with fresh proxy tokens each time — the
+dashboard's own deploy list showed it had actually gone out and published
+successfully regardless (`main@18417e9`, "Published", ~30s build), so the
+403s were either stale-token noise or a dashboard-vs-API discrepancy, not a
+real blocker. If you see the feature not showing up after a push in future,
+check the Netlify dashboard's deploy list before assuming the deploy failed
+— the PWA's service worker caching an old bundle is also a likely cause (a
+full app close-and-reopen, or a hard refresh, fixed it here).
+
+Full repo `pnpm run verify` re-run fresh at the merged tip (`18417e9`,
+matching independent numbers a scoped re-reviewer reproduced separately, not
+just the implementer's own report): **exit 0** — typecheck clean across all
+6 workspace projects, engine **549/549** (was 546 immediately post-merge-base,
++3 from this fix wave: the tombstone regression test and a
+`duplicateWorkout`-inherits-`folderIds` test), guided-flow unchanged, web
+**7/7**, mobile **104/104** (was 102 before this fix wave), react-smoke
+**53/53**, deploy-smoke **11/11**. Remote branch delete failed with the same
+403/disconnect this repo has shown all session — harmless, doesn't affect
+the already-completed merge.
+
+**2026-08-02 — Delete added to Home's "Today's plan" cards, shipped and
+pushed directly to `main`** (commit `d6385a9`, small enough not to warrant
+a full SDD cycle — same tombstone `removeWorkout`/`remove` pattern Library
+already had, just a second call site). Confirm-gated identically to
+Library's delete on both platforms (native `confirm()` on web, `Alert.alert`
+on mobile, same wording). Deletes everywhere, not just off the Home card —
+this was a direct answer to your question about that same day. New smoke/RNTL
+coverage added for both platforms in the same commit.
+
+---
+
 **2026-08-02 — Calendar day-jump shipped on branch `calendar-day-jump`
 (tip `2cf6416`), verified, not yet merged — this SDD execution merges to `main` only
 after a separate final whole-branch review.** Seven tasks, seven commits:
@@ -591,6 +734,28 @@ back green (with the one known, pre-existing, non-blocking `whoop-contract` exce
 carried over unchanged).
 
 ## 6) Next Steps
+
+**Most current, from this session's tail end:**
+
+1. **% of 1RM + rep ranges — awaiting your go-ahead to write the implementation
+   plan.** Spec is written, committed, and pushed
+   (`docs/superpowers/specs/2026-08-02-pct-1rm-rep-ranges-design.md`); nothing
+   has been built. One open question the spec deliberately left for
+   plan-writing time rather than deciding: whether the guided step-by-step
+   builder gets this feature in the same pass as the dense Planner editor, or
+   as a follow-up.
+2. **Phase 3 (modality-aware conditioning thresholds) is explicitly parked,
+   not merely unapproved.** You redirected effort mid-session toward Library
+   folders and the %1RM feature instead ("park all that for the moment, as
+   I've changed my direction with my training"). The roadmap doc and its
+   evidence-bundle citation are unchanged and still valid whenever you want
+   to pick this back up — nothing about Phase 3 itself needs re-deciding,
+   only re-prioritizing.
+3. Everything below this point (the §19 approvals, Supabase schema-side coach
+   removal, Echo Bike hardware test, housekeeping) is unchanged from the
+   prior handoff and still open — see below.
+
+---
 
 **BLOCKING ON YOUR FIVE §19 APPROVALS (approval checklist in branch `claude/status-check-iuiycq`):**
 
