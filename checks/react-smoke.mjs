@@ -1650,6 +1650,76 @@ await t('creating, renaming, and deleting a folder keeps its workout, ungrouped'
   assert(/Folder CRUD Target/.test(txt), 'the workout must survive its folder being deleted, listed ungrouped');
 });
 
+await t('dragging a workout onto a folder header adds it, without removing it from another folder it is already in', async () => {
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.settings.folders = [
+      { id: 'drag-folder-a', name: 'Folder A' },
+      { id: 'drag-folder-b', name: 'Folder B' },
+    ];
+    db.workouts.push({ id: 'drag-target-1', name: 'Drag Target', updatedAt: 1, blocks: [], folderIds: ['drag-folder-a'] });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+
+  // Folder A is already open (this test only needs the row present in the
+  // DOM to drag it — Task 2's own test already covers expand/collapse).
+  await page.click('button[aria-expanded]:has-text("Folder A")');
+  await page.waitForSelector('text=Drag Target');
+
+  // Native HTML5 DnD does not fire from a real OS mouse gesture under
+  // Playwright's synthetic input, so the drag/drop events are dispatched
+  // directly — the same escape hatch this suite already uses elsewhere for
+  // interactions its click/fill helpers cannot reach.
+  await page.evaluate(() => {
+    const row = Array.from(document.querySelectorAll('[draggable="true"]')).find((el) =>
+      el.textContent?.includes('Drag Target'),
+    );
+    const header = Array.from(document.querySelectorAll('button[aria-expanded]')).find((el) =>
+      el.textContent?.includes('Folder B'),
+    )?.parentElement;
+    if (!row || !header) throw new Error('drag source or drop target not found');
+    const dt = new DataTransfer();
+    row.dispatchEvent(new DragEvent('dragstart', { dataTransfer: dt, bubbles: true }));
+    header.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    header.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  });
+
+  const db = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts.find((w) => w.id === 'drag-target-1'));
+  assert(db.folderIds.includes('drag-folder-b'), 'dropping onto Folder B should add it');
+  assert(db.folderIds.includes('drag-folder-a'), 'dropping onto Folder B should not remove it from Folder A');
+});
+
+await t('the ✕ on a workout shown inside a folder removes only that tag, not the workout', async () => {
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.settings.folders = [{ id: 'remove-folder-1', name: 'Remove Test Folder' }];
+    db.workouts.push({ id: 'remove-target-1', name: 'Remove Target', updatedAt: 1, blocks: [], folderIds: ['remove-folder-1'] });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  await page.click('button[aria-expanded]:has-text("Remove Test Folder")');
+  await page.waitForSelector('text=Remove Target');
+
+  await page.click('button[aria-label="Remove Remove Target from Remove Test Folder"]');
+  // The workout is not deleted, only untagged — it re-renders live in the
+  // ungrouped list on the same page (Task 2's `ungrouped` list is derived
+  // straight from `db.workouts`), so "Remove Target" never leaves the DOM
+  // text. Wait on the actual data change instead of a text-vanish that
+  // would never happen for a relocate-not-delete action.
+  await page.waitForFunction(() => {
+    const d = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const w = d.workouts.find((x) => x.id === 'remove-target-1');
+    return !!w && !w.folderIds.includes('remove-folder-1');
+  });
+
+  await page.reload({ waitUntil: 'networkidle' });
+  const txt = await page.textContent('body');
+  assert(/Remove Target/.test(txt), 'the workout itself must still exist, now ungrouped');
+  const db = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts.find((w) => w.id === 'remove-target-1'));
+  assert(!db.folderIds.includes('remove-folder-1'), 'the folder tag must actually be gone, not just visually hidden');
+});
+
 /* ---------- guided builder: leaving it ---------- */
 
 /*

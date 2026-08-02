@@ -20,7 +20,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Button, Card, Chip, Empty, Kicker, ScreenTitle, SectionHead, Tabs } from '../ui';
+import { Button, Card, Chip, cx, Empty, Kicker, ScreenTitle, SectionHead, Tabs } from '../ui';
 
 /*
  * Two letters, in a fixed seven-column grid.
@@ -46,6 +46,7 @@ export function Library() {
   const [open, setOpen] = useState<string | null>(null);
   const [armDel, setArmDel] = useState<string | null>(null);
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   // An armed delete disarms itself after 5s untouched.
   useEffect(() => {
     if (!armDel) return;
@@ -140,6 +141,24 @@ export function Library() {
     });
   }
 
+  function addToFolder(workoutId: string, folderId: string) {
+    update((draft) => {
+      const w = draft.workouts.find((x) => x.id === workoutId);
+      if (!w) return false;
+      const set = new Set(w.folderIds || []);
+      set.add(folderId);
+      w.folderIds = Array.from(set);
+    });
+  }
+
+  function removeFromFolder(workoutId: string, folderId: string) {
+    update((draft) => {
+      const w = draft.workouts.find((x) => x.id === workoutId);
+      if (!w) return false;
+      w.folderIds = (w.folderIds || []).filter((id) => id !== folderId);
+    });
+  }
+
   return (
     <>
       <Kicker>Library</Kicker>
@@ -197,7 +216,23 @@ export function Library() {
         const isOpen = !!openFolders[f.id];
         return (
           <div key={f.id} className="mb-1">
-            <div className="flex items-center gap-1 rounded-md border border-line bg-panel3 p-1.5">
+            <div
+              className={cx(
+                'flex items-center gap-1 rounded-md border p-1.5',
+                dragOverFolder === f.id ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel3',
+              )}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOverFolder(f.id);
+              }}
+              onDragLeave={() => setDragOverFolder((cur) => (cur === f.id ? null : cur))}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOverFolder(null);
+                const workoutId = e.dataTransfer.getData('text/plain');
+                if (workoutId) addToFolder(workoutId, f.id);
+              }}
+            >
               <button
                 className="flex min-w-0 flex-1 items-center gap-1 text-left"
                 onClick={() => setOpenFolders((o) => ({ ...o, [f.id]: !o[f.id] }))}
@@ -218,7 +253,7 @@ export function Library() {
               <ul className="mt-0.5 flex flex-col gap-1 pl-2">
                 {inFolder.map((w) => (
                   <li key={w.id}>
-                    <WorkoutRow w={w} open={open} setOpen={setOpen} armDel={armDel} setArmDel={setArmDel} duplicate={duplicate} removeWorkout={removeWorkout} nav={nav} toggleDay={toggleDay} />
+                    <WorkoutRow w={w} open={open} setOpen={setOpen} armDel={armDel} setArmDel={setArmDel} duplicate={duplicate} removeWorkout={removeWorkout} nav={nav} toggleDay={toggleDay} folderId={f.id} folderName={f.name} removeFromFolder={removeFromFolder} />
                   </li>
                 ))}
               </ul>
@@ -293,6 +328,9 @@ function WorkoutRow({
   removeWorkout,
   nav,
   toggleDay,
+  folderId,
+  folderName,
+  removeFromFolder,
 }: {
   w: Workout;
   open: string | null;
@@ -303,9 +341,28 @@ function WorkoutRow({
   removeWorkout: (id: string) => void;
   nav: ReturnType<typeof useNavigate>;
   toggleDay: (id: string, d: number) => void;
+  /** Set only when this row renders INSIDE a folder — adds a small ✕ that
+   *  removes just that one tag, distinct from the whole-workout delete.
+   *  `folderName` is carried separately from `folderId` purely for the
+   *  spoken label — the id alone is what removeFromFolder acts on. */
+  folderId?: string;
+  folderName?: string;
+  removeFromFolder?: (workoutId: string, folderId: string) => void;
 }) {
   return (
-    <Card>
+    <Card
+      draggable
+      onDragStart={(e) => e.dataTransfer.setData('text/plain', w.id)}
+    >
+      {folderId && removeFromFolder ? (
+        <button
+          onClick={() => removeFromFolder(w.id, folderId)}
+          aria-label={`Remove ${w.name || 'session'} from ${folderName || 'folder'}`}
+          className="float-right text-3 text-dim hover:text-bad"
+        >
+          ✕
+        </button>
+      ) : null}
       <button
         className="flex w-full items-center gap-1 text-left"
         onClick={() => { setArmDel(null); setOpen(open === w.id ? null : w.id); }}
