@@ -10,8 +10,11 @@ import {
   knownMovements,
   rxLine,
   sessionOpeners,
+  ungroupedWorkouts,
   uid,
   workoutStats,
+  workoutsInFolder,
+  type Folder,
   type LoggedSet,
   type StrengthBlock,
   type Workout,
@@ -42,6 +45,7 @@ export function Library() {
   const { db, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
   const [armDel, setArmDel] = useState<string | null>(null);
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   // An armed delete disarms itself after 5s untouched.
   useEffect(() => {
     if (!armDel) return;
@@ -57,6 +61,8 @@ export function Library() {
   const [q, setQ] = useState('');
 
   const mine = db.workouts;
+  const folders = db.settings.folders || [];
+  const ungrouped = useMemo(() => ungroupedWorkouts(mine, folders), [mine, folders]);
   const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
   const mobility = useMemo(
     () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
@@ -103,6 +109,34 @@ export function Library() {
       // A tombstone, not just a local delete: without one the next sync sees a
       // workout the remote still has and cheerfully restores it.
       draft.settings.deletedIds = { ...(draft.settings.deletedIds || {}), [id]: Date.now() };
+    });
+  }
+
+  function addFolder() {
+    const name = window.prompt('Folder name?');
+    if (!name || !name.trim()) return;
+    update((draft) => {
+      draft.settings.folders = [...(draft.settings.folders || []), { id: uid(), name: name.trim() }];
+    });
+  }
+
+  function renameFolder(f: Folder) {
+    const name = window.prompt('Rename folder', f.name);
+    if (!name || !name.trim() || name.trim() === f.name) return;
+    update((draft) => {
+      draft.settings.folders = (draft.settings.folders || []).map((x) =>
+        x.id === f.id ? { ...x, name: name.trim() } : x,
+      );
+    });
+  }
+
+  function removeFolder(f: Folder) {
+    if (!window.confirm(`Delete folder "${f.name}"? Workouts inside stay in your library.`)) return;
+    update((draft) => {
+      draft.settings.folders = (draft.settings.folders || []).filter((x) => x.id !== f.id);
+      draft.workouts = draft.workouts.map((w) =>
+        (w.folderIds || []).includes(f.id) ? { ...w, folderIds: (w.folderIds || []).filter((id) => id !== f.id) } : w,
+      );
     });
   }
 
@@ -155,77 +189,54 @@ export function Library() {
       </Button>
 
       <SectionHead title="Yours" />
-      {mine.length ? (
+      <Button size="sm" className="mb-1" onClick={addFolder}>
+        + New folder
+      </Button>
+      {folders.map((f) => {
+        const inFolder = workoutsInFolder(mine, f.id);
+        const isOpen = !!openFolders[f.id];
+        return (
+          <div key={f.id} className="mb-1">
+            <div className="flex items-center gap-1 rounded-md border border-line bg-panel3 p-1.5">
+              <button
+                className="flex min-w-0 flex-1 items-center gap-1 text-left"
+                onClick={() => setOpenFolders((o) => ({ ...o, [f.id]: !o[f.id] }))}
+                aria-expanded={isOpen}
+              >
+                <span aria-hidden>{isOpen ? '▾' : '▸'}</span>
+                <span className="min-w-0 flex-1 truncate text-5 font-[750]">{f.name}</span>
+                <span className="text-3 text-dim">{inFolder.length}</span>
+              </button>
+              <Button size="sm" aria-label={`Rename ${f.name}`} onClick={() => renameFolder(f)}>
+                Rename
+              </Button>
+              <Button size="sm" aria-label={`Delete folder ${f.name}`} onClick={() => removeFolder(f)}>
+                ✕
+              </Button>
+            </div>
+            {isOpen ? (
+              <ul className="mt-0.5 flex flex-col gap-1 pl-2">
+                {inFolder.map((w) => (
+                  <li key={w.id}>
+                    <WorkoutRow w={w} open={open} setOpen={setOpen} armDel={armDel} setArmDel={setArmDel} duplicate={duplicate} removeWorkout={removeWorkout} nav={nav} toggleDay={toggleDay} />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        );
+      })}
+      {ungrouped.length ? (
         <ul className="flex flex-col gap-1">
-          {mine.map((w) => (
+          {ungrouped.map((w) => (
             <li key={w.id}>
-              <Card>
-                <button
-                  className="flex w-full items-center gap-1 text-left"
-                  onClick={() => { setArmDel(null); setOpen(open === w.id ? null : w.id); }}
-                  aria-expanded={open === w.id}
-                >
-                  <span className="min-w-0 flex-1 truncate text-5 font-[750]">{w.name || 'Session'}</span>
-                  <span className="text-3 text-dim">
-                    {isCondWorkout(w) || !w.blocks.length
-                      ? 'conditioning'
-                      : `${w.blocks.length} ${w.blocks.length === 1 ? 'block' : 'blocks'}`}
-                  </span>
-                </button>
-
-                <Signal w={w} />
-
-                <div className="mt-1 grid grid-cols-7 gap-0.5">
-                  {DAYS.map((d, i) => (
-                    <Chip
-                      key={d}
-                      on={(w.days || []).includes(i)}
-                      onClick={() => toggleDay(w.id, i)}
-                      // The visible label is an abbreviation; a screen reader
-                      // gets the day and whether it is on.
-                      aria-label={`${DAY_NAMES[i]} — ${(w.days || []).includes(i) ? 'scheduled' : 'not scheduled'}`}
-                      className="min-w-0 px-0"
-                    >
-                      {d}
-                    </Chip>
-                  ))}
-                </div>
-
-                {open === w.id ? (
-                  <>
-                    <WorkoutDetail w={w} />
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      <Button size="sm" variant="brass" onClick={() => nav(`/planner/${w.id}`)}>
-                        Edit
-                      </Button>
-                      <Button size="sm" onClick={() => duplicate(w)}>
-                        Duplicate
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          // First tap arms, second destroys. The delete writes
-                          // a sync tombstone — by design unrecoverable — so it
-                          // must not be reachable by one mis-tap 20px from Edit.
-                          if (armDel === w.id) {
-                            removeWorkout(w.id);
-                            setArmDel(null);
-                          } else setArmDel(w.id);
-                        }}
-                        className={armDel === w.id ? 'border-[color:var(--color-bad)]/40 text-bad' : undefined}
-                      >
-                        {armDel === w.id ? 'Really delete?' : 'Delete session'}
-                      </Button>
-                    </div>
-                  </>
-                ) : null}
-              </Card>
+              <WorkoutRow w={w} open={open} setOpen={setOpen} armDel={armDel} setArmDel={setArmDel} duplicate={duplicate} removeWorkout={removeWorkout} nav={nav} toggleDay={toggleDay} />
             </li>
           ))}
         </ul>
-      ) : (
+      ) : !folders.length ? (
         <Empty title="Nothing here yet" body="Use “＋ New session” above to build your first one." />
-      )}
+      ) : null}
       </>
       )}
     </>
@@ -266,6 +277,90 @@ function Signal({ w }: { w: Workout }) {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** One workout's card: expand/Detail, day chips, Edit/Duplicate/Delete.
+ *  Extracted so folder groups (Task 3) and the flat ungrouped list can both
+ *  render the same row without duplicating this markup. */
+function WorkoutRow({
+  w,
+  open,
+  setOpen,
+  armDel,
+  setArmDel,
+  duplicate,
+  removeWorkout,
+  nav,
+  toggleDay,
+}: {
+  w: Workout;
+  open: string | null;
+  setOpen: (id: string | null) => void;
+  armDel: string | null;
+  setArmDel: (id: string | null) => void;
+  duplicate: (w: Workout) => void;
+  removeWorkout: (id: string) => void;
+  nav: ReturnType<typeof useNavigate>;
+  toggleDay: (id: string, d: number) => void;
+}) {
+  return (
+    <Card>
+      <button
+        className="flex w-full items-center gap-1 text-left"
+        onClick={() => { setArmDel(null); setOpen(open === w.id ? null : w.id); }}
+        aria-expanded={open === w.id}
+      >
+        <span className="min-w-0 flex-1 truncate text-5 font-[750]">{w.name || 'Session'}</span>
+        <span className="text-3 text-dim">
+          {isCondWorkout(w) || !w.blocks.length
+            ? 'conditioning'
+            : `${w.blocks.length} ${w.blocks.length === 1 ? 'block' : 'blocks'}`}
+        </span>
+      </button>
+
+      <Signal w={w} />
+
+      <div className="mt-1 grid grid-cols-7 gap-0.5">
+        {DAYS.map((d, i) => (
+          <Chip
+            key={d}
+            on={(w.days || []).includes(i)}
+            onClick={() => toggleDay(w.id, i)}
+            aria-label={`${DAY_NAMES[i]} — ${(w.days || []).includes(i) ? 'scheduled' : 'not scheduled'}`}
+            className="min-w-0 px-0"
+          >
+            {d}
+          </Chip>
+        ))}
+      </div>
+
+      {open === w.id ? (
+        <>
+          <WorkoutDetail w={w} />
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            <Button size="sm" variant="brass" onClick={() => nav(`/planner/${w.id}`)}>
+              Edit
+            </Button>
+            <Button size="sm" onClick={() => duplicate(w)}>
+              Duplicate
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (armDel === w.id) {
+                  removeWorkout(w.id);
+                  setArmDel(null);
+                } else setArmDel(w.id);
+              }}
+              className={armDel === w.id ? 'border-[color:var(--color-bad)]/40 text-bad' : undefined}
+            >
+              {armDel === w.id ? 'Really delete?' : 'Delete session'}
+            </Button>
+          </div>
+        </>
+      ) : null}
+    </Card>
   );
 }
 

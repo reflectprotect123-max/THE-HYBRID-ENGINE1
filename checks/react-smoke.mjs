@@ -1597,6 +1597,59 @@ await t('Duplicate clones a workout and lands on Planner with independent conten
   assert(origAfter.target === '5', 'the original set target changed, got ' + origAfter.target);
 });
 
+await t('a folder groups its workouts, collapsed by default, and ungrouped ones list flat below', async () => {
+  // Seeded directly via localStorage — this test is about RENDERING the
+  // grouping correctly, not about the drag gesture that assigns a workout to
+  // a folder (that is Task 3's own test).
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.settings.folders = [{ id: 'folder-1', name: 'Week 1' }];
+    db.workouts.push(
+      { id: 'grouped-1', name: 'Grouped Session', updatedAt: 1, blocks: [], folderIds: ['folder-1'] },
+      { id: 'loose-1', name: 'Loose Session', updatedAt: 1, blocks: [] },
+    );
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  const txt = await page.textContent('body');
+  assert(/Loose Session/.test(txt), 'ungrouped workout should list flat, always visible');
+  assert(!/Grouped Session/.test(txt), 'a workout inside a collapsed folder should not be in the DOM text yet');
+  assert(/Week 1/.test(txt), 'the folder header itself should always be visible');
+
+  await page.click('button[aria-expanded]:has-text("Week 1")');
+  const txt2 = await page.textContent('body');
+  assert(/Grouped Session/.test(txt2), 'expanding the folder should reveal its workout');
+
+  await page.click('button[aria-expanded]:has-text("Week 1")');
+  const txt3 = await page.textContent('body');
+  assert(!/Grouped Session/.test(txt3), 'collapsing again should hide it');
+});
+
+await t('creating, renaming, and deleting a folder keeps its workout, ungrouped', async () => {
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.workouts.push({ id: 'folder-cru-1', name: 'Folder CRUD Target', updatedAt: 1, blocks: [], folderIds: [] });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+
+  page.once('dialog', (dialog) => dialog.accept('Test Folder'));
+  await page.click('button:has-text("+ New folder")');
+  await page.waitForSelector('button[aria-expanded]:has-text("Test Folder")');
+
+  page.once('dialog', (dialog) => dialog.accept('Renamed Folder'));
+  await page.click('button[aria-label="Rename Test Folder"]');
+  await page.waitForSelector('button[aria-expanded]:has-text("Renamed Folder")');
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.click('button[aria-label="Delete folder Renamed Folder"]');
+  await page.waitForFunction(() => !document.body.textContent.includes('Renamed Folder'));
+
+  const txt = await page.textContent('body');
+  assert(/Folder CRUD Target/.test(txt), 'the workout must survive its folder being deleted, listed ungrouped');
+});
+
 /* ---------- guided builder: leaving it ---------- */
 
 /*
