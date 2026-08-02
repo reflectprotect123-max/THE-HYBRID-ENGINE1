@@ -269,7 +269,9 @@ function Signal({ w }: { w: Workout }) {
   );
 }
 
-function WorkoutDetail({ w }: { w: Workout }) {
+/** Exported so Day (the read-only per-date preview) can reuse this listing
+ *  rather than building a second one — see docs/superpowers/specs/2026-08-02-calendar-day-jump-design.md. */
+export function WorkoutDetail({ w }: { w: Workout }) {
   return (
     <div className="mt-1.5 flex flex-col gap-1.5 border-t border-line pt-1.5">
       {w.blocks.map((b, bi) => (
