@@ -97,6 +97,66 @@ function twoSecondsSession(t1 = '4', t2 = '45') {
 }
 
 /**
+ * A live session whose FIRST block is a `seconds` hold and whose second is an
+ * ordinary lift.
+ *
+ * The lift block is the point: leaving a running hold behind has to land
+ * somewhere that mounts NO seconds field, because a seconds field acks
+ * whatever finish it finds in the provider — so stepping onto another hold
+ * would consume the completion before the athlete could come back to it.
+ *
+ * `rest: 0` so a confirm never parks the stage on the rest panel, where the
+ * seconds field is not rendered at all. `preLogged`, when given, marks set 1
+ * done at that duration — which is what `prefillPrimary` carries into set 2,
+ * and therefore what a stale prefill would clobber a completed hold with.
+ */
+function holdThenLiftSession(t: string, sets = 1, preLogged?: string) {
+  const hold = {
+    ...newEx(),
+    id: uid(),
+    name: 'Plank',
+    mode: 'seconds' as const,
+    rest: 0,
+    sets: Array.from({ length: sets }, () => ({ ...newSet(), t })),
+  };
+  const lift = {
+    ...newEx(),
+    id: uid(),
+    name: 'Back squat',
+    mode: 'reps_kg' as const,
+    rest: 0,
+    sets: [{ ...newSet(), t: '5', rpe: '8' }],
+  };
+  const w: Workout = {
+    id: uid(),
+    name: 'Core',
+    updatedAt: Date.now(),
+    blocks: [
+      { ...newBlock(), id: uid(), heading: 'Core', exercises: [hold] },
+      { ...newBlock(), id: uid(), heading: 'Main', exercises: [lift] },
+    ],
+  };
+  const s: Session = {
+    id: uid(),
+    date: ymd(new Date()),
+    name: 'Core',
+    status: 'active',
+    blocks: freshSessionBlocks(w.blocks),
+    startedAt: Date.now(),
+    workoutId: w.id,
+  };
+  if (preLogged != null) {
+    // freshSessionBlocks deliberately keeps only `t`/`rpe`, so an already-logged
+    // set has to be written onto the live copy here.
+    const first = (s.blocks[0] as StrengthBlock<LoggedSet>).exercises[0].sets[0];
+    first.done = true;
+    first.aVal = preLogged;
+  }
+  seed({ workouts: [w], sessions: [s] });
+  return s;
+}
+
+/**
  * 3 completed, on-target history sessions for `name`, plus a live session on it.
  *
  * `reps` is what each history session was logged at against an 8-10 target. 10
@@ -359,6 +419,78 @@ describe('Logger', () => {
     // Started at the TOP of the range, which is what the athlete aims at.
     expect(screen.getByLabelText('seconds').props.value).toBe('30');
     expect(screen.getByText('Stop')).toBeTruthy();
+  });
+
+  it('opens a range-targeted hold on the parsed top of the range, never the authored text', () => {
+    /*
+     * `prefillPrimary`'s non-lift fallback handed the field `st.t` verbatim, so
+     * a legal target like "20-30s" sat in a NUMBER box — and confirming from
+     * there logged the string "20-30s" as the duration held. The box is the
+     * same one the timer arms from; both parse the target the same way now.
+     */
+    secondsSession('20-30s');
+    mount();
+    expect(screen.getByLabelText('seconds').props.value).toBe('30');
+  });
+
+  it('a hold that completes off-screen keeps its duration when the athlete comes back to that set', () => {
+    /*
+     * The race. Coming back to the set runs BOTH the field's finished-claim
+     * effect and the stage's own per-set prefill effect in one commit, child
+     * first — so the claim wrote the seconds held, and the prefill then
+     * overwrote them from a snapshot of the session taken before that write.
+     * The athlete held the full 30 and the app logged the raw target text.
+     */
+    const s = holdThenLiftSession('20-30s');
+    mount();
+    expect(screen.getByLabelText('seconds').props.value).toBe('30');
+    fireEvent.press(screen.getByText('Start'));
+
+    // Away to the lift — nothing there mounts a seconds field, so the
+    // completion is still sitting unclaimed in the provider.
+    fireEvent.press(screen.getByText(/Back squat ›/));
+    act(() => jest.advanceTimersByTime(31000));
+
+    // Back to the hold: claim effect and prefill effect, same commit.
+    fireEvent.press(screen.getByText(/Plank ›/));
+    expect(screen.getByLabelText('seconds').props.value).toBe('30');
+
+    fireEvent.press(screen.getByText('Finish Set'));
+    fireEvent.press(screen.getByText('Confirm Set'));
+    act(() => jest.advanceTimersByTime(500));
+
+    const set = persisted().sessions.find((x) => x.id === s.id)!.blocks[0].exercises![0].sets[0];
+    expect(set.done).toBe(true);
+    expect(set.aVal).toBe('30');
+  });
+
+  it('a hold that completes off-screen is not clobbered by the previous set carried forward', () => {
+    /*
+     * The same race, with the two effects DISAGREEING about the answer — set 1
+     * logged 9 seconds, so the stale prefill has a real number of its own to
+     * overwrite the completed 30 with. Parsing the target alone does not save
+     * this one: the prefill never reaches the target at all.
+     */
+    const s = holdThenLiftSession('20-30s', 2, '9');
+    mount();
+    expect(screen.getByText('Set 2 of 2')).toBeTruthy();
+    // What set 1 held, carried forward — the value the race clobbers with.
+    expect(screen.getByLabelText('seconds').props.value).toBe('9');
+
+    fireEvent.press(screen.getByText('Start'));
+    fireEvent.press(screen.getByText(/Back squat ›/));
+    act(() => jest.advanceTimersByTime(31000));
+    fireEvent.press(screen.getByText(/Plank ›/));
+
+    expect(screen.getByLabelText('seconds').props.value).toBe('30');
+
+    fireEvent.press(screen.getByText('Finish Set'));
+    fireEvent.press(screen.getByText('Confirm Set'));
+    act(() => jest.advanceTimersByTime(500));
+
+    const set = persisted().sessions.find((x) => x.id === s.id)!.blocks[0].exercises![0].sets[1];
+    expect(set.done).toBe(true);
+    expect(set.aVal).toBe('30');
   });
 
   it('says nothing when the "progression" would write a smaller number than the field already shows', () => {

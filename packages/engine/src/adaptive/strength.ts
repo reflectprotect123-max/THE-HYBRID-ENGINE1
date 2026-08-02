@@ -1,5 +1,5 @@
 import { AUTOREG } from '../constants';
-import { roundToIncrement } from '../num';
+import { roundToIncrement, saneKg } from '../num';
 import { isWarmup, repFloorOf, repTopOf, rpeCenterOf, verdictForRpe } from '../autoreg';
 import { liftMoves } from '../lift';
 import { blockExercises, isLiftMode, isWarmupBlock } from '../session';
@@ -23,6 +23,51 @@ interface StrengthExposure {
 const MIN_EXPOSURES = 3;
 
 /**
+ * The one set inside a single exercise entry that IS the exposure — the same
+ * set `lift.ts` would judge the movement on, so a suggestion can never be built
+ * from a different set than the prefill was.
+ *
+ * `lastWorkingSet` picks the LAST completed, non-warmup set that logged a real
+ * weight (`saneKg > 0`), and `liftMoves` then throws the movement away if that
+ * set has no reps. Selecting on reps alone — what this used to do — diverges the
+ * moment one set carries the weight and another carries the reps: 100kg × 0 reps
+ * followed by blank × 8 reps earned NOTHING in `liftMoves` (a 0-rep set moves no
+ * weight) while this manufactured a confident 8-rep exposure from the second
+ * set, and the card then argued with its own weight field.
+ *
+ * The weight-less fallback is the bodyweight case, and only that: an exercise
+ * where NO set logged a load has no load axis for `liftMoves` to earn on either,
+ * so taking its last repped set contradicts nothing — it is what feeds the
+ * double-progression rep route (`kg == null`).
+ */
+function exposureSetOf(sets: LoggedSet[]): LoggedSet | null {
+  const working = (st: LoggedSet) => !!st && !!st.done && !isWarmup(st);
+  let picked: LoggedSet | null = null;
+  for (let i = sets.length - 1; i >= 0; i--) {
+    const st = sets[i];
+    if (working(st) && saneKg(st.aVal) > 0) {
+      picked = st;
+      break;
+    }
+  }
+  if (!picked) {
+    // Bodyweight: no load logged anywhere in this entry.
+    for (let i = sets.length - 1; i >= 0; i--) {
+      const st = sets[i];
+      if (working(st) && Number(st.aVal2) > 0) {
+        picked = st;
+        break;
+      }
+    }
+  }
+  // `liftMoves`' guard, kept whole: reps are what make it a set. A picked set
+  // with none earns nothing, so it claims no exposure — and, exactly as
+  // `liftMoves` declines to add the key to `seen`, leaves the slot open for a
+  // later occurrence of the movement in the same session.
+  return picked && Number(picked.aVal2) > 0 ? picked : null;
+}
+
+/**
  * The exercise's last completed, non-warmup working set per session, oldest
  * first, keeping each set's own recorded target (`t`/`rpe`) alongside its
  * logged values — which `exLogFor`'s `ExerciseHistoryEntry` shape discards. A
@@ -40,6 +85,9 @@ const MIN_EXPOSURES = 3;
  *    progression. A back-off/burnout block written after the main lift must not
  *    overwrite what the working set earned: taking the last occurrence recorded
  *    Bench at the back-off's 70kg and corrupted the progression history.
+ *
+ * Which SET inside that occurrence counts is `lastWorkingSet`'s rule, not a
+ * second one — see `exposureSetOf`.
  */
 function strengthExposuresFor(name: string, sessions: Session[]): StrengthExposure[] {
   const key = String(name || '').trim().toLowerCase();
@@ -59,15 +107,8 @@ function strengthExposuresFor(name: string, sessions: Session[]): StrengthExposu
           // once it has a set with reps.
           if (found) return;
           if (!isLiftMode(e.mode) || String(e.name || '').trim().toLowerCase() !== key) return;
-          let last: LoggedSet | null = null;
-          e.sets.forEach((st) => {
-            if (isWarmup(st)) return;
-            if (!st.done) return;
-            const reps = Number(st.aVal2);
-            if (!(reps > 0)) return;
-            last = st;
-          });
-          if (last) found = last;
+          const st = exposureSetOf(e.sets);
+          if (st) found = st;
         });
       });
       if (found) {

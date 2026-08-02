@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decideStrengthProgression } from '../src/adaptive/strength';
 import { decideStrengthProgression as fromIndex } from '../src/index';
+import { liftMoves } from '../src/lift';
 import type { LoggedSet, Session } from '../src/types';
 
 /** A single completed, non-warmup working set with a real target attached. */
@@ -19,6 +20,29 @@ function sessionWith(id: string, at: number, s: LoggedSet, exerciseName = 'Bench
         heading: 'Main',
         superset: false,
         exercises: [{ id: 'e', name: exerciseName, mode: 'reps_kg', rest: 90, sets: [s] }],
+      },
+    ],
+  } as unknown as Session;
+}
+
+/** One exercise entry carrying SEVERAL sets — which of them is the exposure. */
+function sessionWithSets(
+  id: string,
+  at: number,
+  sets: LoggedSet[],
+  exerciseName = 'Bench press',
+): Session {
+  return {
+    id,
+    date: '2026-01-01',
+    status: 'completed',
+    completedAt: at,
+    blocks: [
+      {
+        id: 'b',
+        heading: 'Main',
+        superset: false,
+        exercises: [{ id: 'e', name: exerciseName, mode: 'reps_kg', rest: 90, sets }],
       },
     ],
   } as unknown as Session;
@@ -224,6 +248,71 @@ describe('decideStrengthProgression — the exposure a session contributes', () 
     const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
     expect(out.action).toBe('progress_load');
     expect(out.prescription).toEqual({ load: 102.5 });
+  });
+
+  it('picks the set `lastWorkingSet` picks when weight and reps land on DIFFERENT sets', () => {
+    /*
+     * The divergence this pins. `lift.ts`'s `lastWorkingSet` selects on WEIGHT
+     * (`saneKg(aVal) > 0`) and `liftMoves` then discards the movement if that
+     * set logged no reps. This selected on reps alone, so when one set carried
+     * the weight (100kg, reps left at 0) and another carried the reps (weight
+     * blank, 8 reps), the two read two different sets: `liftMoves` earned
+     * NOTHING three sessions running, while this handed back a confident
+     * "already at rep target" — a suggestion arguing with the very field it is
+     * printed next to.
+     */
+    const sessions = [1000, 2000, 3000].map((at, i) =>
+      sessionWithSets('s' + i, at, [
+        set('100', '0', '8', '8-10', '8'), // weight logged, reps left at 0
+        set('', '8', '8', '8-10', '8'), // weight blank, reps logged
+      ]),
+    );
+
+    // The real progression system earns nothing here — a 0-rep set moves no
+    // weight, and the set that does have reps has no weight to move.
+    for (const s of sessions) expect(liftMoves(s)).toEqual([]);
+
+    const out = decideStrengthProgression('Bench press', sessions, { t: '8-10', rpe: '8' });
+    expect(out.action).toBe('pause_insufficient_data');
+    expect(out.reasonCodes).toEqual(['insufficient_exposure_history']);
+    expect(out.prescription).toBeUndefined();
+  });
+
+  it('still reads a bodyweight exercise, where NO set logs a load at all', () => {
+    // The weight requirement must not swallow the rep route: an entry with no
+    // load anywhere has no load axis for `liftMoves` to earn on either, so its
+    // last repped set contradicts nothing.
+    const sessions = [1000, 2000, 3000].map((at, i) =>
+      sessionWithSets(
+        's' + i,
+        at,
+        [set('', '10', '8', '10-15', '8'), set('', '15', '8', '10-15', '8')],
+        'Pull-up',
+      ),
+    );
+    for (const s of sessions) expect(liftMoves(s)).toEqual([]);
+
+    // 15, the LAST set's reps — not 10, the first's, which would have held.
+    const out = decideStrengthProgression('Pull-up', sessions, { t: '10-15', rpe: '8' });
+    expect(out.action).toBe('progress_reps');
+    expect(out.prescription).toEqual({ reps: 16 });
+  });
+
+  it('takes the LAST weighted working set, not the last repped one, within an entry', () => {
+    // Both sets are legitimate; they only disagree on which is last. `lift.ts`
+    // judges the movement on the 105kg set, so this must too — otherwise the
+    // card suggests a step up from 100 while the field already shows 107.5.
+    const sessions = [1000, 2000, 3000].map((at, i) =>
+      sessionWithSets('s' + i, at, [
+        set('100', '5', '8', '5', '8'),
+        set('105', '5', '8', '5', '8'),
+      ]),
+    );
+    for (const s of sessions) expect(liftMoves(s)[0].from).toBe(105);
+
+    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
+    expect(out.action).toBe('progress_load');
+    expect(out.prescription).toEqual({ load: 107.5 }); // 107.5, not 102.5
   });
 });
 

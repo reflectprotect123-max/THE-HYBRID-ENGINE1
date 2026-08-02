@@ -206,7 +206,17 @@ export function prefillPrimary(
     return '';
   }
 
-  return st.t && st.t !== 'max' ? st.t : '';
+  /*
+   * Every non-lift mode renders the primary field as a NUMBER box — reps, or
+   * seconds held. `st.t` is free authored text: '8-10', '20-30s',
+   * '30s/side' are all legal targets, and putting one of them in the box
+   * verbatim meant confirming the set logged that string as the thing the
+   * athlete actually did. `repTopOf` is the parser this screen already uses
+   * everywhere else the same target has to become a number — the seconds
+   * timer arms from it, and `prefillSecondary` below prefills from it — so
+   * the top of a range is what appears, which is what the athlete aims at.
+   */
+  return st.t && st.t !== 'max' ? repTopOf(st.t) : '';
 }
 
 /**

@@ -716,6 +716,141 @@ await t("a RANGE target like '20-30s' still arms the timer", async () => {
   }
 });
 
+/*
+ * A hold that runs out while its own field is unmounted, and the athlete
+ * coming BACK to that set.
+ *
+ * Two effects fire in that one commit: `SecondsTimerField`'s finished-claim
+ * (which writes the seconds actually held) and the stage's own per-set
+ * prefill. React runs a child's effect before its parent's, so the prefill
+ * ran SECOND, off a snapshot of the session taken before the claim's write —
+ * saw an empty `aVal`, and overwrote a real logged duration with a
+ * suggestion. Confirming from there logged the suggestion.
+ *
+ * Both scenarios below need somewhere to step away TO that mounts no seconds
+ * field of its own, because a seconds field acks whatever finish it finds —
+ * hence the ordinary lift in the second block.
+ */
+const holdScratch = (n, sets) =>
+  page.evaluate(
+    ({ n, sets }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      const origSession = db.sessions.find((s) => s.status === 'active');
+      if (origSession) origSession.status = 'incomplete';
+      const blocks = [
+        {
+          id: 'tb' + n + 'a', heading: 'Core', superset: false,
+          exercises: [{ id: 'te' + n + 'a', name: 'Plank', mode: 'seconds', rest: 0, sets }],
+        },
+        {
+          id: 'tb' + n + 'b', heading: 'Main', superset: false,
+          exercises: [{ id: 'te' + n + 'b', name: 'Back squat', mode: 'reps_kg', rest: 0, sets: [{ t: '5', rpe: '8' }] }],
+        },
+      ];
+      db.workouts.push({ id: 'w-hold-' + n, name: 'Hold scratch ' + n, days: [], updatedAt: Date.now(), blocks });
+      // Computed, not hardcoded: an active session dated before today is
+      // correctly binned as stale, so a fixed date fails at the next midnight.
+      const d = new Date();
+      const p = (x) => String(x).padStart(2, '0');
+      db.sessions.push({
+        id: 'hold-session-' + n, name: 'Hold scratch ' + n,
+        date: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()),
+        status: 'active', startedAt: Date.now(), workoutId: 'w-hold-' + n,
+        blocks: JSON.parse(JSON.stringify(blocks)),
+      });
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+      return { id: origSession ? origSession.id : null };
+    },
+    { n, sets },
+  );
+
+const holdCleanup = (n, origId) =>
+  page.evaluate(
+    ({ n, origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'hold-session-' + n);
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-hold-' + n);
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.removeItem('hybrid-engine-v1-set-timer-ends');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-total');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-owner');
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    },
+    { n, origId },
+  );
+
+/** Leave the hold running, let it expire elsewhere, then come back to it. */
+async function stepAwayAndBack() {
+  await page.click('footer button:has-text("Back squat")');
+  await page.waitForURL(/\/log\/1\/0/);
+  // Real time: the hold is 4s — the top of the range — plus tick margin.
+  await page.waitForTimeout(5500);
+  await page.click('footer button:has-text("Plank")');
+  await page.waitForURL(/\/log\/0\/0/);
+  await page.waitForSelector('input[aria-label="Secs"]');
+}
+
+await t('a hold that completes off-screen keeps its duration when the athlete comes back to that set', async () => {
+  const orig = await holdScratch(6, [{ t: '3-4s', rpe: '' }]);
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('input[aria-label="Secs"]');
+    // The parsed TOP of the range, not the authored text: the box is a number
+    // field, and the timer arms from the very same parse.
+    const opened = await page.inputValue('input[aria-label="Secs"]');
+    assert(opened === '4', 'the field should open on the parsed top of the range, got: ' + opened);
+
+    await page.click('button:has-text("Start")');
+    await stepAwayAndBack();
+
+    const shown = await page.inputValue('input[aria-label="Secs"]');
+    assert(shown === '4', 'the completed hold was overwritten on return, got: ' + shown);
+
+    await page.click('button:has-text("Finish Set")');
+    await page.click('button:has-text("Confirm Set")');
+    const logged = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions
+        .find((s) => s.id === 'hold-session-6').blocks[0].exercises[0].sets[0],
+    );
+    assert(logged.done === true, 'the set should be logged');
+    assert(logged.aVal === '4', 'expected the duration actually held to be logged, got: ' + logged.aVal);
+  } finally {
+    await holdCleanup(6, orig.id);
+  }
+});
+
+await t('a hold that completes off-screen is not clobbered by the previous set carried forward', async () => {
+  // The same race with the two effects DISAGREEING: set 1 logged 9 seconds, so
+  // the stale prefill has a real number of its own to overwrite the completed
+  // hold with. Parsing the target does not save this one — the prefill never
+  // reaches the target at all.
+  const orig = await holdScratch(7, [{ t: '3-4s', rpe: '', done: true, aVal: '9' }, { t: '3-4s', rpe: '' }]);
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('input[aria-label="Secs"]');
+    const carried = await page.inputValue('input[aria-label="Secs"]');
+    assert(carried === '9', 'set 2 should open on what set 1 held, got: ' + carried);
+
+    await page.click('button:has-text("Start")');
+    await stepAwayAndBack();
+
+    const shown = await page.inputValue('input[aria-label="Secs"]');
+    assert(shown === '4', "the completed hold was clobbered by the previous set's value, got: " + shown);
+
+    await page.click('button:has-text("Finish Set")');
+    await page.click('button:has-text("Confirm Set")');
+    const logged = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions
+        .find((s) => s.id === 'hold-session-7').blocks[0].exercises[0].sets[1],
+    );
+    assert(logged.done === true, 'the set should be logged');
+    assert(logged.aVal === '4', 'expected the duration actually held to be logged, got: ' + logged.aVal);
+  } finally {
+    await holdCleanup(7, orig.id);
+  }
+});
+
 await t('a weight of 1e309 cannot poison the record', async () => {
   await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
   await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');

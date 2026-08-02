@@ -388,7 +388,17 @@ export function pruneCondTraces(
 export interface RestoreReport {
   workouts: number;
   sessions: number;
-  /** records already present that the incoming file did not add */
+  /**
+   * Records already present that the incoming file did not add — counted as
+   * what SURVIVED, id by id, not inferred from how the totals moved.
+   *
+   * The arithmetic version (`before + incoming − after`) quietly assumed the
+   * merge only ever grows: every record it dropped shrank `after` and so
+   * inflated `kept` by one. A workout deleted on another device arrives in the
+   * backup, `notTombstoned` correctly purges it, and the report called that
+   * purge a keep — restoring a file with nothing left in it reported one record
+   * kept out of a database holding zero.
+   */
   kept: number;
   mode: 'merge' | 'replace';
 }
@@ -431,19 +441,29 @@ export function restoreDb(
   }
 
   const incoming = sanitizeDB(raw);
-  const before = current.workouts.length + current.sessions.length;
   // mergeEngines(local, remote): the incoming file is `remote`, so a record
   // present in both is resolved by the same updatedAt rule sync already uses
   // rather than by which side happened to be the file.
   const db = mode === 'replace' ? incoming : mergeEngines(current, incoming);
-  const added = db.workouts.length + db.sessions.length;
+
+  // Namespaced because a workout and a session are different records even if
+  // some ancient export gave them the same id.
+  const ids = (e: EngineDB) =>
+    (e.workouts || []).map((w) => 'w:' + w.id).concat((e.sessions || []).map((s) => 's:' + s.id));
+  const had = new Set(ids(current));
+  // Present before AND still present after: the only records that were truly
+  // kept. Anything `notTombstoned` purged is absent from `db` and so counts for
+  // nothing, which is the whole correction.
+  const kept = ids(db).filter((k) => had.has(k)).length;
 
   return {
     db,
     report: {
       workouts: db.workouts.length,
       sessions: db.sessions.length,
-      kept: mode === 'replace' ? 0 : Math.max(0, before + incoming.workouts.length + incoming.sessions.length - added),
+      // `replace` is defined as "throw away what is here", so nothing it leaves
+      // standing was kept from the old database — it all came from the file.
+      kept: mode === 'replace' ? 0 : kept,
       mode,
     },
   };

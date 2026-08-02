@@ -60,6 +60,45 @@ describe('restoreDb', () => {
     expect(out.workouts).toHaveLength(0);
   });
 
+  /*
+   * `report.kept` — "records already present that the incoming file did not
+   * add". It used to be inferred from how the totals moved
+   * (`before + incoming − after`), which silently assumed the merge only ever
+   * grows. Every record `notTombstoned` DROPPED shrank the after-total and so
+   * inflated `kept` by one: a purge counted as a keep.
+   */
+  it('does not count a tombstoned record it correctly dropped as "kept"', () => {
+    const current = db([], [], { deletedIds: { w1: 9 } });
+    const old = db([wk('w1', 'Deleted on purpose')], []);
+    const { db: out, report } = restoreDb(current, old);
+    // Nothing survived at all, so nothing can have been kept.
+    expect(out.workouts).toHaveLength(0);
+    expect(report.kept).toBe(0); // was 1
+  });
+
+  it('does not count a tombstoned record present on BOTH sides as kept', () => {
+    const current = db([wk('w1', 'Deleted on purpose')], [], { deletedIds: { w1: 9 } });
+    const old = db([wk('w1', 'Deleted on purpose')], []);
+    const { db: out, report } = restoreDb(current, old);
+    expect(out.workouts).toHaveLength(0);
+    expect(report.kept).toBe(0); // was 2 — more kept than the database holds
+  });
+
+  it('counts a local record the file knows nothing about as kept', () => {
+    const current = db([wk('w1', 'Mine')], []);
+    const file = db([wk('w2', 'Theirs')], []);
+    const { db: out, report } = restoreDb(current, file);
+    expect(out.workouts).toHaveLength(2);
+    expect(report.kept).toBe(1); // w1 was already here and the file did not add it
+  });
+
+  it('counts a record present on both sides once, not twice', () => {
+    const current = db([wk('w1', 'Mine', 500)], [sess('s1', '2026-01-02')]);
+    const file = db([wk('w1', 'Older', 100)], []);
+    const { report } = restoreDb(current, file);
+    expect(report).toMatchObject({ workouts: 1, sessions: 1, kept: 2 });
+  });
+
   it('keeps the newer of two records that exist on both sides', () => {
     const current = db([wk('w1', 'Renamed today', 500)], []);
     const old = db([wk('w1', 'Old name', 100)], []);

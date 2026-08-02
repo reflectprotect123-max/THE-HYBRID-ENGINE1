@@ -121,6 +121,37 @@ export function duplicateExercise<S extends AnySet>(exercises: Exercise<S>[], ei
 }
 
 /**
+ * The name a duplicate takes: "Push Day" → "Push Day copy" → "Push Day copy 2"
+ * → "Push Day copy 3".
+ *
+ * The suffix exists for ONE reason — otherwise two identically-named cards are
+ * indistinguishable in the Library list until expanded — and plain concatenation
+ * failed at exactly that job twice. Duplicating a duplicate grew "Push Day copy
+ * copy", and then "copy copy copy", unboundedly: a suffix that stops being read
+ * as a suffix. And duplicating the SAME session twice produced two cards both
+ * called "Push Day copy", which is the very ambiguity the suffix was added to
+ * remove.
+ *
+ * So the tail is parsed rather than appended to. A name already ending in
+ * "copy" or "copy N" keeps its base and takes the next number, and `taken` —
+ * the names already in the library — pushes the number along until it lands on
+ * one nobody is using. Matching is case-insensitive because "Copy" typed by
+ * hand is the same suffix to a reader; the emitted form is always lowercase.
+ */
+function copyNameFor(raw: unknown, taken: string[]): string {
+  const src = String(raw == null ? '' : raw).trim() || 'Session';
+  const m = /^(.*?)\s+copy(?:\s+(\d+))?$/i.exec(src);
+  // `m[1]` empty means the whole name IS "copy" — a real name, not a suffix.
+  const base = m && m[1].trim() ? m[1].trim() : src;
+  const label = (i: number) => (i > 1 ? `${base} copy ${i}` : `${base} copy`);
+  const used = new Set(taken.map((t) => String(t == null ? '' : t).trim().toLowerCase()));
+  let n = m && m[1].trim() ? Math.max(1, parseInt(m[2] || '1', 10)) + 1 : 1;
+  // Bounded by `taken`: each step rules out one existing name.
+  while (used.has(label(n).toLowerCase())) n++;
+  return label(n);
+}
+
+/**
  * Clone a Workout as a new, independent, unscheduled record.
  *
  * Every level that carries an id gets a fresh one — the workout itself,
@@ -133,8 +164,17 @@ export function duplicateExercise<S extends AnySet>(exercises: Exercise<S>[], ei
  * scheduled slot would silently double-book that weekday until the
  * athlete manually reassigns it. `_rev` is sync bookkeeping specific to
  * the original record. `updatedAt` is refreshed like any new record.
+ *
+ * `existingNames` is optional and only feeds the name (see `copyNameFor`):
+ * without it the copy is still never "X copy copy", it just cannot know that
+ * "X copy" is already sitting in the library. Callers that HAVE the list — both
+ * Library screens do, one line away — should pass it, and get a name that is
+ * unique in the list they are about to push onto.
  */
-export function duplicateWorkout<S extends AnySet>(w: Workout<S>): Workout<S> {
+export function duplicateWorkout<S extends AnySet>(
+  w: Workout<S>,
+  existingNames: string[] = [],
+): Workout<S> {
   const blocks: Block<S>[] = w.blocks.map((b) => {
     if (b.kind === 'text') return { ...b, id: uid(), done: false };
     if (b.kind === 'conditioning') return { ...b, id: uid(), condResult: undefined };
@@ -147,7 +187,7 @@ export function duplicateWorkout<S extends AnySet>(w: Workout<S>): Workout<S> {
   return {
     ...w,
     id: uid(),
-    name: (w.name || 'Session') + ' copy',
+    name: copyNameFor(w.name, existingNames),
     blocks,
     days: undefined,
     dates: undefined,

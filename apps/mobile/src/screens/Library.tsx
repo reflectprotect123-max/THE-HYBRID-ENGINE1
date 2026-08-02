@@ -75,7 +75,9 @@ export function LibraryScreen() {
    *  comment for why. Lands on Planner, pre-populated, not GuidedBuilder:
    *  GuidedBuilder is append-only and cannot open on existing content. */
   const duplicate = (w: Workout) => {
-    const copy = duplicateWorkout(w);
+    // The library's own names, so the copy lands on one that is not already in
+    // the list it is about to join — see `duplicateWorkout`.
+    const copy = duplicateWorkout(w, db.workouts.map((x) => x.name || ''));
     update((d) => {
       d.workouts.push(copy);
     });

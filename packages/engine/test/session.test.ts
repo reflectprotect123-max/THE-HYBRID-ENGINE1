@@ -191,6 +191,53 @@ describe('duplicateWorkout', () => {
     expect(copy.name).toBe('Session copy');
   });
 
+  /*
+   * The suffix earns its keep only if it stays readable as a suffix and stays
+   * distinguishing. Plain concatenation failed both: "Push Day copy copy" (and
+   * "copy copy copy", without limit), and two library cards both called
+   * "Push Day copy" — the exact ambiguity the suffix exists to remove.
+   */
+  it('numbers a duplicate-of-a-duplicate instead of growing "copy copy"', () => {
+    const copy = duplicateWorkout(workout({ name: 'Push Day copy' }));
+    expect(copy.name).toBe('Push Day copy 2');
+    expect(copy.name).not.toContain('copy copy');
+  });
+
+  it('keeps counting up rather than resetting, however many times it is repeated', () => {
+    let name = 'Push Day';
+    const seen: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      name = duplicateWorkout(workout({ name })).name as string;
+      seen.push(name);
+    }
+    expect(seen).toEqual(['Push Day copy', 'Push Day copy 2', 'Push Day copy 3', 'Push Day copy 4']);
+  });
+
+  it('steps past names already in the library when given them', () => {
+    const existing = ['Push Day', 'Push Day copy', 'Push Day copy 2'];
+    const copy = duplicateWorkout(workout({ name: 'Push Day' }), existing);
+    expect(copy.name).toBe('Push Day copy 3');
+  });
+
+  it('duplicating the same source twice gives two distinguishable names', () => {
+    const w = workout({ name: 'Push Day' });
+    const names = ['Push Day'];
+    const first = duplicateWorkout(w, names);
+    names.push(first.name as string);
+    const second = duplicateWorkout(w, names);
+    expect(first.name).toBe('Push Day copy');
+    expect(second.name).toBe('Push Day copy 2');
+    expect(second.name).not.toBe(first.name);
+  });
+
+  it('reads a hand-typed "Copy" as the same suffix but always emits it lowercase', () => {
+    expect(duplicateWorkout(workout({ name: 'Push Day Copy' })).name).toBe('Push Day copy 2');
+  });
+
+  it('treats a name that is only the word "copy" as a real name, not a suffix', () => {
+    expect(duplicateWorkout(workout({ name: 'copy' })).name).toBe('copy copy');
+  });
+
   it('strips a CondBlock\'s condResult on the copy — a template should not inherit another session\'s logged result', () => {
     const condBlock: CondBlock = {
       id: 'cond-block',

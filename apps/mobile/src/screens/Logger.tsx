@@ -182,11 +182,32 @@ export function LoggerScreen({ route, navigation }: Props) {
     // A held duration belongs to the set it was held for. Moving the cursor
     // drops it, or a stop on one set would be committed onto the next.
     heldRef.current = null;
-    setV1(prefillPrimary(ex, si, db.sessions, { settings: db.settings, whoop }));
+    /*
+     * A hold that ran out while its own field was unmounted — the athlete
+     * started a plank and stepped away — is claimed by `SecondsTimerField`'s
+     * effect on the render where they come BACK to that set. React runs a
+     * child's effect before its parent's, so by the time this one runs the
+     * claim has already written the seconds actually held into the session and
+     * into `v1`. This closure's `ex` is the one rendered before that write,
+     * where `aVal` was still empty, so prefilling from it overwrote a real
+     * logged duration with a suggestion — and the confirm that followed logged
+     * the suggestion.
+     *
+     * The fix is agreement, not ordering: an unclaimed finish belonging to THIS
+     * set is what the field is about to show either way, so this effect names
+     * the same number rather than trusting a snapshot taken before it existed.
+     * The claim is gated on `owner` in both places, so a finish armed on some
+     * other set is still prefilled past rather than adopted here.
+     */
+    const claimed =
+      ex.mode === 'seconds' && setTimer.finished && setTimer.owner === setKey && setTimer.total > 0
+        ? String(setTimer.total)
+        : null;
+    setV1(claimed ?? prefillPrimary(ex, si, db.sessions, { settings: db.settings, whoop }));
     setV2(prefillSecondary(ex, si));
     setNoteOpen(false);
     setPlatesOpen(false);
-  }, [ex, si, setKey, db.sessions, db.settings, whoop]);
+  }, [ex, si, setKey, db.sessions, db.settings, whoop, setTimer]);
 
   useEffect(() => {
     if (phase === 'rest' && !rest.running) setPhase('input');

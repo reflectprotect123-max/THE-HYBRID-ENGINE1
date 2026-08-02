@@ -76,7 +76,9 @@ export function Library() {
   }
 
   function duplicate(w: Workout) {
-    const copy = duplicateWorkout(w);
+    // The library's own names, so the copy lands on one that is not already in
+    // the list it is about to join — see `duplicateWorkout`.
+    const copy = duplicateWorkout(w, db.workouts.map((x) => x.name || ''));
     update((draft) => {
       draft.workouts.push(copy);
     });
