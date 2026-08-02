@@ -8,7 +8,20 @@
  * because the bug was never in the engine.
  */
 import { act, fireEvent, screen } from '@testing-library/react-native';
-import { LS_KEY, freshSessionBlocks, uid, ymd, type EngineDB, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
+import {
+  LS_KEY,
+  freshSessionBlocks,
+  newBlock,
+  newEx,
+  newSet,
+  uid,
+  ymd,
+  type EngineDB,
+  type LoggedSet,
+  type Session,
+  type StrengthBlock,
+  type Workout,
+} from '@hybrid/engine';
 import { liftWorkout, renderScreen, seed } from './harness';
 import { storage } from '../src/store/storage';
 import { LoggerScreen } from '../src/screens/Logger';
@@ -30,6 +43,27 @@ function liveSession(over: Partial<EngineDB> = {}) {
     workoutId: w.id,
   };
   seed({ workouts: [w], sessions: [s], ...over });
+  return s;
+}
+
+/** A live session on one `seconds`-mode hold (e.g. a plank), targeting `t`
+ *  seconds — short by default so a test can run the countdown to zero without
+ *  a multi-second real wait (fake timers still need to advance, but nothing
+ *  here depends on real wall-clock time). */
+function secondsSession(t = '2') {
+  const ex = { ...newEx(), id: uid(), name: 'Plank', mode: 'seconds' as const, sets: [{ ...newSet(), t }] };
+  const block = { ...newBlock(), id: uid(), heading: 'Core', exercises: [ex] };
+  const w: Workout = { id: uid(), name: 'Core', blocks: [block], updatedAt: Date.now() };
+  const s: Session = {
+    id: uid(),
+    date: ymd(new Date()),
+    name: 'Core',
+    status: 'active',
+    blocks: freshSessionBlocks(w.blocks),
+    startedAt: Date.now(),
+    workoutId: w.id,
+  };
+  seed({ workouts: [w], sessions: [s] });
   return s;
 }
 
@@ -211,6 +245,30 @@ describe('Logger', () => {
     expect(screen.getByLabelText('kg').props.value).toBe('100');
     fireEvent.press(screen.getByText('Apply'));
     expect(screen.getByLabelText('kg').props.value).toBe('102.5');
+  });
+
+  it('running a seconds-mode set to zero fills the field with the held duration', () => {
+    // t: '2' — a short target so the countdown running to zero costs only a
+    // fake-timer advance, not a multi-second real wait. Mirrors the
+    // fireEvent-then-advanceTimersByTime idiom conditioning.test.tsx's
+    // finishARun() uses for its own on-the-clock behaviour.
+    secondsSession('2');
+    mount();
+    fireEvent.press(screen.getByText('Start'));
+    // Past the 2s target plus tick margin (the countdown polls every 250ms).
+    act(() => jest.advanceTimersByTime(2600));
+    expect(screen.getByLabelText('seconds').props.value).toBe('2');
+  });
+
+  it('stopping a seconds-mode timer early writes the actual elapsed time, not 0 or the full target', () => {
+    secondsSession('10');
+    mount();
+    fireEvent.press(screen.getByText('Start'));
+    act(() => jest.advanceTimersByTime(4000));
+    fireEvent.press(screen.getByText('Stop'));
+    const held = Number(screen.getByLabelText('seconds').props.value);
+    expect(held).toBeGreaterThan(0);
+    expect(held).toBeLessThan(10);
   });
 
   it('says nothing when the "progression" would write a smaller number than the field already shows', () => {

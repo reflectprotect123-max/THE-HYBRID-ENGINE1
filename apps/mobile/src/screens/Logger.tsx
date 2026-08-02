@@ -36,6 +36,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useRest } from '../store/rest';
+import { useSetTimer } from '../store/setTimer';
 import { Btn, Chip, Input, Ltr, T, Tap } from '../ui';
 import { setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
@@ -55,6 +56,62 @@ import type { RootStackParams } from '../App';
  */
 type Props = NativeStackScreenProps<RootStackParams, 'Logger'>;
 type Phase = 'input' | 'rpe' | 'rest';
+
+/** A live countdown for `seconds`-mode holds (stretches, planks). While
+ *  running the field mirrors the timer's remaining seconds and is read-only;
+ *  Start/Stop own the value the way a manual edit normally would. */
+function SecondsTimerField({
+  label,
+  value,
+  onChange,
+  targetSec,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  targetSec: number;
+}) {
+  const timer = useSetTimer();
+
+  // Deliberately depends only on `timer.finished` — this should fire once on
+  // the transition to finished, not on every render where `onChange`/`timer`
+  // identity happens to change. The project has no lint script enforcing
+  // exhaustive-deps, so no eslint-disable comment is needed here.
+  useEffect(() => {
+    if (!timer.finished) return;
+    onChange(String(timer.total));
+    timer.ack();
+  }, [timer.finished]);
+
+  return (
+    <>
+      <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">
+        {label}
+      </T>
+      <View className="mt-0.5 flex-row items-center gap-1">
+        <Input
+          accessibilityLabel="seconds"
+          value={timer.running ? String(timer.left) : value}
+          onChangeText={onChange}
+          editable={!timer.running}
+          keyboardType="number-pad"
+          w="semi"
+          num
+          className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 text-text"
+        />
+        {timer.running ? (
+          <Btn variant="ghost" size="md" onPress={() => onChange(String(timer.stop()))}>
+            Stop
+          </Btn>
+        ) : (
+          <Btn variant="ghost" size="md" onPress={() => timer.start(targetSec)} disabled={!targetSec}>
+            Start
+          </Btn>
+        )}
+      </View>
+    </>
+  );
+}
 
 export function LoggerScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -471,10 +528,12 @@ export function LoggerScreen({ route, navigation }: Props) {
                       className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 text-text"
                     />
                   </>
+                ) : ex.mode === 'seconds' ? (
+                  <SecondsTimerField label="Secs" value={v1} onChange={(t) => writeVal(1, t)} targetSec={Number(st.t) || 0} />
                 ) : (
                   <>
                     <T w="semi" className="mt-2 text-2 uppercase tracking-widest text-dim">
-                      {ex.mode === 'seconds' ? 'Secs' : 'Reps'}
+                      Reps
                     </T>
                     <Input
                       value={v1}
@@ -482,6 +541,7 @@ export function LoggerScreen({ route, navigation }: Props) {
                       keyboardType="number-pad"
                       w="semi"
                       num
+                      accessibilityLabel="reps"
                       className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 text-text"
                     />
                   </>

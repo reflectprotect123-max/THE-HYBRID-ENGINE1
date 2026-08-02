@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { newBlock, newEx, newSet, uid, ymd, type EngineDB, type Session, type Workout } from '@hybrid/engine';
 import { DbProvider } from '../src/store/db';
 import { RestProvider } from '../src/store/rest';
+import { SetTimerProvider } from '../src/store/setTimer';
 import { storage } from '../src/store/storage';
 import { LS_KEY } from '@hybrid/engine';
 
@@ -48,7 +49,9 @@ export function renderScreen(ui: ReactElement, params?: object) {
     <SafeAreaProvider initialMetrics={{ frame: FRAME, insets: INSETS }}>
       <DbProvider>
         <RestProvider>
-          <NavigationContainer>{inner}</NavigationContainer>
+          <SetTimerProvider>
+            <NavigationContainer>{inner}</NavigationContainer>
+          </SetTimerProvider>
         </RestProvider>
       </DbProvider>
     </SafeAreaProvider>,
@@ -73,14 +76,16 @@ export function renderStack(ui: ReactElement, params?: object) {
     <SafeAreaProvider initialMetrics={{ frame: FRAME, insets: INSETS }}>
       <DbProvider>
         <RestProvider>
-          <NavigationContainer ref={navRef}>
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="Below">{() => <View />}</Stack.Screen>
-              <Stack.Screen name="Under test" initialParams={params}>
-                {() => ui}
-              </Stack.Screen>
-            </Stack.Navigator>
-          </NavigationContainer>
+          <SetTimerProvider>
+            <NavigationContainer ref={navRef}>
+              <Stack.Navigator screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="Below">{() => <View />}</Stack.Screen>
+                <Stack.Screen name="Under test" initialParams={params}>
+                  {() => ui}
+                </Stack.Screen>
+              </Stack.Navigator>
+            </NavigationContainer>
+          </SetTimerProvider>
         </RestProvider>
       </DbProvider>
     </SafeAreaProvider>,
