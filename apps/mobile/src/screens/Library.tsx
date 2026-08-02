@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Modal, View } from 'react-native';
+import { Alert, Modal, ScrollView, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -50,6 +50,15 @@ export function LibraryScreen() {
   const [editingFolder, setEditingFolder] = useState<string | null>(null);
   const [folderName, setFolderName] = useState('');
   const [pickerFor, setPickerFor] = useState<string | null>(null);
+  // The picker Modal's OWN "+ New folder" inline-create state, separate from
+  // `editingFolder`/`folderName` above. Those two are shared by the
+  // background folder list's inline create AND rename UI; the picker only
+  // ever creates (never renames), but reusing the same state meant tapping
+  // "+ New folder" inside the picker also mounted the identical inline input
+  // in the accessibility-hidden background list behind it, and an
+  // uncommitted entry there could leak into the NEXT time the picker opened.
+  const [pickerEditingFolder, setPickerEditingFolder] = useState(false);
+  const [pickerFolderName, setPickerFolderName] = useState('');
 
   /* Three slices of one library, not three destinations. Sessions are things
      you START; exercises and mobility are things you LOOK UP. In one list the
@@ -58,7 +67,11 @@ export function LibraryScreen() {
   const [q, setQ] = useState('');
 
   const mine = db.workouts;
-  const folders = db.settings.folders || [];
+  // Memoized, not just `|| []` inline: when `db.settings.folders` is
+  // undefined that fallback mints a fresh array every render, which defeats
+  // `ungrouped`'s own useMemo below on every render regardless of whether
+  // anything folder-related actually changed.
+  const folders = useMemo(() => db.settings.folders || [], [db.settings.folders]);
   const ungrouped = useMemo(() => ungroupedWorkouts(mine, folders), [mine, folders]);
   const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
   const mobility = useMemo(
@@ -149,6 +162,39 @@ export function LibraryScreen() {
       });
     }
     setEditingFolder(null);
+  };
+
+  /** The picker Modal's own "+ New folder" — see the `pickerEditingFolder`
+   *  state doc comment above for why this is not just `startNewFolder` /
+   *  `commitFolderEdit` reused. Creation-only, so there is no rename branch
+   *  to mirror `commitFolderEdit`'s `editingFolder` id case. */
+  const startPickerNewFolder = () => {
+    setPickerEditingFolder(true);
+    setPickerFolderName('');
+  };
+
+  const commitPickerFolderEdit = () => {
+    const name = pickerFolderName.trim();
+    setPickerEditingFolder(false);
+    if (!name) return;
+    update((d) => {
+      d.settings.folders = [...(d.settings.folders || []), { id: uid(), name }];
+    });
+  };
+
+  /** Opens the picker for a workout with a clean slate: any uncommitted
+   *  in-picker "+ New folder" entry from a previous open must not leak into
+   *  this one. */
+  const openPicker = (workoutId: string) => {
+    setPickerEditingFolder(false);
+    setPickerFolderName('');
+    setPickerFor(workoutId);
+  };
+
+  const closePicker = () => {
+    setPickerFor(null);
+    setPickerEditingFolder(false);
+    setPickerFolderName('');
   };
 
   const removeFolder = (f: Folder) =>
@@ -273,7 +319,7 @@ export function LibraryScreen() {
                   className="h-5 flex-1 rounded-md border border-line bg-well px-1.5 text-4 text-text"
                 />
                 <Btn variant="brass" onPress={commitFolderEdit}>
-                  Add
+                  Save
                 </Btn>
               </View>
             ) : (
@@ -288,7 +334,7 @@ export function LibraryScreen() {
                     {f.name}
                   </T>
                   <T num className="text-3 text-dim">
-                    {inFolder.length}
+                    ({inFolder.length})
                   </T>
                 </Tap>
                 <Tap
@@ -325,7 +371,7 @@ export function LibraryScreen() {
                     confirmRemove={confirmRemove}
                     nav={nav}
                     toggleDay={toggleDay}
-                    onOpenFolders={setPickerFor}
+                    onOpenFolders={openPicker}
                   />
                 ))}
               </View>
@@ -354,49 +400,59 @@ export function LibraryScreen() {
       </>
       )}
 
-      <Modal visible={pickerFor != null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
+      <Modal visible={pickerFor != null} transparent animationType="fade" onRequestClose={closePicker}>
         <View className="flex-1 items-center justify-center bg-black/50 p-2">
           <Card className="w-full">
             <T w="semi" className="text-6 text-text">
               Folders
             </T>
-            {folders.map((f) => {
-              const w = mine.find((x) => x.id === pickerFor);
-              const on = pickerFor ? (w?.folderIds || []).includes(f.id) : false;
-              return (
-                <View key={f.id} className="mt-1">
-                  <Chip
-                    on={on}
-                    onPress={() => pickerFor && toggleFolderForWorkout(pickerFor, f.id)}
-                    label={`${f.name}, ${on ? 'in folder' : 'not in folder'}`}
-                  >
-                    {f.name}
-                  </Chip>
-                </View>
-              );
-            })}
-            {!folders.length ? (
-              <T className="mt-1 text-4 text-dim">No folders yet.</T>
-            ) : null}
-            {editingFolder === 'NEW' ? (
+            {/* Only the per-folder chips scroll — with enough folders they
+                would otherwise overflow the (vertically centered) modal in
+                both directions and push "Done" off screen with no way back
+                on iOS. The "+ New folder" input and "Done" stay outside this
+                ScrollView so they are always reachable regardless of how
+                many folders there are. maxHeight is a fraction of the modal
+                rather than a fixed px, so it scales with the device instead
+                of being right on one phone and wrong on the next. */}
+            <ScrollView style={{ maxHeight: '60%' }} className="mt-1">
+              {folders.map((f) => {
+                const w = mine.find((x) => x.id === pickerFor);
+                const on = pickerFor ? (w?.folderIds || []).includes(f.id) : false;
+                return (
+                  <View key={f.id} className="mb-1">
+                    <Chip
+                      on={on}
+                      onPress={() => pickerFor && toggleFolderForWorkout(pickerFor, f.id)}
+                      label={`${f.name}, ${on ? 'in folder' : 'not in folder'}`}
+                    >
+                      {f.name}
+                    </Chip>
+                  </View>
+                );
+              })}
+              {!folders.length ? (
+                <T className="text-4 text-dim">No folders yet.</T>
+              ) : null}
+            </ScrollView>
+            {pickerEditingFolder ? (
               <View className="mt-1 flex-row items-center gap-1">
                 <Input
-                  value={folderName}
-                  onChangeText={setFolderName}
+                  value={pickerFolderName}
+                  onChangeText={setPickerFolderName}
                   placeholder="Folder name"
                   accessibilityLabel="New folder name"
                   className="h-5 flex-1 rounded-md border border-line bg-well px-1.5 text-4 text-text"
                 />
-                <Btn variant="brass" onPress={commitFolderEdit}>
+                <Btn variant="brass" onPress={commitPickerFolderEdit}>
                   Add
                 </Btn>
               </View>
             ) : (
-              <Btn variant="ghost" className="mt-1" onPress={startNewFolder}>
+              <Btn variant="ghost" className="mt-1" onPress={startPickerNewFolder}>
                 + New folder
               </Btn>
             )}
-            <Btn variant="brass" className="mt-1.5" onPress={() => setPickerFor(null)}>
+            <Btn variant="brass" className="mt-1.5" onPress={closePicker}>
               Done
             </Btn>
           </Card>

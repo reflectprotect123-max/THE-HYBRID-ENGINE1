@@ -62,7 +62,11 @@ export function Library() {
   const [q, setQ] = useState('');
 
   const mine = db.workouts;
-  const folders = db.settings.folders || [];
+  // Memoized, not just `|| []` inline: when `db.settings.folders` is
+  // undefined that fallback mints a fresh array every render, which defeats
+  // `ungrouped`'s own useMemo below on every render regardless of whether
+  // anything folder-related actually changed.
+  const folders = useMemo(() => db.settings.folders || [], [db.settings.folders]);
   const ungrouped = useMemo(() => ungroupedWorkouts(mine, folders), [mine, folders]);
   const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
   const mobility = useMemo(
@@ -229,7 +233,19 @@ export function Library() {
                 e.preventDefault();
                 setDragOverFolder(f.id);
               }}
-              onDragLeave={() => setDragOverFolder((cur) => (cur === f.id ? null : cur))}
+              onDragLeave={(e) => {
+                // `dragleave` bubbles from every inner element the pointer
+                // crosses (the chevron, the name, the count, the Rename/
+                // Delete buttons), not just the drop target's own boundary —
+                // clearing the highlight on every one of those flickered it
+                // on/off as the pointer moved across the row. Only clear when
+                // the pointer has actually left the drop target itself, i.e.
+                // `relatedTarget` (where the pointer is headed) is not a
+                // descendant of `currentTarget` (this drop zone).
+                const next = e.relatedTarget as Node | null;
+                if (next && e.currentTarget.contains(next)) return;
+                setDragOverFolder((cur) => (cur === f.id ? null : cur));
+              }}
               onDrop={(e) => {
                 e.preventDefault();
                 setDragOverFolder(null);
@@ -244,7 +260,7 @@ export function Library() {
               >
                 <span aria-hidden>{isOpen ? '▾' : '▸'}</span>
                 <span className="min-w-0 flex-1 truncate text-5 font-[750]">{f.name}</span>
-                <span className="text-3 text-dim">{inFolder.length}</span>
+                <span className="text-3 text-dim">({inFolder.length})</span>
               </button>
               <Button size="sm" aria-label={`Rename ${f.name}`} onClick={() => renameFolder(f)}>
                 Rename
@@ -354,31 +370,44 @@ function WorkoutRow({
   removeFromFolder?: (workoutId: string, folderId: string) => void;
 }) {
   return (
+    // `draggable` sits on the whole card so the whole row is a drag handle,
+    // which is the drag-the-whole-row UX this task deliberately chose — the
+    // tradeoff (it also blocks text selection anywhere inside the row on
+    // desktop) is accepted rather than split into a dedicated handle, which
+    // would be a bigger restructure for a low-severity cost.
     <Card
       draggable
       onDragStart={(e) => e.dataTransfer.setData('text/plain', w.id)}
     >
-      {folderId && removeFromFolder ? (
+      <div className="flex items-center gap-1">
         <button
-          onClick={() => removeFromFolder(w.id, folderId)}
-          aria-label={`Remove ${w.name || 'session'} from ${folderName || 'folder'}`}
-          className="float-right text-3 text-dim hover:text-bad"
+          className="flex min-w-0 flex-1 items-center gap-1 text-left"
+          onClick={() => { setArmDel(null); setOpen(open === w.id ? null : w.id); }}
+          aria-expanded={open === w.id}
         >
-          ✕
+          <span className="min-w-0 flex-1 truncate text-5 font-[750]">{w.name || 'Session'}</span>
+          <span className="text-3 text-dim">
+            {isCondWorkout(w) || !w.blocks.length
+              ? 'conditioning'
+              : `${w.blocks.length} ${w.blocks.length === 1 ? 'block' : 'blocks'}`}
+          </span>
         </button>
-      ) : null}
-      <button
-        className="flex w-full items-center gap-1 text-left"
-        onClick={() => { setArmDel(null); setOpen(open === w.id ? null : w.id); }}
-        aria-expanded={open === w.id}
-      >
-        <span className="min-w-0 flex-1 truncate text-5 font-[750]">{w.name || 'Session'}</span>
-        <span className="text-3 text-dim">
-          {isCondWorkout(w) || !w.blocks.length
-            ? 'conditioning'
-            : `${w.blocks.length} ${w.blocks.length === 1 ? 'block' : 'blocks'}`}
-        </span>
-      </button>
+        {folderId && removeFromFolder ? (
+          // In the flex row alongside the title, like the folder-header's own
+          // Rename/Delete pair — not `float-right`, which broke out of the
+          // title button's flex flow and forced the ✕ onto its own line.
+          // Horizontal padding gives it a real tap target width; the global
+          // `pointer: coarse` rule (packages/design/tokens.css) already
+          // floors every <button>'s height at 44px.
+          <button
+            onClick={() => removeFromFolder(w.id, folderId)}
+            aria-label={`Remove ${w.name || 'session'} from ${folderName || 'folder'}`}
+            className="shrink-0 rounded-md px-1.5 text-3 text-dim hover:text-bad"
+          >
+            ✕
+          </button>
+        ) : null}
+      </div>
 
       <Signal w={w} />
 

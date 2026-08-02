@@ -548,15 +548,16 @@ describe('Library folders', () => {
 
     fireEvent.press(screen.getByLabelText('rename Test Folder'));
     fireEvent.changeText(screen.getByLabelText('New folder name'), 'Renamed Folder');
-    fireEvent.press(screen.getByText('Add'));
+    // "Save", not "Add" — this is a rename of an existing folder, not a
+    // create, and the commit button reads accordingly (see `editingFolder
+    // !== 'NEW'` in Library.tsx).
+    fireEvent.press(screen.getByText('Save'));
     expect(screen.getByText('Renamed Folder')).toBeTruthy();
 
-    // `jest.spyOn` on an already-mocked method (Alert.alert was spied by an
-    // earlier test in this file and never restored) returns that SAME mock
-    // rather than a fresh one, so its call history carries over — clear it
-    // here so `mock.calls[0]` below is this press, not a leftover one.
+    // jest.config.js sets `restoreMocks: true`, so every spy — this one
+    // included — starts each test with a clean call history; no manual
+    // `.mockClear()` needed.
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    alertSpy.mockClear();
     fireEvent.press(screen.getByLabelText('delete folder Renamed Folder'));
     const [, , buttons] = alertSpy.mock.calls[0] as [string, string, AlertButton[]];
     act(() => buttons.find((b) => b.text === 'Delete')!.onPress!());
@@ -615,5 +616,60 @@ describe('Library folders picker', () => {
     const w = db.workouts.find((x) => x.id === 'pick-target-2');
     expect(folder).toBeTruthy();
     expect(w?.folderIds).toEqual([folder!.id]);
+  });
+
+  /* RNTL renders against React Native's component tree, not a real device
+     screen — it never measures pixel layout, so there is no way to assert an
+     actual overflow/clip here the way a browser screenshot test could. What
+     IS testable, and is exactly the failure mode the review flagged (the
+     "Done" button becoming unreachable once enough folders pushed it off
+     screen): with a folder list long enough that the un-scrolled Modal of
+     before this fix would have overflowed, "Done" (and every folder chip)
+     must still be a queryable, pressable element in the tree — which they
+     only are if the folder list scrolls internally instead of growing the
+     whole Card past the screen. */
+  it('keeps "Done" reachable with enough folders to have overflowed the old fixed-height modal', () => {
+    const manyFolders = Array.from({ length: 30 }, (_, i) => ({ id: `many-${i}`, name: `Folder ${i}` }));
+    seed({
+      settings: { folders: manyFolders },
+      workouts: [{ id: 'many-target', name: 'Many Target', updatedAt: 1, blocks: [] }],
+    });
+    renderScreen(<LibraryScreen />);
+
+    fireEvent.press(screen.getByLabelText('folders for Many Target'));
+    // Every chip is in the tree even though only some are visible in a real
+    // scrolled viewport — proving the ScrollView doesn't drop content, just
+    // clips its rendered height.
+    expect(screen.getByText('Folder 0')).toBeTruthy();
+    expect(screen.getByText('Folder 29')).toBeTruthy();
+
+    const done = screen.getByText('Done');
+    expect(done).toBeTruthy();
+    fireEvent.press(done);
+  });
+
+  /* The picker's own "+ New folder" used to reuse the background folder
+     list's `editingFolder`/`folderName` state, so an uncommitted entry typed
+     inside the picker was still sitting in that shared state — and hence
+     still mounted, just accessibility-hidden — once the picker closed, and
+     leaked into the picker's NEXT open. Separate `pickerEditingFolder`/
+     `pickerFolderName` state, reset on both open and close, is the fix. */
+  it('does not leak an uncommitted "+ New folder" entry from the picker into the next time it opens', () => {
+    seed({
+      workouts: [{ id: 'leak-target', name: 'Leak Target', updatedAt: 1, blocks: [] }],
+    });
+    renderScreen(<LibraryScreen />);
+
+    fireEvent.press(screen.getByLabelText('folders for Leak Target'));
+    fireEvent.press(screen.getByText('+ New folder'));
+    fireEvent.changeText(screen.getByLabelText('New folder name'), 'Never Committed');
+    // Closed WITHOUT pressing "Add" — the entry is abandoned, not saved.
+    fireEvent.press(screen.getByText('Done'));
+
+    // Reopening starts clean: no leftover "New folder name" input, no
+    // leftover typed text sitting in a hidden background control.
+    fireEvent.press(screen.getByLabelText('folders for Leak Target'));
+    expect(screen.getByText('+ New folder')).toBeTruthy();
+    expect(screen.queryByLabelText('New folder name')).toBeNull();
   });
 });

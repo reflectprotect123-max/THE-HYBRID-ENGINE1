@@ -73,6 +73,14 @@ are both real edits — newer-wins on the whole record would silently drop
 one. `folderIds` gets the same treatment as `days`/`dates`: unioned via
 `uniqArr`, not inherited from whichever side is "newer."
 
+**Confirmed, accepted characteristic:** removing a workout from a folder does
+not converge across synced devices that both change it before either syncs —
+`folderIds` is a plain union like `days`/`dates`/`mobility` above, so a
+remove-from-folder on one device and any edit that still carries the old tag
+on another can leave the tag re-added by the merge; this is the same
+known/accepted tradeoff those other union-merge fields already carry, not a
+new bug class introduced by folders.
+
 ## Web UX (`apps/web/src/screens/Library.tsx`, Sessions tab)
 
 - Folder headers render above the flat workout list: a collapsible row with a
@@ -102,6 +110,11 @@ one. `folderIds` gets the same treatment as `days`/`dates`: unioned via
 - Removing a workout from ONE folder without deleting the workout: a small
   ✕ appears on a workout row only when it's rendered INSIDE a folder — distinct
   from the existing workout-delete ✕ — and strips just that one folder id.
+- **Confirmed, deliberate limitation:** web stays drag-and-drop only for
+  filing a workout INTO a folder — no picker UI on web. Drag-and-drop works
+  fine with a mouse; on a touch device's mobile browser, folders can still be
+  created, renamed, deleted and viewed on web, but a workout can only be
+  filed into one from the native mobile app's picker.
 
 ## Mobile UX (`apps/mobile/src/screens/Library.tsx`, Sessions tab)
 

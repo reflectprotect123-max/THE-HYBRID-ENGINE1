@@ -285,6 +285,16 @@ describe('duplicateWorkout', () => {
     expect(copy.sample).toBeUndefined();
     expect(w.sample).toBe(true);
   });
+
+  // `folderIds`, unlike `days`/`dates`/`sample`/`_rev` above, is deliberately
+  // KEPT — see duplicateWorkout's own doc comment. A folder is organisational
+  // metadata, not a scheduling/session-identity fact, so a duplicate of a
+  // Week-1 workout is itself a Week-1 workout until the athlete refiles it.
+  it("keeps the original's folderIds on the copy, unlike days/dates/sample/_rev", () => {
+    const w = workout({ folderIds: ['week-1', 'conditioning'] });
+    const copy = duplicateWorkout(w);
+    expect(copy.folderIds).toEqual(['week-1', 'conditioning']);
+  });
 });
 
 /*

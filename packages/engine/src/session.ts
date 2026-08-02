@@ -165,6 +165,12 @@ function copyNameFor(raw: unknown, taken: string[]): string {
  * athlete manually reassigns it. `_rev` is sync bookkeeping specific to
  * the original record. `updatedAt` is refreshed like any new record.
  *
+ * `folderIds`, by contrast, IS inherited — deliberately, not an oversight.
+ * A folder is organisational metadata about the workout ("this belongs under
+ * Week 1"), not a scheduling or session-identity fact the way `days`/`dates`/
+ * `sample`/`_rev` are, and a duplicate made from something filed in "Week 1"
+ * is itself a Week 1 workout until the athlete says otherwise.
+ *
  * `existingNames` is optional and only feeds the name (see `copyNameFor`):
  * without it the copy is still never "X copy copy", it just cannot know that
  * "X copy" is already sitting in the library. Callers that HAVE the list — both
