@@ -11,8 +11,58 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
-**2026-08-02 — Duplicate Workout shipped on branch `duplicate-workout`, verified, and
-pushed to that branch (not merged to `main`).** Four tasks, four commits: `6c602b9`
+**2026-08-02 — Set timer shipped on branch `set-timer`, verified (including a
+final-whole-branch-review fix wave), and merged to `main`.** Five tasks, plus a final
+whole-branch review that found 1 Critical and 2 Important real bugs, all fixed in one
+wave (commit `c0f21c1`) and confirmed by a scoped re-review before merge.
+
+**What shipped:** a live countdown timer for `seconds`-mode Logger sets (stretches,
+planks, holds) in both apps. `seconds`-mode fields render a `SecondsTimerField` with a
+Start control that arms a countdown against the set's `t` target (parsed via the
+existing `repTopOf`, so range/suffixed targets like `"20-30s"` arm correctly); while
+running, the field shows the live countdown and locks against manual typing; on
+completion it buzzes and fills the field with the held duration; Stop ends the hold
+early and writes the actual elapsed seconds. Driven by a new `useSetTimer` hook /
+`SetTimerProvider` in each app, a sibling of the existing `useRest`/`RestProvider`
+(end-timestamp persisted to storage, survives reload/backgrounding), kept separate from
+`useRest` since rest and a hold are different concerns with different completion
+behavior. Mobile's rest timer schedules a native background alarm; the set timer
+deliberately doesn't (an athlete holding a stretch is watching the screen).
+
+**The final whole-branch review caught real bugs the task-level reviews missed:**
+(1) **Critical** — tapping "Finish Set" while the countdown was still running logged
+the *target* duration, not what was actually held (verified live: 10s target, 4s held,
+screen read "6", disk recorded "10"). Fixed by stopping the timer on the Finish Set tap
+itself, mirroring the Stop button, threaded through a ref (not state) so it survives
+`confirmSet` running in the same render tick. (2) **Important** — a timer that finished
+while its own field was unmounted (rest phase, RPE phase, athlete moved on) would write
+its held duration onto whatever *different* seconds-mode field mounted next. Fixed by
+adding ownership tracking (`start(sec, owner)`, a persisted `-set-timer-owner` key, and
+`key={setKey}` on `SecondsTimerField` to force a real remount on set change) that gates
+both the completion-write and the running-display/Stop-button rendering — the second
+gate wasn't in the original brief but was needed, since a Stop button visible on an
+unrelated field could itself write the wrong value. (3) **Important** — range/suffixed
+targets left Start permanently disabled (`Number("20-30")` is `NaN`); fixed by using
+`repTopOf` instead of raw `Number()`, matching how every other target-parsing call site
+in these files already works.
+
+**Heart rate is deliberately NOT part of this** — stays exactly where it already lives
+(the Conditioning screen); nothing about `seconds`-mode strength sets reads or displays
+heart rate. **"Per side" needs no data-model change** — authored as two ordinary
+consecutive sets, each carrying its own `t` target; the timer just runs twice.
+
+Full repo `pnpm run verify` re-run fresh at the fix-wave tip (`c0f21c1`): **exit 0** —
+typecheck clean, engine **511/511** (unchanged — no engine code touched), guided-flow
+**15/15**, web **3/3**, mobile **80/80** (was 75/75 before this branch; the final +5
+across the branch and its fix wave cover natural-completion, early-stop, cross-set
+ownership, and range-target arming), react-smoke **37/37** (was 32/32; the final +5
+mirror the mobile cases), deploy-smoke **11/11**.
+
+---
+
+**2026-08-02 — Duplicate Workout shipped on branch `duplicate-workout`, verified
+(including a final-whole-branch-review fix wave), and merged to `main`.** Four tasks,
+four commits: `6c602b9`
 (engine — `duplicateWorkout(w)` added to `packages/engine/src/session.ts`, plus a new
 `describe('duplicateWorkout', ...)` block in `packages/engine/test/session.test.ts`),
 `858d9df` (web — a Duplicate button on Library workout cards in
@@ -64,7 +114,12 @@ in the react-smoke scenario, not a unit test), mobile **76/76** (was 75/75 befor
 task; the +1 is the new Duplicate case in `screens.test.tsx`), `build:site` clean,
 `check:csp` clean, react-smoke **33/33** (was 32/32 before this task; the +1 is
 "Duplicate clones a workout and lands on Planner with independent content"),
-deploy-smoke **11/11** (unchanged).
+deploy-smoke **11/11** (unchanged). A final whole-branch review afterward found 2 more
+Minor issues, both fixed in one pass (commit `aaf454a`): the Library action row clipped
+"Delete session" at ≤320px viewports once the Duplicate button was added (fixed with
+`flex-wrap`, matching the codebase's existing convention), and `duplicateWorkout`'s
+`updatedAt`-refresh and `sample`-clearing behavior — both already correct — had no test
+coverage (added, proven non-vacuous via mutation testing).
 
 **2026-08-02 — Phase 2 (adaptive strength progression) shipped on branch
 `phase2-strength-progression`, verified, and pushed to that branch (not merged to
