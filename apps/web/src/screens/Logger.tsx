@@ -34,6 +34,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useRest } from '../store/rest';
+import { useSetTimer } from '../store/setTimer';
 import { RestChip } from '../components/RestChip';
 import { Button, Card, Kicker, LetterChip, Meter, cx } from '../ui';
 
@@ -400,13 +401,15 @@ export function Logger() {
                     <PlainField label="Secs" value={v1} onChange={(v) => writeVal(1, v)} inputMode="numeric" />
                     <PlainField label="Reps" value={v2} onChange={(v) => writeVal(2, v)} inputMode="numeric" />
                   </>
-                ) : (
-                  <PlainField
-                    label={ex.mode === 'seconds' ? 'Secs' : 'Reps'}
+                ) : ex.mode === 'seconds' ? (
+                  <SecondsTimerField
+                    label="Secs"
                     value={v1}
                     onChange={(v) => writeVal(1, v)}
-                    inputMode="numeric"
+                    targetSec={Number(st.t) || 0}
                   />
+                ) : (
+                  <PlainField label="Reps" value={v1} onChange={(v) => writeVal(1, v)} inputMode="numeric" />
                 )}
 
                 <Affordances
@@ -600,6 +603,55 @@ function PlainField({
         aria-label={label}
         className="num mt-0.5 h-7 w-full rounded-md border border-line bg-well px-1 text-center text-9 font-[800] text-text shadow-well outline-none focus:border-gold-line"
       />
+    </div>
+  );
+}
+
+function SecondsTimerField({
+  label,
+  value,
+  onChange,
+  targetSec,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  targetSec: number;
+}) {
+  const timer = useSetTimer();
+
+  // Deliberately depends only on `timer.finished` — this should fire once on
+  // the transition to finished, not on every render where `onChange`/`timer`
+  // identity happens to change. The project has no lint script enforcing
+  // exhaustive-deps, so no eslint-disable comment is needed here.
+  useEffect(() => {
+    if (!timer.finished) return;
+    onChange(String(timer.total));
+    timer.ack();
+  }, [timer.finished]);
+
+  return (
+    <div className="mt-2">
+      <label className="text-2 font-[750] uppercase tracking-[.14em] text-dim">{label}</label>
+      <div className="mt-0.5 flex items-center gap-1">
+        <input
+          aria-label={label}
+          value={timer.running ? String(timer.left) : value}
+          onChange={(e) => onChange(e.target.value)}
+          readOnly={timer.running}
+          inputMode="numeric"
+          className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 text-text"
+        />
+        {timer.running ? (
+          <Button variant="ghost" size="sm" onClick={() => onChange(String(timer.stop()))}>
+            Stop
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={() => timer.start(targetSec)} disabled={!targetSec}>
+            Start
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
