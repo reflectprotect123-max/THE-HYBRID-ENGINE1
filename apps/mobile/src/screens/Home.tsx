@@ -33,8 +33,11 @@ import type { RootStackParams } from '../App';
  * conditioning will hold you to, and the week's honest totals last.
  *
  * The routes that have no tab of their own are reached from here by meaningful
- * doors rather than a pill row: the week strip and its header open Calendar,
- * the zones card offers Conditioning, and the 7-day totals link to History.
+ * doors rather than a pill row: the week strip's "Calendar ›" header opens
+ * Calendar, each day IN the strip opens that day itself — Recap for a day
+ * already trained, the Train tab for today, the read-only Day screen
+ * otherwise, resolved by `resolveDayTarget` — the zones card offers
+ * Conditioning, and the 7-day totals link to History.
  */
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
@@ -236,7 +239,9 @@ export function HomeScreen() {
 }
 
 /** Seven days, today lit, a brass dot on any day with planned or logged work.
- * Every cell is a door into the calendar (04-athlete-01). */
+ * Every cell is a door into THAT day (04-athlete-01): its Recap once trained,
+ * the Train tab if it is today, the read-only Day screen otherwise — see
+ * `resolveDayTarget`. Only the strip's "Calendar ›" header opens the month. */
 /** One of the three readiness dials: the figure inside, its name beneath. A
  *  missing reading shows an idle ring and a dash rather than a zero, because
  *  "no strap on last night" is not the same claim as "you scored nothing". */
@@ -297,10 +302,16 @@ function WeekStrip({
     // if the session actually has logged work, and the session id that flows
     // to resolveDayTarget is that same trained session — so a day that looks
     // trained here looks trained in Calendar too, and taps land on the same
-    // Recap either place.
-    const trainedByDate = new Map(
-      sessions.filter((s) => s.status !== 'active' && hasLoggedWork(s)).map((s) => [s.date, s.id]),
-    );
+    // Recap either place. That includes the tie-break: when a date carries
+    // more than one completed session the FIRST one wins, matching
+    // `workouts.find(...)` below and the design doc's "take the first" rule.
+    // `new Map(entries)` would keep the LAST entry for a repeated key, so the
+    // map is filled by hand.
+    const trainedByDate = new Map<string, string>();
+    for (const s of sessions) {
+      if (s.status === 'active' || !hasLoggedWork(s)) continue;
+      if (!trainedByDate.has(s.date)) trainedByDate.set(s.date, s.id);
+    }
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start);
       d.setDate(start.getDate() + i);

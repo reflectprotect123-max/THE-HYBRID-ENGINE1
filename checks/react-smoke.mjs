@@ -1041,6 +1041,11 @@ await t('Day preview shows the matched workout for a scheduled day, read-only', 
   await page.waitForSelector('text=Back Squat');
   const txt = await page.textContent('body');
   assert(/Back Squat/.test(txt), 'the matched workout did not render on Day');
+  // The preview has to say WHICH session is scheduled, not just list its
+  // blocks — `WorkoutDetail` is only the expand-body, so the name is Day's
+  // own heading. Mirrors mobile's `expect(screen.getByText('Lower'))` in
+  // apps/mobile/test/screens.test.tsx.
+  assert(/Lower A/.test(txt), 'the matched workout name did not render on Day');
   assert(!/Nothing scheduled/.test(txt), 'the empty state showed even though a workout matched');
   // Read-only: no Start/Edit/Delete/Duplicate control — those are
   // Library/Training's job, not this preview's.
@@ -1134,10 +1139,26 @@ await t("tapping a trained day on Calendar lands on that day's Recap", async () 
     });
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
   }, iso);
-  await clearRestTimer();
-  await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
-  await page.click(dayCell(label));
-  await page.waitForURL(/\/recap\/calTapRecap1/);
+  try {
+    await clearRestTimer();
+    await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
+    await page.click(dayCell(label));
+    await page.waitForURL(/\/recap\/calTapRecap1/);
+  } finally {
+    // Same save/restore discipline as the scenarios either side of this one,
+    // inverted: this test ADDS a scratch session, so the cleanup REMOVES it.
+    // Leaving it behind was not harmless — `dayOffsetInPage(5)` can land on
+    // the very date Task 6's week-strip tests use, and two completed sessions
+    // on one date make the day's Recap target ambiguous. `trainedByDate` now
+    // takes the FIRST session for a date, so a leaked fixture pushed BEFORE
+    // Task 6's own would win the day and send that test to the wrong Recap on
+    // whichever weekdays the two dates collide.
+    await page.evaluate(() => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'calTapRecap1');
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    });
+  }
 });
 
 await t('tapping today on Calendar lands on Training', async () => {

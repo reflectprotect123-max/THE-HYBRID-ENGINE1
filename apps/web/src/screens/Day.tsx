@@ -44,7 +44,15 @@ export function Day() {
       <ScreenTitle>{heading}</ScreenTitle>
 
       {matched ? (
-        <WorkoutDetail w={matched} />
+        <div className="mt-1">
+          {/* `WorkoutDetail` is only the expand-BODY — Library renders the
+              workout's own name in the card header above it, so reusing the
+              body alone here left the preview never saying WHICH session is
+              scheduled. Same `text-5 font-[750]` as that card header, and the
+              same element mobile's Day.tsx renders above its <Detail>. */}
+          <h2 className="truncate text-5 font-[750]">{matched.name || 'Session'}</h2>
+          <WorkoutDetail w={matched} />
+        </div>
       ) : (
         <div className="mt-2">
           <Empty title="Nothing scheduled" body="Nothing scheduled for this day." />
