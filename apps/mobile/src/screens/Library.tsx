@@ -6,6 +6,7 @@ import {
   CON_FORMATS,
   agoLabel,
   blockExercises,
+  duplicateWorkout,
   isCond,
   isCondWorkout,
   knownMovements,
@@ -68,6 +69,17 @@ export function LibraryScreen() {
       d.workouts.push(w);
     });
     nav.navigate('GuidedBuilder', { id: w.id });
+  };
+
+  /** A clone, independent from the id up — see `duplicateWorkout`'s own doc
+   *  comment for why. Lands on Planner, pre-populated, not GuidedBuilder:
+   *  GuidedBuilder is append-only and cannot open on existing content. */
+  const duplicate = (w: Workout) => {
+    const copy = duplicateWorkout(w);
+    update((d) => {
+      d.workouts.push(copy);
+    });
+    nav.navigate('Planner', { id: copy.id });
   };
 
   const toggleDay = (id: string, i: number) =>
@@ -195,6 +207,14 @@ export function LibraryScreen() {
                 <Detail w={w} />
                 <Btn variant="brass" className="mt-1.5" onPress={() => nav.navigate('Planner', { id: w.id })}>
                   Edit
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  className="mt-1.5"
+                  label={`duplicate ${w.name || 'session'}`}
+                  onPress={() => duplicate(w)}
+                >
+                  Duplicate
                 </Btn>
               </>
             ) : null}

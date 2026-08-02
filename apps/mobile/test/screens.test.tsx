@@ -10,11 +10,25 @@
  * A screen must always render SOMETHING. That is the rule these assert.
  */
 import { fireEvent, screen } from '@testing-library/react-native';
+import { useNavigation } from '@react-navigation/native';
 import { liftSession, liftWorkout, renderScreen, runEffort, seed, volumeSession } from './harness';
 import { ProgressScreen } from '../src/screens/Progress';
 import { LibraryScreen } from '../src/screens/Library';
 import { ExerciseScreen } from '../src/screens/Exercise';
 import { ymd } from '@hybrid/engine';
+
+/* Real navigation by default — every screen here mounts under `renderScreen`'s
+   genuine NavigationContainer, exactly as it does in the app. Only the
+   Duplicate test below swaps in a spy, to see where `nav.navigate` was told
+   to go without needing a second real screen registered to land on. */
+jest.mock('@react-navigation/native', () => ({
+  ...jest.requireActual('@react-navigation/native'),
+  useNavigation: jest.fn(),
+}));
+const realUseNavigation = jest.requireActual('@react-navigation/native').useNavigation;
+beforeEach(() => {
+  (useNavigation as jest.Mock).mockImplementation(realUseNavigation);
+});
 
 /* Relative, never hardcoded: the recovery chart only reads the last 30 days,
    so fixed dates pass until they age out and then fail for a reason that has
@@ -175,6 +189,25 @@ describe('Library', () => {
     renderScreen(<LibraryScreen />);
     expect(screen.queryByText(/opens at/)).toBeNull();
     expect(screen.queryByText(/times/)).toBeNull();
+  });
+
+  it('duplicates a session onto Planner with a fresh id, not the original', () => {
+    // Planner, never GuidedBuilder — GuidedBuilder is append-only and cannot
+    // open pre-populated with the original's content.
+    const w = liftWorkout('Lower');
+    seed({ workouts: [w] });
+    const navigate = jest.fn();
+    (useNavigation as jest.Mock).mockReturnValue({ navigate });
+
+    renderScreen(<LibraryScreen />);
+    fireEvent.press(screen.getByLabelText('expand Lower'));
+    fireEvent.press(screen.getByLabelText('duplicate Lower'));
+
+    expect(navigate).toHaveBeenCalledTimes(1);
+    const [screenName, params] = navigate.mock.calls[0];
+    expect(screenName).toBe('Planner');
+    expect(params.id).toEqual(expect.any(String));
+    expect(params.id).not.toBe(w.id);
   });
 });
 
