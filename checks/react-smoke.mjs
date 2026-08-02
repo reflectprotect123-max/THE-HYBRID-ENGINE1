@@ -1056,6 +1056,134 @@ await t('tapping an empty, untrained day on Calendar lands on the Day preview fo
   assert(!/Nothing scheduled/.test(txt), 'the empty state showed even though Lower A matches every day');
 });
 
+/*
+ * Task 6: Home's WeekStrip gives each day of the current week its own
+ * resolved target too — the same three-way split (recap / today / preview)
+ * Calendar's grid uses, wired through the same `resolveDayTarget`. This is
+ * the crux of the ORIGINAL bug report: tapping a trained day on Home used to
+ * always open the generic Calendar month view instead of landing on that
+ * day directly.
+ *
+ * WeekStrip only spans the CURRENT week (Sunday through Saturday), so these
+ * pick whichever end of the week is not today, rather than an arbitrary
+ * offset the way the Calendar tests above do — the week's Saturday if today
+ * isn't Saturday, otherwise the week's Sunday. Either way it stays inside
+ * the 7-day window WeekStrip actually renders and is never today itself.
+ */
+const weekEndInPage = () =>
+  page.evaluate(() => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(start.getDate() - start.getDay()); // this week's Sunday
+    const targetDow = now.getDay() === 6 ? 0 : 6;
+    const d = new Date(start);
+    d.setDate(start.getDate() + targetDow);
+    const p = (x) => String(x).padStart(2, '0');
+    return {
+      iso: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()),
+      label: d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
+    };
+  });
+
+await t("tapping a trained day on Home's week strip lands on that day's Recap", async () => {
+  const { iso, label } = await weekEndInPage();
+  await page.evaluate((iso) => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.sessions.push({
+      id: 'homeTapRecap1',
+      name: 'Home tap target',
+      date: iso,
+      status: 'completed',
+      updatedAt: Date.now(),
+      completedAt: Date.now(),
+      blocks: [
+        {
+          id: 'htb1',
+          heading: 'Main',
+          superset: false,
+          exercises: [
+            {
+              id: 'hte1',
+              name: 'Row',
+              mode: 'reps_kg',
+              rest: 60,
+              sets: [{ t: '5', aVal: '50', aVal2: '5', felt: '7', done: true }],
+            },
+          ],
+        },
+      ],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  }, iso);
+  await clearRestTimer();
+  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.click(dayCell(label));
+  await page.waitForURL(/\/recap\/homeTapRecap1/);
+});
+
+await t("tapping today on Home's week strip lands on Training", async () => {
+  // Whatever the trained-day test above (or any earlier scenario) logged for
+  // TODAY specifically would resolve to Recap instead (recap outranks
+  // "today" — see resolveDayTarget), so today's sessions are cleared for the
+  // duration of this test and restored after, same save/restore shape the
+  // Calendar version of this test uses.
+  const saved = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    const today = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    const removed = db.sessions.filter((s) => s.date === today);
+    db.sessions = db.sessions.filter((s) => s.date !== today);
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return removed;
+  });
+  try {
+    await clearRestTimer();
+    await page.goto(base + '/', { waitUntil: 'networkidle' });
+    const label = await page.evaluate(() =>
+      new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
+    );
+    await page.click(dayCell(label));
+    await page.waitForURL(/\/training/);
+  } finally {
+    await page.evaluate((removed) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions.push(...removed);
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, saved);
+  }
+});
+
+await t("tapping an untrained day on Home's week strip lands on the Day preview for that date", async () => {
+  const { iso, label } = await weekEndInPage();
+  // The trained-day test above put a completed session on this exact date —
+  // clear it back out so the day resolves to "preview" (matched only by
+  // 'Lower A', scheduled every day) rather than "recap" again.
+  const saved = await page.evaluate((iso) => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const removed = db.sessions.filter((s) => s.date === iso);
+    db.sessions = db.sessions.filter((s) => s.date !== iso);
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return removed;
+  }, iso);
+  try {
+    await clearRestTimer();
+    await page.goto(base + '/', { waitUntil: 'networkidle' });
+    await page.click(dayCell(label));
+    await page.waitForURL(new RegExp('/day/' + iso));
+    await page.waitForSelector('text=Back Squat');
+    const txt = await page.textContent('body');
+    assert(/Back Squat/.test(txt), 'Day preview did not render the matched workout for the tapped day: ' + txt.slice(0, 200));
+    assert(!/Nothing scheduled/.test(txt), 'the empty state showed even though Lower A matches every day');
+  } finally {
+    await page.evaluate((removed) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions.push(...removed);
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, saved);
+  }
+});
+
 await t('Settings offers cloud sign-in and a WHOOP connect', async () => {
   await page.goto(base + '/settings', { waitUntil: 'networkidle' });
   await page.waitForSelector('text=Cloud sync');

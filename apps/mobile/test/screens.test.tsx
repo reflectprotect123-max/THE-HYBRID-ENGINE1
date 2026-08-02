@@ -17,6 +17,7 @@ import { LibraryScreen } from '../src/screens/Library';
 import { ExerciseScreen } from '../src/screens/Exercise';
 import { DayScreen } from '../src/screens/Day';
 import { CalendarScreen } from '../src/screens/Calendar';
+import { HomeScreen } from '../src/screens/Home';
 import { ymd } from '@hybrid/engine';
 
 /* Real navigation by default — every screen here mounts under `renderScreen`'s
@@ -380,6 +381,77 @@ describe('Calendar day-cell tap', () => {
 
     // No workoutId in the params — Task 4's Day screen re-derives the match
     // from db.workouts itself rather than trusting an id through navigation.
+    expect(navigate).toHaveBeenCalledWith('Day', { date: ymd(date) });
+  });
+});
+
+describe("Home's week strip tap", () => {
+  /*
+   * Task 6: WeekStrip gives each day of the CURRENT week its own resolved
+   * target too, wired through the same `resolveDayTarget` Calendar's day
+   * cells use (Task 5). This is the crux of the ORIGINAL bug report: tapping
+   * a trained day here used to always open the generic Calendar month view
+   * instead of landing on that day directly.
+   */
+
+  /** A date at one end of the current Sun–Sat week that is never today — the
+   *  Saturday if today isn't Saturday, otherwise the Sunday. WeekStrip only
+   *  renders the current week, so (unlike Calendar's `sameMonthOffset`) an
+   *  arbitrary fixed offset near either edge would fall outside it. */
+  function weekEndDate(): Date {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(start.getDate() - start.getDay());
+    const targetDow = now.getDay() === 6 ? 0 : 6;
+    const d = new Date(start);
+    d.setDate(start.getDate() + targetDow);
+    return d;
+  }
+
+  /* Matches the accessibilityLabel WeekStrip puts on each day exactly, same
+     shape as Calendar's cellLabel above — the trained/planned state has to be
+     spoken as part of the name since it replaces the dot for VoiceOver. */
+  const cellLabel = (d: Date, state: '' | ', trained' | ', planned' = '') =>
+    d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) + state;
+
+  it("tapping a trained day lands on that day's Recap, not a generic Calendar view", () => {
+    const date = weekEndDate();
+    const trained = liftSession(0, 'Back squat', 100);
+    trained.date = ymd(date); // liftSession dates itself off "today" — retarget it
+    seed({ sessions: [trained] });
+    const navigate = jest.fn();
+    (useNavigation as jest.Mock).mockReturnValue({ navigate });
+
+    renderScreen(<HomeScreen />);
+    fireEvent.press(screen.getByLabelText(cellLabel(date, ', trained')));
+
+    expect(navigate).toHaveBeenCalledWith('Recap', { id: trained.id });
+  });
+
+  it('tapping today lands on the Train tab, when nothing is logged yet', () => {
+    seed({ workouts: [], sessions: [] });
+    const navigate = jest.fn();
+    (useNavigation as jest.Mock).mockReturnValue({ navigate });
+
+    renderScreen(<HomeScreen />);
+    fireEvent.press(screen.getByLabelText(cellLabel(new Date())));
+
+    // A tab switch, not a stack push — the exact `toTraining` HomeScreen's
+    // own CTAs already use, not a re-derived path of its own.
+    expect(navigate).toHaveBeenCalledWith('Tabs', { screen: 'Train' });
+  });
+
+  it('tapping an untrained day in the week lands on the Day preview for that date', () => {
+    seed({ workouts: [], sessions: [] });
+    const navigate = jest.fn();
+    (useNavigation as jest.Mock).mockReturnValue({ navigate });
+    const date = weekEndDate();
+
+    renderScreen(<HomeScreen />);
+    fireEvent.press(screen.getByLabelText(cellLabel(date)));
+
+    // No workoutId in the params — same as Calendar, Day re-derives the
+    // match from db.workouts itself rather than trusting an id through nav.
     expect(navigate).toHaveBeenCalledWith('Day', { date: ymd(date) });
   });
 });

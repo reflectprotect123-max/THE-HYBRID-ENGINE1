@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   conZones,
+  hasLoggedWork,
   isCondWorkout,
   recoveryBand,
   rpeGapInfo,
@@ -19,7 +20,7 @@ import {
 } from '@hybrid/engine';
 import { color } from '@hybrid/design';
 import { useDb } from '../store/db';
-import { sessionFrom } from '../store/session';
+import { resolveDayTarget, sessionFrom } from '../store/session';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
 
@@ -88,6 +89,18 @@ export function HomeScreen() {
      merge that has to pick one. */
   const toTraining = () => nav.navigate('Tabs', { screen: 'Train' });
 
+  /* A tapped day in the week strip goes to whatever that day actually holds —
+     a completed day's Recap, today's Training tab, or a read-only preview for
+     anything else — the same three-way split Calendar's grid uses (Task 6).
+     This was the original bug report: tapping a trained day here used to
+     always open the generic Calendar month view instead of that day. */
+  const openDay = (d: { key: string; workoutId?: string; sessionId?: string }) => {
+    const target = resolveDayTarget(d.key, today, d.workoutId, d.sessionId);
+    if (target.kind === 'recap') nav.navigate('Recap', { id: target.id });
+    else if (target.kind === 'today') toTraining();
+    else nav.navigate('Day', { date: target.date });
+  };
+
   return (
     <Screen>
       <Kicker>Welcome back</Kicker>
@@ -102,7 +115,7 @@ export function HomeScreen() {
         </T>
         <Link onPress={() => nav.navigate('Calendar')}>Calendar ›</Link>
       </View>
-      <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpen={() => nav.navigate('Calendar')} />
+      <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpenDay={openDay} />
 
       {activeSession ? (
         <SessionCard tone="raised" className="mt-2">
@@ -270,29 +283,39 @@ function WeekStrip({
   workouts,
   sessions,
   today,
-  onOpen,
+  onOpenDay,
 }: {
   workouts: Workout[];
   sessions: Session[];
   today: string;
-  onOpen: () => void;
+  onOpenDay: (day: { key: string; workoutId?: string; sessionId?: string }) => void;
 }) {
   const days = useMemo(() => {
     const start = new Date();
     start.setDate(start.getDate() - start.getDay());
-    const trained = new Set(sessions.filter((s) => s.status !== 'active').map((s) => s.date));
+    // Same match logic as Calendar's build: a date only counts as "trained"
+    // if the session actually has logged work, and the session id that flows
+    // to resolveDayTarget is that same trained session — so a day that looks
+    // trained here looks trained in Calendar too, and taps land on the same
+    // Recap either place.
+    const trainedByDate = new Map(
+      sessions.filter((s) => s.status !== 'active' && hasLoggedWork(s)).map((s) => [s.date, s.id]),
+    );
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       const key = ymd(d);
-      const has =
-        trained.has(key) ||
-        workouts.some((w) => (w.dates || []).includes(key) || (w.days || []).includes(d.getDay()));
+      const dow = d.getDay();
+      const matchedWorkout = workouts.find((w) => (w.dates || []).includes(key) || (w.days || []).includes(dow));
+      const sessionId = trainedByDate.get(key);
+      const workoutId = matchedWorkout?.id;
       return {
         key,
         dw: 'SMTWTFS'[i],
         n: d.getDate(),
-        has,
+        has: Boolean(sessionId || workoutId),
+        workoutId,
+        sessionId,
         label: d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
       };
     });
@@ -305,8 +328,11 @@ function WeekStrip({
         return (
           <Tap
             key={d.key}
-            onPress={onOpen}
-            label={`${d.label} — open calendar`}
+            onPress={() => onOpenDay(d)}
+            /* The accessibility label replaces everything inside the Tap, so
+               the trained/planned dot's state has to be part of the name
+               itself, same as Calendar's cells. */
+            label={`${d.label}${d.sessionId ? ', trained' : d.workoutId ? ', planned' : ''}`}
             className={`flex-1 items-center rounded-sm border py-1 ${
               isToday ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel3'
             }`}
