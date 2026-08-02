@@ -182,3 +182,11 @@ describe('decideStrengthProgression — decision table', () => {
     }
   }
 });
+
+import { decideStrengthProgression as fromIndex } from '../src/index';
+
+describe('decideStrengthProgression is reachable from @hybrid/engine\'s public surface', () => {
+  it('is exported from the package index, not just the adaptive module', () => {
+    expect(typeof fromIndex).toBe('function');
+  });
+});
