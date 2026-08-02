@@ -4,6 +4,7 @@ import {
   CON_FORMATS,
   agoLabel,
   blockExercises,
+  duplicateWorkout,
   isCond,
   isCondWorkout,
   knownMovements,
@@ -72,6 +73,14 @@ export function Library() {
       draft.workouts.push(w);
     });
     nav(`/build/${w.id}`);
+  }
+
+  function duplicate(w: Workout) {
+    const copy = duplicateWorkout(w);
+    update((draft) => {
+      draft.workouts.push(copy);
+    });
+    nav(`/planner/${copy.id}`);
   }
 
   function toggleDay(id: string, d: number) {
@@ -186,6 +195,9 @@ export function Library() {
                     <div className="mt-1.5 flex gap-1">
                       <Button size="sm" variant="brass" onClick={() => nav(`/planner/${w.id}`)}>
                         Edit
+                      </Button>
+                      <Button size="sm" onClick={() => duplicate(w)}>
+                        Duplicate
                       </Button>
                       <Button
                         size="sm"

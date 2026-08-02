@@ -770,6 +770,69 @@ await t('the plan editor edits a target and it persists', async () => {
   assert(stored[0] === 'W10' && stored[1] === '3', 'targets not saved: ' + JSON.stringify(stored));
 });
 
+await t('Duplicate clones a workout and lands on Planner with independent content', async () => {
+  // Seed a workout with a known name and one exercise, under a name distinct
+  // from every workout the guided-builder tests above created, so the clicks
+  // below cannot grab the wrong card.
+  const origId = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const id = 'dup-src-1';
+    db.workouts.push({
+      id,
+      name: 'Dup Source',
+      updatedAt: 1,
+      blocks: [
+        {
+          id: 'dupb1',
+          heading: 'Main',
+          superset: false,
+          exercises: [
+            { id: 'dupe1', name: 'Front Squat', mode: 'reps_kg', rest: 90, sets: [{ t: '5', rpe: '8' }] },
+          ],
+        },
+      ],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return id;
+  });
+
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  // :text-is() rather than :has-text() — once the clone exists below, its name
+  // is "Dup Source copy", and a substring match would resolve to both cards.
+  await page.click('span:text-is("Dup Source")');
+  await page.waitForSelector('button:has-text("Duplicate")');
+  await page.click('button:has-text("Duplicate")');
+
+  await page.waitForURL(/\/planner\//);
+  const newId = new URL(page.url()).pathname.split('/').pop();
+  assert(newId !== origId, 'Duplicate landed on the same workout id as the original, got ' + newId);
+
+  await page.waitForSelector('text=Front Squat');
+  const cloneName = await page.inputValue('input[aria-label="session name"]');
+  assert(cloneName === 'Dup Source copy', 'the clone should be named "Dup Source copy", got: ' + cloneName);
+
+  // Edit a field on the clone.
+  await page.waitForSelector('input[aria-label="target for set 1"]');
+  await page.fill('input[aria-label="target for set 1"]', 'CLONE-EDIT');
+  const cloneStored = await page.evaluate(
+    (id) => JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts.find((w) => w.id === id).blocks[0].exercises[0].sets[0].t,
+    newId,
+  );
+  assert(cloneStored === 'CLONE-EDIT', 'the edit on the clone did not persist, got ' + cloneStored);
+
+  // Navigate back to Library, expand the ORIGINAL, and confirm it is untouched.
+  await page.goto(base + '/library', { waitUntil: 'networkidle' });
+  await page.click('span:text-is("Dup Source")');
+  await page.waitForSelector('text=Front Squat');
+  const origAfter = await page.evaluate((id) => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const w = db.workouts.find((x) => x.id === id);
+    return { name: w.name, target: w.blocks[0].exercises[0].sets[0].t };
+  }, origId);
+  assert(origAfter.name === 'Dup Source', 'the original workout name changed, got ' + origAfter.name);
+  assert(origAfter.target === '5', 'the original set target changed, got ' + origAfter.target);
+});
+
 /* ---------- guided builder: leaving it ---------- */
 
 /*
