@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { hasLoggedWork, ymd, type Session, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { resolveDayTarget } from '../store/session';
 import { Btn, Card, Kicker, Screen, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
 
@@ -22,6 +23,16 @@ export function CalendarScreen() {
 
   const cells = useMemo(() => build(cursor, db.workouts, db.sessions), [cursor, db]);
   const today = ymd(new Date());
+
+  /* A tapped cell goes to whatever the day actually holds — a completed
+     day's Recap, today's Training tab, or a read-only preview for anything
+     else — the same three-way split Home's WeekStrip will use (Task 6). */
+  const openDay = (c: Cell) => {
+    const target = resolveDayTarget(c.key, today, c.workoutId, c.sessionId);
+    if (target.kind === 'recap') nav.navigate('Recap', { id: target.id });
+    else if (target.kind === 'today') nav.navigate('Tabs', { screen: 'Train' });
+    else nav.navigate('Day', { date: target.date });
+  };
 
   return (
     <Screen>
@@ -66,7 +77,13 @@ export function CalendarScreen() {
           {cells.map((c, i) => (
             <View key={i} style={{ width: `${100 / 7}%` }} className="p-0.5">
               {c ? (
-                <View
+                <Tap
+                  onPress={() => openDay(c)}
+                  label={new Date(c.key + 'T00:00:00').toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                  })}
                   className={`aspect-square items-center rounded-sm border py-0.5 ${
                     c.key === today ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel2'
                   }`}
@@ -76,7 +93,7 @@ export function CalendarScreen() {
                     {c.sessionId ? <View className="h-1 w-1 rounded-pill bg-gold2" /> : null}
                     {c.workoutId && !c.sessionId ? <View className="h-1 w-1 rounded-pill border border-gold2" /> : null}
                   </View>
-                </View>
+                </Tap>
               ) : (
                 <View className="aspect-square" />
               )}

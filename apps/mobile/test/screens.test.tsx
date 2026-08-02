@@ -16,6 +16,7 @@ import { ProgressScreen } from '../src/screens/Progress';
 import { LibraryScreen } from '../src/screens/Library';
 import { ExerciseScreen } from '../src/screens/Exercise';
 import { DayScreen } from '../src/screens/Day';
+import { CalendarScreen } from '../src/screens/Calendar';
 import { ymd } from '@hybrid/engine';
 
 /* Real navigation by default — every screen here mounts under `renderScreen`'s
@@ -294,6 +295,73 @@ describe('Day preview', () => {
     expect(screen.queryByText('Edit')).toBeNull();
     expect(screen.queryByText('Duplicate')).toBeNull();
     expect(screen.queryByLabelText(/^delete /)).toBeNull();
+  });
+});
+
+describe('Calendar day-cell tap', () => {
+  /*
+   * Task 5: each day cell now resolves through `resolveDayTarget` instead of
+   * sitting there as a bare box — a completed day lands on its Recap, today
+   * lands on Training, and anything else lands on the read-only Day preview.
+   */
+
+  /** A date `n` days from today that stays inside the CURRENT calendar month
+   *  — CalendarScreen opens on the current month and none of these tests page
+   *  it, so the tapped cell has to actually be on screen. Every month has at
+   *  least 28 days, so any offset up to ~13 always lands on a real day of it. */
+  function sameMonthOffset(n: number): Date {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const day = now.getDate();
+    const candidate = day + n <= lastDay ? day + n : day - n;
+    return new Date(now.getFullYear(), now.getMonth(), candidate);
+  }
+
+  /* Matches the accessibilityLabel CalendarScreen puts on each cell exactly,
+     so the tap lands on the specific day under test rather than any day
+     sharing its number. */
+  const cellLabel = (d: Date) =>
+    d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+
+  it("tapping a trained day lands on that day's Recap, not a generic Calendar view", () => {
+    const trained = liftSession(0, 'Back squat', 100);
+    const date = sameMonthOffset(6);
+    trained.date = ymd(date); // liftSession dates itself off "today" — retarget it
+    seed({ sessions: [trained] });
+    const navigate = jest.fn();
+    (useNavigation as jest.Mock).mockReturnValue({ navigate });
+
+    renderScreen(<CalendarScreen />);
+    fireEvent.press(screen.getByLabelText(cellLabel(date)));
+
+    expect(navigate).toHaveBeenCalledWith('Recap', { id: trained.id });
+  });
+
+  it('tapping today lands on Training, when nothing is logged yet', () => {
+    seed({ workouts: [], sessions: [] });
+    const navigate = jest.fn();
+    (useNavigation as jest.Mock).mockReturnValue({ navigate });
+
+    renderScreen(<CalendarScreen />);
+    fireEvent.press(screen.getByLabelText(cellLabel(new Date())));
+
+    // A tab switch, not a stack push — mirrors Home's own toTraining, the
+    // only other place the app sends someone to "go train right now".
+    expect(navigate).toHaveBeenCalledWith('Tabs', { screen: 'Train' });
+  });
+
+  it('tapping an empty, untrained day lands on the Day preview for that date', () => {
+    seed({ workouts: [], sessions: [] });
+    const navigate = jest.fn();
+    (useNavigation as jest.Mock).mockReturnValue({ navigate });
+    const date = sameMonthOffset(13);
+
+    renderScreen(<CalendarScreen />);
+    fireEvent.press(screen.getByLabelText(cellLabel(date)));
+
+    // No workoutId in the params — Task 4's Day screen re-derives the match
+    // from db.workouts itself rather than trusting an id through navigation.
+    expect(navigate).toHaveBeenCalledWith('Day', { date: ymd(date) });
   });
 });
 

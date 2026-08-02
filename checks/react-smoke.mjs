@@ -895,6 +895,138 @@ await t('Day preview shows the matched workout for a scheduled day, read-only', 
   assert(!(await page.$('button:has-text("Duplicate")')), 'Day must not offer a Duplicate control');
 });
 
+/*
+ * Task 5: Calendar's day cells are no longer bare boxes — each one resolves
+ * through `resolveDayTarget` and lands on Recap, Training, or the read-only
+ * Day preview. All three scenarios pick a date offset from "today" but still
+ * inside the CURRENT calendar month (every month has at least 28 days, so an
+ * offset up to ~13 always lands on a real day of it) — the Calendar screen
+ * opens on the current month and none of these tests page it. The two offsets
+ * used below (5, 11) can never coincide with each other, whichever side of
+ * the month either one lands on.
+ *
+ * Computed IN the page (not in Node) so the label matches, character for
+ * character, whatever Calendar.tsx itself renders as the cell's aria-label —
+ * both run in the same Chromium process, so there is no host/locale drift to
+ * account for.
+ */
+const dayOffsetInPage = (n) =>
+  page.evaluate((n) => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const day = now.getDate();
+    const candidate = day + n <= lastDay ? day + n : day - n;
+    const d = new Date(now.getFullYear(), now.getMonth(), candidate);
+    const p = (x) => String(x).padStart(2, '0');
+    return {
+      iso: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()),
+      label: d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
+    };
+  }, n);
+
+/*
+ * A rest timer armed by an earlier scenario in this file is still counting
+ * down by the time these run (its end time is persisted, not the countdown
+ * itself), and its floating chip (`RestChip.tsx`) is `fixed` at the bottom of
+ * the viewport on EVERY screen — including Calendar — where it can sit over a
+ * cell in a later row and steal the click, unrelated to anything these tests
+ * are actually about. `RestProvider` only reads its persisted end time back
+ * on mount, so clearing it right before a real `page.goto` (a full
+ * navigation, not client-side) is enough to make sure the chip is gone.
+ */
+const clearRestTimer = () =>
+  page.evaluate(() => {
+    localStorage.removeItem('hybrid-engine-v1-rest-ends');
+    localStorage.removeItem('hybrid-engine-v1-rest-total');
+  });
+
+await t("tapping a trained day on Calendar lands on that day's Recap", async () => {
+  const { iso, label } = await dayOffsetInPage(5);
+  await page.evaluate((iso) => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.sessions.push({
+      id: 'calTapRecap1',
+      name: 'Tap target',
+      date: iso,
+      status: 'completed',
+      updatedAt: Date.now(),
+      completedAt: Date.now(),
+      blocks: [
+        {
+          id: 'ctb1',
+          heading: 'Main',
+          superset: false,
+          exercises: [
+            {
+              id: 'cte1',
+              name: 'Row',
+              mode: 'reps_kg',
+              rest: 60,
+              sets: [{ t: '5', aVal: '50', aVal2: '5', felt: '7', done: true }],
+            },
+          ],
+        },
+      ],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  }, iso);
+  await clearRestTimer();
+  await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
+  await page.click(`button[aria-label="${label}"]`);
+  await page.waitForURL(/\/recap\/calTapRecap1/);
+});
+
+await t('tapping today on Calendar lands on Training', async () => {
+  // Whatever earlier scenarios in this file logged for today would resolve
+  // to Recap instead (recap outranks "today" — see resolveDayTarget), so
+  // today's sessions are cleared for the duration of this test and restored
+  // after, the same save/restore shape the Day-preview empty-state test uses.
+  const saved = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    const today = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    const removed = db.sessions.filter((s) => s.date === today);
+    db.sessions = db.sessions.filter((s) => s.date !== today);
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return removed;
+  });
+  try {
+    await clearRestTimer();
+    await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
+    const label = await page.evaluate(() =>
+      new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
+    );
+    await page.click(`button[aria-label="${label}"]`);
+    await page.waitForURL(/\/training/);
+  } finally {
+    await page.evaluate((removed) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions.push(...removed);
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, saved);
+  }
+});
+
+await t('tapping an empty, untrained day on Calendar lands on the Day preview for that date', async () => {
+  const { iso, label } = await dayOffsetInPage(11);
+  await clearRestTimer();
+  await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
+  await page.click(`button[aria-label="${label}"]`);
+  await page.waitForURL(new RegExp('/day/' + iso));
+  // 'Lower A' (seeded at boot) is scheduled every day of the week, so this
+  // always lands on ITS preview, never the "Nothing scheduled" empty state —
+  // that state is already pinned in isolation above. The point here is only
+  // that it is Day, never Recap or Training. The URL updates synchronously on
+  // a client-side navigation, before React has committed the new route's
+  // render, so wait for the Day screen's own content rather than reading body
+  // text right off the back of waitForURL.
+  await page.waitForSelector('text=Back Squat');
+  const txt = await page.textContent('body');
+  assert(/Back Squat/.test(txt), 'Day preview did not render the matched workout for the tapped day: ' + txt.slice(0, 200));
+  assert(!/Nothing scheduled/.test(txt), 'the empty state showed even though Lower A matches every day');
+});
+
 await t('Settings offers cloud sign-in and a WHOOP connect', async () => {
   await page.goto(base + '/settings', { waitUntil: 'networkidle' });
   await page.waitForSelector('text=Cloud sync');

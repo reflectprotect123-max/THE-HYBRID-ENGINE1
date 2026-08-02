@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { hasLoggedWork, ymd, type Session, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { resolveDayTarget } from '../lib/session';
 import { Button, Card, Kicker, ScreenTitle, cx } from '../ui';
 
 /*
@@ -22,6 +23,16 @@ export function Calendar() {
   const days = useMemo(() => buildMonth(cursor, db.workouts, db.sessions), [cursor, db]);
   const monthName = cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const today = ymd(new Date());
+
+  /* A tapped cell goes to whatever the day actually holds — a completed
+     day's Recap, today's Training, or a read-only preview for anything
+     else — the same three-way split Home's WeekStrip will use (Task 6). */
+  const openDay = (d: Cell) => {
+    const target = resolveDayTarget(d.key, today, d.workoutId, d.sessionId);
+    if (target.kind === 'recap') nav('/recap/' + target.id);
+    else if (target.kind === 'today') nav('/training');
+    else nav('/day/' + target.date);
+  };
 
   return (
     <>
@@ -49,11 +60,19 @@ export function Calendar() {
           ))}
           {days.map((d, i) =>
             d ? (
-              <div
+              <button
                 key={i}
+                type="button"
+                onClick={() => openDay(d)}
+                aria-label={new Date(d.key + 'T00:00:00').toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+                aria-current={d.key === today ? 'date' : undefined}
                 className={cx(
-                  'aspect-square rounded-sm border p-0.5 text-center',
-                  d.key === today ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel2',
+                  'aspect-square rounded-sm border p-0.5 text-center transition-colors duration-120',
+                  d.key === today ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel2 hover:border-line2',
                 )}
               >
                 <div className="num text-2 text-muted">{d.n}</div>
@@ -63,7 +82,7 @@ export function Calendar() {
                     <span className="h-1 w-1 rounded-pill border border-gold2" title="planned" />
                   ) : null}
                 </div>
-              </div>
+              </button>
             ) : (
               <div key={i} />
             ),
