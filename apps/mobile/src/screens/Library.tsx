@@ -217,16 +217,25 @@ export function LibraryScreen() {
         ＋ New session
       </Btn>
 
-      {/* The whole "Yours" section — folder management plus every row — sits
-          out while the picker Modal is up. It is not just tidiness: the
-          folder list and its own "+ New folder"/"Add" controls are the exact
-          same labels the Modal renders for the same purpose, and a screen
-          reader (or a test query) cannot tell two same-named live controls
-          apart. A native Modal already visually and functionally blocks the
-          page behind it, so this only makes the accessibility tree agree
-          with what the eye already sees. */}
-      {pickerFor != null ? null : (
-      <>
+      {/* The whole "Yours" section — folder management plus every row — is
+          hidden from accessibility, not unmounted, while the picker Modal is
+          up. The folder list's own "+ New folder"/"Add" controls carry the
+          exact same labels the Modal renders for the same purpose, and a
+          screen reader (or a test query) cannot tell two same-named live
+          controls apart — but unmounting to solve that cost a real UX
+          regression: `Screen` wraps everything in a ScrollView, and RN does
+          not restore scroll offset when content that was removed (shrinking
+          the scroll height) comes back, so closing the picker on a workout
+          deep in a long list dropped the user back near the top. Hiding via
+          `importantForAccessibility`/`accessibilityElementsHidden` instead
+          keeps the layout — and the scroll position — intact while still
+          making the background unreachable to VoiceOver/TalkBack and to
+          accessibility-label queries, exactly the effect a real native Modal
+          already has on what's behind it. */}
+      <View
+        importantForAccessibility={pickerFor != null ? 'no-hide-descendants' : 'auto'}
+        accessibilityElementsHidden={pickerFor != null}
+      >
       <SectionHead title="Yours" />
       <Btn variant="ghost" className="mb-1" onPress={startNewFolder}>
         + New folder
@@ -337,8 +346,7 @@ export function LibraryScreen() {
       ) : !folders.length ? (
         <Empty title="Nothing here yet" body="Tap “＋ New session” to build your first one." />
       ) : null}
-      </>
-      )}
+      </View>
       </>
       )}
 

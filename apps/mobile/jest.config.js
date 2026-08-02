@@ -20,6 +20,18 @@ module.exports = {
   setupFilesAfterEnv: [path.resolve(__dirname, 'test/setup.ts')],
   testMatch: ['<rootDir>/test/**/*.test.tsx', '<rootDir>/test/**/*.test.ts'],
   /*
+   * Every `jest.spyOn` in this suite (mostly `Alert.alert`) used to accumulate
+   * call history across tests: `jest.spyOn` on an already-mocked method
+   * returns the SAME mock rather than a fresh one, so a later test's
+   * `mock.calls[0]` could actually be an earlier test's call, invoking the
+   * wrong `onPress`. Task 4's folder-delete test hit this and worked around it
+   * locally with a `.mockClear()`. `restoreMocks` fixes the whole class of bug
+   * once, for every spy in every file, by restoring each mock/spy to its
+   * original (un-mocked) implementation after every test — no per-test
+   * cleanup required.
+   */
+  restoreMocks: true,
+  /*
    * React Native and every expo-* package ship untranspiled ESM, and the
    * workspace packages export TypeScript SOURCE rather than a built dist — all
    * of it has to go through babel, and node_modules is ignored by default.
