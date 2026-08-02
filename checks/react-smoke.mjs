@@ -441,6 +441,109 @@ await t('a consistent 2-session on-target streak surfaces an opt-in load suggest
   }, { origId: orig.id });
 });
 
+await t('a seconds-mode set shows a Start control, and letting it run to zero fills the field', async () => {
+  // Isolated scratch session — same technique as the strength-suggestion
+  // scenario above: swap the shared main session out to 'incomplete', seed a
+  // standalone `seconds`-mode exercise as its own active session, navigate to
+  // it, run the assertion, then restore the original session before
+  // returning so nothing below can tell this ran.
+  const orig = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const origSession = db.sessions.find((s) => s.status === 'active');
+    origSession.status = 'incomplete';
+    db.workouts.push({
+      id: 'w-timer-scratch', name: 'Timer scratch', days: [], updatedAt: Date.now(),
+      blocks: [{
+        id: 'tb', heading: 'Main', superset: false,
+        exercises: [{ id: 'te', name: 'Plank', mode: 'seconds', rest: 0, sets: [{ t: '2', rpe: '' }] }],
+      }],
+    });
+    db.sessions.push({
+      id: 'timer-scratch-session', name: 'Timer scratch', date: '2026-08-02', status: 'active',
+      startedAt: Date.now(), workoutId: 'w-timer-scratch',
+      blocks: [{
+        id: 'tb', heading: 'Main', superset: false,
+        exercises: [{ id: 'te', name: 'Plank', mode: 'seconds', rest: 0, sets: [{ t: '2', rpe: '' }] }],
+      }],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return { id: origSession.id };
+  });
+
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('input[aria-label="Secs"]');
+    await page.click('button:has-text("Start")');
+    // Wait past the 2-second target plus tick margin (the countdown polls
+    // every 250ms) — padded generously since this is a real-time wait.
+    await page.waitForTimeout(3500);
+    const after = await page.inputValue('input[aria-label="Secs"]');
+    assert(after === '2', 'expected the field to fill with the held duration after running to zero, got: ' + after);
+  } finally {
+    await page.evaluate(({ origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'timer-scratch-session');
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-timer-scratch');
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.removeItem('hybrid-engine-v1-set-timer-ends');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-total');
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, { origId: orig.id });
+  }
+});
+
+await t('stopping a seconds-mode timer early writes the actual elapsed time', async () => {
+  // Same isolated-scratch technique, but with a longer target so Stop lands
+  // comfortably mid-run rather than racing the natural completion above.
+  const orig = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const origSession = db.sessions.find((s) => s.status === 'active');
+    origSession.status = 'incomplete';
+    db.workouts.push({
+      id: 'w-timer-scratch2', name: 'Timer scratch 2', days: [], updatedAt: Date.now(),
+      blocks: [{
+        id: 'tb', heading: 'Main', superset: false,
+        exercises: [{ id: 'te', name: 'Plank', mode: 'seconds', rest: 0, sets: [{ t: '30', rpe: '' }] }],
+      }],
+    });
+    db.sessions.push({
+      id: 'timer-scratch-session2', name: 'Timer scratch 2', date: '2026-08-02', status: 'active',
+      startedAt: Date.now(), workoutId: 'w-timer-scratch2',
+      blocks: [{
+        id: 'tb', heading: 'Main', superset: false,
+        exercises: [{ id: 'te', name: 'Plank', mode: 'seconds', rest: 0, sets: [{ t: '30', rpe: '' }] }],
+      }],
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return { id: origSession.id };
+  });
+
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('input[aria-label="Secs"]');
+    const before = await page.inputValue('input[aria-label="Secs"]');
+    await page.click('button:has-text("Start")');
+    await page.waitForTimeout(1500);
+    await page.click('button:has-text("Stop")');
+    const after = await page.inputValue('input[aria-label="Secs"]');
+    const n = Number(after);
+    assert(Number.isFinite(n) && n > 0 && n < 30, 'expected a partial elapsed value strictly between 0 and 30, got: ' + after);
+    assert(after !== before, 'the field never changed from its original placeholder value');
+  } finally {
+    await page.evaluate(({ origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'timer-scratch-session2');
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-timer-scratch2');
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.removeItem('hybrid-engine-v1-set-timer-ends');
+      localStorage.removeItem('hybrid-engine-v1-set-timer-total');
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, { origId: orig.id });
+  }
+});
+
 await t('a weight of 1e309 cannot poison the record', async () => {
   await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
   await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
