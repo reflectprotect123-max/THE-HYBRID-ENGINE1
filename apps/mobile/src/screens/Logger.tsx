@@ -8,6 +8,7 @@ import {
   blockExercises,
   computeSetAdjustment,
   curSetIndex,
+  decideStrengthProgression,
   explainWorkingWeight,
   fmtRest,
   fmtRpe,
@@ -136,6 +137,15 @@ export function LoggerScreen({ route, navigation }: Props) {
   const earnedExplained = useMemo(
     () => (earned ? explainWorkingWeight(earned, rec) : null),
     [earned, rec],
+  );
+
+  const isFirstWorkingSet = !!ex && ex.sets.findIndex((s2) => !isWarmup(s2)) === si;
+  const strengthSuggestion = useMemo(
+    () =>
+      ex && lift && st && !isWarmup(st)
+        ? decideStrengthProgression(ex.name, db.sessions, { t: st.t, rpe: st.rpe })
+        : null,
+    [ex, lift, st, db.sessions],
   );
 
   if (!s || !block || isCond(block) || !ex) {
@@ -411,6 +421,25 @@ export function LoggerScreen({ route, navigation }: Props) {
                       num
                       className="mt-0.5 h-[56px] rounded-md border border-line bg-well text-center text-9 text-text"
                     />
+                    {strengthSuggestion?.prescription && isFirstWorkingSet ? (
+                      <View className="mt-1 flex-row items-center justify-between">
+                        <T className="text-2 text-muted">{strengthSuggestion.note}</T>
+                        <Btn
+                          variant="ghost"
+                          size="md"
+                          onPress={() => {
+                            if (strengthSuggestion.prescription?.load != null) {
+                              writeVal(1, String(strengthSuggestion.prescription.load));
+                            }
+                            if (strengthSuggestion.prescription?.reps != null) {
+                              writeVal(2, String(strengthSuggestion.prescription.reps));
+                            }
+                          }}
+                        >
+                          Apply
+                        </Btn>
+                      </View>
+                    ) : null}
                   </>
                 ) : ex.mode === 'reps_seconds' ? (
                   /* Two fields, like the web app: this mode records BOTH, and

@@ -33,6 +33,51 @@ function liveSession(over: Partial<EngineDB> = {}) {
   return s;
 }
 
+/** 3 completed, on-target history sessions for `name`, plus a live session on it. */
+function liveSessionWithStrengthHistory(name = 'Back squat') {
+  const onTargetSet = (reps: number): LoggedSet =>
+    ({ done: true, aVal: '100', aVal2: String(reps), felt: '8', t: '8-10', rpe: '8' }) as LoggedSet;
+  const histSession = (id: string, at: number, reps: number): Session => ({
+    id,
+    date: '2026-01-01',
+    status: 'completed',
+    completedAt: at,
+    blocks: [
+      {
+        id: 'b',
+        heading: 'Main',
+        superset: false,
+        exercises: [{ id: 'e', name, mode: 'reps_kg', rest: 90, sets: [onTargetSet(reps)] }],
+      },
+    ],
+  }) as unknown as Session;
+
+  const w = liftWorkout(name, 2);
+  // liftWorkout's default target is a flat '5' (no range), which would leave
+  // no room to progress reps (repTopOf('5') === 5, already at last.reps === 8)
+  // and push decideStrengthProgression onto its load-progression branch
+  // instead. An 8-10 rep-range target — matching the on-target history above
+  // and web's react-smoke scratch workout for this same scenario — is what
+  // actually leaves room for a rep suggestion.
+  (w.blocks[0] as StrengthBlock).exercises[0].sets.forEach((st) => {
+    st.t = '8-10';
+  });
+  const live: Session = {
+    id: uid(),
+    date: ymd(new Date()),
+    name: 'Lower',
+    status: 'active',
+    blocks: freshSessionBlocks(w.blocks),
+    startedAt: Date.now(),
+    workoutId: w.id,
+  };
+  seed({
+    workouts: [w],
+    sessions: [histSession('h1', 1000, 8), histSession('h2', 2000, 8), histSession('h3', 3000, 8), live],
+  });
+  return live;
+}
+
 /** The store as it stands on disk — what actually survives the app dying. */
 const persisted = (): EngineDB => JSON.parse(storage.getItem(LS_KEY) || '{}');
 
@@ -143,6 +188,14 @@ describe('Logger', () => {
     seed({ workouts: [], sessions: [] });
     mount();
     expect(screen.getByText('No live session')).toBeTruthy();
+  });
+
+  it('surfaces an opt-in rep suggestion after a 2-session on-target streak, and Apply writes it into the Reps field', () => {
+    liveSessionWithStrengthHistory('Back squat');
+    mount();
+    expect(screen.getByText(/On target the last 2 sessions/)).toBeTruthy();
+    fireEvent.press(screen.getByText('Apply'));
+    expect(screen.getByLabelText('reps').props.value).toBe('9');
   });
 });
 
