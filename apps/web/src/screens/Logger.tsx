@@ -6,6 +6,7 @@ import {
   blockExercises,
   computeSetAdjustment,
   curSetIndex,
+  decideStrengthProgression,
   explainWorkingWeight,
   fmtRest,
   fmtRpe,
@@ -119,6 +120,15 @@ export function Logger() {
   const earnedExplained = useMemo(
     () => (earned ? explainWorkingWeight(earned, rec) : null),
     [earned, rec],
+  );
+
+  const isFirstWorkingSet = !!ex && ex.sets.findIndex((s2) => !isWarmup(s2)) === si;
+  const strengthSuggestion = useMemo(
+    () =>
+      ex && lift && st && !isWarmup(st)
+        ? decideStrengthProgression(ex.name, sessions, { t: st.t, rpe: st.rpe })
+        : null,
+    [ex, lift, st, sessions],
   );
 
   if (!s || !block || isCond(block) || !ex) {
@@ -361,6 +371,25 @@ export function Logger() {
                       inputMode="decimal"
                     />
                     <PlainField label="Reps" value={v2} onChange={(v) => writeVal(2, v)} inputMode="numeric" />
+                    {strengthSuggestion?.prescription && isFirstWorkingSet ? (
+                      <div className="mt-1 flex items-center justify-between gap-1">
+                        <span className="text-2 text-muted">{strengthSuggestion.note}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (strengthSuggestion.prescription?.load != null) {
+                              writeVal(1, String(strengthSuggestion.prescription.load));
+                            }
+                            if (strengthSuggestion.prescription?.reps != null) {
+                              writeVal(2, String(strengthSuggestion.prescription.reps));
+                            }
+                          }}
+                        >
+                          Apply
+                        </Button>
+                      </div>
+                    ) : null}
                   </>
                 ) : ex.mode === 'reps_seconds' ? (
                   <>
