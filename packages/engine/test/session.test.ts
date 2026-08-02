@@ -12,8 +12,8 @@
  * it diverges and the chain breaks there, for every set after it too.
  */
 import { describe, expect, it } from 'vitest';
-import { detectPRs, duplicateExercise, fillLinkedSets } from '../src/session';
-import type { Exercise, LoggedSet, PlannedSet, Session } from '../src/types';
+import { detectPRs, duplicateExercise, duplicateWorkout, fillLinkedSets } from '../src/session';
+import type { Block, CondBlock, Exercise, LoggedSet, PlannedSet, Session, Workout } from '../src/types';
 
 const set = (t: string, rpe: string): PlannedSet => ({ t, rpe });
 const ex = (name: string, over: Partial<Exercise> = {}): Exercise => ({
@@ -113,6 +113,105 @@ describe('duplicateExercise', () => {
   it('returns the original array unchanged for an out-of-range index', () => {
     const exs = [ex('Bench Press')];
     expect(duplicateExercise(exs, 5)).toBe(exs);
+  });
+});
+
+/*
+ * duplicateWorkout — clone a workout as a new, independent, unscheduled
+ * record. Mirrors duplicateExercise's own reasoning one level up: every id
+ * gets refreshed so an edit to the copy can never reach back into the
+ * original, and the scheduled slot is cleared so the clone doesn't silently
+ * double-book the original's weekday.
+ */
+describe('duplicateWorkout', () => {
+  const strengthBlock = (over: Partial<Block> = {}): Block =>
+    ({
+      id: 'orig-block',
+      heading: 'Main work',
+      superset: false,
+      exercises: [ex('Bench Press')],
+      ...over,
+    }) as Block;
+
+  const workout = (over: Partial<Workout> = {}): Workout => ({
+    id: 'orig-workout',
+    name: 'Push Day',
+    blocks: [strengthBlock()],
+    ...over,
+  });
+
+  it('gives the copy a fresh workout id, different from the original', () => {
+    const w = workout();
+    const copy = duplicateWorkout(w);
+    expect(copy.id).not.toBe(w.id);
+  });
+
+  it('gives every block a fresh id, different from the original', () => {
+    const w = workout({ blocks: [strengthBlock({ id: 'block-a' }), strengthBlock({ id: 'block-b' })] });
+    const copy = duplicateWorkout(w);
+    expect(copy.blocks[0].id).not.toBe('block-a');
+    expect(copy.blocks[1].id).not.toBe('block-b');
+    expect(copy.blocks[0].id).not.toBe(copy.blocks[1].id);
+  });
+
+  it('gives every exercise a fresh id, different from the original', () => {
+    const w = workout({ blocks: [strengthBlock({ exercises: [ex('Bench Press'), ex('Row')] })] });
+    const copy = duplicateWorkout(w);
+    const copiedExercises = (copy.blocks[0] as unknown as { exercises: Exercise[] }).exercises;
+    expect(copiedExercises[0].id).not.toBe('orig-Bench Press');
+    expect(copiedExercises[1].id).not.toBe('orig-Row');
+    expect(copiedExercises[0].id).not.toBe(copiedExercises[1].id);
+  });
+
+  it('copies sets by value, not by reference — mutating the copy does not affect the original', () => {
+    const w = workout({ blocks: [strengthBlock({ exercises: [ex('Bench Press', { sets: [set('5', '8')] })] })] });
+    const copy = duplicateWorkout(w);
+    const copiedBlock = copy.blocks[0] as unknown as { exercises: Exercise[] };
+    copiedBlock.exercises[0].sets[0].t = '10';
+    const origBlock = w.blocks[0] as unknown as { exercises: Exercise[] };
+    expect(origBlock.exercises[0].sets[0].t).toBe('5');
+  });
+
+  it('clears days/dates on the copy even when the original had them set', () => {
+    const w = workout({ days: [1, 3, 5], dates: ['2026-08-10'] });
+    const copy = duplicateWorkout(w);
+    expect(copy.days).toBeUndefined();
+    expect(copy.dates).toBeUndefined();
+  });
+
+  it('appends " copy" to the name', () => {
+    const w = workout({ name: 'Push Day' });
+    const copy = duplicateWorkout(w);
+    expect(copy.name).toBe('Push Day copy');
+  });
+
+  it('falls back to "Session copy" when the original has no name at all', () => {
+    const w = workout({ name: undefined });
+    const copy = duplicateWorkout(w);
+    expect(copy.name).toBe('Session copy');
+  });
+
+  it('strips a CondBlock\'s condResult on the copy — a template should not inherit another session\'s logged result', () => {
+    const condBlock: CondBlock = {
+      id: 'cond-block',
+      kind: 'conditioning',
+      heading: 'Conditioning',
+      condFmt: 'intervals',
+      effort: 'medium',
+      targetZone: 'mod',
+      minutes: 20,
+      condResult: { fmt: 'intervals', felt: '7', dur: 1200 },
+    };
+    const w = workout({ blocks: [condBlock] });
+    const copy = duplicateWorkout(w);
+    expect((copy.blocks[0] as CondBlock).condResult).toBeUndefined();
+    expect(condBlock.condResult).toBeDefined();
+  });
+
+  it('clears _rev even when present on the original', () => {
+    const w = workout({ _rev: 'rev-123' });
+    const copy = duplicateWorkout(w);
+    expect(copy._rev).toBeUndefined();
   });
 });
 

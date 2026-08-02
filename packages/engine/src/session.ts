@@ -121,6 +121,43 @@ export function duplicateExercise<S extends AnySet>(exercises: Exercise<S>[], ei
 }
 
 /**
+ * Clone a Workout as a new, independent, unscheduled record.
+ *
+ * Every level that carries an id gets a fresh one — the workout itself,
+ * each block, each exercise — mirroring duplicateExercise's own reasoning:
+ * a shared id would let an edit to the copy reach back into the original
+ * (directly, or via a sync-layer merge keyed on that id). Sets are copied
+ * by value for the same reason.
+ *
+ * `days`/`dates` are cleared, not copied: inheriting the original's
+ * scheduled slot would silently double-book that weekday until the
+ * athlete manually reassigns it. `_rev` is sync bookkeeping specific to
+ * the original record. `updatedAt` is refreshed like any new record.
+ */
+export function duplicateWorkout<S extends AnySet>(w: Workout<S>): Workout<S> {
+  const blocks: Block<S>[] = w.blocks.map((b) => {
+    if (b.kind === 'text') return { ...b, id: uid(), done: false };
+    if (b.kind === 'conditioning') return { ...b, id: uid(), condResult: undefined };
+    return {
+      ...b,
+      id: uid(),
+      exercises: b.exercises.map((ex) => ({ ...ex, id: uid(), sets: ex.sets.map((s) => ({ ...s })) })),
+    };
+  });
+  return {
+    ...w,
+    id: uid(),
+    name: (w.name || 'Session') + ' copy',
+    blocks,
+    days: undefined,
+    dates: undefined,
+    updatedAt: Date.now(),
+    _rev: undefined,
+    sample: undefined,
+  };
+}
+
+/**
  * A conditioning block runs by live heart rate instead of set by set, so it has
  * no exercises; `kind: 'conditioning'` is what tells every path to treat it
  * that way. `effort` is what you author, `targetZone` is kept in lockstep so
