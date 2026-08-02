@@ -11,6 +11,78 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
+**2026-08-02 — Phase 2 (adaptive strength progression) shipped on branch
+`phase2-strength-progression`, verified, and pushed to that branch (not merged to
+`main` — a separate final whole-branch review still has to happen first).** Six tasks,
+seven commits: `5a65ab3` (engine — `decideStrengthProgression` core algorithm, correct
+`completedAt` handling, hand-written TDD tests), `331aec4` (engine — decision-table
+acceptance suite, 100+ generated scenarios added to `packages/engine/test/strength.test.ts`),
+`6230c9a` (engine — export `decideStrengthProgression` from `@hybrid/engine`'s package
+index), `990f5fa` (web — opt-in "Apply" suggestion UI on `apps/web/src/screens/Logger.tsx`
+plus a new `checks/react-smoke.mjs` scenario), `f29b0f7` (test — fully tear down the
+seeded strength-history sessions the new react-smoke scenario plants, so it doesn't leak
+state into later scenarios), `e1230ee` (mobile — the same opt-in suggestion UI on
+`apps/mobile/src/screens/Logger.tsx` plus a new case in `apps/mobile/test/logger.test.tsx`).
+This entry is written at `e1230ee`, the current tip of `phase2-strength-progression`.
+
+**What shipped:** `decideStrengthProgression(name, sessions, currentTarget)` — a new,
+pure `packages/engine` function that looks at an exercise's last 1-2 logged exposures
+and decides whether to progress the load, hold it, or (after a genuine miss streak)
+propose a deload, reusing `verdictForRpe`'s existing RPE-band logic rather than
+inventing a new one and needing no e1RM-trend data at all. It's backed by a 100+-row
+generated decision-table suite (`packages/engine/test/strength.test.ts`, 117 tests
+total once the hand-written TDD cases from Task 1 are added in) covering the full
+cross product of verdict × streak-length × exercise-type the function's branches can
+reach. `TrainingDecisionExplanation.prescription` (`{ load?: number; reps?: number }`)
+is a small, additive extension to Phase 0's existing explain contract, used identically
+by both apps' Logger screens to render the suggestion. Both Logger screens (web and
+mobile) got the same opt-in UI: a suggestion strip that appears only when
+`decideStrengthProgression` has something to propose, with an explicit "Apply" action
+that writes the proposed load/reps into the field — nothing is ever auto-applied.
+
+**The bodyweight-exercise rule:** a bodyweight exercise (no external load, e.g.
+push-ups/pull-ups/dips as logged in this app) progresses via reps only — the function
+never proposes a load value for one, since there's no meaningful load number to
+compute a deload percentage against. When a bodyweight exercise is consistently
+missed, the function holds rather than fabricating a deload it has no sensible way to
+compute (there's no load to reduce by a percentage) — this is a deliberate branch, not
+a gap, and is one of the decision-table suite's covered scenarios.
+
+**Deliberately out of scope, stated plainly rather than silently deferred:** no
+pain/fatigue safety signal exists for strength training the way `painHoldFor` exists
+for conditioning — `decideStrengthProgression` has no readiness/pain input at all, so
+`safetyState` on every `TrainingDecisionExplanation` it returns is hardcoded
+`'approved'` in every branch. This is a real limitation, not an oversight: whoever
+picks up a future phase that wants to gate strength progression on pain/fatigue will
+need to design that signal from scratch (there is no strength-side equivalent of the
+conditioning `mechanicalCompletion: 'pain_stop'` field to read from yet). Separately,
+`substitute_exercise` and `repeat_session` — two `ProgressionAction` union members
+Phase 0 already defined — are still never emitted by anything in this codebase after
+this phase; `decideStrengthProgression` has no evidence (no substitution catalog, no
+session-repeat trigger) that would ever justify emitting either, so both remain
+theoretical values on the type until some future phase gives a function a reason to
+return them.
+
+Full repo `pnpm run verify` re-run fresh at `e1230ee` this session: **exit 0** —
+typecheck clean (packages/config, packages/design, packages/engine,
+packages/guided-flow, apps/mobile, apps/web), engine **440/440** across 20 test files
+(was 323/323 before this phase; +117, all from the new `strength.test.ts`), golden
+suite untouched inside that total, guided-flow **15/15** (unchanged), web **3/3** unit
+tests (unchanged count, as the plan predicted — this phase's web coverage lives in the
+new react-smoke scenario, not a unit test), mobile **74/74** (was 73/73 — the +1 is
+`apps/mobile/test/logger.test.tsx`'s new suggestion-and-Apply case), build clean, CSP
+check clean, react-smoke **32/32** (was 31/31 — the +1 is "a consistent 2-session
+on-target streak surfaces an opt-in rep suggestion, and Apply writes it into the
+field"), deploy-smoke **11/11** (unchanged).
+
+**Next roadmap item, per the design doc's own roadmap table**
+(`docs/superpowers/specs/2026-08-01-adaptive-training-engine-audit-design.md`):
+**Phase 3 — modality-aware conditioning thresholds.** Per this project's standing
+per-phase review gate, Phase 3 has NOT been started and awaits its own go-ahead before
+any implementation plan is written for it. This branch (`phase2-strength-progression`)
+also still awaits its final whole-branch review and merge to `main` before Phase 3
+work should begin.
+
 **2026-08-01 — Phase 1's working-weight confidence indicator (the UI slice) shipped,
 verified, and pushed.** `origin/main` is at `ef8f6e1`. Two app-code commits, both
 already on `main`/`origin/main` before this entry was written: `f6cd95f` (web —
