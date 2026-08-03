@@ -100,29 +100,116 @@ export function sanitizeDB(d: unknown): EngineDB {
     return out as Settings;
   };
 
+  /*
+   * Every id in the incoming array, mapped to whatever `kind` that record
+   * stores. `splitMixedWorkout`/`splitMixedSession` derive their sibling's id
+   * from the source record's id (see `condSiblingId`) and need to know what is
+   * already taken — including siblings minted earlier in this same pass.
+   */
+  const kindsById = (records: unknown[]): Map<string, string | undefined> => {
+    const m = new Map<string, string | undefined>();
+    records.forEach((r) => {
+      const rec = r as { id?: unknown; kind?: unknown };
+      if (!rec || typeof rec !== 'object' || typeof rec.id !== 'string' || !rec.id) return;
+      m.set(rec.id, typeof rec.kind === 'string' ? rec.kind : undefined);
+    });
+    return m;
+  };
+
+  const rawWorkouts = arr<unknown>(src.workouts);
+  const rawSessions = arr<unknown>(src.sessions);
+  const workoutIds = kindsById(rawWorkouts);
+  const sessionIds = kindsById(rawSessions);
+
+  /**
+   * The id for the conditioning sibling split out of the record `srcId`, or
+   * `null` when that sibling already exists and must not be minted twice.
+   *
+   * DERIVED from the source id rather than minted with `uid()`, because
+   * sanitizeDB is not a load-time-only function: `applyPull` (cloud.ts) runs it
+   * over the merge result of EVERY pull and `restoreDb` over every imported
+   * backup. A random id meant the same legacy record produced a different
+   * conditioning workout on every device, every boot and every pull — and since
+   * the server keeps its own copy of the un-split original until it is
+   * overwritten, those duplicates accumulated without bound. Deriving the id
+   * makes re-splitting the ORIGINAL blob produce the very same record, so the
+   * duplicate collapses into itself no matter how many times or where it runs.
+   */
+  const condSiblingId = (srcId: string, taken: Map<string, string | undefined>): string | null => {
+    const base = `${srcId}-cond`;
+    // Already migrated — this exact sibling is in the blob. (Its conditioning
+    // blocks live there, so dropping them from the mixed original below loses
+    // nothing.)
+    if (taken.get(base) === 'conditioning') return null;
+    // Improbable, but an unrelated record could already hold the derived id.
+    // Step aside deterministically — the same input must give the same id on
+    // every device — rather than emitting two records with one id.
+    let id = base;
+    for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+    taken.set(id, 'conditioning');
+    return id;
+  };
+
   /**
    * A workout mixing a conditioning block with strength/text blocks (the old
    * "finisher tacked onto a lift day" pattern) is split into a strength
-   * sibling and a NEW conditioning sibling — once, here, rather than carrying
-   * an inferred mix forever. A workout already single-kind just gets `kind`
-   * backfilled. This runs on every load (same as the rest of sanitizeDB) but
-   * is idempotent: a workout that is already split, or was never mixed, comes
-   * back unchanged — no separate migration-version stamp is needed.
+   * sibling and a conditioning sibling — once, here, rather than carrying an
+   * inferred mix forever. A workout already single-kind keeps the `kind` it
+   * stores, and has one inferred from its blocks only when it stores none.
+   *
+   * `kind` is never overwritten: the Planner's per-block ✕ can legitimately
+   * empty a conditioning workout, and re-stamping that 'strength' on the next
+   * load would strand it — no screen anywhere can set `kind` back. A workout
+   * with no blocks AND no stored kind is left with `kind` unset rather than
+   * guessed; `isCondWorkout` already reads `undefined` as false and Home and
+   * Library both branch on "no blocks" separately.
    */
   const splitMixedWorkout = (w: Workout): Workout[] => {
     const condBlocks = w.blocks.filter(isCond);
     const otherBlocks = w.blocks.filter((b) => !isCond(b));
-    if (!condBlocks.length) return [{ ...w, kind: 'strength' }];
-    if (!otherBlocks.length) return [{ ...w, kind: 'conditioning' }];
+    if (!condBlocks.length) {
+      if (w.kind) return [w];
+      return w.blocks.length ? [{ ...w, kind: 'strength' }] : [w];
+    }
+    if (!otherBlocks.length) return [{ ...w, kind: w.kind ?? 'conditioning' }];
+    // The strength sibling keeps the original id, so it is what a still
+    // un-migrated copy on the server collides with on the next sync. Its
+    // `updatedAt` is bumped — and only on this mixed branch, so a load that
+    // splits nothing changes nothing — because pickWorkout gives an exact tie
+    // to the remote: without the bump the stale mixed record wins the merge,
+    // is re-split, and the server never converges.
+    //
+    // One tick past the original rather than Date.now(), which is all it takes
+    // to outrank the stale copy of the SAME record, and which keeps two things
+    // that a wall-clock stamp would break: the output stays a pure function of
+    // the input (two devices splitting the same legacy record produce identical
+    // records, so neither re-pushes the other's), and a tombstone recorded when
+    // the athlete deleted this workout still outranks it — `notTombstoned`
+    // compares the deletion time against `updatedAt`, so a Date.now() here would
+    // resurrect a deleted workout every time the server served the mixed
+    // original back.
+    const strength: Workout = { ...w, kind: 'strength', blocks: otherBlocks, updatedAt: (w.updatedAt || 0) + 1 };
+    const condId = condSiblingId(w.id, workoutIds);
+    if (!condId) return [strength];
     return [
-      { ...w, kind: 'strength', blocks: otherBlocks },
+      strength,
       {
         ...w,
-        id: uid(),
+        id: condId,
         kind: 'conditioning',
         name: `${w.name || 'Session'} — Conditioning`,
         blocks: condBlocks,
-        updatedAt: Date.now(),
+        // `updatedAt` is left as the original's (inherited by the spread)
+        // rather than stamped with the clock: this record's content is exactly
+        // as old as the block it was split out of, and a clock stamp would both
+        // churn the sync fingerprint on every load and outrank the tombstone of
+        // an athlete who has already deleted this sibling.
+        //
+        // Same rule duplicateWorkout follows when it mints a new-id record:
+        // `_rev` is sync bookkeeping belonging to the record this was split out
+        // of, and `sample` marks seeded demo data. Neither survives a new id.
+        _rev: undefined,
+        sample: undefined,
       },
     ];
   };
@@ -132,16 +219,41 @@ export function sanitizeDB(d: unknown): EngineDB {
   const splitMixedSession = (s: Session): Session[] => {
     const condBlocks = s.blocks.filter(isCond);
     const otherBlocks = s.blocks.filter((b) => !isCond(b));
-    if (!condBlocks.length) return [{ ...s, kind: 'strength' }];
-    if (!otherBlocks.length) return [{ ...s, kind: 'conditioning' }];
+    if (!condBlocks.length) {
+      if (s.kind) return [s];
+      return s.blocks.length ? [{ ...s, kind: 'strength' }] : [s];
+    }
+    if (!otherBlocks.length) return [{ ...s, kind: s.kind ?? 'conditioning' }];
+    // Both stores treat the active session as a singleton
+    // (`sessions.find((s) => s.status === 'active')`), so splitting one in
+    // flight hands the athlete back the strength half and strands the
+    // conditioning half as a second, unreachable active session. Leave a
+    // legacy mixed session alone until it is finished — the split then happens
+    // on the next load, when nothing is mid-workout.
+    if (s.status === 'active') return [s];
+    // One tick past the original, for the same reasons as splitMixedWorkout's
+    // strength sibling above.
+    const strength: Session = { ...s, kind: 'strength', blocks: otherBlocks, updatedAt: (s.updatedAt || 0) + 1 };
+    const condId = condSiblingId(s.id, sessionIds);
+    if (!condId) return [strength];
     return [
-      { ...s, kind: 'strength', blocks: otherBlocks },
-      { ...s, id: uid(), kind: 'conditioning', blocks: condBlocks, updatedAt: Date.now() },
+      strength,
+      {
+        ...s,
+        id: condId,
+        kind: 'conditioning',
+        blocks: condBlocks,
+        // The original workoutId now names the STRENGTH-only sibling. Left in
+        // place it makes workoutStats count one training day as two trainings
+        // of that workout and files this half's volume-rate under it in
+        // insights.ts.
+        workoutId: undefined,
+      },
     ];
   };
 
   return {
-    workouts: arr<unknown>(src.workouts).flatMap((w0) => {
+    workouts: rawWorkouts.flatMap((w0) => {
       const w = (w0 && typeof w0 === 'object' ? w0 : {}) as Workout;
       w.blocks = cleanBlocks(w.blocks);
       if (!w.id) w.id = uid();
@@ -150,7 +262,7 @@ export function sanitizeDB(d: unknown): EngineDB {
       if ('folderIds' in w) w.folderIds = arr<string>(w.folderIds).filter((id) => typeof id === 'string' && id);
       return splitMixedWorkout(w);
     }),
-    sessions: arr<unknown>(src.sessions).flatMap((s0) => {
+    sessions: rawSessions.flatMap((s0) => {
       const s = (s0 && typeof s0 === 'object' ? s0 : {}) as Session;
       s.blocks = cleanBlocks(s.blocks);
       if (!s.id) s.id = uid();

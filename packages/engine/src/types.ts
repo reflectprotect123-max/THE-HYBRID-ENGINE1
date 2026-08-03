@@ -155,12 +155,14 @@ export interface Workout<S extends AnySet = LoggedSet> {
   id: string;
   /**
    * 'strength' or 'conditioning' — decided when the first block is authored
-   * (Planner's block-add toolbar, the guided builder's block-type choice) or
-   * backfilled by `sanitizeDB` for data written before this field existed. A
-   * 'strength' workout's blocks may never contain a CondBlock again; see
-   * `sanitizeDB`'s splitMixedWorkout for how an already-mixed workout (the old
-   * "finisher tacked onto a lift day" pattern) gets split into two siblings
-   * on load, once.
+   * (Planner's block-add toolbar, the guided builder's block-type choice), or
+   * inferred by `sanitizeDB` from the blocks of data written before this field
+   * existed. Absent on a workout with no blocks yet: sanitizeDB infers a kind,
+   * it never guesses one and never overwrites a stored one. A 'strength'
+   * workout's blocks may never contain a CondBlock again; see `sanitizeDB`'s
+   * splitMixedWorkout for how an already-mixed workout (the old "finisher
+   * tacked onto a lift day" pattern) gets split into two siblings on load,
+   * once.
    */
   kind?: 'strength' | 'conditioning';
   name?: string;
@@ -182,8 +184,9 @@ export type SessionStatus = 'active' | 'completed' | 'incomplete';
 
 export interface Session {
   id: string;
-  /** Mirrors `Workout.kind` — see its doc comment. Backfilled by `sanitizeDB`
-   *  the same way. */
+  /** Mirrors `Workout.kind` — see its doc comment. Copied from the workout when
+   *  the session is minted (`sessionFrom`), and inferred by `sanitizeDB` the
+   *  same way for sessions logged before this field existed. */
   kind?: 'strength' | 'conditioning';
   /** YYYY-MM-DD */
   date: string;

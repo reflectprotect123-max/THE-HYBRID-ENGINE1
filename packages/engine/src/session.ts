@@ -553,8 +553,11 @@ export function bestE1rmByLift(
 }
 
 /** Whether this workout is a conditioning-kind workout — a stored field
- *  (`Workout.kind`), not scanned from block contents. `sanitizeDB` guarantees
- *  every workout carries `kind` by the time any app code reads it. */
+ *  (`Workout.kind`), not scanned from block contents. A workout that has never
+ *  had a block authored on it carries no `kind` at all (sanitizeDB refuses to
+ *  guess one), which reads as false here — the same answer the block scan used
+ *  to give an empty workout, and Home/Library both handle "no blocks yet"
+ *  separately anyway. */
 export function isCondWorkout(w: Workout): boolean {
   return w.kind === 'conditioning';
 }

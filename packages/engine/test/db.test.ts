@@ -178,9 +178,28 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
     expect(out.workouts[0].kind).toBe('conditioning');
   });
 
-  it('backfills kind=strength on a workout with zero blocks — matches the old isCondWorkout guard', () => {
+  it('leaves kind UNSET on a workout with zero blocks and no stored kind — it guesses nothing', () => {
     const out = sanitizeDB({ workouts: [{ id: 'w1', blocks: [] }], sessions: [], settings: {} });
-    expect(out.workouts[0].kind).toBe('strength');
+    expect(out.workouts[0].kind).toBeUndefined();
+  });
+
+  /*
+   * The Planner has a per-block ✕. Deleting the last conditioning block out of
+   * a conditioning workout used to leave it re-stamped 'strength' on the next
+   * load — permanently, since no screen anywhere can set `kind` back.
+   */
+  it('never overwrites a stored kind, even when the blocks no longer support it', () => {
+    const out = sanitizeDB({ workouts: [{ id: 'w1', kind: 'conditioning', blocks: [] }], sessions: [], settings: {} });
+    expect(out.workouts[0].kind).toBe('conditioning');
+  });
+
+  it('keeps a stored conditioning kind on a workout whose only remaining block is strength', () => {
+    const out = sanitizeDB({
+      workouts: [{ id: 'w1', kind: 'conditioning', blocks: [strengthBlock()] }],
+      sessions: [],
+      settings: {},
+    });
+    expect(out.workouts[0].kind).toBe('conditioning');
   });
 
   it('splits a mixed workout into a strength sibling (keeps the id) and a new conditioning sibling, same days/dates', () => {
@@ -219,6 +238,115 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
     const twice = sanitizeDB(once);
     expect(twice.workouts).toHaveLength(2);
     expect(twice.workouts.map((w) => w.kind).sort()).toEqual(['conditioning', 'strength']);
+    expect(twice.workouts.map((w) => w.id).sort()).toEqual(once.workouts.map((w) => w.id).sort());
+  });
+
+  /*
+   * The duplicate-explosion case. sanitizeDB is not a load-time-only function:
+   * applyPull runs it over the merge result of every pull and restoreDb over
+   * every imported backup, and the server keeps its un-split copy until it is
+   * overwritten. A uid() sibling therefore minted a NEW conditioning workout on
+   * every device, every boot and every pull. The id has to fall out of the
+   * source record, so two independent runs over the ORIGINAL blob agree.
+   */
+  it('mints the same conditioning sibling id on two independent runs over the same original blob', () => {
+    const raw = () => ({
+      workouts: [{ id: 'w1', name: 'Leg Day', blocks: [strengthBlock(), condBlock()] }],
+      sessions: [],
+      settings: {},
+    });
+    const a = sanitizeDB(raw());
+    const b = sanitizeDB(raw());
+    const idsOf = (db: EngineDB) => db.workouts.map((w) => w.id).sort();
+    expect(idsOf(a)).toEqual(idsOf(b));
+    expect(idsOf(a)).toEqual(['w1', 'w1-cond']);
+  });
+
+  it('does not mint a second sibling when the derived one is already in the blob', () => {
+    // What a pull looks like while the server still holds the un-split record:
+    // the merge result carries the mixed original AND the already-split sibling.
+    const out = sanitizeDB({
+      workouts: [
+        { id: 'w1', name: 'Leg Day', blocks: [strengthBlock(), condBlock()] },
+        { id: 'w1-cond', kind: 'conditioning', name: 'Leg Day — Conditioning', blocks: [condBlock()] },
+      ],
+      sessions: [],
+      settings: {},
+    });
+    expect(out.workouts.map((w) => w.id).sort()).toEqual(['w1', 'w1-cond']);
+    expect(out.workouts.find((w) => w.id === 'w1')!.kind).toBe('strength');
+  });
+
+  it('steps aside deterministically if an unrelated workout already holds the derived id', () => {
+    const raw = () => ({
+      workouts: [
+        { id: 'w1', name: 'Leg Day', blocks: [strengthBlock(), condBlock()] },
+        { id: 'w1-cond', name: 'Coincidence', blocks: [strengthBlock()] },
+      ],
+      sessions: [],
+      settings: {},
+    });
+    const a = sanitizeDB(raw());
+    const b = sanitizeDB(raw());
+    expect(a.workouts.map((w) => w.id).sort()).toEqual(['w1', 'w1-cond', 'w1-cond-2']);
+    expect(a.workouts.map((w) => w.id).sort()).toEqual(b.workouts.map((w) => w.id).sort());
+    // the unrelated record is untouched, not overwritten
+    expect(a.workouts.find((w) => w.id === 'w1-cond')!.name).toBe('Coincidence');
+  });
+
+  it('bumps the strength sibling updatedAt when it splits, so the stale server copy loses the merge', () => {
+    const out = sanitizeDB({
+      workouts: [{ id: 'w1', blocks: [strengthBlock(), condBlock()], updatedAt: 1000 }],
+      sessions: [],
+      settings: {},
+    });
+    // one tick past the original, not the wall clock: enough to outrank the
+    // stale copy of the same record, deterministic enough that two devices
+    // splitting the same blob produce the same record, and still older than a
+    // tombstone written when the athlete deleted this workout
+    expect(out.workouts.find((w) => w.id === 'w1')!.updatedAt).toBe(1001);
+    expect(out.workouts.find((w) => w.id === 'w1-cond')!.updatedAt).toBe(1000);
+  });
+
+  it('a tombstone written after the split still outranks the re-split of a stale mixed copy', () => {
+    // The server keeps the mixed original until it is overwritten, so a delete
+    // has to survive it being served back and re-split.
+    const resplit = sanitizeDB({
+      workouts: [{ id: 'w1', blocks: [strengthBlock(), condBlock()], updatedAt: 1000 }],
+      sessions: [],
+      settings: {},
+    });
+    const deletedAt = 5000;
+    const local: EngineDB = {
+      workouts: [],
+      sessions: [],
+      settings: { deletedIds: { w1: deletedAt, 'w1-cond': deletedAt } },
+    };
+    const merged = mergeEngines(local, resplit);
+    expect(merged.workouts).toEqual([]);
+  });
+
+  it('leaves updatedAt alone on a load that splits nothing', () => {
+    const out = sanitizeDB({
+      workouts: [{ id: 'w1', kind: 'strength', blocks: [strengthBlock()], updatedAt: 1 }],
+      sessions: [],
+      settings: {},
+    });
+    expect(out.workouts[0].updatedAt).toBe(1);
+  });
+
+  it('clears _rev and sample on the new-id conditioning sibling, the same as duplicateWorkout', () => {
+    const out = sanitizeDB({
+      workouts: [{ id: 'w1', blocks: [strengthBlock(), condBlock()], _rev: 'rev-9', sample: true }],
+      sessions: [],
+      settings: {},
+    });
+    const cond = out.workouts.find((w) => w.id === 'w1-cond')!;
+    expect(cond._rev).toBeUndefined();
+    expect(cond.sample).toBeUndefined();
+    // the strength sibling keeps the original id, so it keeps the original's
+    // sync bookkeeping
+    expect(out.workouts.find((w) => w.id === 'w1')!._rev).toBe('rev-9');
   });
 });
 
@@ -242,6 +370,82 @@ describe('sanitizeDB backfills and splits Session.kind', () => {
     expect(strength.status).toBe('completed');
     expect(cond.kind).toBe('conditioning');
     expect(cond.status).toBe('completed');
+    expect(cond.id).toBe('s1-cond');
+  });
+
+  /*
+   * Both stores read the live session as a singleton
+   * (`sessions.find((s) => s.status === 'active')`). Splitting one mid-workout
+   * hands the athlete back the strength half and strands the conditioning half
+   * as a second active session nothing can ever reach.
+   */
+  it('leaves an ACTIVE mixed session whole — the split waits until it is finished', () => {
+    const out = sanitizeDB({
+      workouts: [],
+      sessions: [{ id: 's1', date: '2026-08-10', status: 'active', blocks: [strengthBlock(), condBlock()] }],
+      settings: {},
+    });
+    expect(out.sessions).toHaveLength(1);
+    expect(out.sessions[0].blocks.map((b) => b.id)).toEqual(['sb1', 'cb1']);
+    expect(out.sessions.filter((s) => s.status === 'active')).toHaveLength(1);
+  });
+
+  it('splits that same session once it completes', () => {
+    const out = sanitizeDB({
+      workouts: [],
+      sessions: [{ id: 's1', date: '2026-08-10', status: 'incomplete', blocks: [strengthBlock(), condBlock()] }],
+      settings: {},
+    });
+    expect(out.sessions).toHaveLength(2);
+  });
+
+  /*
+   * The original workoutId names the STRENGTH-only sibling once the split has
+   * happened. Left on the conditioning half, workoutStats counts one training
+   * day as two trainings of the strength workout and insights.ts files this
+   * half's volume-rate under it.
+   */
+  it('clears workoutId on the conditioning sibling so it cannot dangle onto the strength workout', () => {
+    const out = sanitizeDB({
+      workouts: [],
+      sessions: [
+        {
+          id: 's1',
+          date: '2026-08-10',
+          status: 'completed',
+          workoutId: 'w1',
+          blocks: [strengthBlock(), condBlock()],
+        },
+      ],
+      settings: {},
+    });
+    expect(out.sessions.find((s) => s.id === 's1')!.workoutId).toBe('w1');
+    expect(out.sessions.find((s) => s.id === 's1-cond')!.workoutId).toBeUndefined();
+  });
+
+  it('mints the same session sibling id on two independent runs over the same original blob', () => {
+    const raw = () => ({
+      workouts: [],
+      sessions: [{ id: 's1', date: '2026-08-10', status: 'completed', blocks: [strengthBlock(), condBlock()] }],
+      settings: {},
+    });
+    const a = sanitizeDB(raw());
+    const b = sanitizeDB(raw());
+    expect(a.sessions.map((s) => s.id).sort()).toEqual(b.sessions.map((s) => s.id).sort());
+    expect(a.sessions.map((s) => s.id).sort()).toEqual(['s1', 's1-cond']);
+  });
+
+  it('leaves kind unset on a blockless session that stores none, and keeps a stored one', () => {
+    const out = sanitizeDB({
+      workouts: [],
+      sessions: [
+        { id: 's1', date: '2026-08-10', status: 'completed', blocks: [] },
+        { id: 's2', date: '2026-08-10', status: 'completed', kind: 'conditioning', blocks: [] },
+      ],
+      settings: {},
+    });
+    expect(out.sessions.find((s) => s.id === 's1')!.kind).toBeUndefined();
+    expect(out.sessions.find((s) => s.id === 's2')!.kind).toBe('conditioning');
   });
 });
 

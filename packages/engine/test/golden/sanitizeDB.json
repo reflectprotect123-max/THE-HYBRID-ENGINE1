@@ -96,7 +96,6 @@
    "workouts": [
     {
      "id": "w2",
-     "kind": "strength",
      "name": "<img src=x onerror=alert(1)>",
      "blocks": []
     }

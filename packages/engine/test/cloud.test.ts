@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { applyPull, buildPushState } from '../src/cloud';
+import { sanitizeDB } from '../src/db';
 import type { EngineDB, Session, Workout } from '../src/types';
 
 const wk = (id: string, extra: Partial<Workout> = {}): Workout => ({
@@ -118,5 +119,103 @@ describe('sessions unrelated to a workout id are unaffected by a merge', () => {
     const a: EngineDB = { workouts: [], sessions: [sess('s1', 'gone')], settings: {} };
     const r = applyPull(a, null);
     expect(r.db.sessions.map((s) => s.id)).toEqual(['s1']);
+  });
+});
+
+/*
+ * The migration meets the sync protocol.
+ *
+ * sanitizeDB's split is not a load-time-only event — applyPull re-sanitises the
+ * merge result of EVERY pull. While the server still holds the un-split mixed
+ * record, that combination used to mint a brand-new conditioning workout per
+ * pull, per device, forever.
+ */
+describe('a device that has split a mixed workout, pulling from a server that has not', () => {
+  const mixedRaw = (): EngineDB =>
+    ({
+      workouts: [
+        {
+          id: 'w1',
+          name: 'Leg Day',
+          updatedAt: 1,
+          blocks: [
+            { id: 'sb1', exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }] },
+            { id: 'cb1', kind: 'conditioning', condFmt: 'intervals' },
+          ],
+        },
+      ],
+      sessions: [],
+      settings: {},
+    }) as unknown as EngineDB;
+
+  const ids = (db: EngineDB) => db.workouts.map((w) => w.id).sort();
+
+  it('converges on the same two records however many times it pulls', () => {
+    const local = sanitizeDB(mixedRaw());
+    expect(ids(local)).toEqual(['w1', 'w1-cond']);
+
+    const first = applyPull(local, mixedRaw());
+    expect(ids(first.db)).toEqual(['w1', 'w1-cond']);
+    // the migrated strength half beat the server's stale mixed copy
+    expect(first.db.workouts.find((w) => w.id === 'w1')!.blocks.map((b) => b.id)).toEqual(['sb1']);
+    // and the merged result is not what the server holds, so it goes back up
+    expect(first.needsPush).toBe(true);
+
+    const second = applyPull(first.db, mixedRaw());
+    const third = applyPull(second.db, mixedRaw());
+    expect(ids(second.db)).toEqual(['w1', 'w1-cond']);
+    expect(ids(third.db)).toEqual(['w1', 'w1-cond']);
+  });
+
+  it('pushes the split pair back up, so the server stops holding the mixed record', () => {
+    const local = sanitizeDB(mixedRaw());
+    const pushed = buildPushState(local, { hybridEngine: mixedRaw() }) as { hybridEngine: EngineDB };
+    expect(ids(pushed.hybridEngine)).toEqual(['w1', 'w1-cond']);
+    expect(pushed.hybridEngine.workouts.find((w) => w.id === 'w1')!.blocks.map((b) => b.id)).toEqual(['sb1']);
+  });
+});
+
+describe('a device that has split a mixed SESSION, pulling from a server that has not', () => {
+  const mixedRaw = (): EngineDB =>
+    ({
+      workouts: [],
+      sessions: [
+        {
+          id: 's1',
+          date: '2026-08-10',
+          status: 'completed',
+          updatedAt: 1,
+          completedAt: 1,
+          workoutId: 'w1',
+          blocks: [
+            {
+              id: 'sb1',
+              exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8', done: true }] }],
+            },
+            { id: 'cb1', kind: 'conditioning', condFmt: 'intervals', condResult: { id: 'cr1', secs: 600 } },
+          ],
+        },
+      ],
+      settings: {},
+    }) as unknown as EngineDB;
+
+  /*
+   * pickSession ranks logged work above recency, and the mixed original carries
+   * BOTH halves' work — so the server's copy still wins the merge for this one
+   * record. What must not happen is the conditioning half multiplying: the
+   * derived sibling id means the re-split lands on the record already there
+   * instead of minting another one, however many times it pulls.
+   */
+  it('stays at exactly two records however many times it pulls', () => {
+    let cur = sanitizeDB(mixedRaw());
+    expect(cur.sessions.map((s) => s.id).sort()).toEqual(['s1', 's1-cond']);
+    for (let i = 0; i < 3; i++) {
+      cur = applyPull(cur, mixedRaw()).db;
+      expect(cur.sessions.map((s) => s.id).sort()).toEqual(['s1', 's1-cond']);
+      expect(cur.sessions.find((s) => s.id === 's1')!.blocks.map((b) => b.id)).toEqual(['sb1']);
+      expect(cur.sessions.find((s) => s.id === 's1-cond')!.blocks.map((b) => b.id)).toEqual(['cb1']);
+      // and the conditioning half never re-acquires the strength workout's id
+      expect(cur.sessions.find((s) => s.id === 's1-cond')!.workoutId).toBeUndefined();
+    }
   });
 });
