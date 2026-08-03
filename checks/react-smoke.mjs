@@ -1534,6 +1534,34 @@ await t('the plan editor edits a target and it persists', async () => {
   assert(stored[0] === 'W10' && stored[1] === '3', 'targets not saved: ' + JSON.stringify(stored));
 });
 
+await t('the guided builder excludes Conditioning from block-type choices once a strength block exists', async () => {
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.workouts.push({ id: 'guided-kind-1', name: 'Guided Kind Test', blocks: [], updatedAt: 1 });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/build/guided-kind-1', { waitUntil: 'networkidle' });
+
+  let txt = await page.textContent('body');
+  assert(/Conditioning/.test(txt) && /Lift/.test(txt), 'the first block of a brand-new workout should offer every kind');
+
+  await page.click('button:has-text("Lift")');
+  await page.fill('input[aria-label="movement name"]', 'Back Squat');
+  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("Next")'); // sets step — default of 3 is fine
+  await page.click('button:has-text("5")'); // reps preset chip
+  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("RPE 8")');
+  await page.click('button:has-text("Next")');
+
+  await page.waitForSelector('text=Add another block?');
+  await page.click('button:has-text("Yes, add another")');
+
+  txt = await page.textContent('body');
+  assert(/Lift/.test(txt) && /Warm-up/.test(txt), 'lift and warm-up should remain offered for a strength workout');
+  assert(!/Conditioning/.test(txt), 'conditioning must not be offered once a strength block already exists in this workout');
+});
+
 await t("the Planner's block-add toolbar only offers kinds compatible with the workout's own kind", async () => {
   await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));

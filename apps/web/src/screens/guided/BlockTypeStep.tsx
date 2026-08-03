@@ -19,15 +19,23 @@ const CHOICES: { kind: Exclude<BlockKind, null>; label: string; glyph: string }[
 export function BlockTypeStep({
   onPick,
   onBack,
+  allowed,
 }: {
   onPick: (kind: Exclude<BlockKind, null>) => void;
   onBack: () => void;
+  /** Restrict which choices render — used from the second block onward in a
+   *  workout that has already committed to a kind (a strength workout's
+   *  guided flow never offers 'cond' again, and a conditioning workout's flow
+   *  never offers 'lift'/'warmup'/'metcon'). Undefined — the first block of a
+   *  brand-new workout — shows all four. */
+  allowed?: Exclude<BlockKind, null>[];
 }) {
+  const choices = allowed ? CHOICES.filter((c) => allowed.includes(c.kind)) : CHOICES;
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-2 p-3">
       <h1 className="text-8 font-[800]">What are we doing?</h1>
       <div className="grid grid-cols-2 gap-1.5">
-        {CHOICES.map((c) => (
+        {choices.map((c) => (
           <Button
             key={c.kind}
             variant="brass"
