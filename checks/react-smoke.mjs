@@ -1534,6 +1534,50 @@ await t('the plan editor edits a target and it persists', async () => {
   assert(stored[0] === 'W10' && stored[1] === '3', 'targets not saved: ' + JSON.stringify(stored));
 });
 
+await t("the Planner's block-add toolbar only offers kinds compatible with the workout's own kind", async () => {
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.workouts.push(
+      {
+        id: 'toolbar-strength-1',
+        name: 'Strength Toolbar Test',
+        kind: 'strength',
+        updatedAt: 1,
+        blocks: [
+          {
+            id: 'b1',
+            exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }],
+          },
+        ],
+      },
+      {
+        id: 'toolbar-cond-1',
+        name: 'Conditioning Toolbar Test',
+        kind: 'conditioning',
+        updatedAt: 1,
+        blocks: [{ id: 'cb1', kind: 'conditioning', condFmt: 'intervals' }],
+      },
+    );
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+
+  await page.goto(base + '/planner/toolbar-strength-1', { waitUntil: 'networkidle' });
+  let txt = await page.textContent('body');
+  assert(/＋ Block/.test(txt), 'a strength workout should still offer + Block');
+  assert(
+    !/♥ Conditioning/.test(txt),
+    'a strength workout must not offer + Conditioning — that is the finisher pattern being removed',
+  );
+
+  await page.goto(base + '/planner/toolbar-cond-1', { waitUntil: 'networkidle' });
+  txt = await page.textContent('body');
+  assert(/♥ Conditioning/.test(txt), 'a conditioning workout should offer + Conditioning');
+  assert(
+    !/＋ Block/.test(txt),
+    'a conditioning workout must not offer strength/warm-up/metcon block buttons',
+  );
+});
+
 await t('Duplicate clones a workout and lands on Planner with independent content', async () => {
   // Seed a workout with a known name and one exercise, under a name distinct
   // from every workout the guided-builder tests above created, so the clicks

@@ -286,12 +286,17 @@ export function Planner() {
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1">
-        <Button onClick={() => edit((d) => void d.blocks.push(newBlock() as never))}>＋ Block</Button>
-        <Button onClick={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
-          ☀ Warm-up / Cooldown
-        </Button>
-        <Button onClick={() => edit((d) => void d.blocks.push(newCondBlock()))}>♥ Conditioning</Button>
-        <Button onClick={() => edit((d) => void d.blocks.push(newTextBlock()))}>✎ Metcon / notes</Button>
+        {w.kind !== 'conditioning' ? (
+          <>
+            <Button onClick={() => edit((d) => void d.blocks.push(newBlock() as never))}>＋ Block</Button>
+            <Button onClick={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
+              ☀ Warm-up / Cooldown
+            </Button>
+            <Button onClick={() => edit((d) => void d.blocks.push(newTextBlock()))}>✎ Metcon / notes</Button>
+          </>
+        ) : (
+          <Button onClick={() => edit((d) => void d.blocks.push(newCondBlock()))}>♥ Conditioning</Button>
+        )}
       </div>
 
       <Button variant="brass" size="lg" className="mt-3 w-full" onClick={() => nav('/library')}>
