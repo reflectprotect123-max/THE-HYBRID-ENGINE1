@@ -153,6 +153,16 @@ export type Block<S extends AnySet = LoggedSet> = StrengthBlock<S> | CondBlock |
 
 export interface Workout<S extends AnySet = LoggedSet> {
   id: string;
+  /**
+   * 'strength' or 'conditioning' — decided when the first block is authored
+   * (Planner's block-add toolbar, the guided builder's block-type choice) or
+   * backfilled by `sanitizeDB` for data written before this field existed. A
+   * 'strength' workout's blocks may never contain a CondBlock again; see
+   * `sanitizeDB`'s splitMixedWorkout for how an already-mixed workout (the old
+   * "finisher tacked onto a lift day" pattern) gets split into two siblings
+   * on load, once.
+   */
+  kind?: 'strength' | 'conditioning';
   name?: string;
   blocks: Block<S>[];
   /** recurring weekday slots, 0=Sunday */
@@ -172,6 +182,9 @@ export type SessionStatus = 'active' | 'completed' | 'incomplete';
 
 export interface Session {
   id: string;
+  /** Mirrors `Workout.kind` — see its doc comment. Backfilled by `sanitizeDB`
+   *  the same way. */
+  kind?: 'strength' | 'conditioning';
   /** YYYY-MM-DD */
   date: string;
   name?: string;

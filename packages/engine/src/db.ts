@@ -100,21 +100,61 @@ export function sanitizeDB(d: unknown): EngineDB {
     return out as Settings;
   };
 
+  /**
+   * A workout mixing a conditioning block with strength/text blocks (the old
+   * "finisher tacked onto a lift day" pattern) is split into a strength
+   * sibling and a NEW conditioning sibling — once, here, rather than carrying
+   * an inferred mix forever. A workout already single-kind just gets `kind`
+   * backfilled. This runs on every load (same as the rest of sanitizeDB) but
+   * is idempotent: a workout that is already split, or was never mixed, comes
+   * back unchanged — no separate migration-version stamp is needed.
+   */
+  const splitMixedWorkout = (w: Workout): Workout[] => {
+    const condBlocks = w.blocks.filter(isCond);
+    const otherBlocks = w.blocks.filter((b) => !isCond(b));
+    if (!condBlocks.length) return [{ ...w, kind: 'strength' }];
+    if (!otherBlocks.length) return [{ ...w, kind: 'conditioning' }];
+    return [
+      { ...w, kind: 'strength', blocks: otherBlocks },
+      {
+        ...w,
+        id: uid(),
+        kind: 'conditioning',
+        name: `${w.name || 'Session'} — Conditioning`,
+        blocks: condBlocks,
+        updatedAt: Date.now(),
+      },
+    ];
+  };
+
+  /** Same reasoning as `splitMixedWorkout`, for a logged Session instead of a
+   *  Workout template. */
+  const splitMixedSession = (s: Session): Session[] => {
+    const condBlocks = s.blocks.filter(isCond);
+    const otherBlocks = s.blocks.filter((b) => !isCond(b));
+    if (!condBlocks.length) return [{ ...s, kind: 'strength' }];
+    if (!otherBlocks.length) return [{ ...s, kind: 'conditioning' }];
+    return [
+      { ...s, kind: 'strength', blocks: otherBlocks },
+      { ...s, id: uid(), kind: 'conditioning', blocks: condBlocks, updatedAt: Date.now() },
+    ];
+  };
+
   return {
-    workouts: arr<unknown>(src.workouts).map((w0) => {
+    workouts: arr<unknown>(src.workouts).flatMap((w0) => {
       const w = (w0 && typeof w0 === 'object' ? w0 : {}) as Workout;
       w.blocks = cleanBlocks(w.blocks);
       if (!w.id) w.id = uid();
       if ('days' in w) w.days = arr<number>(w.days).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
       if ('dates' in w) w.dates = arr<string>(w.dates).filter((k) => typeof k === 'string');
       if ('folderIds' in w) w.folderIds = arr<string>(w.folderIds).filter((id) => typeof id === 'string' && id);
-      return w;
+      return splitMixedWorkout(w);
     }),
-    sessions: arr<unknown>(src.sessions).map((s0) => {
+    sessions: arr<unknown>(src.sessions).flatMap((s0) => {
       const s = (s0 && typeof s0 === 'object' ? s0 : {}) as Session;
       s.blocks = cleanBlocks(s.blocks);
       if (!s.id) s.id = uid();
-      return s;
+      return splitMixedSession(s);
     }),
     settings: cleanSettings(src.settings),
   };

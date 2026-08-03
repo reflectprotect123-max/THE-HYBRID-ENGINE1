@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeEngines, mergeSettings, pickWorkout, sanitizeDB } from '../src/db';
 import { ungroupedWorkouts } from '../src/folders';
+import { isCondWorkout } from '../src/session';
 import type { EngineDB, Workout } from '../src/types';
 
 describe('sanitizeDB folders', () => {
@@ -155,5 +156,107 @@ describe('the actual removeFolder write path survives a merge with a stale remot
     expect(w).toBeTruthy();
     const stillUngrouped = ungroupedWorkouts(merged.workouts, merged.settings.folders || []);
     expect(stillUngrouped.map((x) => x.id)).toContain('w1');
+  });
+});
+
+describe('sanitizeDB backfills and splits Workout.kind', () => {
+  const strengthBlock = () => ({
+    id: 'sb1',
+    exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }],
+  });
+  const condBlock = () => ({ id: 'cb1', kind: 'conditioning', condFmt: 'intervals' });
+
+  it('backfills kind=strength on an old workout with only strength blocks', () => {
+    const out = sanitizeDB({ workouts: [{ id: 'w1', blocks: [strengthBlock()] }], sessions: [], settings: {} });
+    expect(out.workouts).toHaveLength(1);
+    expect(out.workouts[0].kind).toBe('strength');
+  });
+
+  it('backfills kind=conditioning on an old workout that is all conditioning blocks', () => {
+    const out = sanitizeDB({ workouts: [{ id: 'w1', blocks: [condBlock()] }], sessions: [], settings: {} });
+    expect(out.workouts).toHaveLength(1);
+    expect(out.workouts[0].kind).toBe('conditioning');
+  });
+
+  it('backfills kind=strength on a workout with zero blocks — matches the old isCondWorkout guard', () => {
+    const out = sanitizeDB({ workouts: [{ id: 'w1', blocks: [] }], sessions: [], settings: {} });
+    expect(out.workouts[0].kind).toBe('strength');
+  });
+
+  it('splits a mixed workout into a strength sibling (keeps the id) and a new conditioning sibling, same days/dates', () => {
+    const out = sanitizeDB({
+      workouts: [
+        {
+          id: 'w1',
+          name: 'Leg Day',
+          blocks: [strengthBlock(), condBlock()],
+          days: [1, 3],
+          dates: ['2026-08-10'],
+        },
+      ],
+      sessions: [],
+      settings: {},
+    });
+    expect(out.workouts).toHaveLength(2);
+    const strength = out.workouts.find((w) => w.id === 'w1')!;
+    const cond = out.workouts.find((w) => w.id !== 'w1')!;
+    expect(strength.kind).toBe('strength');
+    expect(strength.blocks.map((b) => b.id)).toEqual(['sb1']);
+    expect(strength.days).toEqual([1, 3]);
+    expect(cond.kind).toBe('conditioning');
+    expect(cond.name).toBe('Leg Day — Conditioning');
+    expect(cond.blocks.map((b) => b.id)).toEqual(['cb1']);
+    expect(cond.days).toEqual([1, 3]);
+    expect(cond.dates).toEqual(['2026-08-10']);
+  });
+
+  it('splitting is idempotent — running sanitizeDB again on already-split output changes nothing further', () => {
+    const once = sanitizeDB({
+      workouts: [{ id: 'w1', blocks: [strengthBlock(), condBlock()] }],
+      sessions: [],
+      settings: {},
+    });
+    const twice = sanitizeDB(once);
+    expect(twice.workouts).toHaveLength(2);
+    expect(twice.workouts.map((w) => w.kind).sort()).toEqual(['conditioning', 'strength']);
+  });
+});
+
+describe('sanitizeDB backfills and splits Session.kind', () => {
+  const strengthBlock = () => ({
+    id: 'sb1',
+    exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }],
+  });
+  const condBlock = () => ({ id: 'cb1', kind: 'conditioning', condFmt: 'intervals' });
+
+  it('splits a mixed session the same way, preserving status', () => {
+    const out = sanitizeDB({
+      workouts: [],
+      sessions: [{ id: 's1', date: '2026-08-10', status: 'completed', blocks: [strengthBlock(), condBlock()] }],
+      settings: {},
+    });
+    expect(out.sessions).toHaveLength(2);
+    const strength = out.sessions.find((s) => s.id === 's1')!;
+    const cond = out.sessions.find((s) => s.id !== 's1')!;
+    expect(strength.kind).toBe('strength');
+    expect(strength.status).toBe('completed');
+    expect(cond.kind).toBe('conditioning');
+    expect(cond.status).toBe('completed');
+  });
+});
+
+describe('isCondWorkout reads the stored kind, not block contents', () => {
+  it('is true for kind: conditioning regardless of blocks', () => {
+    expect(isCondWorkout({ id: 'w1', kind: 'conditioning', blocks: [] })).toBe(true);
+  });
+
+  it('is false for kind: strength even if every block happens to be conditioning-shaped', () => {
+    expect(
+      isCondWorkout({
+        id: 'w1',
+        kind: 'strength',
+        blocks: [{ id: 'b1', kind: 'conditioning', condFmt: 'intervals' } as never],
+      }),
+    ).toBe(false);
   });
 });

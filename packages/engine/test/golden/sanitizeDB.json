@@ -53,6 +53,7 @@
    "workouts": [
     {
      "id": "w1",
+     "kind": "strength",
      "name": "X",
      "blocks": [
       {
@@ -95,6 +96,7 @@
    "workouts": [
     {
      "id": "w2",
+     "kind": "strength",
      "name": "<img src=x onerror=alert(1)>",
      "blocks": []
     }
@@ -135,6 +137,7 @@
    "workouts": [
     {
      "id": "w3",
+     "kind": "strength",
      "name": "Inf",
      "blocks": [
       {

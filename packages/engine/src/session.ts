@@ -552,9 +552,11 @@ export function bestE1rmByLift(
   return names;
 }
 
-/** Is every block in this workout conditioning? Drives how it is presented. */
+/** Whether this workout is a conditioning-kind workout — a stored field
+ *  (`Workout.kind`), not scanned from block contents. `sanitizeDB` guarantees
+ *  every workout carries `kind` by the time any app code reads it. */
 export function isCondWorkout(w: Workout): boolean {
-  return (w.blocks || []).length > 0 && (w.blocks || []).every(isCond);
+  return w.kind === 'conditioning';
 }
 
 /**
