@@ -1560,6 +1560,45 @@ await t('the guided builder excludes Conditioning from block-type choices once a
   txt = await page.textContent('body');
   assert(/Lift/.test(txt) && /Warm-up/.test(txt), 'lift and warm-up should remain offered for a strength workout');
   assert(!/Conditioning/.test(txt), 'conditioning must not be offered once a strength block already exists in this workout');
+
+  const kind = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts.find((w) => w.id === 'guided-kind-1').kind,
+  );
+  assert(kind === 'strength', 'the first block should have committed the workout to strength, got ' + kind);
+});
+
+// The mirror of the test above. A split that only holds in one direction is
+// half a split: a conditioning workout has to stop offering strength blocks
+// just as firmly as a strength workout stops offering conditioning.
+await t('the guided builder excludes Lift / Warm-up / Metcon once a conditioning block exists', async () => {
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    db.workouts.push({ id: 'guided-kind-2', name: 'Guided Cond Test', blocks: [], updatedAt: 1 });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+  });
+  await page.goto(base + '/build/guided-kind-2', { waitUntil: 'networkidle' });
+
+  let txt = await page.textContent('body');
+  assert(/Conditioning/.test(txt) && /Lift/.test(txt), 'the first block of a brand-new workout should offer every kind');
+
+  await page.click('button:has-text("Conditioning")');
+  await page.waitForSelector('text=What kind of conditioning?');
+  await page.click('button:has-text("Steady-state")'); // the format chip Next is gated on
+  await page.click('button:has-text("Next")');
+
+  await page.waitForSelector('text=Add another block?');
+  await page.click('button:has-text("Yes, add another")');
+
+  txt = await page.textContent('body');
+  assert(/Conditioning/.test(txt), 'conditioning should remain offered for a conditioning workout');
+  assert(!/Lift/.test(txt), 'lift must not be offered once a conditioning block already exists in this workout');
+  assert(!/Warm-up/.test(txt), 'warm-up must not be offered once a conditioning block already exists in this workout');
+  assert(!/Metcon/.test(txt), 'metcon must not be offered once a conditioning block already exists in this workout');
+
+  const kind = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).workouts.find((w) => w.id === 'guided-kind-2').kind,
+  );
+  assert(kind === 'conditioning', 'the first block should have committed the workout to conditioning, got ' + kind);
 });
 
 await t("the Planner's block-add toolbar only offers kinds compatible with the workout's own kind", async () => {

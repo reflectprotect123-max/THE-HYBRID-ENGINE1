@@ -259,5 +259,34 @@ describe('GuidedBuilderScreen', () => {
 
     expect(screen.getByText('☀ Warm-up / Cooldown')).toBeTruthy();
     expect(screen.queryByText('♥ Conditioning')).toBeNull();
+
+    flushSave();
+    expect(persisted().workouts.find((x) => x.id === 'w1')!.kind).toBe('strength');
+  });
+
+  // The mirror of the test above. A split that only holds in one direction is
+  // half a split: a conditioning workout must stop offering strength blocks
+  // just as firmly as a strength workout stops offering conditioning.
+  it('excludes Lift / Warm-up / Metcon from block-type choices once a conditioning block exists', () => {
+    seed({ workouts: [newWorkout()] });
+    renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
+
+    expect(screen.getByText('🏋 Lift')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('♥ Conditioning'));
+    expect(screen.getByText('What kind of conditioning?')).toBeTruthy();
+    fireEvent.press(screen.getByText('Steady-state'));
+    fireEvent.press(screen.getByText('Next'));
+
+    expect(screen.getByText('Yes, add another')).toBeTruthy();
+    fireEvent.press(screen.getByText('Yes, add another'));
+
+    expect(screen.getByText('♥ Conditioning')).toBeTruthy();
+    expect(screen.queryByText('🏋 Lift')).toBeNull();
+    expect(screen.queryByText('☀ Warm-up / Cooldown')).toBeNull();
+    expect(screen.queryByText('✎ Metcon / notes')).toBeNull();
+
+    flushSave();
+    expect(persisted().workouts.find((x) => x.id === 'w1')!.kind).toBe('conditioning');
   });
 });
