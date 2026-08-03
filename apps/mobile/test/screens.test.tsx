@@ -19,6 +19,7 @@ import { ExerciseScreen } from '../src/screens/Exercise';
 import { DayScreen } from '../src/screens/Day';
 import { CalendarScreen } from '../src/screens/Calendar';
 import { HomeScreen } from '../src/screens/Home';
+import { PlannerScreen } from '../src/screens/Planner';
 import { ymd, LS_KEY, type EngineDB, type Workout } from '@hybrid/engine';
 import { storage } from '../src/store/storage';
 
@@ -671,5 +672,43 @@ describe('Library folders picker', () => {
     fireEvent.press(screen.getByLabelText('folders for Leak Target'));
     expect(screen.getByText('+ New folder')).toBeTruthy();
     expect(screen.queryByLabelText('New folder name')).toBeNull();
+  });
+});
+
+describe('Planner toolbar kind guard', () => {
+  it('hides + Conditioning for a strength workout', () => {
+    seed({
+      workouts: [
+        {
+          id: 'toolbar-strength-1',
+          name: 'Strength Toolbar Test',
+          kind: 'strength',
+          updatedAt: 1,
+          blocks: [
+            { id: 'b1', exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }] },
+          ],
+        },
+      ],
+    });
+    renderScreen(<PlannerScreen />, { id: 'toolbar-strength-1' });
+    expect(screen.getByText('＋ Block')).toBeTruthy();
+    expect(screen.queryByText('♥ Conditioning')).toBeNull();
+  });
+
+  it('shows only + Conditioning for a conditioning workout', () => {
+    seed({
+      workouts: [
+        {
+          id: 'toolbar-cond-1',
+          name: 'Conditioning Toolbar Test',
+          kind: 'conditioning',
+          updatedAt: 1,
+          blocks: [{ id: 'cb1', kind: 'conditioning', condFmt: 'intervals' }],
+        },
+      ],
+    });
+    renderScreen(<PlannerScreen />, { id: 'toolbar-cond-1' });
+    expect(screen.getByText('♥ Conditioning')).toBeTruthy();
+    expect(screen.queryByText('＋ Block')).toBeNull();
   });
 });

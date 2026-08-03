@@ -231,18 +231,23 @@ export function PlannerScreen() {
       ))}
 
       <View className="mt-2 flex-row flex-wrap gap-1">
-        <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newBlock() as never))}>
-          ＋ Block
-        </Btn>
-        <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
-          ☀ Warm-up / Cooldown
-        </Btn>
-        <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newCondBlock()))}>
-          ♥ Conditioning
-        </Btn>
-        <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newTextBlock()))}>
-          ✎ Metcon / notes
-        </Btn>
+        {w.kind !== 'conditioning' ? (
+          <>
+            <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newBlock() as never))}>
+              ＋ Block
+            </Btn>
+            <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newWarmupBlock() as never))}>
+              ☀ Warm-up / Cooldown
+            </Btn>
+            <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newTextBlock()))}>
+              ✎ Metcon / notes
+            </Btn>
+          </>
+        ) : (
+          <Btn className="min-w-[48%]" onPress={() => edit((d) => void d.blocks.push(newCondBlock()))}>
+            ♥ Conditioning
+          </Btn>
+        )}
       </View>
 
       <Btn variant="brass" className="mt-3" onPress={() => nav.goBack()}>
