@@ -10,6 +10,19 @@ import type { EngineDB } from './types';
 
 /**
  * What to send up, given what is already there.
+ *
+ * Known gap (2026-08-03, strength/conditioning split): this does not run the
+ * merge result through `sanitizeDB` before push. For a legacy mixed-block
+ * session whose conditioning half was already logged, `pickSession` ranks
+ * logged-work-count above `updatedAt`, so a still-mixed remote copy keeps
+ * winning `mergeEngines` and gets pushed back up unsanitized, un-split,
+ * forever. This is bounded and non-corrupting — the LOCAL db stays correct
+ * and split (`sanitizeDB` runs on every pull/load) — only the server's copy
+ * of that one historical record never converges to the split shape. Wrapping
+ * this return value's `hybridEngine` in `sanitizeDB(...)` would fix it, and
+ * was verified to work, but was deliberately not done here: it changes what
+ * EVERY push writes app-wide, which is a broader call than one migration's
+ * scope. Worth doing next time this function is touched.
  */
 export function buildPushState(local: EngineDB, remoteState: Record<string, unknown>): Record<string, unknown> {
   const rawEx = ((remoteState && remoteState.hybridEngine) || {}) as Partial<EngineDB>;
