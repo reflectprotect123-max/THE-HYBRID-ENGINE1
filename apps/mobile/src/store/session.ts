@@ -5,6 +5,10 @@ import { freshSessionBlocks, uid, type Session, type Workout } from '@hybrid/eng
 export function sessionFrom(w: Workout, date: string): Session {
   return {
     id: uid(),
+    // Carried forward from the workout rather than left for sanitizeDB to infer
+    // from block contents on the next load — a session IS whatever kind its
+    // workout is, and nothing else at runtime writes this field.
+    kind: w.kind,
     date,
     name: w.name || 'Session',
     status: 'active',
