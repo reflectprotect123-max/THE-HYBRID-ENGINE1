@@ -20,15 +20,20 @@ const CHOICES: { kind: Exclude<BlockKind, null>; label: string; glyph: string }[
 export function BlockTypeStep({
   onPick,
   onBack,
+  allowed,
 }: {
   onPick: (kind: Exclude<BlockKind, null>) => void;
   onBack: () => void;
+  /** Restrict which choices render — used from the second block onward in a
+   *  workout that has already committed to a kind. Undefined shows all four. */
+  allowed?: Exclude<BlockKind, null>[];
 }) {
+  const choices = allowed ? CHOICES.filter((c) => allowed.includes(c.kind)) : CHOICES;
   return (
     <View className="flex-1 items-center justify-center gap-3 p-4">
       <Title>What are we doing?</Title>
       <View className="flex-row flex-wrap justify-center gap-2">
-        {CHOICES.map((c) => (
+        {choices.map((c) => (
           <Btn key={c.kind} variant="brass" size="lg" onPress={() => onPick(c.kind)} label={c.label}>
             {c.glyph + ' ' + c.label}
           </Btn>

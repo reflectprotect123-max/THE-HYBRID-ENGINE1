@@ -238,4 +238,26 @@ describe('GuidedBuilderScreen', () => {
     expect(w.blocks[0].exercises![0].sets[0].t).toBe('W8');
     expect(w.blocks[1].exercises![0].sets[0]).toEqual({ t: '8', rpe: '8' });
   });
+
+  it('excludes Conditioning from block-type choices once a strength block exists', () => {
+    seed({ workouts: [newWorkout()] });
+    renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
+
+    expect(screen.getByText('♥ Conditioning')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('🏋 Lift'));
+    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
+    fireEvent.press(screen.getByText('Next'));
+    fireEvent.press(screen.getByText('Next'));
+    fireEvent.press(screen.getByText('8'));
+    fireEvent.press(screen.getByText('Next'));
+    fireEvent.press(screen.getByText('RPE 8'));
+    fireEvent.press(screen.getByText('Next'));
+
+    expect(screen.getByText('Yes, add another')).toBeTruthy();
+    fireEvent.press(screen.getByText('Yes, add another'));
+
+    expect(screen.getByText('☀ Warm-up / Cooldown')).toBeTruthy();
+    expect(screen.queryByText('♥ Conditioning')).toBeNull();
+  });
 });

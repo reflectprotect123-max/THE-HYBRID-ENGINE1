@@ -57,6 +57,22 @@ export function GuidedBuilderScreen() {
   const insets = useSafeAreaInsets();
   const { db, update } = useDb();
   const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  const currentWorkout = db.workouts.find((x) => x.id === params.id);
+  // Gated on blocks.length, not merely on `kind` being set: sanitizeDB's
+  // splitMixedWorkout (packages/engine/src/db.ts) backfills `kind: 'strength'`
+  // onto ANY workout with zero conditioning blocks — including a brand-new,
+  // still-blockless one — on every full app reload. Trusting `kind` alone here
+  // would silently hide Conditioning from a fresh workout's very first
+  // question after nothing more than a reload. A workout with no blocks yet
+  // has not committed to a kind from this wizard's point of view, whatever
+  // sanitizeDB may have guessed.
+  const allowedKinds: Exclude<BlockKind, null>[] | undefined = !currentWorkout?.blocks.length
+    ? undefined
+    : currentWorkout.kind === 'conditioning'
+      ? ['cond']
+      : currentWorkout.kind === 'strength'
+        ? ['lift', 'warmup', 'metcon']
+        : undefined;
 
   const [step, setStep] = useState<FlowStep>('block-type');
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -100,6 +116,10 @@ export function GuidedBuilderScreen() {
     update((d) => {
       const w = d.workouts.find((x) => x.id === params.id);
       if (!w) return false;
+      // Same blocks.length gate as `allowedKinds` above: `!w.kind` alone is
+      // not a reliable "is this the first block?" check once sanitizeDB has
+      // already backfilled a guessed kind onto a zero-block workout.
+      if (!w.blocks.length) w.kind = kind === 'cond' ? 'conditioning' : 'strength';
       if (kind === 'lift') {
         const block = newBlock();
         const t = draft.isWarmupSet ? 'W' + draft.reps : draft.reps;
@@ -193,7 +213,7 @@ export function GuidedBuilderScreen() {
   }
 
   function renderStep() {
-    if (step === 'block-type') return <BlockTypeStep onPick={pick} onBack={goBack} />;
+    if (step === 'block-type') return <BlockTypeStep onPick={pick} onBack={goBack} allowed={allowedKinds} />;
 
     if (step === 'movement') {
       return (
