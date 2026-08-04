@@ -18,7 +18,7 @@ import {
   type Workout,
   type Zones,
 } from '@hybrid/engine';
-import { color } from '@hybrid/design';
+import { useTheme } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { resolveDayTarget, sessionFrom } from '../store/session';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
@@ -42,6 +42,7 @@ import type { RootStackParams } from '../App';
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { db, hr, whoop, activeSession, update, athleteState, weeklyPlan } = useDb();
+  const { color } = useTheme();
   const sessions = db.sessions;
 
   const today = ymd(new Date());
@@ -298,6 +299,7 @@ function RingStat({
   suffix?: string;
   decimals?: number;
 }) {
+  const { color } = useTheme();
   const has = value != null;
   return (
     <View className="items-center">
@@ -415,6 +417,7 @@ function SessionCard({
   tone?: 'raised';
   children: React.ReactNode;
 }) {
+  const { color } = useTheme();
   return (
     <Card tone={tone} className={`overflow-hidden ${className || ''}`}>
       <View

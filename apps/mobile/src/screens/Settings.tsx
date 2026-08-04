@@ -15,7 +15,7 @@ import {
   type EngineDB,
   type Profile,
 } from '@hybrid/engine';
-import { color } from '@hybrid/design';
+import { useTheme } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
@@ -147,6 +147,7 @@ function RecoveryCard() {
   const [pain, setPain] = useState(() => migrated.core?.safety.painHold?.areas.join(', ') || '');
   const [illness, setIllness] = useState<'clear' | 'suspected' | 'active' | 'returning'>(() => migrated.core?.safety.illness?.status || 'clear');
   const [saved, setSaved] = useState(false);
+  const { color } = useTheme();
   const number = (value: string): number | undefined => {
     const n = Number(value);
     return value.trim() && Number.isFinite(n) ? n : undefined;
@@ -348,6 +349,7 @@ function CloudCard() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState('');
+  const { color } = useTheme();
   if (!enabled) return null;
 
   const go = async (fn: (e: string, p: string) => Promise<string | null>) => setMsg((await fn(email, password)) || '');
@@ -419,6 +421,7 @@ function CloudCard() {
 function WhoopCard() {
   const { connected, sample, busy, error, lastSyncAt, connect, sync, disconnect } = useWhoop();
   const rec = todayRecovery(sample);
+  const { color } = useTheme();
   return (
     <View>
       <SectionHead title="WHOOP" />
@@ -473,6 +476,7 @@ function Concept2Card() {
   const { connected, results, busy, error, lastSyncAt, connect, sync, disconnect } = useConcept2();
   const { db, update } = useDb();
   const [importMsg, setImportMsg] = useState('');
+  const { color } = useTheme();
   // Recomputed against the live db, so an applied import self-heals to zero
   // pending and the button disappears rather than offering the same work twice.
   const plan = useMemo(() => planConcept2Import(results, db), [results, db]);
