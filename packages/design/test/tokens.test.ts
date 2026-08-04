@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { conditioningColor, strengthColor } from '../src/tokens';
+import { resolvePalette } from '../src/theme';
 
 const SHARED_KEYS = [
   'blue', 'blue2', 'ok', 'warn', 'bad',
@@ -31,5 +32,15 @@ describe('strengthColor / conditioningColor', () => {
   it('conditioning uses the approved teal, not brass', () => {
     expect(conditioningColor.gold2).toBe('#7fe3d4');
     expect(conditioningColor.onAccent).toBe('#04211d');
+  });
+});
+
+describe('resolvePalette', () => {
+  it('returns conditioningColor for the conditioning product', () => {
+    expect(resolvePalette('conditioning')).toBe(conditioningColor);
+  });
+
+  it('returns strengthColor for the strength product', () => {
+    expect(resolvePalette('strength')).toBe(strengthColor);
   });
 });
