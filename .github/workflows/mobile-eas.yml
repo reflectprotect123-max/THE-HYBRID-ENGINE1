@@ -45,7 +45,7 @@ on:
         description: "EAS build profile (see apps/mobile/eas.json)"
         type: choice
         default: preview
-        options: [development, preview, production]
+        options: [development, preview, production, conditioning-preview, conditioning-production]
       wait:
         description: "Wait for the EAS build to finish (off = queue it and return the build URL)"
         type: boolean
