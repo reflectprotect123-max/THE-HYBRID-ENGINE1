@@ -14,33 +14,13 @@
  * off-grid use is visible in review instead of hidden in a stylesheet.
  */
 
-export const color = {
-  /* DEPTH — a four-step tonal ladder. The page sits BELOW cards so cards float. */
-  bg: '#070706',
-  panel: '#141311',
-  panel2: '#1c1b18',
-  panel3: '#0a0a09',
-  well: '#0c0c0a',
-
-  line: 'rgba(255,255,255,.065)',
-  line2: 'rgba(255,255,255,.1)',
-  hair: 'rgba(255,255,255,.08)',
-
-  text: '#f5f1e9',
-  muted: '#aaa49a',
-  dim: '#847d73',
-
-  /* BRAND — brass. Completion reads warm, never green; green is HR-only. */
-  gold: '#c09358',
-  gold2: '#e0bc87',
-  goldWash: 'rgba(192,147,88,.09)',
-  goldLine: 'rgba(224,188,135,.22)',
-  doneBg: 'rgba(192,147,88,.14)',
-  doneLine: 'rgba(224,188,135,.5)',
-  doneInk: '#e6c795',
-  /* Ink ON brass/gold — the doc's --on-accent gap, closed. */
-  onAccent: '#1b1509',
-
+/**
+ * Semantic colors — heart-rate zones, pass/fail status, neon emphasis. These
+ * mean something specific regardless of which product is running and must
+ * resolve to the SAME value in every palette, or "in zone" would mean a
+ * different color depending on which app happened to render it.
+ */
+const sharedColor = {
   blue: '#82a8e9',
   blue2: '#6793ee',
   ok: '#9fc59b',
@@ -70,6 +50,76 @@ export const color = {
   trackStrong: 'rgba(255,255,255,.09)',
   chartDotRing: '#141312',
 } as const;
+
+/** Depth + brand — the values a per-product theme actually changes. */
+const strengthBrand = {
+  /* DEPTH — a four-step tonal ladder. The page sits BELOW cards so cards float. */
+  bg: '#070706',
+  panel: '#141311',
+  panel2: '#1c1b18',
+  panel3: '#0a0a09',
+  well: '#0c0c0a',
+
+  line: 'rgba(255,255,255,.065)',
+  line2: 'rgba(255,255,255,.1)',
+  hair: 'rgba(255,255,255,.08)',
+
+  text: '#f5f1e9',
+  muted: '#aaa49a',
+  dim: '#847d73',
+
+  /* BRAND — brass. Completion reads warm, never green; green is HR-only. */
+  gold: '#c09358',
+  gold2: '#e0bc87',
+  goldWash: 'rgba(192,147,88,.09)',
+  goldLine: 'rgba(224,188,135,.22)',
+  doneBg: 'rgba(192,147,88,.14)',
+  doneLine: 'rgba(224,188,135,.5)',
+  doneInk: '#e6c795',
+  /* Ink ON brass/gold — the doc's --on-accent gap, closed. */
+  onAccent: '#1b1509',
+} as const;
+
+/**
+ * Conditioning's brand block — cool teal, same shape as `strengthBrand`.
+ * Values match the approved mockup; see
+ * docs/superpowers/specs/2026-08-04-product-retheme-design.md.
+ */
+const conditioningBrand = {
+  bg: '#05080a',
+  panel: '#101a1d',
+  panel2: '#16262a',
+  panel3: '#070d0f',
+  well: '#081113',
+
+  line: 'rgba(190,235,230,.065)',
+  line2: 'rgba(190,235,230,.1)',
+  hair: 'rgba(190,235,230,.08)',
+
+  text: '#eaf6f4',
+  muted: '#93b0ae',
+  dim: '#5f7d7b',
+
+  gold: '#3fada3',
+  gold2: '#7fe3d4',
+  goldWash: 'rgba(63,173,163,.09)',
+  goldLine: 'rgba(127,227,212,.22)',
+  doneBg: 'rgba(63,173,163,.14)',
+  doneLine: 'rgba(127,227,212,.5)',
+  doneInk: '#a7ece1',
+  onAccent: '#04211d',
+} as const;
+
+export const strengthColor = { ...strengthBrand, ...sharedColor } as const;
+export const conditioningColor = { ...conditioningBrand, ...sharedColor } as const;
+
+/** The shape every palette has. Use this, not `typeof color`, when a type is
+ * needed independent of which palette is active. */
+export type Palette = typeof strengthColor;
+
+/** Back-compat default — strength's palette, always. Prefer `useTheme()`
+ * (./theme) in any component that should vary by product. */
+export const color: Palette = strengthColor;
 
 /* Strict 8px grid. `half` is the only sanctioned off-grid step. */
 export const space = {
