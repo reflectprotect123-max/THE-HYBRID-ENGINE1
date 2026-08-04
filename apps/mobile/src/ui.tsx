@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ReactNode } from 'react';
-import { color } from '@hybrid/design';
+import { useTheme } from '@hybrid/design';
+import { color as semanticColor } from '@hybrid/design';
 
 /*
  * Mobile primitives.
@@ -71,6 +72,7 @@ export function T({ w = 'reg', num, style, ...rest }: TextProps & { w?: Fw; num?
  * Only the VERTICAL padding is zeroed — horizontal padding comes from each
  * field's own px-* class and must survive. */
 export function Input({ w = 'reg', num, style, ...rest }: TextInputProps & { w?: Fw; num?: boolean }) {
+  const { color } = useTheme();
   return (
     <RNTextInput
       placeholderTextColor={color.dim}
@@ -283,6 +285,7 @@ export function Btn({
   label?: string;
 }) {
   const brass = variant === 'brass';
+  const { color } = useTheme();
   /* py-1.5 + a 14px line box came to ~42px — under the bar by a hair, and the
      reason seven Settings buttons failed the audit. Declared rather than
      measured so Tap can make up the difference in slop. */
@@ -417,8 +420,8 @@ export function Ring({
   size = 104,
   stroke = 8,
   color: ink,
-  track = color.trackSoft,
-  hole = color.panel,
+  track,
+  hole,
   glow,
   children,
 }: {
@@ -432,6 +435,9 @@ export function Ring({
   glow?: boolean;
   children?: ReactNode;
 }) {
+  const { color } = useTheme();
+  const trackColor = track ?? color.trackSoft;
+  const holeColor = hole ?? color.panel;
   const half = size / 2;
   const a = 360 * Math.max(0, Math.min(1, frac));
   const disc = (deg: number) => (
@@ -461,7 +467,7 @@ export function Ring({
           height: size,
           borderRadius: half,
           borderWidth: stroke,
-          borderColor: track,
+          borderColor: trackColor,
           boxShadow: glow ? `0 0 12px ${ink}` : undefined,
         }}
       />
@@ -483,7 +489,7 @@ export function Ring({
           width: size - stroke * 2,
           height: size - stroke * 2,
           borderRadius: half,
-          backgroundColor: hole,
+          backgroundColor: holeColor,
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -496,12 +502,12 @@ export function Ring({
 
 /** Band inks for data read AGAINST TEXT (zone tables, banked seconds). */
 export const zoneInk = (k: 'low' | 'mod' | 'high') =>
-  k === 'low' ? color.zLow : k === 'mod' ? color.zMod : color.zHigh;
+  k === 'low' ? semanticColor.zLow : k === 'mod' ? semanticColor.zMod : semanticColor.zHigh;
 
 /** Emissive zone colours for lit dots, bars and rings (01-foundations-colour-06):
  * glow brighter than the band inks, never used for text. */
 export const zoneNeon = (k: 'low' | 'mod' | 'high') =>
-  k === 'low' ? color.neonStrain : k === 'mod' ? color.neonOk : color.neonBad;
+  k === 'low' ? semanticColor.neonStrain : k === 'mod' ? semanticColor.neonOk : semanticColor.neonBad;
 
 /**
  * A row of view switches — the web app's `Tabs`, for a phone.
