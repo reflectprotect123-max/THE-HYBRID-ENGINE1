@@ -7,6 +7,10 @@ export function resolvePalette(productId: ProductId): Palette {
   return productId === 'conditioning' ? conditioningColor : strengthColor;
 }
 
+/* This package's `react` devDependency must stay pinned to the EXACT version
+   apps/mobile/package.json uses, or pnpm can install a second React copy and
+   silently reintroduce "Invalid hook call" errors for hooks like this
+   context's (see commit 0e06aaa for the original bug). */
 const ThemeContext = createContext<Palette>(strengthColor);
 
 /**
