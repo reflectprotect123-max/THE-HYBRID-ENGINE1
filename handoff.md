@@ -11,6 +11,116 @@ is written up but **awaiting your review before any implementation starts.**
 
 ## 2) Current State
 
+**2026-08-03 — Full fitness-ecosystem build plan written, committed, sent to you,
+and now in an iterative external-review loop — NOT approved, nothing beyond this
+document exists.** You laid out the target architecture directly (shared-core,
+whole-athlete-state-engine, strength-engine, conditioning-engine, nutrition-engine
+[being built separately, out of scope here], coordinator) and asked for a full
+start-to-finish scope with a real time estimate, built via four parallel research
+agents (model `fable`, per your instruction) each scoping one piece read-only against
+this actual codebase — no code written, no implementation started. Doc:
+`docs/superpowers/specs/2026-08-03-fitness-ecosystem-build-plan.md`, committed and
+pushed at `72e8887`, also handed to you directly as a file so you can paste it to
+ChatGPT. **You explicitly asked to keep iterating on this doc across rounds of your
+ChatGPT feedback until I actually endorse it — that loop has not started yet, this
+is round one.**
+
+What the four scoping passes found, synthesized in the doc: shared-core formalization
+(13-19 dev-days, recommends staying inside the existing Supabase blob-merge model
+rather than a relational rewrite — the hand-written merge rules are the real asset);
+whole-athlete-state-engine (10-14 dev-days, genuinely new — confirmed no
+life-load/stress/recovery-debt concept exists anywhere today, and found a real gap
+worth fixing regardless of this plan: WHOOP HRV/sleep/resting-HR are read once and
+discarded before persistence, which already blocks trend detection); coordinator
+(13-18 dev-days, confirmed 100% new — nothing today reconciles strength and
+conditioning into a schedule, the closest precedent (`balance.ts`'s `loadBalance`) is
+explicitly retrospective-only by its own header comment; a rules-based v1 — priority
+score + workload caps + rest-day rules — is judged sufficient, constraint-solving/ML
+ruled unjustified at this scale); and the real strength/conditioning **app split**
+(30-36 dev-days, the largest single piece — ~60% of the current 22k-line codebase is
+shared UI/screens duplicated per platform with no shared package today, the hardest
+identified risk being that two independently-deployed apps writing one Supabase blob
+need byte-identical merge code or the sync layer's already-documented version-skew bug
+gets worse, and that the product's own stated cross-modality-tradeoff analytics
+(`balance.ts`) has no home once the apps are split unless shared-core is explicitly
+designed to keep both datasets comparable). Critical path (shared-core first, then
+app-split and whole-athlete-state-engine in parallel, then coordinator):
+**≈56-73 dev-days, ≈3-5 months at a steady non-full-time pace.** Four open decisions
+flagged in the doc rather than silently picked: Supabase blob vs relational schema for
+shared-core v1; whether the parallel phase is actually feasible given who's doing the
+work; where cross-modality analytics lives post-split; conditioning-app-first vs
+strength-app-first phasing.
+
+Separately: `reflectprotect123-max/thehybridsystem` (a **different** GitHub repo from
+this one) was cloned to `/workspace/thehybridsystem` at your mention that the macro
+app is "already building" there — confirmed it currently holds nothing but one stale
+`APPROVAL_CHECKLIST.md` file (itself pointing back at this repo as its own "work
+location"). No macro-app code exists there yet as of this check; flagging in case it's
+actually living somewhere else. Not touched, not my concern per your explicit
+instruction — this note exists only so the discrepancy is on record.
+
+**2026-08-03 — Strength/conditioning split shipped, merged to `main`, and pushed
+(fast-forward `a3957f1..d2db0e9`).** Full brainstorm → spec → plan → 6-task SDD
+cycle → final whole-branch review → one fix wave → scoped re-review → merge, on
+branch `sdd/strength-conditioning-split` (deleted post-merge, worktree cleaned up).
+Spec: `docs/superpowers/specs/2026-08-03-strength-conditioning-split-design.md`
+(includes a mid-authoring "Correction" section — the shipped design deliberately
+narrowed from the spec's original ambition once research found no migration
+mechanism exists in this repo at all, and that moving `CondResult`'s storage location
+would have broken the entire `concept2.test.ts` suite for no benefit anyone asked
+for). Plan: `docs/superpowers/plans/2026-08-03-strength-conditioning-split.md`.
+
+**What shipped:** `Workout`/`Session` gained a stored `kind: 'strength' | 'conditioning'`
+field; `isCondWorkout()` was redefined to read it instead of scanning block contents
+(same name/signature — zero call-site changes needed at `Home.tsx`/`Library.tsx`,
+either platform). The Planner's block-add toolbar and the guided builder's block-type
+choices (both platforms, both) now refuse to let a workout mix a conditioning block
+with strength/warmup/metcon blocks — the old "finisher tacked onto a lift day" pattern
+can no longer be authored. `CondBlock` remains a fully valid `Block` union member;
+`session.ts`'s aggregation functions, History/Recap/Progress, and Concept2 sync are
+untouched by design and verified untouched by the final reviewer directly against the
+diff, not taken on the spec's word. `sanitizeDB` gained an idempotent
+`splitMixedWorkout`/`splitMixedSession` pass that backfills `kind` on old data and
+splits any already-existing mixed-block workout/session into two clean siblings on
+load — this is the actual migration, folded into the app's existing per-load shape
+boundary rather than new infrastructure, since none existed to hook into.
+
+**The final whole-branch review (most capable model) caught two real Critical bugs
+before merge, both reproduced with a live repro, not theorized:** (1) the migration
+minted a fresh id for the conditioning sibling on every run, and `pickWorkout`/
+`pickSession`'s existing merge-tie-breaking rules kept resurrecting a stale un-split
+remote copy, which got re-split on every pull — unbounded duplicate "— Conditioning"
+workouts, forever, for any cloud-sync user with a legacy mixed workout. (2) a
+currently-`active` mixed session split into two active sessions, breaking the app's
+one-active-session invariant mid-workout. Both fixed in one authorized fix wave
+(commits `62630c1`/`1141d5e`/`6db48cc`): sibling ids are now derived deterministically
+from the source record so re-splitting the same raw input twice yields the same id;
+the split now skips any session that is currently active; a related live bug the
+reviewer also caught (`splitMixedWorkout` was unconditionally overwriting an
+already-stored `kind` — deleting a conditioning workout's last block via the Planner's
+per-block ✕ permanently mis-stamped it back to `'strength'` with no UI to undo it) was
+fixed by preferring the stored `kind` over the inferred one, which let the guided
+builder's earlier `blocks.length`-based workaround gate revert cleanly back to the
+plan's simpler original `!kind` gate on both platforms. One narrow residual was
+adjudicated and parked rather than triggering a second fix wave (process explicitly
+allows only one): a legacy mixed *session* whose conditioning half was already logged,
+syncing against a stale un-migrated server copy, won't fully converge server-side,
+because `pickSession` ranks logged-work-count above recency and `buildPushState` never
+re-sanitizes before push — confirmed bounded and non-corrupting (no unbounded growth,
+no data loss, local app state fully correct), the one-line fix was found and verified
+working but deliberately withheld since it changes what every push writes app-wide,
+and is now documented directly in a code comment on `buildPushState`
+(`packages/engine/src/cloud.ts`, commit `d2db0e9`) for whoever next touches that
+function, rather than left to be rediscovered.
+
+Full repo `pnpm run typecheck && pnpm run test` re-run fresh on merged `main` before
+push: **clean** — engine **574/574**, guided-flow **15/15**, web **7/7**, mobile
+**108/108**, typecheck clean across all 6 workspace projects. `pnpm run smoke`: both
+new scenarios pass; the 8 pre-existing failures already on `main` before this branch
+started (a fix-wave implementer root-caused them to a date-staleness bug in
+`checks/react-smoke.mjs`'s fixed seed dates, unrelated to this work, introduced
+pre-branch) are unchanged.
+
 **2026-08-02 — % of 1RM + rep ranges: brainstormed and spec'd, NOT yet planned
 or built.** Design doc committed and pushed at `1b4064d`:
 `docs/superpowers/specs/2026-08-02-pct-1rm-rep-ranges-design.md`. Covers a new
@@ -737,21 +847,35 @@ carried over unchanged).
 
 **Most current, from this session's tail end:**
 
-1. **% of 1RM + rep ranges — awaiting your go-ahead to write the implementation
-   plan.** Spec is written, committed, and pushed
+1. **Fitness ecosystem build plan — mid external-review loop, awaiting your
+   ChatGPT round-trip.** Doc sent to you and committed at
+   `docs/superpowers/specs/2026-08-03-fitness-ecosystem-build-plan.md`. You
+   asked to keep iterating across rounds of ChatGPT feedback until this
+   session actually endorses the plan, not just produces a draft — bring back
+   whatever ChatGPT says and the loop continues from there. Nothing beyond
+   this document exists; no implementation of any of the four pieces
+   (shared-core, whole-athlete-state-engine, app split, coordinator) has
+   started.
+2. **Strength/conditioning split (the small, in-app version) is done** —
+   merged to `main`, verified, pushed. This is NOT the same thing as the app
+   split scoped in item 1's plan (own deploy, own codebase) — that's still
+   fully unbuilt and is item 1's biggest single piece (30-36 dev-days).
+3. **% of 1RM + rep ranges — still awaiting your go-ahead to write the
+   implementation plan.** Spec is written, committed, and pushed
    (`docs/superpowers/specs/2026-08-02-pct-1rm-rep-ranges-design.md`); nothing
    has been built. One open question the spec deliberately left for
    plan-writing time rather than deciding: whether the guided step-by-step
    builder gets this feature in the same pass as the dense Planner editor, or
    as a follow-up.
-2. **Phase 3 (modality-aware conditioning thresholds) is explicitly parked,
-   not merely unapproved.** You redirected effort mid-session toward Library
-   folders and the %1RM feature instead ("park all that for the moment, as
-   I've changed my direction with my training"). The roadmap doc and its
-   evidence-bundle citation are unchanged and still valid whenever you want
-   to pick this back up — nothing about Phase 3 itself needs re-deciding,
-   only re-prioritizing.
-3. Everything below this point (the §19 approvals, Supabase schema-side coach
+4. **Phase 3 (modality-aware conditioning thresholds) is still explicitly
+   parked, not merely unapproved.** You redirected effort earlier toward
+   Library folders and the %1RM feature instead ("park all that for the
+   moment, as I've changed my direction with my training"), then this
+   session's direction moved again toward the ecosystem plan. The roadmap doc
+   and its evidence-bundle citation are unchanged and still valid whenever you
+   want to pick this back up — nothing about Phase 3 itself needs
+   re-deciding, only re-prioritizing.
+5. Everything below this point (the §19 approvals, Supabase schema-side coach
    removal, Echo Bike hardware test, housekeeping) is unchanged from the
    prior handoff and still open — see below.
 
