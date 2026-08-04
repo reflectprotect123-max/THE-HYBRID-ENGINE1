@@ -41,7 +41,7 @@ import type { RootStackParams } from '../App';
  */
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { db, hr, whoop, activeSession, update } = useDb();
+  const { db, hr, whoop, activeSession, update, athleteState, weeklyPlan } = useDb();
   const sessions = db.sessions;
 
   const today = ymd(new Date());
@@ -136,6 +136,23 @@ export function HomeScreen() {
       </View>
       <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpenDay={openDay} />
 
+      <SectionHead title="Coordinated week" />
+      <Card>
+        <T className="text-3 text-dim">
+          Coordinator plan · {weeklyPlan.entries.length} scheduled
+          {weeklyPlan.decisions.filter((d) => d.action === 'dropped').length
+            ? ` · ${weeklyPlan.decisions.filter((d) => d.action === 'dropped').length} held back`
+            : ''}
+        </T>
+        {weeklyPlan.entries.slice(0, 4).map((entry) => (
+          <View key={entry.id} className="mt-0.5 flex-row justify-between gap-1">
+            <T className="flex-1 text-3 text-muted" numberOfLines={1}>{entry.title}</T>
+            <T num className="text-3 text-dim">{entry.date}</T>
+          </View>
+        ))}
+        {!weeklyPlan.entries.length ? <T className="mt-1 text-3 text-muted">No automatic session was placed for this week.</T> : null}
+      </Card>
+
       {activeSession ? (
         <SessionCard tone="raised" className="mt-2">
           <Kicker className="text-1">In progress</Kicker>
@@ -196,6 +213,10 @@ export function HomeScreen() {
 
       <SectionHead title="Readiness" />
       <Card>
+        <T className="mb-1 text-3 text-dim">
+          Whole-athlete state: <T w="semi" className="text-text">{athleteState.readiness.band}</T>
+          {' · '}{athleteState.readiness.confidence} confidence
+        </T>
         {/* Sleep · Recovery · Strain, in that order and side by side, because
             that is the shape WHOOP itself shows and the one already read every
             morning. Recovery keeps the band colour the zone model uses, so the

@@ -2,15 +2,19 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, type AppStateStatus } from 'react-native';
 import {
   LS_KEY,
+  ensureSharedCore,
   expireStaleSessions,
   loadDB,
   pruneCondTraces,
   saveDB,
+  sessionRpe,
   type EngineDB,
   type HrContext,
   type Session,
   type WhoopSample,
 } from '@hybrid/engine';
+import { deriveAthleteState, summarizeTrainingFacts, type AthleteStateSnapshot, type TrainingFact } from '@hybrid/whole-athlete-state';
+import { buildWeeklyPlan, type WeeklyPlan } from '@hybrid/coordinator-adapter';
 import { storage } from './storage';
 
 /*
@@ -37,6 +41,8 @@ interface DbCtx {
   setWhoop: (w: WhoopSample | null) => void;
   hr: HrContext;
   activeSession: Session | null;
+  athleteState: AthleteStateSnapshot;
+  weeklyPlan: WeeklyPlan;
 }
 
 const Ctx = createContext<DbCtx | null>(null);
@@ -166,17 +172,39 @@ export function DbProvider({ children }: { children: ReactNode }) {
   }, [flush]);
 
   const value = useMemo<DbCtx>(
-    () => ({
-      db,
-      update,
-      updateSession,
-      saveFailed,
-      dataRecovered,
-      whoop,
-      setWhoop,
-      hr: { profile: db.settings.profile, whoop },
-      activeSession: db.sessions.find((s) => s.status === 'active') || null,
-    }),
+    () => {
+      const core = db.core || ensureSharedCore(db).core!;
+      const facts: TrainingFact[] = db.sessions
+        .filter((s) => s.status !== 'active' && !!s.completedAt)
+        .map((s) => {
+          const rpe = sessionRpe(s);
+          return {
+            completedAt: s.completedAt as number,
+            domain: s.kind,
+            hard: (rpe.felt ?? rpe.target ?? 0) >= 8,
+          };
+        });
+      const today = new Date().toISOString().slice(0, 10);
+      const athleteState = deriveAthleteState({
+        core,
+        today,
+        recentTraining: summarizeTrainingFacts(facts),
+      });
+      const weeklyPlan = buildWeeklyPlan(db, athleteState, today);
+      return {
+        db,
+        update,
+        updateSession,
+        saveFailed,
+        dataRecovered,
+        whoop,
+        setWhoop,
+        hr: { profile: db.settings.profile, whoop },
+        activeSession: db.sessions.find((s) => s.status === 'active') || null,
+        athleteState,
+        weeklyPlan,
+      };
+    },
     [db, update, updateSession, saveFailed, dataRecovered, whoop],
   );
 

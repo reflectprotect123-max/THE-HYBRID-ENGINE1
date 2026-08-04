@@ -1,4 +1,9 @@
-# Handoff
+# Historical Handoff Record
+
+> The authoritative current handoff is the checkpoint at the top of the root
+> [`handoff.md`](../handoff.md). This document predates the local ecosystem
+> rebuild and is retained for historical context only; do not use its old branch,
+> commit, deployment, or “not implemented” statements as current status.
 
 What one session worked out, written down before the container holding it was
 reclaimed. A chat cannot be merged into another chat; a file in the repo can be

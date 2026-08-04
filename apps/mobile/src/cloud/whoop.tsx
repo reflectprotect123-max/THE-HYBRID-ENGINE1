@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Linking } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { FN, SITE_ORIGIN, SUPABASE } from '@hybrid/config';
-import { ymd, type WhoopSample } from '@hybrid/engine';
+import { ensureSharedCore, ymd, type WhoopSample } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useSync } from './sync';
 import { storage } from '../store/storage';
@@ -145,20 +145,44 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
       if (!date) return;
       const rec = Number(sample.recoveryScore);
       const str = Number(sample.strain);
+      const hrv = Number(sample.hrvMs);
+      const rhr = Number(sample.restingHr);
+      const sleep = Number(sample.sleepPerformance);
       update((draft) => {
         const hist = Array.isArray(draft.settings.whoopDaily)
-          ? (draft.settings.whoopDaily as { date: string; recovery: number | null; strain: number | null }[])
+          ? (draft.settings.whoopDaily as { date: string; recovery: number | null; strain: number | null; hrvMs?: number | null; restingHr?: number | null; sleepPerformance?: number | null }[])
           : [];
         const row = {
           date,
           recovery: Number.isFinite(rec) ? rec : null,
           strain: Number.isFinite(str) ? str : null,
+          hrvMs: Number.isFinite(hrv) ? hrv : null,
+          restingHr: Number.isFinite(rhr) ? rhr : null,
+          sleepPerformance: Number.isFinite(sleep) ? sleep : null,
         };
         const i = hist.findIndex((h) => h.date === date);
         if (i >= 0) hist[i] = row;
         else hist.push(row);
         hist.sort((a, b) => a.date.localeCompare(b.date));
-        draft.settings.whoopDaily = hist.slice(-120);
+        draft.settings.whoopDaily = hist.slice(-365);
+
+        const core = draft.core || ensureSharedCore(draft).core!;
+        const coreRows = core.whoopDaily.slice();
+        const coreRow = {
+          date,
+          recoveryScore: Number.isFinite(rec) ? rec : null,
+          strain: Number.isFinite(str) ? str : null,
+          hrvMs: Number.isFinite(hrv) ? hrv : null,
+          restingHr: Number.isFinite(rhr) ? rhr : null,
+          sleepPerformance: Number.isFinite(sleep) ? sleep : null,
+          capturedAt: sample.capturedAt,
+          source: sample.source || 'whoop',
+        };
+        const ci = coreRows.findIndex((x) => x.date === date);
+        if (ci >= 0) coreRows[ci] = coreRow;
+        else coreRows.push(coreRow);
+        coreRows.sort((a, b) => a.date.localeCompare(b.date));
+        draft.core = { ...core, whoopDaily: coreRows.slice(-365), updatedAt: Date.now() };
       });
     },
     [update],

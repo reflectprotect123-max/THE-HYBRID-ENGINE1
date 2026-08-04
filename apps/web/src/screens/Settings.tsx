@@ -4,10 +4,12 @@ import {
   concept2ImportSummary,
   conMaxHr,
   conZones,
+  ensureSharedCore,
   planConcept2Import,
   restingHr,
   restoreDb,
   todayRecovery,
+  ymd,
   type Concept2ImportCounts,
   type Profile,
   type RestoreReport,
@@ -152,6 +154,7 @@ export function Settings() {
 
       <CloudCard />
       <WhoopCard />
+      <RecoveryCard />
       <Concept2Card />
 
       <SectionHead title="Your data" />
@@ -193,6 +196,111 @@ export function Settings() {
             {restoreMsg}
           </p>
         ) : null}
+      </Card>
+    </>
+  );
+}
+
+/** Manual whole-athlete context. These observations shape constraints and
+ * confidence; they are not diagnoses, and HRV never becomes a pain gate. */
+function RecoveryCard() {
+  const { db, update } = useDb();
+  const today = ymd(new Date());
+  const migrated = ensureSharedCore(db);
+  const recovery = migrated.core?.recovery.find((x) => x.date === today);
+  const life = migrated.core?.lifeLoad.find((x) => x.date === today);
+  const [sleep, setSleep] = useState(() => String(recovery?.sleepHours ?? ''));
+  const [energy, setEnergy] = useState(() => String(recovery?.energy ?? ''));
+  const [soreness, setSoreness] = useState(() => String(recovery?.soreness ?? ''));
+  const [stress, setStress] = useState(() => String(life?.stress ?? recovery?.stress ?? ''));
+  const [physical, setPhysical] = useState(() => String(life?.physicalLoad ?? ''));
+  const [minutes, setMinutes] = useState(() => String(life?.availableMinutes ?? ''));
+  const [pain, setPain] = useState(() => migrated.core?.safety.painHold?.areas.join(', ') || '');
+  const [illness, setIllness] = useState(() => migrated.core?.safety.illness?.status || 'clear');
+  const [saved, setSaved] = useState(false);
+
+  const number = (value: string): number | undefined => {
+    const n = Number(value);
+    return value.trim() && Number.isFinite(n) ? n : undefined;
+  };
+
+  const save = () => {
+    update((draft) => {
+      const next = ensureSharedCore(draft, Date.now());
+      const core = next.core!;
+      const at = Date.now();
+      core.recovery = [
+        ...core.recovery.filter((x) => x.date !== today || x.source !== 'manual'),
+        {
+          id: `manual-recovery-${today}`,
+          date: today,
+          sleepHours: number(sleep),
+          energy: number(energy),
+          soreness: number(soreness),
+          stress: number(stress),
+          painAreas: pain.split(',').map((x) => x.trim()).filter(Boolean),
+          illnessStatus: illness as 'clear' | 'suspected' | 'active' | 'returning',
+          source: 'manual',
+          recordedAt: at,
+        },
+      ];
+      core.lifeLoad = [
+        ...core.lifeLoad.filter((x) => x.date !== today || x.source !== 'manual'),
+        {
+          id: `manual-life-${today}`,
+          date: today,
+          stress: number(stress),
+          physicalLoad: number(physical),
+          availableMinutes: number(minutes),
+          source: 'manual',
+        },
+      ];
+      core.safety = {
+        ...core.safety,
+        painHold: {
+          active: !!pain.trim(),
+          areas: pain.split(',').map((x) => x.trim()).filter(Boolean),
+          updatedAt: at,
+        },
+        illness: { status: illness as 'clear' | 'suspected' | 'active' | 'returning', updatedAt: at },
+      };
+      core.updatedAt = at;
+      draft.core = core;
+      draft.ecosystem = { ...(next.ecosystem || { schemaVersion: 1, partitions: {}, events: [], core }), core };
+    });
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
+  };
+
+  return (
+    <>
+      <SectionHead title="Whole-athlete context" />
+      <Card className="flex flex-col gap-1.5">
+        <p className="text-3 text-muted">A short check-in helps the model account for sleep, soreness, life stress and physical work. It is coaching context, not medical advice.</p>
+        <div className="grid grid-cols-2 gap-1">
+          <Num label="Sleep hours" hint="Last night" value={sleep} onChange={setSleep} />
+          <Num label="Energy 0–10" hint="How you feel" value={energy} onChange={setEnergy} />
+          <Num label="Soreness 0–10" hint="Whole-body" value={soreness} onChange={setSoreness} />
+          <Num label="Life stress 0–10" hint="Mental load" value={stress} onChange={setStress} />
+          <Num label="Physical load 0–10" hint="Work/activity" value={physical} onChange={setPhysical} />
+          <Num label="Minutes today" hint="Time available" value={minutes} onChange={setMinutes} />
+        </div>
+        <label className="block">
+          <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">Pain areas</span>
+          <input value={pain} onChange={(e) => setPain(e.target.value)} placeholder="e.g. lower back (leave blank if clear)" className="mt-0.5 h-5 w-full rounded-md border border-line bg-well px-1 text-4 outline-none focus:border-gold-line" />
+          <span className="mt-0.5 block text-3 text-dim">A pain flag stops automatic pushing; it is not a diagnosis.</span>
+        </label>
+        <label className="block">
+          <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">Illness status</span>
+          <select value={illness} onChange={(e) => setIllness(e.target.value as typeof illness)} className="mt-0.5 h-5 w-full rounded-md border border-line bg-well px-1 text-4 outline-none focus:border-gold-line">
+            <option value="clear">Clear</option>
+            <option value="suspected">Suspected — reduce intensity</option>
+            <option value="active">Active — no hard training</option>
+            <option value="returning">Returning to training</option>
+          </select>
+        </label>
+        <Button variant="brass" onClick={save}>{saved ? 'Saved' : 'Save today’s context'}</Button>
+        <p className="text-3 text-dim">HRV remains an advisory trend signal only and never decides pain, injury or illness status.</p>
       </Card>
     </>
   );

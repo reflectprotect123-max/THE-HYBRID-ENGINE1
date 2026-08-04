@@ -30,6 +30,9 @@ importers:
       '@hybrid/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@hybrid/coordinator-adapter':
+        specifier: workspace:*
+        version: link:../../packages/coordinator-adapter
       '@hybrid/design':
         specifier: workspace:*
         version: link:../../packages/design
@@ -39,6 +42,15 @@ importers:
       '@hybrid/guided-flow':
         specifier: workspace:*
         version: link:../../packages/guided-flow
+      '@hybrid/product-scope':
+        specifier: workspace:*
+        version: link:../../packages/product-scope
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../../packages/shared-core
+      '@hybrid/whole-athlete-state':
+        specifier: workspace:*
+        version: link:../../packages/whole-athlete-state
       '@react-navigation/bottom-tabs':
         specifier: ^7.4.0
         version: 7.18.14(@react-navigation/native@7.3.14(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-safe-area-context@5.6.2(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-screens@4.16.0(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -145,6 +157,9 @@ importers:
       '@hybrid/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@hybrid/coordinator-adapter':
+        specifier: workspace:*
+        version: link:../../packages/coordinator-adapter
       '@hybrid/design':
         specifier: workspace:*
         version: link:../../packages/design
@@ -154,6 +169,15 @@ importers:
       '@hybrid/guided-flow':
         specifier: workspace:*
         version: link:../../packages/guided-flow
+      '@hybrid/product-scope':
+        specifier: workspace:*
+        version: link:../../packages/product-scope
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../../packages/shared-core
+      '@hybrid/whole-athlete-state':
+        specifier: workspace:*
+        version: link:../../packages/whole-athlete-state
       '@supabase/supabase-js':
         specifier: ^2.110.8
         version: 2.110.8
@@ -195,11 +219,74 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
+  packages/conditioning-engine:
+    dependencies:
+      '@hybrid/coordinator':
+        specifier: workspace:*
+        version: link:../coordinator
+      '@hybrid/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
   packages/config:
     devDependencies:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/coordinator:
+    dependencies:
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+      '@hybrid/whole-athlete-state':
+        specifier: workspace:*
+        version: link:../whole-athlete-state
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
+  packages/coordinator-adapter:
+    dependencies:
+      '@hybrid/conditioning-engine':
+        specifier: workspace:*
+        version: link:../conditioning-engine
+      '@hybrid/coordinator':
+        specifier: workspace:*
+        version: link:../coordinator
+      '@hybrid/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+      '@hybrid/strength-engine':
+        specifier: workspace:*
+        version: link:../strength-engine
+      '@hybrid/whole-athlete-state':
+        specifier: workspace:*
+        version: link:../whole-athlete-state
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
   packages/design:
     devDependencies:
@@ -208,6 +295,10 @@ importers:
         version: 5.9.3
 
   packages/engine:
+    dependencies:
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
     devDependencies:
       typescript:
         specifier: ^5.9.3
@@ -217,6 +308,56 @@ importers:
         version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
   packages/guided-flow:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
+  packages/product-scope:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
+  packages/shared-core:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
+  packages/strength-engine:
+    dependencies:
+      '@hybrid/coordinator':
+        specifier: workspace:*
+        version: link:../coordinator
+      '@hybrid/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
+  packages/whole-athlete-state:
+    dependencies:
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
     devDependencies:
       typescript:
         specifier: ^5.9.3

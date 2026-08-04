@@ -10,6 +10,7 @@ import {
   conZoneOf,
   conZones,
   fmtClock,
+  ensureSharedCore,
   isCond,
   painHoldFor,
   paramsFor,
@@ -22,6 +23,7 @@ import {
   type HrSample,
   type Phase,
 } from '@hybrid/engine';
+import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
 import { connectEchoV3, type EchoV3Connection, type EchoV3Event } from '../native/echoV3';
 import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
@@ -378,9 +380,18 @@ export function Conditioning() {
     setRating(false);
 
     update((draft) => {
+      const at = Date.now();
       const { conProgress } = conAdapt(rec, draft.settings);
       draft.settings.conProgress = conProgress;
-      draft.settings.updatedAt = Date.now();
+      draft.settings.updatedAt = at;
+      const core = ensureSharedCore(draft, at).core!;
+      draft.core = appendSharedCoreEvent(core, {
+        type: 'workout_completed',
+        occurredAt: new Date(at).toISOString(),
+        sourceDomain: 'conditioning',
+        idempotencyKey: `conditioning:${rec.id || rec.startedAt || at}:completed`,
+        payload: { resultId: rec.id, sessionId: activeSession?.id, domain: 'conditioning', durationSeconds: rec.dur },
+      });
 
       // A run started from a session belongs to that session's block. Banking
       // it in the standalone history instead left the block forever unlogged:
@@ -394,7 +405,7 @@ export function Conditioning() {
       if (ds && !isCond(cb) && RUN.sinkBi >= 0) cb = ds.blocks[RUN.sinkBi];
       if (ds && isCond(cb)) {
         cb.condResult = rec;
-        ds.updatedAt = Date.now();
+        ds.updatedAt = at;
         return;
       }
       draft.settings.conditioning = pushCondHistory(draft.settings, rec);

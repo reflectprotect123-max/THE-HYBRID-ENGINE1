@@ -244,3 +244,13 @@ create trigger trg_athlete_feed_touch before insert or update on public.athlete_
 -- An athlete needs to see who coaches them (to show "coached by" and to unlink).
 -- ca_athlete_read already covers that. Coaches additionally need to mint invites,
 -- which ca_coach_insert covers. No further grants required.
+
+-- =====================================================================
+-- Fitness Ecosystem split boundary
+-- =====================================================================
+-- The independently deployed Strength and Conditioning products use the
+-- monotonic, RLS-protected contract in:
+--   supabase/migrations/20260804_fitness_ecosystem_contracts.sql
+-- Apply that migration after this legacy-compatible schema. Keeping the
+-- migration separate prevents an old app_state client from being forced to
+-- understand the new rows before its own update is installed.

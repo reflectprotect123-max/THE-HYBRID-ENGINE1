@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const conditioningBuild = process.env.VITE_HYBRID_PRODUCT === 'conditioning';
+const productName = conditioningBuild ? 'THE Conditioning System' : 'THE Strength System';
+const productShortName = conditioningBuild ? 'Conditioning' : 'Strength';
+
 /*
  * The deployed CSP (see _headers, asserted by checks/pentest.mjs) is
  *   script-src 'self' 'wasm-unsafe-eval'
@@ -26,9 +30,11 @@ export default defineConfig({
          the one with no update handler attached. */
       injectRegister: null,
       manifest: {
-        name: 'THE Hybrid System',
-        short_name: 'Hybrid',
-        description: 'Hybrid training — lift, condition, recover.',
+        name: productName,
+        short_name: productShortName,
+        description: conditioningBuild
+          ? 'Conditioning training — run, ride, row, recover.'
+          : 'Strength training — lift, progress, recover.',
         theme_color: '#070706',
         background_color: '#070706',
         display: 'standalone',

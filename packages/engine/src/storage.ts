@@ -1,5 +1,5 @@
 import { LS_KEY } from './constants';
-import { emptyDB, sanitizeDB } from './db';
+import { emptyDB, ensureSharedCore, sanitizeDB } from './db';
 import type { EngineDB } from './types';
 
 /**
@@ -34,10 +34,10 @@ export interface LoadResult {
 export function loadDB(storage: Storage, key = LS_KEY): LoadResult {
   try {
     const raw = storage.getItem(key);
-    if (!raw) return { db: emptyDB(), recovered: false };
-    return { db: sanitizeDB(JSON.parse(raw)), recovered: false };
+    if (!raw) return { db: ensureSharedCore(emptyDB()), recovered: false };
+    return { db: ensureSharedCore(sanitizeDB(JSON.parse(raw))), recovered: false };
   } catch {
-    return { db: emptyDB(), recovered: true };
+    return { db: ensureSharedCore(emptyDB()), recovered: true };
   }
 }
 

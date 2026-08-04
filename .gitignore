@@ -31,6 +31,7 @@ design/cards-index.html
 
 # Vite/React build output
 dist/
+apps/web/dist-*/
 .vite/
 *.tsbuildinfo
 

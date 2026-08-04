@@ -6,15 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build:strength": "tsc -p tsconfig.json --noEmit && VITE_HYBRID_PRODUCT=strength vite build --outDir dist-strength",
+    "build:conditioning": "tsc -p tsconfig.json --noEmit && VITE_HYBRID_PRODUCT=conditioning vite build --outDir dist-conditioning",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@hybrid/config": "workspace:*",
+    "@hybrid/coordinator-adapter": "workspace:*",
     "@hybrid/design": "workspace:*",
     "@hybrid/engine": "workspace:*",
     "@hybrid/guided-flow": "workspace:*",
+    "@hybrid/product-scope": "workspace:*",
+    "@hybrid/shared-core": "workspace:*",
+    "@hybrid/whole-athlete-state": "workspace:*",
     "@supabase/supabase-js": "^2.110.8",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

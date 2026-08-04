@@ -23,6 +23,7 @@ import { Calendar } from './screens/Calendar';
 import { Day } from './screens/Day';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
+import { PRODUCT, PRODUCT_ID } from './product';
 
 /*
  * The router replaces the vanilla `go(id)` screen system, where every screen
@@ -81,7 +82,11 @@ export function App() {
 
 function Shell() {
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col">
+    <div
+      className="mx-auto flex min-h-full w-full max-w-[560px] flex-col"
+      data-product={PRODUCT_ID}
+      aria-label={PRODUCT.name}
+    >
       <main className="flex-1 px-2 pt-2 pb-[calc(72px+env(safe-area-inset-bottom))]">
         <Outlet />
       </main>

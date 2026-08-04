@@ -7,6 +7,7 @@ import {
   condEffortRpe,
   detectPRs,
   exFinished,
+  ensureSharedCore,
   isCond,
   isText,
   liftAdapt,
@@ -21,6 +22,7 @@ import {
   type TextBlock,
   type Workout,
 } from '@hybrid/engine';
+import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { sessionFrom } from '../lib/session';
 import { useDb } from '../store/db';
 import { Button, Card, Empty, Kicker, LetterChip, Meter, ScreenTitle, SectionHead, cx } from '../ui';
@@ -73,14 +75,23 @@ export function Training() {
     update((draft) => {
       const ds = draft.sessions.find((x) => x.id === activeSession.id);
       if (!ds) return false;
+      const completedAt = Date.now();
       ds.status = 'completed';
-      ds.completedAt = Date.now();
-      ds.updatedAt = Date.now();
+      ds.completedAt = completedAt;
+      ds.updatedAt = completedAt;
       /* Bank each lift's next working weight, in the SAME write that closes the
          session — the way conditioning banks its level in the write that
          records the effort. Split across two updates, a crash between them
          would leave a finished session that progressed nothing. */
       draft.settings.liftProgress = liftAdapt(ds, draft.settings).liftProgress;
+      const core = ensureSharedCore(draft, completedAt).core!;
+      draft.core = appendSharedCoreEvent(core, {
+        type: 'workout_completed',
+        occurredAt: new Date(completedAt).toISOString(),
+        sourceDomain: ds.kind || 'strength',
+        idempotencyKey: `session:${ds.id}:completed`,
+        payload: { sessionId: ds.id, domain: ds.kind || 'strength' },
+      });
     });
     // Straight to the recap: the moment after finishing is the only time
     // anyone actually reads what they just did.

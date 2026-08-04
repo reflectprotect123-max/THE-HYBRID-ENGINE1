@@ -25,6 +25,20 @@
       },
       "credentialsSource": "local",
       "channel": "production"
+    },
+    "conditioning-preview": {
+      "extends": "preview",
+      "channel": "conditioning-preview",
+      "env": {
+        "EXPO_PUBLIC_HYBRID_PRODUCT": "conditioning"
+      }
+    },
+    "conditioning-production": {
+      "extends": "production",
+      "channel": "conditioning-production",
+      "env": {
+        "EXPO_PUBLIC_HYBRID_PRODUCT": "conditioning"
+      }
     }
   },
   "submit": {

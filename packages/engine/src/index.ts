@@ -25,6 +25,7 @@ export * from './logger';
 export * from './db';
 export * from './folders';
 export * from './cloud';
+export * from './ecosystem';
 export * from './adaptive/types';
 export * from './adaptive/explain';
 export * from './adaptive/strength';

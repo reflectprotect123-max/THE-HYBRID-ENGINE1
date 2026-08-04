@@ -1,9 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createClient, type Session as AuthSession, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { SUPABASE } from '@hybrid/config';
-import { applyPull, buildPushState, cloudFp, sanitizeDB, type EngineDB } from '@hybrid/engine';
+import { applyPull, buildProductSyncNamespace, buildPushState, cloudFp, sanitizeDB, type EngineDB } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { humanizeError } from '../errors';
+import {
+  applyProductSyncNamespace as applyEcosystemNamespace,
+  ECOSYSTEM_SYNC_ENABLED,
+  pullEcosystem,
+  pushEcosystem,
+} from './ecosystem';
+import { PRODUCT_ID } from '../product';
 
 /*
  * Cloud sync.
@@ -42,6 +49,8 @@ const client: SupabaseClient | null = (() => {
   }
 })();
 
+const ECOSYSTEM_WRITER = `${PRODUCT_ID}:web`;
+
 export function SyncProvider({ children }: { children: ReactNode }) {
   const { db, update } = useDb();
   const [user, setUser] = useState<User | null>(null);
@@ -64,6 +73,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         draft.workouts = next.workouts;
         draft.sessions = next.sessions;
         draft.settings = next.settings;
+        draft.core = next.core;
+        draft.ecosystem = next.ecosystem;
       });
       dbRef.current = next;
     },
@@ -92,13 +103,27 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         existing = (data?.state ?? {}) as Record<string, unknown>;
       }
 
-      const state = buildPushState(dbRef.current, existing);
+      let source = dbRef.current;
+      let namespace: ReturnType<typeof buildProductSyncNamespace> | undefined;
+      if (ECOSYSTEM_SYNC_ENABLED) {
+        namespace = buildProductSyncNamespace(source, PRODUCT_ID, ECOSYSTEM_WRITER);
+        source = { ...source, core: namespace.core, ecosystem: namespace };
+        dbRef.current = source;
+      }
+      const state = buildPushState(source, existing);
       const { error: e } = await client.from('app_state').upsert({ user_id: user.id, state }, { onConflict: 'user_id' });
       if (e) throw e;
-      lastFp.current = fp;
+      if (ECOSYSTEM_SYNC_ENABLED) {
+        const pushed = await pushEcosystem(client, source, ECOSYSTEM_WRITER);
+        update((draft) => {
+          draft.core = pushed.core;
+          draft.ecosystem = pushed;
+        });
+      }
+      lastFp.current = cloudFp(source);
       setSyncedAt(Date.now());
     },
-    [user],
+    [user, update],
   );
 
   const reconcile = useCallback(async () => {
@@ -120,8 +145,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // may have written it — so it is hardened before it can reach a merge.
       const remote = rawRemote ? sanitizeDB(rawRemote) : null;
 
-      const { db: mergedDb, needsPush } = applyPull(dbRef.current, remote);
-      if (mergedDb !== dbRef.current) applyMerged(mergedDb);
+      const { db: mergedDb, needsPush: legacyNeedsPush } = applyPull(dbRef.current, remote);
+      let merged = mergedDb;
+      let needsPush = legacyNeedsPush;
+      if (ECOSYSTEM_SYNC_ENABLED) {
+        const ecosystemRemote = await pullEcosystem(client, user.id);
+        if (ecosystemRemote) {
+          const ecosystemMerged = applyEcosystemNamespace(merged, ecosystemRemote);
+          if (cloudFp(ecosystemMerged) !== cloudFp(merged)) needsPush = true;
+          merged = ecosystemMerged;
+        }
+      }
+      if (merged !== dbRef.current) applyMerged(merged);
       if (needsPush) await pushNow(true, remoteState);
 
       setSyncedAt(Date.now());

@@ -1,6 +1,16 @@
 import { CON_RETENTION, CON_TRACE_KEEP, MODES } from './constants';
 import { uid, uniqArr, ymd } from './num';
 import { isCond, isText, newEx, newSet, loggedWorkCount, hasLoggedWork } from './session';
+import {
+  migrateLegacySettings,
+  emptyEcosystemNamespace,
+  mergeEcosystemNamespaces,
+  mergeSharedCore,
+  sanitizeEcosystemNamespace,
+  sanitizeSharedCore,
+  type EcosystemSyncNamespace,
+  type SharedCoreState,
+} from '@hybrid/shared-core';
 import type {
   Block,
   CondBlock,
@@ -19,6 +29,21 @@ import type {
 
 export function emptyDB(): EngineDB {
   return { workouts: [], sessions: [], settings: {} };
+}
+
+/**
+ * Attach the shared-core namespace to a legacy local DB without removing any
+ * old Settings fields. This is intentionally separate from `sanitizeDB`:
+ * sanitizeDB must remain a lossless compatibility boundary for older tests,
+ * backups and clients, while a current app load opts into the migration.
+ */
+export function ensureSharedCore(d: EngineDB, now = Date.now()): EngineDB {
+  const migratedCore = d.core ? sanitizeSharedCore(d.core) : migrateLegacySettings(d.settings, now);
+  const namespace = d.ecosystem
+    ? sanitizeEcosystemNamespace(d.ecosystem)
+    : emptyEcosystemNamespace(migratedCore);
+  const core = mergeSharedCore(migratedCore, namespace.core);
+  return { ...d, core, ecosystem: { ...namespace, core } };
 }
 
 /**
@@ -252,6 +277,8 @@ export function sanitizeDB(d: unknown): EngineDB {
     ];
   };
 
+  const core = src.core ? sanitizeSharedCore(src.core) : undefined;
+  const ecosystem = src.ecosystem ? sanitizeEcosystemNamespace(src.ecosystem) : undefined;
   return {
     workouts: rawWorkouts.flatMap((w0) => {
       const w = (w0 && typeof w0 === 'object' ? w0 : {}) as Workout;
@@ -269,6 +296,8 @@ export function sanitizeDB(d: unknown): EngineDB {
       return splitMixedSession(s);
     }),
     settings: cleanSettings(src.settings),
+    ...(core ? { core } : {}),
+    ...(ecosystem ? { ecosystem } : {}),
   };
 }
 
@@ -484,7 +513,19 @@ export function mergeEngines(local: EngineDB, remote: EngineDB): EngineDB {
   const t = settings.deletedIds || {};
   const workouts = mergeById(local.workouts, remote.workouts, pickWorkout).filter(notTombstoned<Workout>(t));
   const sessions = mergeById(local.sessions, remote.sessions, pickSession).filter(notTombstoned<Session>(t));
-  return { workouts, sessions, settings };
+  const core: SharedCoreState | undefined = local.core || remote.core
+    ? mergeSharedCore(remote.core, local.core)
+    : undefined;
+  const ecosystem: EcosystemSyncNamespace | undefined = local.ecosystem || remote.ecosystem
+    ? mergeEcosystemNamespaces(remote.ecosystem, local.ecosystem)
+    : undefined;
+  return {
+    workouts,
+    sessions,
+    settings,
+    ...(core ? { core } : {}),
+    ...(ecosystem ? { ecosystem } : {}),
+  };
 }
 
 /**
@@ -498,7 +539,13 @@ export function cloudFp(engine: EngineDB): string {
     const st: Settings = Object.assign({}, engine.settings || {});
     delete st.whoopDaily;
     delete st.devices;
-    return JSON.stringify({ w: engine.workouts || [], s: engine.sessions || [], st });
+    return JSON.stringify({
+      w: engine.workouts || [],
+      s: engine.sessions || [],
+      st,
+      core: engine.core || null,
+      ecosystem: engine.ecosystem || null,
+    });
   } catch {
     return 'fp-' + Math.random();
   }

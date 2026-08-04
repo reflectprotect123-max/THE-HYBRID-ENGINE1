@@ -2,6 +2,10 @@ packages:
   - 'packages/*'
   - 'apps/*'
 
+allowBuilds:
+  dtrace-provider: set this to true or false
+  esbuild: set this to true or false
+
 # esbuild ships a platform binary via a postinstall script; Vite will not start
 # without it. Listed explicitly so the allowance is a reviewed decision rather
 # than a blanket "run every package's install scripts".

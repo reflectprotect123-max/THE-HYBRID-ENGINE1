@@ -46,7 +46,7 @@ const ZONE_NEON: Record<string, string> = {
 
 export function Home() {
   const nav = useNavigate();
-  const { db, whoop, hr, activeSession, sessions, update } = useDb();
+  const { db, whoop, hr, activeSession, sessions, update, athleteState, weeklyPlan } = useDb();
 
   const today = ymd(new Date());
   const rec = todayRecovery(whoop);
@@ -129,6 +129,25 @@ export function Home() {
       </div>
       <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpenDay={openDay} />
 
+      <SectionHead title="Coordinated week" />
+      <Card>
+        <p className="text-3 text-dim">
+          Coordinator plan · {weeklyPlan.entries.length} scheduled
+          {weeklyPlan.decisions.filter((d) => d.action === 'dropped').length
+            ? ` · ${weeklyPlan.decisions.filter((d) => d.action === 'dropped').length} held back`
+            : ''}
+        </p>
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {weeklyPlan.entries.slice(0, 4).map((entry) => (
+            <li key={entry.id} className="flex items-center justify-between gap-1 text-3">
+              <span className="truncate text-muted">{entry.title}</span>
+              <span className="num shrink-0 text-dim">{entry.date}</span>
+            </li>
+          ))}
+        </ul>
+        {!weeklyPlan.entries.length ? <p className="mt-1 text-3 text-muted">No automatic session was placed for this week.</p> : null}
+      </Card>
+
       {activeSession ? (
         <SessionCard tone="raised" className="mt-2">
           <Kicker className="text-1">In progress</Kicker>
@@ -194,6 +213,10 @@ export function Home() {
 
       <SectionHead title="Readiness" />
       <Card>
+        <p className="mb-1 text-3 text-dim">
+          Whole-athlete state: <span className="font-[700] text-text">{athleteState.readiness.band}</span>
+          {' · '}{athleteState.readiness.confidence} confidence
+        </p>
         {/* Sleep · Recovery · Strain, in that order and side by side, because
             that is the shape WHOOP itself shows and the one already read every
             morning. Recovery keeps the band colour the zone model uses, so the

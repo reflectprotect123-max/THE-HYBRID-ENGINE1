@@ -41,8 +41,13 @@ The fastest way into this repo. Find the symptom, go to the file.
 ## Layout
 
 ```
-packages/engine     every training decision. No DOM, no globals, no React.
-                    The one place web and mobile must agree.
+packages/engine     legacy-compatible training model and safe local merge boundary.
+packages/shared-core shared facts, versioned namespaces and cross-app contracts.
+packages/whole-athlete-state recovery/life context, constraints and data quality.
+packages/strength-engine specialist Strength ownership and proposal boundary.
+packages/conditioning-engine specialist Conditioning ownership and proposal boundary.
+packages/coordinator deterministic weekly reconciliation and reason codes.
+packages/coordinator-adapter app projection from specialist proposals to a plan.
 packages/design     colour, type and spacing tokens on an 8px grid.
 packages/config     Supabase URL/anon key and site origin.
 packages/guided-flow the pure step-sequencing logic shared by the web and
@@ -57,6 +62,19 @@ netlify/functions   the server half: WHOOP OAuth and webhooks. Provider
                     tokens live here encrypted, never in the browser.
 docs/               design tokens, the migration record, the changelog.
 ```
+
+The rebuild status, rollout gates and product commands are in
+[`docs/ARCHITECTURE_STATUS.md`](docs/ARCHITECTURE_STATUS.md). Claude Code's
+operating contract is in [`CLAUDE.md`](CLAUDE.md), and the Supabase cross-app
+boundary is staged in
+[`supabase/migrations/20260804_fitness_ecosystem_contracts.sql`](supabase/migrations/20260804_fitness_ecosystem_contracts.sql).
+The staging compatibility matrix and rollback procedure are in
+[`docs/MIGRATION_ROLLOUT.md`](docs/MIGRATION_ROLLOUT.md).
+
+The Android build paths and signing rules are in
+[`docs/ANDROID_BUILD.md`](docs/ANDROID_BUILD.md). A local debug APK uses
+`pnpm android:debug`; a signed APK/AAB uses the EAS workflow and the existing
+release keystore.
 
 ### The engine, module by module
 

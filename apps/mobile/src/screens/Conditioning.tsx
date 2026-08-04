@@ -12,6 +12,7 @@ import {
   conZoneOf,
   conZones,
   fmtClock,
+  ensureSharedCore,
   fmtDistance,
   fmtPace,
   geoDownsample,
@@ -30,6 +31,7 @@ import {
   type HrSample,
   type Phase,
 } from '@hybrid/engine';
+import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
 import { buzz, createFtmsMonitor, createGeoTracker, createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
@@ -427,9 +429,18 @@ export function ConditioningScreen() {
   const bank = (rec: CondResult) => {
     rec.cardioCompletion = cardioCompletionFor(rec.fmt ?? fmt, rec.zsec, rec.dur ?? 0);
     update((d) => {
+      const at = Date.now();
       const { conProgress } = conAdapt(rec, d.settings);
       d.settings.conProgress = conProgress;
-      d.settings.updatedAt = Date.now();
+      d.settings.updatedAt = at;
+      const core = ensureSharedCore(d, at).core!;
+      d.core = appendSharedCoreEvent(core, {
+        type: 'workout_completed',
+        occurredAt: new Date(at).toISOString(),
+        sourceDomain: 'conditioning',
+        idempotencyKey: `conditioning:${rec.id || rec.startedAt || at}:completed`,
+        payload: { resultId: rec.id, sessionId: activeSession?.id, domain: 'conditioning', durationSeconds: rec.dur },
+      });
 
       /*
        * A run started FROM a session belongs to that session's block. Banking
@@ -444,7 +455,7 @@ export function ConditioningScreen() {
       if (ds && !isCond(cb) && sinkBi >= 0) cb = ds.blocks[sinkBi];
       if (ds && isCond(cb)) {
         cb.condResult = rec;
-        ds.updatedAt = Date.now();
+        ds.updatedAt = at;
         return;
       }
       d.settings.conditioning = pushCondHistory(d.settings, rec);

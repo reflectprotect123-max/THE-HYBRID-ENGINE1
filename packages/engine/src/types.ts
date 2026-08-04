@@ -14,6 +14,8 @@
  * athlete's logged work.
  */
 
+import type { EcosystemSyncNamespace, SharedCoreState } from '@hybrid/shared-core';
+
 export type ModeKey = 'reps_kg' | 'amrap' | 'seconds' | 'reps_seconds' | 'reps' | 'completion';
 export type CondFmtKey = 'steady' | 'intervals' | 'tempo' | 'custom' | 'free';
 export type Modality = 'row' | 'run' | 'ski' | 'bike' | 'air_bike';
@@ -362,6 +364,10 @@ export interface EngineDB {
   workouts: Workout[];
   sessions: Session[];
   settings: Settings;
+  /** Versioned cross-product facts. Optional for pre-migration backups. */
+  core?: SharedCoreState;
+  /** Per-domain snapshots/events used by independently deployed products. */
+  ecosystem?: EcosystemSyncNamespace;
 }
 
 /** The live WHOOP reading the HR model consults. Null when nothing has synced. */

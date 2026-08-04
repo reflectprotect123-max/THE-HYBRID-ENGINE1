@@ -35,8 +35,8 @@ Both files are shredded in an `always()` step and are gitignored.
 | Setting | Value | Why |
 |---|---|---|
 | `expo.android.package` | `com.hybridengine.app` | Change it and it is a different app |
-| `expo.android.versionCode` | `> 27` (currently 30) | The shipped WebView build is 27 |
-| `expo.runtimeVersion` | `"1"` — a hand-bumped string | See below. Not the `fingerprint` policy |
+| `expo.android.versionCode` | `> 27` (currently 31) | The shipped WebView build is 27 |
+| `expo.runtimeVersion` | `"2"` — a hand-bumped string | See below. Not the `fingerprint` policy |
 | `expo.owner` | `ths1s-team` | The EAS project belongs to an organisation, not a personal account. Without this, EAS resolves against whichever account the token belongs to and cannot find the project |
 | `expo.extra.eas.projectId` | `7851ad90-…` | What `eas init --id` writes. Recorded rather than run, because CI builds are `--non-interactive` and cannot be prompted to link a project mid-build |
 
@@ -95,6 +95,8 @@ through pnpm's symlinks happily and Metro does not. This app spent the whole
 migration unable to bundle while `tsc` stayed green. CI runs `bundle` on every
 push for that reason.
 
-Neither proves it **compiles** — that needs an EAS build — and nothing here
-touches hardware. BLE, notifications and the share-sheet backup have never
-executed on a device.
+Neither check alone proves that Gradle can compile native Android code. With an
+Android SDK installed, `pnpm android:debug` performs that local Gradle compile;
+the EAS workflow performs the signed cloud build. Neither path replaces
+real-device testing: BLE, notifications and the share-sheet backup still need
+to execute on a phone.

@@ -39,6 +39,7 @@ import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
 import { ConditioningScreen } from './screens/Conditioning';
+import { PRODUCT } from './product';
 
 /*
  * The Android app.
@@ -130,6 +131,7 @@ function TabNav() {
         tabBarItemStyle: { borderRadius: radius.sm, marginHorizontal: 4, marginVertical: 3 },
         tabBarStyle: { backgroundColor: color.panel3, borderTopColor: color.line },
         tabBarLabelStyle: { fontSize: 11, fontFamily: font.med },
+        tabBarAccessibilityLabel: PRODUCT.name,
       }}
     >
       <Tabs.Screen name="Home" component={HomeScreen} options={{ tabBarIcon: tabIcon('⌂') }} />

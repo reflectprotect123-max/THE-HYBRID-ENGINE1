@@ -177,7 +177,7 @@ jobs:
       - name: Contract + security suites (no network)
         run: |
           set -o pipefail
-          for check in pentest supabase-contract whoop-contract concept2-contract whoop-deployment-smoke supabase-auth mobile-touch contrast; do
+          for check in pentest supabase-contract ecosystem-contract whoop-contract concept2-contract whoop-deployment-smoke supabase-auth mobile-touch contrast; do
             echo "::group::checks/$check.mjs"
             node "checks/$check.mjs" 2>&1 | tee "$RUNNER_TEMP/$check.log"
             echo "::endgroup::"
