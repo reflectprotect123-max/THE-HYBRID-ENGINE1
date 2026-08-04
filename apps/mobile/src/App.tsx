@@ -149,6 +149,19 @@ function useReduceMotion(): boolean {
 }
 
 export function App() {
+  return (
+    <ThemeProvider productId={PRODUCT_ID}>
+      <AppInner />
+    </ThemeProvider>
+  );
+}
+
+/* `useTheme()` only resolves against an ANCESTOR provider — a component can
+   never consume the context it renders as its own child. AppInner exists so
+   the `useTheme()` call below (and everything that depends on `color`) sits
+   BELOW the `<ThemeProvider>` App renders, not inside the same render pass
+   that produces it. */
+function AppInner() {
   /* Inter is the app's voice — the same family the design cards and both web
      apps set first in their stacks. Rendering before it loads would flash
      every screen in system Roboto, so the app holds on a blank frame for the
@@ -191,7 +204,6 @@ export function App() {
   if (!fontsReady && !fontsError) return null;
 
   return (
-    <ThemeProvider productId={PRODUCT_ID}>
       <SafeAreaProvider>
         <DbProvider>
           <SyncProvider>
@@ -232,6 +244,5 @@ export function App() {
           </SyncProvider>
         </DbProvider>
       </SafeAreaProvider>
-    </ThemeProvider>
   );
 }
