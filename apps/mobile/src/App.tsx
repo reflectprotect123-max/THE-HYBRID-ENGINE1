@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AccessibilityInfo, Text } from 'react-native';
+import { AccessibilityInfo, Text, View } from 'react-native';
 import { useFonts } from 'expo-font';
 /* One weight per import, from the per-weight subpath: the package root
    re-exports every weight AND every italic, and Metro bundles whatever is
@@ -16,6 +16,8 @@ import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
 import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
 import { ThemeProvider, radius, useTheme } from '@hybrid/design';
+import { vars } from 'nativewind';
+import { buildNativeThemeVars } from './nativeThemeVars';
 import { font } from './ui';
 import './global.css';
 
@@ -204,6 +206,7 @@ function AppInner() {
   if (!fontsReady && !fontsError) return null;
 
   return (
+    <View className="flex-1" style={vars(buildNativeThemeVars(color))}>
       <SafeAreaProvider>
         <DbProvider>
           <SyncProvider>
@@ -244,5 +247,6 @@ function AppInner() {
           </SyncProvider>
         </DbProvider>
       </SafeAreaProvider>
+    </View>
   );
 }
