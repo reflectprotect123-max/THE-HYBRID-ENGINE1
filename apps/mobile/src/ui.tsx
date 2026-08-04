@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ReactNode } from 'react';
 import { useTheme } from '@hybrid/design';
-import { color as semanticColor } from '@hybrid/design';
+import { color as fallbackColor } from '@hybrid/design';
 
 /*
  * Mobile primitives.
@@ -500,14 +500,17 @@ export function Ring({
   );
 }
 
-/** Band inks for data read AGAINST TEXT (zone tables, banked seconds). */
+/** Band inks for data read AGAINST TEXT (zone tables, banked seconds).
+ * `fallbackColor` is safe here specifically because these two functions only
+ * ever touch SHARED keys — identical in both palettes — so a non-reactive
+ * import can't return a value the active theme would have overridden. */
 export const zoneInk = (k: 'low' | 'mod' | 'high') =>
-  k === 'low' ? semanticColor.zLow : k === 'mod' ? semanticColor.zMod : semanticColor.zHigh;
+  k === 'low' ? fallbackColor.zLow : k === 'mod' ? fallbackColor.zMod : fallbackColor.zHigh;
 
 /** Emissive zone colours for lit dots, bars and rings (01-foundations-colour-06):
  * glow brighter than the band inks, never used for text. */
 export const zoneNeon = (k: 'low' | 'mod' | 'high') =>
-  k === 'low' ? semanticColor.neonStrain : k === 'mod' ? semanticColor.neonOk : semanticColor.neonBad;
+  k === 'low' ? fallbackColor.neonStrain : k === 'mod' ? fallbackColor.neonOk : fallbackColor.neonBad;
 
 /**
  * A row of view switches — the web app's `Tabs`, for a phone.
