@@ -108,14 +108,18 @@ const conditioningBrand = {
   doneLine: 'rgba(127,227,212,.5)',
   doneInk: '#a7ece1',
   onAccent: '#04211d',
-} as const;
+} as const satisfies Record<keyof typeof strengthBrand, string>;
 
 export const strengthColor = { ...strengthBrand, ...sharedColor } as const;
 export const conditioningColor = { ...conditioningBrand, ...sharedColor } as const;
 
 /** The shape every palette has. Use this, not `typeof color`, when a type is
- * needed independent of which palette is active. */
-export type Palette = typeof strengthColor;
+ * needed independent of which palette is active. Widened to `string` per key
+ * (rather than `typeof strengthColor`, whose `as const` gives each value a
+ * narrow literal type) so every palette is structurally assignable without a
+ * cast — `Palette` describes "some string per key," not one palette's exact
+ * literals. */
+export type Palette = { readonly [K in keyof typeof strengthColor]: string };
 
 /** Back-compat default — strength's palette, always. Prefer `useTheme()`
  * (./theme) in any component that should vary by product. */

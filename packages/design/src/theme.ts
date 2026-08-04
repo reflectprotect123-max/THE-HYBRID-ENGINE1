@@ -4,7 +4,7 @@ import { conditioningColor, strengthColor, type Palette } from './tokens';
 
 /** Pure so it is testable without mounting anything React. */
 export function resolvePalette(productId: ProductId): Palette {
-  return (productId === 'conditioning' ? conditioningColor : strengthColor) as Palette;
+  return productId === 'conditioning' ? conditioningColor : strengthColor;
 }
 
 const ThemeContext = createContext<Palette>(strengthColor);
