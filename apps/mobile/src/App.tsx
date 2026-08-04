@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavigationContainer, DarkTheme, type NavigatorScreenParams, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -15,7 +15,7 @@ import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
 import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
-import { color, radius } from '@hybrid/design';
+import { ThemeProvider, radius, useTheme } from '@hybrid/design';
 import { font } from './ui';
 import './global.css';
 
@@ -39,7 +39,7 @@ import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
 import { ConditioningScreen } from './screens/Conditioning';
-import { PRODUCT } from './product';
+import { PRODUCT, PRODUCT_ID } from './product';
 
 /*
  * The Android app.
@@ -87,28 +87,6 @@ export type RootStackParams = {
 const Stack = createNativeStackNavigator<RootStackParams>();
 const Tabs = createBottomTabNavigator<TabParams>();
 
-const theme: Theme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    primary: color.gold2,
-    background: color.bg,
-    card: color.panel3,
-    text: color.text,
-    border: color.line,
-    notification: color.gold,
-  },
-  /* Whatever chrome the navigator draws itself renders in Inter too. The
-     weights are 'normal' on purpose: each Inter file IS its weight, and a
-     fontWeight on top invites Android to fake-bold an already-bold face. */
-  fonts: {
-    regular: { fontFamily: font.reg, fontWeight: 'normal' },
-    medium: { fontFamily: font.med, fontWeight: 'normal' },
-    bold: { fontFamily: font.semi, fontWeight: 'normal' },
-    heavy: { fontFamily: font.bold, fontWeight: 'normal' },
-  },
-};
-
 /* Glyph tabs rather than an icon dependency — five shapes do not justify
    pulling in a vector-icon package and its font assets. Deliberately raw
    Text, NOT the ui.tsx <T>: these are unicode symbols the system font
@@ -119,6 +97,7 @@ const tabIcon = (glyph: string) =>
   };
 
 function TabNav() {
+  const { color } = useTheme();
   return (
     <Tabs.Navigator
       screenOptions={{
@@ -176,6 +155,31 @@ export function App() {
      few ms the six weights take. If loading ever ERRORS the app proceeds on
      the system fallback instead: an ugly launch beats no launch. */
   const reduceMotion = useReduceMotion();
+  const { color } = useTheme();
+  const theme: Theme = useMemo(
+    () => ({
+      ...DarkTheme,
+      colors: {
+        ...DarkTheme.colors,
+        primary: color.gold2,
+        background: color.bg,
+        card: color.panel3,
+        text: color.text,
+        border: color.line,
+        notification: color.gold,
+      },
+      /* Whatever chrome the navigator draws itself renders in Inter too. The
+         weights are 'normal' on purpose: each Inter file IS its weight, and a
+         fontWeight on top invites Android to fake-bold an already-bold face. */
+      fonts: {
+        regular: { fontFamily: font.reg, fontWeight: 'normal' },
+        medium: { fontFamily: font.med, fontWeight: 'normal' },
+        bold: { fontFamily: font.semi, fontWeight: 'normal' },
+        heavy: { fontFamily: font.bold, fontWeight: 'normal' },
+      },
+    }),
+    [color],
+  );
   const [fontsReady, fontsError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -187,45 +191,47 @@ export function App() {
   if (!fontsReady && !fontsError) return null;
 
   return (
-    <SafeAreaProvider>
-      <DbProvider>
-        <SyncProvider>
-          <WhoopProvider>
-            <Concept2Provider>
-            <RestProvider>
-            <SetTimerProvider>
-          <NavigationContainer theme={theme}>
-            <StatusBar style="light" />
-            <Stack.Navigator
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: color.bg },
-                /* 'fade', not 'none'. A screen that simply appears reads as a
-                   glitch — the eye cannot tell a navigation from a redraw — so
-                   the calm version still marks the transition, it just does not
-                   travel. */
-                animation: reduceMotion ? 'fade' : 'slide_from_right',
-                gestureEnabled: true,
-              }}
-            >
-              <Stack.Screen name="Tabs" component={TabNav} />
-              <Stack.Screen name="Logger" component={LoggerScreen} />
-              <Stack.Screen name="Planner" component={PlannerScreen} />
-              <Stack.Screen name="GuidedBuilder" component={GuidedBuilderScreen} />
-              <Stack.Screen name="Recap" component={RecapScreen} />
-              <Stack.Screen name="Conditioning" component={ConditioningScreen} />
-              <Stack.Screen name="History" component={HistoryScreen} />
-              <Stack.Screen name="Calendar" component={CalendarScreen} />
-              <Stack.Screen name="Exercise" component={ExerciseScreen} />
-              <Stack.Screen name="Day" component={DayScreen} />
-            </Stack.Navigator>
-              </NavigationContainer>
-            </SetTimerProvider>
-            </RestProvider>
-            </Concept2Provider>
-          </WhoopProvider>
-        </SyncProvider>
-      </DbProvider>
-    </SafeAreaProvider>
+    <ThemeProvider productId={PRODUCT_ID}>
+      <SafeAreaProvider>
+        <DbProvider>
+          <SyncProvider>
+            <WhoopProvider>
+              <Concept2Provider>
+              <RestProvider>
+              <SetTimerProvider>
+            <NavigationContainer theme={theme}>
+              <StatusBar style="light" />
+              <Stack.Navigator
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: color.bg },
+                  /* 'fade', not 'none'. A screen that simply appears reads as a
+                     glitch — the eye cannot tell a navigation from a redraw — so
+                     the calm version still marks the transition, it just does not
+                     travel. */
+                  animation: reduceMotion ? 'fade' : 'slide_from_right',
+                  gestureEnabled: true,
+                }}
+              >
+                <Stack.Screen name="Tabs" component={TabNav} />
+                <Stack.Screen name="Logger" component={LoggerScreen} />
+                <Stack.Screen name="Planner" component={PlannerScreen} />
+                <Stack.Screen name="GuidedBuilder" component={GuidedBuilderScreen} />
+                <Stack.Screen name="Recap" component={RecapScreen} />
+                <Stack.Screen name="Conditioning" component={ConditioningScreen} />
+                <Stack.Screen name="History" component={HistoryScreen} />
+                <Stack.Screen name="Calendar" component={CalendarScreen} />
+                <Stack.Screen name="Exercise" component={ExerciseScreen} />
+                <Stack.Screen name="Day" component={DayScreen} />
+              </Stack.Navigator>
+                </NavigationContainer>
+              </SetTimerProvider>
+              </RestProvider>
+              </Concept2Provider>
+            </WhoopProvider>
+          </SyncProvider>
+        </DbProvider>
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
