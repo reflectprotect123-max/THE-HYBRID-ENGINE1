@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
 import { DbProvider } from './store/db';
 import { RestProvider } from './store/rest';
 import { SetTimerProvider } from './store/setTimer';
@@ -24,6 +25,10 @@ import { Day } from './screens/Day';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
 import { PRODUCT, PRODUCT_ID } from './product';
+
+/* The coach bench is its own chunk: athletes never download it, and a failure
+   inside it can never take down an athlete route. */
+const Coach = lazy(() => import('./coach'));
 
 /*
  * The router replaces the vanilla `go(id)` screen system, where every screen
@@ -52,6 +57,14 @@ export function App() {
             <BrowserRouter>
               <Routes>
                 <Route path="/log/:bi/:ei" element={<Logger />} />
+                <Route
+                  path="/coach/*"
+                  element={
+                    <Suspense fallback={null}>
+                      <Coach />
+                    </Suspense>
+                  }
+                />
                 <Route path="/planner/:id" element={<Planner />} />
                 <Route path="/build/:id" element={<GuidedBuilder />} />
                 <Route element={<Shell />}>
