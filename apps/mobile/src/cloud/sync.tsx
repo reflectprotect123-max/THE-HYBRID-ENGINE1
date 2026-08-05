@@ -125,8 +125,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
    * of the write-back is that this build keeps only its own product on disk.
    * Hence the `restrictToProduct` on the FOLD rather than on `next` alone.
    * Pruning here is still safe for exactly the reason `reconcile` documents:
-   * everything being pruned came out of the unfiltered merge that `pushNow`
-   * already made durable on the server before this runs.
+   * this guarantee holds for any record that was part of the pushed `merged`
+   * snapshot, already made durable on the server before this runs. Exception:
+   * an OTHER-product record authored during the push's own await window never
+   * entered that snapshot, so it can still be pruned before reaching the server.
    */
   const applyMerged = useCallback(
     (next: EngineDB) => {
@@ -230,8 +232,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // this device (nothing gates authoring by product — see the design
       // spec's Non-goals) reaches the server first. Only after that is the
       // device's own on-disk storage narrowed to its own product — pruning a
-      // record locally here can never mean losing it, because by this point
-      // it is already durable on the server.
+      // record locally here can never mean losing it IF it was part of that
+      // pushed snapshot, because by that point it is already durable on the
+      // server. Exception: an OTHER-product record authored during the push's
+      // await window never made it into that snapshot, so it can still be
+      // pruned before reaching the server.
       if (merged !== previousLocal) dbRef.current = merged;
       if (needsPush) await pushNow(true, remoteState);
 
