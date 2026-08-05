@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { applyPull, buildPushState } from '../src/cloud';
+import { restrictToProduct } from '../src/session';
 import { sanitizeDB } from '../src/db';
 import type { EngineDB, Session, Workout } from '../src/types';
 
@@ -217,5 +218,43 @@ describe('a device that has split a mixed SESSION, pulling from a server that ha
       // and the conditioning half never re-acquires the strength workout's id
       expect(cur.sessions.find((s) => s.id === 's1-cond')!.workoutId).toBeUndefined();
     }
+  });
+});
+
+describe('restrictToProduct + pull/push round-trip', () => {
+  it('a conditioning-filtered pull keeps the strength record out of the merge, but a strength device still has it after its own pull', () => {
+    const remote: EngineDB = {
+      workouts: [wk('w-strength', { kind: 'strength' }), wk('w-cond', { kind: 'conditioning' })],
+      sessions: [],
+      settings: {},
+    };
+    const conditioningLocal: EngineDB = { workouts: [], sessions: [], settings: {} };
+    const conditioningResult = applyPull(
+      restrictToProduct(conditioningLocal, 'conditioning'),
+      restrictToProduct(remote, 'conditioning'),
+    );
+    expect(conditioningResult.db.workouts.map((w) => w.id)).toEqual(['w-cond']);
+
+    const strengthLocal: EngineDB = { workouts: [], sessions: [], settings: {} };
+    const strengthResult = applyPull(
+      restrictToProduct(strengthLocal, 'strength'),
+      restrictToProduct(remote, 'strength'),
+    );
+    expect(strengthResult.db.workouts.map((w) => w.id)).toEqual(['w-strength']);
+  });
+
+  it('a conditioning push filtered from a local db that also holds a leftover strength workout does not erase that workout from the pushed state', () => {
+    const local: EngineDB = {
+      workouts: [wk('w-strength', { kind: 'strength' }), wk('w-cond', { kind: 'conditioning' })],
+      sessions: [],
+      settings: {},
+    };
+    const existingRemoteState = {
+      hybridEngine: { workouts: [wk('w-strength', { kind: 'strength' })], sessions: [], settings: {} },
+    };
+    const pushed = buildPushState(restrictToProduct(local, 'conditioning'), existingRemoteState) as {
+      hybridEngine: EngineDB;
+    };
+    expect(pushed.hybridEngine.workouts.map((w) => w.id).sort()).toEqual(['w-cond', 'w-strength']);
   });
 });
