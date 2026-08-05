@@ -7,6 +7,7 @@ import {
   buildProductSyncNamespace,
   buildPushState,
   cloudFp,
+  restrictToProduct,
   sanitizeDB,
   type EngineDB,
 } from '@hybrid/engine';
@@ -146,7 +147,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         source = { ...source, core: namespace.core, ecosystem: namespace };
         dbRef.current = source;
       }
-      const state = buildPushState(source, existing);
+      const state = buildPushState(restrictToProduct(source, PRODUCT_ID), existing);
       const { error: e } = await client.from('app_state').upsert({ user_id: user.id, state }, { onConflict: 'user_id' });
       if (e) throw e;
       if (ECOSYSTEM_SYNC_ENABLED) {
@@ -181,7 +182,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // may have written it — so it is hardened before it can reach a merge.
       const remote = rawRemote ? sanitizeDB(rawRemote) : null;
 
-      const { db: mergedDb, needsPush: legacyNeedsPush } = applyPull(dbRef.current, remote);
+      const { db: mergedDb, needsPush: legacyNeedsPush } = applyPull(
+        restrictToProduct(dbRef.current, PRODUCT_ID),
+        remote ? restrictToProduct(remote, PRODUCT_ID) : null,
+      );
       let merged = mergedDb;
       let needsPush = legacyNeedsPush;
       if (ECOSYSTEM_SYNC_ENABLED) {
