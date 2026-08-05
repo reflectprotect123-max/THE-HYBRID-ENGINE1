@@ -195,6 +195,9 @@ function AppInner() {
     }),
     [color],
   );
+  /* Recomputed only when the palette changes, not on every render — vars()
+     allocates a fresh object each call, and this is at the root of the tree. */
+  const themeVars = useMemo(() => vars(buildNativeThemeVars(color)), [color]);
   const [fontsReady, fontsError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -206,7 +209,13 @@ function AppInner() {
   if (!fontsReady && !fontsError) return null;
 
   return (
-    <View className="flex-1" style={vars(buildNativeThemeVars(color))}>
+    // className="flex-1" is load-bearing twice over: a bare View has no
+    // intrinsic size, so this is what makes the app visible at all — and a
+    // non-empty className is what makes NativeWind's JSX transform wrap this
+    // View in the CSS-interop component that actually provides the variable
+    // context below. Swapping it for an equivalent style={{flex:1}} would
+    // silently break theming, not just layout.
+    <View className="flex-1" style={themeVars}>
       <SafeAreaProvider>
         <DbProvider>
           <SyncProvider>
