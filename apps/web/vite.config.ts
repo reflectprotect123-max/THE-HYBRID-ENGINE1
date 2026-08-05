@@ -4,8 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const conditioningBuild = process.env.VITE_HYBRID_PRODUCT === 'conditioning';
-const productName = conditioningBuild ? 'THE Conditioning System' : 'THE Strength System';
-const productShortName = conditioningBuild ? 'Conditioning' : 'Strength';
+const productName = conditioningBuild ? 'THE Conditioning System' : 'THE Hybrid System — Dashboard';
+const productShortName = conditioningBuild ? 'Conditioning' : 'Dashboard';
 
 /*
  * The deployed CSP (see _headers, asserted by checks/pentest.mjs) is
@@ -34,7 +34,7 @@ export default defineConfig({
         short_name: productShortName,
         description: conditioningBuild
           ? 'Conditioning training — run, ride, row, recover.'
-          : 'Strength training — lift, progress, recover.',
+          : 'Train, program, and track — strength and conditioning in one place.',
         theme_color: '#070706',
         background_color: '#070706',
         display: 'standalone',

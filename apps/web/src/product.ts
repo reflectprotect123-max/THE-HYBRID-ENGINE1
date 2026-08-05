@@ -7,4 +7,17 @@ import { parseProductId, productDefinition, type ProductId } from '@hybrid/produ
  * data shapes.
  */
 export const PRODUCT_ID: ProductId = parseProductId(import.meta.env.VITE_HYBRID_PRODUCT);
-export const PRODUCT = productDefinition(PRODUCT_ID);
+
+const rawProduct = import.meta.env.VITE_HYBRID_PRODUCT;
+
+/*
+ * The live deployment never sets VITE_HYBRID_PRODUCT — it's a single,
+ * unfiltered dashboard, not one of the two branded athlete builds. Borrowing
+ * strength's display name for that default case was a latent mislabeling:
+ * only the display name is overridden here, everything else about `PRODUCT`
+ * (owns/canRead/canWrite/primaryAction) stays whatever productDefinition
+ * gives strength, since nothing on web renders those fields today.
+ */
+export const PRODUCT = rawProduct === 'strength' || rawProduct === 'conditioning'
+  ? productDefinition(PRODUCT_ID)
+  : { ...productDefinition(PRODUCT_ID), name: 'THE Hybrid System — Dashboard', shortName: 'Dashboard' };
