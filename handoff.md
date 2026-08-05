@@ -1,5 +1,115 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 5 August 2026**
+>
+> Read this before anything below. It supersedes the 4 August checkpoint
+> (preserved below as history). Remote note: the GitHub repo was renamed to
+> `reflectprotect123-max/THE-HYBRID-ENGINE1` — `git push`/`fetch` against the
+> old lowercase URL still work (GitHub prints a "repository moved" notice and
+> follows the redirect), so this is informational, not a blocker.
+
+## What happened this session, in order
+
+1. **Mobile sync partitioned by product.** Conditioning-branded mobile builds
+   now pull/push only conditioning-kind workouts/sessions; strength builds
+   only strength-kind. Web is untouched — no data filtering there, it already
+   shows/programs both. Design:
+   `docs/superpowers/specs/2026-08-05-mobile-sync-product-partition-design.md`,
+   plan: `docs/superpowers/plans/2026-08-05-mobile-sync-product-partition.md`.
+   New `restrictToProduct(db, domain)` in `packages/engine/src/session.ts`,
+   wired into `apps/mobile/src/cloud/sync.tsx`.
+   - Per-task reviews passed clean. The **final whole-branch review** (fresh
+     eyes, after all tasks) found 2 Critical data-loss bugs the per-task
+     reviews couldn't see: (C1) a locally-authored, never-synced wrong-kind
+     record could be silently pruned before it ever reached the server; (C2)
+     a legacy mixed-kind record on the server could have its other half
+     erased by a device pushing only its own kind. Both were real — verified
+     against the actual merge code, not just argued from the design doc.
+   - Fixed across 2 rounds + 1 comment-accuracy fix, each independently
+     re-reviewed: push is no longer filtered (it's additive, filtering it was
+     the actual bug); the local write-back is filtered only *after* an
+     unfiltered push makes everything durable server-side first; the local
+     write-back merges into the live store instead of overwriting it, so a
+     set logged mid-push isn't clobbered; `apps/mobile/src/product.ts` now
+     fails loudly on a genuinely misconfigured product env var instead of
+     silently defaulting; a real integration test
+     (`apps/mobile/test/sync.test.tsx`) now exercises the actual
+     `SyncProvider`/`reconcile`/`pushNow` code, not just engine primitives.
+   - One narrow, disclosed, accepted residual: an *other*-product record
+     authored during the sub-second window of an in-flight push can still be
+     lost. Bounded (needs off-product authoring + a fast push + a net-change
+     reconcile), strictly better than every prior state, documented in code
+     comments (`apps/mobile/src/cloud/sync.tsx`) rather than silently ignored.
+   - **Real EAS builds** were dispatched from this branch and manually
+     installed on real Android devices by the user: conditioning build showed
+     only conditioning sessions, strength build showed only strength,
+     web showed both. Confirmed working before the final-review fix rounds
+     even started; the fixes since then are sync-layer correctness hardening
+     a device install wouldn't visibly differentiate.
+   - Merged to `main` (commit `677026c`). Branch and worktree deleted.
+   - **Side discovery mid-flight:** dispatching the EAS builds required
+     `conditioning-preview`/`conditioning-production` profiles that didn't
+     exist on `main` — they existed only on a previously-unmerged
+     `nativewind-theme-vars` branch (14 commits: mobile NativeWind runtime
+     theming + the CI/EAS side-quest that gave conditioning its own real EAS
+     project). That branch was fully done and already reviewed clean, just
+     never merged. Merged it into `main` first (commit `3ce3112`) to unblock,
+     then rebased the sync-partition branch on top. Worth knowing if anyone
+     wonders why NativeWind theming commits are dated days before the merge
+     commit that actually landed them.
+
+2. **Electron desktop `.exe` wrap — dropped, not built.** User asked to scope
+   it, a design was written and committed
+   (`docs/superpowers/specs/2026-08-05-electron-desktop-wrap-design.md`:
+   `apps/desktop` wrapping the live site in a BrowserWindow, NSIS installer,
+   CI on `windows-latest`), then the user said "forget about the .exe" before
+   any implementation plan or code existed. The spec is real and could be
+   picked back up, but nothing beyond it exists — no `apps/desktop`, no CI
+   workflow, no code.
+
+3. **Web dashboard rebrand — shipped.** The live web app
+   (`https://thehybridengine1.netlify.app`) had no data-layer product
+   filtering — it already showed/programmed both disciplines — but was
+   branded "THE Strength System" by default, which mislabeled it as one of
+   the two athlete apps. Design:
+   `docs/superpowers/specs/2026-08-05-web-dashboard-rebrand-design.md`, plan:
+   `docs/superpowers/plans/2026-08-05-web-dashboard-rebrand.md`. Changed
+   `apps/web/vite.config.ts`'s manifest name/short_name/description and
+   `apps/web/src/product.ts`'s display override — display strings only, zero
+   data change, zero effect on `apps/mobile`'s real strength/conditioning
+   identities (confirmed no other consumer of `PRODUCT.name` on web via
+   grep). Committed and pushed (`4eeeca8`), confirmed **live** via Netlify's
+   own API (deploy state `ready`, matches that exact commit, secret-scan
+   clean) — PWA install name/icon label now read "THE Hybrid System —
+   Dashboard".
+
+4. **A bigger "coach front" dashboard ask — brainstorming started, PAUSED,
+   unresolved.** After the rebrand shipped, the user asked for something
+   larger: "make the coach front... a proper dashboard... professionally
+   polished frontend with proper backend, that allows deep insights" —
+   explicitly "DO NOT touch either of the apps, i repeat DO NOT touch any of
+   the apps." This directly contradicts the just-shipped rebrand's approach
+   (which *is* `apps/web`, and did touch it) — flagged that contradiction to
+   the user. Got as far as: user doesn't know whether "don't touch the apps"
+   also means don't touch their shared backend (Supabase/`netlify/functions`)
+   — asked them to let me ask guided questions instead of picking for them;
+   proposed (recommended) a new, separate, read-only frontend against the
+   *existing* Supabase data, no new backend, nothing in `apps/web`/
+   `apps/mobile` touched. **The user dismissed that question outright**
+   ("do not proceed, wait for next instruction") rather than answering it.
+   **No design, no spec, nothing implemented.** Whoever picks this up next:
+   start the brainstorm over, do not assume the dismissed proposal stands as
+   agreed, and do not reach for the small-rebrand approach again — the user's
+   own words already ruled that out this time by insisting the apps not be
+   touched.
+
+5. **`graphify` CLI installed** (`uv tool install graphifyy`, registered via
+   `graphify install`) — a codebase-knowledge-graph dev tool now available in
+   this Claude Code environment (`/root/.claude/skills/graphify/`). Not a
+   repository change; nothing in this repo depends on it.
+
+---
+
 > **AUTHORITATIVE CHECKPOINT — 4 August 2026 (integration pass)**
 >
 > Read this checkpoint before reading the historical record below. It supersedes
