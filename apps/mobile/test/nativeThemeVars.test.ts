@@ -59,4 +59,14 @@ describe('buildNativeThemeVars', () => {
   it('returns exactly 25 keys, matching tailwind.config.js', () => {
     expect(Object.keys(buildNativeThemeVars(strengthColor))).toHaveLength(25);
   });
+
+  it('every tailwind color value is a var() name this function actually provides', () => {
+    const tailwindColors = require('../tailwind.config.js').theme.extend.colors;
+    const provided = Object.keys(buildNativeThemeVars(strengthColor));
+    const referenced = Object.values(tailwindColors).map((value) => {
+      const match = /^var\((--[a-z0-9-]+)\)$/.exec(value);
+      return match ? match[1] : value;
+    });
+    expect(referenced.sort()).toEqual(provided.sort());
+  });
 });
