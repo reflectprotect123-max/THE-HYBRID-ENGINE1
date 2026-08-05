@@ -50,6 +50,10 @@ on:
         description: "Wait for the EAS build to finish (off = queue it and return the build URL)"
         type: boolean
         default: true
+      init_conditioning_project:
+        description: "One-off: create conditioning's own EAS project instead of building. Run this ONCE, then hardcode the printed projectId into eas.json's conditioning-* profiles and never run it again — running it twice creates two separate projects."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -166,8 +170,30 @@ jobs:
           echo "have_key=true" >> "$GITHUB_OUTPUT"
           echo "Signing with the existing release keystore (alias: hybrid)."
 
+      # One-off: conditioning has no EAS project of its own yet, so any
+      # conditioning-* build fails with "EAS project not configured" —
+      # apps/mobile/app.config.js deliberately leaves extra.eas undefined for
+      # a conditioning build rather than reuse strength's project id, so a
+      # mistake here can never silently overwrite the app people already
+      # have installed. Run this input once to create the real project,
+      # read the printed projectId from this step's log, then hardcode it
+      # into apps/mobile/eas.json's conditioning-preview/conditioning-production
+      # profiles as EXPO_PUBLIC_CONDITIONING_EAS_PROJECT_ID. Never run this a
+      # second time — that creates a second, orphaned project.
+      - name: Init conditioning EAS project (one-off)
+        if: steps.gate.outputs.have_token == 'true' && inputs.init_conditioning_project == 'true'
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_HYBRID_PRODUCT: conditioning
+        run: |
+          set -euo pipefail
+          pnpm dlx eas-cli@21 init --non-interactive --force
+          echo "----- project info -----"
+          pnpm dlx eas-cli@21 project:info --non-interactive || true
+
       - name: EAS build (Android)
-        if: steps.gate.outputs.have_token == 'true'
+        if: steps.gate.outputs.have_token == 'true' && inputs.init_conditioning_project != 'true'
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
