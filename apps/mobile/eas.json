@@ -30,14 +30,16 @@
       "extends": "preview",
       "channel": "conditioning-preview",
       "env": {
-        "EXPO_PUBLIC_HYBRID_PRODUCT": "conditioning"
+        "EXPO_PUBLIC_HYBRID_PRODUCT": "conditioning",
+        "EXPO_PUBLIC_CONDITIONING_EAS_PROJECT_ID": "21f28234-1dc9-47bc-9e65-19a0cebfe76f"
       }
     },
     "conditioning-production": {
       "extends": "production",
       "channel": "conditioning-production",
       "env": {
-        "EXPO_PUBLIC_HYBRID_PRODUCT": "conditioning"
+        "EXPO_PUBLIC_HYBRID_PRODUCT": "conditioning",
+        "EXPO_PUBLIC_CONDITIONING_EAS_PROJECT_ID": "21f28234-1dc9-47bc-9e65-19a0cebfe76f"
       }
     }
   },
