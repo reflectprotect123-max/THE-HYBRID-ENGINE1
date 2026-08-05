@@ -7,6 +7,8 @@ import {
   buildProductSyncNamespace,
   buildPushState,
   cloudFp,
+  mergeEngines,
+  restrictToProduct,
   sanitizeDB,
   type EngineDB,
 } from '@hybrid/engine';
@@ -104,16 +106,45 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const inFlight = useRef(false);
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /*
+   * Fold a reconciled snapshot back into the store WITHOUT overwriting it.
+   *
+   * `draft` is always the store's true current state — store/db.tsx's `update`
+   * builds it from a plain synchronous ref that every `update()` call mutates
+   * immediately, so it is never stale across an await. `next`, by contrast, is
+   * a snapshot computed BEFORE `pushNow` was awaited: a set logged on this
+   * device while that push was in flight has already landed in the store
+   * through its own `update()` call, and `pushNow` itself ends by writing
+   * fresher `core`/`ecosystem` bookkeeping the same way when ecosystem sync is
+   * on. Assigning `next` over `draft` discarded both. Merging `next` INTO
+   * `draft` — with the same engine primitives the rest of the sync path
+   * trusts — cannot.
+   *
+   * The merge is a union, so it would also resurrect the other product's
+   * records that `next` was deliberately narrowed to exclude; the whole point
+   * of the write-back is that this build keeps only its own product on disk.
+   * Hence the `restrictToProduct` on the FOLD rather than on `next` alone.
+   * Pruning here is still safe for exactly the reason `reconcile` documents:
+   * this guarantee holds for any record that was part of the pushed `merged`
+   * snapshot, already made durable on the server before this runs. Exception:
+   * an OTHER-product record authored during the push's own await window never
+   * entered that snapshot, so it can still be pruned before reaching the server.
+   */
   const applyMerged = useCallback(
     (next: EngineDB) => {
       update((draft) => {
-        draft.workouts = next.workouts;
-        draft.sessions = next.sessions;
-        draft.settings = next.settings;
-        draft.core = next.core;
-        draft.ecosystem = next.ecosystem;
+        const folded = restrictToProduct(sanitizeDB(mergeEngines(draft, next)), PRODUCT_ID);
+        draft.workouts = folded.workouts;
+        draft.sessions = folded.sessions;
+        draft.settings = folded.settings;
+        draft.core = folded.core;
+        draft.ecosystem = folded.ecosystem;
       });
-      dbRef.current = next;
+      // `dbRef.current = next` used to live here and is deliberately gone:
+      // `next` is the unfolded snapshot, so pinning the ref to it would put
+      // back the staleness this merge exists to remove. `dbRef.current = db`
+      // in the component body runs on the render `update()` always schedules,
+      // and nothing between here and that render reads the ref.
     },
     [update],
   );
@@ -181,7 +212,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // may have written it — so it is hardened before it can reach a merge.
       const remote = rawRemote ? sanitizeDB(rawRemote) : null;
 
-      const { db: mergedDb, needsPush: legacyNeedsPush } = applyPull(dbRef.current, remote);
+      const previousLocal = dbRef.current;
+      const { db: mergedDb, needsPush: legacyNeedsPush } = applyPull(previousLocal, remote);
       let merged = mergedDb;
       let needsPush = legacyNeedsPush;
       if (ECOSYSTEM_SYNC_ENABLED) {
@@ -192,8 +224,28 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           merged = ecosystemMerged;
         }
       }
-      if (merged !== dbRef.current) applyMerged(merged);
+
+      // The merge above is deliberately unfiltered — it must never lose a
+      // record that exists only locally or only in an un-split legacy remote
+      // blob. Push runs against that full, unfiltered `merged` data BEFORE
+      // any product filtering happens, so a wrong-kind record authored on
+      // this device (nothing gates authoring by product — see the design
+      // spec's Non-goals) reaches the server first. Only after that is the
+      // device's own on-disk storage narrowed to its own product — pruning a
+      // record locally here can never mean losing it IF it was part of that
+      // pushed snapshot, because by that point it is already durable on the
+      // server. Exception: an OTHER-product record authored during the push's
+      // await window never made it into that snapshot, so it can still be
+      // pruned before reaching the server.
+      if (merged !== previousLocal) dbRef.current = merged;
       if (needsPush) await pushNow(true, remoteState);
+
+      const local = restrictToProduct(merged, PRODUCT_ID);
+      if (cloudFp(local) !== cloudFp(previousLocal)) {
+        applyMerged(local);
+      } else {
+        dbRef.current = previousLocal;
+      }
 
       setSyncedAt(Date.now());
     } catch (e) {
