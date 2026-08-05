@@ -147,7 +147,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         source = { ...source, core: namespace.core, ecosystem: namespace };
         dbRef.current = source;
       }
-      const state = buildPushState(restrictToProduct(source, PRODUCT_ID), existing);
+      const state = buildPushState(source, existing);
       const { error: e } = await client.from('app_state').upsert({ user_id: user.id, state }, { onConflict: 'user_id' });
       if (e) throw e;
       if (ECOSYSTEM_SYNC_ENABLED) {
@@ -182,10 +182,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // may have written it — so it is hardened before it can reach a merge.
       const remote = rawRemote ? sanitizeDB(rawRemote) : null;
 
-      const { db: mergedDb, needsPush: legacyNeedsPush } = applyPull(
-        restrictToProduct(dbRef.current, PRODUCT_ID),
-        remote ? restrictToProduct(remote, PRODUCT_ID) : null,
-      );
+      const previousLocal = dbRef.current;
+      const { db: mergedDb, needsPush: legacyNeedsPush } = applyPull(previousLocal, remote);
       let merged = mergedDb;
       let needsPush = legacyNeedsPush;
       if (ECOSYSTEM_SYNC_ENABLED) {
@@ -196,8 +194,25 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           merged = ecosystemMerged;
         }
       }
-      if (merged !== dbRef.current) applyMerged(merged);
+
+      // The merge above is deliberately unfiltered — it must never lose a
+      // record that exists only locally or only in an un-split legacy remote
+      // blob. Push runs against that full, unfiltered `merged` data BEFORE
+      // any product filtering happens, so a wrong-kind record authored on
+      // this device (nothing gates authoring by product — see the design
+      // spec's Non-goals) reaches the server first. Only after that is the
+      // device's own on-disk storage narrowed to its own product — pruning a
+      // record locally here can never mean losing it, because by this point
+      // it is already durable on the server.
+      if (merged !== previousLocal) dbRef.current = merged;
       if (needsPush) await pushNow(true, remoteState);
+
+      const local = restrictToProduct(merged, PRODUCT_ID);
+      if (cloudFp(local) !== cloudFp(previousLocal)) {
+        applyMerged(local);
+      } else {
+        dbRef.current = previousLocal;
+      }
 
       setSyncedAt(Date.now());
     } catch (e) {

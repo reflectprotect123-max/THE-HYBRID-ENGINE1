@@ -257,4 +257,41 @@ describe('restrictToProduct + pull/push round-trip', () => {
     };
     expect(pushed.hybridEngine.workouts.map((w) => w.id).sort()).toEqual(['w-cond', 'w-strength']);
   });
+
+  it('a record that exists only locally survives an unfiltered merge, and the push payload built from that unfiltered merge still contains it even though the local write-back is later filtered to one product', () => {
+    const local: EngineDB = {
+      workouts: [wk('w-lift', { kind: 'strength' }), wk('w-run', { kind: 'conditioning' })],
+      sessions: [],
+      settings: {},
+    };
+    // Nothing on the server yet for this account.
+    const { db: merged } = applyPull(local, null);
+    expect(merged.workouts.map((w) => w.id).sort()).toEqual(['w-lift', 'w-run']);
+
+    // Push against the full unfiltered merge — this is what must happen
+    // BEFORE any product filtering, so w-run is never lost.
+    const pushed = buildPushState(merged, {}) as { hybridEngine: EngineDB };
+    expect(pushed.hybridEngine.workouts.map((w) => w.id).sort()).toEqual(['w-lift', 'w-run']);
+
+    // Only now is the on-device write-back narrowed — w-run is gone from
+    // THIS device's local view, but it already reached the server above.
+    const localWriteBack = restrictToProduct(merged, 'strength');
+    expect(localWriteBack.workouts.map((w) => w.id)).toEqual(['w-lift']);
+  });
+
+  it('a legacy mixed workout split into two siblings on the remote keeps both siblings after a strength device merges and pushes, since push is no longer filtered', () => {
+    const remote: EngineDB = {
+      workouts: [wk('w1', { kind: 'strength', updatedAt: 10 }), wk('w1-cond', { kind: 'conditioning', updatedAt: 10 })],
+      sessions: [],
+      settings: {},
+    };
+    const strengthLocal: EngineDB = {
+      workouts: [wk('w1', { kind: 'strength', updatedAt: 11 })], // this device only ever sees/edits its own kind
+      sessions: [],
+      settings: {},
+    };
+    const { db: merged } = applyPull(strengthLocal, remote);
+    const pushed = buildPushState(merged, { hybridEngine: remote }) as { hybridEngine: EngineDB };
+    expect(pushed.hybridEngine.workouts.map((w) => w.id).sort()).toEqual(['w1', 'w1-cond']);
+  });
 });

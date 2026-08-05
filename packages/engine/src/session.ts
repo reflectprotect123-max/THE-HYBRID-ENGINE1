@@ -563,12 +563,23 @@ export function isCondWorkout(w: Workout): boolean {
   return w.kind === 'conditioning';
 }
 
-/** Narrows an EngineDB to one product's own workouts and sessions — the sync
- *  boundary between the strength and conditioning mobile builds. A workout or
+/** Narrows an EngineDB to one product's own workouts and sessions. A workout or
  *  session with no `kind` set is not conditioning (matches `isCondWorkout`'s
  *  existing default), so it stays on the strength side. `settings`, `core`,
  *  and `ecosystem` are shared across both products and pass through
- *  unchanged — see docs/superpowers/specs/2026-08-05-mobile-sync-product-partition-design.md. */
+ *  unchanged — see docs/superpowers/specs/2026-08-05-mobile-sync-product-partition-design.md.
+ *
+ *  This is safe ONLY for narrowing what a build keeps in on-device storage
+ *  AFTER an unfiltered pull/merge has already completed and been pushed. Do
+ *  NOT filter a push payload with this, and do NOT filter either operand
+ *  going into `applyPull`/`mergeEngines` — a record that exists only on one
+ *  side (a locally-authored wrong-kind record never synced, or a legacy
+ *  un-split mixed-kind remote record) is invisible to the other side and
+ *  would be silently dropped by the merge itself, not merely left out of
+ *  this device's local view. This was a real data-loss bug (both a
+ *  never-synced local record and a legacy mixed remote record's other-kind
+ *  sibling were permanently lost this way), not a hypothetical — see
+ *  apps/mobile/src/cloud/sync.tsx's `reconcile` for the correct ordering. */
 export function restrictToProduct(db: EngineDB, domain: 'strength' | 'conditioning'): EngineDB {
   const conditioning = domain === 'conditioning';
   return {
