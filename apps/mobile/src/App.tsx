@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AccessibilityInfo, Text } from 'react-native';
+import { AccessibilityInfo, Text, View } from 'react-native';
 import { useFonts } from 'expo-font';
 /* One weight per import, from the per-weight subpath: the package root
    re-exports every weight AND every italic, and Metro bundles whatever is
@@ -16,6 +16,8 @@ import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
 import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
 import { ThemeProvider, radius, useTheme } from '@hybrid/design';
+import { vars } from 'nativewind';
+import { buildNativeThemeVars } from './nativeThemeVars';
 import { font } from './ui';
 import './global.css';
 
@@ -193,6 +195,9 @@ function AppInner() {
     }),
     [color],
   );
+  /* Recomputed only when the palette changes, not on every render — vars()
+     allocates a fresh object each call, and this is at the root of the tree. */
+  const themeVars = useMemo(() => vars(buildNativeThemeVars(color)), [color]);
   const [fontsReady, fontsError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -204,6 +209,13 @@ function AppInner() {
   if (!fontsReady && !fontsError) return null;
 
   return (
+    // className="flex-1" is load-bearing twice over: a bare View has no
+    // intrinsic size, so this is what makes the app visible at all — and a
+    // non-empty className is what makes NativeWind's JSX transform wrap this
+    // View in the CSS-interop component that actually provides the variable
+    // context below. Swapping it for an equivalent style={{flex:1}} would
+    // silently break theming, not just layout.
+    <View className="flex-1" style={themeVars}>
       <SafeAreaProvider>
         <DbProvider>
           <SyncProvider>
@@ -244,5 +256,6 @@ function AppInner() {
           </SyncProvider>
         </DbProvider>
       </SafeAreaProvider>
+    </View>
   );
 }

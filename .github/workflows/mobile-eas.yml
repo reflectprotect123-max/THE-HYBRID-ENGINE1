@@ -45,7 +45,7 @@ on:
         description: "EAS build profile (see apps/mobile/eas.json)"
         type: choice
         default: preview
-        options: [development, preview, production]
+        options: [development, preview, production, conditioning-preview, conditioning-production]
       wait:
         description: "Wait for the EAS build to finish (off = queue it and return the build URL)"
         type: boolean
@@ -116,6 +116,16 @@ jobs:
             }
             console.log("OK — " + a.package + " versionCode " + a.versionCode);
           '
+
+      - name: Guard against conditioning-production signing with the strength key
+        if: steps.gate.outputs.have_token == 'true' && inputs.profile == 'conditioning-production'
+        env:
+          CONDITIONING_KEYSTORE_B64: ${{ secrets.CONDITIONING_ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "${CONDITIONING_KEYSTORE_B64:-}" ]; then
+            echo "::error title=No conditioning signing key::conditioning-production would sign with ANDROID_KEYSTORE_B64 (strength's release key) unless a dedicated CONDITIONING_ANDROID_KEYSTORE_B64 secret exists. That has not been decided/set up yet (see docs/ANDROID_BUILD.md). Committing conditioning's production Play Store identity to strength's key is effectively permanent — this guard exists so that decision has to be made explicitly, not fallen into. conditioning-preview is unaffected (a preview APK signed with the existing key is fine for internal testing)."
+            exit 1
+          fi
 
       # eas-cli is invoked directly rather than through a marketplace action:
       # one less pinned third party, and EXPO_TOKEN is the documented CI auth

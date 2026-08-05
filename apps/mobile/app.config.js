@@ -18,6 +18,9 @@ module.exports = () => ({
   name: productName,
   slug: productSlug,
   scheme: productScheme,
+  updates: isConditioning && conditioningEasProjectId
+    ? { ...appJson.expo.updates, url: `https://u.expo.dev/${conditioningEasProjectId}` }
+    : appJson.expo.updates,
   android: {
     ...appJson.expo.android,
     ...(isConditioning ? { package: 'com.hybridengine.conditioning' } : {}),

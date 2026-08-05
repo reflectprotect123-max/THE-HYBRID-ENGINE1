@@ -2,6 +2,12 @@
  * NativeWind reads the SAME token names as the web app's Tailwind theme, so a
  * class like `bg-panel` or `text-gold2` means the same colour on both. The 8px
  * grid is enforced the same way too: the spacing scale is multiples of 8.
+ *
+ * Colors are `var(--color-*)` references, not literals — App.tsx wraps the
+ * app root in a View styled with NativeWind's `vars()`, fed by the active
+ * ThemeProvider palette (packages/design), so every className below re-themes
+ * per product without any call site changing. See
+ * docs/superpowers/specs/2026-08-04-nativewind-theme-vars-design.md.
  */
 const space = { 0.5: 4, 1: 8, 2: 16, 3: 24, 4: 32, 5: 40, 6: 48, 8: 64, 10: 80, 12: 96 };
 const px = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v + 'px']));
@@ -12,16 +18,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        bg: '#070706', panel: '#141311', panel2: '#1c1b18', panel3: '#0a0a09', well: '#0c0c0a',
-        line: 'rgba(255,255,255,.065)', line2: 'rgba(255,255,255,.1)',
-        text: '#f5f1e9', muted: '#aaa49a', dim: '#847d73',
-        gold: '#c09358', gold2: '#e0bc87',
-        'gold-wash': 'rgba(192,147,88,.09)', 'gold-line': 'rgba(224,188,135,.22)',
-        'done-bg': 'rgba(192,147,88,.14)', 'done-line': 'rgba(224,188,135,.5)', 'done-ink': '#e6c795',
-        'on-accent': '#1b1509',
-        ok: '#9fc59b', warn: '#d1a464', bad: '#cf7f7c',
-        'z-low': '#5b8def', 'z-mod': '#cf9d4f', 'z-high': '#e0524d',
-        track: 'rgba(255,255,255,.08)',
+        bg: 'var(--color-bg)', panel: 'var(--color-panel)', panel2: 'var(--color-panel2)',
+        panel3: 'var(--color-panel3)', well: 'var(--color-well)',
+        line: 'var(--color-line)', line2: 'var(--color-line2)',
+        text: 'var(--color-text)', muted: 'var(--color-muted)', dim: 'var(--color-dim)',
+        gold: 'var(--color-gold)', gold2: 'var(--color-gold2)',
+        'gold-wash': 'var(--color-gold-wash)', 'gold-line': 'var(--color-gold-line)',
+        'done-bg': 'var(--color-done-bg)', 'done-line': 'var(--color-done-line)', 'done-ink': 'var(--color-done-ink)',
+        'on-accent': 'var(--color-on-accent)',
+        ok: 'var(--color-ok)', warn: 'var(--color-warn)', bad: 'var(--color-bad)',
+        'z-low': 'var(--color-z-low)', 'z-mod': 'var(--color-z-mod)', 'z-high': 'var(--color-z-high)',
+        track: 'var(--color-track)',
       },
       spacing: px(space),
       borderRadius: { sm: '10px', md: '14px', lg: '18px', pill: '999px' },
