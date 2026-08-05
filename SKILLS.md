@@ -10,18 +10,23 @@ skipping the ecosystem contract guard, is wrong for this repository.
 
 ## What is installed
 
-38 skills, from four places. Only one of them is in git.
+38 skills, from four places. Three of them are in git.
 
 | Source | Count | Survives a new sandbox? |
 |---|---|---|
-| `.claude/skills/` (committed) | 1 — `install-skill` | **Yes** — in git |
+| `.claude/skills/` (committed) | 3 — `install-skill`, `ui-ux-pro-max`, `frontend-design` | **Yes** — in git |
 | Environment-provided | 7 | Yes — restored by the platform |
-| Installed into `~/.claude/skills/` | 30 | **No** |
+| Installed into `~/.claude/skills/` | 28 | **No** |
 | Built into Claude Code | `review`, `security-review`, `simplify`, `run`, `init` | Yes |
 
-Thirty skills die when this container is reclaimed, along with 3 subagents in
-`~/.claude/agents/` and 5 slash commands in `~/.claude/commands/`. To make any
+Twenty-eight skills die when this container is reclaimed, along with 3 subagents
+in `~/.claude/agents/` and 5 slash commands in `~/.claude/commands/`. To make any
 of them permanent, copy the directory into `.claude/skills/` and commit it.
+
+The two vendored design skills carry a `VENDORED.md` recording upstream commit,
+license and how to re-sync. They are third-party code — replace them wholesale
+on update rather than patching in place. Their container copies were deleted, so
+each skill exists exactly once.
 
 Environment-provided: `docx`, `pdf`, `pptx`, `xlsx`, `morning` and
 `skill-creator` are managed via `~/.claude/skills/manifest.json`;
@@ -75,12 +80,15 @@ Two sources that overlap, installed together. They pull in opposite directions
 on the same trigger, which is worth understanding before you use them.
 
 **[nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)**
-`4d140cf`, MIT, 7 skills, 8.4M, 33 executable scripts:
-`ui-ux-pro-max`, `ui-styling`, `design`, `design-system`, `brand`, `slides`,
-`banner-design`.
+`4d140cf`, MIT, 7 skills upstream, 8.4M, 33 executable scripts.
+**`ui-ux-pro-max` is vendored into `.claude/skills/`** (1.9M — 35 CSV databases
+and 6 stdlib-only Python scripts; no network, no API key, verified by reading
+them). The other six — `ui-styling`, `design`, `design-system`, `brand`,
+`slides`, `banner-design` — remain container-only and are listed below with the
+reasons they were not committed.
 
 **[anthropics/skills](https://github.com/anthropics/skills)** `b29e7cf`,
-Apache-2.0, 1 skill, no scripts: `frontend-design`.
+Apache-2.0, 1 skill, no scripts: **`frontend-design`, vendored** (28K).
 
 The distinction:
 
@@ -93,12 +101,16 @@ Both trigger on "design this page." If the output appears to argue with itself
 on UI work, this is why. `frontend-design` also satisfies a dependency
 `banner-design` declares in its own description.
 
-`ui-ux-pro-max` and `ui-styling` are the two that fit `@hybrid/web`. `brand`,
+`ui-styling` also fits `@hybrid/web` and is a reasonable candidate to vendor
+next; it was left out only because it shells out to `npx shadcn add`. `brand`,
 `slides` and `banner-design` are marketing tooling with descriptions broad
 enough ("branded content, tone of voice, marketing assets") to trigger on
-sessions that have nothing to do with this codebase.
+sessions that have nothing to do with this codebase — committing them would
+impose that on everyone who clones.
 
-**Three things the README got wrong**, found by reading the scripts:
+**Three things the README got wrong**, found by reading the scripts. None apply
+to the vendored `ui-ux-pro-max` itself; all three are in the skills left in the
+container:
 
 | Claim | Reality |
 |---|---|
