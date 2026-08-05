@@ -7,6 +7,7 @@ import {
   buildProductSyncNamespace,
   buildPushState,
   cloudFp,
+  mergeEngines,
   restrictToProduct,
   sanitizeDB,
   type EngineDB,
@@ -105,16 +106,43 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const inFlight = useRef(false);
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /*
+   * Fold a reconciled snapshot back into the store WITHOUT overwriting it.
+   *
+   * `draft` is always the store's true current state — store/db.tsx's `update`
+   * builds it from a plain synchronous ref that every `update()` call mutates
+   * immediately, so it is never stale across an await. `next`, by contrast, is
+   * a snapshot computed BEFORE `pushNow` was awaited: a set logged on this
+   * device while that push was in flight has already landed in the store
+   * through its own `update()` call, and `pushNow` itself ends by writing
+   * fresher `core`/`ecosystem` bookkeeping the same way when ecosystem sync is
+   * on. Assigning `next` over `draft` discarded both. Merging `next` INTO
+   * `draft` — with the same engine primitives the rest of the sync path
+   * trusts — cannot.
+   *
+   * The merge is a union, so it would also resurrect the other product's
+   * records that `next` was deliberately narrowed to exclude; the whole point
+   * of the write-back is that this build keeps only its own product on disk.
+   * Hence the `restrictToProduct` on the FOLD rather than on `next` alone.
+   * Pruning here is still safe for exactly the reason `reconcile` documents:
+   * everything being pruned came out of the unfiltered merge that `pushNow`
+   * already made durable on the server before this runs.
+   */
   const applyMerged = useCallback(
     (next: EngineDB) => {
       update((draft) => {
-        draft.workouts = next.workouts;
-        draft.sessions = next.sessions;
-        draft.settings = next.settings;
-        draft.core = next.core;
-        draft.ecosystem = next.ecosystem;
+        const folded = restrictToProduct(sanitizeDB(mergeEngines(draft, next)), PRODUCT_ID);
+        draft.workouts = folded.workouts;
+        draft.sessions = folded.sessions;
+        draft.settings = folded.settings;
+        draft.core = folded.core;
+        draft.ecosystem = folded.ecosystem;
       });
-      dbRef.current = next;
+      // `dbRef.current = next` used to live here and is deliberately gone:
+      // `next` is the unfolded snapshot, so pinning the ref to it would put
+      // back the staleness this merge exists to remove. `dbRef.current = db`
+      // in the component body runs on the render `update()` always schedules,
+      // and nothing between here and that render reads the ref.
     },
     [update],
   );
