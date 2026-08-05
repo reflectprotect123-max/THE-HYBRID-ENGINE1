@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeEngines, mergeSettings, pickWorkout, sanitizeDB } from '../src/db';
 import { ungroupedWorkouts } from '../src/folders';
-import { isCondWorkout } from '../src/session';
+import { isCondWorkout, restrictToProduct } from '../src/session';
 import type { EngineDB, Workout } from '../src/types';
 
 describe('sanitizeDB folders', () => {
@@ -462,5 +462,40 @@ describe('isCondWorkout reads the stored kind, not block contents', () => {
         blocks: [{ id: 'b1', kind: 'conditioning', condFmt: 'intervals' } as never],
       }),
     ).toBe(false);
+  });
+});
+
+describe('restrictToProduct keeps only one domain\'s workouts and sessions', () => {
+  const db: EngineDB = {
+    workouts: [
+      { id: 'w-strength', kind: 'strength', blocks: [] },
+      { id: 'w-cond', kind: 'conditioning', blocks: [] },
+      { id: 'w-kindless', blocks: [] },
+    ],
+    sessions: [
+      { id: 's-strength', date: '2026-08-05', status: 'completed', kind: 'strength', blocks: [] },
+      { id: 's-cond', date: '2026-08-05', status: 'completed', kind: 'conditioning', blocks: [] },
+      { id: 's-kindless', date: '2026-08-05', status: 'completed', blocks: [] },
+    ],
+    settings: { theme: 'dark' } as EngineDB['settings'],
+    core: { schemaVersion: 1 } as EngineDB['core'],
+  };
+
+  it('keeps strength and kind-less workouts/sessions for domain: strength, drops conditioning', () => {
+    const out = restrictToProduct(db, 'strength');
+    expect(out.workouts.map((w) => w.id).sort()).toEqual(['w-kindless', 'w-strength']);
+    expect(out.sessions.map((s) => s.id).sort()).toEqual(['s-kindless', 's-strength']);
+  });
+
+  it('keeps only conditioning workouts/sessions for domain: conditioning, drops strength and kind-less', () => {
+    const out = restrictToProduct(db, 'conditioning');
+    expect(out.workouts.map((w) => w.id)).toEqual(['w-cond']);
+    expect(out.sessions.map((s) => s.id)).toEqual(['s-cond']);
+  });
+
+  it('passes settings and core through untouched', () => {
+    const out = restrictToProduct(db, 'conditioning');
+    expect(out.settings).toBe(db.settings);
+    expect(out.core).toBe(db.core);
   });
 });

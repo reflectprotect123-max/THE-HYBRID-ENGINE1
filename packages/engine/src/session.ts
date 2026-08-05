@@ -6,6 +6,7 @@ import type {
   AnySet,
   Block,
   CondBlock,
+  EngineDB,
   Exercise,
   ExerciseHistoryEntry,
   LoggedSet,
@@ -560,6 +561,21 @@ export function bestE1rmByLift(
  *  separately anyway. */
 export function isCondWorkout(w: Workout): boolean {
   return w.kind === 'conditioning';
+}
+
+/** Narrows an EngineDB to one product's own workouts and sessions — the sync
+ *  boundary between the strength and conditioning mobile builds. A workout or
+ *  session with no `kind` set is not conditioning (matches `isCondWorkout`'s
+ *  existing default), so it stays on the strength side. `settings`, `core`,
+ *  and `ecosystem` are shared across both products and pass through
+ *  unchanged — see docs/superpowers/specs/2026-08-05-mobile-sync-product-partition-design.md. */
+export function restrictToProduct(db: EngineDB, domain: 'strength' | 'conditioning'): EngineDB {
+  const conditioning = domain === 'conditioning';
+  return {
+    ...db,
+    workouts: db.workouts.filter((w) => isCondWorkout(w) === conditioning),
+    sessions: db.sessions.filter((s) => (s.kind === 'conditioning') === conditioning),
+  };
 }
 
 /**
