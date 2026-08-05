@@ -181,7 +181,7 @@ jobs:
       # profiles as EXPO_PUBLIC_CONDITIONING_EAS_PROJECT_ID. Never run this a
       # second time — that creates a second, orphaned project.
       - name: Init conditioning EAS project (one-off)
-        if: steps.gate.outputs.have_token == 'true' && inputs.init_conditioning_project == 'true'
+        if: steps.gate.outputs.have_token == 'true' && inputs.init_conditioning_project == true
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -193,7 +193,7 @@ jobs:
           pnpm dlx eas-cli@21 project:info --non-interactive || true
 
       - name: EAS build (Android)
-        if: steps.gate.outputs.have_token == 'true' && inputs.init_conditioning_project != 'true'
+        if: steps.gate.outputs.have_token == 'true' && inputs.init_conditioning_project != true
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
