@@ -188,9 +188,18 @@ jobs:
           EXPO_PUBLIC_HYBRID_PRODUCT: conditioning
         run: |
           set -euo pipefail
-          pnpm dlx eas-cli@21 init --non-interactive --force
-          echo "----- project info -----"
-          pnpm dlx eas-cli@21 project:info --non-interactive || true
+          # `eas init` creates the project server-side, then crashes trying to
+          # write the id back into local config — our app.config.js
+          # deliberately returns extra.eas: undefined for conditioning (see
+          # comment above), so eas-cli's `undefined.projectId = ...` throws.
+          # The project still gets created; `|| true` just stops that crash
+          # from hiding the id lookup below.
+          pnpm dlx eas-cli@21 init --non-interactive --force || true
+          echo "----- looking up the created project's id -----"
+          curl -sS https://api.expo.dev/graphql \
+            -H "Authorization: Bearer ${EXPO_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"query($fullName: String!) { app { byFullName(fullName: $fullName) { id name slug } } }","variables":{"fullName":"@ths1s-team/conditioning-system"}}'
 
       - name: EAS build (Android)
         if: steps.gate.outputs.have_token == 'true' && inputs.init_conditioning_project != true
