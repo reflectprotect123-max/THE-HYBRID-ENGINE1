@@ -64,8 +64,9 @@ describe('buildNativeThemeVars', () => {
     const tailwindColors = require('../tailwind.config.js').theme.extend.colors;
     const provided = Object.keys(buildNativeThemeVars(strengthColor));
     const referenced = Object.values(tailwindColors).map((value) => {
-      const match = /^var\((--[a-z0-9-]+)\)$/.exec(value);
-      return match ? match[1] : value;
+      const str = String(value);
+      const match = /^var\((--[a-z0-9-]+)\)$/.exec(str);
+      return match ? match[1] : str;
     });
     expect(referenced.sort()).toEqual(provided.sort());
   });
