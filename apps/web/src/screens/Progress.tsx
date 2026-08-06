@@ -18,6 +18,7 @@ import {
   type ZoneKey,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { WeeklySummary } from '../autocoach/WeeklySummary';
 import { Card, Empty, Kicker, ScreenTitle, SectionHead } from '../ui';
 
 /*
@@ -139,6 +140,12 @@ export function Progress() {
           </Card>
         </>
       ) : null}
+
+      {/* This week, concretely, before the chart zooms out to eight of them —
+          moved here from Home, which is "what do I do today," not "how did
+          this week actually go." */}
+      <SectionHead title="This week" />
+      <WeeklySummary />
 
       {weeks.some((w) => w.value > 0) ? (
         <>

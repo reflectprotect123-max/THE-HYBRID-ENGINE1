@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@hybrid/config": "workspace:*",
+    "@hybrid/auto-coach": "workspace:*",
     "@hybrid/coordinator-adapter": "workspace:*",
     "@hybrid/design": "workspace:*",
     "@hybrid/engine": "workspace:*",

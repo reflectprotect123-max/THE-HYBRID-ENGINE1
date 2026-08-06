@@ -119,7 +119,8 @@ export type AthleteEventType =
   | 'training_load_recorded'
   | 'body_weight_recorded'
   | 'readiness_recorded'
-  | 'nutrition_target_updated';
+  | 'nutrition_target_updated'
+  | 'post_session_feedback';
 
 export interface AthleteEvent {
   id: string;

@@ -172,7 +172,7 @@ const normaliseWhoop = (v: unknown, i: number): WhoopDailyRecord | null => {
 const normaliseEvent = (v: unknown, i: number): AthleteEvent | null => {
   const raw = record(v);
   const type = raw.type;
-  const validTypes = ['workout_completed', 'workout_modified', 'training_load_recorded', 'body_weight_recorded', 'readiness_recorded', 'nutrition_target_updated'];
+  const validTypes = ['workout_completed', 'workout_modified', 'training_load_recorded', 'body_weight_recorded', 'readiness_recorded', 'nutrition_target_updated', 'post_session_feedback'];
   if (!validTypes.includes(String(type))) return null;
   const occurredAt = text(raw.occurredAt);
   if (!occurredAt) return null;

@@ -135,32 +135,74 @@ export function GuidedBuilder() {
    * consumed — step back instead. A POP that genuinely leaves the route
    * unmounts this screen and never reaches here, which is exactly what should
    * happen from the first question.
+   *
+   * The step to land on is read from the POPPED entry's OWN `guidedStep`
+   * state (written by `guard` below), not recomputed by decrementing the
+   * CURRENT React `step`. Those two can drift: two forward pushes issued in
+   * quick succession can commit their location updates in a different render
+   * than the `setStep` that accompanies them, so `step` sometimes already
+   * reads the new value while `location` still reports the previous push's
+   * key — recomputing "previous" from that already-advanced `step` then
+   * skips a step on the way back. Reading the landed-on entry's own tag is
+   * immune to that: whichever entry a POP lands on, it says what it is.
+   *
+   * An entry with no `guidedStep` tag is the wizard's OWN initial /build/:id
+   * entry (from Library's "＋ New session" nav, which predates any `guard`
+   * call) — never anything to abandon to. A POP that actually leaves
+   * /build/:id unmounts this screen before this effect can run at all, so
+   * every untagged entry this ever sees is that first one: 'block-type'.
    */
-  const handleBackward = useCallback(() => {
-    if (phase === 'add-another') {
-      // Not a step, and the block is already saved, so the honest destination is
-      // the Planner — the same place "No, I'm done" goes.
-      if (id) nav(`/planner/${id}`, { replace: true });
-      return;
-    }
-    const prev = prevStep(step, { blockKind: draft.blockKind, isWarmupSet: draft.isWarmupSet });
-    if (prev) {
-      setStep(prev);
-      return;
-    }
-    // Already at the first question, on a guard entry left over from a remount.
-    abandon(true);
-  }, [abandon, draft.blockKind, draft.isWarmupSet, id, nav, phase, step]);
+  const handleBackward = useCallback(
+    (poppedState: unknown) => {
+      if (phase === 'add-another') {
+        // Not a step, and the block is already saved, so the honest destination is
+        // the Planner — the same place "No, I'm done" goes.
+        if (id) nav(`/planner/${id}`, { replace: true });
+        return;
+      }
+      const target = (poppedState as { guidedStep?: FlowStep } | null)?.guidedStep ?? 'block-type';
+      setStep(target);
+    },
+    [id, nav, phase],
+  );
 
-  /* Only a location CHANGE matters, and only a backward one. The key guard also
-     covers the first render, where react-router reports POP for a plain load. */
-  const seenKey = useRef(location.key);
+  /*
+   * Only a backward navigation matters, and only once per POP.
+   *
+   * This used to dedupe by comparing `location.key` against the last key
+   * SEEN by this effect at all (pushes included), to stop a re-run of this
+   * effect — its deps include `handleBackward`, which used to change
+   * identity on every step — from re-processing a location it had already
+   * handled. That guard was itself the bug behind a CI-only failure
+   * (confirmed via two rounds of CI's own trace/diagnostic output): two
+   * `guard()` pushes issued back-to-back sometimes commit only ONE
+   * distinguishable history entry between them, so a POP later landing back
+   * on that shared key read as "already seen" (by a PUSH) and was silently
+   * swallowed — handleBackward() never ran.
+   *
+   * Tracking the last key this effect actually HANDLED AS A POP, rather
+   * than the last key seen for any reason, fixes that: a push's key,
+   * however it coalesces, never writes to `lastPoppedKey`, so it can never
+   * make a later POP look like a duplicate. This still needs to be a key
+   * comparison and not just "is navType POP" alone, though — handleBackward
+   * no longer depends on `step`/`draft` (it reads the landed-on entry's own
+   * tag), so it's far more stable across renders than before, but it can
+   * still change identity (on a `phase` flip) on a render where `navType`
+   * happens to still read 'POP' from an earlier, already-handled navigation
+   * — e.g. the browser's own Forward button lands on the flow's last step
+   * (also reported as POP), and clicking through to the end changes `phase`
+   * without any intervening `guard()` push to refresh `navType`. Without
+   * this comparison that would re-run handleBackward on a POP it already
+   * processed. The initial value covers the first render, where
+   * react-router reports POP for a plain load.
+   */
+  const lastPoppedKey = useRef(location.key);
   useEffect(() => {
-    if (seenKey.current === location.key) return;
-    seenKey.current = location.key;
     if (navType !== 'POP') return;
-    handleBackward();
-  }, [handleBackward, location.key, navType]);
+    if (lastPoppedKey.current === location.key) return;
+    lastPoppedKey.current = location.key;
+    handleBackward(location.state);
+  }, [handleBackward, location.key, location.state, navType]);
 
   if (!id) return null;
   const state = { blockKind: draft.blockKind, isWarmupSet: draft.isWarmupSet };

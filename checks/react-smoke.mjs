@@ -133,8 +133,10 @@ await t('athlete app mounts and renders Home', async () => {
 });
 
 await t('zones are computed by Karvonen when a resting HR is known', async () => {
+  await page.goto(base + '/conditioning', { waitUntil: 'networkidle' });
   const txt = await page.textContent('body');
   assert(/Karvonen · resting 50/.test(txt), 'expected Karvonen method line, got: ' + txt.slice(0, 400));
+  await page.goto(base + '/', { waitUntil: 'networkidle' });
 });
 
 await t("today's plan surfaces the seeded workout", async () => {
@@ -372,7 +374,7 @@ await t('a consistent 2-session on-target streak surfaces an opt-in load suggest
       }],
     });
     db.sessions.push({
-      id: 'strength-scratch-session', name: 'Strength scratch', date: '2026-08-02', status: 'active',
+      id: 'strength-scratch-session', name: 'Strength scratch', date: new Date().toISOString().slice(0, 10), status: 'active',
       startedAt: Date.now(), workoutId: 'w-strength-scratch',
       blocks: [{
         id: 'sb', heading: 'Main', superset: false,
@@ -383,62 +385,67 @@ await t('a consistent 2-session on-target streak surfaces an opt-in load suggest
     return { id: origSession.id };
   });
 
-  await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
-  await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
-  const skip = await page.$('button:has-text("Skip rest")');
-  if (skip) await skip.click();
-  await page.waitForSelector('input[aria-label="Weight"]');
-  const txt = await page.textContent('body');
-  assert(/On target the last 2 sessions/.test(txt), 'expected the strength suggestion note, got: ' + txt.slice(0, 400));
-  assert(/Apply/.test(txt), 'expected an Apply control, got: ' + txt.slice(0, 400));
+  // try/finally so a failed assertion below still restores the shared main
+  // session — without it, one failure here strands every later scenario that
+  // depends on that session being 'active' (it never was before this ran).
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
+    const skip = await page.$('button:has-text("Skip rest")');
+    if (skip) await skip.click();
+    await page.waitForSelector('input[aria-label="Weight"]');
+    const txt = await page.textContent('body');
+    assert(/On target the last 2 sessions/.test(txt), 'expected the strength suggestion note, got: ' + txt.slice(0, 400));
+    assert(/Apply/.test(txt), 'expected an Apply control, got: ' + txt.slice(0, 400));
 
-  // What the fields ALREADY show, before anything is applied — a suggestion is
-  // only honest if it beats these. ('Front squat' rather than the Back Squat an
-  // earlier scenario banked a liftProgress entry for, so this prefill comes from
-  // the seeded history above and nothing else.)
-  const kgBefore = await page.inputValue('input[aria-label="Weight"]');
-  const repsBefore = await page.inputValue('input[aria-label="Reps"]');
-  assert(kgBefore === '100', 'expected the weight field prefilled from the seeded history, got: ' + kgBefore);
-  assert(repsBefore === '10', 'expected the reps field prefilled at the rep-range top, got: ' + repsBefore);
+    // What the fields ALREADY show, before anything is applied — a suggestion is
+    // only honest if it beats these. ('Front squat' rather than the Back Squat an
+    // earlier scenario banked a liftProgress entry for, so this prefill comes from
+    // the seeded history above and nothing else.)
+    const kgBefore = await page.inputValue('input[aria-label="Weight"]');
+    const repsBefore = await page.inputValue('input[aria-label="Reps"]');
+    assert(kgBefore === '100', 'expected the weight field prefilled from the seeded history, got: ' + kgBefore);
+    assert(repsBefore === '10', 'expected the reps field prefilled at the rep-range top, got: ' + repsBefore);
 
-  // Confirm Apply never touched settings.liftProgress — the write goes
-  // through the same local field the athlete's own typing uses, not a
-  // separate path. An earlier scenario in this file already permanently set
-  // settings.liftProgress['back squat'], so this must compare before/after
-  // rather than assert absence.
-  const liftProgressBefore = await page.evaluate(
-    () => JSON.stringify(JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.liftProgress || null),
-  );
-
-  await page.click('button:has-text("Apply")');
-  const kg = await page.inputValue('input[aria-label="Weight"]');
-  assert(kg === '102.5', 'expected Apply to write the suggested load into the Weight field, got: ' + kg);
-  // And it moved the number FORWARD — the whole point of the fix. The Reps
-  // field is untouched at the top of the planned range.
-  const reps = await page.inputValue('input[aria-label="Reps"]');
-  assert(reps === '10', 'expected the Reps field left at the planned rep top, got: ' + reps);
-
-  const liftProgressAfter = await page.evaluate(
-    () => JSON.stringify(JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.liftProgress || null),
-  );
-  assert(
-    liftProgressAfter === liftProgressBefore,
-    'Apply must not write to settings.liftProgress — it only fills the editable field',
-  );
-
-  // Restore the shared main session and drop the scratch workout/session, so
-  // every scenario below sees exactly the state it would have without this
-  // one having run.
-  await page.evaluate(({ origId }) => {
-    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
-    db.sessions = db.sessions.filter(
-      (s) => s.id !== 'strength-scratch-session' && !s.id.startsWith('strength-hist-'),
+    // Confirm Apply never touched settings.liftProgress — the write goes
+    // through the same local field the athlete's own typing uses, not a
+    // separate path. An earlier scenario in this file already permanently set
+    // settings.liftProgress['back squat'], so this must compare before/after
+    // rather than assert absence.
+    const liftProgressBefore = await page.evaluate(
+      () => JSON.stringify(JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.liftProgress || null),
     );
-    db.workouts = db.workouts.filter((w) => w.id !== 'w-strength-scratch');
-    const origSession = db.sessions.find((s) => s.id === origId);
-    if (origSession) origSession.status = 'active';
-    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
-  }, { origId: orig.id });
+
+    await page.click('button:has-text("Apply")');
+    const kg = await page.inputValue('input[aria-label="Weight"]');
+    assert(kg === '102.5', 'expected Apply to write the suggested load into the Weight field, got: ' + kg);
+    // And it moved the number FORWARD — the whole point of the fix. The Reps
+    // field is untouched at the top of the planned range.
+    const reps = await page.inputValue('input[aria-label="Reps"]');
+    assert(reps === '10', 'expected the Reps field left at the planned rep top, got: ' + reps);
+
+    const liftProgressAfter = await page.evaluate(
+      () => JSON.stringify(JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.liftProgress || null),
+    );
+    assert(
+      liftProgressAfter === liftProgressBefore,
+      'Apply must not write to settings.liftProgress — it only fills the editable field',
+    );
+  } finally {
+    // Restore the shared main session and drop the scratch workout/session, so
+    // every scenario below sees exactly the state it would have without this
+    // one having run.
+    await page.evaluate(({ origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter(
+        (s) => s.id !== 'strength-scratch-session' && !s.id.startsWith('strength-hist-'),
+      );
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-strength-scratch');
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, { origId: orig.id });
+  }
 });
 
 await t('a seconds-mode set shows a Start control, and letting it run to zero fills the field', async () => {
@@ -459,7 +466,7 @@ await t('a seconds-mode set shows a Start control, and letting it run to zero fi
       }],
     });
     db.sessions.push({
-      id: 'timer-scratch-session', name: 'Timer scratch', date: '2026-08-02', status: 'active',
+      id: 'timer-scratch-session', name: 'Timer scratch', date: new Date().toISOString().slice(0, 10), status: 'active',
       startedAt: Date.now(), workoutId: 'w-timer-scratch',
       blocks: [{
         id: 'tb', heading: 'Main', superset: false,
@@ -509,7 +516,7 @@ await t('stopping a seconds-mode timer early writes the actual elapsed time', as
       }],
     });
     db.sessions.push({
-      id: 'timer-scratch-session2', name: 'Timer scratch 2', date: '2026-08-02', status: 'active',
+      id: 'timer-scratch-session2', name: 'Timer scratch 2', date: new Date().toISOString().slice(0, 10), status: 'active',
       startedAt: Date.now(), workoutId: 'w-timer-scratch2',
       blocks: [{
         id: 'tb', heading: 'Main', superset: false,
@@ -564,7 +571,7 @@ await t('tapping Finish Set mid-countdown logs the seconds actually HELD, not th
     }];
     db.workouts.push({ id: 'w-timer-scratch3', name: 'Timer scratch 3', days: [], updatedAt: Date.now(), blocks });
     db.sessions.push({
-      id: 'timer-scratch-session3', name: 'Timer scratch 3', date: '2026-08-02', status: 'active',
+      id: 'timer-scratch-session3', name: 'Timer scratch 3', date: new Date().toISOString().slice(0, 10), status: 'active',
       startedAt: Date.now(), workoutId: 'w-timer-scratch3', blocks: JSON.parse(JSON.stringify(blocks)),
     });
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
@@ -630,7 +637,7 @@ await t('a hold that expires while its own field is gone does not write into a d
     ];
     db.workouts.push({ id: 'w-timer-scratch4', name: 'Timer scratch 4', days: [], updatedAt: Date.now(), blocks });
     db.sessions.push({
-      id: 'timer-scratch-session4', name: 'Timer scratch 4', date: '2026-08-02', status: 'active',
+      id: 'timer-scratch-session4', name: 'Timer scratch 4', date: new Date().toISOString().slice(0, 10), status: 'active',
       startedAt: Date.now(), workoutId: 'w-timer-scratch4', blocks: JSON.parse(JSON.stringify(blocks)),
     });
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
@@ -682,7 +689,7 @@ await t("a RANGE target like '20-30s' still arms the timer", async () => {
     }];
     db.workouts.push({ id: 'w-timer-scratch5', name: 'Timer scratch 5', days: [], updatedAt: Date.now(), blocks });
     db.sessions.push({
-      id: 'timer-scratch-session5', name: 'Timer scratch 5', date: '2026-08-02', status: 'active',
+      id: 'timer-scratch-session5', name: 'Timer scratch 5', date: new Date().toISOString().slice(0, 10), status: 'active',
       startedAt: Date.now(), workoutId: 'w-timer-scratch5', blocks: JSON.parse(JSON.stringify(blocks)),
     });
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
@@ -901,76 +908,100 @@ await t('a conditioning run asks how it felt, then if the work was completed, an
     });
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
   });
-  await page.goto(base + '/conditioning?block=condb1&bi=0', { waitUntil: 'networkidle' });
-  await page.click('button:has-text("Start")');
-  // A run under MIN_LOGGABLE_SEC (20s) is discarded, and a real 20s wait would
-  // double this suite's runtime — skew the page's clock forward instead. The
-  // run's 1s tick reads Date.now(), so the next tick banks ~30s of elapsed.
-  await page.evaluate(() => {
-    const orig = Date.now;
-    Date.now = () => orig.call(Date) + 30_000;
-  });
-  await page.waitForSelector('text=0:3'); // the live clock has ticked past 20s
-  await page.click('button:has-text("Finish")');
+  // try/finally: if an assertion below throws, 'conds1' must not be left
+  // 'active' — every later scenario that seeds its OWN active session first
+  // flips any existing active one aside, but several (Home's Start today's
+  // session, in particular) instead expect NO session to already be active.
+  try {
+    await page.goto(base + '/conditioning?block=condb1&bi=0', { waitUntil: 'networkidle' });
+    await page.click('button:has-text("Start")');
+    // A run under MIN_LOGGABLE_SEC (20s) is discarded, and a real 20s wait would
+    // double this suite's runtime — skew the page's clock forward instead. The
+    // run's 1s tick reads Date.now(), so the next tick banks ~30s of elapsed.
+    await page.evaluate(() => {
+      const orig = Date.now;
+      Date.now = () => orig.call(Date) + 30_000;
+    });
+    await page.waitForSelector('text=0:3'); // the live clock has ticked past 20s
+    await page.click('button:has-text("Finish")');
 
-  // The rating stage, not the result: nothing may be banked until it answers.
-  await page.waitForSelector('text=How did that feel?');
-  const mid = await page.evaluate(
-    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
-  );
-  assert(!mid, 'the run banked before the athlete said how it felt');
+    // The rating stage, not the result: nothing may be banked until it answers.
+    await page.waitForSelector('text=How did that feel?');
+    const mid = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
+    );
+    assert(!mid, 'the run banked before the athlete said how it felt');
 
-  // A tap on the nav bar while the chips are up must not throw the run away —
-  // the pending record rides the module RUN object for exactly this reason, so
-  // coming back re-asks the question. Client-side navigation only: goto would
-  // reload the page and reset the module, which is the documented "a run is
-  // over when the tab is" case, not the nav-bar case being pinned here.
-  await page.click('nav[aria-label="Main"] a[href="/"]');
-  await page.waitForSelector('text=Readiness');
-  await page.goBack();
-  await page.waitForSelector('text=How did that feel?');
+    // A tap on the nav bar while the chips are up must not throw the run away —
+    // the pending record rides the module RUN object for exactly this reason, so
+    // coming back re-asks the question. Client-side navigation only: goto would
+    // reload the page and reset the module, which is the documented "a run is
+    // over when the tab is" case, not the nav-bar case being pinned here.
+    //
+    // Exact text match, not a substring: Home's Auto-Coached receipt now
+    // explains ITS OWN reasoning with a line reading "Readiness moderate
+    // (68)", which a substring `text=Readiness` also matches — ambiguous
+    // between that and the section heading this is actually waiting for.
+    await page.click('nav[aria-label="Main"] a[href="/"]');
+    await page.waitForSelector('text="Readiness"');
+    await page.goBack();
+    await page.waitForSelector('text=How did that feel?');
 
-  // Answering RPE advances to the SECOND question — mechanical completion —
-  // and still banks nothing: both answers must ride in on the same write.
-  await page.click('button:has-text("RPE 7")');
-  await page.waitForSelector('text=Did you complete the work?');
-  const mid2 = await page.evaluate(
-    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
-  );
-  assert(!mid2, 'the run banked after the first question, before mechanical completion was answered');
+    // Answering RPE advances to the SECOND question — mechanical completion —
+    // and still banks nothing: both answers must ride in on the same write.
+    await page.click('button:has-text("RPE 7")');
+    await page.waitForSelector('text=Did you complete the work?');
+    const mid2 = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
+    );
+    assert(!mid2, 'the run banked after the first question, before mechanical completion was answered');
 
-  // The NEW interruption point: between the two questions. The pending record
-  // — felt answer included — still rides RUN, so a nav-away and return must
-  // land back on the second question, not the first and not the setup screen.
-  await page.click('nav[aria-label="Main"] a[href="/"]');
-  await page.waitForSelector('text=Readiness');
-  await page.goBack();
-  await page.waitForSelector('text=Did you complete the work?');
+    // The NEW interruption point: between the two questions. The pending record
+    // — felt answer included — still rides RUN, so a nav-away and return must
+    // land back on the second question, not the first and not the setup screen.
+    await page.click('nav[aria-label="Main"] a[href="/"]');
+    await page.waitForSelector('text="Readiness"');
+    await page.goBack();
+    await page.waitForSelector('text=Did you complete the work?');
 
-  await page.click('button:has-text("Completed it")');
-  await page.waitForSelector('text=Banked');
-  const rec = await page.evaluate(
-    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
-  );
-  assert(rec, 'the rated run never reached the block');
-  assert(rec.felt === '7', 'felt RPE not stored on the result, got: ' + JSON.stringify(rec.felt));
-  assert(rec.mechanicalCompletion === 'met', 'mechanical completion not stored, got: ' + JSON.stringify(rec.mechanicalCompletion));
-  // No strap in this harness, so no zone time was banked — the computed
-  // cardio verdict falls to the dur denominator and must read not_met.
-  assert(rec.cardioCompletion === 'not_met', 'computed cardio completion wrong, got: ' + JSON.stringify(rec.cardioCompletion));
-  assert(rec.dur >= 20, 'the banked duration should clear MIN_LOGGABLE_SEC, got: ' + rec.dur);
+    await page.click('button:has-text("Completed it")');
+    await page.waitForSelector('text=Banked');
+    const rec = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.find((s) => s.id === 'conds1').blocks[0].condResult,
+    );
+    assert(rec, 'the rated run never reached the block');
+    assert(rec.felt === '7', 'felt RPE not stored on the result, got: ' + JSON.stringify(rec.felt));
+    assert(rec.mechanicalCompletion === 'met', 'mechanical completion not stored, got: ' + JSON.stringify(rec.mechanicalCompletion));
+    // No strap in this harness, so no zone time was banked — the computed
+    // cardio verdict falls to the dur denominator and must read not_met.
+    assert(rec.cardioCompletion === 'not_met', 'computed cardio completion wrong, got: ' + JSON.stringify(rec.cardioCompletion));
+    assert(rec.dur >= 20, 'the banked duration should clear MIN_LOGGABLE_SEC, got: ' + rec.dur);
 
-  // History's conditioning line renders the felt value the athlete chose.
-  await page.evaluate(() => {
-    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
-    const s = db.sessions.find((x) => x.id === 'conds1');
-    s.status = 'completed';
-    s.completedAt = Date.now();
-    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
-  });
-  await page.goto(base + '/history', { waitUntil: 'networkidle' });
-  await page.click('button:has-text("Engine day")');
-  await page.waitForSelector('text=felt RPE 7');
+    // History's conditioning line renders the felt value the athlete chose.
+    await page.evaluate(() => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      const s = db.sessions.find((x) => x.id === 'conds1');
+      s.status = 'completed';
+      s.completedAt = Date.now();
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    });
+    await page.goto(base + '/history', { waitUntil: 'networkidle' });
+    await page.click('button:has-text("Engine day")');
+    await page.waitForSelector('text=felt RPE 7');
+  } finally {
+    // Safety net for an early throw above: the normal flow already marks
+    // 'conds1' 'completed', so this is a no-op on the happy path and only
+    // matters when an assertion aborted the scenario partway through.
+    await page.evaluate(() => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      const s = db.sessions.find((x) => x.id === 'conds1');
+      if (s && s.status === 'active') {
+        s.status = 'incomplete';
+        s.completedAt = s.completedAt || Date.now();
+        localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+      }
+    });
+  }
 });
 
 await t('Progress renders trends without a chart library', async () => {
@@ -1511,11 +1542,27 @@ await t('the guided builder replaces "New session" and can build a full session'
   assert(/Warm-up \/ Cooldown added/.test(afterSecond), 'the warm-up block should show in the running summary');
 
   // Finish — lands in the existing Planner with both blocks present.
+  //
+  // Root cause of a CI-only failure here (confirmed via two rounds of CI's
+  // own diagnostic dumps, added in prior commits): the running summary's own
+  // kicker reads "Back Squat, Warm-up / Cooldown added" — a substring match
+  // on "Back Squat" is satisfied by THAT still-visible screen. Waiting for
+  // the URL first did not fix it: history.pushState() lands (satisfying
+  // waitForURL) a render tick before React actually swaps GuidedBuilder's
+  // tree for Planner's, and "Back Squat" is still readable on the
+  // not-yet-unmounted old screen at that instant — so `waitForSelector`
+  // matched it too, immediately, before ever seeing the real Planner.
+  // Waiting for the Planner's own "Plan editor · saves as you go" kicker —
+  // text that exists on no other screen in this flow — removes the
+  // ambiguity for real, because there is no stale content it could match.
   await page.click('button:has-text("No, I\'m done")');
-  await page.waitForSelector('text=Back Squat');
+  await page.waitForSelector('text=Plan editor · saves as you go');
   const plannerText = await page.textContent('body');
   assert(/Back Squat/.test(plannerText), 'the lift block should carry into the Planner');
-  assert(/10 min bike, band work/.test(plannerText), 'the warm-up note should carry into the Planner');
+  assert(
+    /10 min bike, band work/.test(plannerText),
+    'the warm-up note should carry into the Planner, got: ' + plannerText.slice(0, 600),
+  );
 });
 
 await t('the plan editor edits a target and it persists', async () => {
@@ -1857,8 +1904,19 @@ await t('the browser Back steps back inside the guided builder', async () => {
   await page.click('button:has-text("Next")');
   await page.waitForSelector('text=How many sets?');
 
+  // This has timed out intermittently in CI only (never locally) waiting for
+  // "Which movement?" to reappear. Enriched on failure with the URL and
+  // actual body, not a bare timeout, so a recurrence shows whether goBack()
+  // landed nowhere useful, on a different step, or genuinely never resolved.
   await page.goBack();
-  await page.waitForSelector('text=Which movement?');
+  try {
+    await page.waitForSelector('text=Which movement?');
+  } catch (e) {
+    const bodyNow = await page.textContent('body').catch(() => '(unreadable)');
+    throw new Error(
+      e.message + ' — landed at ' + page.url() + ', body: ' + bodyNow.slice(0, 400),
+    );
+  }
   assert(page.url() === url, 'Back inside the flow must not change the route, got ' + page.url());
   const kept = await page.inputValue('input[aria-label="movement name"]');
   assert(kept === 'Back Squat', 'stepping back must keep what was already answered, got ' + JSON.stringify(kept));

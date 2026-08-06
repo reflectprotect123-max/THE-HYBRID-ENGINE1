@@ -444,7 +444,10 @@ export function Conditioning() {
 
           <SectionHead title="Zones you'll be held to" />
           <Card>
-            <ul className="flex flex-col gap-0.5">
+            <p className="num text-3 text-dim">
+              max {zones.max} bpm · {zones.method === 'hrr' ? 'Karvonen · resting ' + zones.rest : 'percent of max'}
+            </p>
+            <ul className="mt-0.5 flex flex-col gap-0.5">
               {zones.list.map((b) => (
                 <li key={b.key} className="flex items-center gap-1">
                   <span
@@ -462,7 +465,7 @@ export function Conditioning() {
           </Card>
 
           {hold.held ? (
-            <Card className="mt-2 border-[color:var(--color-bad)]/40 bg-[color:var(--color-bad)]/10">
+            <Card className="mt-2 border-bad/40 bg-bad/10">
               <p className="text-4 text-bad">{hold.note}</p>
               <Button variant="brass" size="md" className="mt-1.5 w-full" onClick={acknowledgePainHold}>
                 I&apos;m ready to continue

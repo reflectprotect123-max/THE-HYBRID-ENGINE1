@@ -61,3 +61,9 @@ apps/mobile/.expo/
 # the ANDROID_KEYSTORE_B64 secret. Never committed.
 apps/mobile/credentials.json
 apps/mobile/*.keystore
+
+# Python bytecode from the vendored skill scripts in .claude/skills/.
+# The scripts are stdlib-only and run in place, so CPython writes __pycache__
+# next to them the first time a skill invokes one. Artefacts, never sources.
+__pycache__/
+*.pyc

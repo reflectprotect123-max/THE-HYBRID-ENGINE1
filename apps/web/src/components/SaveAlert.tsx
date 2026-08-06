@@ -22,7 +22,7 @@ export function SaveAlert() {
   return (
     <div
       role="alert"
-      className="fixed inset-x-0 top-0 z-40 mx-auto w-full max-w-[560px] border-b border-[color:var(--color-bad)]/40 bg-[color:var(--color-bad)]/15 px-2 py-1 pt-[calc(8px+env(safe-area-inset-top))] text-3 font-[650] text-bad backdrop-blur"
+      className="fixed inset-x-0 top-0 z-40 mx-auto w-full max-w-[560px] border-b border-bad/40 bg-bad/15 px-2 py-1 pt-[calc(8px+env(safe-area-inset-top))] text-3 font-[650] text-bad backdrop-blur"
     >
       {saveFailed
         ? "Not saved — this device's storage is full. Nothing logged from here will survive a reload. Export a backup from Settings, or free some space."
