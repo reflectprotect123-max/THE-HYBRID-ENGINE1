@@ -79,6 +79,34 @@ The 29 commits between `4eeeca8` and `8f55e6b` are all merged and deployed.
   builds have since happened (5 August, item 1).
 - 5 August items 1, 2, 3, 5, 6 and 7 remain accurate as written.
 
+## Addendum, 6 August 2026 (later) — Android app merge implemented
+
+The two Android apps are now one app in code, on this session's branch
+(`claude/handoff-md-review-z00wqf`): spec
+`docs/superpowers/specs/2026-08-06-android-app-merge-design.md`, plan
+`docs/superpowers/plans/2026-08-06-android-app-merge.md` (Tasks 1–8 done,
+Task 10 docs done). The essentials:
+
+- **Unset `EXPO_PUBLIC_HYBRID_PRODUCT` now means the merged app** (both
+  worlds, Settings switch, runtime theme per world) — which is what the
+  existing strength EAS profiles build, so strength installs update in
+  place. `IS_MERGED` in `apps/mobile/src/product.ts` is the fork; legacy
+  set-value builds behave bit-for-bit as before.
+- **Merged sync carries both kinds** (`apps/mobile/src/cloud/sync.tsx`):
+  nothing pruned in either direction, writer `hybrid:mobile`, both ecosystem
+  partitions via `buildMergedSyncNamespace`. The 5 Aug in-flight residual is
+  legacy-only now and its comment says so. Suites: engine 588, mobile 135,
+  web 85, all green; `check:ecosystem` passes.
+- **Reads scope, writes never do** — store exposes scoped
+  `workouts`/`sessions` + `foreignActiveSession`; `db` stays whole. Planner
+  and GuidedBuilder look their subject up in the whole db (a kind flip
+  mid-edit must not strand the editor — found by the existing suite).
+- **The web store scoping from `24c2a39` was REVERTED** (dashboard shows
+  both again); `discipline.ts` helpers and the manifest fix remain.
+- **Still owed:** the real-device gate (plan Task 10 step 2 — user-run EAS
+  build checks), the conditioning farewell release, and gated Task 9
+  cleanup ONLY after the user confirms the farewell shipped.
+
 ## Open, in the order worth doing
 
 Full detail with file references: `docs/audit/2026-08-06-state-of-the-repo.md`.
