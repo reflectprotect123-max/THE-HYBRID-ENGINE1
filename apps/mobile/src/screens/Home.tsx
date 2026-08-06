@@ -20,6 +20,8 @@ import {
 } from '@hybrid/engine';
 import { useTheme } from '@hybrid/design';
 import { useDb } from '../store/db';
+import { useSync } from '../cloud/sync';
+import { IS_MERGED, PRODUCT_ID } from '../product';
 import { resolveDayTarget, sessionFrom } from '../store/session';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
@@ -39,6 +41,46 @@ import type { RootStackParams } from '../App';
  * otherwise, resolved by `resolveDayTarget` — the zones card offers
  * Conditioning, and the 7-day totals link to History.
  */
+/**
+ * The legacy conditioning app's send-off, and its ONLY job: get everything to
+ * the cloud before the standalone app winds down, and point at the merged
+ * one. Renders nothing in the merged app or the legacy strength build. Dies
+ * with the conditioning EAS profiles (merge plan, Task 9).
+ */
+function FarewellCard() {
+  // Gate BEFORE any hook: the merged app (and the strength build, and every
+  // screen test that mounts Home without a SyncProvider) must never reach
+  // useSync from here.
+  if (IS_MERGED || PRODUCT_ID !== 'conditioning') return null;
+  return <FarewellCardBody />;
+}
+
+function FarewellCardBody() {
+  const { syncNow, busy, syncedAt, user } = useSync();
+  const last = syncedAt ? new Date(syncedAt).toLocaleString() : 'never';
+  return (
+    <Card className="mt-2 border-gold-line bg-gold-wash">
+      <Kicker>This app is moving</Kicker>
+      <T className="mt-1 text-4 text-text">
+        Strength &amp; Conditioning are becoming one app. Sync now so everything is safe, then install the update from
+        the Play Store — your training will be waiting in the Conditioning world.
+      </T>
+      {user ? (
+        <>
+          <Btn className="mt-1.5" disabled={busy} onPress={() => void syncNow()}>
+            {busy ? 'Syncing…' : 'Sync now'}
+          </Btn>
+          <T num className="mt-1 text-5 text-muted">
+            Last synced: {last}
+          </T>
+        </>
+      ) : (
+        <T className="mt-1.5 text-4 text-muted">Sign in under Settings first, so your data has somewhere to go.</T>
+      )}
+    </Card>
+  );
+}
+
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { hr, whoop, activeSession, update, athleteState, weeklyPlan, workouts, sessions } = useDb();
@@ -127,6 +169,8 @@ export function HomeScreen() {
       <T className="mt-0.5 text-4 text-muted">
         {dateLine} · {subLine}
       </T>
+
+      <FarewellCard />
 
       <View className="mt-2 mb-1 flex-row items-end justify-between gap-1">
         <T w="semi" className="text-1 uppercase text-dim" style={{ letterSpacing: 1.4 }}>
