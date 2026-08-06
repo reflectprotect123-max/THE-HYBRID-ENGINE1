@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, Share, View } from 'react-native';
+import { Alert, ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   applyConcept2Import,
@@ -53,6 +53,7 @@ function Field({
       <Input
         value={String(value ?? '')}
         onChangeText={onChange}
+        accessibilityLabel={label}
         keyboardType="number-pad"
         w="semi"
         num
@@ -67,8 +68,7 @@ function Field({
  * The merged app's only new chrome: one row that moves between the two
  * worlds. No confirmation — switching destroys nothing, and the app-wide
  * theme change IS the arrival feedback. The dot shows the destination
- * world's accent before you tap. Legacy single-product builds render
- * nothing here.
+ * world's accent before you tap.
  */
 function WorldSwitch() {
   const discipline = useDiscipline();
@@ -83,7 +83,7 @@ function WorldSwitch() {
       className="mt-2 flex-row items-center justify-between rounded-md border border-line2 bg-panel2 px-2 py-1.5"
     >
       <T className="text-3 text-text">Switch to {otherName} →</T>
-      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: otherAccent }} />
+      <View importantForAccessibility="no-hide-descendants" style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: otherAccent }} />
     </Tap>
   );
 }
@@ -220,7 +220,7 @@ function RecoveryCard() {
         <T w="semi" className="mt-1.5 text-2 uppercase tracking-widest text-dim">Illness status</T>
         <View className="mt-0.5 flex-row flex-wrap gap-0.5">
           {(['clear', 'suspected', 'active', 'returning'] as const).map((value) => (
-            <Tap key={value} box={{ h: 40 }} onPress={() => setIllness(value)} className={`rounded-sm border px-1 py-1 ${illness === value ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel2'}`}>
+            <Tap key={value} role="radio" selected={illness === value} box={{ h: 40 }} onPress={() => setIllness(value)} className={`rounded-sm border px-1 py-1 ${illness === value ? 'border-gold-line bg-gold-wash' : 'border-line bg-panel2'}`}>
               <T w="med" className={`text-3 ${illness === value ? 'text-gold2' : 'text-muted'}`}>{value}</T>
             </Tap>
           ))}
@@ -321,6 +321,16 @@ function RestoreSection() {
   };
   const replace = () => {
     if (!found || 'error' in found) return;
+    // Same destructive gate as workout delete on Home/Library: this one tap
+    // erases the phone's entire history, so it gets the native confirm with
+    // the destructive style, not just an inline button pair.
+    Alert.alert('Replace everything on this phone?', 'Every workout and session on this device is overwritten by the backup. This cannot be undone.', [
+      { text: 'Keep', style: 'cancel' },
+      { text: 'Replace', style: 'destructive', onPress: doReplace },
+    ]);
+  };
+  const doReplace = () => {
+    if (!found || 'error' in found) return;
     update((d) => {
       d.workouts = found.db.workouts;
       d.sessions = found.db.sessions;
@@ -350,8 +360,8 @@ function RestoreSection() {
             {found.lastDate ? ` (last: ${found.lastDate})` : ''}. Replace everything on this phone?
           </T>
           <View className="mt-1 flex-row gap-1">
-            <Tap box={{ h: 42 }} onPress={replace} className="flex-1 items-center rounded-md border border-gold-line bg-gold-wash py-1.5">
-              <T w="med" className="text-4 text-gold2">Replace</T>
+            <Tap box={{ h: 42 }} onPress={replace} className="flex-1 items-center rounded-md border border-bad/40 bg-panel2 py-1.5">
+              <T w="med" className="text-4 text-bad">Replace</T>
             </Tap>
             <Tap box={{ h: 42 }} onPress={() => setFound(null)} className="flex-1 items-center rounded-md border border-line2 bg-panel2 py-1.5">
               <T w="med" className="text-4 text-text">Cancel</T>
@@ -416,6 +426,8 @@ function CloudCard() {
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
               keyboardType="email-address"
               placeholder="email"
               className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
@@ -424,6 +436,8 @@ function CloudCard() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              autoComplete="password"
+              textContentType="password"
               placeholder="password"
               className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
             />
@@ -489,7 +503,7 @@ function WhoopCard() {
             </T>
           </>
         )}
-        {error ? <T accessibilityLiveRegion="assertive" className="mt-1 text-3 text-dim">{error}</T> : null}
+        {error ? <T accessibilityLiveRegion="assertive" className="mt-1 text-3 text-bad">{error}</T> : null}
       </Card>
     </View>
   );
@@ -576,7 +590,7 @@ function Concept2Card() {
             </T>
           </>
         )}
-        {error ? <T accessibilityLiveRegion="assertive" className="mt-1 text-3 text-dim">{error}</T> : null}
+        {error ? <T accessibilityLiveRegion="assertive" className="mt-1 text-3 text-bad">{error}</T> : null}
       </Card>
     </View>
   );

@@ -485,7 +485,7 @@ function PlanRow({
         <Kicker className="text-1">Today · {cond ? 'Conditioning' : 'Strength'}</Kicker>
         <Tap
           onPress={onDelete}
-          box={32}
+          box={{ h: 32, w: 32 }}
           label={`delete ${w.name || 'session'}`}
           className="-mt-0.5 -mr-0.5 h-4 w-4 items-center justify-center rounded-md border border-line2 bg-panel2"
         >

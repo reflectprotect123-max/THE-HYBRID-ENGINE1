@@ -98,7 +98,7 @@ const conditioningBrand = {
 
   text: '#eaf6f4',
   muted: '#93b0ae',
-  dim: '#5f7d7b',
+  dim: '#6d8d8b',
 
   gold: '#3fada3',
   gold2: '#7fe3d4',

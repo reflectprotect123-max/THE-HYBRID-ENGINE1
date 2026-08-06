@@ -213,7 +213,9 @@ function AppInner() {
     Inter_800ExtraBold,
     Inter_900Black,
   });
-  if (!fontsReady && !fontsError) return null;
+  // A bare `null` here is a visible flash of black on a cold, slow device.
+  // The splash ground in the app's base colour reads as "still opening".
+  if (!fontsReady && !fontsError) return <View style={{ flex: 1, backgroundColor: '#0a1214' }} />;
 
   return (
     // className="flex-1" is load-bearing twice over: a bare View has no
