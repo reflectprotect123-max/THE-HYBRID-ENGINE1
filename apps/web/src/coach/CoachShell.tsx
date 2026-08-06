@@ -4,6 +4,7 @@ import './coach.css';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { coachAllowed } from './guard';
+import { OnboardingPanel, useOnboarding } from './Onboarding';
 import { ProgramGrid } from './ProgramGrid';
 import { ResolutionPreview } from './ResolutionPreview';
 
@@ -17,6 +18,8 @@ export function CoachShell() {
   const { dataRecovered } = useDb();
   const [horizon, setHorizon] = useState<4 | 8 | 12>(8);
   const [showPreview, setShowPreview] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const onboarding = useOnboarding();
 
   const allowed = coachAllowed(
     user?.id,
@@ -32,6 +35,14 @@ export function CoachShell() {
           <div className="text-[11px] uppercase tracking-[0.18em] text-gold">Coach</div>
           <h1 className="text-base font-semibold leading-tight">Program bench</h1>
         </div>
+        {!onboarding.complete && (
+          <button
+            onClick={() => setShowOnboarding(true)}
+            className="rounded-full bg-gold-wash px-1 py-0.5 text-[11px] tabular-nums text-gold2 outline outline-1 outline-gold-line"
+          >
+            Athlete setup {onboarding.done}/{onboarding.total}
+          </button>
+        )}
         <div className="ml-auto flex items-center gap-1" role="group" aria-label="Weeks shown">
           {([4, 8, 12] as const).map((h) => (
             <button
@@ -79,6 +90,7 @@ export function CoachShell() {
           </aside>
         )}
       </div>
+      {showOnboarding && <OnboardingPanel onClose={() => setShowOnboarding(false)} />}
     </div>
   );
 }

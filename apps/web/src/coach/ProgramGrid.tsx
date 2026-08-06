@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { newBlock, newCondBlock, uid, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { cx } from '../ui';
+import { recordLedger } from './bench-store';
 import { applyWeekClear, applyWeekCopy, planWeekClear, planWeekCopy } from './ops';
 import { gridDates, projectGrid, sameWeekday, type CellItem, type DayCell } from './projection';
 import { SessionDrawer } from './SessionDrawer';
@@ -173,6 +174,7 @@ export function ProgramGrid({ horizon }: { horizon: 4 | 8 | 12 }) {
     update((draft) => {
       draft.workouts.push(w);
     });
+    recordLedger('coach', `Added ${kind} session on ${date}`);
     setMenu(null);
     setOpen({ item: { id: w.id, kind, name: w.name!, keyline: '', source: 'planned' }, date });
   };
@@ -204,6 +206,7 @@ export function ProgramGrid({ horizon }: { horizon: 4 | 8 | 12 }) {
         });
       }
     });
+    recordLedger('coach', `Copied last week's day onto ${date}`);
     setMenu(null);
     say('Copied — independent copies, nothing linked.');
   };
@@ -220,6 +223,7 @@ export function ProgramGrid({ horizon }: { horizon: 4 | 8 | 12 }) {
       update((draft) => {
         applyWeekCopy(draft, plan, uid, Date.now());
       });
+      recordLedger('coach', `${times === 1 ? 'Duplicated' : 'Repeated ×2'} week of ${weekLabel(monday)} (${plan.creates.length} copied)`);
       setConfirm(null);
       setMenu(null);
       const skipped = plan.skippedRecurring.length
@@ -272,6 +276,7 @@ export function ProgramGrid({ horizon }: { horizon: 4 | 8 | 12 }) {
         update((draft) => {
           applyWeekClear(draft, plan, Date.now());
         });
+        recordLedger('coach', `Cleared planned sessions, week of ${weekLabel(monday)}`);
         setConfirm(null);
         setMenu(null);
         say('Week cleared.');

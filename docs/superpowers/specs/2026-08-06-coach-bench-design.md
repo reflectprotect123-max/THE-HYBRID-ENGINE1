@@ -1,7 +1,9 @@
 # Coach bench — design spec
 
 **Date:** 6 August 2026
-**Status:** awaiting user review
+**Status:** phases 1–3 implemented (commits b8979e0, 807edcf, and the
+phase-3 commit); athlete-zero onboarding added beyond the original phasing.
+Phase 4 (multi-athlete) remains design-gated.
 **Inputs:** brainstorming session (10 answered questions),
 `docs/superpowers/research/2026-08-06-coaching-platform-research-results.md`
 (market research against the v2 brief in the same directory).
@@ -144,6 +146,29 @@ per-change accept/decline, versioned plans, decision ledger, coach
 anchors. These are real, they are the long-term moat, and they are not
 v1 — each needs an additive design of its own. The preview's read-only
 nature makes the full playbook adoptable incrementally without rework.
+
+**Phase 3 as implemented.** The persistence question resolved additively:
+a bench-local store (`hybrid-coach-bench-v1` in localStorage, never a
+field on EngineDB, invisible to sync) holds the coach's review baseline,
+per-decision acknowledgments, and the decision ledger. On top of it:
+"changed since your last review" renders a semantic diff of the current
+resolution against the baseline (added/moved/removed entries by proposal
+identity, new drops); each drop offers Acknowledge or Adjust proposal
+(deep link to the source workout — proposal ids are workout ids in both
+engines); and the ledger records coach actions and observed Coordinator
+drops. Two consciously kept boundaries: "keep original" does not exist —
+a drop is the Coordinator holding a line, and the honest affordances are
+acknowledging it or adjusting the proposal until it resolves; and bench
+review state is local-only — cross-device review state joins the phase-4
+persistence design.
+
+**Athlete-zero onboarding (added).** The coach is the first athlete, in
+the same account. A checklist derived entirely from live state — shared
+core present, schedule days set, primary goal chosen, Whoop connected,
+Concept2 connected, first workout planned, first session logged — with
+integrations skippable and nothing self-checking. It exists so the first
+real athlete's path from empty store to working loop is observable, and
+it becomes the template for onboarding athletes two-plus in phase 4.
 
 ## Phase 4 — athlete linkage (design-later gate)
 

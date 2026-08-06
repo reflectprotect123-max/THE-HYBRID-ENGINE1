@@ -1,7 +1,18 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDb } from '../store/db';
 import { useWhoop } from '../cloud/whoop';
 import { useConcept2 } from '../cloud/concept2';
 import { cx } from '../ui';
+import {
+  acknowledge,
+  ackKey,
+  recordLedger,
+  setReviewBaseline,
+  slimPlan,
+  useBench,
+} from './bench-store';
+import { diffPlans } from './diff';
 
 /*
  * The trust surface. Renders what the Coordinator resolved this week and —
@@ -129,10 +140,36 @@ function IntegrationCards() {
 }
 
 export function ResolutionPreview() {
-  const { weeklyPlan, athleteState } = useDb();
+  const { weeklyPlan, athleteState, workouts } = useDb();
+  const bench = useBench();
+  const nav = useNavigate();
   const { readiness, dataQuality, constraints, illness } = athleteState;
   const scheduled = weeklyPlan.entries;
   const drops = weeklyPlan.decisions.filter((d) => d.action === 'dropped');
+
+  const slim = useMemo(() => slimPlan(weeklyPlan), [weeklyPlan]);
+  const changes = useMemo(() => diffPlans(bench.lastPlan, slim), [bench.lastPlan, slim]);
+
+  /* First sight of a week is the baseline, not a wall of "changes" — and new
+     Coordinator drops enter the ledger once, when first observed. */
+  const seededWeek = useRef<string | null>(null);
+  useEffect(() => {
+    if (!bench.lastPlan || bench.lastPlan.weekStart !== slim.weekStart) {
+      if (seededWeek.current !== slim.weekStart) {
+        seededWeek.current = slim.weekStart;
+        setReviewBaseline(slim);
+      }
+      return;
+    }
+    const known = new Set(bench.lastPlan.drops.map((d) => `${d.proposalId}:${d.reasonCode}`));
+    for (const d of slim.drops) {
+      if (!known.has(`${d.proposalId}:${d.reasonCode}`)) recordLedger('coordinator', d.explanation);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed off content identity
+  }, [slim.weekStart, JSON.stringify(slim.drops)]);
+
+  const titleFor = (proposalId: string) =>
+    workouts.find((w) => w.id === proposalId)?.name || 'session';
 
   return (
     <div className="flex max-h-[calc(100vh-41px)] flex-col overflow-y-auto p-1 text-sm">
@@ -215,21 +252,110 @@ export function ResolutionPreview() {
         )}
         {drops.length > 0 && (
           <div className="mt-1 border-t border-line pt-0.5">
-            {drops.map((d) => (
-              <p key={d.proposalId} className="text-[11px] text-muted">
-                <span className="text-warn">{REASON_LABEL[d.reasonCode] ?? d.reasonCode}</span>
-                {' — '}
-                {d.explanation}
-              </p>
-            ))}
+            {drops.map((d) => {
+              const acked = !!bench.acks[ackKey(slim.weekStart, d.proposalId, d.reasonCode)];
+              const editable = workouts.some((w) => w.id === d.proposalId);
+              return (
+                <div key={`${d.proposalId}:${d.reasonCode}`} className={cx('py-0.5', acked && 'opacity-60')}>
+                  <p className="text-[11px] text-muted">
+                    <span className="text-warn">{REASON_LABEL[d.reasonCode] ?? d.reasonCode}</span>
+                    {' — '}
+                    {d.explanation}
+                  </p>
+                  {acked ? (
+                    <span className="text-[10px] uppercase tracking-wide text-dim">reviewed</span>
+                  ) : (
+                    <span className="mt-0.5 flex gap-1">
+                      <button
+                        className="rounded px-1 py-[1px] text-[11px] text-muted outline outline-1 outline-line2 hover:text-text"
+                        onClick={() => {
+                          acknowledge(slim.weekStart, d.proposalId, d.reasonCode);
+                          recordLedger('coach', `Reviewed drop of “${titleFor(d.proposalId)}” (${d.reasonCode})`);
+                        }}
+                      >
+                        Acknowledge
+                      </button>
+                      {editable && (
+                        <button
+                          className="rounded bg-gold-wash px-1 py-[1px] text-[11px] text-gold2 outline outline-1 outline-gold-line"
+                          onClick={() => nav(`/planner/${d.proposalId}`)}
+                          title="Edit the proposal so it can resolve differently — the Coordinator re-runs on save"
+                        >
+                          Adjust proposal
+                        </button>
+                      )}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            <p className="mt-0.5 text-[10px] leading-snug text-dim">
+              A drop is the Coordinator holding a safety or capacity line — it cannot be overridden,
+              but the proposal can be adjusted until it resolves.
+            </p>
           </div>
         )}
       </section>
 
+      {/* WHAT CHANGED — the before/after the market never shows */}
+      {changes.length > 0 && (
+        <section className="mt-1 rounded border border-gold-line bg-panel p-1">
+          <h3 className="text-[10px] uppercase tracking-wider text-gold2">
+            Changed since your last review
+          </h3>
+          <ul className="mt-0.5 space-y-0.5">
+            {changes.map((c, i) => (
+              <li key={i} className="text-[11px] text-muted">
+                <span
+                  className={cx(
+                    'mr-1 text-[9px] uppercase tracking-wide',
+                    c.kind === 'new-drop' ? 'text-warn' : 'text-gold2',
+                  )}
+                >
+                  {c.kind.replace('-', ' ')}
+                </span>
+                {c.text}
+              </li>
+            ))}
+          </ul>
+          <button
+            className="mt-1 rounded bg-gold-wash px-1 py-0.5 text-[11px] text-gold2 outline outline-1 outline-gold-line"
+            onClick={() => {
+              setReviewBaseline(slim);
+              recordLedger('coach', `Reviewed ${changes.length} plan change${changes.length === 1 ? '' : 's'} for week of ${slim.weekStart}`);
+            }}
+          >
+            Mark reviewed
+          </button>
+        </section>
+      )}
+
+      {/* DECISION LEDGER */}
+      {bench.ledger.length > 0 && (
+        <section className="mt-1 rounded border border-line bg-panel p-1">
+          <h3 className="text-[10px] uppercase tracking-wider text-dim">Decision ledger</h3>
+          <ul className="mt-0.5 space-y-[1px]">
+            {bench.ledger.slice(0, 8).map((l, i) => (
+              <li key={`${l.at}:${i}`} className="flex gap-1 text-[10px] text-dim">
+                <span
+                  className={cx(
+                    'w-[86px] shrink-0 uppercase tracking-wide',
+                    l.who === 'coordinator' ? 'text-gold' : 'text-blue',
+                  )}
+                >
+                  {l.who}
+                </span>
+                <span className="min-w-0">{l.what}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <p className="mt-1 px-0.5 text-[10px] leading-relaxed text-dim">
-        Read-only preview. The Coordinator resolves proposals against safety constraints — the
-        bench proposes, it never overrides. Per-change decisions and plan versions arrive in
-        phase 3.
+        The Coordinator resolves proposals against safety constraints — the bench proposes, it
+        never overrides. Drops can be acknowledged or the proposal adjusted until it resolves;
+        your review baseline powers the changed-since panel above.
       </p>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CON_EFFORT_KEYS,
@@ -15,6 +15,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { cx } from '../ui';
+import { recordLedger } from './bench-store';
 import { occurrenceKind } from './ops';
 import type { CellItem } from './projection';
 
@@ -251,6 +252,7 @@ export function SessionDrawer({
   const { workouts, sessions, update } = useDb();
   const nav = useNavigate();
   const [renaming, setRenaming] = useState<string | null>(null);
+  const dirty = useRef(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -260,19 +262,29 @@ export function SessionDrawer({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  /* One ledger entry per editing visit, not one per keystroke. */
+  useEffect(
+    () => () => {
+      if (dirty.current) recordLedger('coach', `Edited “${item.name}” (${date})`);
+    },
+    [item.name, date],
+  );
+
   const workout = item.source === 'planned' ? workouts.find((w) => w.id === item.id) : undefined;
   const session = item.source === 'logged' ? sessions.find((s) => s.id === item.id) : undefined;
   const editable = !!workout;
   const blocks = workout?.blocks ?? session?.blocks;
   const recurring = workout ? occurrenceKind(workout, date) === 'recurring' : false;
 
-  const edit = (fn: (draft: Workout) => void) =>
+  const edit = (fn: (draft: Workout) => void) => {
+    dirty.current = true;
     update((draft) => {
       const t = draft.workouts.find((x) => x.id === item.id);
       if (!t) return false;
       fn(t);
       t.updatedAt = Date.now();
     });
+  };
 
   const removeFromDate = () => {
     update((draft) => {
@@ -290,6 +302,8 @@ export function SessionDrawer({
         draft.workouts.splice(draft.workouts.indexOf(t), 1);
       }
     });
+    dirty.current = false;
+    recordLedger('coach', recurring ? `Deleted “${item.name}” (all occurrences)` : `Removed “${item.name}” from ${date}`);
     onClose();
   };
 
