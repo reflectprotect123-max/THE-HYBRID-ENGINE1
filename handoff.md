@@ -108,6 +108,36 @@
    this Claude Code environment (`/root/.claude/skills/graphify/`). Not a
    repository change; nothing in this repo depends on it.
 
+6. **Addendum, 6 August 2026 — `pct-1rm-rep-ranges` recovered to a branch,
+   not mergeable as-is.** A separate Claude Code session had fully built the
+   `% of 1RM + rep ranges` feature (spec: `docs/superpowers/specs/
+   2026-08-02-pct-1rm-rep-ranges-design.md`) in a local git worktree — 8 SDD
+   tasks, final review, full suite green — but never merged or pushed it.
+   That worktree's `.git` was then destroyed by an unrelated `rm -rf` in
+   another session, before anyone checked it for uncommitted work. The
+   working-tree files survived (only the commit history didn't), and were
+   pushed as a single recovery commit to `recovered/pct-1rm-rep-ranges`:
+   https://github.com/reflectprotect123-max/THE-HYBRID-ENGINE1/tree/recovered/pct-1rm-rep-ranges
+   - **Do not merge this branch directly.** It's cut from before the
+     ecosystem rebuild that split `packages/engine` into `shared-core`/
+     `strength-engine`/`conditioning-engine`/`coordinator`/`coordinator-adapter`/
+     `whole-athlete-state`/`product-scope` — none of which exist in that tree.
+     Reviving the feature needs a fresh implementation pass against the
+     current architecture, using the recovered branch as a reference for
+     what changed (touched `packages/engine/src/{pct1rm.ts,session.ts,logger.ts,
+     types.ts}`, both apps' `Planner`/`Logger`/`ExerciseCard` screens, and
+     `checks/react-smoke.mjs`), not as something to `git merge`.
+   - **One known unresolved bug carried into the recovered snapshot**
+     (from its own `.superpowers/sdd/2026-08-03-pct-1rm-rep-ranges/progress.md`):
+     adding a set in "% range + reps" mode reshifts every other set's computed
+     %/kg, because a blank RPE on the new set enters `pctForSet`'s rated-set
+     RPE spread as `rpeMin=0`. Not fixed in the recovered snapshot — carry the
+     fix into any reimplementation, don't just port the old code verbatim.
+   - No action taken beyond pushing the safety branch and writing this note.
+     Whether/when to reimplement is an open decision — brainstorm it fresh
+     with the user rather than assuming the original spec still stands
+     as-is, since the engine architecture it targeted no longer exists.
+
 ---
 
 > **AUTHORITATIVE CHECKPOINT — 4 August 2026 (integration pass)**
