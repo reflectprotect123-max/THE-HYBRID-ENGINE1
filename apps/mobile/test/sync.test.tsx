@@ -1,5 +1,5 @@
 /*
- * The real sync provider, driven end to end.
+ * The real sync provider, driven end to end — LEGACY single-product build.
  *
  * The engine suite already proves `restrictToProduct`, `applyPull` and
  * `buildPushState` behave in isolation. It cannot prove that sync.tsx CALLS
@@ -12,7 +12,9 @@
  * So this file mounts the actual `DbProvider`/`SyncProvider` pair the app
  * mounts, against a fake Supabase, and asserts the two halves of the invariant
  * separately: what goes UP must be unfiltered, what stays on DISK must be this
- * build's product only.
+ * build's product only. The merged app's counterpart lives in
+ * sync-merged.test.tsx; the fake server and fixtures are shared via
+ * syncHarness.tsx.
  *
  * The global Supabase mock in test/setup.ts returns a null client on purpose —
  * every other test wants the signed-out degradation. This file wants the
@@ -20,60 +22,18 @@
  * what a file-level jest.mock does.
  */
 import { act, render } from '@testing-library/react-native';
-import { LS_KEY, type EngineDB, type Workout } from '@hybrid/engine';
-import { DbProvider, useDb } from '../src/store/db';
-import { storage } from '../src/store/storage';
-
-/* ---- the fake server ---------------------------------------------------- */
-
-/** The single `app_state` row, as the server holds it. Starts absent. */
-const mockRow: { state: Record<string, unknown> | null } = { state: null };
-/** Every `state` payload handed to `.upsert()`, oldest first. */
-const mockPushes: Record<string, unknown>[] = [];
-/** Runs inside the upsert await — i.e. while a push is genuinely in flight. */
-const mockDuringPush: { fn: (() => void) | null } = { fn: null };
-
-const mockUser = {
-  id: 'athlete-1',
-  aud: 'authenticated',
-  email: 'athlete@example.com',
-  app_metadata: {},
-  user_metadata: {},
-  created_at: '2026-01-01T00:00:00.000Z',
-};
-
-const mockClient = {
-  auth: {
-    getSession: async () => ({ data: { session: { user: mockUser } }, error: null }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: jest.fn() } } }),
-    startAutoRefresh: () => {},
-    stopAutoRefresh: () => {},
-    signOut: async () => ({ error: null }),
-  },
-  from: () => {
-    // Chainable exactly as far as sync.tsx chains it: .select().eq().maybeSingle()
-    // and .upsert(). Anything else would be inventing a contract.
-    const q = {
-      select: () => q,
-      eq: () => q,
-      maybeSingle: async () => ({
-        data: mockRow.state ? { state: mockRow.state, updated_at: '2026-08-05T00:00:00.000Z' } : null,
-        error: null,
-      }),
-      upsert: async (row: { user_id: string; state: Record<string, unknown> }) => {
-        // The window a concurrent local edit lands in: the push has been sent
-        // and not yet returned, so `reconcile`'s pre-push snapshot is stale.
-        const during = mockDuringPush.fn;
-        mockDuringPush.fn = null;
-        if (during) during();
-        mockPushes.push(row.state);
-        mockRow.state = row.state;
-        return { error: null };
-      },
-    };
-    return q;
-  },
-};
+import {
+  CONDITIONING,
+  STRENGTH,
+  mockClient,
+  mockDuringPush,
+  mockPushes,
+  mockRow,
+  pushedWorkoutIds,
+  resetServer,
+  seed,
+  workout,
+} from './syncHarness';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: () => mockClient }));
 
@@ -82,12 +42,12 @@ jest.mock('@supabase/supabase-js', () => ({ createClient: () => mockClient }));
 /*
  * `src/product.ts` reads EXPO_PUBLIC_HYBRID_PRODUCT once, at module eval, so
  * it has to be set BEFORE anything pulls that module in. Static imports are
- * hoisted above this line, which is why sync.tsx is reached by a dynamic
- * import below instead — nothing imported above touches src/product.
+ * hoisted above this line, which is why sync.tsx is reached by a deferred
+ * require below instead — nothing imported above touches src/product (the
+ * harness deliberately imports no src/cloud or src/product module).
  *
- * Unset would also mean strength (that is the repo's convention, and what the
- * strength EAS profiles rely on); naming it is what makes this test still
- * assert about a strength build if that ever changes.
+ * Unset now means the MERGED app (see product.ts) — naming `strength` here is
+ * what keeps this file asserting about a legacy strength build.
  */
 const PREVIOUS_PRODUCT = process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
 process.env.EXPO_PUBLIC_HYBRID_PRODUCT = 'strength';
@@ -110,35 +70,17 @@ afterAll(() => {
   else process.env.EXPO_PUBLIC_HYBRID_PRODUCT = PREVIOUS_PRODUCT;
 });
 
-beforeEach(() => {
-  mockRow.state = null;
-  mockPushes.length = 0;
-  mockDuringPush.fn = null;
-});
+beforeEach(resetServer);
 
-/* ---- fixtures ----------------------------------------------------------- */
+/* ---- harness (per-file: needs the lazily-required sync module) ----------- */
 
-const workout = (id: string, kind: 'strength' | 'conditioning'): Workout => ({
-  id,
-  kind,
-  name: id,
-  blocks: [],
-  updatedAt: 1_700_000_000_000,
-});
-
-const STRENGTH = workout('w-strength', 'strength');
-const CONDITIONING = workout('w-conditioning', 'conditioning');
-
-const seed = (db: Partial<EngineDB>) => {
-  const full: EngineDB = { workouts: [], sessions: [], settings: {}, ...db };
-  storage.setItem(LS_KEY, JSON.stringify(full));
-};
-
-/** The workout ids in whatever a push put on the wire. */
-const pushedWorkoutIds = (state: Record<string, unknown>): string[] =>
-  ((state.hybridEngine as EngineDB).workouts || []).map((w) => w.id);
-
-/* ---- harness ------------------------------------------------------------ */
+/**
+ * The app's own provider order: DbProvider outside, because SyncProvider reads
+ * the store through `useDb()` (see App.tsx). The store module is required
+ * lazily for the same reason sync is — store/db.tsx reaches src/product, so a
+ * static import would hoist product's env read above the binding line.
+ */
+const { DbProvider, useDb } = require('../src/store/db') as typeof import('../src/store/db');
 
 type SyncApi = ReturnType<SyncModule['useSync']>;
 type DbApi = ReturnType<typeof useDb>;
@@ -152,10 +94,6 @@ function Probe() {
   return null;
 }
 
-/**
- * The app's own provider order: DbProvider outside, because SyncProvider reads
- * the store through `useDb()` (see App.tsx).
- */
 const mount = () =>
   render(
     <DbProvider>
@@ -185,6 +123,7 @@ const settle = async () => {
 
 it('reads its product from the environment', () => {
   expect(product.PRODUCT_ID).toBe('strength');
+  expect(product.IS_MERGED).toBe(false);
 });
 
 it('pushes both products unfiltered and keeps only its own on the device', async () => {

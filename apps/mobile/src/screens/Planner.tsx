@@ -44,13 +44,13 @@ import { TextBlockCard } from './planner/TextBlockCard';
 export function PlannerScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const route = useRoute<RouteProp<RootStackParams, 'Planner'>>();
-  const { db, update } = useDb();
+  const { db, workouts, sessions, update } = useDb();
   const [openEx, setOpenEx] = useState<string | null>('0-0');
 
   /* Above the early return, not below it: a hook that only runs when the
      workout exists changes the hook COUNT between renders, which typecheck
      cannot see and React crashes on. */
-  const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  const known = useMemo(() => knownMovements(workouts, sessions), [workouts, sessions]);
   /* In a warm-up/cooldown block the prep movements come first — that is what
      you are reaching for there, and it is what finally makes the 200-strong
      Mobility list something you use rather than a page you read. Logged
@@ -65,6 +65,9 @@ export function PlannerScreen() {
     return [...mobility, ...known.filter((k) => !seen.has(k.toLowerCase()))];
   }, [mobility, known]);
 
+  // Whole-db by-id lookup on purpose: an editor must never lose its subject
+  // to view scoping (a kind change mid-edit, a stale deep link) — see
+  // GuidedBuilder's identical rule.
   const w = db.workouts.find((x) => x.id === route.params.id);
   if (!w) {
     return (

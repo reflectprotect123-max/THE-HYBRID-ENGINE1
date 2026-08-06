@@ -88,7 +88,22 @@ The EAS build page provides the artifact download link after the build
 finishes. The workflow also guards the package ID and versionCode so a build
 cannot silently become a second Strength app.
 
-## Conditioning Android build
+## The merged app (August 2026)
+
+**A build with `EXPO_PUBLIC_HYBRID_PRODUCT` unset is now the MERGED app** —
+both worlds in one install, a runtime switch in Settings, sync carrying both
+kinds. That is what the default `preview`/`production` profiles produce, so
+existing Strength installs update in place into the merged app; nothing about
+those profiles or `com.hybridengine.app` changed. See
+`docs/superpowers/specs/2026-08-06-android-app-merge-design.md`.
+
+## Conditioning Android build (legacy — farewell path only)
+
+The standalone conditioning app is being retired. Its profiles remain ONLY to
+ship the farewell release (a force-sync card pointing at the merged app);
+after that ships and ages, the profiles, the `isConditioning` branch in
+`app.config.js`, and the separate EAS project are removed (merge plan,
+Task 9 — gated on the user's word).
 
 Conditioning is a separate product identity. Its preview/production profiles
 set `EXPO_PUBLIC_HYBRID_PRODUCT=conditioning` and use

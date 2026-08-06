@@ -9,12 +9,12 @@ import { RouteMap } from '../ui/RouteMap';
 
 export function HistoryScreen() {
   const nav = useNavigation();
-  const { db } = useDb();
+  const { sessions } = useDb();
   const [open, setOpen] = useState<string | null>(null);
 
   const done = useMemo(
-    () => db.sessions.filter((s) => s.status !== 'active').slice().sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)),
-    [db.sessions],
+    () => sessions.filter((s) => s.status !== 'active').slice().sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)),
+    [sessions],
   );
 
   const months = useMemo(() => byMonth(done, (s) => s.date), [done]);

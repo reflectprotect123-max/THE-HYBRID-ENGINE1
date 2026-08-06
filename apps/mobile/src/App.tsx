@@ -41,7 +41,8 @@ import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
 import { ConditioningScreen } from './screens/Conditioning';
-import { PRODUCT, PRODUCT_ID } from './product';
+import { IS_MERGED, PRODUCT, PRODUCT_ID } from './product';
+import { useDiscipline } from './discipline';
 
 /*
  * The Android app.
@@ -100,6 +101,10 @@ const tabIcon = (glyph: string) =>
 
 function TabNav() {
   const { color } = useTheme();
+  const discipline = useDiscipline();
+  const worldName = IS_MERGED
+    ? (discipline === 'conditioning' ? 'THE Conditioning System' : 'THE Strength System')
+    : PRODUCT.name;
   return (
     <Tabs.Navigator
       screenOptions={{
@@ -112,7 +117,7 @@ function TabNav() {
         tabBarItemStyle: { borderRadius: radius.sm, marginHorizontal: 4, marginVertical: 3 },
         tabBarStyle: { backgroundColor: color.panel3, borderTopColor: color.line },
         tabBarLabelStyle: { fontSize: 11, fontFamily: font.med },
-        tabBarAccessibilityLabel: PRODUCT.name,
+        tabBarAccessibilityLabel: worldName,
       }}
     >
       <Tabs.Screen name="Home" component={HomeScreen} options={{ tabBarIcon: tabIcon('⌂') }} />
@@ -151,8 +156,12 @@ function useReduceMotion(): boolean {
 }
 
 export function App() {
+  /* The merged app themes by the world the athlete is IN, so the switch in
+     Settings repaints everything — the theme change itself is the arrival
+     feedback. A legacy single-product build keeps its fixed identity. */
+  const discipline = useDiscipline();
   return (
-    <ThemeProvider productId={PRODUCT_ID}>
+    <ThemeProvider productId={IS_MERGED ? discipline : PRODUCT_ID}>
       <AppInner />
     </ThemeProvider>
   );

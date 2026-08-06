@@ -29,10 +29,15 @@ import type { RootStackParams } from '../App';
 export function RecapScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const route = useRoute<RouteProp<RootStackParams, 'Recap'>>();
-  const { db } = useDb();
+  const { db, sessions } = useDb();
 
+  // Whole-db by-id lookup, same rule as Planner/GuidedBuilder: a screen
+  // holding an id must never lose its subject to view scoping — switching
+  // worlds while a Recap sits on the nav stack would otherwise turn a real
+  // session into "That session is gone". PR detection still compares against
+  // the scoped history: PRs are a within-discipline claim.
   const s = db.sessions.find((x) => x.id === route.params.id);
-  const prs = useMemo(() => (s ? detectPRs(s, db.sessions.filter((x) => x.id !== s.id)) : []), [s, db.sessions]);
+  const prs = useMemo(() => (s ? detectPRs(s, sessions.filter((x) => x.id !== s.id)) : []), [s, sessions]);
   const moves = useMemo(() => liftMoves(s), [s]);
 
   if (!s) {
