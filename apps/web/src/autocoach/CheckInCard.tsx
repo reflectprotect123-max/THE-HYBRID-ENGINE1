@@ -111,8 +111,9 @@ export function CheckInCard() {
           <button
             key={c}
             onClick={() => setPain(c)}
+            aria-pressed={pain === c}
             className={cx(
-              'rounded-full px-1 py-0.5 text-3 outline outline-1 transition-colors',
+              'rounded-full px-1 py-0.5 text-3 outline outline-1 transition-colors focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2',
               pain === c
                 ? c === 'no'
                   ? 'text-ok outline-ok/40'
@@ -163,7 +164,7 @@ export function CheckInCard() {
 
       <div className="flex items-center gap-1">
         <span className="text-3 text-dim">Optional — skip anything. Unknown stays unknown.</span>
-        <Button variant="brass" className="ml-auto" onClick={save} disabled={pain === null}>
+        <Button variant="brass" className="ml-auto shrink-0" onClick={save} disabled={pain === null}>
           Check in
         </Button>
       </div>

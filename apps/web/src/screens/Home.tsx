@@ -19,6 +19,7 @@ import {
 import { useDb } from '../store/db';
 import { CheckInCard } from '../autocoach/CheckInCard';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
+import { WeeklySummary } from '../autocoach/WeeklySummary';
 import { resolveDayTarget, sessionFrom } from '../lib/session';
 import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
 
@@ -216,6 +217,9 @@ export function Home() {
       <SectionHead title="Check-in" />
       <CheckInCard />
       <SessionReceipt />
+
+      <SectionHead title="Weekly summary" />
+      <WeeklySummary />
 
       <SectionHead title="Readiness" />
       <Card>

@@ -96,7 +96,8 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
             : 'Nothing applies without your confirmation.'}
         </span>
         <button
-          className="ml-auto rounded px-1 py-0.5 text-3 text-muted outline outline-1 outline-line hover:text-text"
+          className="ml-auto shrink-0 rounded px-1 py-0.5 text-3 text-muted outline outline-1 outline-line hover:text-text focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
+          aria-pressed={policy.status === 'paused'}
           onClick={() =>
             updatePolicy((p) => ({ ...p, status: p.status === 'paused' ? 'active' : 'paused' }))
           }
@@ -105,7 +106,7 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         </button>
         {(r.state === 'safety_stop' || r.state === 'uncertain') && (
           <button
-            className="rounded bg-gold-wash px-1 py-0.5 text-3 text-gold2 outline outline-1 outline-gold-line"
+            className="shrink-0 rounded bg-gold-wash px-1 py-0.5 text-3 text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
             onClick={() => nav('/settings')}
           >
             Review check-in

@@ -5,6 +5,7 @@ import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { coachAllowed } from './guard';
 import { OnboardingPanel, useOnboarding } from './Onboarding';
+import { PolicyInspector } from './PolicyInspector';
 import { ProgramGrid } from './ProgramGrid';
 import { ResolutionPreview } from './ResolutionPreview';
 
@@ -19,6 +20,7 @@ export function CoachShell() {
   const [horizon, setHorizon] = useState<4 | 8 | 12>(8);
   const [showPreview, setShowPreview] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showPolicyInspector, setShowPolicyInspector] = useState(false);
   const onboarding = useOnboarding();
 
   const allowed = coachAllowed(
@@ -43,6 +45,12 @@ export function CoachShell() {
             Athlete setup {onboarding.done}/{onboarding.total}
           </button>
         )}
+        <button
+          onClick={() => setShowPolicyInspector(true)}
+          className="rounded-full bg-gold-wash px-1 py-0.5 text-[11px] tabular-nums text-gold2 outline outline-1 outline-gold-line"
+        >
+          Auto-Coached policy
+        </button>
         <div className="ml-auto flex items-center gap-1" role="group" aria-label="Weeks shown">
           {([4, 8, 12] as const).map((h) => (
             <button
@@ -91,6 +99,7 @@ export function CoachShell() {
         )}
       </div>
       {showOnboarding && <OnboardingPanel onClose={() => setShowOnboarding(false)} />}
+      {showPolicyInspector && <PolicyInspector onClose={() => setShowPolicyInspector(false)} />}
     </div>
   );
 }

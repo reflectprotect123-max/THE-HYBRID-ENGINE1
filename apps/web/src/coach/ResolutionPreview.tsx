@@ -302,7 +302,7 @@ export function ResolutionPreview() {
               const acked = !!bench.acks[ackKey(slim.weekStart, d.proposalId, d.reasonCode)];
               const editable = workouts.some((w) => w.id === d.proposalId);
               return (
-                <div key={`${d.proposalId}:${d.reasonCode}`} className={cx('py-0.5', acked && 'opacity-60')}>
+                <div key={`${d.proposalId}:${d.reasonCode}`} className={cx('py-0.5', acked && 'opacity-75')}>
                   <p className="text-[11px] text-muted">
                     <span className="text-warn">{REASON_LABEL[d.reasonCode] ?? d.reasonCode}</span>
                     {' — '}
@@ -313,7 +313,7 @@ export function ResolutionPreview() {
                   ) : (
                     <span className="mt-0.5 flex gap-1">
                       <button
-                        className="rounded px-1 py-[1px] text-[11px] text-muted outline outline-1 outline-line2 hover:text-text"
+                        className="rounded px-1 py-[1px] text-[11px] text-muted outline outline-1 outline-line2 hover:text-text focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
                         onClick={() => {
                           acknowledge(slim.weekStart, d.proposalId, d.reasonCode);
                           recordLedger('coach', `Reviewed drop of “${titleFor(d.proposalId)}” (${d.reasonCode})`);
@@ -323,7 +323,7 @@ export function ResolutionPreview() {
                       </button>
                       {editable && (
                         <button
-                          className="rounded bg-gold-wash px-1 py-[1px] text-[11px] text-gold2 outline outline-1 outline-gold-line"
+                          className="rounded bg-gold-wash px-1 py-[1px] text-[11px] text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
                           onClick={() => nav(`/planner/${d.proposalId}`)}
                           title="Edit the proposal so it can resolve differently — the Coordinator re-runs on save"
                         >
@@ -365,7 +365,7 @@ export function ResolutionPreview() {
             ))}
           </ul>
           <button
-            className="mt-1 rounded bg-gold-wash px-1 py-0.5 text-[11px] text-gold2 outline outline-1 outline-gold-line"
+            className="mt-1 rounded bg-gold-wash px-1 py-0.5 text-[11px] text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
             onClick={() => {
               setReviewBaseline(slim);
               recordLedger('coach', `Reviewed ${changes.length} plan change${changes.length === 1 ? '' : 's'} for week of ${slim.weekStart}`);

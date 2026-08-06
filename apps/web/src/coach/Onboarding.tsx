@@ -53,7 +53,7 @@ export function OnboardingPanel({ onClose }: { onClose: () => void }) {
               key={s.id}
               className={cx(
                 'rounded border border-line bg-panel p-1',
-                (s.done || s.skipped) && 'opacity-60',
+                (s.done || s.skipped) && 'opacity-75',
               )}
             >
               <div className="flex items-start gap-1">
@@ -78,7 +78,7 @@ export function OnboardingPanel({ onClose }: { onClose: () => void }) {
                 <span className="flex shrink-0 gap-0.5">
                   {!s.done && (
                     <button
-                      className="rounded bg-gold-wash px-1 py-[1px] text-[11px] text-gold2 outline outline-1 outline-gold-line"
+                      className="rounded bg-gold-wash px-1 py-[1px] text-[11px] text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
                       onClick={() => {
                         if (s.href) nav(s.href);
                         else onClose();
@@ -89,7 +89,8 @@ export function OnboardingPanel({ onClose }: { onClose: () => void }) {
                   )}
                   {s.skippable && !s.done && (
                     <button
-                      className="rounded px-1 py-[1px] text-[11px] text-dim outline outline-1 outline-line hover:text-text"
+                      className="rounded px-1 py-[1px] text-[11px] text-dim outline outline-1 outline-line hover:text-text focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
+                      aria-pressed={s.skipped}
                       onClick={() => toggleSkip(s.id)}
                     >
                       {s.skipped ? 'Unskip' : 'Skip'}
@@ -108,7 +109,7 @@ export function OnboardingPanel({ onClose }: { onClose: () => void }) {
         )}
         <div className="mt-1 flex justify-end">
           <button
-            className="rounded px-1 py-0.5 text-xs text-muted outline outline-1 outline-line2 hover:text-text"
+            className="rounded px-1 py-0.5 text-xs text-muted outline outline-1 outline-line2 hover:text-text focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
             onClick={onClose}
           >
             Close

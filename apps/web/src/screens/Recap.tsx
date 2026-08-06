@@ -17,6 +17,7 @@ import {
   type StrengthBlock,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { PostSessionFeedback } from '../autocoach/PostSessionFeedback';
 import { Button, Card, Kicker, ScreenTitle, SectionHead } from '../ui';
 
 /*
@@ -95,6 +96,9 @@ export function Recap() {
           </p>
         </Card>
       ) : null}
+
+      <SectionHead title="How did it go?" />
+      <PostSessionFeedback sessionId={s.id} kind={s.kind} />
 
       {/* The one thing this session changed about the next one. The logger says
           it a set at a time and it scrolls away; here it is the standing
