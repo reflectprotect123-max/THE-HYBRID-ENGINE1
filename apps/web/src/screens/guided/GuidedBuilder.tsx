@@ -135,46 +135,46 @@ export function GuidedBuilder() {
    * consumed — step back instead. A POP that genuinely leaves the route
    * unmounts this screen and never reaches here, which is exactly what should
    * happen from the first question.
+   *
+   * The step to land on is read from the POPPED entry's OWN `guidedStep`
+   * state (written by `guard` below), not recomputed by decrementing the
+   * CURRENT React `step`. Those two can drift: two forward pushes issued in
+   * quick succession can commit their location updates in a different render
+   * than the `setStep` that accompanies them, so `step` sometimes already
+   * reads the new value while `location` still reports the previous push's
+   * key — recomputing "previous" from that already-advanced `step` then
+   * skips a step on the way back. Reading the landed-on entry's own tag is
+   * immune to that: whichever entry a POP lands on, it says what it is.
+   *
+   * An entry with no `guidedStep` tag is the wizard's OWN initial /build/:id
+   * entry (from Library's "＋ New session" nav, which predates any `guard`
+   * call) — never anything to abandon to. A POP that actually leaves
+   * /build/:id unmounts this screen before this effect can run at all, so
+   * every untagged entry this ever sees is that first one: 'block-type'.
    */
-  const handleBackward = useCallback(() => {
-    if (phase === 'add-another') {
-      // Not a step, and the block is already saved, so the honest destination is
-      // the Planner — the same place "No, I'm done" goes.
-      if (id) nav(`/planner/${id}`, { replace: true });
-      return;
-    }
-    const prev = prevStep(step, { blockKind: draft.blockKind, isWarmupSet: draft.isWarmupSet });
-    if (prev) {
-      setStep(prev);
-      return;
-    }
-    // Already at the first question, on a guard entry left over from a remount.
-    abandon(true);
-  }, [abandon, draft.blockKind, draft.isWarmupSet, id, nav, phase, step]);
+  const handleBackward = useCallback(
+    (poppedState: unknown) => {
+      if (phase === 'add-another') {
+        // Not a step, and the block is already saved, so the honest destination is
+        // the Planner — the same place "No, I'm done" goes.
+        if (id) nav(`/planner/${id}`, { replace: true });
+        return;
+      }
+      const target = (poppedState as { guidedStep?: FlowStep } | null)?.guidedStep ?? 'block-type';
+      setStep(target);
+    },
+    [id, nav, phase],
+  );
 
   /* Only a location CHANGE matters, and only a backward one. The key guard also
      covers the first render, where react-router reports POP for a plain load. */
   const seenKey = useRef(location.key);
   useEffect(() => {
-    // TEMPORARY: tracing a CI-only failure (never reproduces locally) where
-    // this effect appears not to fire handleBackward() after page.goBack().
-    // Remove once the CI round-trip confirms or rules out the mechanism.
-    console.error(
-      '[DEBUG-nav] effect run: seenKey=' + seenKey.current + ' locKey=' + location.key +
-      ' navType=' + navType + ' step=' + step,
-    );
-    if (seenKey.current === location.key) {
-      console.error('[DEBUG-nav] skipped: key unchanged');
-      return;
-    }
+    if (seenKey.current === location.key) return;
     seenKey.current = location.key;
-    if (navType !== 'POP') {
-      console.error('[DEBUG-nav] skipped: navType not POP');
-      return;
-    }
-    console.error('[DEBUG-nav] calling handleBackward, step=' + step);
-    handleBackward();
-  }, [handleBackward, location.key, navType]);
+    if (navType !== 'POP') return;
+    handleBackward(location.state);
+  }, [handleBackward, location.key, location.state, navType]);
 
   if (!id) return null;
   const state = { blockKind: draft.blockKind, isWarmupSet: draft.isWarmupSet };
