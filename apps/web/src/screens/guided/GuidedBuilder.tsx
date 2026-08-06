@@ -156,9 +156,23 @@ export function GuidedBuilder() {
      covers the first render, where react-router reports POP for a plain load. */
   const seenKey = useRef(location.key);
   useEffect(() => {
-    if (seenKey.current === location.key) return;
+    // TEMPORARY: tracing a CI-only failure (never reproduces locally) where
+    // this effect appears not to fire handleBackward() after page.goBack().
+    // Remove once the CI round-trip confirms or rules out the mechanism.
+    console.error(
+      '[DEBUG-nav] effect run: seenKey=' + seenKey.current + ' locKey=' + location.key +
+      ' navType=' + navType + ' step=' + step,
+    );
+    if (seenKey.current === location.key) {
+      console.error('[DEBUG-nav] skipped: key unchanged');
+      return;
+    }
     seenKey.current = location.key;
-    if (navType !== 'POP') return;
+    if (navType !== 'POP') {
+      console.error('[DEBUG-nav] skipped: navType not POP');
+      return;
+    }
+    console.error('[DEBUG-nav] calling handleBackward, step=' + step);
     handleBackward();
   }, [handleBackward, location.key, navType]);
 
