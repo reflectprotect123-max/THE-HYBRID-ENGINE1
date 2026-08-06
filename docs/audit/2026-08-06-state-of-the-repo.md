@@ -79,7 +79,7 @@ comment.
 
 The spec's Testing section promises grid rendering against a fixture
 `EngineDB`, an adapter round-trip, and a property-tested projection. What
-exists is five pure-logic unit files:
+exists is six pure-logic unit files:
 
 ```
 apps/web/test/coach-guard.test.ts
@@ -87,6 +87,7 @@ apps/web/test/coach-diff.test.ts
 apps/web/test/coach-ops.test.ts
 apps/web/test/coach-projection.test.ts
 apps/web/test/coach-trends.test.ts
+apps/web/test/simulate-fixtures.test.ts
 ```
 
 No `.tsx` render test exists, and neither `react-smoke.mjs` nor

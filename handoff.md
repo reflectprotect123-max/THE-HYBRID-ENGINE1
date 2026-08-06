@@ -85,8 +85,9 @@ Full detail with file references: `docs/audit/2026-08-06-state-of-the-repo.md`.
 
 1. **The coach bench has no rendering test**, though its own spec asked for
    three (grid render against a fixture `EngineDB`, adapter round-trip,
-   property-tested projection). What exists is five pure-logic unit files —
-   `apps/web/test/coach-{guard,diff,ops,projection,trends}.test.ts` — and
+   property-tested projection). What exists is six pure-logic unit files —
+   `apps/web/test/coach-{guard,diff,ops,projection,trends}.test.ts` plus
+   `simulate-fixtures.test.ts` — and
    neither `checks/react-smoke.mjs` nor `checks/deploy-smoke.mjs` navigates
    to `/coach`. ~2,700 live lines, zero browser coverage.
 2. **The service worker still excludes `/coach`, for a reason that stopped

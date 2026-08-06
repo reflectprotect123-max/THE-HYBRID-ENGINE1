@@ -3,9 +3,28 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const conditioningBuild = process.env.VITE_HYBRID_PRODUCT === 'conditioning';
-const productName = conditioningBuild ? 'THE Conditioning System' : 'THE Hybrid System — Dashboard';
-const productShortName = conditioningBuild ? 'Conditioning' : 'Dashboard';
+/*
+ * Three builds, not two.
+ *
+ * `strength` and `conditioning` are the branded athlete builds; NO product set
+ * is the unfiltered dashboard, which is what the live site deploys. The
+ * earlier form of this was `conditioning ? … : dashboard`, copied from
+ * apps/mobile/app.config.js — but there the fallback arm IS strength's real
+ * identity (app.json's name/slug/package), whereas here the fallback is the
+ * dashboard. So `build:strength` silently produced a manifest named "THE
+ * Hybrid System — Dashboard" and the branded strength web build never
+ * actually existed. Switch on the value; do not infer it from the absence of
+ * the other one.
+ */
+const product = process.env.VITE_HYBRID_PRODUCT;
+const productName =
+  product === 'conditioning' ? 'THE Conditioning System'
+  : product === 'strength' ? 'THE Strength System'
+  : 'THE Hybrid System — Dashboard';
+const productShortName =
+  product === 'conditioning' ? 'Conditioning'
+  : product === 'strength' ? 'Strength'
+  : 'Dashboard';
 
 /*
  * The deployed CSP (see _headers, asserted by checks/pentest.mjs) is
@@ -32,8 +51,9 @@ export default defineConfig({
       manifest: {
         name: productName,
         short_name: productShortName,
-        description: conditioningBuild
-          ? 'Conditioning training — run, ride, row, recover.'
+        description:
+          product === 'conditioning' ? 'Conditioning training — run, ride, row, recover.'
+          : product === 'strength' ? 'Strength training — lift, progress, track.'
           : 'Train, program, and track — strength and conditioning in one place.',
         theme_color: '#070706',
         background_color: '#070706',

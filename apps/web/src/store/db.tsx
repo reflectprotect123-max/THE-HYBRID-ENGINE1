@@ -15,6 +15,7 @@ import {
   expireStaleSessions,
   loadDB,
   pruneCondTraces,
+  restrictToProduct,
   saveDB,
   sessionRpe,
   type EngineDB,
@@ -26,6 +27,8 @@ import {
 } from '@hybrid/engine';
 import { deriveAthleteState, summarizeTrainingFacts, type AthleteStateSnapshot, type TrainingFact } from '@hybrid/whole-athlete-state';
 import { buildWeeklyPlan, type WeeklyPlan } from '@hybrid/coordinator-adapter';
+import type { ProductId } from '@hybrid/product-scope';
+import { splitActiveSession, useDiscipline } from '../discipline';
 
 /*
  * The single owner of engine state.
@@ -39,8 +42,28 @@ import { buildWeeklyPlan, type WeeklyPlan } from '@hybrid/coordinator-adapter';
  * immediately background the app; an async write is a lost set.
  */
 
+/*
+ * Discipline scoping, and the one rule that matters.
+ *
+ * READS are scoped: `workouts`, `sessions` and `activeSession` show only the
+ * discipline the athlete is currently in, so a strength week and a
+ * conditioning week never share a screen.
+ *
+ * WRITES are not, and `db` stays whole. This is the same lesson the mobile
+ * sync partition paid for twice (see apps/mobile/src/cloud/sync.tsx): the
+ * moment a filtered view becomes the thing you write back, the records the
+ * filter excluded are invisible to the merge and get dropped. `update` and
+ * `updateSession` therefore still operate on the complete database, and the
+ * Coordinator and whole-athlete-state below still read every session — they
+ * are the layers whose whole job is seeing both disciplines at once, and
+ * scoping them is what would actually let a heavy squat land the day before
+ * hard intervals.
+ */
 interface DbCtx {
+  /** The COMPLETE database. Writes, Coordinator and athlete state use this. */
   db: EngineDB;
+  /** The discipline currently on screen. */
+  discipline: ProductId;
   /** Mutate a draft copy. Returning false aborts the write. */
   update: (fn: (draft: EngineDB) => void | false, opts?: { silent?: boolean }) => void;
   /** Mutate ONE session, cloning only that session — the hot path for typing a
@@ -54,8 +77,21 @@ interface DbCtx {
   setWhoop: (w: WhoopSample | null) => void;
   /** Everything the HR model needs, assembled from profile + live sample. */
   hr: HrContext;
+  /** Live session IN the current discipline. */
   activeSession: Session | null;
+  /**
+   * A live session in the OTHER discipline, if one exists.
+   *
+   * Scoping `activeSession` without surfacing this would strand it: the
+   * athlete switches tab mid-session, the session vanishes from every screen,
+   * and `expireStaleSessions` eventually ends it at the next day boundary
+   * without them ever seeing it again. Separation is a view rule, not a
+   * licence to lose logged work.
+   */
+  foreignActiveSession: Session | null;
+  /** Scoped to the current discipline. */
   workouts: Workout[];
+  /** Scoped to the current discipline. */
   sessions: Session[];
   settings: Settings;
   athleteState: AthleteStateSnapshot;
@@ -184,8 +220,14 @@ export function DbProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  const discipline = useDiscipline();
+
   const value = useMemo<DbCtx>(() => {
-    const activeSession = db.sessions.find((s) => s.status === 'active') || null;
+    const live = db.sessions.find((s) => s.status === 'active') || null;
+    const { activeSession, foreignActiveSession } = splitActiveSession(live, discipline);
+    // The scoped view. Derived from the full db every time rather than stored,
+    // so there is exactly one source of truth and no second copy to desync.
+    const scoped = restrictToProduct(db, discipline);
     const core = db.core || ensureSharedCore(db).core!;
     const facts: TrainingFact[] = db.sessions
       .filter((s) => s.status !== 'active' && !!s.completedAt)
@@ -206,6 +248,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
     const weeklyPlan = buildWeeklyPlan(db, athleteState, today);
     return {
       db,
+      discipline,
       update,
       updateSession,
       saveFailed,
@@ -214,13 +257,14 @@ export function DbProvider({ children }: { children: ReactNode }) {
       setWhoop,
       hr: { profile: db.settings.profile, whoop },
       activeSession,
-      workouts: db.workouts,
-      sessions: db.sessions,
+      foreignActiveSession,
+      workouts: scoped.workouts,
+      sessions: scoped.sessions,
       settings: db.settings,
       athleteState,
       weeklyPlan,
     };
-  }, [db, update, updateSession, saveFailed, dataRecovered, whoop]);
+  }, [db, discipline, update, updateSession, saveFailed, dataRecovered, whoop]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
