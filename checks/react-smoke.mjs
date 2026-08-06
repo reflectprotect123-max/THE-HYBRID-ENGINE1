@@ -133,8 +133,10 @@ await t('athlete app mounts and renders Home', async () => {
 });
 
 await t('zones are computed by Karvonen when a resting HR is known', async () => {
+  await page.goto(base + '/conditioning', { waitUntil: 'networkidle' });
   const txt = await page.textContent('body');
   assert(/Karvonen · resting 50/.test(txt), 'expected Karvonen method line, got: ' + txt.slice(0, 400));
+  await page.goto(base + '/', { waitUntil: 'networkidle' });
 });
 
 await t("today's plan surfaces the seeded workout", async () => {

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  conZones,
   hasLoggedWork,
   isCondWorkout,
   recoveryBand,
@@ -14,13 +13,11 @@ import {
   ymd,
   type Session,
   type Workout,
-  type Zones,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { CheckInCard } from '../autocoach/CheckInCard';
 import { ModeSwitcher } from '../autocoach/ModeSwitcher';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
-import { WeeklySummary } from '../autocoach/WeeklySummary';
 import { resolveDayTarget, sessionFrom } from '../lib/session';
 import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx } from '../ui';
 
@@ -29,28 +26,21 @@ import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx }
  *
  * Layout order is the vanilla app's: the one dominant tap first (resume, or
  * start today's session), the week at a glance, then readiness — because it
- * changes the answer — then the zone model the conditioning screen will hold
- * you to, and the week's honest totals last.
+ * changes the answer — and the week's honest totals last. Weekly volume and
+ * the full zone model live on Progress and Conditioning respectively, which
+ * own that content more fully; Home keeps only a door into each.
  *
  * The routes that have no tab of their own are reached from here by meaningful
  * doors rather than a pill row: the week strip's "Calendar ›" header opens
  * /calendar, each day IN the strip opens that day itself — /recap/:id for a
  * day already trained, /training for today, /day/:date otherwise, resolved by
- * `resolveDayTarget` — the zones card offers /conditioning, and the 7-day
+ * `resolveDayTarget` — "Start a run ›" opens /conditioning, and the 7-day
  * totals link to /history.
  */
 
-/** Emissive zone colours for lit dots and strips (01-foundations-colour-06):
- * glow brighter than the band inks, never used for text. */
-const ZONE_NEON: Record<string, string> = {
-  low: 'var(--color-neon-strain)',
-  mod: 'var(--color-neon-ok)',
-  high: 'var(--color-neon-bad)',
-};
-
 export function Home() {
   const nav = useNavigate();
-  const { db, whoop, hr, activeSession, sessions, update, athleteState, weeklyPlan } = useDb();
+  const { db, whoop, activeSession, sessions, update, athleteState, weeklyPlan } = useDb();
 
   const today = ymd(new Date());
   const rec = todayRecovery(whoop);
@@ -59,7 +49,6 @@ export function Home() {
   const sleep = todaySleepPerformance(whoop);
   const hrv = todayHrv(whoop);
   const rhr = Number.isFinite(Number(whoop?.restingHr)) && whoop?.restingHr != null ? Math.round(Number(whoop.restingHr)) : null;
-  const zones = useMemo(() => conZones(hr), [hr]);
   const gap = useMemo(() => rpeGapInfo(sessions), [sessions]);
 
   const dow = new Date().getDay();
@@ -224,9 +213,6 @@ export function Home() {
       <SessionReceipt />
       <ModeSwitcher />
 
-      <SectionHead title="Weekly summary" />
-      <WeeklySummary />
-
       <SectionHead title="Readiness" />
       <Card>
         <p className="mb-1 text-3 text-dim">
@@ -277,7 +263,9 @@ export function Home() {
         </div>
       </Card>
 
-      {/* Title is asserted verbatim by checks/react-smoke.mjs — keep the string. */}
+      {/* Title is asserted verbatim by checks/react-smoke.mjs — keep the string.
+          Full zone bars live on Conditioning, which holds you to them; this is
+          just the door. */}
       <SectionHead
         title="Your zones today"
         right={
@@ -286,7 +274,11 @@ export function Home() {
           </button>
         }
       />
-      <ZonesCard zones={zones} />
+      <Card tone="quiet">
+        <p className="text-3 text-dim">
+          Heart-rate zones for today's session, re-zoned for how you've recovered — full breakdown on Conditioning.
+        </p>
+      </Card>
 
       <SectionHead
         title="Last 7 days"
@@ -499,50 +491,6 @@ function PlanRow({
         ) : null}
       </SessionCard>
     </li>
-  );
-}
-
-/** HR zone rows per 04-athlete-06, lit with the neon set: glowing dot, a bar
- * whose length is each band's share of the working range, tabular bpm. */
-function ZonesCard({ zones }: { zones: Zones }) {
-  const span = Math.max(1, zones.max - zones.floor);
-  return (
-    <Card tone="quiet">
-      <div className="num flex items-baseline justify-between gap-1 text-3 text-dim">
-        <span>
-          max {zones.max} bpm · {zones.method === 'hrr' ? 'Karvonen · resting ' + zones.rest : 'percent of max'}
-        </span>
-        {zones.adj !== 0 ? <span className="shrink-0 text-gold2">re-zoned today</span> : null}
-      </div>
-      <ul className="mt-1 flex flex-col">
-        {zones.list.map((b) => {
-          const neon = ZONE_NEON[b.key];
-          return (
-            <li key={b.key} className="flex items-center gap-1 py-0.5">
-              <span
-                aria-hidden
-                className="h-1 w-1 shrink-0 rounded-pill"
-                style={{ background: neon, boxShadow: `0 0 6px ${neon}` }}
-              />
-              <span className="w-12 shrink-0 text-4 font-[650]">{b.name}</span>
-              <span className="h-0.5 min-w-0 flex-1 overflow-hidden rounded-pill bg-track">
-                <span
-                  className="block h-full rounded-pill"
-                  style={{
-                    width: `${Math.round((100 * (b.hi - b.lo)) / span)}%`,
-                    background: neon,
-                    boxShadow: `0 0 8px ${neon}`,
-                  }}
-                />
-              </span>
-              <span className="num w-7 shrink-0 text-right text-3 text-muted">
-                {b.lo}–{b.hi}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </Card>
   );
 }
 

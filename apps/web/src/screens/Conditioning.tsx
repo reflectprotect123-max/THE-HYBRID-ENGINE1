@@ -444,7 +444,10 @@ export function Conditioning() {
 
           <SectionHead title="Zones you'll be held to" />
           <Card>
-            <ul className="flex flex-col gap-0.5">
+            <p className="num text-3 text-dim">
+              max {zones.max} bpm · {zones.method === 'hrr' ? 'Karvonen · resting ' + zones.rest : 'percent of max'}
+            </p>
+            <ul className="mt-0.5 flex flex-col gap-0.5">
               {zones.list.map((b) => (
                 <li key={b.key} className="flex items-center gap-1">
                   <span
