@@ -22,7 +22,6 @@
  * what a file-level jest.mock does.
  */
 import { act, render } from '@testing-library/react-native';
-import { useDb } from '../src/store/db';
 import {
   CONDITIONING,
   STRENGTH,
@@ -75,6 +74,14 @@ beforeEach(resetServer);
 
 /* ---- harness (per-file: needs the lazily-required sync module) ----------- */
 
+/**
+ * The app's own provider order: DbProvider outside, because SyncProvider reads
+ * the store through `useDb()` (see App.tsx). The store module is required
+ * lazily for the same reason sync is — store/db.tsx reaches src/product, so a
+ * static import would hoist product's env read above the binding line.
+ */
+const { DbProvider, useDb } = require('../src/store/db') as typeof import('../src/store/db');
+
 type SyncApi = ReturnType<SyncModule['useSync']>;
 type DbApi = ReturnType<typeof useDb>;
 
@@ -86,14 +93,6 @@ function Probe() {
   dbApi = useDb();
   return null;
 }
-
-/**
- * The app's own provider order: DbProvider outside, because SyncProvider reads
- * the store through `useDb()` (see App.tsx). DbProvider is required lazily for
- * the same reason sync is — store/db.tsx is allowed to (and after the merge
- * work, does) reach src/product.
- */
-const { DbProvider } = require('../src/store/db') as typeof import('../src/store/db');
 
 const mount = () =>
   render(
