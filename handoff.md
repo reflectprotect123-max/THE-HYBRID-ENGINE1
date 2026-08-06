@@ -138,6 +138,16 @@
      with the user rather than assuming the original spec still stands
      as-is, since the engine architecture it targeted no longer exists.
 
+7. **`reflectprotect123-max/thehybridsystem` is retired — do not use it.**
+   Unrelated GitHub repo (lowercase, no dashes; not this repo, not a rename
+   of it) that a Claude Code web session was defaulted onto. It never held
+   real project work — briefly an `APPROVAL_CHECKLIST.md` for an unrelated
+   "Adaptive Training Engine" effort, then an unrelated MacroTrack Android
+   app got imported onto its `main`. The user explicitly said: nothing from
+   it should be used in this session, only `THE-HYBRID-ENGINE1`. Do not
+   `add_repo` it, read from it, or treat anything in it as authoritative for
+   this project, even if a session's harness binding defaults there again.
+
 ---
 
 > **AUTHORITATIVE CHECKPOINT — 4 August 2026 (integration pass)**
