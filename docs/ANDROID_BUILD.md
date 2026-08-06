@@ -90,32 +90,23 @@ cannot silently become a second Strength app.
 
 ## The merged app (August 2026)
 
-**A build with `EXPO_PUBLIC_HYBRID_PRODUCT` unset is now the MERGED app** —
-both worlds in one install, a runtime switch in Settings, sync carrying both
-kinds. That is what the default `preview`/`production` profiles produce, so
-existing Strength installs update in place into the merged app; nothing about
-those profiles or `com.hybridengine.app` changed. See
-`docs/superpowers/specs/2026-08-06-android-app-merge-design.md`.
+**Every build is the merged app** — both worlds in one install, a runtime
+switch in Settings, sync carrying both kinds. The default
+`preview`/`production` profiles produce it, so the old Strength installs
+updated in place; nothing about those profiles or `com.hybridengine.app`
+changed. See `docs/superpowers/specs/2026-08-06-android-app-merge-design.md`.
 
-## Conditioning Android build (legacy — farewell path only)
+`EXPO_PUBLIC_HYBRID_PRODUCT` is retired. Setting it to ANY value now fails the
+app at startup (`apps/mobile/src/product.ts`) — that guard exists so a stale
+CI profile or env file cannot silently resurrect a single-product build.
 
-The standalone conditioning app is being retired. Its profiles remain ONLY to
-ship the farewell release (a force-sync card pointing at the merged app);
-after that ships and ages, the profiles, the `isConditioning` branch in
-`app.config.js`, and the separate EAS project are removed (merge plan,
-Task 9 — gated on the user's word).
-
-Conditioning is a separate product identity. Its preview/production profiles
-set `EXPO_PUBLIC_HYBRID_PRODUCT=conditioning` and use
-`com.hybridengine.conditioning`. Before building it, create/link a separate EAS
-project and supply:
-
-- `EXPO_PUBLIC_CONDITIONING_EAS_PROJECT_ID`;
-- `GOOGLE_MAPS_API_KEY` as an EAS/GitHub secret if route maps are required;
-- a signing key appropriate for that separate Android package.
-
-Do not reuse the Strength package ID or silently reuse its signing key for a
-publicly separate product without deciding how Play Store identity should work.
+The standalone conditioning app (`com.hybridengine.conditioning`) shipped its
+farewell release (built from the pre-cleanup history at `48d3064^`, a
+force-sync card pointing at the merged app) and was then retired: its EAS
+profiles, the `isConditioning` branch of `app.config.js`, and the legacy
+single-product code paths were all removed. To rebuild the farewell APK for
+any reason, check out the merge commit `48d3064` and use its
+`conditioning-preview` profile.
 
 ## Why a build may fail in this workspace
 

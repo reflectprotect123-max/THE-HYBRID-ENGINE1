@@ -17,7 +17,6 @@ import {
 } from '@hybrid/engine';
 import { resolvePalette, useTheme } from '@hybrid/design';
 import { setDiscipline, useDiscipline } from '../discipline';
-import { IS_MERGED } from '../product';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
@@ -73,7 +72,6 @@ function Field({
  */
 function WorldSwitch() {
   const discipline = useDiscipline();
-  if (!IS_MERGED) return null;
   const other = discipline === 'strength' ? 'conditioning' : 'strength';
   const otherName = other === 'conditioning' ? 'Conditioning' : 'Strength';
   const otherAccent = resolvePalette(other).gold;
