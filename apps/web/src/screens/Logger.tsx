@@ -366,8 +366,12 @@ export function Logger() {
       </div>
 
       {/* Hugs its content: stretching it to fill the viewport left a dead
-          panel below the set history with nothing in it. */}
-      <Card className="mt-2 shadow-lift">
+          panel below the set history with nothing in it.
+          Not `tone="raised"`: raised marks a one-off highlight (Home's
+          Resume/Start card), but this card is the permanent working
+          surface — every set gets logged inside it, so a gold edge here
+          would be chrome, not a highlight. Plain default tone. */}
+      <Card className="mt-2">
         <div className="flex items-center gap-1">
           <LetterChip letter={letter} onClick={() => nav('/training')} />
           <span className="min-w-0 flex-1 truncate text-7 font-[800]">{ex.name || 'Exercise'}</span>
@@ -563,7 +567,7 @@ export function Logger() {
               'mt-2 rounded-md border px-1 py-1 text-4',
               hint.cls === 'good'
                 ? 'border-gold-line bg-gold-wash text-gold2'
-                : 'border-[color:var(--color-bad)]/40 bg-[color:var(--color-bad)]/10 text-bad',
+                : 'border-bad/40 bg-bad/10 text-bad',
             )}
           >
             {hint.txt}
@@ -752,7 +756,7 @@ function SecondsTimerField({
           onChange={(e) => onChange(e.target.value)}
           readOnly={mine}
           inputMode="numeric"
-          className="h-[56px] flex-1 rounded-md border border-line bg-well text-center text-9 text-text"
+          className="h-7 flex-1 rounded-md border border-line bg-well text-center text-9 text-text"
         />
         {mine ? (
           <Button variant="ghost" size="sm" onClick={() => onChange(String(timer.stop()))}>
@@ -781,7 +785,7 @@ function RpeStep({ rpe, onRpe, onConfirm }: { rpe: number; onRpe: (n: number) =>
         value={rpe}
         onChange={(e) => onRpe(Number(e.target.value))}
         aria-label="RPE from 1 to 10"
-        className="mt-1 w-full accent-[color:var(--color-gold2)]"
+        className="mt-1 w-full accent-gold2"
       />
       <div className="flex justify-between text-2 text-dim">
         <span>1 · barely felt it</span>

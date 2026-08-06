@@ -18,7 +18,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { PostSessionFeedback } from '../autocoach/PostSessionFeedback';
-import { Button, Card, Kicker, ScreenTitle, SectionHead } from '../ui';
+import { Button, Card, Kicker, ScreenTitle, SectionHead, Stat, cx } from '../ui';
 
 /*
  * What just happened. Shown after a session finishes.
@@ -113,15 +113,10 @@ export function Recap() {
                   <span className="min-w-0 flex-1 truncate text-4 font-[650]">{m.name}</span>
                   <span className="num text-4 text-muted">{m.from} →</span>
                   <span
-                    className="num text-4 font-[750]"
-                    style={{
-                      color:
-                        m.delta > 0
-                          ? 'var(--color-ok)'
-                          : m.delta < 0
-                            ? 'var(--color-bad)'
-                            : 'var(--color-muted)',
-                    }}
+                    className={cx(
+                      'num text-4 font-[750]',
+                      m.delta > 0 ? 'text-ok' : m.delta < 0 ? 'text-bad' : 'text-muted',
+                    )}
                   >
                     {m.to}kg
                   </span>
@@ -184,17 +179,5 @@ export function Recap() {
         Done
       </Button>
     </>
-  );
-}
-
-function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
-  return (
-    <Card className="py-1.5">
-      <div className="text-2 font-[750] uppercase tracking-[.14em] text-dim">{label}</div>
-      <div className="num mt-0.5 text-8 font-[900] text-text">
-        {value}
-        {unit ? <span className="ml-0.5 text-4 font-[500] text-dim">{unit}</span> : null}
-      </div>
-    </Card>
   );
 }

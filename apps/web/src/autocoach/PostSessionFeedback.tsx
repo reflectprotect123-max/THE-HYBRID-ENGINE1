@@ -82,7 +82,7 @@ export function PostSessionFeedback({ sessionId, kind }: { sessionId: string; ki
           value={effort}
           onChange={(e) => setEffort(Number(e.target.value))}
           aria-label="Session effort from 1 to 10"
-          className="mt-0.5 w-full accent-[color:var(--color-gold2)]"
+          className="mt-0.5 w-full accent-gold2"
         />
       </div>
 

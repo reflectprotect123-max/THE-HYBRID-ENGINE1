@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { agoLabel, barScale, exLogFor, knownMovements, type ExerciseHistoryEntry } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Card, Empty, Field, Kicker, ScreenTitle, SectionHead, cx } from '../ui';
+import { Card, Empty, Field, Kicker, ScreenTitle, SectionHead, Stat } from '../ui';
 
 /*
  * One movement, all of it.
@@ -184,16 +184,6 @@ function E1rmTrend({ log: all }: { log: ExerciseHistoryEntry[] }) {
         {' · from your best set each session'}
       </p>
     </div>
-  );
-}
-
-function Stat({ label, value, sub, tint }: { label: string; value: string; sub?: string; tint?: boolean }) {
-  return (
-    <Card tone="quiet" className="py-1.5">
-      <p className="text-2 text-dim">{label}</p>
-      <b className={cx('num mt-0.5 block text-7 font-[900]', tint ? 'text-gold2' : 'text-text')}>{value}</b>
-      {sub ? <p className="num mt-0.5 text-2 text-dim">{sub}</p> : null}
-    </Card>
   );
 }
 

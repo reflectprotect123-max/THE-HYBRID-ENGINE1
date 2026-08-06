@@ -222,11 +222,17 @@ export function Stat({
   label,
   tint,
   size = 'md',
+  unit,
+  sub,
 }: {
   value: string;
   label: string;
   tint?: boolean;
   size?: 'sm' | 'md';
+  /** Suffix appended inline after the value, e.g. "kg". */
+  unit?: string;
+  /** Second line under the value — a qualifier the bare number can't carry. */
+  sub?: string;
 }) {
   if (size === 'sm') {
     return (
@@ -238,8 +244,12 @@ export function Stat({
   }
   return (
     <Card tone="quiet" className="py-1.5 text-center">
-      <b className={cx('num block text-7 font-[900]', tint ? 'text-gold2' : 'text-text')}>{value}</b>
+      <b className={cx('num block text-7 font-[900]', tint ? 'text-gold2' : 'text-text')}>
+        {value}
+        {unit ? <span className="ml-0.5 text-4 font-[500] text-dim">{unit}</span> : null}
+      </b>
       <span className="mt-0.5 block text-2 text-dim">{label}</span>
+      {sub ? <span className="num mt-0.5 block text-2 text-dim">{sub}</span> : null}
     </Card>
   );
 }

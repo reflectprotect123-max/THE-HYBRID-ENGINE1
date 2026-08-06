@@ -15,7 +15,7 @@ import {
   type StrengthBlock,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Card, Empty, Kicker, ScreenTitle, SectionHead } from '../ui';
+import { Card, Empty, Kicker, ScreenTitle, SectionHead, cx } from '../ui';
 
 /*
  * History and Progress in one place, because they answer the same question at
@@ -69,17 +69,16 @@ export function History() {
                   <span className="min-w-0 flex-1 truncate text-4 font-[650]">{d.name}</span>
                   <span className="num text-4 text-muted">{Math.round(d.e1)}kg e1RM</span>
                   <span
-                    className="num w-8 text-right text-4 font-[750]"
-                    style={{
-                      color:
-                        d.delta == null
-                          ? 'var(--color-dim)'
-                          : d.delta > 0
-                            ? 'var(--color-ok)'
-                            : d.delta < 0
-                              ? 'var(--color-bad)'
-                              : 'var(--color-muted)',
-                    }}
+                    className={cx(
+                      'num w-8 text-right text-4 font-[750]',
+                      d.delta == null
+                        ? 'text-dim'
+                        : d.delta > 0
+                          ? 'text-ok'
+                          : d.delta < 0
+                            ? 'text-bad'
+                            : 'text-muted',
+                    )}
                   >
                     {d.delta == null ? '—' : (d.delta > 0 ? '+' : '') + Math.round(d.delta)}
                   </span>

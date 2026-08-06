@@ -100,7 +100,7 @@ export function Settings() {
       <ScreenTitle>Your numbers</ScreenTitle>
 
       {saveFailed ? (
-        <Card className="mt-2 border-[color:var(--color-bad)]/40 bg-[color:var(--color-bad)]/10">
+        <Card className="mt-2 border-bad/40 bg-bad/10">
           <p className="text-4 text-bad">
             The last save failed — usually private browsing or a full disk. Export a backup before you train again.
           </p>

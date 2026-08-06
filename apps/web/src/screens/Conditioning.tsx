@@ -465,7 +465,7 @@ export function Conditioning() {
           </Card>
 
           {hold.held ? (
-            <Card className="mt-2 border-[color:var(--color-bad)]/40 bg-[color:var(--color-bad)]/10">
+            <Card className="mt-2 border-bad/40 bg-bad/10">
               <p className="text-4 text-bad">{hold.note}</p>
               <Button variant="brass" size="md" className="mt-1.5 w-full" onClick={acknowledgePainHold}>
                 I&apos;m ready to continue

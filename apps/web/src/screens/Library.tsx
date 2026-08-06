@@ -443,7 +443,7 @@ function WorkoutRow({
                   setArmDel(null);
                 } else setArmDel(w.id);
               }}
-              className={armDel === w.id ? 'border-[color:var(--color-bad)]/40 text-bad' : undefined}
+              className={armDel === w.id ? 'border-bad/40 text-bad' : undefined}
             >
               {armDel === w.id ? 'Really delete?' : 'Delete session'}
             </Button>
