@@ -22,6 +22,7 @@ import { useTheme } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { IS_MERGED, PRODUCT_ID } from '../product';
+import { setDiscipline, useDiscipline } from '../discipline';
 import { resolveDayTarget, sessionFrom } from '../store/session';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
@@ -78,6 +79,32 @@ function FarewellCardBody() {
         <T className="mt-1.5 text-4 text-muted">Sign in under Settings first, so your data has somewhere to go.</T>
       )}
     </Card>
+  );
+}
+
+/**
+ * The reason foreignActiveSession exists, made visible: a session left live
+ * in the OTHER world would otherwise run silently until expireStaleSessions
+ * ends it at the next day boundary — logged work lost to a tab the athlete
+ * forgot they were in. One tap moves to that world, where the normal
+ * "In progress" card takes over.
+ */
+function ForeignSessionNotice() {
+  const { foreignActiveSession } = useDb();
+  const discipline = useDiscipline();
+  if (!foreignActiveSession) return null;
+  const other = discipline === 'strength' ? 'conditioning' : 'strength';
+  const otherName = other === 'conditioning' ? 'Conditioning' : 'Strength';
+  return (
+    <Tap
+      box={{ h: 48 }}
+      onPress={() => setDiscipline(other)}
+      accessibilityLabel={`A session is in progress in ${otherName} — switch to it`}
+      className="mt-2 flex-row items-center justify-between rounded-md border border-gold-line bg-gold-wash px-2 py-1.5"
+    >
+      <T className="text-4 text-text">Session in progress in {otherName}</T>
+      <T className="text-4 text-muted">Switch →</T>
+    </Tap>
   );
 }
 
@@ -171,6 +198,7 @@ export function HomeScreen() {
       </T>
 
       <FarewellCard />
+      <ForeignSessionNotice />
 
       <View className="mt-2 mb-1 flex-row items-end justify-between gap-1">
         <T w="semi" className="text-1 uppercase text-dim" style={{ letterSpacing: 1.4 }}>
