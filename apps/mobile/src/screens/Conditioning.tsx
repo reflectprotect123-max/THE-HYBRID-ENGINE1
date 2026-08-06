@@ -56,7 +56,7 @@ const MIN_LOGGABLE_SEC = 20;
 
 export function ConditioningScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { db, hr, whoop, update, activeSession } = useDb();
+  const { db, sessions, hr, whoop, update, activeSession } = useDb();
   // Which block of the live session this run belongs to, when it was started
   // from one. Absent for a standalone run off Home.
   const route = useRoute<RouteProp<RootStackParams, 'Conditioning'>>();
@@ -177,7 +177,7 @@ export function ConditioningScreen() {
    * known here for anything else, and guessing one would let a rowing pain
    * stop silently hold (or fail to hold) an unrelated bucket.
    */
-  const hold = useMemo(() => painHoldFor(fmt, db.sessions, db.settings), [fmt, db.sessions, db.settings]);
+  const hold = useMemo(() => painHoldFor(fmt, sessions, db.settings), [fmt, sessions, db.settings]);
 
   /** The only way past the gate: mark this format's pain stop acknowledged,
    *  which is what lets `hold` recompute to `held: false` on the next render. */

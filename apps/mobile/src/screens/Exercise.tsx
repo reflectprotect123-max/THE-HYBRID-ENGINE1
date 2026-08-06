@@ -27,10 +27,10 @@ export function ExerciseScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<RouteProp<RootStackParams, 'Exercise'>>();
   const movement = route.params?.name || '';
-  const { db } = useDb();
+  const { workouts, sessions } = useDb();
 
-  const log = useMemo(() => exLogFor(movement, db.sessions), [movement, db.sessions]);
-  const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  const log = useMemo(() => exLogFor(movement, sessions), [movement, sessions]);
+  const movements = useMemo(() => knownMovements(workouts, sessions), [workouts, sessions]);
   const [q, setQ] = useState('');
   const [all, setAll] = useState(false);
 

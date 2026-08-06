@@ -39,12 +39,12 @@ import type { RootStackParams } from '../App';
 export function TrainingScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const insets = useSafeAreaInsets();
-  const { db, activeSession, update } = useDb();
+  const { workouts, sessions, activeSession, update } = useDb();
   const { running: restRunning, left: restLeft, stop: stopRest } = useRest();
   const today = ymd(new Date());
   const dow = new Date().getDay();
 
-  const candidates = db.workouts.filter(
+  const candidates = workouts.filter(
     (w) => (w.dates || []).includes(today) || (w.days || []).includes(dow),
   );
 
@@ -76,7 +76,7 @@ export function TrainingScreen() {
   const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);
   // Against every OTHER session — comparing a session with itself would call
   // its own first working set a record.
-  const prs = useMemo(() => (s ? detectPRs(s, db.sessions.filter((x) => x.id !== s.id)) : []), [s, db.sessions]);
+  const prs = useMemo(() => (s ? detectPRs(s, sessions.filter((x) => x.id !== s.id)) : []), [s, sessions]);
   const volume = useMemo(() => (s ? sessionVolume(s) : 0), [s]);
   /* Which exercise you are on. Guarded on `s` like every hook above it, so the
      count is identical whether or not a session is live — typecheck is blind
@@ -108,19 +108,19 @@ export function TrainingScreen() {
           ))
         ) : (
           <Empty
-            title={db.workouts.length ? 'Nothing scheduled for today' : 'Nothing in your library yet'}
+            title={workouts.length ? 'Nothing scheduled for today' : 'Nothing in your library yet'}
             body={
-              db.workouts.length
+              workouts.length
                 ? 'Anything in your Library can be started now — scheduling is a convenience, not a gate.'
                 : 'Build your first session in the Library to get started.'
             }
           />
         )}
 
-        {db.workouts.length && !candidates.length ? (
+        {workouts.length && !candidates.length ? (
           <>
             <SectionHead title="Everything else" />
-            {db.workouts.map((w) => (
+            {workouts.map((w) => (
               <View key={w.id} className="mt-1 flex-row items-center rounded-lg border border-line bg-panel p-2">
                 <T w="semi" className="min-w-0 flex-1 text-5 text-text" numberOfLines={1}>
                   {w.name || 'Session'}

@@ -8,14 +8,19 @@ import {
   pruneCondTraces,
   saveDB,
   sessionRpe,
+  restrictToProduct,
   type EngineDB,
   type HrContext,
   type Session,
   type WhoopSample,
+  type Workout,
 } from '@hybrid/engine';
 import { deriveAthleteState, summarizeTrainingFacts, type AthleteStateSnapshot, type TrainingFact } from '@hybrid/whole-athlete-state';
 import { buildWeeklyPlan, type WeeklyPlan } from '@hybrid/coordinator-adapter';
+import type { ProductId } from '@hybrid/product-scope';
 import { storage } from './storage';
+import { splitActiveSession, useDiscipline } from '../discipline';
+import { IS_MERGED } from '../product';
 
 /*
  * Identical in shape to the web app's store, and deliberately so: the two apps
@@ -23,8 +28,30 @@ import { storage } from './storage';
  * through one place and persists immediately.
  */
 
+/*
+ * Merged-app scoping: READS are scoped — `workouts`, `sessions` and
+ * `activeSession` show only the world the athlete is in. `db` and WRITES are
+ * not: a filtered view must never become the thing written back or merged
+ * (the 5 Aug C1/C2 data-loss lesson, see cloud/sync.tsx), and the Coordinator
+ * and whole-athlete-state below read every session because seeing both worlds
+ * is their whole job. Legacy single-product builds scope nothing — their db
+ * is already narrowed by sync.
+ */
 interface DbCtx {
+  /** The COMPLETE database. Writes, sync, Coordinator, athlete state, backup. */
   db: EngineDB;
+  /** The world currently on screen ('strength' in legacy builds' terms). */
+  discipline: ProductId;
+  /** Scoped to the current world in the merged app. */
+  workouts: Workout[];
+  /** Scoped to the current world in the merged app. */
+  sessions: Session[];
+  /**
+   * A live session in the OTHER world, if any. Scoping `activeSession` without
+   * surfacing this would strand mid-session work for expireStaleSessions to
+   * silently end at the next day boundary.
+   */
+  foreignActiveSession: Session | null;
   update: (fn: (draft: EngineDB) => void | false) => void;
   /**
    * Mutate ONE session, cloning only that session rather than the whole
@@ -75,6 +102,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
   const [dataRecovered] = useState(() => recoveredAtBoot.current);
   const [saveFailed, setSaveFailed] = useState(false);
   const [whoop, setWhoop] = useState<WhoopSample | null>(null);
+  const discipline = useDiscipline();
 
   const ref = useRef(db);
   ref.current = db;
@@ -191,8 +219,18 @@ export function DbProvider({ children }: { children: ReactNode }) {
         recentTraining: summarizeTrainingFacts(facts),
       });
       const weeklyPlan = buildWeeklyPlan(db, athleteState, today);
+      const live = db.sessions.find((s) => s.status === 'active') || null;
+      const { activeSession, foreignActiveSession } = IS_MERGED
+        ? splitActiveSession(live, discipline)
+        : { activeSession: live, foreignActiveSession: null };
+      // Derived from the full db every time rather than stored — one source of
+      // truth, no second copy to desync.
+      const scoped = IS_MERGED ? restrictToProduct(db, discipline) : db;
       return {
         db,
+        discipline,
+        workouts: scoped.workouts,
+        sessions: scoped.sessions,
         update,
         updateSession,
         saveFailed,
@@ -200,12 +238,13 @@ export function DbProvider({ children }: { children: ReactNode }) {
         whoop,
         setWhoop,
         hr: { profile: db.settings.profile, whoop },
-        activeSession: db.sessions.find((s) => s.status === 'active') || null,
+        activeSession,
+        foreignActiveSession,
         athleteState,
         weeklyPlan,
       };
     },
-    [db, update, updateSession, saveFailed, dataRecovered, whoop],
+    [db, discipline, update, updateSession, saveFailed, dataRecovered, whoop],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

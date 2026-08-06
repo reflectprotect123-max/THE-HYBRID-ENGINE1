@@ -140,7 +140,7 @@ function SecondsTimerField({
 
 export function LoggerScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { activeSession, db, whoop, updateSession } = useDb();
+  const { activeSession, db, sessions, whoop, updateSession } = useDb();
   const rest = useRest();
   /* Consumed by the SCREEN, not only by the field. While a hold runs the box
      shows `timer.left` and `v1` still holds the prefilled target, so the
@@ -203,11 +203,11 @@ export function LoggerScreen({ route, navigation }: Props) {
       ex.mode === 'seconds' && setTimer.finished && setTimer.owner === setKey && setTimer.total > 0
         ? String(setTimer.total)
         : null;
-    setV1(claimed ?? prefillPrimary(ex, si, db.sessions, { settings: db.settings, whoop }));
+    setV1(claimed ?? prefillPrimary(ex, si, sessions, { settings: db.settings, whoop }));
     setV2(prefillSecondary(ex, si));
     setNoteOpen(false);
     setPlatesOpen(false);
-  }, [ex, si, setKey, db.sessions, db.settings, whoop, setTimer]);
+  }, [ex, si, setKey, sessions, db.settings, whoop, setTimer]);
 
   useEffect(() => {
     if (phase === 'rest' && !rest.running) setPhase('input');
@@ -262,9 +262,9 @@ export function LoggerScreen({ route, navigation }: Props) {
   const strengthSuggestion = useMemo(
     () =>
       isFirstWorkingSet && ex && lift && st && !isWarmup(st)
-        ? decideStrengthProgression(ex.name, db.sessions, { t: st.t, rpe: st.rpe })
+        ? decideStrengthProgression(ex.name, sessions, { t: st.t, rpe: st.rpe })
         : null,
-    [isFirstWorkingSet, ex, lift, st, db.sessions],
+    [isFirstWorkingSet, ex, lift, st, sessions],
   );
 
   if (!s || !block || isCond(block) || !ex) {

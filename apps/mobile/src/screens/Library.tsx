@@ -43,7 +43,7 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
  */
 export function LibraryScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { db, update } = useDb();
+  const { db, workouts, sessions, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   // 'NEW' while creating a folder, a folder id while renaming one, else null.
@@ -66,14 +66,14 @@ export function LibraryScreen() {
   const [tab, setTab] = useState<'sessions' | 'exercises' | 'mobility'>('sessions');
   const [q, setQ] = useState('');
 
-  const mine = db.workouts;
+  const mine = workouts;
   // Memoized, not just `|| []` inline: when `db.settings.folders` is
   // undefined that fallback mints a fresh array every render, which defeats
   // `ungrouped`'s own useMemo below on every render regardless of whether
   // anything folder-related actually changed.
   const folders = useMemo(() => db.settings.folders || [], [db.settings.folders]);
   const ungrouped = useMemo(() => ungroupedWorkouts(mine, folders), [mine, folders]);
-  const movements = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  const movements = useMemo(() => knownMovements(workouts, sessions), [workouts, sessions]);
   const mobility = useMemo(
     () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
     [db.settings.mobility],
@@ -100,7 +100,7 @@ export function LibraryScreen() {
   const duplicate = (w: Workout) => {
     // The library's own names, so the copy lands on one that is not already in
     // the list it is about to join — see `duplicateWorkout`.
-    const copy = duplicateWorkout(w, db.workouts.map((x) => x.name || ''));
+    const copy = duplicateWorkout(w, workouts.map((x) => x.name || ''));
     update((d) => {
       d.workouts.push(copy);
     });
@@ -239,7 +239,7 @@ export function LibraryScreen() {
           setQ('');
         }}
         tabs={[
-          { key: 'sessions', label: 'Sessions', count: db.workouts.length },
+          { key: 'sessions', label: 'Sessions', count: workouts.length },
           { key: 'exercises', label: 'Exercises', count: movements.length },
           { key: 'mobility', label: 'Mobility', count: mobility.length },
         ]}
@@ -539,8 +539,8 @@ function NameList({
  * have never trained should say nothing, not "last trained never · opens at".
  */
 function Signal({ w }: { w: Workout }) {
-  const { db, whoop } = useDb();
-  const stats = useMemo(() => workoutStats(w, db.sessions), [w, db.sessions]);
+  const { db, sessions, whoop } = useDb();
+  const stats = useMemo(() => workoutStats(w, sessions), [w, sessions]);
   // Through sessionOpeners, so this figure and the one the logger prefills come
   // from the same function — including the red-morning easing.
   const opens = useMemo(() => sessionOpeners(w, db.settings, whoop), [w, db.settings, whoop]);

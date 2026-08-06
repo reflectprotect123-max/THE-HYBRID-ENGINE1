@@ -55,8 +55,13 @@ export function GuidedBuilderScreen() {
   const { params } = useRoute<RouteProp<RootStackParams, 'GuidedBuilder'>>();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const insets = useSafeAreaInsets();
-  const { db, update } = useDb();
-  const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
+  const { db, workouts, sessions, update } = useDb();
+  const known = useMemo(() => knownMovements(workouts, sessions), [workouts, sessions]);
+  // By-id subject lookup goes through the WHOLE db, not the scoped view: the
+  // guided flow itself flips a new workout's kind to conditioning the moment a
+  // conditioning block is added, and a scoped lookup would make the editor
+  // lose the workout it is editing mid-flow. Holding the id is authorization
+  // enough; scoping is for discovery surfaces, not the subject in hand.
   const currentWorkout = db.workouts.find((x) => x.id === params.id);
   // A workout that has already committed to a kind only offers that kind's
   // blocks; a brand-new one (no kind yet) offers all four and commits on the

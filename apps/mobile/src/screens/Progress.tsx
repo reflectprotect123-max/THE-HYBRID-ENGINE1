@@ -35,12 +35,12 @@ import type { RootStackParams } from '../App';
  */
 export function ProgressScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { db, hr } = useDb();
+  const { db, hr, sessions } = useDb();
   const zones = useMemo(() => conZones(hr), [hr]);
 
-  const weeks = useMemo(() => weekly(db.sessions, 8), [db.sessions]);
-  const zoneWeek = useMemo(() => thisWeek(db.sessions, db.settings), [db.sessions, db.settings]);
-  const distWeek = useMemo(() => distanceThisWeek(db.sessions, db.settings), [db.sessions, db.settings]);
+  const weeks = useMemo(() => weekly(sessions, 8), [sessions]);
+  const zoneWeek = useMemo(() => thisWeek(sessions, db.settings), [sessions, db.settings]);
+  const distWeek = useMemo(() => distanceThisWeek(sessions, db.settings), [sessions, db.settings]);
 
   const whoopHist = useMemo(
     () =>
@@ -67,15 +67,15 @@ export function ProgressScreen() {
   );
 
   const hrrTrend = useMemo(() => {
-    return condEfforts(db.sessions, db.settings)
+    return condEfforts(sessions, db.settings)
       .filter((r) => r.hrr != null)
       .slice(-12)
       .map((r, i) => ({ label: String(i + 1), value: r.hrr as number }));
-  }, [db.sessions, db.settings]);
+  }, [sessions, db.settings]);
   const lifts = useMemo(() => {
     const now = Date.now();
-    const recent = bestE1rmByLift(db.sessions, now - 8 * 7 * 864e5, now);
-    const prior = bestE1rmByLift(db.sessions, now - 16 * 7 * 864e5, now - 8 * 7 * 864e5);
+    const recent = bestE1rmByLift(sessions, now - 8 * 7 * 864e5, now);
+    const prior = bestE1rmByLift(sessions, now - 16 * 7 * 864e5, now - 8 * 7 * 864e5);
     return Array.from(recent.values())
       .map((r) => {
         const p = prior.get(r.name.toLowerCase());
@@ -83,9 +83,9 @@ export function ProgressScreen() {
       })
       .sort((a, b) => b.e1 - a.e1)
       .slice(0, 5);
-  }, [db.sessions]);
+  }, [sessions]);
 
-  const balance = useMemo(() => loadBalance(db.sessions, db.settings), [db.sessions, db.settings]);
+  const balance = useMemo(() => loadBalance(sessions, db.settings), [sessions, db.settings]);
 
   /* Everything else on this screen reports what you already lived through.
      This is the only thing that answers the title's question, and it returns

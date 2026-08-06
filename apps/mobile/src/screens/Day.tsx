@@ -47,7 +47,7 @@ export function DayScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const route = useRoute<RouteProp<RootStackParams, 'Day'>>();
   const date = route.params?.date || '';
-  const { db } = useDb();
+  const { workouts } = useDb();
 
   const at = useMemo(() => {
     const t = Date.parse(date + 'T12:00:00');
@@ -57,8 +57,8 @@ export function DayScreen() {
   const matched = useMemo(() => {
     if (!at) return undefined;
     const dow = at.getDay();
-    return db.workouts.find((w) => (w.dates || []).includes(date) || (w.days || []).includes(dow));
-  }, [db.workouts, date, at]);
+    return workouts.find((w) => (w.dates || []).includes(date) || (w.days || []).includes(dow));
+  }, [workouts, date, at]);
 
   const heading = at ? at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) : date;
 

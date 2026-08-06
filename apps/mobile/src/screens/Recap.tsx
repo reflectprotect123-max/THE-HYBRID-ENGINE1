@@ -29,10 +29,10 @@ import type { RootStackParams } from '../App';
 export function RecapScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const route = useRoute<RouteProp<RootStackParams, 'Recap'>>();
-  const { db } = useDb();
+  const { sessions } = useDb();
 
-  const s = db.sessions.find((x) => x.id === route.params.id);
-  const prs = useMemo(() => (s ? detectPRs(s, db.sessions.filter((x) => x.id !== s.id)) : []), [s, db.sessions]);
+  const s = sessions.find((x) => x.id === route.params.id);
+  const prs = useMemo(() => (s ? detectPRs(s, sessions.filter((x) => x.id !== s.id)) : []), [s, sessions]);
   const moves = useMemo(() => liftMoves(s), [s]);
 
   if (!s) {

@@ -41,9 +41,8 @@ import type { RootStackParams } from '../App';
  */
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { db, hr, whoop, activeSession, update, athleteState, weeklyPlan } = useDb();
+  const { hr, whoop, activeSession, update, athleteState, weeklyPlan, workouts, sessions } = useDb();
   const { color } = useTheme();
-  const sessions = db.sessions;
 
   const today = ymd(new Date());
   const rec = todayRecovery(whoop);
@@ -57,8 +56,8 @@ export function HomeScreen() {
 
   const dow = new Date().getDay();
   const planned = useMemo(
-    () => db.workouts.filter((w) => (w.dates || []).includes(today) || (w.days || []).includes(dow)),
-    [db.workouts, today, dow],
+    () => workouts.filter((w) => (w.dates || []).includes(today) || (w.days || []).includes(dow)),
+    [workouts, today, dow],
   );
   // The live session already has its own card — repeating its workout under
   // "Today's plan" would offer Start for work that is mid-flight.
@@ -135,7 +134,7 @@ export function HomeScreen() {
         </T>
         <Link onPress={() => nav.navigate('Calendar')}>Calendar ›</Link>
       </View>
-      <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpenDay={openDay} />
+      <WeekStrip workouts={workouts} sessions={sessions} today={today} onOpenDay={openDay} />
 
       <SectionHead title="Coordinated week" />
       <Card>

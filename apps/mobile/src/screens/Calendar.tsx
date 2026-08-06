@@ -15,13 +15,13 @@ import type { RootStackParams } from '../App';
  */
 export function CalendarScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { db } = useDb();
+  const { workouts, sessions } = useDb();
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
 
-  const cells = useMemo(() => build(cursor, db.workouts, db.sessions), [cursor, db]);
+  const cells = useMemo(() => build(cursor, workouts, sessions), [cursor, workouts, sessions]);
   const today = ymd(new Date());
 
   /* A tapped cell goes to whatever the day actually holds — a completed

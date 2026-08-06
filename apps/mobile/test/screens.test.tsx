@@ -21,6 +21,7 @@ import { CalendarScreen } from '../src/screens/Calendar';
 import { HomeScreen } from '../src/screens/Home';
 import { PlannerScreen } from '../src/screens/Planner';
 import { ymd, LS_KEY, type EngineDB, type Workout } from '@hybrid/engine';
+import { __resetDisciplineForTest, setDiscipline } from '../src/discipline';
 import { storage } from '../src/store/storage';
 
 const persisted = (): EngineDB => JSON.parse(storage.getItem(LS_KEY) || '{}');
@@ -36,6 +37,8 @@ jest.mock('@react-navigation/native', () => ({
 const realUseNavigation = jest.requireActual('@react-navigation/native').useNavigation;
 beforeEach(() => {
   (useNavigation as jest.Mock).mockImplementation(realUseNavigation);
+  // A test that entered the conditioning world must not leak it into the next.
+  __resetDisciplineForTest();
 });
 
 /* Relative, never hardcoded: the recovery chart only reads the last 30 days,
@@ -696,6 +699,11 @@ describe('Planner toolbar kind guard', () => {
   });
 
   it('shows only + Conditioning for a conditioning workout', () => {
+    // This suite runs env-unset, i.e. as the MERGED app: reads are scoped to
+    // the active world, and a conditioning workout is invisible from the
+    // default strength world. Enter the conditioning world first — exactly
+    // what a real athlete does before opening this planner.
+    setDiscipline('conditioning');
     seed({
       workouts: [
         {
