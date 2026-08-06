@@ -4,6 +4,7 @@ import { createClient, type Session as AuthSession, type SupabaseClient, type Us
 import { SUPABASE } from '@hybrid/config';
 import {
   applyPull,
+  buildMergedSyncNamespace,
   buildProductSyncNamespace,
   buildPushState,
   cloudFp,
@@ -21,7 +22,7 @@ import {
   pullEcosystem,
   pushEcosystem,
 } from './ecosystem';
-import { PRODUCT_ID } from '../product';
+import { IS_MERGED, PRODUCT_ID } from '../product';
 
 /*
  * Cloud sync, native edition.
@@ -88,7 +89,9 @@ const client: SupabaseClient | null = (() => {
   }
 })();
 
-const ECOSYSTEM_WRITER = `${PRODUCT_ID}:mobile`;
+/* The merged app is one writer for both domains; a legacy build writes as its
+   own product, as it always has. */
+const ECOSYSTEM_WRITER = IS_MERGED ? 'hybrid:mobile' : `${PRODUCT_ID}:mobile`;
 
 export function SyncProvider({ children }: { children: ReactNode }) {
   const { db, update } = useDb();
@@ -120,20 +123,25 @@ export function SyncProvider({ children }: { children: ReactNode }) {
    * `draft` — with the same engine primitives the rest of the sync path
    * trusts — cannot.
    *
-   * The merge is a union, so it would also resurrect the other product's
-   * records that `next` was deliberately narrowed to exclude; the whole point
-   * of the write-back is that this build keeps only its own product on disk.
-   * Hence the `restrictToProduct` on the FOLD rather than on `next` alone.
-   * Pruning here is still safe for exactly the reason `reconcile` documents:
-   * this guarantee holds for any record that was part of the pushed `merged`
-   * snapshot, already made durable on the server before this runs. Exception:
-   * an OTHER-product record authored during the push's own await window never
-   * entered that snapshot, so it can still be pruned before reaching the server.
+   * LEGACY builds only: the merge is a union, so it would also resurrect the
+   * other product's records that `next` was deliberately narrowed to exclude;
+   * the whole point of that build's write-back is keeping only its own product
+   * on disk. Hence the `restrictToProduct` on the FOLD rather than on `next`
+   * alone. Pruning there is still safe for exactly the reason `reconcile`
+   * documents: the guarantee holds for any record that was part of the pushed
+   * `merged` snapshot, already durable on the server before this runs.
+   * Exception: an OTHER-product record authored during the push's own await
+   * window never entered that snapshot, so it can still be pruned before
+   * reaching the server — that residual exists ONLY in legacy builds.
+   *
+   * The MERGED app never narrows: it hosts both worlds, so the fold keeps
+   * every record and the residual above cannot occur at all.
    */
   const applyMerged = useCallback(
     (next: EngineDB) => {
       update((draft) => {
-        const folded = restrictToProduct(sanitizeDB(mergeEngines(draft, next)), PRODUCT_ID);
+        const unioned = sanitizeDB(mergeEngines(draft, next));
+        const folded = IS_MERGED ? unioned : restrictToProduct(unioned, PRODUCT_ID);
         draft.workouts = folded.workouts;
         draft.sessions = folded.sessions;
         draft.settings = folded.settings;
@@ -173,7 +181,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
       let source = dbRef.current;
       if (ECOSYSTEM_SYNC_ENABLED) {
-        const namespace = buildProductSyncNamespace(source, PRODUCT_ID, ECOSYSTEM_WRITER);
+        const namespace = IS_MERGED
+          ? buildMergedSyncNamespace(source, ECOSYSTEM_WRITER)
+          : buildProductSyncNamespace(source, PRODUCT_ID, ECOSYSTEM_WRITER);
         source = { ...source, core: namespace.core, ecosystem: namespace };
         dbRef.current = source;
       }
@@ -240,7 +250,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (merged !== previousLocal) dbRef.current = merged;
       if (needsPush) await pushNow(true, remoteState);
 
-      const local = restrictToProduct(merged, PRODUCT_ID);
+      // The merged app hosts both worlds — nothing is narrowed. A legacy
+      // build keeps only its own product on disk, exactly as before.
+      const local = IS_MERGED ? merged : restrictToProduct(merged, PRODUCT_ID);
       if (cloudFp(local) !== cloudFp(previousLocal)) {
         applyMerged(local);
       } else {
