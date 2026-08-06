@@ -1546,7 +1546,14 @@ await t('the guided builder replaces "New session" and can build a full session'
   await page.waitForSelector('text=Back Squat');
   const plannerText = await page.textContent('body');
   assert(/Back Squat/.test(plannerText), 'the lift block should carry into the Planner');
-  assert(/10 min bike, band work/.test(plannerText), 'the warm-up note should carry into the Planner');
+  // This has failed intermittently in CI only (never locally) with the note
+  // simply missing — printing what actually landed, not a fixed string, so a
+  // recurrence shows whether the block is missing entirely, present but
+  // empty, or present with different text.
+  assert(
+    /10 min bike, band work/.test(plannerText),
+    'the warm-up note should carry into the Planner, got: ' + plannerText.slice(0, 600),
+  );
 });
 
 await t('the plan editor edits a target and it persists', async () => {
@@ -1888,8 +1895,19 @@ await t('the browser Back steps back inside the guided builder', async () => {
   await page.click('button:has-text("Next")');
   await page.waitForSelector('text=How many sets?');
 
+  // This has timed out intermittently in CI only (never locally) waiting for
+  // "Which movement?" to reappear. Enriched on failure with the URL and
+  // actual body, not a bare timeout, so a recurrence shows whether goBack()
+  // landed nowhere useful, on a different step, or genuinely never resolved.
   await page.goBack();
-  await page.waitForSelector('text=Which movement?');
+  try {
+    await page.waitForSelector('text=Which movement?');
+  } catch (e) {
+    const bodyNow = await page.textContent('body').catch(() => '(unreadable)');
+    throw new Error(
+      e.message + ' — landed at ' + page.url() + ', body: ' + bodyNow.slice(0, 400),
+    );
+  }
   assert(page.url() === url, 'Back inside the flow must not change the route, got ' + page.url());
   const kept = await page.inputValue('input[aria-label="movement name"]');
   assert(kept === 'Back Squat', 'stepping back must keep what was already answered, got ' + JSON.stringify(kept));
