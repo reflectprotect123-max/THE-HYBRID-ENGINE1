@@ -1,6 +1,7 @@
 /*
- * product.ts reads EXPO_PUBLIC_HYBRID_PRODUCT once, at module eval, so each
- * case re-evaluates the module in an isolated registry with its own binding.
+ * product.ts is now only a build-config guard: EXPO_PUBLIC_HYBRID_PRODUCT
+ * retired with the standalone apps, and a stale profile resurrecting it must
+ * fail the build loudly, not quietly select a flavor that no longer exists.
  * Jest injects describe/it/expect/afterEach as globals.
  */
 const PREVIOUS = process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
@@ -9,30 +10,20 @@ afterEach(() => {
   else process.env.EXPO_PUBLIC_HYBRID_PRODUCT = PREVIOUS;
 });
 
-it('treats an unset product as the merged app', () => {
+it('starts cleanly with the variable unset', () => {
   delete process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
   jest.isolateModules(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { IS_MERGED, PRODUCT_ID } = require('../src/product') as typeof import('../src/product');
-    expect(IS_MERGED).toBe(true);
-    expect(PRODUCT_ID).toBe('strength');
+    expect(() => require('../src/product')).not.toThrow();
   });
 });
 
-it('treats a set product as a legacy single-product build', () => {
-  process.env.EXPO_PUBLIC_HYBRID_PRODUCT = 'conditioning';
-  jest.isolateModules(() => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { IS_MERGED, PRODUCT_ID } = require('../src/product') as typeof import('../src/product');
-    expect(IS_MERGED).toBe(false);
-    expect(PRODUCT_ID).toBe('conditioning');
-  });
-});
-
-it('still fails loudly on a garbage value', () => {
-  process.env.EXPO_PUBLIC_HYBRID_PRODUCT = 'strenght';
-  jest.isolateModules(() => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    expect(() => require('../src/product')).toThrow(/must be unset/);
-  });
+it('refuses to start when the retired variable is set — even to an old valid value', () => {
+  for (const stale of ['strength', 'conditioning', 'strenght']) {
+    process.env.EXPO_PUBLIC_HYBRID_PRODUCT = stale;
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      expect(() => require('../src/product')).toThrow(/no longer supported/);
+    });
+  }
 });

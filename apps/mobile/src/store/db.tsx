@@ -20,7 +20,6 @@ import { buildWeeklyPlan, type WeeklyPlan } from '@hybrid/coordinator-adapter';
 import type { ProductId } from '@hybrid/product-scope';
 import { storage } from './storage';
 import { splitActiveSession, useDiscipline } from '../discipline';
-import { IS_MERGED } from '../product';
 
 /*
  * Identical in shape to the web app's store, and deliberately so: the two apps
@@ -220,12 +219,10 @@ export function DbProvider({ children }: { children: ReactNode }) {
       });
       const weeklyPlan = buildWeeklyPlan(db, athleteState, today);
       const live = db.sessions.find((s) => s.status === 'active') || null;
-      const { activeSession, foreignActiveSession } = IS_MERGED
-        ? splitActiveSession(live, discipline)
-        : { activeSession: live, foreignActiveSession: null };
+      const { activeSession, foreignActiveSession } = splitActiveSession(live, discipline);
       // Derived from the full db every time rather than stored — one source of
       // truth, no second copy to desync.
-      const scoped = IS_MERGED ? restrictToProduct(db, discipline) : db;
+      const scoped = restrictToProduct(db, discipline);
       return {
         db,
         discipline,

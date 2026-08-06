@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   applyProductSyncNamespace,
-  buildProductSyncNamespace,
+  buildMergedSyncNamespace,
   type EngineDB,
 } from '@hybrid/engine';
 import {
@@ -10,7 +10,6 @@ import {
   sanitizeSharedCore,
   type EcosystemSyncNamespace,
 } from '@hybrid/shared-core';
-import { PRODUCT_ID } from '../product';
 
 /** Enable only after the ecosystem SQL migration has been applied in staging. */
 export const ECOSYSTEM_SYNC_ENABLED = process.env.EXPO_PUBLIC_HYBRID_ECOSYSTEM_SYNC === '1';
@@ -51,15 +50,21 @@ export async function pullEcosystem(client: SupabaseClient, userId: string): Pro
 }
 
 export async function pushEcosystem(client: SupabaseClient, db: EngineDB, writer: string): Promise<EcosystemSyncNamespace> {
-  const namespace = buildProductSyncNamespace(db, PRODUCT_ID, writer);
+  const namespace = buildMergedSyncNamespace(db, writer);
   const core = namespace.coreSnapshot;
   if (core) {
     const { error } = await client.rpc('upsert_athlete_core', { p_schema_version: core.schemaVersion, p_revision: core.revision, p_writer: core.writer, p_client_updated_at: new Date(core.updatedAt).toISOString(), p_state: core.data });
     if (error) throw error;
   }
-  const domain = namespace.partitions[PRODUCT_ID];
-  if (domain) {
-    const { error } = await client.rpc('upsert_athlete_domain_snapshot', { p_domain: PRODUCT_ID, p_schema_version: domain.schemaVersion, p_revision: domain.revision, p_writer: domain.writer, p_client_updated_at: new Date(domain.updatedAt).toISOString(), p_snapshot: domain.data });
+  // BOTH domain snapshots, sequentially. The single-product build pushed only
+  // its own partition here, which was correct then and a silent data hole the
+  // moment one app hosted both worlds — the merged namespace above carries
+  // both, and skipping either would let one discipline's snapshot go stale
+  // server-side while app_state kept advancing.
+  for (const domainId of ['strength', 'conditioning'] as const) {
+    const domain = namespace.partitions[domainId];
+    if (!domain) continue;
+    const { error } = await client.rpc('upsert_athlete_domain_snapshot', { p_domain: domainId, p_schema_version: domain.schemaVersion, p_revision: domain.revision, p_writer: domain.writer, p_client_updated_at: new Date(domain.updatedAt).toISOString(), p_snapshot: domain.data });
     if (error) throw error;
   }
   await Promise.all(namespace.core.events.slice(-100).map(async (event) => {

@@ -41,7 +41,7 @@ import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
 import { ConditioningScreen } from './screens/Conditioning';
-import { IS_MERGED, PRODUCT, PRODUCT_ID } from './product';
+import './product'; // build-config guard: refuses a stale single-product env
 import { useDiscipline } from './discipline';
 
 /*
@@ -102,9 +102,7 @@ const tabIcon = (glyph: string) =>
 function TabNav() {
   const { color } = useTheme();
   const discipline = useDiscipline();
-  const worldName = IS_MERGED
-    ? (discipline === 'conditioning' ? 'THE Conditioning System' : 'THE Strength System')
-    : PRODUCT.name;
+  const worldName = discipline === 'conditioning' ? 'THE Conditioning System' : 'THE Strength System';
   return (
     <Tabs.Navigator
       screenOptions={{
@@ -156,12 +154,12 @@ function useReduceMotion(): boolean {
 }
 
 export function App() {
-  /* The merged app themes by the world the athlete is IN, so the switch in
+  /* The app themes by the world the athlete is IN, so the switch in
      Settings repaints everything — the theme change itself is the arrival
-     feedback. A legacy single-product build keeps its fixed identity. */
+     feedback. */
   const discipline = useDiscipline();
   return (
-    <ThemeProvider productId={IS_MERGED ? discipline : PRODUCT_ID}>
+    <ThemeProvider productId={discipline}>
       <AppInner />
     </ThemeProvider>
   );

@@ -52,12 +52,10 @@ const PREVIOUS_PRODUCT = process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
 delete process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
 
 type SyncModule = typeof import('../src/cloud/sync');
-type ProductModule = typeof import('../src/product');
 
 declare const require: (id: string) => unknown;
 
 const sync = require('../src/cloud/sync') as SyncModule;
-const product = require('../src/product') as ProductModule;
 const { DbProvider, useDb } = require('../src/store/db') as typeof import('../src/store/db');
 
 afterAll(() => {
@@ -104,8 +102,10 @@ const settle = async () => {
 
 /* ---- tests --------------------------------------------------------------- */
 
-it('is the merged app when the env var is unset', () => {
-  expect(product.IS_MERGED).toBe(true);
+it('starts with the retired product variable unset', () => {
+  // The merged app has no flavor flag; product.ts only guards against a
+  // stale profile setting the retired variable (see product.test.ts).
+  expect(process.env.EXPO_PUBLIC_HYBRID_PRODUCT).toBeUndefined();
 });
 
 it('keeps BOTH kinds on device after a reconcile', async () => {
