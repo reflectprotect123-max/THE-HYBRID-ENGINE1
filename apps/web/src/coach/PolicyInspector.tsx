@@ -1,5 +1,6 @@
 import { cx } from '../ui';
 import { updatePolicy, usePolicy } from '../autocoach/policy';
+import { ExceptionHistorySection } from './ExceptionHistory';
 
 /**
  * Coach-facing view of the athlete-owned Auto-Coached policy. Everything
@@ -89,6 +90,8 @@ export function PolicyInspector({ onClose }: { onClose: () => void }) {
             </span>
           </div>
         </div>
+
+        <ExceptionHistorySection />
 
         <div className="mt-1 flex justify-end gap-1">
           <button

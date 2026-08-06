@@ -18,6 +18,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { CheckInCard } from '../autocoach/CheckInCard';
+import { ModeSwitcher } from '../autocoach/ModeSwitcher';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
 import { WeeklySummary } from '../autocoach/WeeklySummary';
 import { resolveDayTarget, sessionFrom } from '../lib/session';
@@ -216,6 +217,7 @@ export function Home() {
 
       <SectionHead title="Check-in" />
       <CheckInCard />
+      <ModeSwitcher />
       <SessionReceipt />
 
       <SectionHead title="Weekly summary" />

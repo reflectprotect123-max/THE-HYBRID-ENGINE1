@@ -1,18 +1,20 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { resolveSession } from '@hybrid/auto-coach';
-import type { Workout } from '@hybrid/engine';
+import { uid, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Card, cx } from '../ui';
+import { canApply, ledgerEntryFromApply, planApply, planUndo } from './applyResolution';
+import { canUndo, recordApply, recordUndo, useLedger } from './ledger';
 import { updatePolicy, usePolicy } from './policy';
 
 /**
  * The Auto-Coached receipt for today's session — signal, inference, action,
- * with the original always visible. V1 runs in shadow/assisted display:
- * nothing is applied to the plan; the athlete reads what the system would
- * do and why, and can pause the whole mode in one tap. The resolver's
- * output is a resolved COPY — the coach-authored workout is untouched by
- * construction.
+ * with the original always visible. The resolver's output is a resolved
+ * COPY; the coach-authored workout is never mutated. Applying writes that
+ * copy into the real store — in place for a one-off placement, or as a
+ * fresh forked one-off when today's workout is a recurring template, so the
+ * adaptation never leaks into future occurrences. See applyResolution.ts.
  */
 
 function todaysWorkout(workouts: Workout[], today: string): Workout | null {
@@ -32,8 +34,9 @@ const STATE_TONE: Record<string, string> = {
 };
 
 export function SessionReceipt({ compact }: { compact?: boolean }) {
-  const { workouts, athleteState } = useDb();
+  const { workouts, update, athleteState } = useDb();
   const policy = usePolicy();
+  const ledger = useLedger();
   const nav = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
   const workout = useMemo(() => todaysWorkout(workouts, today), [workouts, today]);
@@ -43,6 +46,55 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   const r = resolveSession({ workout, policy, state: athleteState });
   const changed = r.operations.some((o) => o.type !== 'keep_as_planned');
   if (compact && !changed) return null;
+
+  // The most recent apply/undo recorded for today, regardless of which
+  // workout id it targeted — a fork changes today's resolved workout's id,
+  // so matching on today's date (one Auto-Coached decision per day) is what
+  // stays valid across that change.
+  const latestToday = ledger.find((e) => e.date === today) ?? null;
+  const appliedEntry = latestToday?.action === 'applied' ? latestToday : null;
+  const showApply = !appliedEntry && canApply(r);
+  const showUndo = appliedEntry !== null && canUndo(appliedEntry);
+
+  const handleApply = () => {
+    const plan = planApply(workout, r, today, uid);
+    update((draft) => {
+      if (plan.kind === 'mutate') {
+        const target = draft.workouts.find((x) => x.id === plan.workoutId);
+        if (!target) return false;
+        target.blocks = plan.afterBlocks;
+        target.updatedAt = Date.now();
+      } else {
+        draft.workouts.push({
+          id: plan.forkedWorkoutId,
+          name: plan.name,
+          kind: plan.workoutKind,
+          blocks: plan.blocks,
+          dates: [plan.date],
+          updatedAt: Date.now(),
+        });
+      }
+    });
+    recordApply(ledgerEntryFromApply(plan, r, today));
+  };
+
+  const handleUndo = () => {
+    if (!appliedEntry) return;
+    const plan = planUndo(appliedEntry);
+    if (!plan) return;
+    update((draft) => {
+      if (plan.kind === 'restore') {
+        const target = draft.workouts.find((x) => x.id === plan.workoutId);
+        if (!target) return false;
+        target.blocks = plan.blocks;
+        target.updatedAt = Date.now();
+      } else {
+        const i = draft.workouts.findIndex((x) => x.id === plan.workoutId);
+        if (i >= 0) draft.workouts.splice(i, 1);
+      }
+    });
+    recordUndo(appliedEntry);
+  };
 
   return (
     <Card className={cx('flex flex-col gap-1', r.state === 'safety_stop' && 'border-bad/40')}>
@@ -69,6 +121,13 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
               </li>
             ))}
         </ul>
+      )}
+
+      {appliedEntry && (
+        <p className="text-3 text-ok">
+          Applied{appliedEntry.wasForked ? ' — today only, future sessions are unchanged' : ''} — undo
+          available.
+        </p>
       )}
 
       {!compact && (
@@ -104,6 +163,22 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         >
           {policy.status === 'paused' ? 'Resume' : 'Pause'}
         </button>
+        {showApply && (
+          <button
+            className="shrink-0 rounded bg-gold-wash px-1 py-0.5 text-3 text-gold2 outline outline-1 outline-gold-line hover:brightness-110 focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
+            onClick={handleApply}
+          >
+            Apply
+          </button>
+        )}
+        {showUndo && (
+          <button
+            className="shrink-0 rounded px-1 py-0.5 text-3 text-muted outline outline-1 outline-line hover:text-text focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
+            onClick={handleUndo}
+          >
+            Undo
+          </button>
+        )}
         {(r.state === 'safety_stop' || r.state === 'uncertain') && (
           <button
             className="shrink-0 rounded bg-gold-wash px-1 py-0.5 text-3 text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
