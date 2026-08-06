@@ -213,6 +213,37 @@ export function Ring({
   );
 }
 
+/** A single tallied figure over its label — the week's kg total, a planned
+ *  count, anything reduced to one number. `size="sm"` is the denser recipe
+ *  for three-plus tiles in a row on a phone width; `md` (default) is the
+ *  looser two-tile recipe used for a screen's own weekly totals. */
+export function Stat({
+  value,
+  label,
+  tint,
+  size = 'md',
+}: {
+  value: string;
+  label: string;
+  tint?: boolean;
+  size?: 'sm' | 'md';
+}) {
+  if (size === 'sm') {
+    return (
+      <div className="rounded-md border border-line bg-well px-1 py-1 text-center">
+        <b className={cx('num block text-6 font-[800]', tint ? 'text-gold2' : 'text-text')}>{value}</b>
+        <span className="mt-0.5 block text-1 uppercase tracking-wide text-dim">{label}</span>
+      </div>
+    );
+  }
+  return (
+    <Card tone="quiet" className="py-1.5 text-center">
+      <b className={cx('num block text-7 font-[900]', tint ? 'text-gold2' : 'text-text')}>{value}</b>
+      <span className="mt-0.5 block text-2 text-dim">{label}</span>
+    </Card>
+  );
+}
+
 /** Horizontal completion bar used at the top of the logger. */
 export function Meter({ pct }: { pct: number }) {
   return (

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ensureSharedCore } from '@hybrid/engine';
 import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
-import { Button, Card, Chip } from '../ui';
+import { Button, Card, Chip, Kicker } from '../ui';
 
 /**
  * The short post-session moment: how hard it felt, a few honest tags, an
@@ -38,8 +38,8 @@ export function PostSessionFeedback({ sessionId, kind }: { sessionId: string; ki
   if (existing) {
     const p = existing.payload as { effort?: number; tags?: string[] };
     return (
-      <Card className="flex items-baseline gap-1">
-        <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">Feedback noted</span>
+      <Card tone="quiet" className="flex items-baseline gap-1">
+        <Kicker>Feedback noted</Kicker>
         <span className="text-3 text-muted">
           {p.effort != null ? `effort ${p.effort}` : 'saved'}
           {p.tags?.length ? ` · ${p.tags.map((t) => TAG_LABEL[t] ?? t).join(', ')}` : ''}
@@ -67,7 +67,7 @@ export function PostSessionFeedback({ sessionId, kind }: { sessionId: string; ki
 
   return (
     <Card className="flex flex-col gap-1">
-      <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">How did it go?</span>
+      <Kicker>How did it go?</Kicker>
 
       <div>
         <div className="flex items-baseline justify-between">

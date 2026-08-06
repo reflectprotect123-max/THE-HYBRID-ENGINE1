@@ -64,7 +64,7 @@ function Spark({ series, color }: { series: TrendSeries; color: string }) {
         cy={y(last.v)}
         r={3}
         fill={color}
-        stroke="var(--color-panel)"
+        stroke="var(--color-panel3)"
         strokeWidth={2}
       />
       {known.map((p) => (
@@ -124,7 +124,9 @@ export function AthleteStatus() {
   const { capacity } = athleteState;
 
   return (
-    <section className="mt-1 rounded border border-line bg-panel p-1">
+    // Pure trend reference — never itself a decision point, so it recedes
+    // the same way the rail's other telemetry (Signal, the ledger) does.
+    <section className="mt-1 rounded border border-line bg-panel3 p-1">
       <h3 className="text-[10px] uppercase tracking-wider text-dim">Where they’re at</h3>
       <div className="mt-0.5 flex flex-wrap items-center gap-1">
         <BandChip label="str" band={capacity.strength} />

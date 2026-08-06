@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { resolveSession } from '@hybrid/auto-coach';
 import { uid, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Card, cx } from '../ui';
+import { Card, Kicker, cx } from '../ui';
 import { canApply, ledgerEntryFromApply, planApply, planUndo } from './applyResolution';
 import { canUndo, recordApply, recordUndo, useLedger } from './ledger';
 import { updatePolicy, usePolicy } from './policy';
@@ -26,12 +26,28 @@ function todaysWorkout(workouts: Workout[], today: string): Workout | null {
   );
 }
 
-const STATE_TONE: Record<string, string> = {
-  normal: 'text-muted',
-  advisory: 'text-gold2',
-  uncertain: 'text-warn',
-  safety_stop: 'text-bad',
+/* State pill — the same rounded-full/outline recipe CheckInCard's pain
+   choice already uses one card above this, so the two read as one grammar
+   rather than two components that happen to share a screen. */
+const STATE_PILL: Record<string, string> = {
+  normal: 'text-muted outline-line2',
+  advisory: 'text-gold2 outline-gold-line',
+  uncertain: 'text-warn outline-warn/40',
+  safety_stop: 'text-bad outline-bad/40',
 };
+
+function StatePill({ state, confidence }: { state: string; confidence: string }) {
+  return (
+    <span
+      className={cx(
+        'ml-auto shrink-0 rounded-full px-1 py-0.5 text-2 uppercase tracking-wide outline outline-1',
+        STATE_PILL[state],
+      )}
+    >
+      {state.replace('_', ' ')} · {confidence}
+    </span>
+  );
+}
 
 export function SessionReceipt({ compact }: { compact?: boolean }) {
   const { workouts, update, athleteState } = useDb();
@@ -96,15 +112,19 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
     recordUndo(appliedEntry);
   };
 
+  // Nothing to review recedes; anything worth a look — a proposed change or a
+  // safety stop — carries the screen's default weight so it isn't mistaken
+  // for reference material the way a quiet card would read.
+  const quiet = r.state === 'normal' && !changed;
+
   return (
-    <Card className={cx('flex flex-col gap-1', r.state === 'safety_stop' && 'border-bad/40')}>
+    <Card
+      tone={quiet ? 'quiet' : undefined}
+      className={cx('flex flex-col gap-1', r.state === 'safety_stop' && 'border-bad/40')}
+    >
       <div className="flex items-baseline gap-1">
-        <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">
-          Auto-Coached · {policy.status === 'paused' ? 'paused' : policy.mode}
-        </span>
-        <span className={cx('ml-auto text-2 uppercase tracking-wide', STATE_TONE[r.state])}>
-          {r.state.replace('_', ' ')} · {r.confidence} confidence
-        </span>
+        <Kicker>Auto-Coached · {policy.status === 'paused' ? 'paused' : policy.mode}</Kicker>
+        <StatePill state={r.state} confidence={r.confidence} />
       </div>
 
       <p className="text-3 text-text">{r.athleteMessage}</p>

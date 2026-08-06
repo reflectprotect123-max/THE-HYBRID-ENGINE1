@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ensureSharedCore } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { Card } from '../ui';
+import { Card, Stat } from '../ui';
 import { summarizeWeek } from './weeklySummary';
 
 /**
@@ -9,16 +9,10 @@ import { summarizeWeek } from './weeklySummary';
  * in `summarizeWeek` (weeklySummary.ts) — this component only renders what
  * that pure function returns, mirroring the trends.ts / AthleteStatus.tsx
  * split. A quiet week with nothing checked in reads as zeros, not as green.
+ * Reference material once the week is underway, so the card recedes —
+ * `Stat`'s dense recipe (`size="sm"`) is the same tile the coach bench's own
+ * weekly figures would use, not a bespoke one built just for this card.
  */
-
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-line bg-well px-1 py-1 text-center">
-      <b className="num block text-6 font-[800] text-text">{value}</b>
-      <span className="mt-0.5 block text-1 uppercase tracking-wide text-dim">{label}</span>
-    </div>
-  );
-}
 
 export function WeeklySummary() {
   const { db, sessions, workouts } = useDb();
@@ -36,14 +30,14 @@ export function WeeklySummary() {
   ].filter(Boolean);
 
   return (
-    <Card className="flex flex-col gap-1">
+    <Card tone="quiet" className="flex flex-col gap-1">
       <p className="text-3 text-dim">
         {summary.weekStart} – {summary.weekEnd}
       </p>
       <div className="grid grid-cols-3 gap-1">
-        <MiniStat label="Planned" value={summary.plannedCount} />
-        <MiniStat label="Completed" value={summary.completedCount} />
-        <MiniStat label="Incomplete" value={summary.incompleteCount} />
+        <Stat size="sm" label="Planned" value={String(summary.plannedCount)} />
+        <Stat size="sm" label="Completed" value={String(summary.completedCount)} tint={summary.completedCount > 0} />
+        <Stat size="sm" label="Incomplete" value={String(summary.incompleteCount)} />
       </div>
 
       {flags.length ? <p className="text-3 text-warn">{flags.join(' · ')}</p> : null}

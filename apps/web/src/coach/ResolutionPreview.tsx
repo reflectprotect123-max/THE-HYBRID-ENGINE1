@@ -157,8 +157,22 @@ function TodayAutoCoach() {
   if (!workout) return null;
   const r = resolveSession({ workout, policy, state: athleteState });
   const ops = r.operations.filter((o) => o.type !== 'keep_as_planned');
+  // Nothing to review recedes to reference weight; a safety stop is the one
+  // thing on this whole rail that should look like it needs a human — same
+  // border-bad/40 treatment the athlete's own receipt uses for the identical
+  // state, so the two surfaces agree on what "urgent" looks like.
+  const needsEyes = ops.length > 0 || r.state === 'safety_stop' || r.state === 'uncertain';
   return (
-    <section className="mt-1 rounded border border-line bg-panel p-1">
+    <section
+      className={cx(
+        'mt-1 rounded border p-1',
+        r.state === 'safety_stop'
+          ? 'border-bad/40 bg-panel'
+          : needsEyes
+            ? 'border-line bg-panel'
+            : 'border-line bg-panel3',
+      )}
+    >
       <h3 className="text-[10px] uppercase tracking-wider text-dim">
         Today — auto-coached ({policy.status === 'paused' ? 'paused' : policy.mode})
       </h3>
@@ -219,8 +233,44 @@ export function ResolutionPreview() {
         Resolution · week of {weeklyPlan.weekStart}
       </h2>
 
-      {/* SIGNAL */}
-      <section className="mt-1 rounded border border-line bg-panel p-1">
+      {/* WHAT CHANGED — leads the rail, not buried under it. The highest-
+          value line for a coach returning to a week they've already seen;
+          the before/after the market never shows. */}
+      {changes.length > 0 && (
+        <section className="mt-1 rounded border border-gold-line bg-panel p-1">
+          <h3 className="text-[10px] uppercase tracking-wider text-gold2">
+            Changed since your last review
+          </h3>
+          <ul className="mt-0.5 space-y-0.5">
+            {changes.map((c, i) => (
+              <li key={i} className="text-[11px] text-muted">
+                <span
+                  className={cx(
+                    'mr-1 text-[9px] uppercase tracking-wide',
+                    c.kind === 'new-drop' ? 'text-warn' : 'text-gold2',
+                  )}
+                >
+                  {c.kind.replace('-', ' ')}
+                </span>
+                {c.text}
+              </li>
+            ))}
+          </ul>
+          <button
+            className="mt-1 rounded bg-gold-wash px-1 py-0.5 text-[11px] text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
+            onClick={() => {
+              setReviewBaseline(slim);
+              recordLedger('coach', `Reviewed ${changes.length} plan change${changes.length === 1 ? '' : 's'} for week of ${slim.weekStart}`);
+            }}
+          >
+            Mark reviewed
+          </button>
+        </section>
+      )}
+
+      {/* SIGNAL — raw telemetry feeding the inference below; reference
+          weight, never the thing a coach opens the bench to look at first. */}
+      <section className="mt-1 rounded border border-line bg-panel3 p-1">
         <h3 className="text-[10px] uppercase tracking-wider text-dim">Signal — integrations</h3>
         <IntegrationCards />
         <div className="mt-0.5 flex flex-wrap items-center gap-1">
@@ -343,42 +393,9 @@ export function ResolutionPreview() {
         )}
       </section>
 
-      {/* WHAT CHANGED — the before/after the market never shows */}
-      {changes.length > 0 && (
-        <section className="mt-1 rounded border border-gold-line bg-panel p-1">
-          <h3 className="text-[10px] uppercase tracking-wider text-gold2">
-            Changed since your last review
-          </h3>
-          <ul className="mt-0.5 space-y-0.5">
-            {changes.map((c, i) => (
-              <li key={i} className="text-[11px] text-muted">
-                <span
-                  className={cx(
-                    'mr-1 text-[9px] uppercase tracking-wide',
-                    c.kind === 'new-drop' ? 'text-warn' : 'text-gold2',
-                  )}
-                >
-                  {c.kind.replace('-', ' ')}
-                </span>
-                {c.text}
-              </li>
-            ))}
-          </ul>
-          <button
-            className="mt-1 rounded bg-gold-wash px-1 py-0.5 text-[11px] text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
-            onClick={() => {
-              setReviewBaseline(slim);
-              recordLedger('coach', `Reviewed ${changes.length} plan change${changes.length === 1 ? '' : 's'} for week of ${slim.weekStart}`);
-            }}
-          >
-            Mark reviewed
-          </button>
-        </section>
-      )}
-
-      {/* DECISION LEDGER */}
+      {/* DECISION LEDGER — pure audit trail, the quietest thing on the rail */}
       {bench.ledger.length > 0 && (
-        <section className="mt-1 rounded border border-line bg-panel p-1">
+        <section className="mt-1 rounded border border-line bg-panel3 p-1">
           <h3 className="text-[10px] uppercase tracking-wider text-dim">Decision ledger</h3>
           <ul className="mt-0.5 space-y-[1px]">
             {bench.ledger.slice(0, 8).map((l, i) => (

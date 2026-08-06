@@ -22,7 +22,7 @@ import { ModeSwitcher } from '../autocoach/ModeSwitcher';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
 import { WeeklySummary } from '../autocoach/WeeklySummary';
 import { resolveDayTarget, sessionFrom } from '../lib/session';
-import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
+import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx } from '../ui';
 
 /*
  * Home answers one question: what should I do today, given how I've recovered?
@@ -215,10 +215,14 @@ export function Home() {
         </>
       )}
 
+      {/* Cause, then consequence, then the setting that governs future
+          consequences — CheckInCard is the input, SessionReceipt is what the
+          system read from it today, ModeSwitcher is how much say it gets.
+          Reordered from a flat stack so the narrative reads top to bottom. */}
       <SectionHead title="Check-in" />
       <CheckInCard />
-      <ModeSwitcher />
       <SessionReceipt />
+      <ModeSwitcher />
 
       <SectionHead title="Weekly summary" />
       <WeeklySummary />
@@ -542,11 +546,3 @@ function ZonesCard({ zones }: { zones: Zones }) {
   );
 }
 
-function Stat({ value, label, tint }: { value: string; label: string; tint?: boolean }) {
-  return (
-    <Card tone="quiet" className="py-1.5 text-center">
-      <b className={cx('num block text-7 font-[900]', tint ? 'text-gold2' : 'text-text')}>{value}</b>
-      <span className="mt-0.5 block text-2 text-dim">{label}</span>
-    </Card>
-  );
-}

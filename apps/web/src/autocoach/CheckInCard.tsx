@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ensureSharedCore } from '@hybrid/engine';
 import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
-import { Button, Card, cx } from '../ui';
+import { Button, Card, Kicker, cx } from '../ui';
 
 /**
  * The quick pre-session check-in. Writes the SAME shared-core shapes the
@@ -35,8 +35,8 @@ export function CheckInCard() {
 
   if (existing) {
     return (
-      <Card className="flex items-baseline gap-1">
-        <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">Checked in</span>
+      <Card tone="quiet" className="flex items-baseline gap-1">
+        <Kicker>Checked in</Kicker>
         <span className="text-3 text-muted">
           {existing.energy != null ? `energy ${existing.energy}` : 'noted'}
           {existing.soreness != null ? ` · soreness ${existing.soreness}` : ''}
@@ -103,7 +103,7 @@ export function CheckInCard() {
 
   return (
     <Card className="flex flex-col gap-1">
-      <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">Before you train</span>
+      <Kicker>Before you train</Kicker>
 
       <div className="flex flex-wrap items-center gap-1">
         <span className="text-3 text-text">Any pain, injury concern, or unusual symptom?</span>

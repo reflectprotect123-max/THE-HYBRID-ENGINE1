@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AutonomyPolicy } from '@hybrid/auto-coach';
-import { Button, Card, cx } from '../ui';
+import { Button, Card, Kicker, cx } from '../ui';
 import {
   allComprehensionCorrect,
   COMPREHENSION_STATEMENTS,
@@ -96,9 +96,9 @@ export function ModeSwitcher() {
   const allAnswered = answers.every((a) => a !== null);
 
   return (
-    <Card className="flex flex-col gap-1">
+    <Card tone={stage === 'idle' ? 'quiet' : undefined} className="flex flex-col gap-1">
       <div className="flex items-baseline gap-1">
-        <span className="text-2 font-[750] uppercase tracking-[.14em] text-dim">Auto-Coached mode</span>
+        <Kicker>Auto-Coached mode</Kicker>
         <span className="ml-auto text-3 font-[650] text-gold2">{MODE_LABEL[policy.mode]}</span>
       </div>
       <p className="text-3 text-muted">{MODE_DESCRIPTION[policy.mode]}</p>
