@@ -12,6 +12,8 @@ import {
   slimPlan,
   useBench,
 } from './bench-store';
+import { resolveSession } from '@hybrid/auto-coach';
+import { usePolicy } from '../autocoach/policy';
 import { AthleteStatus } from './AthleteStatus';
 import { diffPlans } from './diff';
 
@@ -140,6 +142,45 @@ function IntegrationCards() {
   );
 }
 
+/* Today's session through the auto-coach resolver, coach's eyes: what the
+   athlete's shadow receipt says, with the policy state visible. Read-only —
+   the coach pauses or narrows the policy with the athlete, not silently. */
+function TodayAutoCoach() {
+  const { workouts, athleteState } = useDb();
+  const policy = usePolicy();
+  const today = new Date().toISOString().slice(0, 10);
+  const wd = new Date(`${today}T00:00:00Z`).getUTCDay();
+  const workout =
+    workouts.find((w) => w.dates?.includes(today)) ??
+    workouts.find((w) => w.days?.includes(wd)) ??
+    null;
+  if (!workout) return null;
+  const r = resolveSession({ workout, policy, state: athleteState });
+  const ops = r.operations.filter((o) => o.type !== 'keep_as_planned');
+  return (
+    <section className="mt-1 rounded border border-line bg-panel p-1">
+      <h3 className="text-[10px] uppercase tracking-wider text-dim">
+        Today — auto-coached ({policy.status === 'paused' ? 'paused' : policy.mode})
+      </h3>
+      <p className={cx('mt-0.5 text-[11px]', r.state === 'safety_stop' ? 'text-bad' : 'text-muted')}>
+        {r.athleteMessage}
+      </p>
+      {ops.length > 0 && (
+        <ul className="mt-0.5 space-y-[1px]">
+          {ops.map((o, i) => (
+            <li key={i} className="text-[11px] tabular-nums">
+              <span className="text-dim line-through">{o.before}</span>
+              <span className="text-muted"> → </span>
+              <span className="text-gold2">{o.after}</span>
+              <span className="ml-1 text-[9px] uppercase text-dim">{o.reasonCode}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function ResolutionPreview() {
   const { weeklyPlan, athleteState, workouts } = useDb();
   const bench = useBench();
@@ -209,6 +250,8 @@ export function ResolutionPreview() {
       </section>
 
       <AthleteStatus />
+
+      <TodayAutoCoach />
 
       {/* INFERENCE */}
       <section className="mt-1 rounded border border-line bg-panel p-1">
