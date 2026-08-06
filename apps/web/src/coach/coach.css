@@ -2,6 +2,14 @@
    athlete screens. Utilities cover the rest; this holds only what a class
    genuinely earns. */
 
+.coach-root {
+  /* chart-grade entity colors — validated (lightness band, chroma floor,
+     CVD separation, contrast) against the dark panel surface; the brand
+     brass/blue fail chart checks and stay reserved for UI chrome */
+  --chart-gold: #b5842f;
+  --chart-blue: #5e8ce0;
+}
+
 .coach-root .coach-input {
   border-radius: 3px;
   border: 1px solid var(--color-line2);

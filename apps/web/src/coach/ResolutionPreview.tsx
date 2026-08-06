@@ -12,6 +12,7 @@ import {
   slimPlan,
   useBench,
 } from './bench-store';
+import { AthleteStatus } from './AthleteStatus';
 import { diffPlans } from './diff';
 
 /*
@@ -206,6 +207,8 @@ export function ResolutionPreview() {
           </ul>
         )}
       </section>
+
+      <AthleteStatus />
 
       {/* INFERENCE */}
       <section className="mt-1 rounded border border-line bg-panel p-1">
