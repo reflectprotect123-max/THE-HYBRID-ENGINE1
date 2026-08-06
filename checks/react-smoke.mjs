@@ -1542,14 +1542,19 @@ await t('the guided builder replaces "New session" and can build a full session'
   assert(/Warm-up \/ Cooldown added/.test(afterSecond), 'the warm-up block should show in the running summary');
 
   // Finish — lands in the existing Planner with both blocks present.
+  //
+  // Root cause of a CI-only failure here (confirmed via a CI run's own
+  // diagnostic dump, added in a prior commit): the running summary's own
+  // kicker reads "Back Squat, Warm-up / Cooldown added" — so a bare
+  // `text=Back Squat` selector is satisfied by THAT still-visible screen,
+  // before the click's navigation to the Planner has actually landed, on a
+  // slower CI runner. Waiting for the URL first (not just for text that
+  // exists on both screens) removes the ambiguity.
   await page.click('button:has-text("No, I\'m done")');
+  await page.waitForURL(/\/planner\//);
   await page.waitForSelector('text=Back Squat');
   const plannerText = await page.textContent('body');
   assert(/Back Squat/.test(plannerText), 'the lift block should carry into the Planner');
-  // This has failed intermittently in CI only (never locally) with the note
-  // simply missing — printing what actually landed, not a fixed string, so a
-  // recurrence shows whether the block is missing entirely, present but
-  // empty, or present with different text.
   assert(
     /10 min bike, band work/.test(plannerText),
     'the warm-up note should carry into the Planner, got: ' + plannerText.slice(0, 600),
