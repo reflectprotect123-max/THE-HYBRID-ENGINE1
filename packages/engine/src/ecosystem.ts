@@ -130,3 +130,21 @@ export function applyProductSyncNamespace(db: EngineDB, remoteInput: EcosystemSy
   };
   return sanitizeDB(merged);
 }
+
+/**
+ * Namespace for the MERGED mobile app: both domain partitions, composed from
+ * the single-domain builder so every contract rule that holds for one domain
+ * holds for both — this is deliberately not a third code path. Order
+ * (strength, then conditioning) is arbitrary but fixed; the second call
+ * receives the first call's core and namespace so bookkeeping is threaded,
+ * not forked.
+ */
+export function buildMergedSyncNamespace(
+  db: EngineDB,
+  writer: string,
+  now = Date.now(),
+): EcosystemSyncNamespace {
+  const first = buildProductSyncNamespace(db, 'strength', writer, now);
+  const threaded = { ...db, core: first.core, ecosystem: first };
+  return buildProductSyncNamespace(threaded, 'conditioning', writer, now);
+}
