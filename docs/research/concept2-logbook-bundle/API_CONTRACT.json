@@ -1,0 +1,184 @@
+{
+  "name": "Concept2 Logbook API",
+  "version": "v1",
+  "prepared": "2026-07-31",
+  "status": "research_handoff_not_live_validated",
+  "base_url": "https://log.concept2.com",
+  "source_ids": ["C2-OFFICIAL-DOCS", "C2-OFFICIAL-KEYS"],
+  "authentication": {
+    "registration_url": "https://log.concept2.com/developers/keys",
+    "authorize_endpoint": "https://log.concept2.com/oauth/authorize",
+    "token_endpoint": "https://log.concept2.com/oauth/access_token",
+    "grant_types_for_user_app": ["authorization_code", "refresh_token"],
+    "documented_grant_types": [
+      "authorization_code",
+      "refresh_token",
+      "client_credentials",
+      "password"
+    ],
+    "authorization_parameters": [
+      "client_id",
+      "scope",
+      "response_type=code",
+      "redirect_uri"
+    ],
+    "scope_delimiter": ",",
+    "scopes": {
+      "user:read": "read profile",
+      "user:write": "read/write profile",
+      "results:read": "read results",
+      "results:write": "read/write results and includes read access"
+    },
+    "recommended_read_scope": "user:read,results:read",
+    "token_content_type": "application/x-www-form-urlencoded",
+    "token_response_fields": [
+      "access_token",
+      "token_type",
+      "expires_in",
+      "refresh_token"
+    ],
+    "refresh_token_rotation": "documented_as_returning_a_new_refresh_token",
+    "documented_refresh_lifetime": "one_year",
+    "pkce": {
+      "status": "no_current_source_found",
+      "do_not_assume": true
+    },
+    "state": {
+      "concept2_requirement": "no_current_source_found",
+      "application_recommendation": "generate_and_validate_for_csrf_protection"
+    },
+    "read_only_approval_process": "no_current_source_found_for_instant_vs_manual_approval"
+  },
+  "headers": {
+    "authorization": "Bearer ACCESS_TOKEN",
+    "accept": "application/vnd.c2logbook.v1+json"
+  },
+  "results": {
+    "list": {
+      "method": "GET",
+      "path": "/api/users/me/results",
+      "source_ids": ["C2-OFFICIAL-DOCS", "C2-PYCONCEPT2-CLIENT"],
+      "query_parameters": {
+        "from": "YYYY-MM-DD",
+        "to": "YYYY-MM-DD",
+        "type": "rower|skierg|bike|dynamic|slides|paddle|water|snow|rollerski|multierg",
+        "updated_after": "YYYY-MM-DD HH:MM:SS in GMT",
+        "page": "1-based page",
+        "number": "default 50; documented maximum 250"
+      },
+      "summary_fields_seen": [
+        "id",
+        "user_id",
+        "date",
+        "timezone",
+        "date_utc",
+        "distance",
+        "type",
+        "time",
+        "time_formatted",
+        "workout_type",
+        "source",
+        "weight_class",
+        "verified",
+        "ranked",
+        "comments",
+        "privacy"
+      ],
+      "pagination_path": "meta.pagination",
+      "official_example_includes_nested_workout": false
+    },
+    "detail": {
+      "method": "GET",
+      "path": "/api/users/me/results/{result_id}",
+      "source_ids": ["C2-OFFICIAL-DOCS", "C2-PYCONCEPT2-CLIENT"],
+      "documented_include_example": "strokes,metadata,user",
+      "documented_include_workout_parameter": "no_current_source_found",
+      "recommended_behavior": "preserve_raw_and_tolerate_missing_nested_workout"
+    },
+    "strokes": {
+      "method": "GET",
+      "path": "/api/users/me/results/{result_id}/strokes",
+      "source_ids": ["C2-OFFICIAL-DOCS", "C2-PYCONCEPT2-CLIENT"],
+      "missing_data_status": 404,
+      "missing_data_meaning": "workout_has_no_associated_stroke_data",
+      "fields": {
+        "t": "time in tenths of a second",
+        "d": "distance in decimeters",
+        "p": "pace in tenths of a second",
+        "spm": "strokes/revolutions per minute",
+        "hr": "heart rate"
+      },
+      "pace_units": {
+        "rower": "per 500 m",
+        "skierg": "per 500 m",
+        "bike": "per 1000 m"
+      }
+    }
+  },
+  "machine_types": {
+    "rower": "RowErg",
+    "skierg": "SkiErg",
+    "bike": "BikeErg",
+    "other_documented_values": [
+      "dynamic",
+      "slides",
+      "paddle",
+      "water",
+      "snow",
+      "rollerski",
+      "multierg"
+    ],
+    "note": "BikeErg is represented as bike, not bikeerg, in the documented result type field"
+  },
+  "workout": {
+    "nested_fields": ["splits", "intervals", "targets"],
+    "split_or_interval_fields": [
+      "distance",
+      "time",
+      "stroke_rate",
+      "calories_total",
+      "wattminutes_total",
+      "heart_rate",
+      "type",
+      "rest_time",
+      "rest_distance",
+      "machine"
+    ],
+    "interval_types": ["time", "distance", "calorie", "wattminute"],
+    "workout_types": [
+      "unknown",
+      "JustRow",
+      "FixedDistanceSplits",
+      "FixedTimeSplits",
+      "FixedCalorie",
+      "FixedWattMinute",
+      "FixedTimeInterval",
+      "FixedDistanceInterval",
+      "FixedCalorieInterval",
+      "FixedWattMinuteInterval",
+      "VariableInterval",
+      "VariableIntervalUndefinedRest"
+    ],
+    "response_guarantee": "no_current_source_found_that_every_get_detail_response_includes_nested_workout"
+  },
+  "webhooks": {
+    "status": "documented_events_found",
+    "events": ["result-added", "result-updated", "result-deleted"],
+    "delivery": "POST to registered endpoint",
+    "registration_path": "no_current_source_found",
+    "signatures": "no_current_source_found",
+    "retry_policy": "no_current_source_found",
+    "recommended_use": "trigger_fetch_by_result_id_and_keep_updated_after_polling_as_recovery"
+  },
+  "limits_and_legal": {
+    "numeric_rate_limit": "no_published_numeric_limit_found",
+    "documentation_statement": "not_rate_limited_but_abuse_may_be_limited_or_access_removed",
+    "commercial_use": "prior_written_consent_required_per_current_terms",
+    "source_ids": ["C2-OFFICIAL-DOCS", "C2-OFFICIAL-TERMS"]
+  },
+  "not_live_telemetry": {
+    "public_logbook_live_stream": "no_current_source_found",
+    "separate_pm5_resources": ["C2-SOFTWARE", "C2-ERGDATA"],
+    "implementation_rule": "do_not_use_logbook_oauth_as_a_live_pm5_feed"
+  }
+}

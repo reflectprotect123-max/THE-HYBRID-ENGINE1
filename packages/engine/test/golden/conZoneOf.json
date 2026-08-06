@@ -1,0 +1,38 @@
+[
+ {
+  "bpm": 40,
+  "out": "low"
+ },
+ {
+  "bpm": 80,
+  "out": "low"
+ },
+ {
+  "bpm": 110,
+  "out": "low"
+ },
+ {
+  "bpm": 130,
+  "out": "low"
+ },
+ {
+  "bpm": 150,
+  "out": "mod"
+ },
+ {
+  "bpm": 165,
+  "out": "mod"
+ },
+ {
+  "bpm": 175,
+  "out": "high"
+ },
+ {
+  "bpm": 190,
+  "out": "high"
+ },
+ {
+  "bpm": 220,
+  "out": "high"
+ }
+]

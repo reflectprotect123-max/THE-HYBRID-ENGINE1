@@ -1,0 +1,905 @@
+{
+  "metadata": {
+    "title": "Conditioning evidence source and model manifest",
+    "version": "1.0",
+    "date": "2026-07-31",
+    "intended_consumer": "Claude or another engineering/research assistant",
+    "population_default": "recreational, self-directed adult athletes",
+    "scope": [
+      "running",
+      "rowing",
+      "SkiErg/nordic",
+      "conventional cycling",
+      "combined arm-and-leg air bike"
+    ],
+    "citation_policy": "Peer-reviewed direct evidence first; peer-reviewed adjacent evidence second; official manufacturer/coaching guidance third; product-design recommendations explicitly labelled.",
+    "copyright_note": "This manifest preserves article metadata, direct URLs/DOIs, evidence notes, and limitations. It does not redistribute full copyrighted article text or PDFs."
+  },
+  "evidence_legend": {
+    "A_direct": "The study used the relevant modality or a clearly identified combined upper-and-lower-body ergometer.",
+    "B_adjacent": "The study informs a mechanism or method but used a different modality, body configuration, or device class.",
+    "C_guidance": "Official manufacturer, governing-body, or coaching guidance; useful for operation or templates, not validation by itself.",
+    "D_design": "Product recommendation made because direct evidence is absent; must be piloted and labelled in implementation."
+  },
+  "research_models": [
+    {
+      "id": "M01",
+      "name": "Threshold model",
+      "description": "Use VT1/LT1 and VT2/LT2 as individual physiological anchors when measured. Fixed HRmax percentages are proxies, not interchangeable threshold boundaries.",
+      "valid_for": ["all modalities when thresholds are measured or carefully individualised"],
+      "not_valid_for": ["universal air-bike RPM/watt/calorie zones", "automatic FTP transfer to air bike"],
+      "source_ids": ["S29", "S30", "S31"]
+    },
+    {
+      "id": "M02",
+      "name": "HRmax and HRR proxy model",
+      "description": "Use %HRmax or %HRR as broad internal-load guides, mainly for continuous work. The exact protocol, sensor, recovery mode, and modality matter.",
+      "valid_for": ["continuous aerobic work", "trend monitoring"],
+      "not_valid_for": ["short-interval completion gates", "universal air-bike zones", "single-session progression decisions"],
+      "source_ids": ["S08", "S16", "S17", "S29"]
+    },
+    {
+      "id": "M03",
+      "name": "Perceived-exertion model",
+      "description": "RPE is an internal-load control that can be used when HR is unavailable or delayed. The scale must be explicit: Borg 6–20 and CR10 are different instruments.",
+      "valid_for": ["all modalities", "short intervals", "self-directed training"],
+      "not_valid_for": ["pretending a CR10 band is a universal threshold without calibration"],
+      "source_ids": ["S04", "S25", "S26", "S27", "S28", "S29"]
+    },
+    {
+      "id": "M04",
+      "name": "Coggan cycling power model",
+      "description": "FTP-relative power levels are a conventional cycling control system. They require cycling-specific FTP context and must not be assigned to combined arm-and-leg air bike.",
+      "valid_for": ["conventional cycling with a known protocol-specific FTP or threshold"],
+      "not_valid_for": ["AssaultBike", "Echo Bike", "Airdyne", "generic combined fan bike"],
+      "source_ids": ["S31", "S45", "S46", "S47", "S48"]
+    },
+    {
+      "id": "M05",
+      "name": "Session-RPE load",
+      "description": "Session duration in minutes multiplied by post-session RPE. Use for internal-load trend and cross-modality description, not proof of adaptation.",
+      "valid_for": ["all modalities when the RPE scale is explicit"],
+      "not_valid_for": ["equating console calories or raw watts across devices", "inferring injury risk from one number"],
+      "source_ids": ["S18", "S19"]
+    },
+    {
+      "id": "M06",
+      "name": "External-load model",
+      "description": "Track what was completed: time, distance, pace, watts, RPM, calories, work, strokes, or repetitions. Preserve the raw unit and device/protocol metadata.",
+      "valid_for": ["within-device longitudinal tracking", "completed interval work"],
+      "not_valid_for": ["unvalidated cross-device or cross-modality conversions"],
+      "source_ids": ["S01", "S05", "S07", "S13", "S19"]
+    },
+    {
+      "id": "M07",
+      "name": "Autoregulated three-outcome state machine",
+      "description": "Advance only after target work, RPE, technique, symptoms, and recent comparable exposure support it; otherwise repeat or reduce. Distinguish failed execution from absence and sensor failure.",
+      "states": ["advance", "repeat", "reduce_or_stop", "hold_after_absence", "cardio_pass_mechanical_fail"],
+      "status": "Product design grounded in training-load and monitoring literature; no publication validates the exact app transition counts.",
+      "source_ids": ["S18", "S20", "S21"]
+    },
+    {
+      "id": "M08",
+      "name": "Device-specific benchmark model",
+      "description": "A benchmark is portable only when device, protocol, familiarisation, warm-up, recovery, and output metric are matched or a calibration study supports conversion.",
+      "valid_for": ["air-bike ramp/VO2peak testing", "same-device personal tests"],
+      "not_valid_for": ["brand-to-brand calorie, watt, RPM, speed, or distance comparisons by default"],
+      "source_ids": ["S01", "S05", "S07", "S13", "S15"]
+    },
+    {
+      "id": "M09",
+      "name": "HRR trend model",
+      "description": "HRR can be retained as a standardised personal trend. Do not use the clinical 12 bpm cut-off as an athletic progression gate.",
+      "valid_for": ["repeated standardised trend measures"],
+      "not_valid_for": ["single-session gate", "consumer-sensor universal health threshold"],
+      "source_ids": ["S22", "S23", "S24"]
+    }
+  ],
+  "cross_reference_decisions": [
+    {
+      "topic": "air_bike_is_a_fifth_modality",
+      "decision": "Create air_bike as a separate modality with combined_arm_leg_fan and lower_body_air_braked subtypes.",
+      "source_ids": ["S01", "S02", "S03", "S05", "S06", "S07", "S56"]
+    },
+    {
+      "topic": "cross_device_output",
+      "decision": "Physiological stress can be broadly similar while console distance/calories differ; require device-specific baselines and never assume Airdyne, Assault, Echo, or Beast output portability.",
+      "source_ids": ["S01", "S05", "S07", "S56"]
+    },
+    {
+      "topic": "air_bike_vs_wingate",
+      "decision": "Call the combined test an AssaultBike/air-bike maximal test, not a Wingate equivalent. The 60-second AssaultBike test and 30-second lower-body Wingate differ in duration, muscle configuration, lactate kinetics, and standardisation.",
+      "source_ids": ["S14", "S57", "S60"]
+    },
+    {
+      "topic": "rpe_vs_hr_airbike_control",
+      "decision": "For Air Bike PRO-like intermittent classes, RPE was more similar to external-load control than HR; use RPE and completed work, with HR as supporting data.",
+      "source_ids": ["S04", "S12", "S58"]
+    },
+    {
+      "topic": "airbike_ramp_is_not_pure_aerobic",
+      "decision": "Interpret peak air-bike ramp output as a whole-body performance result influenced by strength and fat-free mass, not as a pure VO2 or cycling-FTP proxy.",
+      "source_ids": ["S05", "S15", "S59"]
+    },
+    {
+      "topic": "ftp_transfer",
+      "decision": "Block automatic Coggan FTP zones for air bike. Use RPE, duration, work completion, device-specific output, and optional lab/device threshold anchors.",
+      "source_ids": ["S01", "S05", "S07", "S31", "S47", "S48"]
+    },
+    {
+      "topic": "large_muscle_stress",
+      "decision": "Describe combined air bike as capable of high cardiovascular/metabolic stress, with the magnitude dependent on device, protocol, body configuration, and training status.",
+      "source_ids": ["S01", "S02", "S03", "S05", "S06"]
+    },
+    {
+      "topic": "local_fatigue_and_hr_lag",
+      "decision": "Record local limiter and separate mechanical completion from cardiovascular response. HR is secondary for short bouts.",
+      "source_ids": ["S04", "S12"],
+      "inference": "The specific local-fatigue-before-HR mechanism is plausible and operationally important, but is not yet quantified robustly on modern AssaultBike/Echo/Airdyne devices."
+    },
+    {
+      "topic": "long_term_superiority",
+      "decision": "Report acute responses and short interventions as promising; do not claim long-term superiority over other modalities.",
+      "source_ids": ["S01", "S08", "S09", "S10", "S11"]
+    },
+    {
+      "topic": "low_impact_claim",
+      "decision": "Use lower-impact/non-weight-bearing wording, not universally safer wording. Injury incidence evidence is absent.",
+      "source_ids": ["S10", "S11", "S16"],
+      "evidence_gap": true
+    },
+    {
+      "topic": "popular_air_bike_tests",
+      "decision": "5-minute, 10-minute max-calorie, 2-mile, and informal Wingate-style tests are optional same-device tests, not universal validated standards.",
+      "source_ids": ["S01", "S14", "S53", "S54", "S55"]
+    },
+    {
+      "topic": "air_bike_interval_formats",
+      "decision": "10/5 and 20/10 have direct recreationally-active intervention evidence; Echo 15/45 and 40/20 variants have small active-adult evidence; direct beginner evidence for 30/30 and 60/60 is absent.",
+      "source_ids": ["S08", "S09", "S10", "S11"]
+    },
+    {
+      "topic": "progression_rate",
+      "decision": "No evidence supports a fixed air-bike progression rate relative to running, rowing, SkiErg, or conventional cycling. Use local-fatigue-aware autoregulation.",
+      "source_ids": ["S01", "S08", "S09", "S20", "S21"],
+      "evidence_gap": true
+    },
+    {
+      "topic": "hrr_gate",
+      "decision": "Keep HRR as a trend; never use the clinical 12 bpm cut-off as a self-directed progression gate.",
+      "source_ids": ["S22", "S23", "S24"]
+    },
+    {
+      "topic": "running_10_percent_rule",
+      "decision": "Do not encode 10% as a universal injury-prevention rule.",
+      "source_ids": ["S32", "S33", "S34", "S49"]
+    },
+    {
+      "topic": "phase_confirmation",
+      "decision": "A default of 2–3 comparable successful exposures may be used as a product heuristic, but no universal published session count exists.",
+      "source_ids": ["S36", "S39", "S41", "S42"],
+      "evidence_gap": true
+    }
+  ],
+  "source_registry": [
+    {
+      "id": "S01",
+      "citation": "Schlegel, Health benefits of using air biking: a systematic review",
+      "year": 2022,
+      "source_type": "peer_reviewed_systematic_review",
+      "evidence_tier": "A_direct_and_mixed_air_bike",
+      "population_or_scope": "26 selected air-bike studies from 65 full-text candidates; testing and intervention evidence",
+      "key_numbers": ["26 selected studies", "air-bike design differences in flywheel resistance, mechanical inertia, and handle design"],
+      "supports": ["high HR/VO2/ventilation/RER/lactate responses", "device-design non-comparability", "limited long-term intervention evidence"],
+      "limitations": "Review includes heterogeneous devices and protocols; not a universal prescription study.",
+      "urls": ["https://doi.org/10.58727/jshr.88637", "https://digilib.uhk.cz/bitstream/handle/20.500.12603/1598/88637-Texto_del_articulo-342830-1-10-20220829_%281%29.pdf?isAllowed=y&sequence=1"]
+    },
+    {
+      "id": "S02",
+      "citation": "Nagle, Richie & Giese, VO2max responses in separate and combined arm and leg air-braked ergometer exercise",
+      "year": 1984,
+      "source_type": "peer_reviewed_direct_combined_air_brake",
+      "evidence_tier": "A_direct_but_old",
+      "population_or_scope": "10 healthy males; separate and combined arm/leg air-braked exercise",
+      "key_numbers": ["maximum power and VO2 response reported for arm/leg ratios; review summary identifies approximately 10% arms/90% legs as best in that protocol"],
+      "supports": ["whole-body air-braked physiological demand"],
+      "limitations": "Old device and small male sample; not AssaultBike/Echo/Airdyne validation.",
+      "urls": ["https://doi.org/10.1249/00005768-198412000-00007", "https://pubmed.ncbi.nlm.nih.gov/6513773/"]
+    },
+    {
+      "id": "S03",
+      "citation": "Hoffman et al., Does the amount of exercising muscle alter the aerobic demand of dynamic exercise?",
+      "year": 1996,
+      "source_type": "peer_reviewed_adjacent_airdyne",
+      "evidence_tier": "B_adjacent",
+      "population_or_scope": "9 healthy adults; leg cycling versus combined arm-and-leg Airdyne",
+      "key_numbers": ["combined VO2 averaged about 0.04 L/min higher than leg cycling at matched external power in the reported comparison"],
+      "supports": ["large muscle mass can alter aerobic demand"],
+      "limitations": "Tiny sample and older Airdyne; not a modern cross-brand calibration study.",
+      "urls": ["https://doi.org/10.1007/BF02376770"]
+    },
+    {
+      "id": "S04",
+      "citation": "Hill et al., The validity and reproducibility of perceptually regulated exercise responses during combined arm + leg cycling",
+      "year": 2020,
+      "source_type": "peer_reviewed_direct_combined_arm_leg",
+      "evidence_tier": "A_direct_task_not_modern_fan_bike",
+      "population_or_scope": "12 young men; two modified Monark ergometers; RPE 9, 13, 17",
+      "key_numbers": ["RPE levels 9, 13, 17", "no significant trial differences for HR, VO2, or ventilation", "RPE was a reliable intensity-production frame"],
+      "supports": ["RPE-based control in combined arm/leg work"],
+      "limitations": "Not a commercial Assault/Echo console; male sample; formal familiarisation was not the same as modern fan-bike onboarding.",
+      "urls": ["https://doi.org/10.1007/s00421-020-04444-z", "https://pubmed.ncbi.nlm.nih.gov/32710290/"]
+    },
+    {
+      "id": "S05",
+      "citation": "Canário-Lemos et al., Validity and reliability of maximum oxygen uptake on an Air Bike arm- and leg-ergometer",
+      "year": 2022,
+      "source_type": "peer_reviewed_direct_combined_air_bike",
+      "evidence_tier": "A_direct_device_specific",
+      "population_or_scope": "18 physically active young men; Air Bike Revolution and Wattbike leg cycle",
+      "key_numbers": ["Air Bike VO2 test-retest r=.96", "Air Bike VO2max 53.06±8.72 vs leg cycle 47.38±9.15 mL/kg/min", "Air Bike HRmax 181.93±10.20 vs cycle 176.07±5.28 bpm", "Air Bike protocol 30 RPM then +5 RPM/min"],
+      "supports": ["device-specific VO2 reliability", "combined and leg-cycle outputs are not equivalent"],
+      "limitations": "One Air Bike Revolution model; active young men; comparison is not cross-brand calibration.",
+      "urls": ["https://doi.org/10.6063/motricidade.26611", "https://revistas.rcaap.pt/motricidade/article/view/26611", "https://revistas.rcaap.pt/motricidade/article/download/26611/20757/131542"]
+    },
+    {
+      "id": "S06",
+      "citation": "Pearson, Garcia & Jenkins, Comparison of a ramp cycle ergometer and a staged Assault Fitness AssaultBike protocol for the assessment of VO2max",
+      "year": 2023,
+      "source_type": "peer_reviewed_direct_assaultbike",
+      "evidence_tier": "A_direct_comparison_not_reliability",
+      "population_or_scope": "12 healthy males; traditional cycle ramp versus staged AssaultBike",
+      "key_numbers": ["AssaultBike produced higher immediate post-exercise lactate, VO2max, and HRmax than traditional cycle; p=.006, .014, .007, and .001 reported for relevant outcomes"],
+      "supports": ["combined device can produce different acute responses than leg cycle"],
+      "limitations": "No test-retest reliability; small all-male sample; comparison does not prove superiority.",
+      "urls": ["https://doi.org/10.70252/RDUK7353", "https://digitalcommons.wku.edu/ijes/vol16/iss4/12"]
+    },
+    {
+      "id": "S07",
+      "citation": "Lipscomb et al., Agreement of Air Bike and Treadmill Protocols To Assess Maximal Oxygen Uptake",
+      "year": 2024,
+      "source_type": "peer_reviewed_direct_echo_bike",
+      "evidence_tier": "A_direct_device_specific",
+      "population_or_scope": "15 healthy adults; Rogue Echo Bike and treadmill; 7 had regular air-bike familiarity",
+      "key_numbers": ["ICC range .89–.92", "treadmill minus air-bike bias about 3.31 mL/kg/min overall", "bias about 1.27 in regular users versus 5.09 in non-regular users"],
+      "supports": ["device-specific VO2 agreement can be good", "familiarisation matters", "no universal prediction equation"],
+      "limitations": "Exploratory sample; agreement is not test-retest reliability; Echo Bike only.",
+      "urls": ["https://doi.org/10.70252/STRQ5031", "https://pmc.ncbi.nlm.nih.gov/articles/PMC11166135/"]
+    },
+    {
+      "id": "S08",
+      "citation": "Moghaddam et al., Sprint Interval Training on Stationary Air Bike Elicits Cardiorespiratory Adaptations While Being Time-Efficient",
+      "year": 2023,
+      "source_type": "peer_reviewed_direct_air_bike_intervention",
+      "evidence_tier": "A_direct_recreational_active",
+      "population_or_scope": "32 recreationally active adults; 3 sessions/week for 4 weeks",
+      "key_numbers": ["10/5 and 20/10 all-out formats", "3 sets of 8 work bouts", "10/5 set recovery 2.5 min; 20/10 set recovery 5 min", "continuous comparator at 75% maximal HRR", "VO2max improvements roughly 12–15% across groups as reported"],
+      "supports": ["short air-bike SIT can improve cardiorespiratory outcomes in recreationally active adults"],
+      "limitations": "Not absolute beginners; four weeks; study device/protocol and console calories do not create universal training zones.",
+      "urls": ["https://doi.org/10.1519/JSC.0000000000004483", "https://pubmed.ncbi.nlm.nih.gov/37616537/"]
+    },
+    {
+      "id": "S09",
+      "citation": "Schlegel, Křehký & Hiblbauer, Physical fitness improvement after 8 weeks of high-intensity interval training with air bike",
+      "year": 2022,
+      "source_type": "peer_reviewed_direct_echo_bike_intervention",
+      "evidence_tier": "A_direct_small_active_sample",
+      "population_or_scope": "20/22 healthy active young adults; Echo Bike; 2 sessions/week for 8 weeks",
+      "key_numbers": ["15/45 and 40/20 formats", "later 20/40 and 45/15 formats", "VO2peak increase about 10.62%", "test-duration increase about 18.74%", "ramp starting values 40 RPM/85 W men and 35 RPM/65 W women were author protocol choices"],
+      "supports": ["short air-bike interval training can improve fitness in active young adults"],
+      "limitations": "Small active sample; protocol-specific; not beginner validation or proof of long-term superiority.",
+      "urls": ["https://doi.org/10.26773/smj.221012", "https://sportmont.ucg.ac.me/clanci/SM_October_2022_Schlegel.pdf", "https://blog.performancelab16.com/optothoa/2022/07/Physicalfitnessimprovementafter8weeksofhigh-intensityintervaltrainingwithairbike-1.pdf"]
+    },
+    {
+      "id": "S10",
+      "citation": "Hwang et al., Novel all-extremity high-intensity interval training improves aerobic fitness, cardiac function and insulin resistance in healthy older adults",
+      "year": 2016,
+      "source_type": "peer_reviewed_adjacent_all_extremity",
+      "evidence_tier": "B_adjacent_supervised_older_adults",
+      "population_or_scope": "51 sedentary healthy older adults; supervised non-weight-bearing all-extremity ergometer",
+      "key_numbers": ["4 × 4 min at 90% HRpeak", "4 sessions/week for 8 weeks", "VO2peak improved about 11% in HIIT", "no adverse events reported"],
+      "supports": ["supervised longer all-extremity intervals can be feasible in selected older adults"],
+      "limitations": "Not necessarily modern Assault/Echo/Airdyne; supervised older sample; not self-directed beginner evidence.",
+      "urls": ["https://doi.org/10.1016/j.exger.2016.06.009", "https://pubmed.ncbi.nlm.nih.gov/27346646/"]
+    },
+    {
+      "id": "S11",
+      "citation": "Hwang et al., Effect of all-extremity high-intensity interval training vs. moderate-intensity continuous training in adults with type 2 diabetes",
+      "year": 2018,
+      "source_type": "peer_reviewed_adjacent_all_extremity",
+      "evidence_tier": "B_adjacent_supervised_clinical",
+      "population_or_scope": "58 sedentary adults with type 2 diabetes, approximately 46–78 years; supervised all-extremity ergometer",
+      "key_numbers": ["4 × 4 min HIIT at 90% HRpeak", "4 sessions/week for 8 weeks", "VO2peak improved about 10% in HIIT and 8% in MICT", "no hospitalisation/medical-treatment-level adverse events"],
+      "supports": ["supervised all-extremity training can be feasible in a selected clinical population"],
+      "limitations": "Not a commercial fan-bike validation; clinical and supervised population; cannot imply universal safety.",
+      "urls": ["https://doi.org/10.1016/j.exger.2018.12.013", "https://pubmed.ncbi.nlm.nih.gov/30576716/", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6404965/"]
+    },
+    {
+      "id": "S12",
+      "citation": "Astorino & Emma, Differences in Physiological and Perceptual Responses to High Intensity Interval Exercise Between Arm and Leg Cycling",
+      "year": 2021,
+      "source_type": "peer_reviewed_adjacent_arm_leg",
+      "evidence_tier": "B_adjacent",
+      "population_or_scope": "23 active adults without arm-exercise experience; separate arm and leg cycling",
+      "key_numbers": ["10 × 1 min at 75% PPO with 1 min active recovery", "mean HR around 149±14 leg versus 131±17 arm", "HR and VO2 rose across repeated bouts"],
+      "supports": ["body configuration changes HR/VO2 response", "HR is not an immediate short-bout completion signal"],
+      "limitations": "Not combined air bike; use as mechanism/transfer caution only.",
+      "urls": ["https://doi.org/10.3389/fphys.2021.700294", "https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2021.700294/full"]
+    },
+    {
+      "id": "S13",
+      "citation": "Maxwell et al., Dynamic calibration of mechanically, air- and electromagnetically braked cycle ergometers",
+      "year": 1998,
+      "source_type": "peer_reviewed_adjacent_calibration",
+      "evidence_tier": "B_adjacent_lower_body_air_braked",
+      "population_or_scope": "35 friction, 5 research-grade air-braked, and 5 electromagnetic cycle ergometers",
+      "key_numbers": ["Repco air-braked accuracy approximately 98.0–100.2% over 272.7–1137.8 W", "air-braked power depends strongly on cadence and environmental correction"],
+      "supports": ["accurate output requires calibration", "raw watts are device-specific"],
+      "limitations": "Research-grade lower-body ergometers from 1998; no modern combined fan-bike calibration.",
+      "urls": ["https://doi.org/10.1007/s004210050430", "https://pubmed.ncbi.nlm.nih.gov/9754975/", "https://www.usada.org/wp-content/uploads/R062.pdf"]
+    },
+    {
+      "id": "S14",
+      "citation": "Driss, The Measurement of Maximal (Anaerobic) Power Output on a Cycle Ergometer: The Wingate Test",
+      "year": 2013,
+      "source_type": "peer_reviewed_review",
+      "evidence_tier": "B_adjacent_lower_body_wingate",
+      "population_or_scope": "Classic Wingate methodology and its reliability/validity literature",
+      "key_numbers": ["30 s all-out", "commonly 7.5% body mass braking force on Monark"],
+      "supports": ["what a standard Wingate actually is"],
+      "limitations": "Does not validate a combined fan-bike Wingate.",
+      "urls": ["https://pmc.ncbi.nlm.nih.gov/articles/PMC3773392/"]
+    },
+    {
+      "id": "S15",
+      "citation": "Livingston, Reliability Of Staged Maximal Aerobic Capacity Protocol Using A Combined Upper- And Lower-Body Air-Braked Ergometer",
+      "year": 2026,
+      "source_type": "thesis",
+      "evidence_tier": "A_direct_but_not_peer_reviewed",
+      "population_or_scope": "15 recreationally active adults; Rogue Echo Bike V3.0; one familiarisation plus two trials separated by at least 72 h",
+      "key_numbers": ["40 RPM start; +3 RPM every 3 min", "relative VO2peak ICC .909; absolute ICC .938; peak power ICC .966", "relative VO2peak CV 7.86%; absolute CV 8.57%; peak power CV 7.87%", "RER poorly reliable; verification criterion achieved in 63.3% of all sessions"],
+      "supports": ["device-specific Echo Bike staged VO2peak protocol can be reliable in recreationally active adults"],
+      "limitations": "Master's thesis, not peer-reviewed journal evidence; one model; small sample.",
+      "urls": ["https://stars.library.ucf.edu/gradstudies_etd_2026/108/"]
+    },
+    {
+      "id": "S16",
+      "citation": "AssaultBike Classic owner’s manual",
+      "year": 2023,
+      "source_type": "manufacturer_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "AssaultBike operation, display metrics, target-HR and interval programmes",
+      "key_numbers": ["target-HR programme around 65–80% calculated HRmax", "preset 8 × 20/10 and 8 × 10/20 intervals"],
+      "supports": ["device operation and available metrics"],
+      "limitations": "Not a validation or injury study; age-predicted HRmax and product design.",
+      "urls": ["https://resources.sport-tiedje.com/pdf/assault/Assualt%20Bike%20Classic%202023%20Manual.pdf"]
+    },
+    {
+      "id": "S17",
+      "citation": "Rogue Echo Bike user guide",
+      "year": 2019,
+      "source_type": "manufacturer_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "Echo Bike display metrics and target-HR operation",
+      "key_numbers": ["target-HR range around 65–80% calculated HRmax"],
+      "supports": ["device operation and available metrics"],
+      "limitations": "Manual copy; not a validation or injury study.",
+      "urls": ["https://fitatmidlife.com/wp-content/uploads/Echo-Bike-User-Guide-FINAL-v2-3-7-19.pdf"]
+    },
+    {
+      "id": "S18",
+      "citation": "Foster et al., session-RPE method",
+      "year": 2001,
+      "source_type": "peer_reviewed_load_model",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "Session-RPE internal-load monitoring",
+      "key_numbers": ["duration in minutes × session RPE"],
+      "supports": ["simple internal-load model"],
+      "limitations": "Does not determine adaptation or modality equivalence.",
+      "urls": ["https://doi.org/10.1519/00124278-200102000-00019"]
+    },
+    {
+      "id": "S19",
+      "citation": "Foster, Rodríguez-Marroyo & de Koning, monitoring internal and external training load",
+      "year": 2017,
+      "source_type": "peer_reviewed_load_review",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "Internal/external load methods in sport",
+      "key_numbers": [],
+      "supports": ["use both internal and external load"],
+      "limitations": "Does not validate the app’s exact state transitions.",
+      "urls": ["https://doi.org/10.1123/IJSPP.2016-0388"]
+    },
+    {
+      "id": "S20",
+      "citation": "Impellizzeri et al., ACWR critique",
+      "year": 2020,
+      "source_type": "peer_reviewed_methodological_critique",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "Acute:chronic workload ratio methods",
+      "key_numbers": [],
+      "supports": ["avoid using ACWR as a simple individual injury gate"],
+      "limitations": "Methodological critique rather than an air-bike study.",
+      "urls": ["https://doi.org/10.1123/ijspp.2019-0864"]
+    },
+    {
+      "id": "S21",
+      "citation": "Saw et al., monitoring training response and subjective wellness",
+      "year": 2015,
+      "source_type": "peer_reviewed_monitoring_review",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "Training-response and wellness monitoring",
+      "key_numbers": [],
+      "supports": ["use symptoms and subjective context as advisory inputs"],
+      "limitations": "Does not establish a universal readiness cutoff.",
+      "urls": ["https://pmc.ncbi.nlm.nih.gov/articles/PMC4789708/"]
+    },
+    {
+      "id": "S22",
+      "citation": "Cole et al., heart-rate recovery and mortality",
+      "year": 1999,
+      "source_type": "clinical_prognostic_study",
+      "evidence_tier": "B_adjacent_clinical",
+      "population_or_scope": "Clinical cohort and a defined exercise/recovery protocol",
+      "key_numbers": ["abnormal HRR was a fall of 12 bpm or less in the first minute under the study protocol"],
+      "supports": ["clinical prognostic meaning under a specific protocol"],
+      "limitations": "Not a healthy-athlete or self-directed training gate.",
+      "urls": ["https://doi.org/10.1056/NEJM199910283411804"]
+    },
+    {
+      "id": "S23",
+      "citation": "Costa et al., short-term HRR test-retest reliability",
+      "year": 2020,
+      "source_type": "peer_reviewed_reliability_study",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "12 healthy moderately active men after maximal treadmill tests",
+      "key_numbers": ["one-minute HRR ICC .91", "SEM 2.40 bpm", "CV 9.08%", "reported prior SEM ranges 1.6–11.4 bpm submaximal and 3.0–10.2 bpm maximal"],
+      "supports": ["HRR can be repeatable under a standardised protocol but has meaningful noise"],
+      "limitations": "Small lab sample, treadmill, not phone/strap real-world air-bike monitoring.",
+      "urls": ["https://archivosdemedicinadeldeporte.com/articulos/upload/or01_Costa_ingles.pdf"]
+    },
+    {
+      "id": "S24",
+      "citation": "Daanen et al., HRR in athletes and trained populations",
+      "year": 2012,
+      "source_type": "peer_reviewed_review",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "Athlete/trained HRR studies",
+      "key_numbers": [],
+      "supports": ["HRR is affected by intensity, duration, posture, temperature, age, and protocol"],
+      "limitations": "No self-directed consumer-app cut-off.",
+      "urls": ["https://doi.org/10.1123/ijspp.7.3.251"]
+    },
+    {
+      "id": "S25",
+      "citation": "Chen, Fan & Moe, meta-analysis of Borg RPE validity",
+      "year": 2002,
+      "source_type": "peer_reviewed_meta_analysis",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "RPE relationships with HR, lactate, and oxygen uptake",
+      "key_numbers": [],
+      "supports": ["RPE has criterion-related validity but heterogeneous mappings"],
+      "limitations": "Not air-bike-specific; does not create universal CR10 bands.",
+      "urls": ["https://doi.org/10.1080/026404102320761787"]
+    },
+    {
+      "id": "S26",
+      "citation": "Scherr et al., RPE and physiological intensity in 2,560 adults",
+      "year": 2013,
+      "source_type": "peer_reviewed_observational",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "2,560 adults in cardiopulmonary exercise testing",
+      "key_numbers": ["RPE relationships with HR and physiological intensity were meaningful but overlapped"],
+      "supports": ["RPE is useful but imprecise at individual thresholds"],
+      "limitations": "Not air-bike-specific.",
+      "urls": ["https://pubmed.ncbi.nlm.nih.gov/22615009/"]
+    },
+    {
+      "id": "S27",
+      "citation": "Grummt et al., RPE anchors in cardiopulmonary exercise testing",
+      "year": 2024,
+      "source_type": "peer_reviewed_observational",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "Large cardiopulmonary-exercise dataset",
+      "key_numbers": ["median Borg RPE about 13 at 2 mmol/L, 15 at 3 mmol/L, 16 at 4 mmol/L, and 15 at LT2 in the reported dataset"],
+      "supports": ["RPE-to-threshold mappings are population-dependent"],
+      "limitations": "Not air-bike-specific and not a universal prescription table.",
+      "urls": ["https://doi.org/10.1186/s40798-024-00729-1"]
+    },
+    {
+      "id": "S28",
+      "citation": "Arney et al., RPE, CR10, and HR response during interval exercise",
+      "year": 2019,
+      "source_type": "peer_reviewed_interval_study",
+      "evidence_tier": "B_adjacent_general",
+      "population_or_scope": "Interval exercise intensity labels and RPE/HR relationships",
+      "key_numbers": ["easy/moderate/hard Borg about 11.1/15.5/18.1", "CR10 about 3.1/6.5/8.9 in the reported protocol"],
+      "supports": ["RPE scales can be mapped operationally but are protocol/population dependent"],
+      "limitations": "Not air-bike-specific; values should not be presented as universal air-bike bands.",
+      "urls": ["https://doi.org/10.26582/k.51.2.1"]
+    },
+    {
+      "id": "S29",
+      "citation": "ACSM aerobic exercise intensity infographic",
+      "year": 2025,
+      "source_type": "official_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "General aerobic exercise prescription",
+      "key_numbers": ["moderate 65–75% HRmax", "vigorous 76–96% HRmax", "moderate CR10 about 3–4", "vigorous CR10 about 5–7"],
+      "supports": ["broad public exercise-intensity education"],
+      "limitations": "Not air-bike-specific thresholds.",
+      "urls": ["https://acsm.org/wp-content/uploads/2025/02/Exercise-intensity-infographic-PDF.pdf"]
+    },
+    {
+      "id": "S30",
+      "citation": "Concept2 heart-rate training guidance",
+      "year": null,
+      "source_type": "manufacturer_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "Concept2 HR zones for ergs",
+      "key_numbers": ["common five-zone HRmax convention: 50–60, 60–70, 70–80, 80–90, 90–100%"],
+      "supports": ["practical HR display convention"],
+      "limitations": "Not an air-bike-specific validation; zone terminology varies.",
+      "urls": ["https://www.concept2.com/blog/heart-rate-training-with-your-concept2-erg"]
+    },
+    {
+      "id": "S31",
+      "citation": "Coggan cycling power levels",
+      "year": null,
+      "source_type": "established_coaching_model",
+      "evidence_tier": "C_coaching",
+      "population_or_scope": "Conventional cycling power training",
+      "key_numbers": ["recovery <55% FTP", "endurance 56–75%", "tempo 76–90%", "threshold 91–105%", "VO2 106–120%", "anaerobic capacity >121%"],
+      "supports": ["cycling-specific power-zone control"],
+      "limitations": "Not validated for combined arm-and-leg air bike; FTP estimate depends on protocol.",
+      "urls": ["https://www.trainingpeaks.com/blog/power-training-levels/"]
+    },
+    {
+      "id": "S32",
+      "citation": "Buist et al., graded versus standard novice running programme",
+      "year": 2008,
+      "source_type": "peer_reviewed_randomised_trial",
+      "evidence_tier": "A_direct_running",
+      "population_or_scope": "Novice runners",
+      "key_numbers": ["injury incidence 20.8% versus 20.3%; p=.90"],
+      "supports": ["10% rule did not reduce injury in this trial"],
+      "limitations": "Running only; does not give an air-bike progression rate.",
+      "urls": ["https://doi.org/10.1177/0363546507307505"]
+    },
+    {
+      "id": "S33",
+      "citation": "Nielsen et al., novice running load progression and injury",
+      "year": 2014,
+      "source_type": "peer_reviewed_cohort",
+      "evidence_tier": "A_direct_running",
+      "population_or_scope": "874 healthy novice runners; 202 injuries over one year",
+      "key_numbers": [">30% group versus <10% group HR 1.59, 95% CI .96–2.66, p=.07"],
+      "supports": ["large spikes may be concerning but do not establish a safe cutoff"],
+      "limitations": "Running only; observational.",
+      "urls": ["https://doi.org/10.2519/jospt.2014.5164"]
+    },
+    {
+      "id": "S34",
+      "citation": "Damsted et al., systematic review of changes in running load and injury",
+      "year": 2018,
+      "source_type": "peer_reviewed_systematic_review",
+      "evidence_tier": "A_direct_running",
+      "population_or_scope": "Running-load change and injury literature",
+      "key_numbers": [],
+      "supports": ["limited support for universal sudden-load rules"],
+      "limitations": "Running only.",
+      "urls": ["https://pubmed.ncbi.nlm.nih.gov/30534459/"]
+    },
+    {
+      "id": "S35",
+      "citation": "Ramskov et al., volume-focused versus intensity-focused running progression",
+      "year": 2018,
+      "source_type": "peer_reviewed_randomised_trial",
+      "evidence_tier": "A_direct_running",
+      "population_or_scope": "447 recreational runners; 80 injuries reported",
+      "key_numbers": [],
+      "supports": ["no clear injury-risk winner between volume-first and intensity-first progression in the study"],
+      "limitations": "Running only.",
+      "urls": ["https://doi.org/10.2519/jospt.2018.8062"]
+    },
+    {
+      "id": "S36",
+      "citation": "NHS Couch to 5K",
+      "year": null,
+      "source_type": "official_coaching_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "Beginner public running plan",
+      "key_numbers": ["3 sessions/week", "9 weeks", "1 min run/1:30 walk opening pattern", "30 min continuous run endpoint"],
+      "supports": ["a concrete beginner template"],
+      "limitations": "Programme guidance, not proof of universal readiness thresholds.",
+      "urls": ["https://www.nhs.uk/better-health/get-active/get-running-with-couch-to-5k/couch-to-5k-running-plan/"]
+    },
+    {
+      "id": "S37",
+      "citation": "Daniels, Daniels’ Running Formula, 3rd edition",
+      "year": 2013,
+      "source_type": "established_coaching_model",
+      "evidence_tier": "C_coaching",
+      "population_or_scope": "Running E/T/I/R framework",
+      "key_numbers": [],
+      "supports": ["running intensity categories and progression structure"],
+      "limitations": "Coaching framework; exact paces require individualisation.",
+      "urls": ["https://books.google.com/books/about/Daniels_Running_Formula_3rd_Edition.html?id=m6VVAgAAQBAJ"]
+    },
+    {
+      "id": "S38",
+      "citation": "Fleckenstein et al., interval structure and time above VO2max",
+      "year": 2025,
+      "source_type": "peer_reviewed_interval_study",
+      "evidence_tier": "B_adjacent_running",
+      "population_or_scope": "Highly trained runners; 4×3 min versus 24×30 s interval structures",
+      "key_numbers": ["4×3 min at 95% vVO2max with 3 min recovery versus 24×30 s at 100% vVO2max with 30 s recovery"],
+      "supports": ["HR-zone time is a poor sole proxy for short-interval stimulus"],
+      "limitations": "Highly trained runners; not air-bike-specific.",
+      "urls": ["https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2024.1507957/full"]
+    },
+    {
+      "id": "S39",
+      "citation": "British Rowing Go Row beginner training plan",
+      "year": null,
+      "source_type": "official_coaching_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "Beginner indoor rowing; 8-week template",
+      "key_numbers": ["progression from 1 min low/1 min rest ×5 through medium/high pieces and a 2k"],
+      "supports": ["concrete rowing beginner template"],
+      "limitations": "Template, not a universal injury/readiness threshold.",
+      "urls": ["https://britishrowing.org/wp-content/uploads/2016/10/BR_Go_Row_A4_Beginners_Training_Plan_P3.pdf"]
+    },
+    {
+      "id": "S40",
+      "citation": "Concept2 stroke-rate guidance",
+      "year": null,
+      "source_type": "manufacturer_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "Indoor rowing stroke rate",
+      "key_numbers": ["18–22 technique/rhythm", "24–28 steady", "30–36 short-interval/2k context"],
+      "supports": ["rate context, not rate-as-intensity"],
+      "limitations": "Not a universal pace table or air-bike transfer.",
+      "urls": ["https://www.concept2.com/blog/rowing-stroke-rate-explained"]
+    },
+    {
+      "id": "S41",
+      "citation": "Concept2 training plans and test options",
+      "year": null,
+      "source_type": "manufacturer_coaching_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "Indoor rower/SkiErg testing and plans",
+      "key_numbers": ["published 2k plans use 3 sessions/week with optional fourth in a 12-week plan; multiple distance/time tests exist"],
+      "supports": ["benchmark protocol metadata and practical schedules"],
+      "limitations": "Not an air-bike progression study.",
+      "urls": ["https://www.concept2.com/training/plans"]
+    },
+    {
+      "id": "S42",
+      "citation": "Concept2 beginner SkiErg programme",
+      "year": null,
+      "source_type": "manufacturer_coaching_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "Beginner SkiErg; 6-week template",
+      "key_numbers": ["2–3 sessions/week", "1 min hard/1 min easy, 30/30, 250 m, 1000 m, 1500 m, 2000 m progressions"],
+      "supports": ["concrete SkiErg beginner template"],
+      "limitations": "Not direct evidence for a slower progression rate than other modalities.",
+      "urls": ["https://www.concept2.com/blog/beginners-skierg-training-program"]
+    },
+    {
+      "id": "S43",
+      "citation": "Concept2 SkiErg technique",
+      "year": null,
+      "source_type": "manufacturer_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "SkiErg movement technique",
+      "key_numbers": [],
+      "supports": ["full-body/trunk/lat/hip-hinge movement description"],
+      "limitations": "Not an injury-incidence study.",
+      "urls": ["https://www.concept2.com/training/skierg-technique"]
+    },
+    {
+      "id": "S44",
+      "citation": "British Cycling novice 8-week sofa-to-50km plan",
+      "year": null,
+      "source_type": "official_coaching_guidance",
+      "evidence_tier": "C_guidance",
+      "population_or_scope": "Beginner conventional cycling",
+      "key_numbers": ["3 rides/week; approximately 1.5 to 6.5 hours weekly across the plan"],
+      "supports": ["concrete cycling beginner template"],
+      "limitations": "Coaching plan, not a validated universal 10% rule.",
+      "urls": ["https://www.britishcycling.org.uk/knowledge/article/izn20151216-Beginner-8-week-Sofa-to-50km-Training-Plan-0"]
+    },
+    {
+      "id": "S45",
+      "citation": "TrainingPeaks FTP calculation guidance",
+      "year": null,
+      "source_type": "coaching_software_guidance",
+      "evidence_tier": "C_coaching",
+      "population_or_scope": "Conventional cycling FTP estimates",
+      "key_numbers": ["20-minute mean power × .95 convention"],
+      "supports": ["cycling software convention"],
+      "limitations": "Not a universal threshold or air-bike method.",
+      "urls": ["https://help.trainingpeaks.com/hc/en-us/articles/204071934-How-to-Calculate-Threshold-Values-for-Power-Heart-Rate-or-Pace"]
+    },
+    {
+      "id": "S46",
+      "citation": "TrainerRoad ramp-test guidance",
+      "year": null,
+      "source_type": "coaching_software_guidance",
+      "evidence_tier": "C_coaching",
+      "population_or_scope": "Conventional cycling ramp FTP estimate",
+      "key_numbers": ["approximately 75% of highest one-minute power convention"],
+      "supports": ["cycling software convention"],
+      "limitations": "Not an air-bike method.",
+      "urls": ["https://support.trainerroad.com/hc/en-us/articles/360003910912-How-to-Test-With-the-Ramp-Test"]
+    },
+    {
+      "id": "S47",
+      "citation": "Inglis et al., FTP estimate and maximal lactate steady state",
+      "year": 2020,
+      "source_type": "peer_reviewed_cycling_validation",
+      "evidence_tier": "B_adjacent_conventional_cycling",
+      "population_or_scope": "18 well-trained individuals; FTP95 versus MLSS",
+      "key_numbers": ["MLSS averaged 93.1±5.1% of FTP estimated by 20-minute × .95 in the reported sample"],
+      "supports": ["FTP95 is an estimate with individual error"],
+      "limitations": "Conventional cycling; not air bike.",
+      "urls": ["https://pubmed.ncbi.nlm.nih.gov/31689684/"]
+    },
+    {
+      "id": "S48",
+      "citation": "Karsten et al., FTP and MLSS agreement",
+      "year": 2021,
+      "source_type": "peer_reviewed_cycling_validation",
+      "evidence_tier": "B_adjacent_conventional_cycling",
+      "population_or_scope": "Cycling FTP and MLSS comparison",
+      "key_numbers": [],
+      "supports": ["FTP can correlate with threshold while individual limits of agreement remain meaningful"],
+      "limitations": "Conventional cycling; not air bike.",
+      "urls": ["https://doi.org/10.3389/fphys.2020.613151"]
+    },
+    {
+      "id": "S49",
+      "citation": "Frandsen et al., single-session running-load spike and injury",
+      "year": 2025,
+      "source_type": "peer_reviewed_observational_running",
+      "evidence_tier": "A_direct_running_but_recent",
+      "population_or_scope": "Recent recreational running-load observational evidence",
+      "key_numbers": ["study examined whether a single session exceeding the longest run in the preceding 30 days by at least 10% was associated with injury"],
+      "supports": ["promising but not a universal safe cutoff"],
+      "limitations": "Running only; observational; does not transfer to air bike.",
+      "urls": ["https://pmc.ncbi.nlm.nih.gov/articles/PMC12421110/"]
+    },
+    {
+      "id": "S50",
+      "citation": "Zhu et al., experience and double-poling oxygen cost",
+      "year": 2024,
+      "source_type": "peer_reviewed_adjacent_skierg_nordic",
+      "evidence_tier": "B_adjacent",
+      "population_or_scope": "Experienced versus novice double-poling",
+      "key_numbers": ["experienced skiers showed approximately 21% lower oxygen cost during submaximal double-poling in the reported comparison"],
+      "supports": ["technique/economy matters in upper-body Nordic work"],
+      "limitations": "Not a beginner progression or injury-tolerance study.",
+      "urls": ["https://www.nature.com/articles/s41598-024-57719-2"]
+    },
+    {
+      "id": "S51",
+      "citation": "Sunde et al., upper-body/nordic training evidence",
+      "year": 2019,
+      "source_type": "peer_reviewed_nordic_review_or_intervention",
+      "evidence_tier": "B_adjacent",
+      "population_or_scope": "Cross-country-skiing upper-body conditioning literature",
+      "key_numbers": [],
+      "supports": ["upper-body strength and technique are relevant to Nordic work"],
+      "limitations": "Does not establish beginner SkiErg loading relative to running or rowing.",
+      "urls": ["https://pmc.ncbi.nlm.nih.gov/articles/PMC6716506/"]
+    },
+    {
+      "id": "S53",
+      "citation": "Fit at Midlife, example AssaultBike workout/test catalogue",
+      "year": null,
+      "source_type": "coaching_practice",
+      "evidence_tier": "C_coaching_not_validation",
+      "population_or_scope": "Popular gym benchmarks including 5-minute, 10-minute max calories, and 2-mile examples",
+      "key_numbers": ["catalogue lists the formats but does not validate them"],
+      "supports": ["existence/popularity of tests"],
+      "limitations": "No peer-reviewed validity/reliability; do not use as universal standards.",
+      "urls": ["https://fitatmidlife.com/28-awesome-assault-bike-workouts/"]
+    },
+    {
+      "id": "S54",
+      "citation": "Vanderburgh, The 10-min Cycle Ergometer Test",
+      "year": 1998,
+      "source_type": "peer_reviewed_or_indexed_lower_body_cycle",
+      "evidence_tier": "B_adjacent_lower_body",
+      "population_or_scope": "10-minute lower-body cycle ergometer VO2peak prediction",
+      "key_numbers": ["10-minute protocol"],
+      "supports": ["a 10-minute lower-body cycle test is not automatically a combined fan-bike test"],
+      "limitations": "Not modern combined AssaultBike/Echo/Airdyne validation.",
+      "urls": ["https://www.ovid.com/jnls/nsca-jscr/abstract/00124278-199802000-00003~the-10-min-cycle-ergometer-test-a-body-mass-adjusted-test-of"]
+    },
+    {
+      "id": "S55",
+      "citation": "Driller, Argus & Shing, reliability of a 30-second Wattbike sprint",
+      "year": 2012,
+      "source_type": "peer_reviewed_lower_body_cycle_reliability",
+      "evidence_tier": "B_adjacent_lower_body",
+      "population_or_scope": "Trained cyclists on Wattbike",
+      "key_numbers": ["peak-power CV 4.9%", "mean-power CV 2.4%", "mean-cadence CV 1.4%", "maximum-HR CV 0.9%"],
+      "supports": ["a standardised lower-body sprint can be reliable"],
+      "limitations": "Not a combined arm-and-leg fan-bike validation.",
+      "urls": ["https://www.woodway.com/wp-content/uploads/2024/01/reliability_of_30_sec_sprinttest.pdf"]
+    },
+    {
+      "id": "S56",
+      "citation": "Schlegel, Křehký & Taufmann, Comparison of air bikes and their effect on selected physiological parameters",
+      "year": 2021,
+      "source_type": "peer_reviewed_direct_cross_device_comparison",
+      "evidence_tier": "A_direct_small_sample",
+      "population_or_scope": "10 physically active men; Assault, Echo, and Beast; 6-minute RPE-3, 10-minute, and 30-second protocols",
+      "key_numbers": ["10-minute calories: Beast 155.0±19.4, Echo 166.1±24.4, Assault 163.8±21.0", "10-minute distance: Beast 7258.1±403.7 m, Echo 6723.8±383.6 m, Assault 6823.5±401.9 m", "30-second calories: Beast 17.5±2.1, Echo 20.3±2.4, Assault 19.7±2.8"],
+      "supports": ["device-specific output baselines", "similar broad physiological stress with different exported distance/calorie values"],
+      "limitations": "Airdyne was not included; no test-retest reliability; small active male sample; authors call for confirmation.",
+      "urls": ["https://doi.org/10.32725/sk.2021.005", "https://sk.pf.jcu.cz/artkey/stk-202101-0005_komparace-air-biku-a-jejich-efektu-na-vybrane-fyziologicke-parametry.php", "https://digilib.uhk.cz/bitstream/handle/20.500.12603/1282/StudiaKin_stk-202101-0005_%281%29.pdf?sequence=1"]
+    },
+    {
+      "id": "S57",
+      "citation": "Schlegel & Křehký, Anaerobic fitness testing in CrossFit",
+      "year": 2020,
+      "source_type": "peer_reviewed_direct_assault_vs_wingate",
+      "evidence_tier": "A_direct_but_not_reliability",
+      "population_or_scope": "12 competitive male CrossFit athletes; 60-second AssaultBike test and 30-second lower-body Wingate one week apart",
+      "key_numbers": ["AssaultBike peak power 1268.8±130.2 W", "Wingate mean power 771.5±55.9 W", "AssaultBike calories 43.9±7.2", "10-minute post-test lactate 15.98±0.92 vs 13.16±1.87 mmol/L", "calories/mean-power correlation .894"],
+      "supports": ["a combined 60-second test is physiologically different from Wingate", "air-bike test is not standardised"],
+      "limitations": "Competitive male CrossFit sample; no test-retest reliability; different duration and body configuration; original study requires confirmation.",
+      "urls": ["https://doi.org/10.2478/afepuc-2020-0018", "https://digilib.uhk.cz/handle/20.500.12603/1139?locale-attribute=en", "https://digilib.uhk.cz/bitstream/handle/20.500.12603/1139/Anaerobic_Fitness_Testing_in_Crossfit.pdf?isAllowed=y&sequence=1"]
+    },
+    {
+      "id": "S58",
+      "citation": "Canário-Lemos et al., Control of the intensity of effort: heart rate or rate of perceived effort",
+      "year": 2023,
+      "source_type": "peer_reviewed_direct_air_bike_control",
+      "evidence_tier": "A_direct_device_specific",
+      "population_or_scope": "10 physically active young men; randomized 30-minute Air Bike PRO sessions",
+      "key_numbers": ["External-load control anchored to ventilatory thresholds and 90% peak VO2", "RPE operating anchors 4, 6, 8", "HR operating anchors approximately 50%, 75%, 90% HRmax", "RPE-controlled VO2 was more similar to external-load control than HR-controlled VO2"],
+      "supports": ["RPE can be a practical controller", "HR control can underdose intended oxygen demand in class-like intermittent work"],
+      "limitations": "One Air Bike Revolution format; active young men; no universal CR10-to-threshold mapping; acute study.",
+      "urls": ["https://doi.org/10.47197/retos.v49.97762", "https://revistaretos.org/index.php/retos/article/view/97762", "https://revistaretos.org/index.php/retos/article/download/97762/72478/367849"]
+    },
+    {
+      "id": "S59",
+      "citation": "Schlegel, Křehký, Hiblbauer & Faltys, Air biking as a new way for stress testing",
+      "year": 2022,
+      "source_type": "peer_reviewed_direct_combined_air_bike_ramp",
+      "evidence_tier": "A_direct_small_active_sample",
+      "population_or_scope": "20 physically active adults; three-minute-stage air-bike ramp to failure",
+      "key_numbers": ["average test duration about 14 min", "HRmax 189.7 bpm", "RERmax 1.12", "performance correlations: fat-free mass .86, back squat .83, bench press .84, 2-km row .85, VO2peak .68"],
+      "supports": ["air-bike ramp stress is feasible", "strength and fat-free mass contribute materially to performance"],
+      "limitations": "No test-retest reliability; small active sample; not a universal aerobic-capacity or progression test.",
+      "urls": ["https://doi.org/10.1051/sm/2022001", "https://www.mov-sport-sciences.org/articles/sm/ref/2022/02/sm210052/sm210052.html", "https://www.sciengine.com/MSS/doi/10.1051/sm/2022001"]
+    },
+    {
+      "id": "S60",
+      "citation": "Ponce-García et al., The Anaerobic Power Assessment in CrossFit Athletes",
+      "year": 2021,
+      "source_type": "peer_reviewed_direct_assaultbike_anaerobic",
+      "evidence_tier": "A_direct_but_not_universal_validation",
+      "population_or_scope": "CrossFit athletes; AssaultBike test and conventional Wingate comparison context",
+      "key_numbers": [],
+      "supports": ["a combined AssaultBike anaerobic test is a distinct task from lower-body Wingate"],
+      "limitations": "Does not establish a universal combined-air-bike benchmark or reliability package.",
+      "urls": ["https://doi.org/10.3390/ijerph18168878", "https://www.mdpi.com/1660-4601/18/16/8878", "https://pubmed.ncbi.nlm.nih.gov/34444626/"]
+    }
+  ],
+  "evidence_gaps": [
+    "No universal combined-air-bike zones by %HRmax, %HRR, CR10, VT/LT, RPM, watts, calories/min, or distance.",
+    "No validated cross-brand mapping for AssaultBike, Echo Bike, Airdyne, Air Bike Revolution, and comparable machines.",
+    "No modern combined-air-bike validity/reliability package for the popular 30-second, 1-minute, repeated-sprint, 5-minute, 10-minute, 2-mile, or Wingate-style tests.",
+    "No modern combined-air-bike critical-power or maximal-aerobic-power standard.",
+    "No direct epidemiologic incidence study located for air-bike shoulder, elbow, rib, lumbar, hip, or overuse injuries.",
+    "No evidence-based fixed air-bike progression rate relative to running, rowing, SkiErg, or conventional cycling.",
+    "No direct beginner evidence located for all requested 10/5, 20/10, 30/30, 60/60, and longer air-bike formats.",
+    "No validated universal session count before phase advancement.",
+    "No evidence that a single HRR threshold from a consumer sensor is suitable as a progression gate."
+  ]
+}

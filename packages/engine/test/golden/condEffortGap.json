@@ -1,0 +1,197 @@
+[
+ {
+  "effort": "easy",
+  "felt": 1,
+  "out": -2
+ },
+ {
+  "effort": "easy",
+  "felt": 3,
+  "out": 0
+ },
+ {
+  "effort": "easy",
+  "felt": 3.5,
+  "out": 0
+ },
+ {
+  "effort": "easy",
+  "felt": 4,
+  "out": 0
+ },
+ {
+  "effort": "easy",
+  "felt": 5,
+  "out": 1
+ },
+ {
+  "effort": "easy",
+  "felt": 6,
+  "out": 2
+ },
+ {
+  "effort": "easy",
+  "felt": 7,
+  "out": 3
+ },
+ {
+  "effort": "easy",
+  "felt": 8,
+  "out": 4
+ },
+ {
+  "effort": "easy",
+  "felt": 9,
+  "out": 5
+ },
+ {
+  "effort": "easy",
+  "felt": 9.5,
+  "out": 5.5
+ },
+ {
+  "effort": "easy",
+  "felt": 10,
+  "out": 6
+ },
+ {
+  "effort": "easy",
+  "felt": null,
+  "out": null
+ },
+ {
+  "effort": "easy",
+  "felt": null,
+  "out": null
+ },
+ {
+  "effort": "medium",
+  "felt": 1,
+  "out": -4
+ },
+ {
+  "effort": "medium",
+  "felt": 3,
+  "out": -2
+ },
+ {
+  "effort": "medium",
+  "felt": 3.5,
+  "out": -1.5
+ },
+ {
+  "effort": "medium",
+  "felt": 4,
+  "out": -1
+ },
+ {
+  "effort": "medium",
+  "felt": 5,
+  "out": 0
+ },
+ {
+  "effort": "medium",
+  "felt": 6,
+  "out": 0
+ },
+ {
+  "effort": "medium",
+  "felt": 7,
+  "out": 0
+ },
+ {
+  "effort": "medium",
+  "felt": 8,
+  "out": 1
+ },
+ {
+  "effort": "medium",
+  "felt": 9,
+  "out": 2
+ },
+ {
+  "effort": "medium",
+  "felt": 9.5,
+  "out": 2.5
+ },
+ {
+  "effort": "medium",
+  "felt": 10,
+  "out": 3
+ },
+ {
+  "effort": "medium",
+  "felt": null,
+  "out": null
+ },
+ {
+  "effort": "medium",
+  "felt": null,
+  "out": null
+ },
+ {
+  "effort": "hard",
+  "felt": 1,
+  "out": -7
+ },
+ {
+  "effort": "hard",
+  "felt": 3,
+  "out": -5
+ },
+ {
+  "effort": "hard",
+  "felt": 3.5,
+  "out": -4.5
+ },
+ {
+  "effort": "hard",
+  "felt": 4,
+  "out": -4
+ },
+ {
+  "effort": "hard",
+  "felt": 5,
+  "out": -3
+ },
+ {
+  "effort": "hard",
+  "felt": 6,
+  "out": -2
+ },
+ {
+  "effort": "hard",
+  "felt": 7,
+  "out": -1
+ },
+ {
+  "effort": "hard",
+  "felt": 8,
+  "out": 0
+ },
+ {
+  "effort": "hard",
+  "felt": 9,
+  "out": 0
+ },
+ {
+  "effort": "hard",
+  "felt": 9.5,
+  "out": 0
+ },
+ {
+  "effort": "hard",
+  "felt": 10,
+  "out": 0.5
+ },
+ {
+  "effort": "hard",
+  "felt": null,
+  "out": null
+ },
+ {
+  "effort": "hard",
+  "felt": null,
+  "out": null
+ }
+]

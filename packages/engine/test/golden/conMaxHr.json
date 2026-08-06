@@ -1,0 +1,57 @@
+[
+ {
+  "profile": {},
+  "out": 187
+ },
+ {
+  "profile": {
+   "age": 20
+  },
+  "out": 194
+ },
+ {
+  "profile": {
+   "age": 30
+  },
+  "out": 187
+ },
+ {
+  "profile": {
+   "age": 45
+  },
+  "out": 177
+ },
+ {
+  "profile": {
+   "age": 60
+  },
+  "out": 166
+ },
+ {
+  "profile": {
+   "maxHr": 195
+  },
+  "out": 195
+ },
+ {
+  "profile": {
+   "age": 30,
+   "obsMaxHr": 200
+  },
+  "out": 200
+ },
+ {
+  "profile": {
+   "age": 30,
+   "obsMaxHr": 150
+  },
+  "out": 187
+ },
+ {
+  "profile": {
+   "maxHr": 180,
+   "obsMaxHr": 205
+  },
+  "out": 180
+ }
+]

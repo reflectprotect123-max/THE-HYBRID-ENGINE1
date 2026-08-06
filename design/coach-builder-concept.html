@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coach Builder — Concept · THE Hybrid System</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23141311'/><text x='50' y='72' font-size='64' font-family='Georgia,serif' font-weight='900' fill='%23c09358' text-anchor='middle'>H</text></svg>">
+<style>
+/* ============================================================
+   CONCEPT v3 — the coach builder is the phone Planner, wide.
+   One bar. One column. Every card opens; one at a time.
+   On the phone a card takes the whole screen; on a laptop there
+   is room, so it expands in place and the session stays visible.
+   Tokens are the athlete app's (:root in /index.html), untouched.
+
+   WARM-UP SETS: typing W (or W10) in a set's target marks it a warm-up. It is
+   encoded in `t` rather than as a new key, because a planned set's shape is
+   contractual — checks/emit-contract.mjs and checks/browser-smoke.mjs both
+   assert it is exactly {t,rpe} — and `t` is already free text parsed by
+   pattern, where `max` likewise carries behaviour. When this reaches the real
+   app, isWarmup() sets MUST be skipped by: the weight autoregulation
+   (computeSetAdjustment / glogConfirmSet), volume + avg-RPE stats
+   (sessionVolume / sessionRpe) and PR detection (detectPRs). A warm-up that
+   drags the working weight down or registers a PR is the whole point of the
+   flag.
+   ============================================================ */
+@font-face{font-family:'Inter';src:url('../fonts/inter-var.woff2') format('woff2');font-weight:100 900;font-display:swap;font-style:normal}
+:root{
+  --bg:#070706; --panel:#141311; --panel2:#1c1b18; --panel3:#0a0a09;
+  --well:#0c0c0a;
+  --well-inset:inset 0 2px 4px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.03);
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.12);
+  --text:#f5f1e9; --muted:#aaa49a; --dim:#847d73;
+  --gold:#c09358; --gold2:#e0bc87; --gold-wash:rgba(192,147,88,.09);
+  --gold-line:rgba(224,188,135,.22);
+  --brass-grad:linear-gradient(180deg,rgba(224,188,135,.16),rgba(192,147,88,.05));
+  --brass-edge:inset 0 1px 0 rgba(255,255,255,.14),0 1px 0 rgba(0,0,0,.35);
+  --shadow-card:0 12px 34px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.018);
+  --lift-open:0 18px 40px rgba(0,0,0,.5),0 0 0 1px rgba(224,188,135,.22),inset 0 1px 0 rgba(255,255,255,.05);
+  --zone-blue:#5b8def; --zone-green:#33c07a; --zone-red:#e0524d;
+  --r-sm:10px; --r-md:14px; --r-pill:999px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+
+/* ---------- one bar ---------- */
+.topbar{height:60px;background:var(--panel3);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 22px;position:sticky;top:0;z-index:40}
+.logo{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--gold);font-weight:900;font-size:19px;font-family:Georgia,'Times New Roman',serif;background:var(--panel);border:1px solid var(--line)}
+.prog{display:flex;align-items:baseline;gap:10px;min-width:0}
+.prog b{font-size:15px;font-weight:750;white-space:nowrap}
+.prog span{color:var(--dim);font-size:12px;white-space:nowrap}
+.grow{flex:1}
+.days{display:flex;gap:7px;align-items:center}
+.days label{color:var(--dim);font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-right:4px}
+.day{width:34px;height:34px;border-radius:50%;border:1px solid var(--line2);background:var(--panel);color:var(--muted);font-size:13px;font-weight:750;display:grid;place-items:center;font-variant-numeric:tabular-nums;position:relative}
+.day.on{background:var(--brass-grad);box-shadow:var(--brass-edge);border-color:var(--gold-line);color:var(--gold2)}
+.day.has::after{content:"";position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--gold)}
+.bigbtn{min-height:44px;padding:0 20px;border:1px solid #c99a5d;border-radius:var(--r-md);background:linear-gradient(180deg,#c89b62,#b4864d);color:#17120c;font-size:14px;font-weight:850;box-shadow:inset 0 1px rgba(255,255,255,.23),0 10px 24px rgba(110,72,26,.22);white-space:nowrap}
+.bigbtn:hover{background:linear-gradient(180deg,#d0a66f,#bb8e52)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--brass-grad);box-shadow:var(--brass-edge);border:1px solid var(--gold-line);display:grid;place-items:center;color:var(--gold2);font-weight:800;font-size:12px}
+
+/* ---------- one column ---------- */
+.page{max-width:660px;margin:0 auto;padding:34px 20px 120px}
+.kicker{font-size:10px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:rgba(224,188,135,.72)}
+.ttl{font-size:27px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin:4px 0 22px}
+.sec{display:flex;align-items:baseline;gap:10px;margin:26px 0 0}
+.sec span{color:var(--dim);font-size:11px}
+/* an editable heading that stays a heading: no border until you reach for it */
+.sech{margin:0;padding:2px 6px;width:auto;min-width:40px;max-width:340px;border:1px solid transparent;border-radius:6px;background:transparent;
+  font:inherit;font-size:12.5px;font-weight:850;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2);outline:none}
+.sech:hover{border-color:var(--line2)}
+.sech:focus{border-color:var(--gold-line);background:var(--well);box-shadow:var(--well-inset)}
+
+/* the Logger card */
+.lgx{position:relative;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);margin-top:10px;box-shadow:var(--shadow-card);transition:border-color .15s ease}
+.lgx:not(.open):hover{border-color:rgba(224,188,135,.3)}
+.lgcrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:0 14px;min-height:60px}
+.lgltr{flex:0 0 auto;min-width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);background:var(--brass-grad);box-shadow:var(--brass-edge);color:var(--gold2);font-size:12px;font-weight:850;border:1px solid var(--gold-line)}
+.lgcn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.lgcn b{font-size:16px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgcn span{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgcn span i{font-style:italic;color:var(--gold2)}
+.lgcar{flex:0 0 auto;color:var(--dim);font-size:13px}
+.lgx.open{border-color:transparent;box-shadow:var(--lift-open)}
+.lgx.open::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:var(--r-md) var(--r-md) 0 0;z-index:2}
+.lg-body{padding:2px 16px 18px;animation:reveal .26s cubic-bezier(.22,.9,.24,1)}
+@keyframes reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* the name is the movement picker */
+.namebtn{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:16px;font-weight:800;letter-spacing:-.01em;padding:0;color:var(--text);max-width:100%}
+.namebtn .pen{color:var(--dim);font-size:12px;flex:0 0 auto}
+.namebtn:hover{color:var(--gold2)}
+.namebtn:hover .pen{color:var(--gold2)}
+
+/* controls — the phone planner's, one per row */
+.f{display:flex;align-items:center;gap:14px;margin-top:14px}
+.f>label{flex:0 0 96px;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9a938a}
+.step{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--well);box-shadow:var(--well-inset)}
+.step button{width:44px;min-height:44px;background:var(--panel2);color:var(--gold2);font-size:19px;font-weight:800}
+.step button:hover{background:#242320}
+.step .val{min-width:76px;display:grid;place-items:center;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;padding:0 10px}
+/* typed set rows — one target per set, so a ladder is just four boxes */
+.setlist{display:flex;flex-direction:column;gap:8px;min-width:0}
+.setrow{display:flex;align-items:center;gap:10px}
+.setn{flex:0 0 52px;color:var(--dim);font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.sett,.setr{min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--text);font:inherit;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;outline:none}
+.sett{width:112px}
+.setr{width:78px;font-size:15px;color:var(--gold2)}
+.sett:focus,.setr:focus{border-color:var(--gold-line);box-shadow:var(--well-inset),0 0 0 3px rgba(192,147,88,.13)}
+.sett::placeholder,.setr::placeholder{color:var(--dim);font-weight:600;font-size:13px}
+/* a warm-up recedes, so the working sets are what the eye lands on */
+.setrow.warm .setn{color:var(--gold2);opacity:.75}
+.setrow.warm .sett{color:var(--muted);border-style:dashed}
+.setrow.warm .setr{opacity:.45}
+.setx{width:30px;height:30px;border-radius:50%;color:var(--dim);font-size:12px;display:grid;place-items:center;flex:0 0 auto}
+.setx:hover{color:#cf7f7c;background:rgba(207,127,124,.1)}
+.setx.ghost{pointer-events:none}
+.addset{align-self:flex-start;margin-top:2px;padding:9px 14px;border:1px dashed var(--line2);border-radius:var(--r-pill);color:var(--gold2);font-size:11px;font-weight:750;letter-spacing:.04em}
+.addset:hover{border-color:rgba(224,188,135,.4)}
+.setshint{margin:6px 0 0;color:var(--dim);font-size:11.5px;max-width:340px}
+.setshint b{color:var(--muted);font-weight:750}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:7px 12px;border:1px solid var(--line2);border-radius:var(--r-pill);color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase}
+.chip:hover{border-color:rgba(224,188,135,.4)}
+.chip.on{border-color:rgba(198,154,97,.42);background:var(--gold-wash);color:var(--gold2)}
+.chip i{display:block;font-style:normal;font-size:9px;font-weight:600;letter-spacing:.04em;opacity:.6;margin-top:2px;text-align:center}
+.chip.e-easy.on{border-color:var(--zone-blue);color:var(--zone-blue);background:transparent}
+.chip.e-med.on{border-color:var(--zone-green);color:var(--zone-green);background:transparent}
+.chip.e-hard.on{border-color:var(--zone-red);color:var(--zone-red);background:transparent}
+
+.rpe{margin-top:16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel2);padding:13px 16px}
+.rpe small{display:block;font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.rpe b{display:block;font-size:30px;font-weight:800;color:var(--gold2);margin:1px 0 4px;font-variant-numeric:tabular-nums}
+.rpe input[type=range]{width:100%;accent-color:var(--gold)}
+.rpe .ancs{display:flex;justify-content:space-between;color:var(--dim);font-size:11px;margin-top:3px}
+
+/* card footer: move / remove, mirroring the phone's ↑↓✕ */
+.cardctl{display:flex;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.ctlbtn{width:42px;height:38px;border:1px solid var(--line2);border-radius:var(--r-sm);color:var(--muted);display:grid;place-items:center;font-size:14px}
+.ctlbtn:hover{border-color:rgba(224,188,135,.4);color:var(--gold2)}
+.ctlbtn.del{margin-left:auto;color:#cf7f7c;border-color:rgba(207,127,124,.3)}
+.ctlbtn.del:hover{border-color:#cf7f7c;color:#cf7f7c}
+
+/* the chain between two cards — unlit is a hint, lit means "flows on" */
+.planseam{display:flex;justify-content:center;padding:3px 0}
+.planseam button{width:38px;height:28px;border-radius:var(--r-pill);border:1px solid var(--line);background:var(--panel2);color:var(--dim);display:grid;place-items:center;transition:.15s ease}
+.planseam button:hover{border-color:rgba(224,188,135,.45);color:var(--gold2)}
+.planseam button.on{color:var(--gold2);border-color:var(--gold-line);background:var(--gold-wash)}
+.planseam svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none}
+.superwrap{margin-top:12px;padding-left:12px;border-left:3px solid var(--gold)}
+.lgx.cond{border-color:rgba(51,192,122,.26)}
+.lgx.cond .lgltr{color:var(--zone-green)}
+.lgx.cond.open{border-color:transparent}
+
+.addrow{display:flex;gap:10px;margin-top:18px}
+.addbtn{flex:1;min-height:46px;border:1px dashed var(--line2);border-radius:var(--r-md);color:var(--gold2);font-size:13px;font-weight:750}
+.addbtn:hover{border-color:rgba(224,188,135,.4)}
+
+/* movement picker */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;padding:12vh 20px;z-index:60}
+.scrim.on{display:flex}
+.sheet{width:100%;max-width:460px;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:0 30px 70px rgba(0,0,0,.6);padding:18px}
+.sheet h3{margin:0 0 3px;font-size:16px;font-weight:800}
+.sheet p{margin:0 0 14px;color:var(--dim);font-size:12px}
+.sheet input{width:100%;min-height:46px;padding:0 14px;border:1px solid var(--line2);border-radius:var(--r-sm);background:var(--well);box-shadow:var(--well-inset);color:var(--text);font:inherit;font-size:15px;outline:none}
+.sheet input:focus{border-color:var(--gold-line)}
+.opts{margin-top:12px;max-height:280px;overflow:auto}
+.opt{display:block;width:100%;text-align:left;padding:11px 12px;border-radius:var(--r-sm);color:var(--text);font-size:14px;font-weight:600}
+.opt:hover{background:var(--panel2);color:var(--gold2)}
+.opt small{display:block;color:var(--dim);font-size:11px;font-weight:500;margin-top:1px}
+
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">H</div>
+  <div class="prog"><b>Hybrid Base — Block 2</b><span>Week 2 ▾</span></div>
+  <div class="grow"></div>
+  <div class="days">
+    <label>Day</label>
+    <button class="day has on">1</button><button class="day has">2</button><button class="day">3</button>
+    <button class="day has">4</button><button class="day">5</button><button class="day has">6</button><button class="day">7</button>
+  </div>
+  <button class="bigbtn">Assign to phone ↗</button>
+  <button class="avatar">R</button>
+</header>
+
+<main class="page">
+  <div class="kicker">Week 2 · Day 1 · saves as you go</div>
+  <h1 class="ttl">Lower + Engine</h1>
+  <div id="session"></div>
+  <div class="addrow">
+    <button class="addbtn">＋ Exercise</button>
+    <button class="addbtn">＋ Block</button>
+    <button class="addbtn">♥ Conditioning</button>
+  </div>
+</main>
+
+<div class="scrim" id="scrim">
+  <div class="sheet">
+    <h3>Choose a movement</h3>
+    <p>Search the library, or type any name.</p>
+    <input id="q" placeholder="Search or type a name" autocomplete="off">
+    <div class="opts" id="opts"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+/* ---- the session, as the coach's data model ---- */
+var LIB=['Back Squat','Front Squat','Romanian Deadlift','Conventional Deadlift','Barbell Hip Thrust',
+ 'DB Bench Press','Barbell Bench Press','Incline DB Press','Chest-Supported Row','Barbell Row',
+ 'Weighted Pull-up','Overhead Press','Walking Lunge','Bulgarian Split Squat','Farmer Carry','Plank'];
+var EFF={Easy:'RPE 3-4',Medium:'RPE 5-7',Hard:'RPE 8-9.5'};
+
+/* Sets are the phone's own shape: one {t,rpe} per set (app.js newSet/newEx),
+   so a ladder like 12/10/8/8 is native rather than a translation. */
+function S(list,rpe){return list.map(function(t){return {t:String(t),rpe:String(rpe)}})}
+var B=[
+ {h:'Main',mins:'18 min',ex:[
+   {n:'Back Squat',sets:S([5,5,5,5],8),rest:180},
+   {n:'Romanian Deadlift',sets:S(['8-10','8-10','8-10'],7.5),rest:120}]},
+ {h:'Accessory',mins:'10 min',ss:true,ex:[
+   {n:'DB Bench Press',sets:S(['12','10','8','8'],8),rest:0},
+   {n:'Chest-Supported Row',sets:S(['10-12','10-12','10-12'],8),rest:90}]},
+ {h:'Finisher',mins:'heart rate',cond:true,fmt:'Intervals',eff:'Medium'}
+];
+var OPEN={b:0,e:0}, PICK=null;
+
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function rest(s){return s?Math.floor(s/60)+':'+String(s%60).padStart(2,'0'):'none'}
+/* Letters run A, B, C… across the whole session; a superset pair shares one
+   letter as A1/A2 — the same scheme the phone uses. */
+function letters(){
+  var map={},n=0;
+  B.forEach(function(b,bi){
+    if(b.cond)return;
+    if(b.ss){var L=String.fromCharCode(65+n++);b.ex.forEach(function(x,ei){map[bi+'-'+ei]=L+(ei+1)});}
+    else b.ex.forEach(function(x,ei){map[bi+'-'+ei]=String.fromCharCode(65+n++)});
+  });
+  return map;
+}
+var LTR={};
+function letter(bi,ei){return LTR[bi+'-'+ei]||'?'}
+/* Mirrors the phone's rxLine (app.js:128) exactly: uniform targets collapse to
+   "4 × 5", a ladder spells out "4 × 12/10/8/8", and RPE reads "8" or "7→9". */
+/* One predicate the whole app can share: a target starting with W is a warm-up.
+   Bare "W" = work up as you like; "W10" = a warm-up of 10, and repFloorOf still
+   reads the 10 out of it unchanged. */
+function isWarmup(st){return /^\s*w/i.test(st&&st.t||'')}
+function uniq(a){return a.filter(function(v,i){return a.indexOf(v)===i})}
+function summary(x){
+  var vals=x.sets.map(function(st){return st.t||'—'}), u=uniq(vals);
+  var rx=x.sets.length+' × <i>'+esc(u.length===1?u[0]:vals.join('/'))+'</i>';
+  // stringify: a seeded 8 and a typed "8" must not read as two different RPEs
+  var rpes=x.sets.map(function(st){return st.rpe==null?'':String(st.rpe).trim()}).filter(Boolean);
+  if(rpes.length){var ur=uniq(rpes);
+    rx+=' · <i>RPE '+(ur.length===1?ur[0]:rpes[0]+'→'+rpes[rpes.length-1])+'</i>';}
+  // rxLine omits rest when it is zero rather than captioning it — a solo
+  // exercise with no rest is not "flowing on" to anything
+  return rx+(x.rest?' · rest '+rest(x.rest):'');
+}
+
+/* ---- render ---- */
+function render(){
+  LTR=letters();
+  var out='';
+  B.forEach(function(b,bi){
+    // the heading is an input that looks like a heading until you touch it —
+    // no edit mode to enter or leave, and splitting a block leaves you able to
+    // rename the copy on the spot
+    out+='<div class="sec">'+
+      '<input class="sech" value="'+esc(b.h)+'" data-h="'+bi+'" spellcheck="false" aria-label="block name">'+
+      '<span>'+esc(b.mins)+'</span></div>';
+    if(b.cond){out+=condCard(b,bi);return;}
+    // a seam sits between every pair of adjacent cards: lit = they flow together
+    var rows=b.ex.map(function(x,ei){
+      return card(x,bi,ei)+(ei<b.ex.length-1?seam(bi,ei,false,!!b.ss):'');
+    }).join('');
+    // the gold rail and the A1/A2 letters already say "these flow together" —
+    // the label was saying it a third time
+    out+=b.ss?'<div class="superwrap">'+rows+'</div>':rows;
+    // and one across the boundary into the next strength block, to merge them
+    var nb=B[bi+1];
+    if(nb&&!nb.cond)out+=seam(bi,b.ex.length-1,true,false);
+  });
+  document.getElementById('session').innerHTML=out;
+}
+function seam(bi,ei,cross,on){
+  return '<div class="planseam"><button class="'+(on?'on':'')+'" data-link="'+bi+','+ei+','+(cross?1:0)+'" '+
+    'title="'+(on?'split them apart':'chain into a superset')+'" '+
+    'aria-label="'+(on?'split the superset here':'chain into a superset')+'">'+
+    '<svg viewBox="0 0 24 24"><path d="M9 12h6M8 8.5 5.5 11a3.5 3.5 0 0 0 5 5L13 13.5M16 15.5l2.5-2.5a3.5 3.5 0 0 0-5-5L11 10.5"/></svg>'+
+  '</button></div>';
+}
+function card(x,bi,ei){
+  var open=OPEN.b===bi&&OPEN.e===ei;
+  var head='<button class="lgcrow" data-open="'+bi+','+ei+'">'+
+    '<span class="lgltr">'+letter(bi,ei)+'</span>'+
+    '<span class="lgcn"><b>'+esc(x.n)+'</b><span>'+summary(x)+'</span></span>'+
+    '<span class="lgcar">'+(open?'▴':'›')+'</span></button>';
+  if(!open)return '<section class="lgx">'+head+'</section>';
+  var openHead='<div class="lgcrow">'+
+    '<span class="lgltr">'+letter(bi,ei)+'</span>'+
+    '<span class="lgcn"><button class="namebtn" data-pick="'+bi+','+ei+'">'+esc(x.n)+'<span class="pen">✎</span></button>'+
+      '<span>'+summary(x)+'</span></span>'+
+    '<button class="lgcar" data-open="'+bi+','+ei+'" aria-label="collapse">▴</button></div>';
+  var rows=x.sets.map(function(st,si){
+    var w=isWarmup(st);
+    return '<div class="setrow'+(w?' warm':'')+'">'+
+      '<span class="setn">'+(w?'Warm':'Set '+(si+1))+'</span>'+
+      '<input class="sett" value="'+esc(st.t)+'" data-t="'+bi+','+ei+','+si+'" '+
+        'placeholder="reps" aria-label="target for set '+(si+1)+'">'+
+      '<input class="setr" value="'+esc(st.rpe==null?'':st.rpe)+'" data-r="'+bi+','+ei+','+si+'" '+
+        'placeholder="'+(w?'—':'RPE')+'" aria-label="target RPE for set '+(si+1)+'">'+
+      (x.sets.length>1?'<button class="setx" data-delset="'+bi+','+ei+','+si+'" aria-label="remove set '+(si+1)+'">✕</button>':'<span class="setx ghost"></span>')+
+    '</div>';
+  }).join('');
+  return '<section class="lgx open">'+openHead+'<div class="lg-body">'+
+    '<div class="f" style="align-items:flex-start"><label style="padding-top:11px">Sets &amp; reps</label>'+
+      '<div class="setlist">'+rows+
+        '<button class="addset" data-addset="'+bi+','+ei+'">＋ Add set</button>'+
+        '<p class="setshint">Type what the athlete should hit — <b>8</b>, <b>8-12</b>, <b>max</b>. Start with <b>W</b> for a warm-up (<b>W</b> or <b>W10</b>). A different number per set makes a ladder.</p>'+
+      '</div></div>'+
+    '<div class="f"><label>Rest</label><div class="step">'+
+      '<button data-rest="'+bi+','+ei+',-15">−</button><span class="val">'+rest(x.rest)+'</span><button data-rest="'+bi+','+ei+',15">+</button></div></div>'+
+    '<div class="cardctl">'+
+      '<button class="ctlbtn" data-move="'+bi+','+ei+',-1" aria-label="move up">↑</button>'+
+      '<button class="ctlbtn" data-move="'+bi+','+ei+',1" aria-label="move down">↓</button>'+
+      '<button class="ctlbtn del" data-del="'+bi+','+ei+'" aria-label="remove">✕</button></div>'+
+    '</div></section>';
+}
+function condCard(b,bi){
+  var open=OPEN.b===bi;
+  var sum='8×30s / 90s · <i>'+b.eff+' · '+EFF[b.eff]+'</i>';
+  if(!open)return '<section class="lgx cond"><button class="lgcrow" data-open="'+bi+',0">'+
+    '<span class="lgltr">♥</span><span class="lgcn"><b>'+esc(b.fmt)+'</b><span>'+sum+'</span></span><span class="lgcar">›</span></button></section>';
+  return '<section class="lgx cond open"><div class="lgcrow">'+
+    '<span class="lgltr">♥</span><span class="lgcn"><b>'+esc(b.fmt)+'</b><span>'+sum+'</span></span>'+
+    '<button class="lgcar" data-open="'+bi+',0" aria-label="collapse">▴</button></div><div class="lg-body">'+
+    '<div class="f" style="align-items:flex-start"><label style="padding-top:9px">Format</label><div class="chips">'+
+      ['Steady','Intervals','Tempo','Free run'].map(function(f){return '<button class="chip'+(f===b.fmt?' on':'')+'" data-fmt="'+bi+','+f+'">'+f+'</button>'}).join('')+
+    '</div></div>'+
+    '<div class="f" style="align-items:flex-start"><label style="padding-top:9px">Effort</label><div class="chips">'+
+      ['Easy','Medium','Hard'].map(function(e){return '<button class="chip e-'+e.slice(0,4).toLowerCase()+(e===b.eff?' on':'')+'" data-eff="'+bi+','+e+'">'+e+'<i>'+EFF[e]+'</i></button>'}).join('')+
+    '</div></div></div></section>';
+}
+
+/* ---- interaction ---- */
+function args(el,k){return el.getAttribute('data-'+k).split(',')}
+document.addEventListener('click',function(e){
+  var t;
+  if(t=e.target.closest('[data-open]')){var a=args(t,'open'),bi=+a[0],ei=+a[1];
+    if(OPEN.b===bi&&OPEN.e===ei){OPEN={b:-1,e:-1};}else{OPEN={b:bi,e:ei};}
+    render();return;}
+  if(t=e.target.closest('[data-addset]')){var a=args(t,'addset'),x=B[+a[0]].ex[+a[1]];
+    // copy the last set forward, exactly as the phone's planBumpSets does
+    var last=x.sets[x.sets.length-1]||{t:'',rpe:''};
+    x.sets.push({t:last.t,rpe:last.rpe});render();focusSet(+a[0],+a[1],x.sets.length-1);return;}
+  if(t=e.target.closest('[data-delset]')){var a=args(t,'delset'),x=B[+a[0]].ex[+a[1]];
+    if(x.sets.length>1)x.sets.splice(+a[2],1);render();return;}
+  if(t=e.target.closest('[data-rest]')){var a=args(t,'rest'),x=B[+a[0]].ex[+a[1]];
+    x.rest=Math.max(0,Math.min(600,x.rest+ +a[2]));render();return;}
+  if(t=e.target.closest('[data-fmt]')){var a=args(t,'fmt');B[+a[0]].fmt=a[1];render();return;}
+  if(t=e.target.closest('[data-eff]')){var a=args(t,'eff');B[+a[0]].eff=a[1];render();return;}
+  if(t=e.target.closest('[data-move]')){var a=args(t,'move'),bi=+a[0],ei=+a[1],d=+a[2],ex=B[bi].ex;
+    var ni=ei+d;if(ni<0||ni>=ex.length)return;
+    var tmp=ex[ei];ex[ei]=ex[ni];ex[ni]=tmp;OPEN={b:bi,e:ni};render();return;}
+  if(t=e.target.closest('[data-del]')){var a=args(t,'del'),bi=+a[0];
+    B[bi].ex.splice(+a[1],1);if(!B[bi].ex.length)B.splice(bi,1);OPEN={b:-1,e:-1};render();return;}
+  /* Same three moves the phone's planLink makes (app.js): across a boundary
+     merges the next block in; an unlit in-block seam turns the block into a
+     superset; a lit one splits the block at that seam. */
+  if(t=e.target.closest('[data-link]')){
+    var a=args(t,'link'),bi=+a[0],ei=+a[1],cross=+a[2],b=B[bi];
+    if(cross){
+      var nb=B[bi+1];if(!nb||nb.cond||b.cond)return;
+      b.ex=b.ex.concat(nb.ex||[]);b.ss=true;B.splice(bi+1,1);
+    }else if(!b.ss){b.ss=b.ex.length>1;}
+    else{
+      var rest=b.ex.splice(ei+1);
+      b.ss=b.ex.length>1;
+      B.splice(bi+1,0,{h:b.h,mins:b.mins,ss:rest.length>1,ex:rest});
+    }
+    OPEN={b:-1,e:-1};render();return;
+  }
+  if(t=e.target.closest('[data-pick]')){PICK=args(t,'pick').map(Number);openPick();return;}
+  if(t=e.target.closest('.opt')){
+    B[PICK[0]].ex[PICK[1]].n=t.getAttribute('data-name');closePick();render();return;}
+  if(e.target.id==='scrim')closePick();
+});
+document.addEventListener('input',function(e){
+  if(e.target.id==='q'){fillOpts(e.target.value);return;}
+  // keystroke: no re-render, keeps focus — the pattern app.js:1492 uses
+  if(e.target.classList.contains('sett')){
+    var a=e.target.getAttribute('data-t').split(',');
+    var st=B[+a[0]].ex[+a[1]].sets[+a[2]];
+    var wasWarm=isWarmup(st);
+    st.t=e.target.value;
+    paintSummary();
+    // crossing the warm-up line is the one edit that changes the row itself
+    if(isWarmup(st)!==wasWarm)paintWarm(e.target,isWarmup(st));
+  }
+  if(e.target.classList.contains('sech')){
+    B[+e.target.getAttribute('data-h')].h=e.target.value;   // keystroke: no re-render
+    return;
+  }
+  if(e.target.classList.contains('setr')){
+    var a=e.target.getAttribute('data-r').split(',');
+    B[+a[0]].ex[+a[1]].sets[+a[2]].rpe=e.target.value;
+    paintSummary();
+  }
+});
+/* repaint just the open card's summary line and its collapsed twin */
+function paintSummary(){
+  var x=B[OPEN.b]&&B[OPEN.b].ex&&B[OPEN.b].ex[OPEN.e];if(!x)return;
+  var el=document.querySelector('.lgx.open .lgcn > span');if(el)el.innerHTML=summary(x);
+}
+/* Retag a single row in place. A full render here would blow away the field
+   being typed into — the same trap the blur re-render fell into. */
+function paintWarm(input,warm){
+  var row=input.closest('.setrow');if(!row)return;
+  row.classList.toggle('warm',warm);
+  var n=row.querySelector('.setn');
+  if(n)n.textContent=warm?'Warm':'Set '+(idxOf(input)+1);
+  var r=row.querySelector('.setr');
+  if(r)r.placeholder=warm?'—':'RPE';
+}
+function idxOf(input){return +input.getAttribute('data-t').split(',')[2]}
+function focusSet(bi,ei,si){
+  var el=document.querySelector('[data-t="'+bi+','+ei+','+si+'"]');
+  if(el){el.focus();el.select();}
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape')closePick();
+  if(e.key==='Enter'&&(e.target.classList.contains('sett')||e.target.classList.contains('setr')||e.target.classList.contains('sech'))){e.target.blur();}
+});
+/* Deliberately NO re-render on blur. The model is already current from the
+   input handler, and rebuilding the list mid-interaction destroys the field
+   you are tabbing or clicking into — keystrokes then land on a detached node.
+   Collapsed rows pick the value up on the next real render. */
+
+function openPick(){var s=document.getElementById('scrim');s.classList.add('on');
+  var q=document.getElementById('q');q.value='';fillOpts('');q.focus();}
+function closePick(){document.getElementById('scrim').classList.remove('on');}
+function fillOpts(q){
+  q=(q||'').trim().toLowerCase();
+  var list=LIB.filter(function(n){return !q||n.toLowerCase().indexOf(q)>=0});
+  var html=list.map(function(n){return '<button class="opt" data-name="'+esc(n)+'">'+esc(n)+'</button>'}).join('');
+  if(q&&!list.some(function(n){return n.toLowerCase()===q}))
+    html='<button class="opt" data-name="'+esc(q)+'">Use “'+esc(q)+'”<small>not in the library — add it anyway</small></button>'+html;
+  document.getElementById('opts').innerHTML=html||'<button class="opt" data-name="'+esc(q)+'">Use “'+esc(q)+'”</button>';
+}
+render();
+})();
+</script>
+</body>
+</html>

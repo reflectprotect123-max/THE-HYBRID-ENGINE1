@@ -1,0 +1,23 @@
+[
+ {
+  "id": "s1",
+  "out": {
+   "target": 8,
+   "felt": 8.5
+  }
+ },
+ {
+  "id": "s2",
+  "out": {
+   "target": 7,
+   "felt": 7
+  }
+ },
+ {
+  "id": "s3",
+  "out": {
+   "target": null,
+   "felt": null
+  }
+ }
+]

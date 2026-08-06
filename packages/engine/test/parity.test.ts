@@ -1,0 +1,425 @@
+/*
+ * Where the port drifted from the vanilla app.
+ *
+ * The golden vectors pin the functions the harvester could reach; these are the
+ * ones it could not — the guided-logger prefills, zone banking, and the merge
+ * paths that only run at the edges. Every expectation here was read off the
+ * corresponding function in the root `app.js`, which remains the specification
+ * and the rollback path.
+ */
+import { describe, expect, it } from 'vitest';
+import { prefillPrimary, prefillSecondary, targetLine } from '../src/logger';
+import { repFloorOf, repTopOf } from '../src/autoreg';
+import { conZones, zoneSeconds } from '../src/hr';
+import { knownMovements, workoutStats } from '../src/session';
+import { agoLabel, barScale, byMonth, dayLabel, monthLabel } from '../src/num';
+import { mergeEngines } from '../src/db';
+import type { EngineDB, Exercise, LoggedSet, Session, Workout } from '../src/types';
+
+const ex = (name: string, sets: LoggedSet[]): Exercise<LoggedSet> => ({
+  id: 'e1',
+  name,
+  mode: 'reps_kg',
+  tempo: '',
+  rest: 90,
+  sets,
+});
+
+/** One completed session holding one exercise, for the history-backed prefills. */
+const historySession = (e: Exercise<LoggedSet>): Session => ({
+  id: 's-old',
+  date: '2026-01-01',
+  status: 'completed',
+  completedAt: 1000,
+  blocks: [{ id: 'b', heading: 'Main', exercises: [e] }],
+});
+
+describe('zone banking counts every beat, as conFinish does', () => {
+  it('a beat under the floor still banks against Recovery', () => {
+    // app.js conFinish: `ds.pts.forEach(b=>{if(b!=null)zsec[conZoneOf(b,z).key]+=ds.every;})`
+    // — there is no floor test, and conZoneOf puts anything below the floor in
+    // the first band. Dropping those seconds shrinks the denominator conAdapt
+    // divides by, which quietly makes the level easier to earn.
+    const z = conZones({ profile: { age: 30, maxHr: 190, restingHr: 50 } });
+    expect(z.floor).toBe(92);
+    const zsec = zoneSeconds({ every: 2, pts: [80, 100, 140, 175] }, z);
+    expect(zsec).toEqual({ low: 4, mod: 2, high: 2 });
+  });
+});
+
+describe('the guided-logger prefills', () => {
+  const today = ex('Back squat', [
+    { t: 'W10', rpe: '' },
+    { t: '5', rpe: '8' },
+    { t: '5', rpe: '8' },
+  ]);
+  const last = historySession(
+    ex('Back squat', [
+      { t: 'W10', rpe: '', aVal: '40', aVal2: '10', done: true },
+      { t: '5', rpe: '8', aVal: '100', aVal2: '5', done: true },
+      { t: '5', rpe: '8', aVal: '110', aVal2: '5', done: true },
+    ]),
+  );
+
+  it('never carries a working weight into a warm-up', () => {
+    // The whole reason `same()` exists. Reading history through the compacted
+    // exLogFor list drops the warm-ups, so index 0 of "last time" became the
+    // first WORKING set and 100kg landed in the warm-up field.
+    expect(prefillPrimary(today, 0, [last])).toBe('40');
+  });
+
+  it('lines up with the same set index as last time', () => {
+    // Set 2 must prefill from set 2 of last time (100), not from whatever is
+    // second once warm-ups and unlogged sets have been squeezed out (110).
+    expect(prefillPrimary(today, 1, [last])).toBe('100');
+  });
+
+  it('carries the previous set’s reps forward', () => {
+    // app.js glogVal2Prefill walks back through the earlier sets before it
+    // falls back to the plan. Without it, an athlete who did 9 on set 1 is
+    // handed the target again on set 2 instead of what they actually did.
+    const e = ex('Back squat', [
+      { t: '8-10', rpe: '8', aVal2: '9', done: true },
+      { t: '8-10', rpe: '8' },
+    ]);
+    expect(prefillSecondary(e, 1)).toBe('9');
+  });
+
+  it('offers the TOP of a rep range, not the bottom', () => {
+    const e = ex('Back squat', [{ t: '8-10', rpe: '8' }]);
+    expect(prefillSecondary(e, 0)).toBe('10');
+  });
+
+  /* The earned weight sits BETWEEN this exercise's own earlier sets and last
+     time's history. Every neighbour in that order is load-bearing. */
+  describe('the earned working weight', () => {
+    const earned = { liftProgress: { 'back squat': { kg: 105, at: 2000 } } };
+
+    it('outranks repeating what was lifted last time', () => {
+      // The whole point. Without this the app prints "+2.5 kg for next session"
+      // and then offers the same 100 it always did.
+      expect(prefillPrimary(today, 1, [last], { settings: earned })).toBe('105');
+    });
+
+    it('never reaches a warm-up', () => {
+      // A warm-up prefilled from the working weight is the same contamination
+      // `same()` exists to stop, arriving through the front door instead.
+      expect(prefillPrimary(today, 0, [last], { settings: earned })).toBe('40');
+    });
+
+    it('never overwrites a number already typed', () => {
+      const typed = ex('Back squat', [{ t: '5', rpe: '8', aVal: '97.5' }]);
+      expect(prefillPrimary(typed, 0, [last], { settings: earned })).toBe('97.5');
+    });
+
+    it('yields to an earlier set of the SAME exercise', () => {
+      // What is on the bar right now beats what last week decided you'd be on.
+      const mid = ex('Back squat', [
+        { t: '5', rpe: '8', aVal: '102.5', done: true },
+        { t: '5', rpe: '8' },
+      ]);
+      expect(prefillPrimary(mid, 1, [last], { settings: earned })).toBe('102.5');
+    });
+
+    it('falls back to history for a lift that has earned nothing', () => {
+      expect(prefillPrimary(today, 1, [last], { settings: { liftProgress: {} } })).toBe('100');
+    });
+
+    it('finds both history and earned weight through a trailing space', () => {
+      // lastTimeFor lowercased but did not trim, while every OTHER keyer did —
+      // so a name saved as "Back squat " found its PRs and its earned weight
+      // but silently missed its own last session. Before the fix the first
+      // assertion returned '' (no history matched at all), not the wrong
+      // number — which is why nobody noticed.
+      const padded = ex('Back squat ', [{ t: '5', rpe: '8' }]);
+      expect(prefillPrimary(padded, 0, [last]), 'history').toBe('100');
+      expect(prefillPrimary(padded, 0, [], { settings: earned }), 'earned').toBe('105');
+    });
+
+    it('is eased on a red recovery morning, but not on a green one', () => {
+      const red = prefillPrimary(today, 1, [last], {
+        settings: earned,
+        whoop: { recoveryScore: 20 },
+      });
+      const green = prefillPrimary(today, 1, [last], {
+        settings: earned,
+        whoop: { recoveryScore: 80 },
+      });
+      expect(red).toBe('102.5');
+      expect(green).toBe('105');
+    });
+  });
+
+  it('targetLine appends the computed % of 1RM for a pct1rm set', () => {
+    const e = ex('Back squat', [{ t: '5', rpe: '8', pct1rm: { lo: 60, hi: 65 } } as LoggedSet]);
+    expect(targetLine(e, e.sets[0], 0)).toBe('5 @8 · 65% of 1RM');
+  });
+
+  it('targetLine is unchanged for a set with no pct1rm', () => {
+    const e = ex('Back squat', [{ t: '5', rpe: '8' }]);
+    expect(targetLine(e, e.sets[0], 0)).toBe('5 @8');
+  });
+
+  describe('a pct1rm set prefills the computed kg', () => {
+    const histWithE1rm = historySession(
+      ex('Front squat', [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', done: true }]),
+    );
+
+    it('prefills the rounded prescribed weight when a best e1RM exists', () => {
+      const plan = ex('Front squat', [{ t: '5', rpe: '8', pct1rm: { lo: 65, hi: 65 } } as LoggedSet]);
+      // 65% of 116.67 (100x5) rounds to 75.
+      expect(prefillPrimary(plan, 0, [histWithE1rm])).toBe('75');
+    });
+
+    it('stays blank — never guesses — when the movement has no logged history', () => {
+      const plan = ex('Brand New Lift', [{ t: '5', rpe: '8', pct1rm: { lo: 65, hi: 65 } } as LoggedSet]);
+      expect(prefillPrimary(plan, 0, [])).toBe('');
+    });
+
+    it('outranks both the earned working weight and an earlier typed set of the same exercise', () => {
+      const earned = { liftProgress: { 'front squat': { kg: 999, at: 2000 } } };
+      const plan = ex('Front squat', [
+        { t: '5', rpe: '8', aVal: '50', done: true } as LoggedSet,
+        { t: '5', rpe: '9', pct1rm: { lo: 65, hi: 70 } } as LoggedSet,
+      ]);
+      // Set 1's own pct1rm range is {65,70}; with only one rated (pct1rm-
+      // carrying) set at RPE 9, rpeMin === rpeMax so pctForSet returns the
+      // ceiling, 70. 70% of 116.67 = 81.669, rounds to 82.5.
+      expect(prefillPrimary(plan, 1, [histWithE1rm], { settings: earned })).toBe('82.5');
+    });
+
+    it('never applies to a warm-up set even if one somehow carried pct1rm', () => {
+      // isLiftMode's branch (packages/engine/src/logger.ts's prefillPrimary)
+      // unconditionally returns '' at the end of its own block for any
+      // reps_kg/amrap set that reaches it without finding an earned weight or
+      // a same-kind history match — it never falls through to the final
+      // repTopOf(st.t) line, which only runs for NON-lift modes. A warm-up
+      // skips nextWorkingWeight (guarded by `if (!warm)`), and
+      // histWithE1rm has no warm-up set for 'Front squat' to match against,
+      // so this must resolve to ''.
+      const plan = ex('Front squat', [{ t: 'W10', rpe: '', pct1rm: { lo: 65, hi: 65 } } as LoggedSet]);
+      expect(prefillPrimary(plan, 0, [histWithE1rm])).toBe('');
+    });
+  });
+});
+
+describe('the movement list the Planner offers back', () => {
+  const mk = (names: string[], at: number): Session => ({
+    id: 's' + at,
+    date: '2026-01-01',
+    status: 'completed',
+    completedAt: at,
+    blocks: [{ id: 'b', exercises: names.map((n, i) => ({ ...ex(n, []), id: 'e' + i })) }],
+  });
+
+  it('collapses spellings that differ only in case, keeping the newest', () => {
+    // The whole reason this exists: "Back Squat" and "back squat" are two
+    // separate lifts to exLogFor, detectPRs and the earned working weight.
+    const out = knownMovements([], [mk(['back squat'], 100), mk(['Back Squat'], 200)]);
+    expect(out).toEqual(['Back Squat']);
+  });
+
+  it('trims, and drops blanks', () => {
+    expect(knownMovements([], [mk(['  Bench  ', '', '   '], 1)])).toEqual(['Bench']);
+  });
+
+  it('reads workouts as well as sessions, since a plan may be unlogged', () => {
+    const w: Workout = { id: 'w1', name: 'A', updatedAt: 5, blocks: [{ id: 'b', exercises: [ex('Overhead press', [])] }] };
+    expect(knownMovements([w], [])).toEqual(['Overhead press']);
+  });
+
+  it('ignores conditioning and non-lift modes', () => {
+    const w: Workout = {
+      id: 'w1',
+      name: 'A',
+      updatedAt: 1,
+      blocks: [
+        { id: 'c', kind: 'conditioning', condFmt: 'intervals' },
+        { id: 'b', exercises: [{ ...ex('Plank', []), mode: 'seconds' }] },
+      ],
+    };
+    expect(knownMovements([w], [])).toEqual([]);
+  });
+});
+
+describe('what the Library says about a session', () => {
+  const w: Workout = { id: 'w1', name: 'Lower', blocks: [] };
+  const logged: Session = {
+    id: 's1',
+    date: '2026-03-02',
+    status: 'completed',
+    completedAt: 200,
+    workoutId: 'w1',
+    blocks: [{ id: 'b', exercises: [ex('Squat', [{ t: '5', rpe: '8', aVal: '100', done: true }])] }],
+  };
+  const abandoned: Session = { id: 's2', date: '2026-03-09', status: 'completed', completedAt: 900, workoutId: 'w1', blocks: [] };
+
+  it('does not count a session that was started and never logged', () => {
+    // Otherwise opening Training by mistake makes the Library claim a history
+    // the athlete knows they do not have — and moves "last trained" forward.
+    const st = workoutStats(w, [logged, abandoned]);
+    expect(st.count).toBe(1);
+    expect(st.lastDate).toBe('2026-03-02');
+  });
+
+  it('is zeroed for a session never trained', () => {
+    expect(workoutStats({ id: 'w9', name: 'X', blocks: [] }, [logged])).toEqual({ lastDate: null, lastAt: 0, count: 0 });
+  });
+});
+
+describe('agoLabel', () => {
+  const now = new Date(2026, 2, 20, 9); // 20 Mar 2026, morning
+
+  it('names the near days rather than counting them', () => {
+    expect(agoLabel('2026-03-20', now)).toBe('today');
+    expect(agoLabel('2026-03-19', now)).toBe('yesterday');
+    expect(agoLabel('2026-03-16', now)).toBe('4 days ago');
+  });
+
+  it('coarsens as it gets further away', () => {
+    expect(agoLabel('2026-03-01', now)).toBe('2 weeks ago');
+    expect(agoLabel('2025-12-20', now)).toBe('3 months ago');
+  });
+
+  it('handles a future date and a missing one without producing nonsense', () => {
+    expect(agoLabel('2026-04-01', now)).toBe('scheduled');
+    expect(agoLabel('', now)).toBe('');
+    expect(agoLabel(null, now)).toBe('');
+  });
+});
+
+describe('month grouping in History', () => {
+  const NOW = new Date(2026, 6, 27);
+
+  it('drops the year in the current year and keeps it otherwise', () => {
+    expect(monthLabel('2026-07-20', NOW)).toBe('July');
+    expect(monthLabel('2025-11-02', NOW)).toBe('November 2025');
+  });
+
+  it('names the day without repeating the month above it', () => {
+    // Parsed at local midday, like agoLabel: at midnight a DST change moves the
+    // date by one, which is the whole reason the row exists.
+    expect(dayLabel('2026-07-20')).toBe('Mon 20');
+    expect(dayLabel('')).toBe('');
+  });
+
+  it('runs consecutive same-month items together, in the order given', () => {
+    const rows = [{ d: '2026-07-20' }, { d: '2026-07-03' }, { d: '2026-06-26' }];
+    const g = byMonth(rows, (r) => r.d, NOW);
+    expect(g.map((m) => m.label)).toEqual(['July', 'June']);
+    expect(g[0].items).toHaveLength(2);
+  });
+
+  it('does not silently re-order a list that was not sorted by date', () => {
+    // Grouping by key would collapse these into two runs and quietly move a
+    // row; splitting on consecutive runs renders the list as it actually is.
+    const rows = [{ d: '2026-07-20' }, { d: '2026-06-26' }, { d: '2026-07-03' }];
+    expect(byMonth(rows, (r) => r.d, NOW).map((m) => m.label)).toEqual(['July', 'June', 'July']);
+  });
+
+  it('gives an undated row a heading rather than an empty one', () => {
+    expect(byMonth([{ d: '' }], (r) => r.d, NOW)[0].label).toBe('Undated');
+    expect(byMonth([], (r: { d: string }) => r.d, NOW)).toEqual([]);
+  });
+});
+
+describe('barScale — the axis under the volume chart', () => {
+  it('floats the baseline when consistent training would otherwise flatten it', () => {
+    // The real case: eight seeded weeks rendered as seven bars spanning
+    // 92–100% of the card. The largest element on the screen, saying nothing.
+    const weeks = [6100, 6200, 6050, 6300, 6180, 6400, 6548];
+    const s = barScale(weeks);
+    expect(s.floating).toBe(true);
+    const heights = weeks.map((v) => s.pct(v));
+    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(50);
+  });
+
+  it('keeps a zero baseline when a week was not trained', () => {
+    // A rest week among training weeks is signal, not noise to zoom past —
+    // with a zero present, the distance FROM zero is the information.
+    const s = barScale([6100, 0, 6300, 6548]);
+    expect(s.floating).toBe(false);
+    expect(s.pct(0)).toBe(0);
+  });
+
+  it('keeps a zero baseline when the spread already fills the card', () => {
+    expect(barScale([1000, 5000, 9000]).floating).toBe(false);
+  });
+
+  it('does not magnify rounding into a trend that is not there', () => {
+    // Under ~4% the bars genuinely ARE the same height. Zooming would invent a
+    // story out of noise — the failure mode opposite the flat chart, and the
+    // reason this is a band rather than "always float".
+    expect(barScale([6000, 6010, 6020]).floating).toBe(false);
+  });
+
+  it('survives one week, all zeroes, and no weeks at all', () => {
+    expect(barScale([5000]).floating).toBe(false);
+    expect(barScale([0, 0]).pct(0)).toBe(0);
+    expect(() => barScale([]).pct(1)).not.toThrow();
+  });
+
+  it('is defeated by a part-finished week, which is why the caller filters', () => {
+    /*
+     * The eight-bucket shape the screen actually renders: seven complete weeks
+     * plus the one ending today, two days in. That stub makes the spread 98%
+     * of the peak, so `barScale` correctly concludes the variation is already
+     * obvious and keeps a zero baseline — and the chart stays flat.
+     *
+     * This is not a bug in the scale, it is the contract: a caller passes the
+     * values it wants the AXIS derived from, and an in-progress bucket is not
+     * one of them. Asserted here rather than left implicit because the first
+     * version of the test above used seven weeks and passed while the feature
+     * did nothing on screen.
+     */
+    const complete = [6100, 6200, 6050, 6300, 6180, 6400, 6548];
+    const thisWeekSoFar = 120;
+    expect(barScale([...complete, thisWeekSoFar]).floating).toBe(false);
+    expect(barScale(complete).floating).toBe(true);
+  });
+
+  it('never returns a height outside 0–100', () => {
+    const s = barScale([6100, 6548]);
+    expect(s.pct(999999)).toBeLessThanOrEqual(100);
+    expect(s.pct(-5)).toBe(0);
+    expect(s.pct(NaN)).toBe(0);
+  });
+});
+
+describe('rep targets', () => {
+  it('repTopOf reads the top of a range', () => {
+    expect(repTopOf('8-10')).toBe('10');
+    expect(repTopOf('5')).toBe('5');
+    expect(repTopOf('max')).toBe('');
+    expect(repTopOf(undefined)).toBe('');
+  });
+
+  it('repFloorOf reads the FIRST number written, not the smallest', () => {
+    // app.js repFloorOf is `match(/(\d+)/)`. Taking the minimum instead turns a
+    // descending target into a floor of 8, so a set that missed by two reps is
+    // scored as having made it and the load goes UP.
+    expect(repFloorOf('10-8')).toBe(10);
+    expect(repFloorOf('8-10')).toBe(8);
+    expect(repFloorOf('5')).toBe(5);
+    expect(repFloorOf('max')).toBe(0);
+  });
+});
+
+describe('merge does not admit holes', () => {
+  it('a null scheduled date is dropped rather than merged in', () => {
+    // app.js uniqArr filters null/undefined before de-duping. buildPushState
+    // merges WITHOUT sanitizing afterwards, so a hole here is written straight
+    // back to the remote blob.
+    const local: EngineDB = {
+      workouts: [{ id: 'w1', name: 'A', blocks: [], dates: ['2026-01-01'] }],
+      sessions: [],
+      settings: {},
+    };
+    const remote: EngineDB = {
+      workouts: [{ id: 'w1', name: 'A', blocks: [], dates: [null as unknown as string] }],
+      sessions: [],
+      settings: {},
+    };
+    expect(mergeEngines(local, remote).workouts[0].dates).toEqual(['2026-01-01']);
+  });
+});

@@ -1,0 +1,2162 @@
+[
+ {
+  "maxHr": 180,
+  "rest": 0,
+  "rec": null,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": null,
+   "rec": null,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 158
+    },
+    {
+     "key": "high",
+     "lo": 158,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 0,
+  "rec": 25,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": null,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 131
+    },
+    {
+     "key": "mod",
+     "lo": 131,
+     "hi": 149
+    },
+    {
+     "key": "high",
+     "lo": 149,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 0,
+  "rec": 40,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": null,
+   "rec": 40,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 158
+    },
+    {
+     "key": "high",
+     "lo": 158,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 0,
+  "rec": 55,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": null,
+   "rec": 55,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 158
+    },
+    {
+     "key": "high",
+     "lo": 158,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 0,
+  "rec": 70,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": null,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 121
+    },
+    {
+     "key": "mod",
+     "lo": 121,
+     "hi": 166
+    },
+    {
+     "key": "high",
+     "lo": 166,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 0,
+  "rec": 90,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": null,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 121
+    },
+    {
+     "key": "mod",
+     "lo": 121,
+     "hi": 166
+    },
+    {
+     "key": "high",
+     "lo": 166,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 45,
+  "rec": null,
+  "out": {
+   "floor": 86,
+   "max": 180,
+   "rest": 45,
+   "rec": null,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 86,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 160
+    },
+    {
+     "key": "high",
+     "lo": 160,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 45,
+  "rec": 25,
+  "out": {
+   "floor": 86,
+   "max": 180,
+   "rest": 45,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 86,
+     "hi": 130
+    },
+    {
+     "key": "mod",
+     "lo": 130,
+     "hi": 153
+    },
+    {
+     "key": "high",
+     "lo": 153,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 45,
+  "rec": 40,
+  "out": {
+   "floor": 86,
+   "max": 180,
+   "rest": 45,
+   "rec": 40,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 86,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 160
+    },
+    {
+     "key": "high",
+     "lo": 160,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 45,
+  "rec": 55,
+  "out": {
+   "floor": 86,
+   "max": 180,
+   "rest": 45,
+   "rec": 55,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 86,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 160
+    },
+    {
+     "key": "high",
+     "lo": 160,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 45,
+  "rec": 70,
+  "out": {
+   "floor": 86,
+   "max": 180,
+   "rest": 45,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 86,
+     "hi": 122
+    },
+    {
+     "key": "mod",
+     "lo": 122,
+     "hi": 165
+    },
+    {
+     "key": "high",
+     "lo": 165,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 45,
+  "rec": 90,
+  "out": {
+   "floor": 86,
+   "max": 180,
+   "rest": 45,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 86,
+     "hi": 122
+    },
+    {
+     "key": "mod",
+     "lo": 122,
+     "hi": 165
+    },
+    {
+     "key": "high",
+     "lo": 165,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 60,
+  "rec": null,
+  "out": {
+   "floor": 96,
+   "max": 180,
+   "rest": 60,
+   "rec": null,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 96,
+     "hi": 132
+    },
+    {
+     "key": "mod",
+     "lo": 132,
+     "hi": 162
+    },
+    {
+     "key": "high",
+     "lo": 162,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 60,
+  "rec": 25,
+  "out": {
+   "floor": 96,
+   "max": 180,
+   "rest": 60,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 96,
+     "hi": 136
+    },
+    {
+     "key": "mod",
+     "lo": 136,
+     "hi": 156
+    },
+    {
+     "key": "high",
+     "lo": 156,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 60,
+  "rec": 40,
+  "out": {
+   "floor": 96,
+   "max": 180,
+   "rest": 60,
+   "rec": 40,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 96,
+     "hi": 132
+    },
+    {
+     "key": "mod",
+     "lo": 132,
+     "hi": 162
+    },
+    {
+     "key": "high",
+     "lo": 162,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 60,
+  "rec": 55,
+  "out": {
+   "floor": 96,
+   "max": 180,
+   "rest": 60,
+   "rec": 55,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 96,
+     "hi": 132
+    },
+    {
+     "key": "mod",
+     "lo": 132,
+     "hi": 162
+    },
+    {
+     "key": "high",
+     "lo": 162,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 60,
+  "rec": 70,
+  "out": {
+   "floor": 96,
+   "max": 180,
+   "rest": 60,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 96,
+     "hi": 128
+    },
+    {
+     "key": "mod",
+     "lo": 128,
+     "hi": 167
+    },
+    {
+     "key": "high",
+     "lo": 167,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 60,
+  "rec": 90,
+  "out": {
+   "floor": 96,
+   "max": 180,
+   "rest": 60,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 96,
+     "hi": 128
+    },
+    {
+     "key": "mod",
+     "lo": 128,
+     "hi": 167
+    },
+    {
+     "key": "high",
+     "lo": 167,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 175,
+  "rec": null,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": 175,
+   "rec": null,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 158
+    },
+    {
+     "key": "high",
+     "lo": 158,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 175,
+  "rec": 25,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": 175,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 131
+    },
+    {
+     "key": "mod",
+     "lo": 131,
+     "hi": 149
+    },
+    {
+     "key": "high",
+     "lo": 149,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 175,
+  "rec": 40,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": 175,
+   "rec": 40,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 158
+    },
+    {
+     "key": "high",
+     "lo": 158,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 175,
+  "rec": 55,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": 175,
+   "rec": 55,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 126
+    },
+    {
+     "key": "mod",
+     "lo": 126,
+     "hi": 158
+    },
+    {
+     "key": "high",
+     "lo": 158,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 175,
+  "rec": 70,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": 175,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 121
+    },
+    {
+     "key": "mod",
+     "lo": 121,
+     "hi": 166
+    },
+    {
+     "key": "high",
+     "lo": 166,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 180,
+  "rest": 175,
+  "rec": 90,
+  "out": {
+   "floor": 90,
+   "max": 180,
+   "rest": 175,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 90,
+     "hi": 121
+    },
+    {
+     "key": "mod",
+     "lo": 121,
+     "hi": 166
+    },
+    {
+     "key": "high",
+     "lo": 166,
+     "hi": 180
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 0,
+  "rec": null,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": null,
+   "rec": null,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 133
+    },
+    {
+     "key": "mod",
+     "lo": 133,
+     "hi": 167
+    },
+    {
+     "key": "high",
+     "lo": 167,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 0,
+  "rec": 25,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": null,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 139
+    },
+    {
+     "key": "mod",
+     "lo": 139,
+     "hi": 158
+    },
+    {
+     "key": "high",
+     "lo": 158,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 0,
+  "rec": 40,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": null,
+   "rec": 40,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 133
+    },
+    {
+     "key": "mod",
+     "lo": 133,
+     "hi": 167
+    },
+    {
+     "key": "high",
+     "lo": 167,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 0,
+  "rec": 55,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": null,
+   "rec": 55,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 133
+    },
+    {
+     "key": "mod",
+     "lo": 133,
+     "hi": 167
+    },
+    {
+     "key": "high",
+     "lo": 167,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 0,
+  "rec": 70,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": null,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 127
+    },
+    {
+     "key": "mod",
+     "lo": 127,
+     "hi": 175
+    },
+    {
+     "key": "high",
+     "lo": 175,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 0,
+  "rec": 90,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": null,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 127
+    },
+    {
+     "key": "mod",
+     "lo": 127,
+     "hi": 175
+    },
+    {
+     "key": "high",
+     "lo": 175,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 45,
+  "rec": null,
+  "out": {
+   "floor": 89,
+   "max": 190,
+   "rest": 45,
+   "rec": null,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 89,
+     "hi": 132
+    },
+    {
+     "key": "mod",
+     "lo": 132,
+     "hi": 168
+    },
+    {
+     "key": "high",
+     "lo": 168,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 45,
+  "rec": 25,
+  "out": {
+   "floor": 89,
+   "max": 190,
+   "rest": 45,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 89,
+     "hi": 136
+    },
+    {
+     "key": "mod",
+     "lo": 136,
+     "hi": 161
+    },
+    {
+     "key": "high",
+     "lo": 161,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 45,
+  "rec": 40,
+  "out": {
+   "floor": 89,
+   "max": 190,
+   "rest": 45,
+   "rec": 40,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 89,
+     "hi": 132
+    },
+    {
+     "key": "mod",
+     "lo": 132,
+     "hi": 168
+    },
+    {
+     "key": "high",
+     "lo": 168,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 45,
+  "rec": 55,
+  "out": {
+   "floor": 89,
+   "max": 190,
+   "rest": 45,
+   "rec": 55,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 89,
+     "hi": 132
+    },
+    {
+     "key": "mod",
+     "lo": 132,
+     "hi": 168
+    },
+    {
+     "key": "high",
+     "lo": 168,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 45,
+  "rec": 70,
+  "out": {
+   "floor": 89,
+   "max": 190,
+   "rest": 45,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 89,
+     "hi": 128
+    },
+    {
+     "key": "mod",
+     "lo": 128,
+     "hi": 174
+    },
+    {
+     "key": "high",
+     "lo": 174,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 45,
+  "rec": 90,
+  "out": {
+   "floor": 89,
+   "max": 190,
+   "rest": 45,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 89,
+     "hi": 128
+    },
+    {
+     "key": "mod",
+     "lo": 128,
+     "hi": 174
+    },
+    {
+     "key": "high",
+     "lo": 174,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 60,
+  "rec": null,
+  "out": {
+   "floor": 99,
+   "max": 190,
+   "rest": 60,
+   "rec": null,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 99,
+     "hi": 138
+    },
+    {
+     "key": "mod",
+     "lo": 138,
+     "hi": 171
+    },
+    {
+     "key": "high",
+     "lo": 171,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 60,
+  "rec": 25,
+  "out": {
+   "floor": 99,
+   "max": 190,
+   "rest": 60,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 99,
+     "hi": 142
+    },
+    {
+     "key": "mod",
+     "lo": 142,
+     "hi": 164
+    },
+    {
+     "key": "high",
+     "lo": 164,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 60,
+  "rec": 40,
+  "out": {
+   "floor": 99,
+   "max": 190,
+   "rest": 60,
+   "rec": 40,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 99,
+     "hi": 138
+    },
+    {
+     "key": "mod",
+     "lo": 138,
+     "hi": 171
+    },
+    {
+     "key": "high",
+     "lo": 171,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 60,
+  "rec": 55,
+  "out": {
+   "floor": 99,
+   "max": 190,
+   "rest": 60,
+   "rec": 55,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 99,
+     "hi": 138
+    },
+    {
+     "key": "mod",
+     "lo": 138,
+     "hi": 171
+    },
+    {
+     "key": "high",
+     "lo": 171,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 60,
+  "rec": 70,
+  "out": {
+   "floor": 99,
+   "max": 190,
+   "rest": 60,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 99,
+     "hi": 134
+    },
+    {
+     "key": "mod",
+     "lo": 134,
+     "hi": 176
+    },
+    {
+     "key": "high",
+     "lo": 176,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 60,
+  "rec": 90,
+  "out": {
+   "floor": 99,
+   "max": 190,
+   "rest": 60,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 99,
+     "hi": 134
+    },
+    {
+     "key": "mod",
+     "lo": 134,
+     "hi": 176
+    },
+    {
+     "key": "high",
+     "lo": 176,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 175,
+  "rec": null,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": 175,
+   "rec": null,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 133
+    },
+    {
+     "key": "mod",
+     "lo": 133,
+     "hi": 167
+    },
+    {
+     "key": "high",
+     "lo": 167,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 175,
+  "rec": 25,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": 175,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 139
+    },
+    {
+     "key": "mod",
+     "lo": 139,
+     "hi": 158
+    },
+    {
+     "key": "high",
+     "lo": 158,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 175,
+  "rec": 40,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": 175,
+   "rec": 40,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 133
+    },
+    {
+     "key": "mod",
+     "lo": 133,
+     "hi": 167
+    },
+    {
+     "key": "high",
+     "lo": 167,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 175,
+  "rec": 55,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": 175,
+   "rec": 55,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 133
+    },
+    {
+     "key": "mod",
+     "lo": 133,
+     "hi": 167
+    },
+    {
+     "key": "high",
+     "lo": 167,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 175,
+  "rec": 70,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": 175,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 127
+    },
+    {
+     "key": "mod",
+     "lo": 127,
+     "hi": 175
+    },
+    {
+     "key": "high",
+     "lo": 175,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 190,
+  "rest": 175,
+  "rec": 90,
+  "out": {
+   "floor": 95,
+   "max": 190,
+   "rest": 175,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 95,
+     "hi": 127
+    },
+    {
+     "key": "mod",
+     "lo": 127,
+     "hi": 175
+    },
+    {
+     "key": "high",
+     "lo": 175,
+     "hi": 190
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 0,
+  "rec": null,
+  "out": {
+   "floor": 100,
+   "max": 200,
+   "rest": null,
+   "rec": null,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 100,
+     "hi": 140
+    },
+    {
+     "key": "mod",
+     "lo": 140,
+     "hi": 176
+    },
+    {
+     "key": "high",
+     "lo": 176,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 0,
+  "rec": 25,
+  "out": {
+   "floor": 100,
+   "max": 200,
+   "rest": null,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 100,
+     "hi": 146
+    },
+    {
+     "key": "mod",
+     "lo": 146,
+     "hi": 166
+    },
+    {
+     "key": "high",
+     "lo": 166,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 0,
+  "rec": 40,
+  "out": {
+   "floor": 100,
+   "max": 200,
+   "rest": null,
+   "rec": 40,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 100,
+     "hi": 140
+    },
+    {
+     "key": "mod",
+     "lo": 140,
+     "hi": 176
+    },
+    {
+     "key": "high",
+     "lo": 176,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 0,
+  "rec": 55,
+  "out": {
+   "floor": 100,
+   "max": 200,
+   "rest": null,
+   "rec": 55,
+   "adj": 0,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 100,
+     "hi": 140
+    },
+    {
+     "key": "mod",
+     "lo": 140,
+     "hi": 176
+    },
+    {
+     "key": "high",
+     "lo": 176,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 0,
+  "rec": 70,
+  "out": {
+   "floor": 100,
+   "max": 200,
+   "rest": null,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 100,
+     "hi": 134
+    },
+    {
+     "key": "mod",
+     "lo": 134,
+     "hi": 184
+    },
+    {
+     "key": "high",
+     "lo": 184,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 0,
+  "rec": 90,
+  "out": {
+   "floor": 100,
+   "max": 200,
+   "rest": null,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "pctmax",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 100,
+     "hi": 134
+    },
+    {
+     "key": "mod",
+     "lo": 134,
+     "hi": 184
+    },
+    {
+     "key": "high",
+     "lo": 184,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 45,
+  "rec": null,
+  "out": {
+   "floor": 92,
+   "max": 200,
+   "rest": 45,
+   "rec": null,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 92,
+     "hi": 138
+    },
+    {
+     "key": "mod",
+     "lo": 138,
+     "hi": 177
+    },
+    {
+     "key": "high",
+     "lo": 177,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 45,
+  "rec": 25,
+  "out": {
+   "floor": 92,
+   "max": 200,
+   "rest": 45,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 92,
+     "hi": 143
+    },
+    {
+     "key": "mod",
+     "lo": 143,
+     "hi": 169
+    },
+    {
+     "key": "high",
+     "lo": 169,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 45,
+  "rec": 40,
+  "out": {
+   "floor": 92,
+   "max": 200,
+   "rest": 45,
+   "rec": 40,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 92,
+     "hi": 138
+    },
+    {
+     "key": "mod",
+     "lo": 138,
+     "hi": 177
+    },
+    {
+     "key": "high",
+     "lo": 177,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 45,
+  "rec": 55,
+  "out": {
+   "floor": 92,
+   "max": 200,
+   "rest": 45,
+   "rec": 55,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 92,
+     "hi": 138
+    },
+    {
+     "key": "mod",
+     "lo": 138,
+     "hi": 177
+    },
+    {
+     "key": "high",
+     "lo": 177,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 45,
+  "rec": 70,
+  "out": {
+   "floor": 92,
+   "max": 200,
+   "rest": 45,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 92,
+     "hi": 133
+    },
+    {
+     "key": "mod",
+     "lo": 133,
+     "hi": 183
+    },
+    {
+     "key": "high",
+     "lo": 183,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 45,
+  "rec": 90,
+  "out": {
+   "floor": 92,
+   "max": 200,
+   "rest": 45,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 92,
+     "hi": 133
+    },
+    {
+     "key": "mod",
+     "lo": 133,
+     "hi": 183
+    },
+    {
+     "key": "high",
+     "lo": 183,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 60,
+  "rec": null,
+  "out": {
+   "floor": 102,
+   "max": 200,
+   "rest": 60,
+   "rec": null,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 102,
+     "hi": 144
+    },
+    {
+     "key": "mod",
+     "lo": 144,
+     "hi": 179
+    },
+    {
+     "key": "high",
+     "lo": 179,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 60,
+  "rec": 25,
+  "out": {
+   "floor": 102,
+   "max": 200,
+   "rest": 60,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 102,
+     "hi": 148
+    },
+    {
+     "key": "mod",
+     "lo": 148,
+     "hi": 172
+    },
+    {
+     "key": "high",
+     "lo": 172,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 60,
+  "rec": 40,
+  "out": {
+   "floor": 102,
+   "max": 200,
+   "rest": 60,
+   "rec": 40,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 102,
+     "hi": 144
+    },
+    {
+     "key": "mod",
+     "lo": 144,
+     "hi": 179
+    },
+    {
+     "key": "high",
+     "lo": 179,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 60,
+  "rec": 55,
+  "out": {
+   "floor": 102,
+   "max": 200,
+   "rest": 60,
+   "rec": 55,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 102,
+     "hi": 144
+    },
+    {
+     "key": "mod",
+     "lo": 144,
+     "hi": 179
+    },
+    {
+     "key": "high",
+     "lo": 179,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 60,
+  "rec": 70,
+  "out": {
+   "floor": 102,
+   "max": 200,
+   "rest": 60,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 102,
+     "hi": 140
+    },
+    {
+     "key": "mod",
+     "lo": 140,
+     "hi": 185
+    },
+    {
+     "key": "high",
+     "lo": 185,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 60,
+  "rec": 90,
+  "out": {
+   "floor": 102,
+   "max": 200,
+   "rest": 60,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 102,
+     "hi": 140
+    },
+    {
+     "key": "mod",
+     "lo": 140,
+     "hi": 185
+    },
+    {
+     "key": "high",
+     "lo": 185,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 175,
+  "rec": null,
+  "out": {
+   "floor": 183,
+   "max": 200,
+   "rest": 175,
+   "rec": null,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 183,
+     "hi": 190
+    },
+    {
+     "key": "mod",
+     "lo": 190,
+     "hi": 196
+    },
+    {
+     "key": "high",
+     "lo": 196,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 175,
+  "rec": 25,
+  "out": {
+   "floor": 183,
+   "max": 200,
+   "rest": 175,
+   "rec": 25,
+   "adj": -0.05,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 183,
+     "hi": 191
+    },
+    {
+     "key": "mod",
+     "lo": 191,
+     "hi": 195
+    },
+    {
+     "key": "high",
+     "lo": 195,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 175,
+  "rec": 40,
+  "out": {
+   "floor": 183,
+   "max": 200,
+   "rest": 175,
+   "rec": 40,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 183,
+     "hi": 190
+    },
+    {
+     "key": "mod",
+     "lo": 190,
+     "hi": 196
+    },
+    {
+     "key": "high",
+     "lo": 196,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 175,
+  "rec": 55,
+  "out": {
+   "floor": 183,
+   "max": 200,
+   "rest": 175,
+   "rec": 55,
+   "adj": 0,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 183,
+     "hi": 190
+    },
+    {
+     "key": "mod",
+     "lo": 190,
+     "hi": 196
+    },
+    {
+     "key": "high",
+     "lo": 196,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 175,
+  "rec": 70,
+  "out": {
+   "floor": 183,
+   "max": 200,
+   "rest": 175,
+   "rec": 70,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 183,
+     "hi": 189
+    },
+    {
+     "key": "mod",
+     "lo": 189,
+     "hi": 197
+    },
+    {
+     "key": "high",
+     "lo": 197,
+     "hi": 200
+    }
+   ]
+  }
+ },
+ {
+  "maxHr": 200,
+  "rest": 175,
+  "rec": 90,
+  "out": {
+   "floor": 183,
+   "max": 200,
+   "rest": 175,
+   "rec": 90,
+   "adj": 0.04,
+   "method": "hrr",
+   "bands": [
+    {
+     "key": "low",
+     "lo": 183,
+     "hi": 189
+    },
+    {
+     "key": "mod",
+     "lo": 189,
+     "hi": 197
+    },
+    {
+     "key": "high",
+     "lo": 197,
+     "hi": 200
+    }
+   ]
+  }
+ }
+]

@@ -1,0 +1,115 @@
+[
+ {
+  "label": "a<b",
+  "out": {
+   "workouts": [
+    {
+     "id": "w1",
+     "name": "B",
+     "updatedAt": 200,
+     "blocks": [],
+     "days": [],
+     "dates": [],
+     "folderIds": []
+    }
+   ],
+   "sessions": [
+    {
+     "id": "s1",
+     "date": "2026-01-01",
+     "status": "completed",
+     "completedAt": 200,
+     "blocks": []
+    }
+   ],
+   "settings": {
+    "maxHr": 190,
+    "updatedAt": 100
+   }
+  }
+ },
+ {
+  "label": "b<a",
+  "out": {
+   "workouts": [
+    {
+     "id": "w1",
+     "name": "B",
+     "updatedAt": 200,
+     "blocks": [],
+     "days": [],
+     "dates": [],
+     "folderIds": []
+    }
+   ],
+   "sessions": [
+    {
+     "id": "s1",
+     "date": "2026-01-01",
+     "status": "completed",
+     "completedAt": 200,
+     "blocks": []
+    }
+   ],
+   "settings": {
+    "maxHr": 185,
+    "updatedAt": 200
+   }
+  }
+ },
+ {
+  "label": "tie",
+  "out": {
+   "workouts": [
+    {
+     "id": "w1",
+     "name": "C",
+     "updatedAt": 200,
+     "blocks": [],
+     "days": [],
+     "dates": [],
+     "folderIds": []
+    }
+   ],
+   "sessions": [
+    {
+     "id": "s1",
+     "date": "2026-01-01",
+     "status": "completed",
+     "completedAt": 200,
+     "blocks": []
+    }
+   ],
+   "settings": {
+    "maxHr": 185,
+    "updatedAt": 200
+   }
+  }
+ },
+ {
+  "label": "empty",
+  "out": {
+   "workouts": [
+    {
+     "id": "w1",
+     "name": "A",
+     "updatedAt": 100,
+     "blocks": []
+    }
+   ],
+   "sessions": [
+    {
+     "id": "s1",
+     "date": "2026-01-01",
+     "status": "completed",
+     "completedAt": 100,
+     "blocks": []
+    }
+   ],
+   "settings": {
+    "maxHr": 190,
+    "updatedAt": 100
+   }
+  }
+ }
+]

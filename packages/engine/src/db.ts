@@ -1,0 +1,500 @@
+import { CON_RETENTION, CON_TRACE_KEEP, MODES } from './constants';
+import { uid, uniqArr, ymd } from './num';
+import { isCond, isText, newEx, newSet, loggedWorkCount, hasLoggedWork } from './session';
+import type {
+  Block,
+  CondBlock,
+  CondResult,
+  EngineDB,
+  Exercise,
+  Folder,
+  LiftState,
+  LoggedSet,
+  ProgressState,
+  Session,
+  Settings,
+  StrengthBlock,
+  Workout,
+} from './types';
+
+export function emptyDB(): EngineDB {
+  return { workouts: [], sessions: [], settings: {} };
+}
+
+/**
+ * Coerce anything that claims to be an engine DB into one that every read path
+ * can survive.
+ *
+ * This runs on every load, every import, and every session arriving from the
+ * network, so it is the app's single trust boundary for shape. It is
+ * deliberately forgiving about extra keys and unforgiving about structure.
+ */
+export function sanitizeDB(d: unknown): EngineDB {
+  const src = (d && typeof d === 'object' ? d : {}) as Partial<EngineDB>;
+  const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+  const cleanEx = (e: unknown): Exercise<LoggedSet> => {
+    const ex = (e && typeof e === 'object' ? e : {}) as Exercise<LoggedSet>;
+    ex.sets = arr<LoggedSet>(ex.sets).map((s) => (s && typeof s === 'object' ? s : ({} as LoggedSet)));
+    if (!ex.sets.length) ex.sets = [newSet() as LoggedSet];
+    ex.mode = MODES[ex.mode] ? ex.mode : 'reps_kg';
+    return ex;
+  };
+
+  const cleanBlock = (b: unknown): Block<LoggedSet> => {
+    const bl = (b && typeof b === 'object' ? b : {}) as Block<LoggedSet>;
+    if (isText(bl)) {
+      // A text block has no exercises and must not be given any — the strength
+      // path below injects an empty one, which would render a phantom movement
+      // under every metcon.
+      delete (bl as { exercises?: unknown }).exercises;
+      return bl;
+    }
+    if (isCond(bl)) {
+      // A conditioning block has no exercises. An older blob may carry an empty
+      // array from before the split; drop it so no read path treats the block
+      // as strength work with zero movements.
+      delete (bl as { exercises?: unknown }).exercises;
+      return bl;
+    }
+    const sb = bl as StrengthBlock<LoggedSet>;
+    sb.exercises = arr<unknown>(sb.exercises).map(cleanEx);
+    if (!sb.exercises.length) sb.exercises = [newEx() as Exercise<LoggedSet>];
+    return sb;
+  };
+
+  const cleanBlocks = (v: unknown): Block<LoggedSet>[] => arr<unknown>(v).map(cleanBlock);
+
+  // settings is the one hole in this trust boundary: JSON.parse materialises a
+  // hostile "__proto__" as an OWN enumerable property, and mergeSettings'
+  // Object.assign would then invoke the prototype setter, poisoning
+  // deletedIds and wiping every record. Rebuild from own keys, dropping the
+  // three keys that can re-home a prototype. Also reject an array.
+  const cleanSettings = (s: unknown): Settings => {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return {};
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(s as Record<string, unknown>)) {
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      out[k] = (s as Record<string, unknown>)[k];
+    }
+    // `conditioning` is read by condEfforts/datedEfforts/pushCondHistory with
+    // no per-record guard (unlike insights.ts), so a null/non-object entry —
+    // reachable via backup restore in 'replace' mode or a stale local blob —
+    // crashes those reads. Drop anything that isn't a real record; this is
+    // the same shape mergeSettings already enforces on its own merge path.
+    if (Array.isArray(out.conditioning)) {
+      out.conditioning = (out.conditioning as unknown[]).filter(
+        (r) => r != null && typeof r === 'object' && !Array.isArray(r),
+      );
+    }
+    // Same shape guard as `conditioning` above: only touch it when it IS an
+    // array, and require both fields to actually be strings — a folder with a
+    // missing/garbage id can never be targeted by workoutsInFolder/removal,
+    // and a missing name would render an empty pill with no way to identify it.
+    if (Array.isArray(out.folders)) {
+      out.folders = (out.folders as unknown[])
+        .filter((f): f is Record<string, unknown> => f != null && typeof f === 'object' && !Array.isArray(f))
+        .filter((f) => typeof f.id === 'string' && f.id && typeof f.name === 'string')
+        .map((f) => ({ id: f.id as string, name: f.name as string }));
+    }
+    return out as Settings;
+  };
+
+  return {
+    workouts: arr<unknown>(src.workouts).map((w0) => {
+      const w = (w0 && typeof w0 === 'object' ? w0 : {}) as Workout;
+      w.blocks = cleanBlocks(w.blocks);
+      if (!w.id) w.id = uid();
+      if ('days' in w) w.days = arr<number>(w.days).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+      if ('dates' in w) w.dates = arr<string>(w.dates).filter((k) => typeof k === 'string');
+      if ('folderIds' in w) w.folderIds = arr<string>(w.folderIds).filter((id) => typeof id === 'string' && id);
+      return w;
+    }),
+    sessions: arr<unknown>(src.sessions).map((s0) => {
+      const s = (s0 && typeof s0 === 'object' ? s0 : {}) as Session;
+      s.blocks = cleanBlocks(s.blocks);
+      if (!s.id) s.id = uid();
+      return s;
+    }),
+    settings: cleanSettings(src.settings),
+  };
+}
+
+/* ---------- record-level cloud merge ----------
+   Workouts and sessions merge BY ID rather than last-write-wins, so two
+   devices can schedule and log between syncs without either side losing data.
+   dates/days are unioned (additive — never drop a scheduled day); name and
+   blocks take the side with the newer per-record updatedAt; deletions are
+   honoured via tombstones so a merge cannot resurrect something you deleted. */
+
+function mergeById<T extends { id?: string }>(a: T[], b: T[], pick: (x: T, y: T) => T): T[] {
+  const map = new Map<string, T>();
+  (a || []).forEach((x) => {
+    if (x && x.id) map.set(x.id, x);
+  });
+  (b || []).forEach((y) => {
+    if (!y || !y.id) return;
+    const x = map.get(y.id);
+    map.set(y.id, x ? pick(x, y) : y);
+  });
+  return Array.from(map.values());
+}
+
+function notTombstoned<T extends { id?: string; updatedAt?: number }>(t: Record<string, number>) {
+  const tomb = t || {};
+  return (x: T) => {
+    const d = tomb[(x && x.id) as string];
+    return !(d && d >= (x.updatedAt || 0));
+  };
+}
+
+export function pickWorkout(x: Workout, y: Workout): Workout {
+  const newer = (y.updatedAt || 0) >= (x.updatedAt || 0) ? y : x;
+  return Object.assign({}, newer, {
+    days: uniqArr((x.days || []).concat(y.days || [])).sort((m, n) => m - n),
+    dates: uniqArr((x.dates || []).concat(y.dates || [])).sort(),
+    folderIds: uniqArr((x.folderIds || []).concat(y.folderIds || [])),
+  });
+}
+
+/**
+ * Which copy of a session to keep. Logged work outranks a timestamp: a session
+ * with sets recorded on it always beats an empty one, however recently the
+ * empty one was touched. Only when both carry the same amount of work does
+ * recency decide — `updatedAt` when present, falling back to
+ * completedAt/startedAt for the many sessions that only ever carry those.
+ */
+export function pickSession(x: Session, y: Session): Session {
+  const nx = loggedWorkCount(x);
+  const ny = loggedWorkCount(y);
+  if (ny !== nx) return ny > nx ? y : x;
+  const recency = (s: Session) => s.updatedAt || s.completedAt || s.startedAt || 0;
+  return recency(y) >= recency(x) ? y : x;
+}
+
+/**
+ * Merge two settings blobs without losing additive data.
+ *
+ * `winner` (second arg) takes scalar fields — profile, flags — so callers pass
+ * the newer/local side there depending on sync direction. Everything additive
+ * is unioned instead.
+ */
+export function mergeSettings(base: Settings = {}, winner: Settings = {}): Settings {
+  const out: Settings = Object.assign({}, base, winner);
+
+  // The mobility list is a UNION, not winner-wins. Adding a stretch on the
+  // phone and another on the web are both real edits, and Object.assign would
+  // silently drop whichever side lost.
+  if (base.mobility || winner.mobility) {
+    const seen = new Set<string>();
+    out.mobility = [...(base.mobility || []), ...(winner.mobility || [])].filter((m) => {
+      const k = String(m || '').trim().toLowerCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  // Earned progression: take the higher level, but the HIGHER miss count too.
+  // Taking `miss` from whichever side won on level meant two devices could each
+  // bank a miss and neither deload ever fired — progression only ratcheted up.
+  const bp = base.conProgress || {};
+  const wp = winner.conProgress || {};
+  const pk = new Set([...Object.keys(bp), ...Object.keys(wp)]);
+  if (pk.size) {
+    const cp: Record<string, ProgressState> = {};
+    pk.forEach((k) => {
+      const a = (bp[k] && bp[k].level | 0) || 0;
+      const b = (wp[k] && wp[k].level | 0) || 0;
+      const am = (bp[k] && bp[k].miss | 0) || 0;
+      const bm = (wp[k] && wp[k].miss | 0) || 0;
+      cp[k] = Object.assign({}, (b >= a ? wp[k] : bp[k]) || {}, {
+        level: Math.max(a, b),
+        miss: Math.max(am, bm),
+      });
+    });
+    out.conProgress = cp;
+  }
+
+  // Earned working weights: NEWEST wins per lift, by the `at` the session that
+  // earned it finished.
+  //
+  // This looks inconsistent with the max-wins rule directly above and is not.
+  // `conProgress.level` only ever climbs a ladder, so taking the higher side is
+  // safe. A working weight must be able to go DOWN — a set that missed its rep
+  // floor, or a deload — and max-wins would ratchet it up forever, so the one
+  // outcome the athlete most needs to survive a sync is the one it would eat.
+  const bl2 = base.liftProgress || {};
+  const wl2 = winner.liftProgress || {};
+  const lk = new Set([...Object.keys(bl2), ...Object.keys(wl2)]);
+  if (lk.size) {
+    const lp: Record<string, LiftState> = {};
+    lk.forEach((k) => {
+      const a = bl2[k];
+      const b = wl2[k];
+      if (!a) {
+        if (b) lp[k] = b;
+        return;
+      }
+      if (!b) {
+        lp[k] = a;
+        return;
+      }
+      // `winner` takes an exact tie, matching how every scalar above resolves.
+      lp[k] = (b.at || 0) >= (a.at || 0) ? b : a;
+    });
+    out.liftProgress = lp;
+  }
+
+  // Conditioning history: union by id, but MERGE each record rather than taking
+  // whichever side was seen first. A rating added locally to a record the
+  // server already knew about used to be discarded, because `base` won ties.
+  const bc = Array.isArray(base.conditioning) ? base.conditioning : [];
+  const wc = Array.isArray(winner.conditioning) ? winner.conditioning : [];
+  if (bc.length || wc.length) {
+    const by = new Map<string, (typeof bc)[number]>();
+    bc.concat(wc).forEach((r) => {
+      if (!r || !r.id) return;
+      const prev = by.get(r.id);
+      by.set(r.id, prev ? Object.assign({}, prev, r) : r);
+    });
+    const m = Array.from(by.values());
+    m.sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+    out.conditioning = m.slice(-CON_RETENTION);
+  }
+
+  // The importer's learned shorthand. This package has no importer — `app.js`
+  // at the repo root does, and it syncs into the same blob — so the field is
+  // foreign data that has to be UNIONED and not taken from a side. Letting a
+  // winner clobber it would both discard what the other client learned and
+  // leave two devices swapping the field back and forth on every sync, each
+  // push changing the fingerprint the other one just settled on.
+  const bl = base.lexicon || {};
+  const wl = winner.lexicon || {};
+  if (bl.kw || bl.ex || wl.kw || wl.ex) {
+    out.lexicon = { kw: Object.assign({}, bl.kw, wl.kw), ex: Object.assign({}, bl.ex, wl.ex) };
+  }
+
+  // Tombstones: union keeping the newest timestamp per id, capped at 300.
+  const bd = base.deletedIds || {};
+  const wd = winner.deletedIds || {};
+  const dk = Object.keys(bd).concat(Object.keys(wd));
+  if (dk.length) {
+    const dd: Record<string, number> = {};
+    dk.forEach((k) => {
+      dd[k] = Math.max(bd[k] || 0, wd[k] || 0);
+    });
+    const ks = Object.keys(dd);
+    if (ks.length > 300) {
+      ks.sort((a, b) => dd[a] - dd[b])
+        .slice(0, ks.length - 300)
+        .forEach((k) => delete dd[k]);
+    }
+    out.deletedIds = dd;
+  }
+
+  // Folders: union by id, same reasoning as mobility above — creating a
+  // folder on two devices before either syncs are both real edits. But a
+  // folder whose id is tombstoned in the MERGED deletedIds map (just computed
+  // above) must not be revived by a stale copy the other side still carries
+  // — the same protection workouts and sessions already get via
+  // `notTombstoned`, applied here to a Settings-level list instead of an
+  // EngineDB-level array.
+  const bf = base.folders || [];
+  const wf = winner.folders || [];
+  if (bf.length || wf.length) {
+    const byId = new Map<string, Folder>();
+    bf.forEach((f) => f && f.id && byId.set(f.id, f));
+    wf.forEach((f) => f && f.id && byId.set(f.id, f)); // winner's copy wins an id present on both sides
+    const tomb = out.deletedIds || {};
+    out.folders = Array.from(byId.values()).filter((f) => !tomb[f.id]);
+  }
+
+  const bv = base.devices || {};
+  const wv = winner.devices || {};
+  const vk = Object.keys(bv).concat(Object.keys(wv));
+  if (vk.length) {
+    const vv: Record<string, { seen?: number; name?: string }> = {};
+    Array.from(new Set(vk)).forEach((k) => {
+      const a = bv[k] || {};
+      const b = wv[k] || {};
+      vv[k] = (b.seen || 0) >= (a.seen || 0) ? b : a;
+    });
+    out.devices = vv;
+  }
+
+  return out;
+}
+
+/** Local scalar edits win; additive fields are unioned; tombstones are applied. */
+export function mergeEngines(local: EngineDB, remote: EngineDB): EngineDB {
+  const settings = mergeSettings(remote.settings || {}, local.settings || {});
+  const t = settings.deletedIds || {};
+  const workouts = mergeById(local.workouts, remote.workouts, pickWorkout).filter(notTombstoned<Workout>(t));
+  const sessions = mergeById(local.sessions, remote.sessions, pickSession).filter(notTombstoned<Session>(t));
+  return { workouts, sessions, settings };
+}
+
+/**
+ * A fingerprint of what is worth pushing.
+ *
+ * `whoopDaily` and `devices` are excluded because they are device-local and
+ * re-derived, and would otherwise churn the fingerprint on every WHOOP sample.
+ */
+export function cloudFp(engine: EngineDB): string {
+  try {
+    const st: Settings = Object.assign({}, engine.settings || {});
+    delete st.whoopDaily;
+    delete st.devices;
+    return JSON.stringify({ w: engine.workouts || [], s: engine.sessions || [], st });
+  } catch {
+    return 'fp-' + Math.random();
+  }
+}
+
+/**
+ * An abandoned session from a past day is either promoted to `incomplete` (if
+ * anything was actually logged) or dropped. Left alone, it would keep showing
+ * as today's live session forever.
+ */
+export function expireStaleSessions(
+  sessions: Session[],
+  today = ymd(new Date()),
+  now = Date.now(),
+): { sessions: Session[]; changed: boolean } {
+  let changed = false;
+  const out = sessions.filter((s) => {
+    if (s.status !== 'active' || s.date >= today) return true;
+    changed = true;
+    if (hasLoggedWork(s)) {
+      s.status = 'incomplete';
+      s.completedAt = s.completedAt || s.startedAt || now;
+      return true;
+    }
+    return false;
+  });
+  return { sessions: out, changed };
+}
+
+/** Inline HR/GPS traces are ~78% of the serialised blob; unbounded, they cross
+ *  the localStorage quota and then EVERY save fails forever. Keep the maps on
+ *  recent runs (Recap/History still draw them) and strip them from older ones —
+ *  the zone SECONDS that drive progression stay, only the point arrays go. */
+export function pruneCondTraces(
+  sessions: Session[],
+  keep = CON_TRACE_KEEP,
+): { sessions: Session[]; changed: boolean } {
+  const withCond = sessions
+    .map((s, i) => ({
+      i,
+      at: s.completedAt || s.startedAt || 0,
+      has: (s.blocks || []).some((b) => isCond(b) && !!(b as CondBlock).condResult),
+    }))
+    .filter((x) => x.has)
+    .sort((a, b) => b.at - a.at);
+  const spare = new Set(withCond.slice(0, keep).map((x) => x.i));
+  let changed = false;
+  const out = sessions.map((s, i) => {
+    if (spare.has(i)) return s;
+    let touched = false;
+    const blocks = (s.blocks || []).map((b) => {
+      if (isCond(b) && (b as CondBlock).condResult) {
+        const r = (b as CondBlock).condResult!;
+        if (r.trace || (r as { route?: unknown }).route) {
+          touched = true;
+          const { trace: _t, route: _r, ...rest } = r as CondResult & { route?: unknown };
+          return { ...b, condResult: rest };
+        }
+      }
+      return b;
+    });
+    if (!touched) return s;
+    changed = true;
+    return { ...s, blocks };
+  });
+  return { sessions: out, changed };
+}
+
+export interface RestoreReport {
+  workouts: number;
+  sessions: number;
+  /**
+   * Records already present that the incoming file did not add — counted as
+   * what SURVIVED, id by id, not inferred from how the totals moved.
+   *
+   * The arithmetic version (`before + incoming − after`) quietly assumed the
+   * merge only ever grows: every record it dropped shrank `after` and so
+   * inflated `kept` by one. A workout deleted on another device arrives in the
+   * backup, `notTombstoned` correctly purges it, and the report called that
+   * purge a keep — restoring a file with nothing left in it reported one record
+   * kept out of a database holding zero.
+   */
+  kept: number;
+  mode: 'merge' | 'replace';
+}
+
+/**
+ * Read a backup back in.
+ *
+ * Settings has offered "Export a backup" since the sync work, and says
+ * "export a backup before you train again" when a save fails — while offering
+ * no way on earth to load one. The safety net only had one end. This is the
+ * other end, and it is also the road any historical import travels: convert an
+ * export from wherever into this same shape and it arrives through one
+ * reviewed, tested path rather than a bespoke one per source.
+ *
+ * `merge` is the default and the safe one. It runs the same record-level merge
+ * the cloud sync uses, so a restore cannot silently drop a session logged since
+ * the backup was taken, and tombstones still win — restoring an old file must
+ * not resurrect a workout deliberately deleted afterwards.
+ *
+ * `replace` exists because merge cannot express "this file is the truth, throw
+ * away what is here" — the case after a corrupt local store. It is destructive
+ * and the caller is responsible for confirming it.
+ *
+ * Throws on anything that is not an object with at least one of the three
+ * top-level keys. `sanitizeDB` would happily turn a photo of a cat into an
+ * empty database, and an import that silently produces nothing is worse than
+ * one that says the file is wrong.
+ */
+export function restoreDb(
+  current: EngineDB,
+  raw: unknown,
+  mode: 'merge' | 'replace' = 'merge',
+): { db: EngineDB; report: RestoreReport } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('That file is not a backup — expected a JSON object.');
+  }
+  const keys = raw as Record<string, unknown>;
+  if (!('workouts' in keys) && !('sessions' in keys) && !('settings' in keys)) {
+    throw new Error('That file has no workouts, sessions or settings in it.');
+  }
+
+  const incoming = sanitizeDB(raw);
+  // mergeEngines(local, remote): the incoming file is `remote`, so a record
+  // present in both is resolved by the same updatedAt rule sync already uses
+  // rather than by which side happened to be the file.
+  const db = mode === 'replace' ? incoming : mergeEngines(current, incoming);
+
+  // Namespaced because a workout and a session are different records even if
+  // some ancient export gave them the same id.
+  const ids = (e: EngineDB) =>
+    (e.workouts || []).map((w) => 'w:' + w.id).concat((e.sessions || []).map((s) => 's:' + s.id));
+  const had = new Set(ids(current));
+  // Present before AND still present after: the only records that were truly
+  // kept. Anything `notTombstoned` purged is absent from `db` and so counts for
+  // nothing, which is the whole correction.
+  const kept = ids(db).filter((k) => had.has(k)).length;
+
+  return {
+    db,
+    report: {
+      workouts: db.workouts.length,
+      sessions: db.sessions.length,
+      // `replace` is defined as "throw away what is here", so nothing it leaves
+      // standing was kept from the old database — it all came from the file.
+      kept: mode === 'replace' ? 0 : kept,
+      mode,
+    },
+  };
+}

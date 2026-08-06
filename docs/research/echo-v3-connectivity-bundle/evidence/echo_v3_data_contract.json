@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/echo-v3-data-contract.schema.json",
+  "title": "Rogue Echo Bike V3 FTMS event",
+  "type": "object",
+  "required": ["received_at", "device", "metrics", "raw"],
+  "properties": {
+    "received_at": {"type": "string", "format": "date-time"},
+    "device": {
+      "type": "object",
+      "required": ["manufacturer", "model", "generation", "protocol"],
+      "properties": {
+        "manufacturer": {"const": "Rogue Fitness"},
+        "model": {"const": "Echo Bike"},
+        "generation": {"const": "V3.0"},
+        "console_generation": {"type": ["string", "null"]},
+        "firmware": {"type": ["string", "null"]},
+        "device_id": {"type": ["string", "null"]},
+        "protocol": {"const": "ble_ftms"},
+        "service_uuid": {"const": "00001826-0000-1000-8000-00805f9b34fb"},
+        "characteristic_uuid": {"const": "00002ad2-0000-1000-8000-00805f9b34fb"}
+      },
+      "additionalProperties": true
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "speed_kmh": {"type": ["number", "null"]},
+        "average_speed_kmh": {"type": ["number", "null"]},
+        "cadence_rpm": {"type": ["number", "null"]},
+        "average_cadence_rpm": {"type": ["number", "null"]},
+        "distance_m": {"type": ["integer", "null"]},
+        "resistance_level": {"type": ["number", "null"]},
+        "power_w": {"type": ["integer", "null"]},
+        "average_power_w": {"type": ["integer", "null"]},
+        "calories_total": {"type": ["integer", "null"]},
+        "calories_per_hour": {"type": ["integer", "null"]},
+        "calories_per_minute": {"type": ["integer", "null"]},
+        "heart_rate_bpm": {"type": ["integer", "null"]},
+        "metabolic_equivalent": {"type": ["number", "null"]},
+        "elapsed_s": {"type": ["integer", "null"]},
+        "remaining_s": {"type": ["integer", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "raw": {
+      "type": "object",
+      "required": ["hex", "flags"],
+      "properties": {
+        "hex": {"type": "string", "pattern": "^[0-9a-fA-F]*$"},
+        "flags": {"type": ["integer", "null"], "minimum": 0, "maximum": 65535},
+        "notification_sequence": {"type": ["integer", "null"], "minimum": 0},
+        "received_monotonic_ms": {"type": ["number", "null"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

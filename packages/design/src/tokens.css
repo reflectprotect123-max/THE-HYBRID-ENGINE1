@@ -1,0 +1,176 @@
+/*
+ * Tailwind v4 theme for THE Hybrid System.
+ *
+ * Mirrors packages/design/src/tokens.ts. The web apps import this once; every
+ * utility class they then use resolves to a token rather than a literal.
+ *
+ * THE 8px GRID IS ENFORCED BY `--spacing`. Tailwind multiplies that base by
+ * the numeric suffix, so setting it to 8px makes `p-1` = 8px, `gap-2` = 16px,
+ * `mt-3` = 24px — every spacing utility in the codebase lands on the grid by
+ * construction. `p-0.5` (4px) is the only sub-grid step and is rare by design.
+ */
+@import 'tailwindcss';
+
+@theme {
+  --spacing: 8px;
+
+  /* DEPTH */
+  --color-bg: #070706;
+  --color-panel: #141311;
+  --color-panel2: #1c1b18;
+  --color-panel3: #0a0a09;
+  --color-well: #0c0c0a;
+
+  --color-line: rgba(255, 255, 255, 0.065);
+  --color-line2: rgba(255, 255, 255, 0.1);
+  --color-hair: rgba(255, 255, 255, 0.08);
+
+  /* INK */
+  --color-text: #f5f1e9;
+  --color-muted: #aaa49a;
+  --color-dim: #847d73;
+
+  /* BRAND — brass */
+  --color-gold: #c09358;
+  --color-gold2: #e0bc87;
+  --color-gold-wash: rgba(192, 147, 88, 0.09);
+  --color-gold-line: rgba(224, 188, 135, 0.22);
+  --color-done-bg: rgba(192, 147, 88, 0.14);
+  --color-done-line: rgba(224, 188, 135, 0.5);
+  --color-done-ink: #e6c795;
+  --color-on-accent: #1b1509;
+
+  --color-blue: #82a8e9;
+  --color-blue2: #6793ee;
+  --color-ok: #9fc59b;
+  --color-warn: #d1a464;
+  --color-bad: #cf7f7c;
+
+  /* HR semantics */
+  --color-zone-blue: #5b8def;
+  --color-zone-green: #33c07a;
+  --color-zone-red: #e0524d;
+  --color-z-low: #5b8def;
+  --color-z-mod: #cf9d4f;
+  --color-z-high: #e0524d;
+
+  /* NEON */
+  --color-neon-strain: #33c4ff;
+  --color-neon-ok: #3dff9e;
+  --color-neon-warn: #ffc24d;
+  --color-neon-bad: #ff5b57;
+
+  --color-ring-idle: rgba(255, 255, 255, 0.14);
+  --color-track-soft: rgba(255, 255, 255, 0.06);
+  --color-track: rgba(255, 255, 255, 0.08);
+  --color-track-strong: rgba(255, 255, 255, 0.09);
+  --color-chart-dot-ring: #141312;
+
+  /* FINISH */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* TYPE — the step scale actually in use, plus one larger step for the
+     full-screen logger's weight/reps readouts. */
+  --text-1: 10px;
+  --text-2: 11px;
+  --text-3: 12px;
+  --text-4: 13px;
+  --text-5: 14px;
+  --text-6: 16px;
+  --text-7: 20px;
+  --text-8: 26px;
+  --text-9: 34px;
+
+  --font-weight-reg: 500;
+  --font-weight-med: 650;
+  --font-weight-semi: 750;
+  --font-weight-bold: 800;
+  --font-weight-black: 900;
+
+  /* MOTION */
+  --ease-standard: cubic-bezier(0.22, 0.8, 0.2, 1);
+  --ease-entrance: cubic-bezier(0.22, 0.9, 0.24, 1);
+  --ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.028) inset, 0 14px 34px -18px rgba(0, 0, 0, 0.9);
+  --shadow-lift: 0 22px 48px -20px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(224, 188, 135, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --shadow-well: inset 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-brass: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --brass: linear-gradient(180deg, #c8a06d, #b0854e);
+    --brass-wash: linear-gradient(180deg, rgba(224, 188, 135, 0.16), rgba(192, 147, 88, 0.05));
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: var(--text-5);
+    font-weight: var(--font-weight-reg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+  }
+
+  /* Tabular figures everywhere a number is compared against another number —
+     weights, reps, RPE, bpm, timers. Proportional digits make a column of
+     loads jitter as it updates. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-gold2);
+    outline-offset: 2px;
+  }
+
+  /*
+   * Touch targets, but only for fingers.
+   *
+   * The athlete app is an installable PWA and is used on a phone in a gym —
+   * yet `Button` renders 32px at `sm` and 40px at `md`, both under the 44pt
+   * minimum. The phone app had exactly this defect and it was fixed there
+   * first; the same person meets the same buttons here.
+   *
+   * `pointer: coarse` is what makes this safe to do globally. A mouse is
+   * precise and does not need 44px, so desktop and the coach builder — which
+   * is dense by design and would look bloated — are untouched. The query
+   * matches the input device, not the viewport, so a narrow desktop window
+   * stays compact and a large tablet still gets finger-sized controls.
+   *
+   * min-height rather than height: a control that is already taller keeps its
+   * size, and nothing that fits gets stretched.
+   */
+  @media (pointer: coarse) {
+    button,
+    [role='button'],
+    select,
+    input:not([type='range']):not([type='checkbox']):not([type='radio']) {
+      min-height: 44px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

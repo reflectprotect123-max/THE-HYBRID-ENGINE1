@@ -1,0 +1,14 @@
+[
+ {
+  "effort": "easy",
+  "out": "3-4"
+ },
+ {
+  "effort": "medium",
+  "out": "5-7"
+ },
+ {
+  "effort": "hard",
+  "out": "8-9.5"
+ }
+]

@@ -1,0 +1,62 @@
+[
+ {
+  "in": null,
+  "out": null
+ },
+ {
+  "in": "",
+  "out": null
+ },
+ {
+  "in": "__undefined__",
+  "out": null
+ },
+ {
+  "in": 0,
+  "out": "low"
+ },
+ {
+  "in": 1,
+  "out": "low"
+ },
+ {
+  "in": 33,
+  "out": "low"
+ },
+ {
+  "in": 34,
+  "out": "watch"
+ },
+ {
+  "in": 50,
+  "out": "watch"
+ },
+ {
+  "in": 66,
+  "out": "watch"
+ },
+ {
+  "in": 67,
+  "out": "good"
+ },
+ {
+  "in": 100,
+  "out": "good"
+ },
+ {
+  "in": 120,
+  "out": "good"
+ },
+ {
+  "in": -5,
+  "out": "low"
+ },
+ {
+  "in": "abc",
+  "out": null
+ },
+ {
+  "in": "55",
+  "out": "watch"
+ }
+]

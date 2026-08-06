@@ -1,0 +1,46 @@
+[
+ {
+  "t": "",
+  "out": false
+ },
+ {
+  "t": "W",
+  "out": true
+ },
+ {
+  "t": "w",
+  "out": true
+ },
+ {
+  "t": " W10",
+  "out": true
+ },
+ {
+  "t": "W5",
+  "out": true
+ },
+ {
+  "t": "10",
+  "out": false
+ },
+ {
+  "t": "max",
+  "out": false
+ },
+ {
+  "t": "warm",
+  "out": true
+ },
+ {
+  "t": "AMRAP",
+  "out": false
+ },
+ {
+  "t": null,
+  "out": false
+ },
+ {
+  "t": "__undefined__",
+  "out": false
+ }
+]

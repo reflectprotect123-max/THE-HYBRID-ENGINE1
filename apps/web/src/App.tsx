@@ -1,0 +1,95 @@
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { DbProvider } from './store/db';
+import { RestProvider } from './store/rest';
+import { SetTimerProvider } from './store/setTimer';
+import { SyncProvider } from './cloud/sync';
+import { WhoopProvider } from './cloud/whoop';
+import { Concept2Provider } from './cloud/concept2';
+import { BottomNav } from './components/BottomNav';
+import { RestChip } from './components/RestChip';
+import { SaveAlert } from './components/SaveAlert';
+import { Home } from './screens/Home';
+import { Training } from './screens/Training';
+import { Logger } from './screens/Logger';
+import { Library } from './screens/Library';
+import { Planner } from './screens/Planner';
+import { Conditioning } from './screens/Conditioning';
+import { History } from './screens/History';
+import { Progress } from './screens/Progress';
+import { Exercise } from './screens/Exercise';
+import { GuidedBuilder } from './screens/guided/GuidedBuilder';
+import { UpdateBanner } from './UpdateBanner';
+import { Calendar } from './screens/Calendar';
+import { Day } from './screens/Day';
+import { Recap } from './screens/Recap';
+import { Settings } from './screens/Settings';
+
+/*
+ * The router replaces the vanilla `go(id)` screen system, where every screen
+ * was a <section id="s-*"> toggled with a class and `renderScreen(id)`
+ * dispatched by hand. Routes give back the browser's own back button, which
+ * that system had to fake.
+ *
+ * The Logger and the plan editor are full-screen by design — they sit OUTSIDE
+ * the shell so nothing competes with the work in front of you, which is why
+ * they are not nested under the chrome route.
+ *
+ * Provider order matters: Sync and WHOOP both read the DB, and Sync writes to
+ * it on a pull, so DbProvider has to be outermost.
+ */
+export function App() {
+  return (
+    <DbProvider>
+      {/* Above the router: a failed write has to reach the logger and the plan
+          editor too, and both sit outside the shell. */}
+      <SaveAlert />
+      <SyncProvider>
+        <WhoopProvider>
+          <Concept2Provider>
+          <RestProvider>
+          <SetTimerProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/log/:bi/:ei" element={<Logger />} />
+                <Route path="/planner/:id" element={<Planner />} />
+                <Route path="/build/:id" element={<GuidedBuilder />} />
+                <Route element={<Shell />}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/training" element={<Training />} />
+                  <Route path="/library" element={<Library />} />
+                  <Route path="/conditioning" element={<Conditioning />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/progress" element={<Progress />} />
+                  <Route path="/exercise" element={<Exercise />} />
+                  <Route path="/exercise/:name" element={<Exercise />} />
+                  <Route path="/calendar" element={<Calendar />} />
+                  <Route path="/day/:date" element={<Day />} />
+                  <Route path="/recap/:id" element={<Recap />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </SetTimerProvider>
+          </RestProvider>
+          </Concept2Provider>
+        </WhoopProvider>
+      </SyncProvider>
+    </DbProvider>
+  );
+}
+
+function Shell() {
+  return (
+    <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col">
+      <main className="flex-1 px-2 pt-2 pb-[calc(72px+env(safe-area-inset-bottom))]">
+        <Outlet />
+      </main>
+      <RestChip />
+      {/* Above the nav, below the rest chip: a running timer outranks a
+          version notice. */}
+      <UpdateBanner />
+      <BottomNav />
+    </div>
+  );
+}

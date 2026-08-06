@@ -1,0 +1,16 @@
+{
+  "description": "Synthetic FTMS Indoor Bike Data payload used by the starter parser tests; not captured from a physical Echo console.",
+  "payload_hex": "540bc409a000d204002c011900f4010a965802",
+  "decoded": {
+    "flags": 2900,
+    "speed_kmh": 25.0,
+    "cadence_rpm": 80.0,
+    "distance_m": 1234,
+    "power_w": 300,
+    "calories_total": 25,
+    "calories_per_hour": 500,
+    "calories_per_minute": 10,
+    "heart_rate_bpm": 150,
+    "elapsed_s": 600
+  }
+}

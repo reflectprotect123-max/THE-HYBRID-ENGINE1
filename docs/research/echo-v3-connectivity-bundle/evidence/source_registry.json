@@ -1,0 +1,186 @@
+{
+  "metadata": {
+    "title": "Rogue Echo Bike V3.0 connectivity source registry",
+    "version": "1.0",
+    "retrieved_on": "2026-07-31",
+    "target": "Rogue Echo Bike V3.0 standard connected console",
+    "method": "web research, official documentation review, public repository retrieval, local static inspection",
+    "source_policy": "Official manufacturer and standards sources first; working implementations second; community sources only for operational corroboration.",
+    "copyright_policy": "Links and short factual notes are preserved for source auditing. Full Bluetooth SIG specification text is not redistributed. Public code snapshots retain attribution and licence notes."
+  },
+  "sources": [
+    {
+      "id": "SRC-ROGUE-PRODUCT",
+      "title": "Rogue Echo Bike V3.0 product page",
+      "publisher": "Rogue Fitness",
+      "kind": "official_product_page",
+      "url": "https://www.roguefitness.com/rogue-echo-bike",
+      "local_copy": "sources/official/rogue/echo_bike_v3_product_page.html",
+      "supports": ["V3.0 console has Bluetooth and ANT+ compatibility", "popular app connectivity", "standard V3 versus optional M2 distinction"],
+      "confidence": "high",
+      "limitations": ["Product copy does not enumerate every FTMS field or prove ANT+ bike-metric broadcast."]
+    },
+    {
+      "id": "SRC-ROGUE-CONSOLE",
+      "title": "Rogue Echo Bike V3.0 console product page",
+      "publisher": "Rogue Fitness",
+      "kind": "official_console_page",
+      "url": "https://www.roguefitness.com/echo-bike-connected-console-eu",
+      "local_copy": "sources/official/rogue/echo_bike_v3_console_product_page.html",
+      "supports": ["V3 console can receive HR via ANT+ or BLE", "console uses FTMS for two-way app/console-bike communication"],
+      "confidence": "high",
+      "limitations": ["The localized page is product documentation rather than a packet-level conformance report."]
+    },
+    {
+      "id": "SRC-ROGUE-FTMS",
+      "title": "Firmware update for V3 Console (Android)",
+      "publisher": "Rogue Fitness",
+      "kind": "official_support_guide",
+      "url": "https://guides.roguefitness.com/Guide/Firmware+update+for+V3+Console+(Android)/24",
+      "local_copy": "sources/official/rogue/v3_console_ftms_android_guide.html",
+      "supports": ["Echo Connected console uses FTMS", "connect to the console inside the app rather than normal Bluetooth settings"],
+      "confidence": "high",
+      "limitations": ["The guide is about firmware/update workflow and does not provide a full GATT field map."]
+    },
+    {
+      "id": "SRC-ROGUE-FTMS-IOS",
+      "title": "Firmware update for V3 Console (iOS)",
+      "publisher": "Rogue Fitness",
+      "kind": "official_support_guide",
+      "url": "https://guides.roguefitness.com/Guide/Firmware+update+for+V3+Console+(iOS)/29",
+      "local_copy": "sources/official/rogue/v3_console_ftms_ios_guide.html",
+      "supports": ["FTMS statement and in-app connection workflow"],
+      "confidence": "high",
+      "limitations": ["No full packet capture or ANT+ metric map."]
+    },
+    {
+      "id": "SRC-ROGUE-HR-CONNECT",
+      "title": "Connect external devices to the console (iOS)",
+      "publisher": "Rogue Fitness",
+      "kind": "official_support_guide",
+      "url": "https://guides.roguefitness.com/Guide/Connect+external+devices+to+the+console+(iOS)/23",
+      "local_copy": "sources/official/rogue/connect_external_devices_ios.html",
+      "supports": ["Bluetooth and ANT indicators", "console pairing workflow", "Echo does not appear as an ordinary phone Bluetooth device"],
+      "confidence": "high",
+      "limitations": ["The guide focuses on external sensors and does not state which bike metrics ANT+ broadcasts."]
+    },
+    {
+      "id": "SRC-ROGUE-CUSTOMER",
+      "title": "Echo Bike V3.0 Customer Instructions",
+      "publisher": "Rogue Fitness",
+      "kind": "official_pdf",
+      "url": "https://assets.roguefitness.com/instructions/IP0895/IP0895_CUST_INSTR_V2",
+      "local_copy": "sources/official/rogue/echo_bike_v3_customer_instructions.pdf",
+      "supports": ["V3.0 physical assembly and sensor/cable context"],
+      "confidence": "high",
+      "limitations": ["Assembly instructions are not a BLE protocol manual."]
+    },
+    {
+      "id": "SRC-BLUETOOTH-FTMS",
+      "title": "Fitness Machine Service 1.0",
+      "publisher": "Bluetooth SIG",
+      "kind": "official_standard_page",
+      "url": "https://www.bluetooth.com/specifications/specs/fitness-machine-service-1-0/",
+      "local_copy": "sources/official/bluetooth/fitness_machine_service_1_0_page.html",
+      "supports": ["FTMS service purpose and official specification location"],
+      "confidence": "high",
+      "limitations": ["The full specification is linked rather than copied into this archive."]
+    },
+    {
+      "id": "SRC-ERGZONE",
+      "title": "Rogue Echo Bike with V3: How to Connect",
+      "publisher": "ErgZone",
+      "kind": "third_party_operational_documentation",
+      "url": "https://help.erg.zone/article/351-echo-bike-how-to-connect",
+      "local_copy": "sources/third_party/ergzone_echo_v3_connection.html",
+      "supports": ["V3 Bluetooth connection", "button sequence", "approximately one-second signal cadence", "reset/carry-over and distance discrepancy observations", "V3-only Bluetooth claim for older Echo monitors"],
+      "confidence": "medium_high",
+      "limitations": ["Third-party app documentation; observations may be app/firmware-specific and were not independently packet-captured here."]
+    },
+    {
+      "id": "SRC-ECHO-TRACKER",
+      "title": "Rogue Echo Bike v3 Workout Tracker",
+      "publisher": "Richie Bolger",
+      "kind": "working_open_repository_snapshot",
+      "url": "https://github.com/richiebolger/Rogue_Echo_Bike_v3",
+      "retrieved_commit": "e4a30cafb33bbefb22beb50beefb3f4283b63d4a",
+      "local_copy": "code/direct/Rogue_Echo_Bike_v3/",
+      "supports": ["direct Bleak connection", "FTMS UUIDs", "Indoor Bike Data parsing", "live metric collection", "session export"],
+      "confidence": "high_for_code_presence",
+      "licence_status": "README claims MIT; no LICENSE file in retrieved commit; build metadata contains all-rights-reserved copyright text",
+      "limitations": ["No physical-device validation was run in this environment."]
+    },
+    {
+      "id": "SRC-GARMIN-BRIDGE",
+      "title": "Rogue Garmin Bridge",
+      "publisher": "Douglas Christian",
+      "kind": "working_open_repository_snapshot",
+      "url": "https://github.com/Douglas-Christian/rogue_garmin_bridge",
+      "retrieved_commit": "b3efe73a1a304bb3ea67125ca879ce4053890b3f",
+      "local_copy": "code/direct/rogue_garmin_bridge/",
+      "supports": ["PyFTMS/Bleak connectivity", "live data pipeline", "reconnect logic", "simulator", "JSON/CSV/FIT session handling"],
+      "confidence": "high_for_code_presence",
+      "licence_status": "README claims MIT; no LICENSE file in retrieved commit",
+      "limitations": ["The repository contains broader Rogue equipment support and was not treated as Echo-only production code."]
+    },
+    {
+      "id": "SRC-TRACK-INDOOR",
+      "title": "Track My Indoor Workout",
+      "publisher": "TrackMyIndoorWorkout",
+      "kind": "working_open_repository_snapshot",
+      "url": "https://github.com/TrackMyIndoorWorkout/TrackMyIndoorWorkout",
+      "retrieved_commit": "9dc159c7f6674c2a10eef173d47a94fc2df3a3c4",
+      "local_copy": "code/direct/TrackMyIndoorWorkout/",
+      "supports": ["Rogue Echo Bike V3.0 support listing", "Apache-2.0 Flutter implementation", "FTMS device abstraction and exports"],
+      "confidence": "high_for_support_listing",
+      "licence_status": "Apache-2.0",
+      "limitations": ["The repository supports many machines; Echo-specific runtime behaviour requires a device test."]
+    },
+    {
+      "id": "SRC-PYFTMS",
+      "title": "PyFTMS",
+      "publisher": "Sergey Dudanov",
+      "kind": "open_protocol_library_snapshot",
+      "url": "https://github.com/dudanov/python-pyftms",
+      "retrieved_commit": "2d60298fb8869f833c8a9c7f16f246b93d2f50a0",
+      "local_copy": "code/reference/python-pyftms/",
+      "supports": ["FTMS indoor-bike model", "signed power fields", "unsigned energy fields", "Bleak client architecture"],
+      "confidence": "high_for_protocol_reference",
+      "licence_status": "Apache-2.0",
+      "limitations": ["Generic FTMS library; not an Echo-specific certification."]
+    },
+    {
+      "id": "SRC-CYCLING-APP",
+      "title": "Cycling App",
+      "publisher": "mishannn",
+      "kind": "reference_repository_snapshot",
+      "url": "https://github.com/mishannn/cycling-app",
+      "retrieved_commit": "b9a3f812f889e1062a20ff237a32a502b7646cd7",
+      "local_copy": "code/reference/cycling-app-selected/",
+      "supports": ["Capacitor BLE lifecycle", "TypeScript Indoor Bike Data decoder", "service and characteristic subscription shape"],
+      "confidence": "medium_for_mobile_shape",
+      "licence_status": "No root LICENSE file found in retrieved repository",
+      "limitations": ["Selected files are reference-only; do not assume reuse rights.", "Its parser uses some field types differently from PyFTMS/direct Echo code and is explicitly cross-checked in this bundle."]
+    },
+    {
+      "id": "SRC-TRACK-WEB",
+      "title": "Track My Indoor Workout application site",
+      "publisher": "TrackMyIndoorWorkout",
+      "kind": "official_project_site",
+      "url": "https://trackmyindoorworkout.github.io/",
+      "supports": ["Rogue Echo Bike V3.0 appears in supported devices", "FIT/TCX/CSV/JSON export context"],
+      "confidence": "medium_high",
+      "limitations": ["Project site claims support; source and physical-device validation are stronger evidence."]
+    },
+    {
+      "id": "SRC-FTMS-STACK-OVERFLOW",
+      "title": "How to parse Indoor Bike Data using Web Bluetooth",
+      "publisher": "Stack Overflow",
+      "kind": "community_reference",
+      "url": "https://stackoverflow.com/questions/75937738/how-to-parse-indoor-bike-data-using-web-bluetooth",
+      "supports": ["Web Bluetooth request-device shape", "FTMS and Indoor Bike Data UUID usage"],
+      "confidence": "medium",
+      "limitations": ["Not Echo-specific; use only as supplemental implementation context."]
+    }
+  ]
+}

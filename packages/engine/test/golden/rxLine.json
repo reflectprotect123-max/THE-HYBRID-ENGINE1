@@ -1,0 +1,112 @@
+[
+ {
+  "in": {
+   "name": "A",
+   "mode": "reps_kg",
+   "sets": [
+    {
+     "t": "5",
+     "rpe": "8"
+    },
+    {
+     "t": "5",
+     "rpe": "8"
+    }
+   ]
+  },
+  "out": "2 × 5 · RPE 8"
+ },
+ {
+  "in": {
+   "name": "B",
+   "mode": "reps_kg",
+   "sets": [
+    {
+     "t": "8",
+     "rpe": "7"
+    },
+    {
+     "t": "6",
+     "rpe": "8"
+    },
+    {
+     "t": "4",
+     "rpe": "9"
+    }
+   ]
+  },
+  "out": "3 × 8/6/4 · RPE 7→9"
+ },
+ {
+  "in": {
+   "name": "C",
+   "mode": "amrap",
+   "sets": [
+    {
+     "t": "max",
+     "rpe": "9"
+    }
+   ]
+  },
+  "out": "1 × max · RPE 9"
+ },
+ {
+  "in": {
+   "name": "D",
+   "mode": "completion",
+   "sets": [
+    {
+     "t": "",
+     "rpe": ""
+    },
+    {
+     "t": "",
+     "rpe": ""
+    }
+   ]
+  },
+  "out": "2 × complete"
+ },
+ {
+  "in": {
+   "name": "E",
+   "mode": "seconds",
+   "sets": [
+    {
+     "t": "60",
+     "rpe": ""
+    }
+   ],
+   "rest": 90
+  },
+  "out": "1 × 60s · rest 1:30"
+ },
+ {
+  "in": {
+   "name": "F",
+   "mode": "reps_kg",
+   "sets": [
+    {
+     "t": "5",
+     "rpe": "8"
+    }
+   ],
+   "tempo": "30X1",
+   "rest": 180
+  },
+  "out": "1 × 5 · RPE 8 · @30X1 · rest 3:00"
+ },
+ {
+  "in": {
+   "name": "G",
+   "mode": "reps",
+   "sets": [
+    {
+     "t": "",
+     "rpe": ""
+    }
+   ]
+  },
+  "out": "1 × —"
+ }
+]
