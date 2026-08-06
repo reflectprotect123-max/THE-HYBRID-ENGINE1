@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useState } from 'react';
+import './coach.css';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { coachAllowed } from './guard';

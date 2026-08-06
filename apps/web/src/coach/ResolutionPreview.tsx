@@ -1,4 +1,6 @@
 import { useDb } from '../store/db';
+import { useWhoop } from '../cloud/whoop';
+import { useConcept2 } from '../cloud/concept2';
 import { cx } from '../ui';
 
 /*
@@ -42,6 +44,90 @@ function BandChip({ band }: { band: string }) {
   );
 }
 
+const STALE_MS = 24 * 60 * 60 * 1000;
+
+function agoLabel(isoOrNull: string | null | undefined): { text: string; stale: boolean } {
+  if (!isoOrNull) return { text: 'never synced', stale: true };
+  const then = new Date(isoOrNull).getTime();
+  if (!Number.isFinite(then)) return { text: 'sync time unknown', stale: true };
+  const ms = Date.now() - then;
+  const h = Math.floor(ms / 3_600_000);
+  const text = h < 1 ? 'synced <1h ago' : h < 48 ? `synced ${h}h ago` : `synced ${Math.floor(h / 24)}d ago`;
+  return { text, stale: ms > STALE_MS };
+}
+
+function IntegrationCards() {
+  const whoop = useWhoop();
+  const c2 = useConcept2();
+  const wSync = agoLabel(whoop.lastSyncAt);
+  const cSync = agoLabel(c2.lastSyncAt);
+  const rec = whoop.sample?.recoveryScore;
+  const recNum = rec == null ? null : Number(rec);
+  const recTone =
+    recNum == null ? 'text-dim' : recNum >= 67 ? 'text-ok' : recNum >= 34 ? 'text-warn' : 'text-bad';
+  return (
+    <div className="mt-0.5 space-y-0.5">
+      <div className="rounded border border-line bg-well px-1 py-0.5">
+        <div className="flex items-baseline gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-ok">Whoop</span>
+          <span className={cx('ml-auto text-[10px]', whoop.connected && wSync.stale ? 'text-warn' : 'text-dim')}>
+            {whoop.connected ? (wSync.stale ? `stale — ${wSync.text}` : wSync.text) : 'not connected'}
+          </span>
+        </div>
+        {whoop.connected && whoop.sample ? (
+          <div className="mt-0.5 flex flex-wrap gap-2 text-xs tabular-nums">
+            {recNum != null && (
+              <span>
+                <b className={cx('font-semibold', recTone)}>{recNum}%</b>{' '}
+                <span className="text-[9px] uppercase text-dim">recovery</span>
+              </span>
+            )}
+            {whoop.sample.hrvMs != null && (
+              <span>
+                <b className="font-semibold">{String(whoop.sample.hrvMs)}</b>{' '}
+                <span className="text-[9px] uppercase text-dim">hrv ms</span>
+              </span>
+            )}
+            {whoop.sample.restingHr != null && (
+              <span>
+                <b className="font-semibold">{String(whoop.sample.restingHr)}</b>{' '}
+                <span className="text-[9px] uppercase text-dim">rhr</span>
+              </span>
+            )}
+            {whoop.sample.sleepPerformance != null && (
+              <span>
+                <b className="font-semibold">{String(whoop.sample.sleepPerformance)}%</b>{' '}
+                <span className="text-[9px] uppercase text-dim">sleep</span>
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="mt-0.5 text-[11px] text-dim">
+            {whoop.connected
+              ? 'Connected, no sample yet — readiness reads unknown, never assumed green.'
+              : 'Not connected — readiness reads unknown, never assumed green.'}
+          </p>
+        )}
+      </div>
+      <div className="rounded border border-line bg-well px-1 py-0.5">
+        <div className="flex items-baseline gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-blue">Concept2</span>
+          <span className={cx('ml-auto text-[10px]', c2.connected && cSync.stale ? 'text-warn' : 'text-dim')}>
+            {c2.connected ? (cSync.stale ? `stale — ${cSync.text}` : cSync.text) : 'not connected'}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[11px] text-muted">
+          {c2.connected
+            ? c2.results.length
+              ? `${c2.results.length} logged result${c2.results.length === 1 ? '' : 's'} synced from the erg.`
+              : 'Connected — no results synced yet.'
+            : 'Not connected — erg results are not feeding the bench.'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ResolutionPreview() {
   const { weeklyPlan, athleteState } = useDb();
   const { readiness, dataQuality, constraints, illness } = athleteState;
@@ -56,7 +142,8 @@ export function ResolutionPreview() {
 
       {/* SIGNAL */}
       <section className="mt-1 rounded border border-line bg-panel p-1">
-        <h3 className="text-[10px] uppercase tracking-wider text-dim">Signal — observed</h3>
+        <h3 className="text-[10px] uppercase tracking-wider text-dim">Signal — integrations</h3>
+        <IntegrationCards />
         <div className="mt-0.5 flex flex-wrap items-center gap-1">
           <span className="text-xs text-muted">readiness</span>
           <BandChip band={readiness.band} />
