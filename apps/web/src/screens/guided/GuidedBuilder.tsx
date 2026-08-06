@@ -166,13 +166,41 @@ export function GuidedBuilder() {
     [id, nav, phase],
   );
 
-  /* Only a location CHANGE matters, and only a backward one. The key guard also
-     covers the first render, where react-router reports POP for a plain load. */
-  const seenKey = useRef(location.key);
+  /*
+   * Only a backward navigation matters, and only once per POP.
+   *
+   * This used to dedupe by comparing `location.key` against the last key
+   * SEEN by this effect at all (pushes included), to stop a re-run of this
+   * effect — its deps include `handleBackward`, which used to change
+   * identity on every step — from re-processing a location it had already
+   * handled. That guard was itself the bug behind a CI-only failure
+   * (confirmed via two rounds of CI's own trace/diagnostic output): two
+   * `guard()` pushes issued back-to-back sometimes commit only ONE
+   * distinguishable history entry between them, so a POP later landing back
+   * on that shared key read as "already seen" (by a PUSH) and was silently
+   * swallowed — handleBackward() never ran.
+   *
+   * Tracking the last key this effect actually HANDLED AS A POP, rather
+   * than the last key seen for any reason, fixes that: a push's key,
+   * however it coalesces, never writes to `lastPoppedKey`, so it can never
+   * make a later POP look like a duplicate. This still needs to be a key
+   * comparison and not just "is navType POP" alone, though — handleBackward
+   * no longer depends on `step`/`draft` (it reads the landed-on entry's own
+   * tag), so it's far more stable across renders than before, but it can
+   * still change identity (on a `phase` flip) on a render where `navType`
+   * happens to still read 'POP' from an earlier, already-handled navigation
+   * — e.g. the browser's own Forward button lands on the flow's last step
+   * (also reported as POP), and clicking through to the end changes `phase`
+   * without any intervening `guard()` push to refresh `navType`. Without
+   * this comparison that would re-run handleBackward on a POP it already
+   * processed. The initial value covers the first render, where
+   * react-router reports POP for a plain load.
+   */
+  const lastPoppedKey = useRef(location.key);
   useEffect(() => {
-    if (seenKey.current === location.key) return;
-    seenKey.current = location.key;
     if (navType !== 'POP') return;
+    if (lastPoppedKey.current === location.key) return;
+    lastPoppedKey.current = location.key;
     handleBackward(location.state);
   }, [handleBackward, location.key, location.state, navType]);
 

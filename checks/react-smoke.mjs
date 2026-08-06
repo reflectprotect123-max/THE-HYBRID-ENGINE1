@@ -1543,16 +1543,20 @@ await t('the guided builder replaces "New session" and can build a full session'
 
   // Finish — lands in the existing Planner with both blocks present.
   //
-  // Root cause of a CI-only failure here (confirmed via a CI run's own
-  // diagnostic dump, added in a prior commit): the running summary's own
-  // kicker reads "Back Squat, Warm-up / Cooldown added" — so a bare
-  // `text=Back Squat` selector is satisfied by THAT still-visible screen,
-  // before the click's navigation to the Planner has actually landed, on a
-  // slower CI runner. Waiting for the URL first (not just for text that
-  // exists on both screens) removes the ambiguity.
+  // Root cause of a CI-only failure here (confirmed via two rounds of CI's
+  // own diagnostic dumps, added in prior commits): the running summary's own
+  // kicker reads "Back Squat, Warm-up / Cooldown added" — a substring match
+  // on "Back Squat" is satisfied by THAT still-visible screen. Waiting for
+  // the URL first did not fix it: history.pushState() lands (satisfying
+  // waitForURL) a render tick before React actually swaps GuidedBuilder's
+  // tree for Planner's, and "Back Squat" is still readable on the
+  // not-yet-unmounted old screen at that instant — so `waitForSelector`
+  // matched it too, immediately, before ever seeing the real Planner.
+  // Waiting for the Planner's own "Plan editor · saves as you go" kicker —
+  // text that exists on no other screen in this flow — removes the
+  // ambiguity for real, because there is no stale content it could match.
   await page.click('button:has-text("No, I\'m done")');
-  await page.waitForURL(/\/planner\//);
-  await page.waitForSelector('text=Back Squat');
+  await page.waitForSelector('text=Plan editor · saves as you go');
   const plannerText = await page.textContent('body');
   assert(/Back Squat/.test(plannerText), 'the lift block should carry into the Planner');
   assert(
