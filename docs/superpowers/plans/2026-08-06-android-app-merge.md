@@ -6,7 +6,7 @@
 
 **Architecture:** A build with `EXPO_PUBLIC_HYBRID_PRODUCT` **unset** becomes the merged app (that is what the existing strength `preview`/`production` EAS profiles already produce, so existing installs update in place). Builds with the variable set stay legacy single-product — needed for the conditioning farewell release. In merged mode: sync is unfiltered in both directions, a runtime discipline store scopes what screens *see* via `restrictToProduct`, and `ThemeProvider` re-points at the active discipline so the existing runtime themes signal the world.
 
-**Tech Stack:** Expo/React Native, NativeWind theme vars, Vitest, `@hybrid/engine` (`restrictToProduct`, `mergeEngines`, ecosystem namespace), Supabase `app_state` + ecosystem contract.
+**Tech Stack:** Expo/React Native, NativeWind theme vars, Vitest (engine/web) + **Jest (mobile — globals injected, no runner imports)**, `@hybrid/engine` (`restrictToProduct`, `mergeEngines`, ecosystem namespace), Supabase `app_state` + ecosystem contract.
 
 **Spec:** `docs/superpowers/specs/2026-08-06-android-app-merge-design.md`
 
@@ -99,7 +99,7 @@ Port `apps/web/src/discipline.ts` to mobile, backed by the mobile store's own `s
 - [ ] **Step 1: Write the failing test** — `apps/mobile/test/discipline.test.ts`
 
 ```ts
-import { describe, expect, it, beforeEach } from 'vitest';
+// Jest injects describe/it/expect/beforeEach as globals — no runner import.
 import {
   __resetDisciplineForTest,
   currentDiscipline,
@@ -248,28 +248,45 @@ An unset `EXPO_PUBLIC_HYBRID_PRODUCT` now means "merged app", not "strength". Se
 **Interfaces:**
 - Produces: `IS_MERGED: boolean` (true when the env var is unset); `PRODUCT_ID: ProductId` (unchanged meaning for legacy builds; `'strength'` in merged builds — only legacy code paths may consult it); `PRODUCT` unchanged.
 
-- [ ] **Step 1: Extend the env test first**
+- [ ] **Step 1: Write the env test first — NEW FILE**
 
-In `apps/mobile/test/sync.test.tsx`, find `it('reads its product from the environment')` and add alongside it:
+**Execution correction (found during Task 2):** mobile tests run on **Jest with
+injected globals**, not Vitest — never import from `'vitest'` in
+`apps/mobile/test`. And `src/product.ts` reads the env var ONCE at module
+eval (`sync.test.tsx:83-93` documents this and binds `'strength'` file-wide),
+so per-value tests need `jest.isolateModules`, in their own file.
+
+Create `apps/mobile/test/product.test.ts`:
 
 ```ts
-it('treats an unset product as the merged app', async () => {
-  vi.stubEnv('EXPO_PUBLIC_HYBRID_PRODUCT', '');
-  vi.resetModules();
-  const { IS_MERGED } = await import('../src/product');
-  expect(IS_MERGED).toBe(true);
+// Jest injects describe/it/expect as globals; product.ts reads the env var
+// once at module eval, so each case re-evaluates it in an isolated registry.
+const PREVIOUS = process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
+afterEach(() => {
+  if (PREVIOUS === undefined) delete process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
+  else process.env.EXPO_PUBLIC_HYBRID_PRODUCT = PREVIOUS;
 });
 
-it('treats a set product as a legacy single-product build', async () => {
-  vi.stubEnv('EXPO_PUBLIC_HYBRID_PRODUCT', 'conditioning');
-  vi.resetModules();
-  const { IS_MERGED, PRODUCT_ID } = await import('../src/product');
-  expect(IS_MERGED).toBe(false);
-  expect(PRODUCT_ID).toBe('conditioning');
+it('treats an unset product as the merged app', () => {
+  delete process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
+  jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { IS_MERGED, PRODUCT_ID } = require('../src/product');
+    expect(IS_MERGED).toBe(true);
+    expect(PRODUCT_ID).toBe('strength');
+  });
+});
+
+it('treats a set product as a legacy single-product build', () => {
+  process.env.EXPO_PUBLIC_HYBRID_PRODUCT = 'conditioning';
+  jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { IS_MERGED, PRODUCT_ID } = require('../src/product');
+    expect(IS_MERGED).toBe(false);
+    expect(PRODUCT_ID).toBe('conditioning');
+  });
 });
 ```
-
-Match the module-reset/env-stub idiom the existing env test in that file already uses — if it reads `process.env` directly instead of `vi.stubEnv`, copy its exact approach.
 
 - [ ] **Step 2: Run to verify the new tests fail**
 
@@ -297,13 +314,13 @@ export const PRODUCT = productDefinition(PRODUCT_ID);
 
 - [ ] **Step 4: Run to verify all pass**
 
-Run: `pnpm --filter @hybrid/mobile test -- sync && pnpm run typecheck`
+Run: `pnpm --filter @hybrid/mobile test && pnpm run typecheck`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/mobile/src/product.ts apps/mobile/test/sync.test.tsx
+git add apps/mobile/src/product.ts apps/mobile/test/product.test.ts
 git commit -m "feat(mobile): unset product env now means the merged app"
 ```
 
@@ -412,15 +429,27 @@ The load-bearing task. In merged mode: no local narrowing, writer `hybrid:mobile
 - Consumes: `IS_MERGED`, `PRODUCT_ID` from `../product`; `buildMergedSyncNamespace` from `@hybrid/engine` (Task 4).
 - Produces: no API change — `SyncProvider` behavior forks internally on `IS_MERGED`.
 
-- [ ] **Step 1: Write the failing merged-mode tests first**
+- [ ] **Step 1: Write the failing merged-mode tests first — NEW FILE**
 
-Add to `apps/mobile/test/sync.test.tsx`, following the file's existing harness (it already fakes a Supabase client and drives `SyncProvider`/`reconcile`/`pushNow` — reuse those helpers exactly; the two existing partition tests show the idiom):
+**Execution correction:** `sync.test.tsx` binds
+`process.env.EXPO_PUBLIC_HYBRID_PRODUCT = 'strength'` at module scope
+(line 93) BEFORE importing the modules under test, because `product.ts`
+reads it once at eval. Merged-mode tests therefore live in a NEW file,
+`apps/mobile/test/sync-merged.test.tsx`, which `delete`s the env var at
+module scope instead. To avoid duplicating the fake Supabase client and
+`seed`/`mount`/`settle` helpers, first extract them from `sync.test.tsx`
+into `apps/mobile/test/syncHarness.tsx` (a pure move — export
+`mockClient`, `mockRow`, `mockPushes`, `seed`, `mount`, `settle`,
+`pushedWorkoutIds`, `syncApi`, `dbApi`, and the `jest.mock` setup helper;
+`sync.test.tsx` then imports them and must stay green before any new test
+is added). Jest runs each file in its own module registry, so the two
+files get independent env bindings.
 
 ```ts
+// sync-merged.test.tsx, at module scope, BEFORE importing the harness:
+delete process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
+
 describe('merged app (EXPO_PUBLIC_HYBRID_PRODUCT unset)', () => {
-  // Use the same env-reset + module-reload idiom as the existing
-  // "reads its product from the environment" test so IS_MERGED is true
-  // inside the module under test.
 
   it('keeps BOTH kinds on device after a reconcile', async () => {
     // Arrange: local db with one strength session; remote app_state with one
@@ -489,12 +518,12 @@ Then update the two big comments truthfully (spec §4): in `applyMerged`'s comme
 - [ ] **Step 4: Run the full mobile suite**
 
 Run: `pnpm --filter @hybrid/mobile test && pnpm run typecheck`
-Expected: all PASS — 4 new merged tests, 3 existing (legacy) tests, 122 pre-existing others.
+Expected: all PASS — 4 new merged tests, 3 existing (legacy) tests, 127 pre-existing others (the suite is Jest — see Task 3's correction).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/mobile/src/cloud/sync.tsx apps/mobile/test/sync.test.tsx
+git add apps/mobile/src/cloud/sync.tsx apps/mobile/test/sync.test.tsx apps/mobile/test/sync-merged.test.tsx apps/mobile/test/syncHarness.tsx
 git commit -m "feat(mobile): merged app syncs both kinds, writer hybrid:mobile
 
 Legacy single-product builds keep the partitioned path bit-for-bit for
@@ -522,7 +551,7 @@ Screens see only the active world. Same contract as the web slice had — scoped
 Pure-logic test of the derivation (no renderer), mirroring `apps/web/test/discipline.test.ts`'s last block:
 
 ```ts
-import { describe, expect, it } from 'vitest';
+// Jest injects describe/it/expect as globals — no runner import.
 import { restrictToProduct, type EngineDB, type Session } from '@hybrid/engine';
 import { splitActiveSession } from '../src/discipline';
 
@@ -552,7 +581,7 @@ describe('merged-mode store derivation', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @hybrid/mobile test -- store-discipline`
+Run: `pnpm --filter @hybrid/mobile test -- store-discipline` (Jest — no vitest imports)
 Expected: FAIL only if Task 2 is incomplete; if it passes immediately, that is fine — the real change is Step 3, and this test pins the contract it must preserve.
 
 - [ ] **Step 3: Implement in `apps/mobile/src/store/db.tsx`**
