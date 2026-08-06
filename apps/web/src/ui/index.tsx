@@ -154,12 +154,12 @@ export function Empty({ title, body, action }: { title: string; body?: string; a
  * HTML — React rejects the nesting outright, and a screen reader is left
  * announcing two controls where the athlete sees one label.
  */
-export function LetterChip({ letter, onClick }: { letter: string; onClick?: () => void }) {
+export function LetterChip({ letter, onClick, label = 'back to session' }: { letter: string; onClick?: () => void; label?: string }) {
   const cls =
     'num grid h-4 min-w-4 shrink-0 place-items-center rounded-sm border border-gold-line bg-gold-wash px-0.5 text-3 font-[800] text-gold2';
   if (!onClick) return <span className={cls}>{letter}</span>;
   return (
-    <button onClick={onClick} aria-label="back to session" className={cls}>
+    <button onClick={onClick} aria-label={label} className={cls}>
       {letter}
     </button>
   );

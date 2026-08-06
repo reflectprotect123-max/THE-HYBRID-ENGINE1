@@ -208,7 +208,7 @@ export function ProgressScreen() {
             </View>
             <View className="mt-0.5 flex-row gap-0.5">
               {weeks.map((w, i) => (
-                <T key={i} num className="flex-1 text-center text-1 text-dim">
+                <T key={i} num className="flex-1 text-center text-2 text-muted">
                   {w.label}
                 </T>
               ))}
