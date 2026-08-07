@@ -9,6 +9,7 @@
  * Run: node checks/react-smoke.mjs   (from the repo root)
  */
 import { createServer } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
@@ -35,9 +36,9 @@ const TYPES = {
   '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.map': 'application/json',
 };
 
-/** Serves the athlete app's built output. */
-function serve(port) {
-  const web = resolve(root, 'apps/web/dist');
+/** Serves a built output directory (the athlete app's, by default). */
+function serve(port, dir = 'apps/web/dist') {
+  const web = resolve(root, dir);
   return new Promise((ok) => {
     const s = createServer(async (req, res) => {
       const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
@@ -2028,11 +2029,242 @@ await t("deleting a workout from Home's Today's plan tombstones it and drops the
   assert(/Lower A/.test(txtAfter), 'deleting the second card should not touch the unrelated seeded workout');
 });
 
+/* ---------- nutrition: the third world, on the web ----------
+ *
+ * Everything above drives training. This drives food, and it drives it the way
+ * the athlete does — through the screens, not through the store — because the
+ * whole point of the web nutrition surfaces is that a browser can log a meal
+ * when the phone is not to hand.
+ *
+ * Two invariants get asserted here that no unit test can see end-to-end:
+ *
+ *  - A meal never touches `hybrid-engine-v1`. The two slices have separate
+ *    storage keys and separate providers precisely so nutrition sync and
+ *    training sync cannot corrupt each other; this measures the result rather
+ *    than trusting the wiring.
+ *  - A deleted entry is STAMPED, not spliced. `mergeNutrition` is additive, so
+ *    an entry removed from the array comes straight back from the phone on the
+ *    next pull. `deletedAt` is the only deletion that travels.
+ */
+
+const NUTRITION_KEY = 'hybrid-nutrition-v1';
+
+await t("Home shows the nutrition card, empty, with a door to the food log", async () => {
+  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  const txt = await page.textContent('body');
+  assert(/Fuel today/.test(txt), 'the Fuel today section head is missing from Home');
+  assert(/Food log/.test(txt), 'the door to /nutrition is missing from Home');
+  // Absent, not zeroed — a "0 kcal" here reads as a day the athlete ate nothing.
+  assert(/Nothing logged yet/.test(txt), 'expected the empty nutrition card, got: ' + txt.slice(0, 400));
+});
+
+await t('the food-log door on Home lands on /nutrition', async () => {
+  await page.click('button:has-text("Food log")');
+  await page.waitForURL(/\/nutrition$/);
+  await page.waitForSelector('button:has-text("Add food")');
+  const txt = await page.textContent('body');
+  assert(/Nothing logged yet/.test(txt), 'expected the empty food log, got: ' + txt.slice(0, 400));
+  // The web is honest about what it cannot do rather than showing a dead Scan.
+  assert(/need a camera, and this is a browser/.test(txt), 'the scanning-lives-on-the-phone note is missing');
+});
+
+await t('logging a meal moves the totals, and does not touch the training blob', async () => {
+  const trainingBefore = await page.evaluate(() => localStorage.getItem('hybrid-engine-v1'));
+
+  await page.click('button:has-text("Add food")');
+  await page.fill('input[aria-label="Food name"]', 'Smoke Oats');
+  await page.fill('input[aria-label="kcal"]', '400');
+  await page.fill('input[aria-label="Protein g"]', '30');
+  await page.fill('input[aria-label="Carbs g"]', '40');
+  await page.fill('input[aria-label="Fat g"]', '10');
+  await page.click('button:has-text("Log it")');
+  await page.waitForSelector('button[aria-label="Delete Smoke Oats"]');
+
+  const txt = await page.textContent('body');
+  assert(/400/.test(txt), 'the totals card did not move after logging 400 kcal: ' + txt.slice(0, 400));
+  assert(/Breakfast/.test(txt), 'the entry was not filed under its meal heading');
+  assert(/No target for this day yet/.test(txt), 'a day with no accepted check-in must not claim a target');
+
+  const stored = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)), NUTRITION_KEY);
+  assert(stored.logEntries.length === 1, 'expected exactly one stored entry, got ' + stored.logEntries.length);
+  const entry = stored.logEntries[0];
+  assert(entry.displayName === 'Smoke Oats', 'wrong entry stored: ' + JSON.stringify(entry).slice(0, 200));
+  // Snapshot at log time: what the athlete typed is what is kept.
+  assert(entry.calories === 400 && entry.proteinG === 30 && entry.carbsG === 40 && entry.fatG === 10,
+    'macros were re-derived rather than stored as typed: ' + JSON.stringify(entry).slice(0, 200));
+  assert(!entry.deletedAt, 'a fresh entry must not be born tombstoned');
+
+  const trainingAfter = await page.evaluate(() => localStorage.getItem('hybrid-engine-v1'));
+  assert(trainingAfter === trainingBefore, 'logging a meal rewrote hybrid-engine-v1 — the two slices are meant to be structurally separate');
+});
+
+await t("Home's nutrition card reads the same day the food log wrote", async () => {
+  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  const txt = await page.textContent('body');
+  assert(/400/.test(txt), "Home's card did not pick up the logged meal: " + txt.slice(0, 400));
+  assert(/30g/.test(txt), 'protein is missing from the Home card');
+  assert(!/Nothing logged yet/.test(txt), 'the empty state survived a logged meal');
+});
+
+await t('the food log refuses to walk into the future, and can walk back', async () => {
+  await page.goto(base + '/nutrition', { waitUntil: 'networkidle' });
+  await page.waitForSelector('button[aria-label="Next day"]');
+  const nextDisabled = await page.isDisabled('button[aria-label="Next day"]');
+  assert(nextDisabled, 'Next › must be disabled on today — the engine only ever looks back');
+  await page.click('button[aria-label="Previous day"]');
+  await page.waitForSelector('button[aria-label="Next day"]:not([disabled])');
+  const txt = await page.textContent('body');
+  assert(/Nothing was logged against this day/.test(txt), "yesterday should be empty, got: " + txt.slice(0, 300));
+  await page.click('button[aria-label="Jump to today"]');
+  await page.waitForSelector('button[aria-label="Delete Smoke Oats"]');
+});
+
+await t('deleting an entry stamps a tombstone rather than splicing it out', async () => {
+  page.once('dialog', (d) => d.accept());
+  await page.click('button[aria-label="Delete Smoke Oats"]');
+  await page.waitForFunction(() => !document.body.textContent.includes('Smoke Oats'));
+
+  const stored = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)), NUTRITION_KEY);
+  assert(stored.logEntries.length === 1, 'the entry was spliced out — a splice does not survive the next sync');
+  assert(!!stored.logEntries[0].deletedAt, 'the deleted entry carries no deletedAt stamp');
+
+  const txt = await page.textContent('body');
+  assert(/Nothing logged yet/.test(txt), 'the deleted entry is still on screen');
+});
+
+/* ---------- the coach bench's nutrition panel ----------
+ *
+ * The bench fails CLOSED: `coachAllowed` denies everyone in a production build
+ * unless VITE_COACH_USER_IDS names the signed-in user. That is the right
+ * production behaviour and it is why nothing has ever driven `/coach` in a
+ * browser — the deployed `apps/web/dist` simply redirects to `/`.
+ *
+ * So this builds a second bundle whose allowlist names one throwaway id and
+ * hands the browser a matching stored session. `apps/web/dist-coach` is
+ * gitignored, never deployed, and the id is a made-up UUID no Supabase account
+ * can hold. Every Supabase request is intercepted, because the bench must
+ * render from local state alone — a panel that needs the network is a panel a
+ * coach cannot open on a bad connection.
+ *
+ * It is a fresh page in a fresh context: the bench is a different origin's
+ * worth of state, and mixing it into the athlete page above would leave the
+ * seeded coach session behind for every later scenario.
+ */
+
+const COACH_UID = '00000000-0000-4000-8000-000000000001';
+const COACH_DIR = 'apps/web/dist-coach';
+
+await t('a coach-enabled bundle builds', async () => {
+  // Loud, not skipped: a bench that cannot be built is a bench that cannot be
+  // checked, and this file's whole premise is that a green build proves nothing.
+  execFileSync(
+    'pnpm',
+    ['--filter', '@hybrid/web', 'exec', 'vite', 'build', '--outDir', 'dist-coach', '--emptyOutDir'],
+    { cwd: root, env: { ...process.env, VITE_COACH_USER_IDS: COACH_UID }, stdio: 'pipe' },
+  );
+  assert(existsSync(resolve(root, COACH_DIR, 'index.html')), COACH_DIR + ' has no index.html after the build');
+});
+
+const COACH_PORT = 4318;
+const coachServer = await serve(COACH_PORT, COACH_DIR);
+const coachBase = 'http://127.0.0.1:' + COACH_PORT;
+const coachCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const coachPage = await coachCtx.newPage();
+const coachErrors = [];
+coachPage.on('pageerror', (e) => coachErrors.push(String(e)));
+coachPage.on('console', (m) => {
+  if (m.type() === 'error' && !/service worker|manifest|favicon|icon-/i.test(m.text())) coachErrors.push(m.text());
+});
+// The bench must render from local state alone.
+await coachPage.route('**/*.supabase.co/**', (r) =>
+  r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+);
+
+const TODAY = new Date().toISOString().slice(0, 10);
+await coachPage.addInitScript(
+  ({ uid, today, key }) => {
+    const expires = Math.floor(Date.now() / 1000) + 86400;
+    localStorage.setItem(
+      'sb-orysjncrksmdfabpuftd-auth-token',
+      JSON.stringify({
+        access_token: 'fake.' + btoa(JSON.stringify({ sub: uid, exp: expires })) + '.sig',
+        token_type: 'bearer',
+        expires_in: 86400,
+        expires_at: expires,
+        refresh_token: 'fake-refresh',
+        user: {
+          id: uid, aud: 'authenticated', role: 'authenticated', email: 'coach@example.com',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        },
+      }),
+    );
+    if (localStorage.getItem(key)) return;
+    const at = new Date().toISOString();
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        schemaVersion: 1,
+        logEntries: [
+          {
+            id: 'coach-smoke-1', userId: uid, logDate: today, meal: 'breakfast', entryKind: 'food',
+            foodId: null, customFoodId: null, recipeId: null, quantity: 1, unit: 'serving',
+            calories: 620, proteinG: 45, carbsG: 60, fatG: 18, displayName: 'Bench Oats',
+            nutrients: {}, notes: null, sourceSnapshot: {}, createdAt: at, updatedAt: at, deletedAt: null,
+          },
+        ],
+        weightEntries: [], program: null, checkIns: [], dayStatus: [],
+        customFoods: [], recipes: [], favorites: [], foodCache: [], settings: {},
+      }),
+    );
+  },
+  { uid: COACH_UID, today: TODAY, key: NUTRITION_KEY },
+);
+
+await t('the coach bench opens at all with an allowlisted session', async () => {
+  await coachPage.goto(coachBase + '/coach', { waitUntil: 'networkidle' });
+  await coachPage.waitForSelector('button:has-text("Nutrition")');
+  assert(/\/coach$/.test(coachPage.url()), 'the bench redirected away despite an allowlisted user: ' + coachPage.url());
+});
+
+await t("the bench's nutrition panel shows the athlete's day, and says it is read-only", async () => {
+  await coachPage.click('button:has-text("Nutrition")');
+  await coachPage.waitForSelector('[role="dialog"][aria-label="Athlete nutrition"]');
+  const panel = await coachPage.textContent('[role="dialog"][aria-label="Athlete nutrition"]');
+  assert(/read-only/.test(panel), 'the panel does not declare itself read-only');
+  assert(/620/.test(panel), "the athlete's logged calories are missing from the bench: " + panel.slice(0, 400));
+  assert(/45P 60C 18F/.test(panel), 'the macro line is missing or reshaped: ' + panel.slice(0, 400));
+  // Absent, not zeroed — the same rule the athlete's own card follows.
+  assert(/none set/.test(panel), 'a bench with no accepted check-in must not show a target');
+  for (const section of ['Today', 'Adherence', 'Program', 'Expenditure', 'Weekly check-in', 'Effect on training']) {
+    assert(panel.includes(section), 'the ' + section + ' section is missing from the nutrition panel');
+  }
+  // The wall, stated on the screen a coach actually reads.
+  assert(/never schedules or edits a week/.test(panel), 'the panel no longer states that nutrition cannot edit training');
+});
+
+await t('the bench cannot write the athlete\'s food log', async () => {
+  const panel = coachPage.locator('[role="dialog"][aria-label="Athlete nutrition"]');
+  // Read-only by construction: the panel imports no writer at all, so there is
+  // nothing to type into and nothing to submit.
+  const inputs = await panel.locator('input, textarea, select').count();
+  assert(inputs === 0, 'the nutrition panel grew ' + inputs + ' input(s) — a bench that can rewrite an athlete\'s calories is not read-only');
+  const before = await coachPage.evaluate((k) => localStorage.getItem(k), NUTRITION_KEY);
+  await panel.locator('button:has-text("Close")').click();
+  await coachPage.waitForSelector('[role="dialog"][aria-label="Athlete nutrition"]', { state: 'detached' });
+  const after = await coachPage.evaluate((k) => localStorage.getItem(k), NUTRITION_KEY);
+  assert(before === after, 'opening and closing the panel changed the athlete\'s nutrition slice');
+});
+
+await t('no uncaught page errors on the coach bench', async () => {
+  assert(coachErrors.length === 0, coachErrors.join(' | '));
+});
+
 await t('no uncaught page errors', async () => {
   assert(errors.length === 0, errors.join(' | '));
 });
 
 await browser.close();
 server.close();
+coachServer.close();
 console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nAll React smoke checks passed.');
 process.exit(failures ? 1 : 0);
