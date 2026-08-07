@@ -1,12 +1,16 @@
 # Claude Handoff — THE Hybrid System
 
-> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (c): the MacroTrack rebuild is
-> BUILT, and not yet released**
+> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (nutrition-final): the MacroTrack
+> rebuild is BUILT, and not yet released**
 >
 > Supersedes the 7 August (b) checkpoint below, which is now history: it says
 > "Phase 0 done" and that Phase 1 is next. All five phases are done. It remains
 > accurate about the two Phase 0 review findings and about why the nutrition
 > migration had to replace two RPC bodies.
+>
+> Named rather than lettered because `origin/main` has since grown its own
+> 7 August "(c)" checkpoint (the "Why today" decision trace) on a separate line
+> of work; two "(c)"s would be worse than none.
 >
 > Read this before touching anything nutrition-shaped. The short version: the
 > code is finished, tested and green; nothing has been applied to a database or
@@ -158,6 +162,66 @@ the exact binary value (`macroTargets(1441, 90, 2.0, 0.8)` lands on a tie where
 Python gives 18.2 carbs and both `toFixed(1)` and `Math.round(x*10)/10` give
 18.3).
 
+## Phase 5 audit — what five phases actually left behind
+
+What held:
+
+- **Zero `TODO`, `FIXME`, `XXX`, `HACK` or `console.log` in any package or app
+  source**, nutrition included. That was the standing bar and it survived a
+  three-thousand-line third world.
+- **Every package's tests run.** 17 typecheck projects, and every package with
+  a `test` script has test files that vitest actually collects.
+- **The isolation holds in both directions.** No training package depends on a
+  nutrition package (checked at `package.json`, not by eye).
+  `@hybrid/nutrition-core` and `@hybrid/nutrition-engine` import NOTHING from
+  `@hybrid/*` at all. `packages/engine/src/ecosystem.ts` carries the nutrition
+  partition as an OPAQUE blob and never imports the nutrition schema.
+  `@hybrid/whole-athlete-state` declares its own `NutritionContext` rather than
+  importing one. The only declared bridge, `@hybrid/nutrition-adapter`, is the
+  only package with edges to both sides. The boundary tests that enforce this
+  live where the claim could be false, not where it is convenient:
+  `packages/coordinator/test/nutrition-boundary.test.ts`,
+  `packages/auto-coach/test/nutrition-boundary.test.ts`,
+  `packages/whole-athlete-state/test/nutrition-context.test.ts`,
+  `packages/nutrition-adapter/test/context.test.ts`.
+
+Found and fixed, because it was cheap and real:
+
+- `@hybrid/nutrition-adapter` had no `vitest.config.ts` where every peer has
+  one. Its tests ran only because vitest's default glob happened to find them.
+  Added, with the same `include` as its peers.
+- `README.md` had no nutrition in it at all — not in the symptom map, not in
+  the layout, not in the screen list. `checks/docs.mjs` could not catch that,
+  because it validates what the README SAYS, not what it omits.
+- `docs/ARCHITECTURE_STATUS.md` claimed nutrition was a separate product that
+  this repository "does not prescribe calories, macros or food targets" for.
+
+Found and deliberately NOT fixed — reported, per Phase 5's own rule:
+
+1. **The six defects were never documented in code.** `c931f13`'s message says
+   they are; they are not, in any file. The table above is now the only record —
+   keep it, and consider a short note at each site.
+2. **`packages/nutrition-engine/src/engine.ts`'s header cites
+   `docs/ADAPTIVE_ENGINE_CONTRACT.md`, which does not exist in this
+   repository.** It is the retired MacroTrack repo's file. `checks/docs.mjs`
+   only parses `README.md`, so nothing catches a dead path in a source comment.
+   Either port that 79-line contract doc in, or change the reference.
+3. **Every nutrition screen imports `uid` and `ymd` from `@hybrid/engine`.**
+   Both are four-line utilities in `num.ts` (a random id, and a LOCAL
+   `YYYY-MM-DD` that deliberately avoids `toISOString`), so nothing about a
+   training decision crosses. But it does mean the nutrition world has a
+   compile-time edge to the training engine that the packages themselves do not
+   have. They belong in `@hybrid/shared-core`. Moving them touches ten files
+   across both apps and is not a hardening change.
+4. **`apps/mobile`'s two `build:conditioning:*` scripts are dead** — they call
+   EAS profiles `apps/mobile/eas.json` does not define, left over from the
+   Android merge. Flagged in `docs/ARCHITECTURE_STATUS.md`; the scripts
+   themselves were left alone.
+5. **The fuelling constraint is on the coach bench and not on Home.** This is
+   the disclosed cost of keeping nutrition out of `DbProvider`'s athlete state,
+   and it is the right trade today — but an athlete cannot currently see the
+   context their coach can.
+
 ## What a human still has to do
 
 Nothing below can be done from this sandbox: its egress proxy blocks
@@ -288,7 +352,7 @@ phone, on a fresh APK built from `runtimeVersion` 3, in the order given.
 
 ---
 
-> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (b): MacroTrack rebuild, Phase 0 done — HISTORY, superseded by (c) above**
+> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (b): MacroTrack rebuild, Phase 0 done — HISTORY, superseded by the nutrition-final checkpoint at the top**
 >
 > Supersedes the 7 August (a) checkpoint below, which remains accurate about
 > the Android merge. This one covers what came after it.

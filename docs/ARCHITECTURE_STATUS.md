@@ -58,10 +58,15 @@ pnpm --filter @hybrid/mobile build:aab
 pnpm --filter @hybrid/mobile build:conditioning:aab
 ```
 
-The Conditioning profiles use a distinct Android package and iOS bundle
-identifier. Set `EXPO_PUBLIC_CONDITIONING_EAS_PROJECT_ID` after creating the
-separate EAS project and credentials; without it the dynamic config refuses to
-reuse the Strength project's id. This repository does not invent credentials.
+**The two `build:conditioning:*` scripts above are DEAD** and were left behind
+by the Android merge (7 Aug 2026). They invoke EAS profiles
+`conditioning-preview` and `conditioning-production`, and `apps/mobile/eas.json`
+defines neither — the merged app is one Android app, `com.hybridengine.app`,
+with one identity in `app.json`. `EXPO_PUBLIC_HYBRID_PRODUCT` is retired and
+setting it fails the build loudly (`apps/mobile/src/product.ts`). Do not
+resurrect product flavors on the phone; the world switch is a runtime
+preference in its own storage key. Ship a phone build with `build:apk` /
+`build:aab`, or the `mobile-eas.yml` workflow.
 
 ## Deliberate boundaries and remaining release work
 
