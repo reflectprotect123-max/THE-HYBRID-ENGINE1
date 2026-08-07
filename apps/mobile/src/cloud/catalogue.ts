@@ -152,6 +152,37 @@ export async function searchCatalogue(query: string, client = supabaseClient): P
   return rows.map((row) => toFood(row, servings.get(row.id) ?? [], at));
 }
 
+/** What the scanner needs from the catalogue. Injectable, so a test needs no network. */
+export type CatalogueBarcodeLookup = (barcode: string) => Promise<CachedFood | null>;
+
+/**
+ * Exact-barcode lookup against the shared catalogue.
+ *
+ * EXACT, and only exact. `foods.barcode` is indexed for this, and the scanned
+ * value goes to Postgres as the scanner read it — no leading zero added, no
+ * UPC-A widened to EAN-13, no fallback to a name search. The reference app's
+ * `BarcodeScannerScreen.kt` makes the same promise in its header comment, and
+ * for the same reason: a barcode that nearly matches is a different product,
+ * and logging the wrong product's macros is silent.
+ *
+ * Returns null for "no such barcode" — a real and common answer, since the
+ * catalogue is 5,000 rows against a supermarket. THROWS when the catalogue
+ * cannot be reached, because the two are different problems and the athlete
+ * can only act on one of them.
+ */
+export async function lookupBarcode(barcode: string, client = supabaseClient): Promise<CachedFood | null> {
+  const clean = barcode.trim();
+  if (!clean) return null;
+  if (!client) throw new Error('No connection to the food catalogue.');
+  const { data, error } = await client.from('foods').select(FOOD_COLUMNS).eq('barcode', clean).limit(1);
+  if (error) throw error;
+  const rows = (data || []) as FoodRow[];
+  const row = rows[0];
+  if (!row) return null;
+  const servings = await fetchServings(client, [row.id]);
+  return toFood(row, servings.get(row.id) ?? [], new Date().toISOString());
+}
+
 async function fetchServings(client: SupabaseClient, foodIds: string[]): Promise<Map<string, FoodServing[]>> {
   const { data, error } = await client
     .from('food_servings')

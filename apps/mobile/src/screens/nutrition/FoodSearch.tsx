@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { uid, ymd } from '@hybrid/engine';
 import {
   IncompatibleUnitError,
+  catalogueResult,
   favoriteKey,
   favoriteKeys,
   favoriteResults,
@@ -62,6 +63,17 @@ interface Props {
   onEditCustomFood: (id: string) => void;
   onCreateRecipe: () => void;
   onEditRecipe: (id: string) => void;
+  onScanBarcode?: () => void;
+  onReadLabel?: () => void;
+  /**
+   * A catalogue food the scanner just resolved from a barcode.
+   *
+   * It arrives here rather than being logged in the scanner so that a scan
+   * ends in the SAME log sheet a tapped result opens — one place where
+   * quantity, unit, meal and the snapshot rules are decided.
+   */
+  scanned?: CachedFood | null;
+  onScannedConsumed?: () => void;
   /** Injected so a test — and an offline device — needs no network. */
   search?: CatalogueSearch;
 }
@@ -91,6 +103,10 @@ export function FoodSearchScreen({
   onEditCustomFood,
   onCreateRecipe,
   onEditRecipe,
+  onScanBarcode,
+  onReadLabel,
+  scanned = null,
+  onScannedConsumed,
   search = searchCatalogue,
 }: Props) {
   const { nutrition, update } = useNutrition();
@@ -140,6 +156,39 @@ export function FoodSearchScreen({
     return () => clearTimeout(timer);
   }, [trimmed, search]);
 
+  /* A scanned food is not a search result and must outlive the search that is
+     about to clear `remote` — typing a query, or simply arriving with none,
+     resets it. Pinned separately, so the log sheet can still resolve the food
+     it is holding. */
+  const [pinned, setPinned] = useState<CachedFood[]>([]);
+  /* Kept in a ref because the parent passes a fresh closure every render;
+     as an effect dependency it would re-run the scan handler forever. */
+  const consumed = useRef(onScannedConsumed);
+  consumed.current = onScannedConsumed;
+
+  useEffect(() => {
+    if (!scanned) return;
+    setPinned((prev) => [scanned, ...prev.filter((f) => f.id !== scanned.id)]);
+    setLogError('');
+    setLogged('');
+    /* The draft is built from the scanned food directly rather than through
+       `openDraft`: `setPinned` has not landed in this render, so the pool the
+       helpers read does not contain it yet. */
+    const units = Array.from(new Set([scanned.servingUnit, ...scanned.servings.map((s) => s.unit)]));
+    setDraft({
+      result: catalogueResult(scanned, false),
+      quantity: String(scanned.servingQty),
+      unit: units[0] ?? 'serving',
+      units,
+      meal: 'other',
+    });
+    consumed.current?.();
+  }, [scanned]);
+
+  /* Everything the log sheet may have to resolve a food from: what the last
+     search returned, plus what was scanned. */
+  const pool = useMemo(() => [...remote, ...pinned.filter((p) => !remote.some((r) => r.id === p.id))], [remote, pinned]);
+
   const results = useMemo(() => foodSearch(nutrition, trimmed, remote), [nutrition, trimmed, remote]);
   /* With no query the screen is the athlete's own shelf: what they starred,
      then what they last ate. The reference does exactly this, and it is the
@@ -156,10 +205,10 @@ export function FoodSearchScreen({
   const openDraft = (result: FoodSearchResult) => {
     setLogError('');
     setLogged('');
-    const units = unitsFor(nutrition, remote, result);
+    const units = unitsFor(nutrition, pool, result);
     setDraft({
       result,
-      quantity: String(defaultQuantity(nutrition, remote, result)),
+      quantity: String(defaultQuantity(nutrition, pool, result)),
       unit: units[0] ?? 'serving',
       units,
       meal: 'other',
@@ -179,11 +228,11 @@ export function FoodSearchScreen({
     const ctx = { id: uid(), logDate: ymd(new Date()), meal: draft.meal, at };
     try {
       update((n) => {
-        const entry = buildEntry(n, remote, draft, quantity, ctx);
+        const entry = buildEntry(n, pool, draft, quantity, ctx);
         n.logEntries.push(entry);
         // The source is cached ON THE WAY PAST, only now that it has actually
         // been logged: see the offline decision at the top of this file.
-        const food = draft.result.kind === 'food' ? findFood(n, remote, draft.result.id) : null;
+        const food = draft.result.kind === 'food' ? findFood(n, pool, draft.result.id) : null;
         if (food) upsertCachedFood(n, food);
       });
     } catch (e) {
@@ -228,7 +277,7 @@ export function FoodSearchScreen({
       // A starred catalogue food that is not on the device could not be logged
       // offline, and `favoriteResults` would drop it from the very list the
       // athlete just added it to.
-      const food = result.kind === 'food' ? findFood(n, remote, result.id) : null;
+      const food = result.kind === 'food' ? findFood(n, pool, result.id) : null;
       if (food) upsertCachedFood(n, food);
     });
   };
@@ -256,6 +305,28 @@ export function FoodSearchScreen({
           </Btn>
         </View>
       </View>
+
+      {/* Both optional, so a caller that has not wired the panes — and the
+          existing tests, which mount this screen directly — renders neither
+          rather than a button that leads nowhere. */}
+      {onScanBarcode || onReadLabel ? (
+        <View className="mt-1 flex-row gap-1">
+          {onScanBarcode ? (
+            <View className="min-w-0 flex-1">
+              <Btn onPress={onScanBarcode} className="w-full">
+                Scan barcode
+              </Btn>
+            </View>
+          ) : null}
+          {onReadLabel ? (
+            <View className="min-w-0 flex-1">
+              <Btn onPress={onReadLabel} className="w-full">
+                Read a label
+              </Btn>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       <Input
         value={query}
