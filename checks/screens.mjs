@@ -194,7 +194,72 @@ function buildSeed() {
     }
   }
 
+  /*
+   * The nutrition slice, in its OWN key — `hybrid-nutrition-v1`, never a field
+   * on the engine blob. Screenshotting the food log against an empty slice
+   * would show the one state a design pass must not be tuned against (see this
+   * file's header), and the nutrition screens are mostly numbers: a totals card
+   * with no totals and a card with no target is two empty states, not a screen.
+   *
+   * So: an active program with a target for today, a full day of food across
+   * three meals, and eight weeks of near-daily weigh-ins on a slow cut, which
+   * is what makes the weight-trend line on Home's card real rather than "no
+   * trend yet".
+   */
+  const UID = 'screens-athlete';
+  const stamp = (d) => new Date(d).toISOString();
+  const MEALS = [
+    ['breakfast', 'Oats, milk and whey', 520, 38, 68, 11],
+    ['lunch', 'Chicken, rice and greens', 640, 52, 74, 14],
+    ['snack', 'Greek yoghurt and berries', 210, 20, 22, 4],
+    ['dinner', 'Salmon, potatoes and salad', 700, 45, 58, 30],
+  ];
+  const logEntries = MEALS.map(([meal, name, kcal, p, c, f], i) => ({
+    id: 'n' + i, userId: UID, logDate: iso(now), meal, entryKind: 'quick_add',
+    foodId: null, customFoodId: null, recipeId: null, quantity: 1, unit: 'serving',
+    calories: kcal, proteinG: p, carbsG: c, fatG: f, displayName: name,
+    nutrients: {}, notes: null, sourceSnapshot: {},
+    createdAt: stamp(now - (4 - i) * 3600000), updatedAt: stamp(now - (4 - i) * 3600000), deletedAt: null,
+  }));
+
+  // Six weigh-ins a week for eight weeks, drifting down ~0.35 kg/week with the
+  // day-to-day noise a real scale has — the noise is the reason the card shows
+  // a smoothed trend rather than the last reading.
+  const weightEntries = [];
+  for (let d = 56; d >= 0; d--) {
+    if (d % 7 === 3) continue; // one skipped day a week, as happens
+    const when = now - d * DAY;
+    weightEntries.push({
+      id: 'wt' + d, userId: UID, measuredAt: stamp(when),
+      weightKg: Math.round((84.6 - (56 - d) * 0.05 + Math.sin(d / 2) * 0.35) * 10) / 10,
+      source: 'manual', note: null, createdAt: stamp(when), updatedAt: stamp(when), deletedAt: null,
+    });
+  }
+
+  const programStart = iso(now - 56 * DAY);
+  const nutrition = {
+    schemaVersion: 1,
+    logEntries,
+    weightEntries,
+    program: {
+      id: 'prog-1', userId: UID, name: 'Slow cut', mode: 'collaborative', goal: 'lose',
+      targetRateKgPerWeek: -0.35, startDate: programStart, endDate: null,
+      weeklyCalorieBudget: null, proteinPreference: null, fatPreference: null, status: 'active',
+      // A target for today, and for the six days behind it, so paging back
+      // through the log does not fall off the end of the program.
+      days: Array.from({ length: 7 }, (_, i) => ({
+        programId: 'prog-1', targetDate: iso(now - (6 - i) * DAY),
+        calories: 2180, proteinG: 165, carbsG: 215, fatG: 62,
+        source: 'engine', createdAt: stamp(now - 7 * DAY),
+      })),
+      createdAt: stamp(now - 56 * DAY), updatedAt: stamp(now - 7 * DAY),
+    },
+    checkIns: [], dayStatus: [],
+    customFoods: [], recipes: [], favorites: [], foodCache: [], settings: {},
+  };
+
   return {
+    nutrition,
     db: {
       workouts, sessions,
       settings: {
@@ -238,6 +303,9 @@ const SHOTS = [
   ['08-settings', '/settings', null],
   ['09-planner', '/planner/w1', null],
   ['10-logger', '/log/0/0', null],
+  // The third world's web surface. Home (01) carries the nutrition card above
+  // it, so the two are judged together.
+  ['11-nutrition', '/nutrition', null],
 ];
 
 const PORT = 4519;
@@ -274,8 +342,15 @@ page.on('console', (m) => {
  * what a lost session looks like.
  */
 await page.addInitScript((s) => {
-  if (localStorage.getItem('hybrid-engine-v1')) return;
-  localStorage.setItem('hybrid-engine-v1', JSON.stringify(s.db));
+  if (!localStorage.getItem('hybrid-engine-v1')) {
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(s.db));
+  }
+  // Its own key, checked independently: the two slices are separate stores and
+  // seeding them together under one guard would make a nutrition-only reset
+  // look like a training reset.
+  if (!localStorage.getItem('hybrid-nutrition-v1')) {
+    localStorage.setItem('hybrid-nutrition-v1', JSON.stringify(s.nutrition));
+  }
 }, seed);
 
 await page.route('**/.netlify/functions/integrations-status*', (r) =>

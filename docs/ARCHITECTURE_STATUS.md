@@ -58,18 +58,30 @@ pnpm --filter @hybrid/mobile build:aab
 pnpm --filter @hybrid/mobile build:conditioning:aab
 ```
 
-The Conditioning profiles use a distinct Android package and iOS bundle
-identifier. Set `EXPO_PUBLIC_CONDITIONING_EAS_PROJECT_ID` after creating the
-separate EAS project and credentials; without it the dynamic config refuses to
-reuse the Strength project's id. This repository does not invent credentials.
+**The two `build:conditioning:*` scripts above are DEAD** and were left behind
+by the Android merge (7 Aug 2026). They invoke EAS profiles
+`conditioning-preview` and `conditioning-production`, and `apps/mobile/eas.json`
+defines neither — the merged app is one Android app, `com.hybridengine.app`,
+with one identity in `app.json`. `EXPO_PUBLIC_HYBRID_PRODUCT` is retired and
+setting it fails the build loudly (`apps/mobile/src/product.ts`). Do not
+resurrect product flavors on the phone; the world switch is a runtime
+preference in its own storage key. Ship a phone build with `build:apk` /
+`build:aab`, or the `mobile-eas.yml` workflow.
 
 ## Deliberate boundaries and remaining release work
 
-- Nutrition remains a separate product. This repository defines integration
-  event names but does not prescribe calories, macros or food targets.
-- The new Supabase migration is not applied by local TypeScript tests. Apply it
-  in a staging project, run RLS and old-version compatibility tests, then set
-  the ecosystem sync feature flag.
+- Nutrition is no longer a separate product. It was rebuilt into this
+  repository as a third world (MacroTrack rebuild, Phases 0–4, 7 Aug 2026):
+  `@hybrid/nutrition-engine` owns calorie and macro prescription and nothing
+  else does, the Coordinator never sees a macro, and whole-athlete-state reads
+  nutrition FACTS as context only. See `CLAUDE.md`'s amended nutrition rule and
+  the checkpoint at the top of `handoff.md`.
+- The Supabase migrations are not applied by local TypeScript tests. Three are
+  now staged and unapplied — `20260804_fitness_ecosystem_contracts.sql`,
+  `20260807_nutrition_domain.sql` and `20260807_macrotrack_food_catalogue.sql`.
+  Apply them in a staging project, run RLS and old-version compatibility tests,
+  then set the ecosystem sync feature flag. `node checks/migrations-apply.mjs`
+  rehearses all three against a throwaway Postgres first.
 - The production store split still needs device testing for BLE, GPS,
   Concept2, permissions, deep links, app deletion/reinstall and rollback.
 - A Coordinator service or approved canonical writer must own persisted weekly

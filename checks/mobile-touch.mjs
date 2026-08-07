@@ -54,6 +54,23 @@ if (!files.length) {
   process.exit(1);
 }
 
+/*
+ * The same failure the recursive `walk` above was written to fix, one world
+ * later. `screens/guided/` was silently unscanned for as long as the sweep was
+ * flat; `screens/nutrition/` is now the largest subdirectory in the app, and a
+ * sweep that stopped covering it would report the identical green.
+ *
+ * A directory-shaped floor rather than a count: the number of nutrition screens
+ * will keep moving, but "the nutrition world is in this sweep at all" must not.
+ */
+const worlds = ['nutrition', 'guided'];
+const missing = worlds.filter((w) => !files.some((f) => relative(screens, f).startsWith(w + '/')));
+if (missing.length) {
+  console.error(`FAIL — the sweep reached no screens under ${missing.map((w) => w + '/').join(', ')}.`);
+  console.error('Either those screens moved, or this walk stopped descending. Either way it is testing less than it says.');
+  process.exit(1);
+}
+
 const offenders = [];
 for (const f of files) {
   readFileSync(f, 'utf8')
@@ -73,4 +90,5 @@ press feedback and accessibility role every tappable thing in this app needs.`);
   process.exit(1);
 }
 
-console.log(`OK — ${files.length} screens, every tappable goes through <Tap>.`);
+const perWorld = worlds.map((w) => `${files.filter((f) => relative(screens, f).startsWith(w + '/')).length} ${w}`).join(', ');
+console.log(`OK — ${files.length} screens (${perWorld}), every tappable goes through <Tap>.`);

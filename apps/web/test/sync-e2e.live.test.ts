@@ -78,16 +78,27 @@ it.skipIf(process.env.SB_E2E !== '1')(
 );
 
 /*
- * The nutrition partition over the SAME live backend, through the ecosystem
- * tables rather than app_state. Requires 20260807_nutrition_domain to be
- * applied in the target project: without it the RPC raises 'invalid domain'
- * and this test is the thing that says so before an athlete's phone does.
+ * THREE domains, ONE athlete, ONE round trip.
  *
- * The training test above is deliberately left alone — proving nutrition round
- * trips is worthless if it only holds in a run that never touched app_state.
+ * The test above proves strength and conditioning survive `app_state`. This one
+ * proves the third world does not cost them anything: the same device pushes a
+ * training blob AND a nutrition partition for the same user, and a cold device B
+ * pulls both. Two separate green tests over two separate users would prove the
+ * two halves work in isolation, which is precisely the thing that was never in
+ * doubt — the risk the rebuild scope named is a third domain touching the code
+ * the C1/C2 bugs lived in.
+ *
+ * So the assertions that matter here are the NEGATIVE ones: the training blob
+ * must contain no food, and the nutrition snapshot no workouts. If those two
+ * ever cross, a meal has corrupted a training history or the reverse, and that
+ * is a data-loss bug no unit test can see because both halves sanitize clean.
+ *
+ * Requires 20260807_nutrition_domain to be applied in the target project:
+ * without it the RPC raises 'invalid domain', and this test is the thing that
+ * says so before an athlete's phone does.
  */
 it.skipIf(process.env.SB_E2E !== '1')(
-  'the nutrition partition round-trips through the real backend, beside the training blob',
+  'strength, conditioning and nutrition round-trip together for one athlete',
   { timeout: 60_000 },
   async () => {
     const email = `nutrition-e2e-${Date.now()}@example.com`;
@@ -98,6 +109,25 @@ it.skipIf(process.env.SB_E2E !== '1')(
     if (se) throw new Error('signup: ' + se.message);
     if (!signup.session) throw new Error('no session returned — email confirmation is on; this test needs auto-confirm');
     const userId = signup.session.user.id;
+
+    // --- device A's TRAINING half, pushed the way the app pushes it ---
+    const now = Date.now();
+    const today = new Date(now).toISOString().slice(0, 10);
+    const trainingA: EngineDB = emptyDB();
+    trainingA.workouts = [
+      { id: 'w-tri-str', name: 'E2E Squat Day', blocks: [] },
+      { id: 'w-tri-con', name: 'E2E Row Intervals', kind: 'conditioning', blocks: [] },
+    ] as unknown as Workout[];
+    trainingA.sessions = [
+      { id: 's-tri-str', workoutId: 'w-tri-str', kind: 'strength', status: 'completed', completedAt: now - 60_000, date: today, blocks: [] },
+      { id: 's-tri-con', workoutId: 'w-tri-con', kind: 'conditioning', status: 'completed', completedAt: now - 30_000, date: today, blocks: [] },
+    ] as unknown as Session[];
+    const cleanTraining = sanitizeDB(trainingA);
+    expect(cleanTraining.sessions.map((s) => s.id).sort()).toEqual(['s-tri-con', 's-tri-str']);
+    const { error: tpe } = await a
+      .from('app_state')
+      .upsert({ user_id: userId, state: buildPushState(cleanTraining, {}) }, { onConflict: 'user_id' });
+    if (tpe) throw new Error('push training: ' + tpe.message);
 
     const stamp = new Date().toISOString();
     const localA: NutritionDB = {
@@ -144,7 +174,22 @@ it.skipIf(process.env.SB_E2E !== '1')(
       .in('domain', ['nutrition']);
     if (re) throw new Error('pull nutrition: ' + re.message);
 
+    // The training half, pulled by the SAME cold device in the same run.
+    const { data: stateRow, error: tre } = await b
+      .from('app_state').select('state').eq('user_id', userId).maybeSingle();
+    if (tre) throw new Error('pull training: ' + tre.message);
+
     await b.from('athlete_domain_snapshots').delete().eq('user_id', userId);
+    await b.from('app_state').delete().eq('user_id', userId);
+
+    const remoteState = (stateRow?.state ?? {}) as Record<string, unknown>;
+    const remoteTraining = remoteState.hybridEngine ? sanitizeDB(remoteState.hybridEngine as EngineDB) : null;
+    const { db: mergedTraining } = applyPull(emptyDB(), remoteTraining);
+    expect(mergedTraining.workouts.map((w) => w.id).sort()).toEqual(['w-tri-con', 'w-tri-str']);
+    expect(mergedTraining.sessions.map((s) => `${s.id}:${(s as Session).kind ?? 'strength'}`).sort()).toEqual([
+      's-tri-con:conditioning',
+      's-tri-str:strength',
+    ]);
 
     const row = (rows || [])[0];
     expect(row?.domain).toBe('nutrition');
@@ -163,5 +208,20 @@ it.skipIf(process.env.SB_E2E !== '1')(
     expect(merged.logEntries.map((e) => e.id).sort()).toEqual(['n-e2e-a', 'n-e2e-b']);
     // Snapshot-at-log-time: the round trip must not have re-derived anything.
     expect(merged.logEntries.find((e) => e.id === 'n-e2e-a')?.calories).toBe(400);
+
+    /*
+     * The wall, measured on the wire. Neither payload may carry the other's
+     * records: a food log inside `app_state.hybridEngine`, or a workout inside
+     * the nutrition snapshot, is the exact cross-domain overwrite the separate
+     * slice exists to make structurally impossible.
+     */
+    expect(JSON.stringify(remoteState)).not.toContain('E2E Oats');
+    expect(JSON.stringify(row!.snapshot)).not.toContain('E2E Squat Day');
+    expect((mergedTraining as unknown as Record<string, unknown>).logEntries).toBeUndefined();
+    expect((merged as unknown as Record<string, unknown>).workouts).toBeUndefined();
+    // And the training blob's own ecosystem namespace never carries nutrition:
+    // `buildPushState` strips the partition so a meal cannot dirty the training
+    // fingerprint and force a spurious training push.
+    expect(readNutritionPartition(mergedTraining.ecosystem ?? emptyEcosystemNamespace())).toBeUndefined();
   },
 );
