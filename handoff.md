@@ -10,8 +10,8 @@
 
 | Item | Value |
 |---|---|
-| `main` | `0d841ce` |
-| Latest APK | Actions -> "Mobile — EAS Android build" run **28**, built from `0d841ce`. Its log ends with the expo.dev install link. |
+| `main` | `c7695f7` |
+| Latest APK | Actions -> "Mobile — EAS Android build" run **28**, built from `0d841ce`. Every commit since is docs-only, so run 28 IS current — do not rebuild to "catch up". Its log ends with the expo.dev install link. |
 | `runtimeVersion` | **4** — OTA cannot carry the camera work. Every phone needs a fresh APK. |
 | Supabase | The user applied `20260807_nutrition_domain.sql` and `20260807_macrotrack_food_catalogue.sql` on 7 Aug. The catalogue is EMPTY by design (its 471 seeded rows live in the retired MacroTrack project). |
 | Suites | typecheck 17/17; engine 594, mobile 243, web 103 (+2 live-gated), nutrition-engine 175, nutrition-core 111, nutrition-adapter 8; ecosystem, docs, contrast, migrations-apply, react-smoke, web-touch, mobile-touch, screens all green |
@@ -88,7 +88,11 @@ athlete, or adding a roster later becomes the migration that kills the pivot.
 A deep-research brief for the gap is written and committed:
 `docs/superpowers/research/2026-08-07-week-review-research-brief.md`. It is
 narrow on purpose — the August research covered plan AUTHORING well and barely
-touched the retrospective. Results go beside it, then the spec.
+touched the retrospective, and the brief SAYS SO to the model so the run is not
+spent re-deriving the object model. It was handed to the user on 7 Aug to run
+through ChatGPT deep research; results were not back before the session closed.
+When they arrive they go beside it as
+`2026-08-XX-week-review-research-results.md`, then the spec.
 
 Also parked, fully designed in the 7 Aug conversation but unwritten: the
 athlete dashboard cockpit (today-first, one screen, colour means discipline).
