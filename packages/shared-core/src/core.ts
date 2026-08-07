@@ -180,7 +180,7 @@ const normaliseEvent = (v: unknown, i: number): AthleteEvent | null => {
     id: idFor(raw.id, `event-${i}`),
     type: type as AthleteEvent['type'],
     occurredAt,
-    sourceDomain: ['core', 'strength', 'conditioning', 'athlete_state', 'coordinator'].includes(String(raw.sourceDomain))
+    sourceDomain: ['core', 'strength', 'conditioning', 'athlete_state', 'coordinator', 'nutrition'].includes(String(raw.sourceDomain))
       ? raw.sourceDomain as AthleteEvent['sourceDomain']
       : 'core',
     idempotencyKey: idFor(raw.idempotencyKey, idFor(raw.id, `event-${i}`)),

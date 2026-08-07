@@ -12,7 +12,7 @@ export const SYNC_ENVELOPE_SCHEMA_VERSION = 1 as const;
 export type SharedCoreSchemaVersion = typeof SHARED_CORE_SCHEMA_VERSION;
 export type SyncEnvelopeSchemaVersion = typeof SYNC_ENVELOPE_SCHEMA_VERSION;
 
-export type ProductDomain = 'core' | 'strength' | 'conditioning' | 'athlete_state' | 'coordinator';
+export type ProductDomain = 'core' | 'strength' | 'conditioning' | 'athlete_state' | 'coordinator' | 'nutrition';
 export type AthleteGoal = 'strength' | 'conditioning' | 'hybrid' | 'health';
 export type Units = 'kg' | 'lb';
 export type IllnessStatus = 'clear' | 'suspected' | 'active' | 'returning';
