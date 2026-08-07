@@ -323,16 +323,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // server. Exception: an OTHER-product record authored during the push's
       // await window never made it into that snapshot, so it can still be
       // pruned before reaching the server.
-      if (merged !== previousLocal) dbRef.current = merged;
+      // `merged` descends from a `dbRef.current` read taken BEFORE the pull's
+      // await. A set confirmed during that await has already updated the ref on
+      // its own render, so assigning `merged` straight into the ref put the
+      // pre-await snapshot back — and `pushNow` below reads the ref, so that
+      // set was left out of the pushed blob until some later unrelated write.
+      // Folding against the ref's CURRENT value keeps both sides; `mergeEngines`
+      // is additive, so this can only add.
+      const local = merged === previousLocal && merged === dbRef.current
+        ? previousLocal
+        : sanitizeDB(mergeEngines(dbRef.current, merged));
+      dbRef.current = local;
       if (needsPush) await pushNow(true, remoteState);
 
       // The app hosts both worlds — nothing is narrowed.
-      const local = merged;
-      if (cloudFp(local) !== cloudFp(previousLocal)) {
-        applyMerged(local);
-      } else {
-        dbRef.current = previousLocal;
-      }
+      if (cloudFp(local) !== cloudFp(previousLocal)) applyMerged(local);
 
       setSyncedAt(Date.now());
     } catch (e) {

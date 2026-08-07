@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createClient, type Session as AuthSession, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { SUPABASE } from '@hybrid/config';
-import { applyPull, buildProductSyncNamespace, buildPushState, cloudFp, sanitizeDB, type EngineDB } from '@hybrid/engine';
+import { applyPull, buildProductSyncNamespace, buildPushState, cloudFp, mergeEngines, sanitizeDB, type EngineDB } from '@hybrid/engine';
 import type { EcosystemSyncNamespace } from '@hybrid/shared-core';
 import { emptyNutritionDB, mergeNutrition, sanitizeNutritionDB, type NutritionDB } from '@hybrid/nutrition-core';
 import { useDb } from '../store/db';
@@ -93,16 +93,34 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const inFlight = useRef(false);
   const pushTimer = useRef<number | null>(null);
 
+  /*
+   * Fold the merge result INTO the current draft rather than assigning over it.
+   *
+   * `next` is computed from a snapshot of `dbRef.current` taken BEFORE the
+   * pull's network round trips. A set confirmed during that await is already
+   * in memory and on disk; assigning `next` field-by-field over a fresh draft
+   * overwrote it in BOTH — and then pushed the truncated state. Merging with
+   * the same engine primitive the rest of the sync path trusts cannot lose it,
+   * because `mergeEngines` is additive in both directions.
+   *
+   * This is the mobile app's fix (apps/mobile/src/cloud/sync.tsx), which the
+   * web file did not receive at the time. Reachable only with
+   * VITE_HYBRID_ECOSYSTEM_SYNC=1, which is what opens the await window.
+   */
   const applyMerged = useCallback(
     (next: EngineDB) => {
       update((draft) => {
-        draft.workouts = next.workouts;
-        draft.sessions = next.sessions;
-        draft.settings = next.settings;
-        draft.core = next.core;
-        draft.ecosystem = next.ecosystem;
+        const folded = sanitizeDB(mergeEngines(draft, next));
+        draft.workouts = folded.workouts;
+        draft.sessions = folded.sessions;
+        draft.settings = folded.settings;
+        draft.core = folded.core;
+        draft.ecosystem = folded.ecosystem;
       });
-      dbRef.current = next;
+      // `dbRef.current = next` is deliberately gone: `next` is the unfolded
+      // pre-await snapshot, so pinning the ref to it would put back the
+      // staleness this merge exists to remove. The component body reassigns
+      // the ref on the render `update()` schedules.
     },
     [update],
   );
@@ -233,7 +251,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           merged = ecosystemMerged;
         }
       }
-      if (merged !== dbRef.current) applyMerged(merged);
+      // `merged` was computed from a snapshot taken before the awaits above.
+      // Fold it against whatever the ref holds NOW so a set logged during the
+      // pull is in the push, then persist that same fold.
+      if (merged !== dbRef.current) {
+        const folded = sanitizeDB(mergeEngines(dbRef.current, merged));
+        dbRef.current = folded;
+        applyMerged(folded);
+      }
       if (needsPush) await pushNow(true, remoteState);
 
       setSyncedAt(Date.now());
