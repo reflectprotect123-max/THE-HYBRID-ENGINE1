@@ -18,7 +18,15 @@ const path = require('node:path');
 module.exports = {
   preset: 'jest-expo',
   setupFilesAfterEnv: [path.resolve(__dirname, 'test/setup.ts')],
-  testMatch: ['<rootDir>/test/**/*.test.tsx', '<rootDir>/test/**/*.test.ts'],
+  /* Both trees: tests are colocated with the module they cover in src/, and
+     test/ still holds the setup, the stubs and the shared harness. Dropping
+     either half here does not fail — it silently collects fewer tests. */
+  testMatch: [
+    '<rootDir>/src/**/*.test.tsx',
+    '<rootDir>/src/**/*.test.ts',
+    '<rootDir>/test/**/*.test.tsx',
+    '<rootDir>/test/**/*.test.ts',
+  ],
   /*
    * Every `jest.spyOn` in this suite (mostly `Alert.alert`) used to accumulate
    * call history across tests: `jest.spyOn` on an already-mocked method

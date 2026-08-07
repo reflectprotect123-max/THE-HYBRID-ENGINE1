@@ -31,7 +31,7 @@ The fastest way into this repo. Find the symptom, go to the file.
 | Web deploy doesn't reach an installed app | `apps/web/src/UpdateBanner.tsx`; check with `node checks/pwa-update.mjs` |
 | Phone doesn't get an update | `.github/workflows/mobile-ota.yml`. Native changes need a new APK — `mobile-eas.yml` |
 | WHOOP connect or sync fails | `netlify/functions/whoop-*`; check with `node checks/whoop-contract.mjs` |
-| A screen renders blank / title-only | The screen in `apps/*/src/screens/`. See `apps/mobile/test/screens.test.tsx` — that class of bug has bitten before |
+| A screen renders blank / title-only | The screen in `apps/*/src/screens/`. See `apps/mobile/src/screens/screens.test.tsx` — that class of bug has bitten before |
 | Auto-Coached changed nothing despite an active constraint | The coach bench's **Why today** panel, or `apps/web/src/coach/trace.ts` → `buildDecisionTrace` for the outcome rules |
 
 ### Nutrition
@@ -297,7 +297,7 @@ chat, source, or a ZIP.
 - **Spacing resolves through an 8px scale** in both apps (`p-2` is 16px). The
   rare 4px optical nudge is written `-0.5` and is meant to stand out.
 - **A screen must always render something.** Empty states are a feature; a
-  title over a void is the bug `apps/mobile/test/screens.test.tsx` exists for.
+  title over a void is the bug `apps/mobile/src/screens/screens.test.tsx` exists for.
 - **Never invent training.** A prescription is not a performance, and a day
   with no record is a gap, not a rest day. Several tests exist only to hold
   this line.

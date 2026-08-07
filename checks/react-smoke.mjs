@@ -1076,7 +1076,7 @@ await t('Day preview shows the matched workout for a scheduled day, read-only', 
   // The preview has to say WHICH session is scheduled, not just list its
   // blocks — `WorkoutDetail` is only the expand-body, so the name is Day's
   // own heading. Mirrors mobile's `expect(screen.getByText('Lower'))` in
-  // apps/mobile/test/screens.test.tsx.
+  // apps/mobile/src/screens/screens.test.tsx.
   assert(/Lower A/.test(txt), 'the matched workout name did not render on Day');
   assert(!/Nothing scheduled/.test(txt), 'the empty state showed even though a workout matched');
   // Read-only: no Start/Edit/Delete/Duplicate control — those are
