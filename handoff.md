@@ -352,6 +352,107 @@ phone, on a fresh APK built from `runtimeVersion` 3, in the order given.
 
 ---
 
+> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (c): "Why today" decision trace,
+> and the coach bench was unreachable in production**
+>
+> Supersedes the 7 August (b) checkpoint below, which remains accurate about
+> MacroTrack — that work is untouched by this and proceeds on its own track.
+> This checkpoint covers the coach bench and two deployment facts that were
+> not previously written down anywhere.
+
+## What shipped
+
+**PR #5 — "Why today" decision trace on the coach bench.** Merged to `main`
+(`38cf0b90`), live on `thehybridengine1.netlify.app`.
+
+`ResolutionPreview` already showed the active constraints and `TodayAutoCoach`
+already showed the resulting operations, but nothing joined them — so an active
+constraint that changed nothing read as a system that had ignored it. The
+resolver has four distinct reasons for that outcome and none were visible on
+any surface:
+
+- the constraint is scoped to the other training domain, so this session was
+  never a candidate for it
+- every permission that could act on it is off in the athlete-owned policy
+- a hard safety flag returned before soft constraints were evaluated
+- it was considered and allowed, but nothing in the session matched
+
+`buildDecisionTrace` (`apps/web/src/coach/trace.ts`) derives the outcome per
+constraint. It is pure, and reads outcomes back off the resolution the resolver
+already returned rather than re-running the resolver's logic.
+`DecisionTrace.tsx` renders it behind a "Why today" button in the bench header,
+read-only by construction like `ResolutionPreview`.
+
+It also surfaces three fields of the existing resolver output that no screen
+rendered at all: `readiness.signals` with their sources, the `recoveryDebt`
+estimate, and `abstentionReason` when the resolver declined to act.
+
+## Known gap in it — read this before changing the resolver
+
+`ACTING_PERMISSIONS` in `trace.ts` mirrors the branch conditions in
+`packages/auto-coach/src/resolve.ts` by hand. **Nothing detects drift.** Add a
+constraint branch to the resolver without updating that map and the panel will
+silently label it `no_action_defined` — a confident wrong answer, which is
+worse than no panel at all. The coupling is documented in the file, but
+documentation is not a test.
+
+The fix, if someone wants it: a test that drives the real `resolveSession` per
+constraint code with each permission off and on, and asserts the map matches
+observed behaviour. Then drift fails a test instead of lying to a coach.
+
+## Two deployment facts that were not recorded anywhere
+
+**1. The coach bench was unreachable in production, and had been.**
+`coachAllowed` fails closed: with `VITE_COACH_USER_IDS` unset, a production
+build denies everyone, so `/coach` redirected to `/`. That variable was never
+set on the Netlify site — so the entire bench (program grid, resolution rail,
+Simulate, policy inspector) had never been reachable on the deployed site by
+anyone. It is now set to the owner's Supabase user id, `builds` scope, context
+`all`. It is a build-time variable: **it only takes effect on a rebuild**, and
+it is compiled into the client bundle, so it is not a secret and gates a UI
+route only. Data is still guarded by RLS.
+
+**2. GitHub Actions produces zero workflow runs on this repository.**
+`ci.yml` reports `state: active` but `total_count: 0` runs — repo-wide, on
+every workflow, including on the pushes that added them. Nothing in that file
+has ever executed: not the Metro bundle step, not `check:csp`, not the
+"Playwright was silently skipped" guard. Every merge to date, including PR #5,
+landed with no CI. Fixing it is a repository setting (Settings → Actions →
+General → Allow all actions), not a commit.
+
+## Repo layout, as actually configured
+
+`reflectprotect123-max/the-coach-brain` is a **duplicate** of this monorepo,
+seeded as a snapshot rather than a fork — the two share no git history. It
+carries the same "Why today" panel (merged there as its PR #2, `762e22e`) but
+is now behind this repo, missing MacroTrack.
+
+Netlify builds `thehybridengine1` from **this repository**, `main`. That was
+confirmed against the deploy's own `commit_url`. A plan to repoint the site at
+`the-coach-brain` was considered and **dropped by decision — the project stays
+in THE-HYBRID-ENGINE1.** Treat `the-coach-brain` as a stale copy, not a second
+source of truth.
+
+Two things that could not be done from the agent sandbox, for whoever picks
+this up: Netlify hosts are blocked by the sandbox's egress policy
+(`api.netlify.com` and the CLI upload both answer `CONNECT tunnel failed,
+response 403`), so a direct deploy and any fetch of the live page are
+impossible from there. The deploy above was verified by Netlify deploy
+metadata — `state: ready`, matching `commit_ref`, no error, secret scan clean —
+not by loading the page. There is also no API in the agent's toolset to relink
+a Netlify site's repository.
+
+## Minor, noted while in the Netlify config
+
+`WHOOP_CLIENT_SECRET`, `CONCEPT2_CLIENT_SECRET` and `APP_SESSION_SECRET` are
+stored with `is_secret: false`, so their values read back in plaintext through
+the API. They are not exposed to browsers — no `VITE_` prefix, so Vite does not
+inline them — but they are scoped wider than the functions that use them
+(`builds`, `post_processing`, `runtime`). Worth flipping to secret and
+narrowing to `functions`.
+
+---
+
 > **AUTHORITATIVE CHECKPOINT — 7 August 2026 (b): MacroTrack rebuild, Phase 0 done — HISTORY, superseded by the nutrition-final checkpoint at the top**
 >
 > Supersedes the 7 August (a) checkpoint below, which remains accurate about
