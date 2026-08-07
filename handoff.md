@@ -11,7 +11,7 @@
 
 | Item | Value |
 |---|---|
-| `main` | `c7695f7`; the debug pass is on `claude/handoff-md-review-z00wqf` (`41eba19`), NOT yet merged |
+| `main` | `f555e63` — the debug pass is MERGED (PR #23) |
 | Latest APK | Actions -> "Mobile — EAS Android build" run **28**, built from `0d841ce`. Every commit since is docs-only, so run 28 IS current — do not rebuild to "catch up". Its log ends with the expo.dev install link. |
 | `runtimeVersion` | **4** — OTA cannot carry the camera work. Every phone needs a fresh APK. |
 | Supabase | The user applied `20260807_nutrition_domain.sql` and `20260807_macrotrack_food_catalogue.sql` on 7 Aug. The catalogue is EMPTY by design (its 471 seeded rows live in the retired MacroTrack project). |
@@ -22,7 +22,7 @@
 Two Opus reviewers on the sync/merge and screen layers, two investigators on
 dead and untested code. Every finding was verified against the code before it
 was acted on — agent reports were wrong twice in this session, so nothing was
-taken on report alone. **Eighteen real defects fixed, forty-five tests added.**
+taken on report alone. **Twenty real defects fixed, forty-five tests added.**
 
 The four that mattered most, all in the class that has cost this project user
 data twice — a record reachable on only one side, dropped by a merge:
@@ -63,6 +63,18 @@ Two things about the checks themselves:
   it finds no local postgres, so a runner image that stopped shipping postgres
   would have turned the one check proving RLS isolates two athletes into a
   silent no-op with CI still green.
+
+And two checks that could never have failed in CI, both mine, both found by
+the PR's own CI rather than by me:
+
+- `docs.mjs` asserted that a gitignored BUILD OUTPUT exists. It is absent on a
+  clean checkout, so the check failed in CI and passed on any machine that had
+  run the browser suite once. A gitignored path is now verified by finding what
+  produces it in the tracked source.
+- `migrations-apply.mjs` assumed it was root — true in the container it was
+  written in, false on a GitHub runner, where it died with `useradd:
+  Permission denied`. It had never once passed in CI. Mutation-checked from
+  the non-root path specifically, so the path CI takes is proven able to fail.
 
 Still open and deliberately not done: the colocation refactor (measured at
 1-2 days, 90 test files, with a bundle-leak risk to verify first) and the

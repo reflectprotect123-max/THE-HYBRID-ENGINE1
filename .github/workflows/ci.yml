@@ -152,7 +152,7 @@ jobs:
       # Suites that need no network and no secrets. emit-contract used to lead
       # this list; it string-pinned the vanilla app.js and round-tripped the
       # vanilla coach emit.js through a browser. Both are deleted, and
-      # packages/engine/test/emit.test.ts already asserts every property it
+      # packages/engine/src/emit.test.ts already asserts every property it
       # pinned — against the live code rather than by regexing a file.
       #
       # pentest attacks the real function crypto in-process and then statically

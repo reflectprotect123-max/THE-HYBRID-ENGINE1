@@ -31,7 +31,7 @@ The fastest way into this repo. Find the symptom, go to the file.
 | Web deploy doesn't reach an installed app | `apps/web/src/UpdateBanner.tsx`; check with `node checks/pwa-update.mjs` |
 | Phone doesn't get an update | `.github/workflows/mobile-ota.yml`. Native changes need a new APK — `mobile-eas.yml` |
 | WHOOP connect or sync fails | `netlify/functions/whoop-*`; check with `node checks/whoop-contract.mjs` |
-| A screen renders blank / title-only | The screen in `apps/*/src/screens/`. See `apps/mobile/test/screens.test.tsx` — that class of bug has bitten before |
+| A screen renders blank / title-only | The screen in `apps/*/src/screens/`. See `apps/mobile/src/screens/screens.test.tsx` — that class of bug has bitten before |
 | Auto-Coached changed nothing despite an active constraint | The coach bench's **Why today** panel, or `apps/web/src/coach/trace.ts` → `buildDecisionTrace` for the outcome rules |
 
 ### Nutrition
@@ -210,7 +210,7 @@ node checks/docs.mjs                 # this file's paths and symbols still exist
 without `VITE_COACH_USER_IDS` and would otherwise redirect away unchecked.
 
 The live three-domain sync round trip — strength, conditioning and nutrition for
-one athlete against the real backend — is `apps/web/test/sync-e2e.live.test.ts`.
+one athlete against the real backend — is `apps/web/src/cloud/sync-e2e.live.test.ts`.
 It skips unless `SB_E2E=1` and runs from the manually-dispatched `sync-e2e`
 workflow, because it needs network egress and creates a disposable auth user.
 
@@ -297,7 +297,7 @@ chat, source, or a ZIP.
 - **Spacing resolves through an 8px scale** in both apps (`p-2` is 16px). The
   rare 4px optical nudge is written `-0.5` and is meant to stand out.
 - **A screen must always render something.** Empty states are a feature; a
-  title over a void is the bug `apps/mobile/test/screens.test.tsx` exists for.
+  title over a void is the bug `apps/mobile/src/screens/screens.test.tsx` exists for.
 - **Never invent training.** A prescription is not a performance, and a day
   with no record is a gap, not a rest day. Several tests exist only to hold
   this line.

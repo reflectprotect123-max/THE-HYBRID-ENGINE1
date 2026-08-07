@@ -74,6 +74,35 @@ it in staging before enabling `VITE_HYBRID_ECOSYSTEM_SYNC=1` or
 Never remove the legacy read path until old mobile builds have aged out and a
 rollback rehearsal proves that no domain can overwrite another domain.
 
+## Where a test goes
+
+Tests are COLOCATED: `src/lift.ts` is tested by `src/lift.test.ts`, in the same
+directory. A test that covers a contract across several modules — a parity
+suite, a boundary check, a merged-world sync test — sits with the module it
+mostly exercises, named for the contract rather than the file.
+
+EVERY test is colocated — there are no exceptions, including the coach bench
+and the `SB_E2E`-gated live backend round trip, which sits with the sync
+provider it drives.
+
+`test/` still exists in four projects and holds only things that are NOT tests:
+fixtures and golden vectors (`packages/engine/test/golden`,
+`packages/auto-coach/test/fixtures`, `packages/nutrition-engine/test/fixtures`)
+and the mobile Jest setup and stubs. If you find a `*.test.ts` under `test/`,
+it is in the wrong place.
+
+Both trees are collected — `include`/`testMatch` name `src/**` AND `test/**` in
+every project. Do not "tidy" either half away: a test that stops being collected
+does not fail, it silently disappears, and the suite still reports green.
+
+Two consequences worth knowing. A colocated test is inside the package's
+compiled scope, so `tsc` checks it — which is the point, and which immediately
+surfaced a type error in a `packages/design` test that had never been checked.
+And nothing test-shaped reaches a shipped artefact: Metro and Vite both build
+from the entry graph, so an unimported `*.test.ts` is not reachable. That was
+verified with canary markers before the move and again after, against both the
+Android bundle and the web dist.
+
 ## Safe workflow
 
 1. Start with a read-only audit and preserve unrelated worktree changes.
