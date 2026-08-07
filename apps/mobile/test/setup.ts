@@ -80,13 +80,18 @@ jest.mock('expo-camera', () => {
   let permission: { granted: boolean; canAskAgain: boolean; status: string } | null = GRANTED;
   const request = jest.fn(async () => permission);
   return {
-    /* `View` itself rather than a wrapper component: NativeWind's babel plugin
-       rewrites JSX and `React.createElement` into its own interop call, which
-       a `jest.mock` factory may not reference. Passing the host component
-       through also keeps `onBarcodeScanned` readable off the rendered node,
-       which is how a test fires a frame. */
-    CameraView: require('react-native').View,
+    /* A host view carrying its props — so `onBarcodeScanned` is readable off
+       the rendered node, which is how a test fires a frame — plus a shutter on
+       the ref, which is how the label reader takes the photo it recognises.
+       Built in a plain sibling file because NativeWind's babel plugin rewrites
+       JSX and `React.createElement` into its own interop call, and a
+       `jest.mock` factory may not reference that module-level import. */
+    CameraView: require('./camera-view-mock').CameraViewMock,
     useCameraPermissions: () => [permission, request, request],
+    /** Test-only. Drive `takePictureAsync`: a different photo, or a throw. */
+    __setShutter: require('./camera-view-mock').__setShutter,
+    __resetShutter: require('./camera-view-mock').__resetShutter,
+    __photo: require('./camera-view-mock').PHOTO,
     /** Test-only. Null models the frame before the OS has answered. */
     __setPermission: (p: typeof permission) => {
       permission = p;
@@ -97,6 +102,27 @@ jest.mock('expo-camera', () => {
     __request: request,
   };
 });
+
+/*
+ * ML Kit text recognition needs the ML Kit .aar and a device.
+ *
+ * `expo-mlkit-ocr` resolves its native module at IMPORT time
+ * (`requireNativeModule('ExpoMlkitOcr')`), so merely loading it in node throws.
+ * The app already guards that — the label reader imports it dynamically, inside
+ * the try that falls back to typed entry — and this is the belt to that braces:
+ * it stops an accidental static import anywhere from taking the whole suite
+ * down instead of failing the one test that added it.
+ *
+ * It resolves nothing, on purpose. Every OCR test injects its own recogniser,
+ * so a mock that quietly returned plausible blocks would be a second, invisible
+ * source of test data.
+ */
+jest.mock('expo-mlkit-ocr', () => ({
+  isSupported: () => false,
+  recognizeText: jest.fn(async () => {
+    throw new Error('expo-mlkit-ocr: no native module in node — inject a recogniser in the test.');
+  }),
+}));
 
 /* Supabase would open a real socket on import. Sync and WHOOP are not under
    test here; both providers degrade to "signed out" when the client is null,

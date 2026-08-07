@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CachedFood, ParsedNutritionLabel } from '@hybrid/nutrition-core';
 import type { CatalogueBarcodeLookup, CatalogueSearch } from '../../cloud/catalogue';
+import type { LabelRecogniser } from '../../native/labelOcr';
 import { FoodSearchScreen } from './FoodSearch';
 import { QuickAddScreen } from './QuickAdd';
 import { CustomFoodScreen, type CustomFoodPrefill } from './CustomFood';
@@ -35,9 +36,11 @@ interface Props {
   /** Injected only by tests; the screens default to the real reads. */
   search?: CatalogueSearch;
   lookupBarcode?: CatalogueBarcodeLookup;
+  /** The on-device OCR pass. Injected only by tests; there is no device in node. */
+  recogniseLabel?: LabelRecogniser;
 }
 
-export function FoodScreen({ search, lookupBarcode }: Props = {}) {
+export function FoodScreen({ search, lookupBarcode, recogniseLabel }: Props = {}) {
   const [pane, setPane] = useState<Pane>({ kind: 'search' });
   /* Carried back to the search pane so a save confirms itself where the athlete
      ends up, not on the screen they just left. */
@@ -84,7 +87,13 @@ export function FoodScreen({ search, lookupBarcode }: Props = {}) {
     );
   }
   if (pane.kind === 'label') {
-    return <LabelReaderScreen onUse={(parsed) => setPane({ kind: 'customFood', prefill: fromLabel(parsed) })} onCancel={toSearch} />;
+    return (
+      <LabelReaderScreen
+        recognise={recogniseLabel}
+        onUse={(parsed) => setPane({ kind: 'customFood', prefill: fromLabel(parsed) })}
+        onCancel={toSearch}
+      />
+    );
   }
   return (
     <FoodSearchScreen
@@ -123,7 +132,7 @@ function fromLabel(p: ParsedNutritionLabel): CustomFoodPrefill {
     servingQty: per100 ? 100 : p.servingQty,
     servingUnit: unit,
     note: per100
-      ? `Read from the panel you entered. It only prints a per-100 column, so the serving is set to 100 ${unit ?? 'g'} to match.`
-      : 'Read from the panel you entered. Check it against the packet — anything blank was not recognised.',
+      ? `Read from the nutrition panel. It only prints a per-100 column, so the serving is set to 100 ${unit ?? 'g'} to match.`
+      : 'Read from the nutrition panel. Check it against the packet — anything blank was not recognised.',
   };
 }
