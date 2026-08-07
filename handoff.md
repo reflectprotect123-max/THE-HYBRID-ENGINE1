@@ -1,5 +1,101 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (end of session): everything is
+> built, merged and installable. What remains is verification only.**
+>
+> Supersedes every checkpoint below. They stay as history and remain accurate
+> about their own scope; where one contradicts this, this wins.
+
+## State
+
+| Item | Value |
+|---|---|
+| `main` | `0d841ce` |
+| Latest APK | Actions -> "Mobile — EAS Android build" run **28**, built from `0d841ce`. Its log ends with the expo.dev install link. |
+| `runtimeVersion` | **4** — OTA cannot carry the camera work. Every phone needs a fresh APK. |
+| Supabase | The user applied `20260807_nutrition_domain.sql` and `20260807_macrotrack_food_catalogue.sql` on 7 Aug. The catalogue is EMPTY by design (its 471 seeded rows live in the retired MacroTrack project). |
+| Suites | typecheck 17/17; engine 594, mobile 243, web 103 (+2 live-gated), nutrition-engine 175, nutrition-core 111, nutrition-adapter 8; ecosystem, docs, contrast, migrations-apply, react-smoke, web-touch, mobile-touch, screens all green |
+
+## What shipped today, in order
+
+1. **The two Android apps became one.** `com.hybridengine.app` survives; the
+   conditioning app got a farewell force-sync release and was retired. Device
+   checklist passed on real hardware.
+2. **The MacroTrack rebuild, all five phases** — contracts and sync slice, the
+   adaptive engine ported with proven Python parity, the food-catalogue
+   backend with RLS proven by two real athletes, eleven screens, web and coach
+   surfaces, hardening.
+3. **The label scanner was revived after being killed.** Phase 3d killed it for
+   lack of a verifiable OCR path; that survey missed `expo-mlkit-ocr`, which is
+   a proper Expo module pinning the same ML Kit version the Kotlin app used.
+   EAS has now compiled it — the SDK 55-vs-54 risk this environment could not
+   test is closed.
+4. **A local scan corpus** records what OCR read, what was shown, and what the
+   athlete confirmed, so the parser can be fixed from evidence. It does not
+   learn; it collects. Exportable from Settings, capped at 200 records / 512 kB,
+   never synced.
+
+## The only things left, and they are all the user's
+
+1. **Install run 28's APK** and work the device checklist in the
+   nutrition-final checkpoint below. Nothing here has run on real hardware.
+2. **Scan 8-10 real packets** — flat box, curved tin, crinkled foil, glossy
+   label, poor light. Check every number against the print. The failure mode
+   no test can catch is a PLAUSIBLE wrong digit: 3.2 read as 8.2 looks exactly
+   like success, which is why nothing is written without confirmation.
+3. **Export the scan corpus** from Settings after ~20 foods and hand it back.
+   That is when parser tuning stops being guesswork. Watch one number in the
+   meantime: how often you correct anything at all.
+4. **Seed AUSNUT only** — the generic/whole-food half. It is the half that
+   cannot be scanned, because those foods have no label. Skip Open Food Facts:
+   the user's own scan of the packet in their hand beats a crowd-sourced entry
+   for the same product. Route: they download the FSANZ spreadsheets and upload
+   them here; the importer runs in the sandbox and hands back SQL. No
+   credentials need to move, and this sandbox cannot reach Supabase anyway.
+
+## Decided this session, and binding
+
+- Nutrition is a THIRD WORLD, not a mode: `WorldId = ProductId | 'nutrition'`.
+  `ProductId` stays two training identities — sync partitions and
+  `restrictToProduct` depend on it.
+- The six inherited engine defects are carried UNFIXED and are now documented
+  as data in `packages/nutrition-engine/src/defects.ts`, with a test that stops
+  the list decaying into decoration. Parity with the Python is the contract;
+  fixing one means updating engine, fixtures and reference together.
+- The two athlete-visible defects are SURFACED, not smoothed: the Coach screen
+  names the direction of the harm when weigh-ins are sparse, and the Check-in
+  screen prints the contradiction when macros overshoot their own target.
+- Nutrition facts are deliberately NOT wired into `DbProvider`'s athlete state,
+  because the planner and auto-coach read that object. The boundary is
+  structural, not merely tested. Cost: the fuelling constraint shows on the
+  coach bench but not on Home.
+
+## Next piece of work, already scoped
+
+The coaching platform. Three decisions are made: **myself now, others later**
+(so the data model stays multi-athlete-shaped), **the Coordinator keeps
+authority** (the coach steers inputs and never hand-places a session), and
+**review before steering** — understand the week that happened before setting
+the next one's inputs.
+
+Approach A was recommended and not yet approved: a derived
+`/coach/review/:weekStart` page assembling what already exists — weekly plan,
+exception history, auto-coach ledger, decision trace, nutrition adherence. No
+new schema, no new writes. ~1 week. One discipline attached: it must be a pure
+function of `(athleteData, weekStart)` and never read an ambient current
+athlete, or adding a roster later becomes the migration that kills the pivot.
+
+A deep-research brief for the gap is written and committed:
+`docs/superpowers/research/2026-08-07-week-review-research-brief.md`. It is
+narrow on purpose — the August research covered plan AUTHORING well and barely
+touched the retrospective. Results go beside it, then the spec.
+
+Also parked, fully designed in the 7 Aug conversation but unwritten: the
+athlete dashboard cockpit (today-first, one screen, colour means discipline).
+
+---
+
+
 > **AUTHORITATIVE CHECKPOINT — 7 August 2026 (nutrition-final): the MacroTrack
 > rebuild is BUILT, and not yet released**
 >
