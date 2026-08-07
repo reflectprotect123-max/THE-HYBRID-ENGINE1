@@ -186,7 +186,8 @@ const toNumber = (raw: string): number | null => {
 };
 
 /**
- * Drop a thousands comma before anything reads it as a decimal point.
+ * Drop a thousands separator before anything reads it as a decimal point or
+ * as the end of a number.
  *
  * The lookahead is `\d{3}(?!\d)` and NOT `\d{3}\b`: on a label the digits are
  * followed immediately by their unit — "1,733kJ" — and `\b` never fires
@@ -194,8 +195,19 @@ const toNumber = (raw: string): number | null => {
  * form the comma survived, the decimal branch then matched ",73", and
  * 1,733 kJ was read as 733 kJ: energy understated by more than half, on a
  * figure that still looked plausible.
+ *
+ * BOTH separators, because Australian panels print both. A SPACE-grouped
+ * "1 733 kJ" is the SI convention and appears on real packets; handling only
+ * the comma left exactly the same defect standing — the reader took the
+ * digits after the space and called it 733 kJ. A thin/non-breaking space is
+ * included: OCR of a printed panel returns U+00A0 and U+202F routinely, and
+ * they are invisible in a diff.
+ *
+ * Only groups of exactly three digits are joined, so "Serves 4 220 g packs"
+ * is untouched and a genuine two-number sequence is not silently fused.
  */
-const stripThousands = (text: string): string => text.replace(/(\d),(?=\d{3}(?!\d))/g, '$1');
+const stripThousands = (text: string): string =>
+  text.replace(/(\d)[,    ](?=\d{3}(?!\d))/g, '$1');
 
 const firstNumber = (text: string): number | null => {
   const m = NUMBER.exec(stripThousands(text));
