@@ -22,7 +22,36 @@ records; do not follow a stale statement that the rebuild has not started.
   allowed to choose the final weekly plan.
 - `@hybrid/coordinator-adapter` is the app projection from existing workouts to
   Coordinator proposals.
-- Nutrition is intentionally outside this repository's prescription logic.
+- `@hybrid/product-scope` owns the product identities and their capability
+  lists. It is a fact table, not a decision layer.
+- `@hybrid/auto-coach` owns the autonomy policy and the session resolver. It
+  applies whole-athlete-state constraints to one session; it never programs a
+  week and never overrides the Coordinator.
+- `@hybrid/nutrition-core` owns the nutrition data model, its sanitiser and
+  its merge. Data only — it decides nothing.
+
+## Nutrition (amended 7 August 2026)
+
+This rule used to read "nutrition is intentionally outside this repository's
+prescription logic", written when nutrition lived in a separate app. The
+MacroTrack rebuild brings it in, so the wall moves — the principle it existed
+to protect does not. One owner per decision domain, still:
+
+- Nutrition prescription — targets, adaptive calories, macro splits — will
+  live in `@hybrid/nutrition-engine` and nowhere else. Do not scatter macro
+  maths into screens or into the training engines.
+- The Coordinator arbitrates TRAINING. It never resolves macros, and nutrition
+  never edits a weekly plan.
+- `@hybrid/whole-athlete-state` may read nutrition FACTS — energy
+  availability, adherence — as context that shapes constraints. It must not
+  read a nutrition target as an instruction.
+- Pain and illness flags outrank every nutrition-derived suggestion, exactly
+  as they outrank a readiness score.
+- Nutrition athlete data is its own slice and its own sync partition. It is
+  never a field on `EngineDB`, and a nutrition write must never be able to
+  dirty the training fingerprint.
+
+Scope and phases: `docs/superpowers/specs/2026-08-07-macrotrack-rebuild-scope.md`.
 
 Do not move recovery, pain or illness logic into a specialist engine. Do not
 use HRV as a pain, injury or illness gate. Pain and illness are safety flags,

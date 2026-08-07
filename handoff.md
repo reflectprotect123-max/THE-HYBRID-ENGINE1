@@ -1,5 +1,57 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (b): MacroTrack rebuild, Phase 0 done**
+>
+> Supersedes the 7 August (a) checkpoint below, which remains accurate about
+> the Android merge. This one covers what came after it.
+
+## Decision
+
+MacroTrack — the native Kotlin/Compose nutrition app in the retired
+`reflectprotect123-max/thehybridsystem` repo — is being REBUILT into this
+repository as a third world, not merged mechanically and not bridged. The
+data-bridge alternative was offered and declined. That repo's do-not-touch
+instruction (5 Aug item 7) is lifted FOR READING ONLY, by explicit user
+instruction on 7 Aug; it is frozen and authoritative for nothing but
+reference. Scope and the five phases:
+`docs/superpowers/specs/2026-08-07-macrotrack-rebuild-scope.md`.
+Coaching platform and the athlete-dashboard cockpit redesign are both PARKED
+behind this by user decision.
+
+## Phase 0 — complete
+
+| Piece | State |
+|---|---|
+| `nutrition` domain | In `ProductDomain`, the shared-core event sanitiser, and `20260807_nutrition_domain.sql` |
+| The migration | Widens two check constraints AND replaces two RPC bodies. The plan said the RPC contract was unchanged; that was WRONG — `20260804:167` and `:229` hardcode the same domain list inside plpgsql, and the RPCs are the only supported write path, so constraints alone would have failed at runtime with `invalid domain`. **Not yet applied to staging.** |
+| `@hybrid/nutrition-core` | Types, sanitiser, merge. 35 tests. |
+| Sync | Nutrition rides its own partition via a sibling function; `EngineDB` gains no nutrition field, and the partition is stripped from `EngineDB.ecosystem` so a meal cannot dirty the training fingerprint |
+| Storage | Separate provider per app, key `hybrid-nutrition-v1` |
+| `CLAUDE.md` | Nutrition rule amended (wall moved, principle kept); ownership list gains nutrition-core, auto-coach, product-scope |
+
+**Two review findings worth carrying forward**, both caught by adversarial
+review rather than by tests: the sanitiser CLAMPED an out-of-range weight
+(9000 kg became a plausible 500 kg fed to the trend regression) where the SQL
+REJECTS it, and `mergeNutrition` broke `updatedAt` ties by argument position,
+so two devices could never converge. Both fixed. The lesson is the same one
+the 5 Aug sync partition taught: a green suite is not evidence of a correct
+merge.
+
+## Phase 0 gate still open
+
+The staging migration has NOT been applied or rehearsed — this sandbox's
+egress blocks Supabase, so it must be run by the user or from CI. Nothing
+downstream should assume the nutrition domain exists server-side until then.
+
+## Next
+
+Phase 1: port `adaptive_engine.py` (328 lines, deterministic and explainable
+by its own design) to `@hybrid/nutrition-engine`, with its Python test
+expectations converted to fixtures so the two implementations provably agree.
+
+---
+
+
 > **AUTHORITATIVE CHECKPOINT — 7 August 2026 (the Android merge shipped)**
 >
 > Supersedes the 6 August checkpoint below. In one session, spec to
