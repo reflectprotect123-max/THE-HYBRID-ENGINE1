@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { isEmptyLabel, parseLabelLines, parseLabelText, type ParsedNutritionLabel } from '@hybrid/nutrition-core';
+import { isEmptyLabel, parseLabelLines, parseLabelText, type OcrLine, type ParsedNutritionLabel } from '@hybrid/nutrition-core';
 import { recogniseLabel, toOcrLines, type LabelRecogniser } from '../../native/labelOcr';
 import { Btn, Card, Input, Kicker, Screen, T, Title } from '../../ui';
 
@@ -37,8 +37,14 @@ import { Btn, Card, Input, Kicker, Screen, T, Title } from '../../ui';
  */
 
 interface Props {
-  /** Hand the read values to Create-a-food, pre-filled. */
-  onUse: (parsed: ParsedNutritionLabel) => void;
+  /**
+   * Hand the read values to Create-a-food, pre-filled.
+   *
+   * `lines` is present only for a PHOTOGRAPHED panel and carries the
+   * recogniser's own output. A typed panel has no OCR pass to learn anything
+   * about, so it hands nothing over.
+   */
+  onUse: (parsed: ParsedNutritionLabel, lines?: OcrLine[]) => void;
   onCancel: () => void;
   /** Injected by tests; the screen defaults to the real on-device recogniser. */
   recognise?: LabelRecogniser;
@@ -49,8 +55,10 @@ type Phase =
   | { kind: 'typing' }
   | { kind: 'camera' }
   | { kind: 'reading' }
-  /** A photograph that parsed. Shown for confirmation; nothing is written yet. */
-  | { kind: 'read'; parsed: ParsedNutritionLabel }
+  /** A photograph that parsed. Shown for confirmation; nothing is written yet.
+   *  The lines are kept beside the parse so a confirmed scan can be recorded
+   *  against what the recogniser actually produced, not against a re-read. */
+  | { kind: 'read'; parsed: ParsedNutritionLabel; lines: OcrLine[] }
   | { kind: 'unreadable'; reason: string };
 
 /**
@@ -105,7 +113,7 @@ export function LabelReaderScreen({ onUse, onCancel, recognise = recogniseLabel 
         setPhase({ kind: 'unreadable', reason: NO_ROWS });
         return;
       }
-      setPhase({ kind: 'read', parsed });
+      setPhase({ kind: 'read', parsed, lines });
     } catch {
       /* Every way this throws — a camera the OS took away, a native module a
          runtime-3 APK does not have, an image ML Kit could not decode — is the
@@ -137,7 +145,7 @@ export function LabelReaderScreen({ onUse, onCancel, recognise = recogniseLabel 
             </T>
             <T className="mt-1 text-3 text-muted">
               {permission.canAskAgain
-                ? 'Photographing a panel needs the camera. The photo is read on this phone and never uploaded or saved.'
+                ? 'Photographing a panel needs the camera. The photo is read on this phone, never uploaded, and the photo itself is not kept.'
                 : 'Camera access was denied for this app, so Android will not ask again. Turn it on in system settings, then come back.'}
             </T>
             <View className="mt-2 flex-row gap-1">
@@ -237,7 +245,7 @@ export function LabelReaderScreen({ onUse, onCancel, recognise = recogniseLabel 
             correct one.
           </T>
         </Card>
-        <ReadOut parsed={phase.parsed} onUse={() => onUse(phase.parsed)}>
+        <ReadOut parsed={phase.parsed} onUse={() => onUse(phase.parsed, phase.lines)}>
           <View className="min-w-0 flex-1">
             <Btn onPress={toCamera} className="w-full">
               Photo again
@@ -268,6 +276,14 @@ export function LabelReaderScreen({ onUse, onCancel, recognise = recogniseLabel 
             Scan the panel
           </Btn>
         </View>
+        {/* "Nothing uploaded" above stays literally true, and this is the rest
+            of the truth: a scan you confirm leaves the recognised text on this
+            phone. Saying nothing here while writing it anyway would make the
+            line above a half-statement. */}
+        <T className="mt-1 text-3 text-dim">
+          The text a photo reads, and the numbers you confirm, are kept on this phone so the reader can be improved. They
+          are never sent anywhere, and Settings can clear them.
+        </T>
       </Card>
 
       <Card tone="raised" className="mt-2">
