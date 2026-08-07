@@ -234,7 +234,7 @@ export function RecipeBuilderScreen({ onDone, onCancel, editId, search = searchC
       <Card tone="raised" className="mt-2">
         <TextField label="Recipe name" value={name} onChange={setName} placeholder="e.g. Overnight oats" />
         <View className="mt-1.5 flex-row gap-1">
-          <NumField label="Servings it makes" value={servings} onChange={setServings} decimal />
+          <NumField label="Servings it makes" value={servings} onChange={setServings} />
         </View>
         <View className="mt-2 border-t border-line pt-1.5">
           {'macros' in preview ? (
@@ -293,7 +293,6 @@ export function RecipeBuilderScreen({ onDone, onCancel, editId, search = searchC
                     onChange={(v) =>
                       setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, quantity: v } : x)))
                     }
-                    decimal
                   />
                 </View>
                 <Tap

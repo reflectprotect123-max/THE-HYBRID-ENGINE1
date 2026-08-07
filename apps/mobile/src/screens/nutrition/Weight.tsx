@@ -144,7 +144,7 @@ export function WeightScreen() {
           {draft.id ? 'Edit weigh-in' : 'Log a weigh-in'}
         </T>
         <View className="mt-1.5 flex-row gap-1">
-          <NumField label="Weight kg" value={draft.kg} onChange={(v) => setDraft({ ...draft, kg: v })} decimal />
+          <NumField label="Weight kg" value={draft.kg} onChange={(v) => setDraft({ ...draft, kg: v })} />
         </View>
         <TextField
           label="Note"

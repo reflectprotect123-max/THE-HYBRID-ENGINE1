@@ -209,7 +209,7 @@ export function CustomFoodScreen({ editId, prefill, onSaved, onDone, onCancel }:
         <TextField label="Brand" value={brand} onChange={setBrand} placeholder="Optional" />
 
         <View className="mt-1.5 flex-row gap-1">
-          <NumField label="Serving size" value={servingQty} onChange={setServingQty} decimal />
+          <NumField label="Serving size" value={servingQty} onChange={setServingQty} />
           <View className="min-w-0 flex-1">
             <T w="semi" className="text-2 uppercase tracking-widest text-dim">
               Unit

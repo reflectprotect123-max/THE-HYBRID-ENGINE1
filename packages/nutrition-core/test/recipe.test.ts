@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   IncompatibleUnitError,
+  loggableUnits,
   resolveFoodMacros,
   resolveRecipePerServing,
   scaleTo,
@@ -207,5 +208,57 @@ describe('unit safety — the rule the whole file exists for', () => {
     // the serving table, and must not swallow a caller bug on the way past.
     expect(() => scaleTo(chickenBreast, 0, 'g')).toThrow(/quantity must be finite/);
     expect(() => resolveFoodMacros(chickenBreast, [slice], -5, 'g')).toThrow(/quantity must be finite/);
+  });
+});
+
+/*
+ * The offer list a log sheet shows. Both cases below were live bugs: the
+ * catalogue is empty today, so neither had ever been hit with a real serving
+ * row.
+ */
+describe('loggableUnits', () => {
+  const serving = (over: Partial<FoodServing> & { id: string; unit: string }): FoodServing => ({
+    foodId: 'food-1',
+    label: over.unit,
+    quantity: 1,
+    grams: null,
+    millilitres: null,
+    isDefault: false,
+    sortOrder: 0,
+    ...over,
+  });
+
+  it('offers the food\'s own unit with its own serving quantity', () => {
+    expect(loggableUnits(chickenBreast)).toEqual({ g: 100 });
+  });
+
+  it('gives each unit ITS OWN default, so the sheet cannot carry 100 g onto a slice', () => {
+    const units = loggableUnits(chickenBreast, [serving({ id: 's1', unit: 'slice', grams: 35 })]);
+    expect(units).toEqual({ g: 100, slice: 1 });
+    // The number the sheet used to keep across a unit tap.
+    expect(resolveFoodMacros(chickenBreast, [serving({ id: 's1', unit: 'slice', grams: 35 })], units.slice, 'slice').calories)
+      .toBeCloseTo(57.75, 5);
+  });
+
+  it('does not offer a unit whose conversion is in the wrong basis', () => {
+    // A gram-based food with a millilitre-only serving row: `scaleByServing`
+    // throws for this, so the chip could only ever fail on save.
+    const cup = serving({ id: 's2', unit: 'cup', millilitres: 240 });
+    expect(loggableUnits(chickenBreast, [cup])).toEqual({ g: 100 });
+    expect(() => resolveFoodMacros(chickenBreast, [cup], 1, 'cup')).toThrow(IncompatibleUnitError);
+  });
+
+  it('keeps only the first row for a unit — the one the resolver picks', () => {
+    const units = loggableUnits(chickenBreast, [
+      serving({ id: 's1', unit: 'slice', label: 'thin slice', grams: 20, quantity: 1 }),
+      serving({ id: 's2', unit: 'slice', label: 'thick slice', grams: 35, quantity: 1 }),
+    ]);
+    expect(Object.keys(units)).toEqual(['g', 'slice']);
+  });
+
+  it('never returns a zero or negative default', () => {
+    expect(loggableUnits({ ...chickenBreast, servingQty: 0 })).toEqual({ g: 1 });
+    expect(loggableUnits(chickenBreast, [serving({ id: 's3', unit: 'slice', grams: 35, quantity: 0 })]).slice).toBe(1);
+    expect(loggableUnits(chickenBreast, [serving({ id: 's4', unit: 'slice', grams: 0 })])).toEqual({ g: 100 });
   });
 });

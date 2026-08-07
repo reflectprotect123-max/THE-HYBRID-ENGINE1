@@ -64,6 +64,7 @@ export {
   IncompatibleUnitError,
   ZERO_MACROS,
   forLoggedServings,
+  loggableUnits,
   perServing,
   resolveFoodMacros,
   resolveRecipeItem,
@@ -76,6 +77,7 @@ export {
 export type { LogContext } from './log';
 
 export {
+  applyManualMacroEdit,
   logEntryFromCustomFood,
   logEntryFromFood,
   logEntryFromRecipe,

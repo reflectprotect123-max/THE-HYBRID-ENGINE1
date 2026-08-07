@@ -243,3 +243,55 @@ export function quickAddEntry(
     },
   };
 }
+
+/**
+ * Apply a hand edit of an entry's macros, keeping the entry internally
+ * honest.
+ *
+ * The edit sheets are quick-add shaped — a name and four macros — but open on
+ * ANY entry, including one logged from a catalogue food. Assigning the four
+ * macros straight onto the record left `quantity`, `unit` and every
+ * `logged_*` key in `sourceSnapshot` still stating the pre-edit numbers, so a
+ * 200 g chicken breast corrected from 330 to 495 kcal became a record that
+ * said 495 in one place and 330 in another. Nothing re-derived anything — the
+ * snapshot simply stopped describing the entry, and an export or a future
+ * importer reads the snapshot.
+ *
+ * So: the `logged_*` figures are brought with the edit, and the snapshot is
+ * stamped `manual_macro_edit` with the instant. Provenance keys — the food id,
+ * its name, its own serving basis — are left exactly as they were, because
+ * they are still true: this food IS where the entry came from. What is no
+ * longer true, and is now recorded as such, is that scaling that source by
+ * `quantity` produces these macros.
+ *
+ * `quantity` and `unit` are untouched. They are what the athlete logged, and
+ * this sheet gives them no way to restate it; the flag is what tells a reader
+ * not to multiply by them.
+ */
+export function applyManualMacroEdit(
+  entry: FoodLogEntry,
+  fields: { displayName: string; meal: string } & ScaledMacros,
+  at: IsoTimestamp,
+): void {
+  entry.displayName = fields.displayName;
+  entry.meal = fields.meal;
+  entry.calories = fields.calories;
+  entry.proteinG = fields.proteinG;
+  entry.carbsG = fields.carbsG;
+  entry.fatG = fields.fatG;
+  entry.updatedAt = at;
+  entry.sourceSnapshot = {
+    ...entry.sourceSnapshot,
+    ...loggedMacros(fields),
+    // A quick add states its macros under bare keys as well as `logged_*`.
+    ...(entry.entryKind === 'quick_add'
+      ? {
+          display_name: fields.displayName,
+          calories: fields.calories,
+          protein_g: fields.proteinG,
+          carbs_g: fields.carbsG,
+          fat_g: fields.fatG,
+        }
+      : { manual_macro_edit: at }),
+  };
+}
