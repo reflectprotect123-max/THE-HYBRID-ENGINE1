@@ -15,8 +15,8 @@ import {
   type EngineDB,
   type Profile,
 } from '@hybrid/engine';
-import { resolvePalette, useTheme } from '@hybrid/design';
-import { setDiscipline, useDiscipline } from '../discipline';
+import { useTheme } from '@hybrid/design';
+import { WorldSwitch } from '../ui/WorldSwitch';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
@@ -61,30 +61,6 @@ function Field({
       />
       <T className="mt-0.5 text-3 text-dim">{hint}</T>
     </View>
-  );
-}
-
-/**
- * The merged app's only new chrome: one row that moves between the two
- * worlds. No confirmation — switching destroys nothing, and the app-wide
- * theme change IS the arrival feedback. The dot shows the destination
- * world's accent before you tap.
- */
-function WorldSwitch() {
-  const discipline = useDiscipline();
-  const other = discipline === 'strength' ? 'conditioning' : 'strength';
-  const otherName = other === 'conditioning' ? 'Conditioning' : 'Strength';
-  const otherAccent = resolvePalette(other).gold;
-  return (
-    <Tap
-      box={{ h: 48 }}
-      onPress={() => setDiscipline(other)}
-      accessibilityLabel={`Switch to ${otherName}`}
-      className="mt-2 flex-row items-center justify-between rounded-md border border-line2 bg-panel2 px-2 py-1.5"
-    >
-      <T className="text-3 text-text">Switch to {otherName} →</T>
-      <View importantForAccessibility="no-hide-descendants" style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: otherAccent }} />
-    </Tap>
   );
 }
 

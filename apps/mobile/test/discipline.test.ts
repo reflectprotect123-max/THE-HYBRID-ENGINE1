@@ -6,6 +6,7 @@ import {
   disciplineOf,
   setDiscipline,
   splitActiveSession,
+  trainingScope,
 } from '../src/discipline';
 
 beforeEach(() => __resetDisciplineForTest());
@@ -18,6 +19,35 @@ describe('discipline store', () => {
   it('remembers a switch', () => {
     setDiscipline('conditioning');
     expect(currentDiscipline()).toBe('conditioning');
+  });
+
+  it('holds the third world too, and comes back from it', () => {
+    setDiscipline('nutrition');
+    expect(currentDiscipline()).toBe('nutrition');
+    setDiscipline('strength');
+    expect(currentDiscipline()).toBe('strength');
+  });
+});
+
+describe('trainingScope', () => {
+  it('is the world itself while the athlete is in a training world', () => {
+    expect(trainingScope('strength')).toBe('strength');
+    expect(trainingScope('conditioning')).toBe('conditioning');
+  });
+
+  it('holds the training world a nutrition detour started from', () => {
+    // Nutrition is not a training identity, so `restrictToProduct` and the
+    // live-session split have no answer for it — and defaulting to strength
+    // would silently re-scope a conditioning athlete's whole library for as
+    // long as they were looking at their food.
+    setDiscipline('conditioning');
+    setDiscipline('nutrition');
+    expect(trainingScope(currentDiscipline())).toBe('conditioning');
+  });
+
+  it('defaults to strength when nutrition is the only world ever chosen', () => {
+    setDiscipline('nutrition');
+    expect(trainingScope(currentDiscipline())).toBe('strength');
   });
 });
 

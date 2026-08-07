@@ -19,7 +19,7 @@ import { deriveAthleteState, summarizeTrainingFacts, type AthleteStateSnapshot, 
 import { buildWeeklyPlan, type WeeklyPlan } from '@hybrid/coordinator-adapter';
 import type { ProductId } from '@hybrid/product-scope';
 import { storage } from './storage';
-import { splitActiveSession, useDiscipline } from '../discipline';
+import { splitActiveSession, trainingScope, useDiscipline } from '../discipline';
 
 /*
  * Identical in shape to the web app's store, and deliberately so: the two apps
@@ -39,7 +39,11 @@ import { splitActiveSession, useDiscipline } from '../discipline';
 interface DbCtx {
   /** The COMPLETE database. Writes, sync, Coordinator, athlete state, backup. */
   db: EngineDB;
-  /** The world currently on screen ('strength' in legacy builds' terms). */
+  /**
+   * The TRAINING product these reads are scoped to. Not simply "the world on
+   * screen" any more: the athlete can be in Nutrition, which is not a training
+   * identity — see `trainingScope`.
+   */
   discipline: ProductId;
   /** Scoped to the current world in the merged app. */
   workouts: Workout[];
@@ -101,7 +105,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
   const [dataRecovered] = useState(() => recoveredAtBoot.current);
   const [saveFailed, setSaveFailed] = useState(false);
   const [whoop, setWhoop] = useState<WhoopSample | null>(null);
-  const discipline = useDiscipline();
+  const world = useDiscipline();
 
   const ref = useRef(db);
   ref.current = db;
@@ -219,7 +223,8 @@ export function DbProvider({ children }: { children: ReactNode }) {
       });
       const weeklyPlan = buildWeeklyPlan(db, athleteState, today);
       const live = db.sessions.find((s) => s.status === 'active') || null;
-      const { activeSession, foreignActiveSession } = splitActiveSession(live, discipline);
+      const { activeSession, foreignActiveSession } = splitActiveSession(live, world);
+      const discipline = trainingScope(world);
       // Derived from the full db every time rather than stored — one source of
       // truth, no second copy to desync.
       const scoped = restrictToProduct(db, discipline);
@@ -241,7 +246,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
         weeklyPlan,
       };
     },
-    [db, discipline, update, updateSession, saveFailed, dataRecovered, whoop],
+    [db, world, update, updateSession, saveFailed, dataRecovered, whoop],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
