@@ -218,7 +218,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (e) throw e;
       if (ECOSYSTEM_SYNC_ENABLED) {
         const carryNutrition = nfp !== EMPTY_NUTRITION_FP || !!remoteNamespace.current?.partitions.nutrition;
-        const pushed = await pushEcosystem(
+        const { namespace: pushed, stale } = await pushEcosystem(
           client,
           source,
           ECOSYSTEM_WRITER,
@@ -230,6 +230,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           draft.core = pushed.core;
           draft.ecosystem = pushed;
         });
+        if (stale.length) {
+          // The server refused a snapshot on its revision guard. Leaving the
+          // fingerprints unrecorded is what makes the next push retry with a
+          // refreshed base instead of treating this one as clean and going
+          // quiet until unrelated content changes.
+          setSyncedAt(Date.now());
+          return;
+        }
       }
       lastFp.current = cloudFp(source);
       lastNutritionFp.current = nfp;

@@ -135,12 +135,24 @@ export interface NutritionPush {
   base?: EcosystemSyncNamespace;
 }
 
+/**
+ * What a push reports back.
+ *
+ * `namespace` is what the caller stores in `EngineDB.ecosystem`. `stale` names
+ * the domains the server's revision guard refused — see the note at the write
+ * itself; the caller must not record such a push as clean.
+ */
+export interface EcosystemPushResult {
+  namespace: EcosystemSyncNamespace;
+  stale: string[];
+}
+
 export async function pushEcosystem(
   client: SupabaseClient,
   db: EngineDB,
   writer: string,
   nutrition?: NutritionPush,
-): Promise<EcosystemSyncNamespace> {
+): Promise<EcosystemPushResult> {
   const namespace = buildProductSyncNamespace(db, PRODUCT_ID, writer);
   /*
    * The nutrition partition is built onto a copy that is pushed and then
@@ -171,10 +183,26 @@ export async function pushEcosystem(
    * product — but nutrition is not a training domain and is not owned by the
    * product switch, so it ships alongside whichever product this build is.
    */
+  /*
+   * The RPC RETURNS whether it wrote. A snapshot whose revision is not ahead
+   * of the server's is dropped with no error — correct behaviour, and until
+   * now invisible: both callers checked `error` only. A cold start pushes
+   * revision 1 against a server at revision 12, the guard refuses it, and the
+   * sync layer then recorded the push as clean, so it did not repeat until
+   * unrelated content changed. Masked today by the unconditional legacy
+   * `app_state` write carrying the same records, and real loss the moment that
+   * read path is retired.
+   *
+   * Reported rather than thrown: a stale revision is a benign race that the
+   * next reconcile heals with a refreshed base, and a thrown error would put a
+   * scary banner in front of the athlete for it. The caller uses this to
+   * decline to mark the push clean, so the next one retries.
+   */
+  const stale: string[] = [];
   for (const domainId of [PRODUCT_ID, 'nutrition'] as const) {
     const domain = outbound.partitions[domainId];
     if (!domain) continue;
-    const { error } = await client.rpc('upsert_athlete_domain_snapshot', {
+    const { data: wrote, error } = await client.rpc('upsert_athlete_domain_snapshot', {
       p_domain: domainId,
       p_schema_version: domain.schemaVersion,
       p_revision: domain.revision,
@@ -183,6 +211,7 @@ export async function pushEcosystem(
       p_snapshot: domain.data,
     });
     if (error) throw error;
+    if (wrote === false) stale.push(domainId);
   }
   await Promise.all(namespace.core.events.slice(-100).map(async (event) => {
     const { error } = await client.rpc('record_athlete_event', {
@@ -194,7 +223,7 @@ export async function pushEcosystem(
     });
     if (error) throw error;
   }));
-  return namespace;
+  return { namespace, stale };
 }
 
 export { applyProductSyncNamespace, readNutritionPartition };

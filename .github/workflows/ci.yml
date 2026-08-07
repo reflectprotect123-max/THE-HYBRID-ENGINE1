@@ -73,8 +73,20 @@ jobs:
       # static assertion, then rejects every write at runtime. This applies the
       # migrations to a real throwaway Postgres and writes through the RPCs.
       # It skips itself when no local postgres is present.
+      #
+      # The SKIP path is guarded the way react-smoke's is: this check exits 0
+      # when it finds no local postgres, so without the guard a runner image
+      # that stopped shipping postgres would turn the one check that proves RLS
+      # actually isolates two athletes into a silent no-op, and CI would stay
+      # green having verified nothing.
       - name: Migrations apply to a real Postgres
-        run: node checks/migrations-apply.mjs
+        run: |
+          set -o pipefail
+          node checks/migrations-apply.mjs 2>&1 | tee "$RUNNER_TEMP/migrations-apply.log"
+          if grep -qiE 'SKIP — no local postgres' "$RUNNER_TEMP/migrations-apply.log"; then
+            echo "::error::migrations-apply found no postgres, so the RLS and RPC behaviour was never exercised."
+            exit 1
+          fi
 
       - name: Build both web apps
         run: pnpm run build
