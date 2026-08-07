@@ -20,7 +20,7 @@ import {
 } from '@hybrid/engine';
 import { useTheme } from '@hybrid/design';
 import { useDb } from '../store/db';
-import { setDiscipline, useDiscipline } from '../discipline';
+import { ForeignSessionNotice } from './ForeignSession';
 import { resolveDayTarget, sessionFrom } from '../store/session';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
@@ -47,25 +47,6 @@ import type { RootStackParams } from '../App';
  * forgot they were in. One tap moves to that world, where the normal
  * "In progress" card takes over.
  */
-function ForeignSessionNotice() {
-  const { foreignActiveSession } = useDb();
-  const discipline = useDiscipline();
-  if (!foreignActiveSession) return null;
-  const other = discipline === 'strength' ? 'conditioning' : 'strength';
-  const otherName = other === 'conditioning' ? 'Conditioning' : 'Strength';
-  return (
-    <Tap
-      box={{ h: 48 }}
-      onPress={() => setDiscipline(other)}
-      accessibilityLabel={`A session is in progress in ${otherName} — switch to it`}
-      className="mt-2 flex-row items-center justify-between rounded-md border border-gold-line bg-gold-wash px-2 py-1.5"
-    >
-      <T className="text-4 text-text">Session in progress in {otherName}</T>
-      <T className="text-4 text-muted">Switch →</T>
-    </Tap>
-  );
-}
-
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { hr, whoop, activeSession, update, athleteState, weeklyPlan, workouts, sessions } = useDb();

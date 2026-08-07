@@ -17,6 +17,7 @@ import {
   type MacroTotals,
 } from '@hybrid/nutrition-core';
 import { useNutrition } from '../../store/nutrition';
+import { ForeignSessionNotice } from '../ForeignSession';
 import { Btn, Card, Empty, Input, Kicker, Meter, Screen, SectionHead, T, Tap, Title } from '../../ui';
 import { MealChips, NumField, macro, round, titleCase } from './fields';
 
@@ -184,6 +185,10 @@ export function DailyLogScreen() {
     <Screen>
       <Kicker>Nutrition</Kicker>
       <Title>{date === today ? 'Today' : dayLabel(date)}</Title>
+
+      {/* The nutrition world's only route back to a live training session —
+          this is the world with no training screen to see it on. */}
+      <ForeignSessionNotice />
 
       {dataRecovered ? (
         <T className="mt-2 rounded-md border border-bad bg-panel p-2 text-4 text-bad">

@@ -577,7 +577,7 @@ function unitsFor(db: NutritionDB, remote: readonly CachedFood[], result: FoodSe
 function unitDefaults(db: NutritionDB, remote: readonly CachedFood[], result: FoodSearchResult): Record<string, number> {
   if (result.kind === 'recipe') return { serving: 1 };
   if (result.kind === 'custom_food') {
-    const food = db.customFoods.find((f) => f.id === result.id);
+    const food = db.customFoods.find((f) => f.id === result.id && f.deletedAt == null);
     return food ? loggableUnits(food) : { serving: 1 };
   }
   const food = findFood(db, remote, result.id);
@@ -599,7 +599,7 @@ function buildEntry(
   ctx: { id: string; logDate: string; meal: string; at: string },
 ) {
   if (draft.result.kind === 'custom_food') {
-    const food = db.customFoods.find((f) => f.id === draft.result.id);
+    const food = db.customFoods.find((f) => f.id === draft.result.id && f.deletedAt == null);
     if (!food) throw new Error('That food is no longer on this device.');
     return logEntryFromCustomFood(ctx, food, quantity, draft.unit);
   }

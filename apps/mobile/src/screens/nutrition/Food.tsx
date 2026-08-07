@@ -155,7 +155,14 @@ export function FoodScreen({ search, lookupBarcode, recogniseLabel }: Props = {}
  */
 function fromLabel(p: ParsedNutritionLabel): CustomFoodPrefill {
   const per100 = p.basis === 'per_100';
-  const unit = p.servingUnit ?? (per100 ? 'g' : null);
+  /* A per-100 column is per 100 g or per 100 ml — never 100 kg, mg or L. The
+     serving-size LINE may legitimately print "0.25 kg", and taking its unit
+     verbatim wrote a food whose denominator claimed 100 kg and whose note said
+     so, while the reader screen had already told the athlete "per 100 g". Only
+     the volume/mass DISTINCTION carries over from that line; the magnitude
+     comes from the column. */
+  const volumetric = (p.servingUnit ?? '').toLowerCase() === 'ml' || (p.servingUnit ?? '').toLowerCase() === 'l';
+  const unit = per100 ? (volumetric ? 'ml' : 'g') : p.servingUnit;
   return {
     calories: p.calories,
     proteinG: p.proteinG,
