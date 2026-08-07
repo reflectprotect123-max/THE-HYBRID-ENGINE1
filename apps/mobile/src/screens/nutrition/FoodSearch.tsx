@@ -7,7 +7,9 @@ import {
   favoriteKey,
   favoriteKeys,
   favoriteResults,
+  emptyNutritionDB,
   foodSearch,
+  loggableUnits,
   logEntryFromCustomFood,
   logEntryFromFood,
   logEntryFromRecipe,
@@ -84,6 +86,16 @@ interface LogDraft {
   quantity: string;
   unit: string;
   units: string[];
+  /**
+   * One serving expressed in EACH offered unit.
+   *
+   * The quantity and the unit are two halves of one measurement, and swapping
+   * the unit alone silently changed the measurement: a 100 g food opened at
+   * "100 g", and tapping a "slice" chip left it reading "100 slice" — a 3.5 kg,
+   * ~9,000 kcal entry logged with no warning. Changing the unit now reseeds the
+   * quantity from this table, so the sheet always shows a real amount.
+   */
+  defaults: Record<string, number>;
   meal: string;
 }
 
@@ -174,12 +186,16 @@ export function FoodSearchScreen({
     /* The draft is built from the scanned food directly rather than through
        `openDraft`: `setPinned` has not landed in this render, so the pool the
        helpers read does not contain it yet. */
-    const units = Array.from(new Set([scanned.servingUnit, ...scanned.servings.map((s) => s.unit)]));
+    const result = catalogueResult(scanned, false);
+    const defaults = unitDefaults(emptyNutritionDB(), [scanned], result);
+    const units = Object.keys(defaults);
+    const unit = units[0] ?? 'serving';
     setDraft({
-      result: catalogueResult(scanned, false),
-      quantity: String(scanned.servingQty),
-      unit: units[0] ?? 'serving',
+      result,
+      quantity: String(defaults[unit] ?? 1),
+      unit,
       units,
+      defaults,
       meal: 'other',
     });
     consumed.current?.();
@@ -205,12 +221,26 @@ export function FoodSearchScreen({
   const openDraft = (result: FoodSearchResult) => {
     setLogError('');
     setLogged('');
-    const units = unitsFor(nutrition, pool, result);
+    /* Pin a drafted CATALOGUE food the same way a scanned one is pinned. The
+       sheet keeps only the food's id and re-resolves it at commit time, while
+       the search box underneath is still live — so editing the query replaced
+       `remote` wholesale and "Add to log" then failed with "That food is not on
+       this device and the catalogue is unreachable", which was not true: the
+       catalogue was reachable and the food existed. The other two kinds live in
+       the local slice and cannot go missing this way. */
+    if (result.kind === 'food') {
+      const food = findFood(nutrition, pool, result.id);
+      if (food) setPinned((prev) => [food, ...prev.filter((f) => f.id !== food.id)]);
+    }
+    const defaults = unitDefaults(nutrition, pool, result);
+    const units = Object.keys(defaults);
+    const unit = units[0] ?? 'serving';
     setDraft({
       result,
-      quantity: String(defaultQuantity(nutrition, pool, result)),
-      unit: units[0] ?? 'serving',
+      quantity: String(defaults[unit] ?? 1),
+      unit,
       units,
+      defaults,
       meal: 'other',
     });
   };
@@ -493,7 +523,15 @@ function LogSheet({
           />
         </View>
       </View>
-      <UnitChips units={draft.units} value={draft.unit} onChange={(unit) => onChange({ ...draft, unit })} />
+      {/* The quantity is reseeded with the unit — see `LogDraft.defaults`. A
+          number carried across a unit change is a different measurement. */}
+      <UnitChips
+        units={draft.units}
+        value={draft.unit}
+        onChange={(unit) =>
+          onChange({ ...draft, unit, quantity: String(draft.defaults[unit] ?? draft.quantity) })
+        }
+      />
       <MealChips value={draft.meal} onChange={(meal) => onChange({ ...draft, meal })} />
       {error ? <T className="mt-1.5 text-3 text-bad">{error}</T> : null}
       <View className="mt-2 flex-row gap-1">
@@ -536,21 +574,25 @@ const targetOf = (f: { foodId?: string | null; customFoodId?: string | null; rec
  * need a density nobody stated.
  */
 function unitsFor(db: NutritionDB, remote: readonly CachedFood[], result: FoodSearchResult): string[] {
-  if (result.kind === 'recipe') return ['serving'];
-  if (result.kind === 'custom_food') {
-    const food = db.customFoods.find((f) => f.id === result.id);
-    return [food?.servingUnit ?? 'serving'];
-  }
-  const food = findFood(db, remote, result.id);
-  if (!food) return ['serving'];
-  return Array.from(new Set([food.servingUnit, ...food.servings.map((s) => s.unit)]));
+  return Object.keys(unitDefaults(db, remote, result));
 }
 
-/** One serving of the thing, expressed in the unit that leads its list. */
-function defaultQuantity(db: NutritionDB, remote: readonly CachedFood[], result: FoodSearchResult): number {
-  if (result.kind === 'recipe') return 1;
-  if (result.kind === 'custom_food') return db.customFoods.find((f) => f.id === result.id)?.servingQty ?? 1;
-  return findFood(db, remote, result.id)?.servingQty ?? 1;
+/**
+ * The units this result can be offered in, with one serving's worth in each.
+ *
+ * The rule lives in `loggableUnits` next to the resolver it mirrors; this is
+ * only the dispatch over the three result kinds. A recipe is logged in
+ * servings and a custom food in its own single unit — neither carries a
+ * servings table.
+ */
+function unitDefaults(db: NutritionDB, remote: readonly CachedFood[], result: FoodSearchResult): Record<string, number> {
+  if (result.kind === 'recipe') return { serving: 1 };
+  if (result.kind === 'custom_food') {
+    const food = db.customFoods.find((f) => f.id === result.id && f.deletedAt == null);
+    return food ? loggableUnits(food) : { serving: 1 };
+  }
+  const food = findFood(db, remote, result.id);
+  return food ? loggableUnits(food, food.servings) : { serving: 1 };
 }
 
 /**
@@ -568,7 +610,7 @@ function buildEntry(
   ctx: { id: string; logDate: string; meal: string; at: string },
 ) {
   if (draft.result.kind === 'custom_food') {
-    const food = db.customFoods.find((f) => f.id === draft.result.id);
+    const food = db.customFoods.find((f) => f.id === draft.result.id && f.deletedAt == null);
     if (!food) throw new Error('That food is no longer on this device.');
     return logEntryFromCustomFood(ctx, food, quantity, draft.unit);
   }

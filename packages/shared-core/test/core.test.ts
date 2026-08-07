@@ -112,3 +112,96 @@ describe('shared-core merge and sync namespaces', () => {
     expect(out.partitions.strength?.data).toEqual({ x: 1 });
   });
 });
+
+/*
+ * The three merge defects found in the 7 August adversarial debug. Each of
+ * these fails against the pre-fix `mergeSharedCore`, and each describes a way
+ * an athlete lost data that existed on only one of their two devices.
+ */
+describe('shared-core merge is safe under real two-device traffic', () => {
+  const coreWith = (patch: Partial<ReturnType<typeof emptySharedCore>>) =>
+    sanitizeSharedCore({ ...emptySharedCore(0), ...patch });
+
+  it('does not erase a pain hold when the other device merely finished a session', () => {
+    // Phone, 08:00 — the athlete flags a painful knee.
+    const phone = coreWith({
+      safety: { painHold: { active: true, areas: ['left knee'], updatedAt: 8 } },
+      updatedAt: 8,
+    });
+    // Web, 09:00 — last pulled before that, so it has no pain hold. Completing
+    // a session bumps the TOP-LEVEL stamp and touches nothing in `safety`.
+    const web = appendSharedCoreEvent(coreWith({ updatedAt: 7 }), {
+      type: 'workout_completed',
+      occurredAt: '2026-08-07T09:00:00.000Z',
+      sourceDomain: 'strength',
+      idempotencyKey: 'session:1:completed',
+      payload: {},
+    });
+    expect(web.updatedAt).toBeGreaterThan(phone.updatedAt);
+
+    // Resolving `safety` on the top-level stamp took the web's empty flags.
+    expect(mergeSharedCore(phone, web).safety.painHold?.active).toBe(true);
+    expect(mergeSharedCore(web, phone).safety.painHold?.active).toBe(true);
+  });
+
+  it('keeps the raised flag when two devices stamp it at the same instant', () => {
+    const raised = coreWith({ safety: { painHold: { active: true, areas: ['hip'], updatedAt: 5 } } });
+    const cleared = coreWith({ safety: { painHold: { active: false, areas: [], updatedAt: 5 } } });
+    expect(mergeSharedCore(raised, cleared).safety.painHold?.active).toBe(true);
+    expect(mergeSharedCore(cleared, raised).safety.painHold?.active).toBe(true);
+  });
+
+  it('a later clearance still lifts the hold', () => {
+    const raised = coreWith({ safety: { painHold: { active: true, areas: ['hip'], updatedAt: 5 } } });
+    const cleared = coreWith({ safety: { painHold: { active: false, areas: [], updatedAt: 6 } } });
+    expect(mergeSharedCore(raised, cleared).safety.painHold?.active).toBe(false);
+    expect(mergeSharedCore(cleared, raised).safety.painHold?.active).toBe(false);
+  });
+
+  it('evicts the oldest records at the cap, not the ones the other device holds', () => {
+    // Two devices, each with a FULL window of distinct daily check-ins: the web
+    // holds Dec-Mar, the phone holds Apr-Aug. Slicing the concatenation kept
+    // whichever side went second and deleted the other 120 days outright.
+    const day = (n: number) => new Date(Date.UTC(2026, 0, n)).toISOString().slice(0, 10);
+    const older = coreWith({
+      recovery: Array.from({ length: 120 }, (_, i) => ({
+        id: `r-${day(i + 1)}`, date: day(i + 1), source: 'manual' as const, recordedAt: 0, sleepHours: 7,
+      })),
+    });
+    const newer = coreWith({
+      recovery: Array.from({ length: 120 }, (_, i) => ({
+        id: `r-${day(i + 121)}`, date: day(i + 121), source: 'manual' as const, recordedAt: 0, sleepHours: 8,
+      })),
+    });
+
+    for (const merged of [mergeSharedCore(older, newer), mergeSharedCore(newer, older)]) {
+      expect(merged.recovery).toHaveLength(120);
+      // The cap is a retention policy over DATES: the newest 120 survive
+      // whichever way round the merge ran.
+      expect(merged.recovery[0]?.date).toBe(day(121));
+      expect(merged.recovery[119]?.date).toBe(day(240));
+    }
+  });
+
+  it('gives a record without an id the same id on both devices', () => {
+    // Same observation, different position in each device's array.
+    const a = sanitizeSharedCore({ recovery: [{ date: '2026-08-01', sleepHours: 7 }, { date: '2026-08-02', sleepHours: 8 }] });
+    const b = sanitizeSharedCore({ recovery: [{ date: '2026-08-02', sleepHours: 8 }] });
+    expect(b.recovery[0]?.id).toBe(a.recovery[1]?.id);
+    // ...so the merge recognises it as one row, not two.
+    expect(mergeSharedCore(a, b).recovery).toHaveLength(2);
+  });
+
+  it('does not collide two different events that share an array index', () => {
+    // Neither carries an id. Index-derived keys made both `event-0`, and the
+    // dedupe dropped one — a record present on only one device, lost.
+    const a = sanitizeSharedCore({
+      events: [{ type: 'workout_completed', occurredAt: '2026-08-01T10:00:00.000Z' }],
+    });
+    const b = sanitizeSharedCore({
+      events: [{ type: 'body_weight_recorded', occurredAt: '2026-08-02T06:00:00.000Z' }],
+    });
+    expect(mergeSharedCore(a, b).events).toHaveLength(2);
+    expect(mergeSharedCore(b, a).events).toHaveLength(2);
+  });
+});

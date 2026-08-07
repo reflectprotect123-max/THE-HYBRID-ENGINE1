@@ -295,9 +295,16 @@ function Proposal({
             This check-in carries no complete target, so there is nothing to accept. Run it again.
           </T>
         )}
+        {/* `proposedExpenditureKcal` is the DAMPED figure, and on a held week
+            it is the anchor carried forward from an earlier one — see the
+            comment on the write above. Calling it "observed" claimed this week
+            measured something it did not. `observedExpenditureKcal` is the raw
+            reading, and it is null on exactly the paths where there is none. */}
         {row.proposedExpenditureKcal == null ? null : (
           <T num className="mt-1.5 text-3 text-dim">
-            From an observed expenditure of {round(row.proposedExpenditureKcal)} kcal/day
+            {row.observedExpenditureKcal == null
+              ? `Expenditure carried forward: ${round(row.proposedExpenditureKcal)} kcal/day — this week had too little data to read one`
+              : `From an observed expenditure of ${round(row.observedExpenditureKcal)} kcal/day, damped to ${round(row.proposedExpenditureKcal)}`}
           </T>
         )}
         <View className="mt-2 flex-row gap-1">

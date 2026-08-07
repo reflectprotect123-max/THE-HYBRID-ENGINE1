@@ -45,13 +45,26 @@ if (!PGBIN) {
   process.exit(0);
 }
 
-/* initdb refuses to run as root, so an unprivileged owner is required. The
-   socket also lives in a SHORT path: postgres caps the socket path at 107
-   bytes and this repo's scratch dirs are longer than that. */
+/*
+ * initdb refuses to run as root, so a root caller — a container, which is how
+ * this was written — has to hand the cluster to somebody else. A NON-root
+ * caller already is somebody else and needs none of that: creating a user
+ * requires the privileges it does not have, which is why the first version
+ * died with `useradd: Permission denied` on a GitHub runner while passing in
+ * the container it was written in.
+ *
+ * So the owner dance is conditional on actually being root.
+ *
+ * The socket also lives in a SHORT path: postgres caps the socket path at 107
+ * bytes and this repo's scratch dirs are longer than that.
+ */
+const AS_ROOT = typeof process.getuid === 'function' && process.getuid() === 0;
 const OWNER = 'pgtester';
-try { execSync(`id -u ${OWNER}`, { stdio: 'ignore' }); } catch { execSync(`useradd -M ${OWNER}`); }
+if (AS_ROOT) {
+  try { execSync(`id -u ${OWNER}`, { stdio: 'ignore' }); } catch { execSync(`useradd -M ${OWNER}`); }
+}
 const dir = mkdtempSync(join('/tmp', 'pgcheck-'));
-execSync(`chmod 777 ${dir} && chown -R ${OWNER} ${dir}`);
+execSync(`chmod 777 ${dir}${AS_ROOT ? ` && chown -R ${OWNER} ${dir}` : ''}`);
 
 const sqlFiles = readdirSync(join(ROOT, 'supabase/migrations')).filter((f) => f.endsWith('.sql')).sort();
 for (const f of [...sqlFiles.map((f) => join(ROOT, 'supabase/migrations', f)), join(ROOT, 'checks/sql/supabase-prelude.sql')]) {
@@ -60,7 +73,14 @@ for (const f of [...sqlFiles.map((f) => join(ROOT, 'supabase/migrations', f)), j
   chmodSync(dest, 0o644);
 }
 
-const asOwner = (cmd) => execFileSync('su', [OWNER, '-s', '/bin/bash', '-c', `export PATH=$PATH:${PGBIN}; ${cmd}`], { encoding: 'utf8' });
+/* Root drops to OWNER; anyone else already IS an acceptable owner and runs the
+   command directly. Both paths get the same PATH and the same shell. */
+const asOwner = (cmd) => {
+  const script = `export PATH=$PATH:${PGBIN}; ${cmd}`;
+  return AS_ROOT
+    ? execFileSync('su', [OWNER, '-s', '/bin/bash', '-c', script], { encoding: 'utf8' })
+    : execFileSync('/bin/bash', ['-c', script], { encoding: 'utf8' });
+};
 const psql = (args) => asOwner(`psql -h ${dir} -p 5433 -U postgres -v ON_ERROR_STOP=1 ${args}`);
 
 /* Arbitrary SQL is easier to get right in a file than through six layers of

@@ -109,7 +109,8 @@ export function WeightScreen() {
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () =>
+        onPress: () => {
+          const wasEditing = draft.id === entry.id;
           update((n) => {
             const live = n.weightEntries.find((e) => e.id === entry.id);
             if (!live) return false;
@@ -117,8 +118,14 @@ export function WeightScreen() {
             // Stamped, not spliced: see this file's header.
             live.deletedAt = at;
             live.updatedAt = at;
-            if (draft.id === entry.id) setDraft(blank);
-          }),
+          });
+          // AFTER the write, not inside it. `update` clones a draft and may
+          // abandon it, so a `setDraft` in the mutator is a React state change
+          // fired from what is meant to be a pure edit of that clone — it ran
+          // whether or not the write landed, and it ran during the clone rather
+          // than after the commit.
+          if (wasEditing) setDraft(blank);
+        },
       },
     ]);
   };
@@ -144,7 +151,7 @@ export function WeightScreen() {
           {draft.id ? 'Edit weigh-in' : 'Log a weigh-in'}
         </T>
         <View className="mt-1.5 flex-row gap-1">
-          <NumField label="Weight kg" value={draft.kg} onChange={(v) => setDraft({ ...draft, kg: v })} decimal />
+          <NumField label="Weight kg" value={draft.kg} onChange={(v) => setDraft({ ...draft, kg: v })} />
         </View>
         <TextField
           label="Note"

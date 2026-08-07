@@ -7,6 +7,7 @@ import { Alert, View } from 'react-native';
 import { uid, ymd } from '@hybrid/engine';
 import {
   MEALS,
+  applyManualMacroEdit,
   entriesForDay,
   groupByMeal,
   macroTotals,
@@ -16,6 +17,7 @@ import {
   type MacroTotals,
 } from '@hybrid/nutrition-core';
 import { useNutrition } from '../../store/nutrition';
+import { ForeignSessionNotice } from '../ForeignSession';
 import { Btn, Card, Empty, Input, Kicker, Meter, Screen, SectionHead, T, Tap, Title } from '../../ui';
 import { MealChips, NumField, macro, round, titleCase } from './fields';
 
@@ -129,7 +131,11 @@ export function DailyLogScreen() {
         // Edited IN PLACE. Rebuilding `logEntries` from a filter here is the
         // shape that drops every OTHER day's entries — reads may scope, writes
         // never filter.
-        Object.assign(existing, fields, { updatedAt: at });
+        //
+        // Through the one editor rather than a bare `Object.assign`, because
+        // this sheet opens on catalogue-sourced entries too and those carry a
+        // snapshot that has to move with the numbers. See `applyManualMacroEdit`.
+        applyManualMacroEdit(existing, fields, at);
         return;
       }
       /* Built by the one snapshot builder every screen writes through, so the
@@ -179,6 +185,10 @@ export function DailyLogScreen() {
     <Screen>
       <Kicker>Nutrition</Kicker>
       <Title>{date === today ? 'Today' : dayLabel(date)}</Title>
+
+      {/* The nutrition world's only route back to a live training session —
+          this is the world with no training screen to see it on. */}
+      <ForeignSessionNotice />
 
       {dataRecovered ? (
         <T className="mt-2 rounded-md border border-bad bg-panel p-2 text-4 text-bad">

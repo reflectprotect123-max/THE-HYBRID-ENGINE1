@@ -186,7 +186,8 @@ const toNumber = (raw: string): number | null => {
 };
 
 /**
- * Drop a thousands comma before anything reads it as a decimal point.
+ * Drop a thousands separator before anything reads it as a decimal point or
+ * as the end of a number.
  *
  * The lookahead is `\d{3}(?!\d)` and NOT `\d{3}\b`: on a label the digits are
  * followed immediately by their unit — "1,733kJ" — and `\b` never fires
@@ -194,8 +195,19 @@ const toNumber = (raw: string): number | null => {
  * form the comma survived, the decimal branch then matched ",73", and
  * 1,733 kJ was read as 733 kJ: energy understated by more than half, on a
  * figure that still looked plausible.
+ *
+ * BOTH separators, because Australian panels print both. A SPACE-grouped
+ * "1 733 kJ" is the SI convention and appears on real packets; handling only
+ * the comma left exactly the same defect standing — the reader took the
+ * digits after the space and called it 733 kJ. A thin/non-breaking space is
+ * included: OCR of a printed panel returns U+00A0 and U+202F routinely, and
+ * they are invisible in a diff.
+ *
+ * Only groups of exactly three digits are joined, so "Serves 4 220 g packs"
+ * is untouched and a genuine two-number sequence is not silently fused.
  */
-const stripThousands = (text: string): string => text.replace(/(\d),(?=\d{3}(?!\d))/g, '$1');
+const stripThousands = (text: string): string =>
+  text.replace(/(\d)[,    ](?=\d{3}(?!\d))/g, '$1');
 
 const firstNumber = (text: string): number | null => {
   const m = NUMBER.exec(stripThousands(text));
@@ -267,13 +279,21 @@ function parseServingSize(texts: readonly string[]): { qty: number; unit: string
  * what an athlete logging one serving wants. On a panel printing only
  * "per 100 g", the leftmost cell is a per-100g figure — detectable because
  * the 100 g heading appears with no serving heading anywhere.
+ *
+ * ORDER MATTERS, and it used to be wrong. "Servings per package" is printed on
+ * EVERY FSANZ panel, including ones with only a per-100 column, and it was
+ * treated as evidence of a per-serving column ahead of the per-100 heading —
+ * so a per-100-only panel was classified `per_serving` and its macros stored
+ * as one serving's worth. That is exactly the failure `basis` was added to
+ * prevent. "Per serving" is a real column heading and still decides first; the
+ * package line is now only a last resort, used when no per-100 heading was
+ * read at all.
  */
 function detectBasis(texts: readonly string[]): LabelBasis {
   const joined = texts.map(norm).join(' | ');
-  const hasServingColumn = /per\s*serv/.test(joined) || /servings?\s*per\s*pack/.test(joined);
-  const has100 = /per\s*100\s*(?:g|ml)/.test(joined);
-  if (hasServingColumn) return 'per_serving';
-  if (has100) return 'per_100';
+  if (/per\s*serv/.test(joined)) return 'per_serving';
+  if (/per\s*100\s*(?:g|ml)/.test(joined)) return 'per_100';
+  if (/servings?\s*per\s*pack/.test(joined)) return 'per_serving';
   return 'unknown';
 }
 

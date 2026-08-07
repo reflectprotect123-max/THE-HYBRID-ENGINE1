@@ -14,7 +14,7 @@ Updated 2026-08-04.
 | App projection | `packages/coordinator-adapter`; both apps expose a Coordinated week summary |
 | Local persistence | `EngineDB.core` and `EngineDB.ecosystem`, with load-time migration and merge-safe network sanitisation |
 | Server boundary | RLS/revision/idempotency migration in `supabase/migrations/20260804_fitness_ecosystem_contracts.sql` |
-| Product builds | Web `build:strength` / `build:conditioning`; Expo Conditioning EAS profiles and product-specific bundle identifiers |
+| Product builds | Web `build:strength` / `build:conditioning`; ONE Android app with a runtime world switch (the Expo per-product profiles are retired) |
 | Manual inputs | Settings check-in for sleep, energy, soreness, stress, physical load, time, pain and illness |
 | WHOOP | HRV, resting HR and sleep performance are persisted in the new core namespace; HRV remains advisory only |
 
@@ -53,20 +53,18 @@ Mobile:
 
 ```bash
 pnpm --filter @hybrid/mobile build:apk
-pnpm --filter @hybrid/mobile build:conditioning:apk
 pnpm --filter @hybrid/mobile build:aab
-pnpm --filter @hybrid/mobile build:conditioning:aab
 ```
 
-**The two `build:conditioning:*` scripts above are DEAD** and were left behind
-by the Android merge (7 Aug 2026). They invoke EAS profiles
-`conditioning-preview` and `conditioning-production`, and `apps/mobile/eas.json`
-defines neither — the merged app is one Android app, `com.hybridengine.app`,
-with one identity in `app.json`. `EXPO_PUBLIC_HYBRID_PRODUCT` is retired and
-setting it fails the build loudly (`apps/mobile/src/product.ts`). Do not
-resurrect product flavors on the phone; the world switch is a runtime
-preference in its own storage key. Ship a phone build with `build:apk` /
-`build:aab`, or the `mobile-eas.yml` workflow.
+There were two `build:conditioning:*` scripts here, left behind by the Android
+merge (7 Aug 2026) and REMOVED in the debug pass that followed. They invoked
+EAS profiles `conditioning-preview` and `conditioning-production` that
+`apps/mobile/eas.json` never defined — the merged app is one Android app,
+`com.hybridengine.app`, with one identity in `app.json`.
+`EXPO_PUBLIC_HYBRID_PRODUCT` is retired and setting it fails the build loudly
+(`apps/mobile/src/product.ts`). Do not resurrect product flavors on the phone;
+the world switch is a runtime preference in its own storage key. Ship a phone
+build with `build:apk` / `build:aab`, or the `mobile-eas.yml` workflow.
 
 ## Deliberate boundaries and remaining release work
 

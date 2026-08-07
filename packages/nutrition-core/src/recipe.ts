@@ -126,6 +126,36 @@ export function resolveFoodMacros(
   }
 }
 
+/**
+ * Every unit this food can ACTUALLY be logged in, with one serving's worth in
+ * each — the offer list a log sheet should show.
+ *
+ * The companion to `resolveFoodMacros`: it answers, without throwing, exactly
+ * the question that function answers by succeeding or failing. A UI that
+ * derives its units any other way offers chips that can only fail on save,
+ * because a serving row converts only when it records the amount in the food's
+ * OWN basis, and both `grams` and `millilitres` are nullable.
+ *
+ * The amounts matter as much as the units. A quantity is only meaningful
+ * against its unit, so a sheet that changes one must reseed the other from
+ * here; carrying "100" from grams onto a "slice" chip logged 100 slices.
+ *
+ * Insertion order is the offer order. The food's own unit leads, and only the
+ * FIRST serving row for a unit is kept — that is the row `resolveFoodMacros`
+ * picks, so offering a second one under the same name would be a lie.
+ */
+export function loggableUnits(food: Scalable, servings: readonly FoodServing[] = []): Record<string, number> {
+  const basis = food.servingUnit.toLowerCase();
+  const out: Record<string, number> = { [food.servingUnit]: positive(food.servingQty) ? food.servingQty : 1 };
+  servings.forEach((s) => {
+    if (out[s.unit] != null) return;
+    const amount = basis === 'g' ? s.grams : basis === 'ml' ? s.millilitres : null;
+    if (amount == null || !positive(amount)) return;
+    out[s.unit] = positive(s.quantity) ? s.quantity : 1;
+  });
+  return out;
+}
+
 export function sumMacros(items: readonly ScaledMacros[]): ScaledMacros {
   return items.reduce<ScaledMacros>(
     (acc, item) => ({

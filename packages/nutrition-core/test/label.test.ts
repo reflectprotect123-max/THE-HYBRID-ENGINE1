@@ -215,6 +215,30 @@ describe('parseLabelText — the manual path', () => {
     expect(r.proteinG).toBeCloseTo(10.7, 3);
   });
 
+  it('is not fooled by "Servings per package" on a per-100-only panel', () => {
+    // Every FSANZ panel prints that line, including one with no per-serving
+    // column at all. Reading it as evidence of a serving column stored a
+    // per-100 figure as one serving's macros — wrong by however large the
+    // serving is, which is the exact failure `basis` exists to prevent.
+    const r = parseLabelText(
+      ['Servings per package: 8', 'Serving size: 30g', 'Per 100g', 'Energy 1733kJ', 'Protein 10.7g'].join('\n'),
+    );
+    expect(r.basis).toBe('per_100');
+    expect(r.proteinG).toBeCloseTo(10.7, 3);
+  });
+
+  it('still reads a real per-serving heading first, whatever else the panel prints', () => {
+    const r = parseLabelText(
+      ['Servings per package: 8', 'Per serving   Per 100g', 'Energy  520kJ  1733kJ', 'Protein 3.2g  10.7g'].join('\n'),
+    );
+    expect(r.basis).toBe('per_serving');
+  });
+
+  it('falls back to the package line only when no per-100 heading was read', () => {
+    const r = parseLabelText(['Servings per package: 8', 'Energy 520kJ', 'Protein 3.2g'].join('\n'));
+    expect(r.basis).toBe('per_serving');
+  });
+
   it('reports an unheaded panel as unknown rather than assuming a basis', () => {
     expect(parseLabelText('Energy 520kJ\nProtein 3.2g').basis).toBe('unknown');
   });
@@ -320,5 +344,38 @@ describe('Australian panel conventions', () => {
   it('reads an em-dash sub-row without mistaking it for the total', () => {
     const r = parseLabelText('Fat, total 9.4g\n— saturated 6.1g');
     expect(r.fatG).toBeCloseTo(9.4, 3);
+  });
+});
+
+/*
+ * Thousands separators, both forms. The comma case was already fixed once;
+ * the SPACE case is the identical defect and survived that fix, because
+ * Australian panels print energy both ways and only one had a test.
+ *
+ * A miss here is not a parse failure — it is a plausible wrong number.
+ * "1 733 kJ" read as 733 kJ understates energy by 58% and looks entirely
+ * ordinary on screen, which is precisely the failure the confirm step exists
+ * to catch and the one an athlete is least likely to notice by scan 80.
+ */
+describe('thousands separators', () => {
+  const energy = (text: string) => parseLabelText(`${text}\nProtein 3.2 g\nFat 2.1 g\nCarbohydrate 15.6 g`).calories;
+  const KCAL_1733 = 1733 / 4.184;
+
+  it('reads a comma-grouped energy value whole', () => {
+    expect(energy('Energy 1,733kJ')).toBeCloseTo(KCAL_1733, 6);
+  });
+
+  it('reads a SPACE-grouped energy value whole — the SI form on AU panels', () => {
+    expect(energy('Energy 1 733 kJ')).toBeCloseTo(KCAL_1733, 6);
+  });
+
+  it('reads the non-breaking and thin spaces OCR actually returns', () => {
+    expect(energy('Energy 1 733 kJ')).toBeCloseTo(KCAL_1733, 6);
+    expect(energy('Energy 1 733 kJ')).toBeCloseTo(KCAL_1733, 6);
+  });
+
+  it('does not fuse two genuinely separate numbers', () => {
+    // Four digits after the space, so this is not a thousands group.
+    expect(energy('Energy 620 kJ 1733')).toBeCloseTo(620 / 4.184, 6);
   });
 });

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { uid, ymd } from '@hybrid/engine';
 import {
   MEALS,
+  applyManualMacroEdit,
   entriesForDay,
   groupByMeal,
   macroTotals,
@@ -62,7 +63,11 @@ export function FoodLog() {
         // Edited IN PLACE. Rebuilding `logEntries` from a filter here is the
         // shape that drops every OTHER day's entries — reads may scope, writes
         // never filter.
-        Object.assign(existing, fields, { meal: draft.meal, updatedAt: at });
+        //
+        // Through the one editor rather than a bare `Object.assign`, because
+        // this sheet opens on catalogue-sourced entries too and those carry a
+        // snapshot that has to move with the numbers. See `applyManualMacroEdit`.
+        applyManualMacroEdit(existing, { ...fields, meal: draft.meal }, at);
         return;
       }
       const entry = entryFromDraft(draft, { id: uid(), logDate: date, at });

@@ -17,6 +17,7 @@
  *   - `file.ts` → `symbolName` — the arrow form used in the symptom table
  */
 import { readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,8 +34,57 @@ for (const m of md.matchAll(/`([A-Za-z0-9_./-]+\/[A-Za-z0-9_./-]+)`/g)) {
   if (p.includes('*') || p.startsWith('http')) continue;
   paths.add(p.replace(/\/$/, ''));
 }
+/*
+ * A path git IGNORES is a build output, not a source path, and asserting it
+ * exists asserts the wrong thing: `apps/web/dist-coach` is created by
+ * `react-smoke.mjs` when it runs and is absent on every clean checkout, so this
+ * check failed in CI and passed on any machine that had run the browser suite
+ * once. That is the worst failure mode a check can have — green because of
+ * leftover state.
+ *
+ * A build output is still checked, just differently: something in the repo has
+ * to actually PRODUCE it. Requiring only that its parent directory exists would
+ * wave through `apps/web/dist-nonsense`, which matches the same ignore rule.
+ * Requiring the literal path to appear in a check, script or config means a
+ * renamed output directory still fails this check the day it is renamed.
+ */
+const ignored = (p) => {
+  // BOTH forms. `.gitignore` writes directory rules with a trailing slash
+  // (`apps/web/dist-*/`), and `check-ignore` cannot tell that a path which does
+  // not exist yet is a directory — so the bare form reports "not ignored" for
+  // exactly the build outputs this exists to recognise.
+  for (const candidate of [p, `${p}/`]) {
+    try {
+      execFileSync('git', ['check-ignore', '-q', '--', candidate], { cwd: ROOT, stdio: 'ignore' });
+      return true;
+    } catch {
+      /* not this form */
+    }
+  }
+  return false;
+};
+
+/* Does anything in the tracked source actually write this path? `git grep` over
+   tracked files only, so a stale copy in someone's working directory cannot
+   vouch for it. */
+const produced = (p) => {
+  try {
+    const out = execFileSync('git', ['grep', '-l', '--fixed-strings', '--', p], { cwd: ROOT, encoding: 'utf8' });
+    return out.split('\n').some((f) => f && f !== 'README.md');
+  } catch {
+    return false;
+  }
+};
+
+let buildOutputs = 0;
 for (const p of paths) {
-  if (!existsSync(resolve(ROOT, p))) problems.push(`path does not exist: ${p}`);
+  if (existsSync(resolve(ROOT, p))) continue;
+  if (ignored(p)) {
+    if (produced(p)) buildOutputs++;
+    else problems.push(`build output nothing in this repo produces: ${p}`);
+    continue;
+  }
+  problems.push(`path does not exist: ${p}`);
 }
 
 /* Symbols: "`file.ts` → `a`, `b`" — every name after the arrow must be exported
@@ -76,4 +126,7 @@ if (problems.length) {
   for (const p of problems) console.error('  ' + p);
   process.exit(1);
 }
-console.log(`README OK — ${paths.size} paths and ${symbolCount} symbols all resolve.`);
+console.log(
+  `README OK — ${paths.size} paths and ${symbolCount} symbols all resolve` +
+    (buildOutputs ? ` (${buildOutputs} of those are gitignored build outputs, verified by finding what produces them).` : '.'),
+);

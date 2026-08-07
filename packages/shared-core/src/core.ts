@@ -42,7 +42,44 @@ const isoDate = (v: unknown): string | undefined => {
   return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : undefined;
 };
 
+/*
+ * A missing id is filled from the record's OWN CONTENT, never from its index
+ * in the incoming array. Two devices sanitizing the same legacy blob must
+ * arrive at the same id: these ids are the merge keys (`capBy` below), so an
+ * index-derived one means the same observation is a different row after any
+ * reorder, and — worse — two DIFFERENT observations sitting at index 0 on two
+ * devices collide, and the dedupe drops one. That is the record-reachable-on-
+ * one-side-only loss this file exists to prevent.
+ */
 const idFor = (v: unknown, fallback: string): string => text(v) || fallback;
+
+/**
+ * Dedupe by merge key, then keep the NEWEST `max` by the record's own time —
+ * not by position in the concatenation.
+ *
+ * A `Map` returns insertion order, so `[...base, ...winner]` puts every base
+ * record first. A bare `slice(-max)` therefore evicts by ARRAY POSITION: it
+ * keeps the winner's records and deletes the base's, whatever their dates.
+ * Two devices each holding a full window then keep opposite halves, push them,
+ * and permanently delete each other's history. Sorting by the record's own
+ * timestamp first makes the cap a real retention policy and makes the result
+ * independent of argument order.
+ */
+const capBy = <T>(values: T[], key: (v: T) => string, at: (v: T) => number | string, max: number): T[] => {
+  const map = new Map<string, T>();
+  values.forEach((value) => map.set(key(value), value));
+  return Array.from(map.values())
+    .sort((a, b) => {
+      const av = at(a);
+      const bv = at(b);
+      if (av < bv) return -1;
+      if (av > bv) return 1;
+      // A stable, content-free tie-break so the order — and therefore the
+      // fingerprint — is the same on both devices.
+      return key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0;
+    })
+    .slice(-max);
+};
 
 const normaliseList = (v: unknown, max: number): string[] =>
   Array.from(new Set(array(v).map(text).filter((x): x is string => !!x))).slice(-max);
@@ -100,13 +137,13 @@ const normaliseProfile = (v: unknown): CoreProfile => {
   };
 };
 
-const normaliseBodyMetric = (v: unknown, i: number): BodyMetric | null => {
+const normaliseBodyMetric = (v: unknown): BodyMetric | null => {
   const raw = record(v);
   const value = finite(raw.value);
   const measuredAt = text(raw.measuredAt);
   if (value == null || !measuredAt || !['weight', 'resting_hr', 'waist'].includes(String(raw.kind))) return null;
   return {
-    id: idFor(raw.id, `metric-${measuredAt}-${i}`),
+    id: idFor(raw.id, `metric-${String(raw.kind)}-${measuredAt}-${value}`),
     kind: raw.kind as BodyMetric['kind'],
     value,
     unit: text(raw.unit) || (raw.kind === 'weight' ? 'kg' : raw.kind === 'resting_hr' ? 'bpm' : 'cm'),
@@ -115,30 +152,32 @@ const normaliseBodyMetric = (v: unknown, i: number): BodyMetric | null => {
   };
 };
 
-const normaliseLifeLoad = (v: unknown, i: number): LifeLoadObservation | null => {
+const normaliseLifeLoad = (v: unknown): LifeLoadObservation | null => {
   const raw = record(v);
   const date = isoDate(raw.date);
   if (!date) return null;
+  const source = raw.source === 'device' || raw.source === 'import' ? raw.source : 'manual';
   return {
-    id: idFor(raw.id, `life-${date}-${i}`),
+    id: idFor(raw.id, `life-${date}-${source}`),
     date,
     stress: normaliseScore(raw.stress),
     physicalLoad: normaliseScore(raw.physicalLoad),
     steps: clamp(finite(raw.steps), 0, 200000),
     availableMinutes: clamp(finite(raw.availableMinutes), 0, 1440),
-    source: raw.source === 'device' || raw.source === 'import' ? raw.source : 'manual',
+    source,
   };
 };
 
-const normaliseRecovery = (v: unknown, i: number): RecoveryObservation | null => {
+const normaliseRecovery = (v: unknown): RecoveryObservation | null => {
   const raw = record(v);
   const date = isoDate(raw.date);
   if (!date) return null;
   const illness: IllnessStatus | undefined = ['clear', 'suspected', 'active', 'returning'].includes(String(raw.illnessStatus))
     ? raw.illnessStatus as IllnessStatus
     : undefined;
+  const source = raw.source === 'whoop' || raw.source === 'import' ? raw.source : 'manual';
   return {
-    id: idFor(raw.id, `recovery-${date}-${i}`),
+    id: idFor(raw.id, `recovery-${date}-${source}`),
     date,
     sleepHours: clamp(finite(raw.sleepHours), 0, 24),
     sleepQuality: normaliseScore(raw.sleepQuality),
@@ -148,12 +187,12 @@ const normaliseRecovery = (v: unknown, i: number): RecoveryObservation | null =>
     stress: normaliseScore(raw.stress),
     illnessStatus: illness,
     painAreas: normaliseList(raw.painAreas, 12),
-    source: raw.source === 'whoop' || raw.source === 'import' ? raw.source : 'manual',
+    source,
     recordedAt: finite(raw.recordedAt) ?? 0,
   };
 };
 
-const normaliseWhoop = (v: unknown, i: number): WhoopDailyRecord | null => {
+const normaliseWhoop = (v: unknown): WhoopDailyRecord | null => {
   const raw = record(v);
   const date = isoDate(raw.date);
   if (!date) return null;
@@ -169,21 +208,26 @@ const normaliseWhoop = (v: unknown, i: number): WhoopDailyRecord | null => {
   };
 };
 
-const normaliseEvent = (v: unknown, i: number): AthleteEvent | null => {
+const normaliseEvent = (v: unknown): AthleteEvent | null => {
   const raw = record(v);
   const type = raw.type;
   const validTypes = ['workout_completed', 'workout_modified', 'training_load_recorded', 'body_weight_recorded', 'readiness_recorded', 'nutrition_target_updated', 'post_session_feedback'];
   if (!validTypes.includes(String(type))) return null;
   const occurredAt = text(raw.occurredAt);
   if (!occurredAt) return null;
+  // `${type}:${occurredAt}` is the same fallback `appendSharedCoreEvent` mints,
+  // so a legacy event without an id sanitizes to the key the writer would have
+  // given it. `event-${index}` collided across devices — the dedupe in `capBy`
+  // keys on `idempotencyKey`, so two different events at index 0 became one.
+  const derived = `${String(type)}:${occurredAt}`;
   return {
-    id: idFor(raw.id, `event-${i}`),
+    id: idFor(raw.id, derived),
     type: type as AthleteEvent['type'],
     occurredAt,
     sourceDomain: ['core', 'strength', 'conditioning', 'athlete_state', 'coordinator', 'nutrition'].includes(String(raw.sourceDomain))
       ? raw.sourceDomain as AthleteEvent['sourceDomain']
       : 'core',
-    idempotencyKey: idFor(raw.idempotencyKey, idFor(raw.id, `event-${i}`)),
+    idempotencyKey: idFor(raw.idempotencyKey, idFor(raw.id, derived)),
     payload: record(raw.payload),
   };
 };
@@ -224,9 +268,9 @@ export function sanitizeSharedCore(input: unknown): SharedCoreState {
     profile: normaliseProfile(raw.profile),
     goals: normaliseGoals(raw.goals),
     schedule: normaliseSchedule(raw.schedule),
-    bodyMetrics: array(raw.bodyMetrics).map(normaliseBodyMetric).filter((x): x is BodyMetric => !!x).slice(-500),
-    lifeLoad: array(raw.lifeLoad).map(normaliseLifeLoad).filter((x): x is LifeLoadObservation => !!x).slice(-120),
-    recovery: array(raw.recovery).map(normaliseRecovery).filter((x): x is RecoveryObservation => !!x).slice(-120),
+    bodyMetrics: capBy(array(raw.bodyMetrics).map(normaliseBodyMetric).filter((x): x is BodyMetric => !!x), (x) => x.id, (x) => x.measuredAt, 500),
+    lifeLoad: capBy(array(raw.lifeLoad).map(normaliseLifeLoad).filter((x): x is LifeLoadObservation => !!x), (x) => x.id, (x) => x.date, 120),
+    recovery: capBy(array(raw.recovery).map(normaliseRecovery).filter((x): x is RecoveryObservation => !!x), (x) => x.id, (x) => x.date, 120),
     safety: {
       painHold: painRaw.active === true ? {
         active: true,
@@ -243,8 +287,8 @@ export function sanitizeSharedCore(input: unknown): SharedCoreState {
         note: text(illnessRaw.note),
       } : undefined,
     },
-    whoopDaily: array(raw.whoopDaily).map(normaliseWhoop).filter((x): x is WhoopDailyRecord => !!x).slice(-365),
-    events: array(raw.events).map(normaliseEvent).filter((x): x is AthleteEvent => !!x).slice(-2000),
+    whoopDaily: capBy(array(raw.whoopDaily).map(normaliseWhoop).filter((x): x is WhoopDailyRecord => !!x), (x) => x.date, (x) => x.date, 365),
+    events: capBy(array(raw.events).map(normaliseEvent).filter((x): x is AthleteEvent => !!x), (x) => x.idempotencyKey, (x) => x.occurredAt, 2000),
     updatedAt: base.updatedAt,
   };
 }
@@ -266,8 +310,10 @@ export function migrateLegacySettings(settings: unknown, now = 0): SharedCoreSta
     timezone: profileRaw.timezone,
   });
   core.whoopDaily = whoopRows.map(normaliseWhoop).filter((x): x is WhoopDailyRecord => !!x).slice(-365);
-  core.recovery = core.whoopDaily.map((row, i) => ({
-    id: `whoop-${row.date}-${i}`,
+  core.recovery = core.whoopDaily.map((row) => ({
+    // One Whoop row per date, so the date alone is a stable, device-independent
+    // id — the index it used to carry was not.
+    id: `whoop-${row.date}`,
     date: row.date,
     sleepQuality: row.sleepPerformance == null ? undefined : row.sleepPerformance / 10,
     source: 'whoop' as const,
@@ -276,28 +322,55 @@ export function migrateLegacySettings(settings: unknown, now = 0): SharedCoreSta
   return core;
 }
 
-const byKey = <T>(values: T[], key: (value: T) => string): T[] => {
-  const map = new Map<string, T>();
-  values.forEach((value) => map.set(key(value), value));
-  return Array.from(map.values());
+/**
+ * Resolve ONE safety flag on ITS OWN stamp.
+ *
+ * Safety flags used to be taken wholesale from whichever side had the newer
+ * top-level `core.updatedAt`. That stamp moves for reasons that have nothing
+ * to do with safety — `appendSharedCoreEvent` sets it from a completed
+ * session — so finishing a workout on the web erased a pain hold set on the
+ * phone an hour earlier, and the erasure was then pushed. CLAUDE.md puts pain
+ * and illness above every other signal; a merge that drops them on an
+ * unrelated write puts them below all of them.
+ *
+ * On an exact tie the ACTIVE flag wins. That is both the safe direction and
+ * an order-independent one: `merge(a, b)` and `merge(b, a)` agree.
+ */
+const pickFlag = <T extends { updatedAt: number }>(
+  a: T | undefined,
+  b: T | undefined,
+  isRaised: (v: T) => boolean,
+): T | undefined => {
+  if (!a) return b;
+  if (!b) return a;
+  if (b.updatedAt > a.updatedAt) return b;
+  if (a.updatedAt > b.updatedAt) return a;
+  if (isRaised(b) && !isRaised(a)) return b;
+  return a;
 };
 
 export function mergeSharedCore(baseInput: SharedCoreState | undefined, winnerInput: SharedCoreState | undefined): SharedCoreState {
   const base = sanitizeSharedCore(baseInput);
   const winner = sanitizeSharedCore(winnerInput);
-  const safety = (winner.updatedAt >= base.updatedAt ? winner.safety : base.safety);
+  const safety = {
+    painHold: pickFlag(base.safety.painHold, winner.safety.painHold, (v) => v.active),
+    illness: pickFlag(base.safety.illness, winner.safety.illness, (v) => v.status !== 'clear'),
+  };
   return sanitizeSharedCore({
     ...base,
     ...winner,
     profile: winner.updatedAt >= base.updatedAt ? winner.profile : base.profile,
     goals: winner.goals.updatedAt >= base.goals.updatedAt ? winner.goals : base.goals,
     schedule: winner.schedule.updatedAt >= base.schedule.updatedAt ? winner.schedule : base.schedule,
-    bodyMetrics: byKey([...base.bodyMetrics, ...winner.bodyMetrics], (x) => x.id).slice(-500),
-    lifeLoad: byKey([...base.lifeLoad, ...winner.lifeLoad], (x) => x.id).slice(-120),
-    recovery: byKey([...base.recovery, ...winner.recovery], (x) => x.id).slice(-120),
+    // The caps are applied by `sanitizeSharedCore` below, over a date-sorted
+    // list — see `capBy`. Concatenating here only unions; it does not decide
+    // what survives.
+    bodyMetrics: [...base.bodyMetrics, ...winner.bodyMetrics],
+    lifeLoad: [...base.lifeLoad, ...winner.lifeLoad],
+    recovery: [...base.recovery, ...winner.recovery],
     safety,
-    whoopDaily: byKey([...base.whoopDaily, ...winner.whoopDaily], (x) => x.date).slice(-365),
-    events: byKey([...base.events, ...winner.events], (x) => x.idempotencyKey).slice(-2000),
+    whoopDaily: [...base.whoopDaily, ...winner.whoopDaily],
+    events: [...base.events, ...winner.events],
     updatedAt: Math.max(base.updatedAt, winner.updatedAt),
   });
 }
@@ -400,6 +473,6 @@ export function mergeEcosystemNamespaces(
       weeklyPlan: choosePartition(local.partitions.weeklyPlan, remote.partitions.weeklyPlan),
       nutrition: choosePartition(local.partitions.nutrition, remote.partitions.nutrition),
     },
-    events: byKey([...local.events, ...remote.events], (x) => x.idempotencyKey).slice(-2000),
+    events: capBy([...local.events, ...remote.events], (x) => x.idempotencyKey, (x) => x.occurredAt, 2000),
   };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyManualMacroEdit,
   logEntryFromCustomFood,
   logEntryFromFood,
   logEntryFromRecipe,
@@ -226,5 +227,68 @@ describe('a quick add', () => {
     expect(entry.unit).toBe('serving');
     expect(entry.nutrients).toEqual({});
     expect(entry.calories).toBe(900);
+  });
+});
+
+/*
+ * A hand edit of the macros, from a sheet that opens on ANY entry kind. The
+ * bug this guards: the four macros moved and the snapshot did not, so the
+ * record said 495 in one place and 330 in another — and an export reads the
+ * snapshot.
+ */
+describe('applyManualMacroEdit', () => {
+  const edited = {
+    displayName: 'Chicken breast, 300 g',
+    meal: 'dinner',
+    calories: 495,
+    proteinG: 93,
+    carbsG: 0,
+    fatG: 10.8,
+  };
+
+  it('carries the snapshot with the numbers on a catalogue-sourced entry', () => {
+    const entry = logEntryFromFood(ctx(), oats(), 50, 'g');
+    applyManualMacroEdit(entry, edited, '2026-08-07T19:00:00.000Z');
+
+    expect(entry.calories).toBe(495);
+    expect(entry.sourceSnapshot.logged_calories).toBe(495);
+    expect(entry.sourceSnapshot.logged_protein_g).toBe(93);
+    expect(entry.updatedAt).toBe('2026-08-07T19:00:00.000Z');
+  });
+
+  it('keeps the provenance and flags that the source no longer explains the macros', () => {
+    const entry = logEntryFromFood(ctx(), oats(), 50, 'g');
+    applyManualMacroEdit(entry, edited, '2026-08-07T19:00:00.000Z');
+
+    // Still true: this IS where the entry came from.
+    expect(entry.foodId).toBe('food-1');
+    expect(entry.sourceSnapshot.food_id).toBe('food-1');
+    expect(entry.sourceSnapshot.serving_qty).toBe(100);
+    // No longer true, and now recorded as such — a reader must not scale by
+    // `quantity` to reproduce these macros.
+    expect(entry.sourceSnapshot.manual_macro_edit).toBe('2026-08-07T19:00:00.000Z');
+    expect(entry.quantity).toBe(50);
+  });
+
+  it('never re-derives: mutating the source food afterwards moves nothing', () => {
+    const food = oats();
+    const entry = logEntryFromFood(ctx(), food, 50, 'g');
+    applyManualMacroEdit(entry, edited, '2026-08-07T19:00:00.000Z');
+    food.calories = 9999;
+    food.name = 'Renamed';
+
+    expect(entry.calories).toBe(495);
+    expect(entry.displayName).toBe('Chicken breast, 300 g');
+  });
+
+  it('updates a quick add\'s bare snapshot keys too, and does not flag it', () => {
+    const entry = quickAddEntry(ctx(), { displayName: 'Toast', calories: 100, proteinG: 3, carbsG: 18, fatG: 1 });
+    applyManualMacroEdit(entry, { ...edited, displayName: 'Toast, two slices' }, '2026-08-07T19:00:00.000Z');
+
+    expect(entry.sourceSnapshot.calories).toBe(495);
+    expect(entry.sourceSnapshot.logged_calories).toBe(495);
+    expect(entry.sourceSnapshot.display_name).toBe('Toast, two slices');
+    // A quick add has no source to contradict — its macros ARE the record.
+    expect(entry.sourceSnapshot.manual_macro_edit).toBeUndefined();
   });
 });

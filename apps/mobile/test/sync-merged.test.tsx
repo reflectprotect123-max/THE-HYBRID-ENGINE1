@@ -41,7 +41,9 @@ jest.mock('../src/cloud/ecosystem', () => ({
       writer,
       partitions: Object.keys(source.ecosystem?.partitions ?? {}).sort(),
     });
-    return source.ecosystem;
+    // The real `pushEcosystem` reports the domains the server's revision guard
+    // refused alongside the namespace; nothing is refused here.
+    return { namespace: source.ecosystem, stale: [] };
   },
   applyProductSyncNamespace: (db: EngineDB) => db,
 }));

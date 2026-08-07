@@ -10,8 +10,6 @@
     "prebuild": "expo prebuild --platform android --clean",
     "build:apk": "eas build --platform android --profile preview",
     "build:aab": "eas build --platform android --profile production",
-    "build:conditioning:apk": "eas build --platform android --profile conditioning-preview",
-    "build:conditioning:aab": "eas build --platform android --profile conditioning-production",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json --noEmit",
     "test": "jest",
