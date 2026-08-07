@@ -22,6 +22,13 @@ import {
  * the athlete logged, and the athlete would see two different expenditure
  * numbers on two tabs.
  *
+ * LIFTED IN PHASE 4 from `apps/mobile/src/screens/nutrition/engine.ts`, byte for
+ * byte apart from this paragraph. It was already app-agnostic — no React, no
+ * react-native, no store, no clock of its own — and web now needs the same
+ * projection for its dashboard card and the coach bench. Copying it would have
+ * made "two tabs disagreeing about expenditure" into "two APPS disagreeing about
+ * expenditure", which is the same bug with a wider blast radius.
+ *
  * NOTHING HERE RECOMPUTES ENGINE MATHS. Trend, slope, coverage, expenditure,
  * targets and the check-in all come from the engine's exported functions; this
  * file only shapes inputs and reads outputs. Parity with the Python reference is

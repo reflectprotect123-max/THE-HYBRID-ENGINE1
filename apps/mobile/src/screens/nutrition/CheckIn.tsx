@@ -15,7 +15,7 @@ import {
   nextWeekStart,
   weekEndOf,
   weekStartOf,
-} from './engine';
+} from '@hybrid/nutrition-adapter';
 
 /*
  * The weekly review — MacroTrack's check-in flow, and the state machine

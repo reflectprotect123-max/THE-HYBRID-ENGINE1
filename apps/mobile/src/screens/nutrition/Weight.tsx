@@ -5,7 +5,7 @@ import type { WeightEntry } from '@hybrid/nutrition-core';
 import { useNutrition } from '../../store/nutrition';
 import { Btn, Card, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../../ui';
 import { NumField, TextField } from './fields';
-import { liveWeighIns, trendSeries, weighInDay, type TrendSeries } from './engine';
+import { liveWeighIns, trendSeries, weighInDay, type TrendSeries } from '@hybrid/nutrition-adapter';
 
 /*
  * The scale.

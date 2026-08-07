@@ -29,6 +29,11 @@ records; do not follow a stale statement that the rebuild has not started.
   week and never overrides the Coordinator.
 - `@hybrid/nutrition-core` owns the nutrition data model, its sanitiser and
   its merge. Data only — it decides nothing.
+- `@hybrid/nutrition-adapter` is the one projection from the athlete's
+  `NutritionDB` slice to everything that reads it — the phone app's nutrition
+  world, the web dashboard and food log, and the coach bench. It exports reads
+  only, and it is where the nutrition FACTS that whole-athlete-state is allowed
+  to see are separated from the targets it is not.
 
 ## Nutrition (amended 7 August 2026)
 

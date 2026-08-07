@@ -25,6 +25,7 @@ import { Calendar } from './screens/Calendar';
 import { Day } from './screens/Day';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
+import { FoodLog } from './screens/nutrition/FoodLog';
 import { PRODUCT, PRODUCT_ID } from './product';
 
 /* The coach bench is its own chunk: athletes never download it, and a failure
@@ -84,6 +85,7 @@ export function App() {
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/day/:date" element={<Day />} />
                   <Route path="/recap/:id" element={<Recap />} />
+                  <Route path="/nutrition" element={<FoodLog />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>

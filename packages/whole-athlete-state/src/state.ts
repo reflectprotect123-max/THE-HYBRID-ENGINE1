@@ -4,6 +4,7 @@ import type {
   AthleteStateSnapshot,
   CapacityBand,
   ReadinessBand,
+  NutritionContext,
   ReadinessSignal,
   RecentTrainingSummary,
   RecoveryDebtEstimate,
@@ -178,7 +179,73 @@ function constraints(
       adjustment: 'Use a minimum viable session instead of treating the day as failed.',
     });
   }
+  const fuelling = energyAvailabilityConstraint(input.nutrition);
+  // LAST, and never first. Pain and illness are pushed at the top of this
+  // function and are the only `hard: true` entries; a nutrition fact appended
+  // here cannot displace, weaken or reorder them.
+  if (fuelling) out.push(fuelling);
   return out;
+}
+
+/**
+ * The adherence gate: below this share of the window logged, the intake number
+ * is not a measurement of what the athlete ate, it is a measurement of how
+ * often they opened the app. Half is deliberately generous — the nutrition
+ * engine's own coverage gate wants 6 days in 7 before it will move a target —
+ * because this constraint changes nothing about the athlete's food, only how
+ * much is read into a training day.
+ */
+const MIN_LOGGING_ADHERENCE = 0.5;
+
+/**
+ * How far under estimated expenditure mean intake has to sit before it is
+ * treated as context at all. A quarter is well outside the noise of a
+ * self-reported log and of the engine's own estimate; smaller gaps are exactly
+ * the intentional deficit of an athlete who is dieting on purpose, and firing
+ * on those would put a constraint on every cut.
+ */
+const ENERGY_DEFICIT_FRACTION = 0.25;
+
+/**
+ * Nutrition facts read as CONTEXT, per CLAUDE.md's amended nutrition rule.
+ *
+ * Three properties this function is built to keep, each of them load-bearing:
+ *
+ *  - `hard: false`, always. A hard constraint is a safety stop, and pain and
+ *    illness are the only things allowed to raise one. Underfuelling is a
+ *    reason to expect less of a session, not a reason to overrule the two
+ *    flags that outrank everything.
+ *  - It reads no target. See `NutritionContext` — there is no target on it.
+ *  - Its `adjustment` is about TRAINING, not about food. Telling the athlete
+ *    what to eat here would be nutrition prescription outside
+ *    `@hybrid/nutrition-engine`, which is the same wall in the other
+ *    direction.
+ *
+ * Nothing here touches the readiness score. Feeding intake into the score
+ * would make nutrition emit `low_readiness`, which auto-coach and the weekly
+ * planner DO act on — nutrition would be editing training through a side door
+ * while every direct path stayed closed.
+ */
+function energyAvailabilityConstraint(nutrition: NutritionContext | undefined): StateConstraint | null {
+  if (!nutrition) return null;
+  const { windowDays, loggedDays, meanIntakeKcal, estimatedExpenditureKcal } = nutrition;
+  if (!(windowDays > 0)) return null;
+  if (loggedDays / windowDays < MIN_LOGGING_ADHERENCE) return null;
+  if (meanIntakeKcal == null || estimatedExpenditureKcal == null) return null;
+  if (!(estimatedExpenditureKcal > 0)) return null;
+  const deficit = estimatedExpenditureKcal - meanIntakeKcal;
+  if (deficit < estimatedExpenditureKcal * ENERGY_DEFICIT_FRACTION) return null;
+  return {
+    code: 'low_energy_availability',
+    domain: 'both',
+    hard: false,
+    reason:
+      `Logged intake over the last ${windowDays} days averages about ${Math.round(deficit)} kcal/day ` +
+      'below the estimated expenditure.',
+    adjustment:
+      'Expect less at the top end and treat a flat session as fuelling, not as lost fitness. ' +
+      'This is context from the food log, not a nutrition instruction.',
+  };
 }
 
 export function deriveAthleteState(input: AthleteStateInput): AthleteStateSnapshot {

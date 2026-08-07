@@ -1,0 +1,25 @@
+{
+  "name": "@hybrid/nutrition-adapter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hybrid/engine": "workspace:*",
+    "@hybrid/nutrition-core": "workspace:*",
+    "@hybrid/nutrition-engine": "workspace:*",
+    "@hybrid/whole-athlete-state": "workspace:*"
+  },
+  "devDependencies": {
+    "@hybrid/shared-core": "workspace:*",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

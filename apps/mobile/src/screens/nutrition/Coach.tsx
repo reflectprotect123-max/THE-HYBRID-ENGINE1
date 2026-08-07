@@ -17,7 +17,7 @@ import {
   weekEndOf,
   weekStartOf,
   weighInCoverage,
-} from './engine';
+} from '@hybrid/nutrition-adapter';
 
 /*
  * The macro program, and the engine's account of itself.

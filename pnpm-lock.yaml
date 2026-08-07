@@ -42,6 +42,9 @@ importers:
       '@hybrid/guided-flow':
         specifier: workspace:*
         version: link:../../packages/guided-flow
+      '@hybrid/nutrition-adapter':
+        specifier: workspace:*
+        version: link:../../packages/nutrition-adapter
       '@hybrid/nutrition-core':
         specifier: workspace:*
         version: link:../../packages/nutrition-core
@@ -181,9 +184,15 @@ importers:
       '@hybrid/guided-flow':
         specifier: workspace:*
         version: link:../../packages/guided-flow
+      '@hybrid/nutrition-adapter':
+        specifier: workspace:*
+        version: link:../../packages/nutrition-adapter
       '@hybrid/nutrition-core':
         specifier: workspace:*
         version: link:../../packages/nutrition-core
+      '@hybrid/nutrition-engine':
+        specifier: workspace:*
+        version: link:../../packages/nutrition-engine
       '@hybrid/product-scope':
         specifier: workspace:*
         version: link:../../packages/product-scope
@@ -356,6 +365,31 @@ importers:
 
   packages/guided-flow:
     devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
+  packages/nutrition-adapter:
+    dependencies:
+      '@hybrid/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@hybrid/nutrition-core':
+        specifier: workspace:*
+        version: link:../nutrition-core
+      '@hybrid/nutrition-engine':
+        specifier: workspace:*
+        version: link:../nutrition-engine
+      '@hybrid/whole-athlete-state':
+        specifier: workspace:*
+        version: link:../whole-athlete-state
+    devDependencies:
+      '@hybrid/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
