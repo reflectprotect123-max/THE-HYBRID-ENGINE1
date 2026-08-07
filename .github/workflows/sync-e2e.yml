@@ -1,0 +1,31 @@
+name: Sync — live E2E (both disciplines)
+
+# MANUAL ONLY. Proves the merged app's sync contract against the REAL
+# Supabase backend: a push carrying one strength and one conditioning session
+# must come back whole to a fresh client. Creates one disposable auth user
+# per run (its app_state row is deleted by the test itself); never runs on
+# push, so ordinary CI stays hermetic.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  sync-e2e:
+    name: live sync round-trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v6
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Live sync round-trip
+        env:
+          SB_E2E: '1'
+        run: pnpm --filter @hybrid/web exec vitest run test/sync-e2e.live.test.ts
