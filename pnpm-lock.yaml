@@ -42,6 +42,9 @@ importers:
       '@hybrid/guided-flow':
         specifier: workspace:*
         version: link:../../packages/guided-flow
+      '@hybrid/nutrition-core':
+        specifier: workspace:*
+        version: link:../../packages/nutrition-core
       '@hybrid/product-scope':
         specifier: workspace:*
         version: link:../../packages/product-scope
@@ -172,6 +175,9 @@ importers:
       '@hybrid/guided-flow':
         specifier: workspace:*
         version: link:../../packages/guided-flow
+      '@hybrid/nutrition-core':
+        specifier: workspace:*
+        version: link:../../packages/nutrition-core
       '@hybrid/product-scope':
         specifier: workspace:*
         version: link:../../packages/product-scope

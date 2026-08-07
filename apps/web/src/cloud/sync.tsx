@@ -2,13 +2,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createClient, type Session as AuthSession, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { SUPABASE } from '@hybrid/config';
 import { applyPull, buildProductSyncNamespace, buildPushState, cloudFp, sanitizeDB, type EngineDB } from '@hybrid/engine';
+import type { EcosystemSyncNamespace } from '@hybrid/shared-core';
+import { emptyNutritionDB, mergeNutrition, sanitizeNutritionDB, type NutritionDB } from '@hybrid/nutrition-core';
 import { useDb } from '../store/db';
+import { useNutrition } from '../store/nutrition';
 import { humanizeError } from '../errors';
 import {
   applyProductSyncNamespace as applyEcosystemNamespace,
   ECOSYSTEM_SYNC_ENABLED,
   pullEcosystem,
   pushEcosystem,
+  readNutritionPartition,
 } from './ecosystem';
 import { PRODUCT_ID } from '../product';
 
@@ -51,8 +55,18 @@ const client: SupabaseClient | null = (() => {
 
 const ECOSYSTEM_WRITER = `${PRODUCT_ID}:web`;
 
+/* A slice nobody has written to yet. Phase 0 ships no nutrition UI, so this is
+   every athlete's slice — pushing it would create a nutrition row for all of
+   them and revision-churn it for nothing. Once either side holds a partition
+   the push is unconditional, so a slice that legitimately becomes empty again
+   still reaches the server. */
+const EMPTY_NUTRITION_FP = JSON.stringify(emptyNutritionDB());
+
+const nutritionFp = (n: NutritionDB): string => JSON.stringify(n);
+
 export function SyncProvider({ children }: { children: ReactNode }) {
   const { db, update } = useDb();
+  const { nutrition, replace: replaceNutrition } = useNutrition();
   const [user, setUser] = useState<User | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -64,6 +78,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const dbRef = useRef(db);
   dbRef.current = db;
   const lastFp = useRef<string | null>(null);
+  // The nutrition slice lives outside the EngineDB, so `cloudFp` says nothing
+  // about it — without its own fingerprint a logged meal would never arm a
+  // push, and with a SHARED one a logged set would push the food log.
+  const nutritionRef = useRef(nutrition);
+  nutritionRef.current = nutrition;
+  const lastNutritionFp = useRef<string | null>(null);
+  /* The last namespace the server handed us: the only carrier of the nutrition
+     revision, since the EngineDB deliberately does not retain that partition.
+     A cold start before the first pull pushes revision 1, the RPC ignores it,
+     and the next reconcile re-pushes with the right revision — see the
+     needs-push comparison below, which is what makes that self-healing. */
+  const remoteNamespace = useRef<EcosystemSyncNamespace | null>(null);
   const inFlight = useRef(false);
   const pushTimer = useRef<number | null>(null);
 
@@ -85,7 +111,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     async (force: boolean, knownRemote?: Record<string, unknown>) => {
       if (!client || !user) return;
       const fp = cloudFp(dbRef.current);
-      if (!force && fp === lastFp.current) return;
+      const nfp = nutritionFp(nutritionRef.current);
+      if (!force && fp === lastFp.current && nfp === lastNutritionFp.current) return;
 
       // Read the current row first so unrelated keys in this user's state
       // survive, and so the merge is against what is actually up there rather
@@ -114,16 +141,64 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const { error: e } = await client.from('app_state').upsert({ user_id: user.id, state }, { onConflict: 'user_id' });
       if (e) throw e;
       if (ECOSYSTEM_SYNC_ENABLED) {
-        const pushed = await pushEcosystem(client, source, ECOSYSTEM_WRITER);
+        const carryNutrition = nfp !== EMPTY_NUTRITION_FP || !!remoteNamespace.current?.partitions.nutrition;
+        const pushed = await pushEcosystem(
+          client,
+          source,
+          ECOSYSTEM_WRITER,
+          carryNutrition ? { data: nutritionRef.current, base: remoteNamespace.current ?? undefined } : undefined,
+        );
+        // `pushed` carries no nutrition partition by contract — assigning one
+        // into the EngineDB here would put the food log inside `cloudFp`.
         update((draft) => {
           draft.core = pushed.core;
           draft.ecosystem = pushed;
         });
       }
       lastFp.current = cloudFp(source);
+      lastNutritionFp.current = nfp;
       setSyncedAt(Date.now());
     },
     [user, update],
+  );
+
+  /*
+   * Fold the server's nutrition partition into the local slice. Returns whether
+   * the local side holds anything the server does not, i.e. whether a push is
+   * owed.
+   *
+   * ADDITIVE IN BOTH DIRECTIONS: `mergeNutrition` unions by key, so a meal
+   * logged only here and a meal logged only on the other device both survive.
+   * Taking either side whole is the merge that cost this repo user data twice.
+   */
+  const reconcileNutrition = useCallback(
+    (remote: EcosystemSyncNamespace): boolean => {
+      const payload = readNutritionPartition(remote);
+      // `undefined` means the server has never heard about this athlete's
+      // nutrition, which is NOT an empty slice: sanitizing it into one and
+      // merging would be a no-op, but treating it as "in sync" would leave a
+      // populated local slice unpushed forever.
+      const remoteSlice = payload === undefined ? null : sanitizeNutritionDB(payload);
+      const local = sanitizeNutritionDB(nutritionRef.current);
+      if (!remoteSlice) return nutritionFp(local) !== EMPTY_NUTRITION_FP;
+      let merged: NutritionDB;
+      try {
+        merged = mergeNutrition(local, remoteSlice);
+      } catch {
+        // `mergeNutrition` throws by design when the two schema versions differ
+        // — silent corruption is worse. Contained here so a newer build's
+        // nutrition schema cannot abort the TRAINING sync running around it;
+        // the local slice is left alone until a build that understands both.
+        return false;
+      }
+      const mergedFp = nutritionFp(merged);
+      if (mergedFp !== nutritionFp(nutritionRef.current)) {
+        nutritionRef.current = merged;
+        replaceNutrition(merged);
+      }
+      return mergedFp !== nutritionFp(remoteSlice);
+    },
+    [replaceNutrition],
   );
 
   const reconcile = useCallback(async () => {
@@ -151,6 +226,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (ECOSYSTEM_SYNC_ENABLED) {
         const ecosystemRemote = await pullEcosystem(client, user.id);
         if (ecosystemRemote) {
+          remoteNamespace.current = ecosystemRemote;
+          if (reconcileNutrition(ecosystemRemote)) needsPush = true;
           const ecosystemMerged = applyEcosystemNamespace(merged, ecosystemRemote);
           if (cloudFp(ecosystemMerged) !== cloudFp(merged)) needsPush = true;
           merged = ecosystemMerged;
@@ -166,7 +243,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       inFlight.current = false;
       setBusy(false);
     }
-  }, [user, applyMerged, pushNow]);
+  }, [user, applyMerged, pushNow, reconcileNutrition]);
 
   /* ---- auth ---- */
   useEffect(() => {
@@ -212,7 +289,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     return () => {
       if (pushTimer.current) window.clearTimeout(pushTimer.current);
     };
-  }, [db, user, pushNow]);
+    // `nutrition` is in the deps for the same reason `db` is: it is a separate
+    // slice, so a logged meal changes nothing the `db` dependency would catch.
+  }, [db, nutrition, user, pushNow]);
 
   const value = useMemo<SyncCtx>(
     () => ({
@@ -239,6 +318,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         await client.auth.signOut();
         setUser(null);
         lastFp.current = null;
+        lastNutritionFp.current = null;
+        remoteNamespace.current = null;
       },
       syncNow: reconcile,
     }),

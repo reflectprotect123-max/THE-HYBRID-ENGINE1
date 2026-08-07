@@ -367,6 +367,10 @@ export function sanitizeEcosystemNamespace(input: unknown): EcosystemSyncNamespa
       conditioning: partition(partitionsRaw.conditioning, undefined),
       athleteState: partition(partitionsRaw.athleteState, undefined),
       weeklyPlan: partition(partitionsRaw.weeklyPlan, undefined),
+      // Partitions are whitelisted, so a key missing from this list is not
+      // merely untyped — it is deleted from every namespace that passes
+      // through here, on both sides of the wire.
+      nutrition: partition(partitionsRaw.nutrition, undefined),
     },
     events: array(raw.events).map(normaliseEvent).filter((x): x is AthleteEvent => !!x).slice(-2000),
   };
@@ -394,6 +398,7 @@ export function mergeEcosystemNamespaces(
       conditioning: choosePartition(local.partitions.conditioning, remote.partitions.conditioning),
       athleteState: choosePartition(local.partitions.athleteState, remote.partitions.athleteState),
       weeklyPlan: choosePartition(local.partitions.weeklyPlan, remote.partitions.weeklyPlan),
+      nutrition: choosePartition(local.partitions.nutrition, remote.partitions.nutrition),
     },
     events: byKey([...local.events, ...remote.events], (x) => x.idempotencyKey).slice(-2000),
   };

@@ -64,7 +64,11 @@ interface DbCtx {
 
 const Ctx = createContext<DbCtx | null>(null);
 
-const webStorage = {
+/* Exported so the nutrition slice persists through the SAME port — a second
+   hand-written localStorage wrapper would be a second place for private-mode
+   and quota handling to drift. It stays a storage port, not a shared store:
+   the two slices keep separate keys. */
+export const webStorage = {
   getItem: (k: string) => {
     try {
       return localStorage.getItem(k);

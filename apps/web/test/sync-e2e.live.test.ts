@@ -12,7 +12,19 @@
 import { it, expect } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE } from '@hybrid/config';
-import { applyPull, buildPushState, emptyDB, sanitizeDB, type EngineDB, type Session, type Workout } from '@hybrid/engine';
+import {
+  applyPull,
+  buildPushState,
+  emptyDB,
+  readNutritionPartition,
+  sanitizeDB,
+  withNutritionPartition,
+  type EngineDB,
+  type Session,
+  type Workout,
+} from '@hybrid/engine';
+import { emptyEcosystemNamespace, sanitizeEcosystemNamespace } from '@hybrid/shared-core';
+import { emptyNutritionDB, mergeNutrition, sanitizeNutritionDB, type NutritionDB } from '@hybrid/nutrition-core';
 
 it.skipIf(process.env.SB_E2E !== '1')(
   'both disciplines round-trip through the real backend',
@@ -62,5 +74,94 @@ it.skipIf(process.env.SB_E2E !== '1')(
     expect(merged.workouts.map((w) => w.id).sort()).toEqual(['w-e2e-con', 'w-e2e-str']);
     const bothKinds = merged.sessions.map((s) => `${s.id}:${(s as Session).kind ?? 'strength'}`).sort();
     expect(bothKinds).toEqual(['s-e2e-con:conditioning', 's-e2e-str:strength']);
+  },
+);
+
+/*
+ * The nutrition partition over the SAME live backend, through the ecosystem
+ * tables rather than app_state. Requires 20260807_nutrition_domain to be
+ * applied in the target project: without it the RPC raises 'invalid domain'
+ * and this test is the thing that says so before an athlete's phone does.
+ *
+ * The training test above is deliberately left alone — proving nutrition round
+ * trips is worthless if it only holds in a run that never touched app_state.
+ */
+it.skipIf(process.env.SB_E2E !== '1')(
+  'the nutrition partition round-trips through the real backend, beside the training blob',
+  { timeout: 60_000 },
+  async () => {
+    const email = `nutrition-e2e-${Date.now()}@example.com`;
+    const password = `E2e!${Math.random().toString(36).slice(2)}Aa9`;
+
+    const a = createClient(SUPABASE.url, SUPABASE.anonKey, { auth: { persistSession: false } });
+    const { data: signup, error: se } = await a.auth.signUp({ email, password });
+    if (se) throw new Error('signup: ' + se.message);
+    if (!signup.session) throw new Error('no session returned — email confirmation is on; this test needs auto-confirm');
+    const userId = signup.session.user.id;
+
+    const stamp = new Date().toISOString();
+    const localA: NutritionDB = {
+      ...emptyNutritionDB(),
+      logEntries: [
+        {
+          id: 'n-e2e-a', userId, logDate: stamp.slice(0, 10), meal: 'breakfast', entryKind: 'food',
+          foodId: null, customFoodId: null, recipeId: null, quantity: 1, unit: 'serving',
+          calories: 400, proteinG: 30, carbsG: 40, fatG: 10, displayName: 'E2E Oats',
+          nutrients: {}, notes: null, sourceSnapshot: {}, createdAt: stamp, updatedAt: stamp, deletedAt: null,
+        },
+      ],
+    };
+    // A fixture that does not survive sanitize would let this test "pass" by
+    // syncing nothing.
+    expect(sanitizeNutritionDB(localA).logEntries).toHaveLength(1);
+
+    const nsA = withNutritionPartition(emptyEcosystemNamespace(), localA, 'hybrid:web', Date.now());
+    const snapA = nsA.partitions.nutrition!;
+    const { error: pe } = await a.rpc('upsert_athlete_domain_snapshot', {
+      p_domain: 'nutrition',
+      p_schema_version: snapA.schemaVersion,
+      p_revision: snapA.revision,
+      p_writer: snapA.writer,
+      p_client_updated_at: new Date(snapA.updatedAt).toISOString(),
+      p_snapshot: snapA.data,
+    });
+    if (pe) throw new Error('push nutrition: ' + pe.message);
+
+    // Device B: a cold start that logged its own meal offline. Both meals must
+    // survive — the additive rule, over the wire rather than in a unit test.
+    const b = createClient(SUPABASE.url, SUPABASE.anonKey, { auth: { persistSession: false } });
+    const { data: signin, error: ie } = await b.auth.signInWithPassword({ email, password });
+    if (ie) throw new Error('signin: ' + ie.message);
+    const localB: NutritionDB = {
+      ...emptyNutritionDB(),
+      logEntries: [{ ...localA.logEntries[0], id: 'n-e2e-b', displayName: 'E2E Rice' }],
+    };
+
+    const { data: rows, error: re } = await b
+      .from('athlete_domain_snapshots')
+      .select('domain,revision,writer,snapshot,client_updated_at')
+      .eq('user_id', userId)
+      .in('domain', ['nutrition']);
+    if (re) throw new Error('pull nutrition: ' + re.message);
+
+    await b.from('athlete_domain_snapshots').delete().eq('user_id', userId);
+
+    const row = (rows || [])[0];
+    expect(row?.domain).toBe('nutrition');
+    const pulled = sanitizeEcosystemNamespace({
+      ...emptyEcosystemNamespace(),
+      partitions: {
+        nutrition: {
+          schemaVersion: 1, domain: 'nutrition', revision: row!.revision,
+          updatedAt: Date.parse(row!.client_updated_at as string) || 0,
+          writer: row!.writer, data: row!.snapshot,
+        },
+      },
+    });
+    const remote = sanitizeNutritionDB(readNutritionPartition(pulled));
+    const merged = mergeNutrition(sanitizeNutritionDB(localB), remote);
+    expect(merged.logEntries.map((e) => e.id).sort()).toEqual(['n-e2e-a', 'n-e2e-b']);
+    // Snapshot-at-log-time: the round trip must not have re-derived anything.
+    expect(merged.logEntries.find((e) => e.id === 'n-e2e-a')?.calories).toBe(400);
   },
 );

@@ -22,6 +22,7 @@ import { font } from './ui';
 import './global.css';
 
 import { DbProvider } from './store/db';
+import { NutritionProvider } from './store/nutrition';
 import { RestProvider } from './store/rest';
 import { SetTimerProvider } from './store/setTimer';
 import { SyncProvider } from './cloud/sync';
@@ -227,6 +228,10 @@ function AppInner() {
     <View className="flex-1" style={themeVars}>
       <SafeAreaProvider>
         <DbProvider>
+          {/* A SIBLING store, not a branch of the engine one: it holds no
+              EngineDB and DbProvider holds no NutritionDB. It sits above
+              SyncProvider only because SyncProvider reads both. */}
+          <NutritionProvider>
           <SyncProvider>
             <WhoopProvider>
               <Concept2Provider>
@@ -263,6 +268,7 @@ function AppInner() {
               </Concept2Provider>
             </WhoopProvider>
           </SyncProvider>
+          </NutritionProvider>
         </DbProvider>
       </SafeAreaProvider>
     </View>

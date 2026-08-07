@@ -3,7 +3,7 @@
   "version": "2.14.0",
   "private": true,
   "main": "index.js",
-  "//": "Expo SDK 54 — RN 0.81 on React 19, so the whole monorepo stays on one React major. SDK 52 predates React 19 and would have forced a second React version into the workspace.",
+  "//": "Expo SDK 54 \u2014 RN 0.81 on React 19, so the whole monorepo stays on one React major. SDK 52 predates React 19 and would have forced a second React version into the workspace.",
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",
@@ -25,6 +25,7 @@
     "@hybrid/design": "workspace:*",
     "@hybrid/engine": "workspace:*",
     "@hybrid/guided-flow": "workspace:*",
+    "@hybrid/nutrition-core": "workspace:*",
     "@hybrid/product-scope": "workspace:*",
     "@hybrid/shared-core": "workspace:*",
     "@hybrid/whole-athlete-state": "workspace:*",

@@ -2,6 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   applyProductSyncNamespace,
   buildMergedSyncNamespace,
+  readNutritionPartition,
+  SYNCED_SNAPSHOT_DOMAINS,
+  withNutritionPartition,
   type EngineDB,
 } from '@hybrid/engine';
 import {
@@ -15,7 +18,27 @@ import {
 export const ECOSYSTEM_SYNC_ENABLED = process.env.EXPO_PUBLIC_HYBRID_ECOSYSTEM_SYNC === '1';
 
 type CoreRow = { schema_version: number; revision: number; writer: string; state: unknown; client_updated_at?: string | null };
-type DomainRow = { domain: 'strength' | 'conditioning'; schema_version: number; revision: number; writer: string; snapshot: unknown; client_updated_at?: string | null };
+type DomainRow = { domain: (typeof SYNCED_SNAPSHOT_DOMAINS)[number]; schema_version: number; revision: number; writer: string; snapshot: unknown; client_updated_at?: string | null };
+
+/**
+ * What a push needs to know about the nutrition slice.
+ *
+ * Separate from `db` in the signature because it IS separate on disk and on the
+ * server; the day it becomes a field on EngineDB is the day a food log can
+ * overwrite a training snapshot.
+ */
+export interface NutritionPush {
+  /** The athlete's slice. Opaque here — @hybrid/nutrition-core owns its shape. */
+  data: unknown;
+  /**
+   * The namespace the last pull returned. It is the ONLY carrier of the
+   * server's current nutrition revision, because the EngineDB deliberately does
+   * not retain that partition (see applyProductSyncNamespace). Without it every
+   * cold start would push revision 1 and `upsert_athlete_domain_snapshot`'s
+   * `where revision <` guard would drop the write with no error.
+   */
+  base?: EcosystemSyncNamespace;
+}
 type PlanRow = { week_start: string; schema_version: number; revision: number; writer: 'coordinator'; plan: unknown; client_generated_at?: string | null };
 
 const millis = (value: string | null | undefined): number => {
@@ -26,7 +49,7 @@ const millis = (value: string | null | undefined): number => {
 export async function pullEcosystem(client: SupabaseClient, userId: string): Promise<EcosystemSyncNamespace | null> {
   const [coreResult, domainResult, planResult] = await Promise.all([
     client.from('athlete_core').select('schema_version,revision,writer,state,client_updated_at').eq('user_id', userId).maybeSingle(),
-    client.from('athlete_domain_snapshots').select('domain,schema_version,revision,writer,snapshot,client_updated_at').eq('user_id', userId).in('domain', ['strength', 'conditioning']),
+    client.from('athlete_domain_snapshots').select('domain,schema_version,revision,writer,snapshot,client_updated_at').eq('user_id', userId).in('domain', [...SYNCED_SNAPSHOT_DOMAINS]),
     client.from('athlete_weekly_plans').select('week_start,schema_version,revision,writer,plan,client_generated_at').eq('user_id', userId).order('week_start', { ascending: false }).limit(1),
   ]);
   if (coreResult.error) throw coreResult.error;
@@ -49,20 +72,41 @@ export async function pullEcosystem(client: SupabaseClient, userId: string): Pro
   });
 }
 
-export async function pushEcosystem(client: SupabaseClient, db: EngineDB, writer: string): Promise<EcosystemSyncNamespace> {
+export async function pushEcosystem(
+  client: SupabaseClient,
+  db: EngineDB,
+  writer: string,
+  nutrition?: NutritionPush,
+): Promise<EcosystemSyncNamespace> {
   const namespace = buildMergedSyncNamespace(db, writer);
+  /*
+   * The nutrition partition is built onto a copy that is pushed and then
+   * discarded. The RETURN value stays training-only because the caller stores
+   * it in `EngineDB.ecosystem`, which `cloudFp` hashes — a food log in there
+   * would push the entire training blob on every meal.
+   *
+   * The previous revision comes from the last pull rather than from that
+   * discarded copy, for the reason documented on `NutritionPush.base`.
+   */
+  const outbound = nutrition
+    ? withNutritionPartition(
+        { ...namespace, partitions: { ...namespace.partitions, nutrition: nutrition.base?.partitions.nutrition } },
+        nutrition.data,
+        writer,
+      )
+    : namespace;
   const core = namespace.coreSnapshot;
   if (core) {
     const { error } = await client.rpc('upsert_athlete_core', { p_schema_version: core.schemaVersion, p_revision: core.revision, p_writer: core.writer, p_client_updated_at: new Date(core.updatedAt).toISOString(), p_state: core.data });
     if (error) throw error;
   }
-  // BOTH domain snapshots, sequentially. The single-product build pushed only
+  // EVERY domain snapshot, sequentially. The single-product build pushed only
   // its own partition here, which was correct then and a silent data hole the
-  // moment one app hosted both worlds — the merged namespace above carries
-  // both, and skipping either would let one discipline's snapshot go stale
-  // server-side while app_state kept advancing.
-  for (const domainId of ['strength', 'conditioning'] as const) {
-    const domain = namespace.partitions[domainId];
+  // moment one app hosted both worlds — the namespace above carries them all,
+  // and skipping any would let that domain's snapshot go stale server-side
+  // while app_state kept advancing.
+  for (const domainId of SYNCED_SNAPSHOT_DOMAINS) {
+    const domain = outbound.partitions[domainId];
     if (!domain) continue;
     const { error } = await client.rpc('upsert_athlete_domain_snapshot', { p_domain: domainId, p_schema_version: domain.schemaVersion, p_revision: domain.revision, p_writer: domain.writer, p_client_updated_at: new Date(domain.updatedAt).toISOString(), p_snapshot: domain.data });
     if (error) throw error;
@@ -74,4 +118,4 @@ export async function pushEcosystem(client: SupabaseClient, db: EngineDB, writer
   return namespace;
 }
 
-export { applyProductSyncNamespace };
+export { applyProductSyncNamespace, readNutritionPartition };

@@ -169,6 +169,13 @@ export interface EcosystemSyncNamespace {
     conditioning?: VersionedSnapshot<unknown>;
     athleteState?: VersionedSnapshot<unknown>;
     weeklyPlan?: VersionedSnapshot<unknown>;
+    /**
+     * The athlete's nutrition slice. Carried here, never inside the training
+     * partitions and never inside `EngineDB`: the two blobs must be unable to
+     * overwrite each other, so they travel as separate rows under separate
+     * revisions.
+     */
+    nutrition?: VersionedSnapshot<unknown>;
   };
   events: AthleteEvent[];
 }
