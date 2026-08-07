@@ -1,7 +1,8 @@
 # Claude Handoff — THE Hybrid System
 
-> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (end of session): everything is
-> built, merged and installable. What remains is verification only.**
+> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (after the debug pass): everything
+> is built, merged and installable, and a full adversarial debug has been run
+> and its findings fixed. What remains is verification on real hardware.**
 >
 > Supersedes every checkpoint below. They stay as history and remain accurate
 > about their own scope; where one contradicts this, this wins.
@@ -10,11 +11,62 @@
 
 | Item | Value |
 |---|---|
-| `main` | `c7695f7` |
+| `main` | `c7695f7`; the debug pass is on `claude/handoff-md-review-z00wqf` (`41eba19`), NOT yet merged |
 | Latest APK | Actions -> "Mobile — EAS Android build" run **28**, built from `0d841ce`. Every commit since is docs-only, so run 28 IS current — do not rebuild to "catch up". Its log ends with the expo.dev install link. |
 | `runtimeVersion` | **4** — OTA cannot carry the camera work. Every phone needs a fresh APK. |
 | Supabase | The user applied `20260807_nutrition_domain.sql` and `20260807_macrotrack_food_catalogue.sql` on 7 Aug. The catalogue is EMPTY by design (its 471 seeded rows live in the retired MacroTrack project). |
-| Suites | typecheck 17/17; engine 594, mobile 243, web 103 (+2 live-gated), nutrition-engine 175, nutrition-core 111, nutrition-adapter 8; ecosystem, docs, contrast, migrations-apply, react-smoke, web-touch, mobile-touch, screens all green |
+| Suites | typecheck 17/17; engine 594, mobile 243, web 103 (+2 live-gated), nutrition-engine 175, nutrition-core 127, nutrition-adapter 35, shared-core 13; ecosystem, docs, contrast, migrations-apply, react-smoke, web-touch, mobile-touch, screens all green; Metro bundle 5.06 MB |
+
+## The debug pass (7 Aug, after the checkpoint above)
+
+Two Opus reviewers on the sync/merge and screen layers, two investigators on
+dead and untested code. Every finding was verified against the code before it
+was acted on — agent reports were wrong twice in this session, so nothing was
+taken on report alone. **Eighteen real defects fixed, forty-five tests added.**
+
+The four that mattered most, all in the class that has cost this project user
+data twice — a record reachable on only one side, dropped by a merge:
+
+1. **Safety flags resolved on the wrong stamp.** `mergeSharedCore` took the
+   whole `safety` object from whichever core had the newer top-level
+   `updatedAt` — a stamp `appendSharedCoreEvent` moves when a session is
+   completed. Finishing a workout on the web erased a pain hold set on the
+   phone an hour earlier, and pushed the erasure. Live on the legacy path, no
+   feature flag needed. Flags now resolve on their own stamps, and a tie goes
+   to the RAISED flag.
+2. **The retention caps deleted the other device's history.** `slice(-120)`
+   over `[...base, ...winner]` evicted by ARRAY POSITION, keeping whichever
+   side went second. Two devices each holding a full window kept opposite
+   halves and ping-ponged; after one round trip, 120 days of check-ins were
+   gone. Caps now sort by date first.
+3. **Sanitisers minted ids from the array index**, so two different events at
+   index 0 on two devices collided and one was silently dropped.
+4. **The web app never received the merge fix the mobile app documents** —
+   `applyMerged` assigned a pre-await snapshot over memory AND disk, then
+   pushed it. Latent behind `VITE_HYBRID_ECOSYSTEM_SYNC=1`, which is what
+   opens the await window it needs. **Fix this before flipping that flag.**
+
+Plus, on the screens: a unit chip that changed the denominator and kept the
+numerator (one tap turned 100 g into 100 slices — a ~9,000 kcal entry);
+units offered that could never resolve; an edit that rewrote macros and left
+the snapshot stating the old ones; a per-100 panel saved as "per 100 kg"; a
+comma decimal stored as 0; a live training session invisible and unreachable
+from the Nutrition world; and `detectBasis` reading "Servings per package" —
+printed on EVERY FSANZ panel — as evidence of a per-serving column.
+
+Two things about the checks themselves:
+
+- `nutrition-adapter`'s slice and format layers had NO tests. That is the
+  projection the expenditure estimate is computed from: the parity suite
+  proves the maths, nothing proved its inputs. 27 tests added.
+- CI's `migrations-apply` step now fails if the check SKIPS. It exits 0 when
+  it finds no local postgres, so a runner image that stopped shipping postgres
+  would have turned the one check proving RLS isolates two athletes into a
+  silent no-op with CI still green.
+
+Still open and deliberately not done: the colocation refactor (measured at
+1-2 days, 90 test files, with a bundle-leak risk to verify first) and the
+coaching platform's week-review surface (approach recommended, not approved).
 
 ## What shipped today, in order
 
