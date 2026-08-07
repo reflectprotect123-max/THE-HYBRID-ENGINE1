@@ -61,6 +61,43 @@ jest.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { TIME_INTERVAL: 'timeInterval' },
 }));
 
+/*
+ * The camera is a CameraX surface and a permission the OS owns; neither exists
+ * in node. `CameraView` becomes an inert host view carrying its props, and the
+ * permission hook is driven per test.
+ *
+ * This mock decides NOTHING the app decides. The scanner's own logic — one
+ * scan per code, found vs missing vs unreachable, which permission state gets
+ * which button — runs unmocked against it; only the native surface is faked.
+ *
+ * The permission is settable per test through the mocked module itself —
+ * `jest.requireMock('expo-camera').__setPermission(...)` — rather than through
+ * an export of this file, because jest hoists the factory above everything
+ * here and a factory may not close over this module's bindings.
+ */
+jest.mock('expo-camera', () => {
+  const GRANTED = { granted: true, canAskAgain: true, status: 'granted' };
+  let permission: { granted: boolean; canAskAgain: boolean; status: string } | null = GRANTED;
+  const request = jest.fn(async () => permission);
+  return {
+    /* `View` itself rather than a wrapper component: NativeWind's babel plugin
+       rewrites JSX and `React.createElement` into its own interop call, which
+       a `jest.mock` factory may not reference. Passing the host component
+       through also keeps `onBarcodeScanned` readable off the rendered node,
+       which is how a test fires a frame. */
+    CameraView: require('react-native').View,
+    useCameraPermissions: () => [permission, request, request],
+    /** Test-only. Null models the frame before the OS has answered. */
+    __setPermission: (p: typeof permission) => {
+      permission = p;
+    },
+    __resetPermission: () => {
+      permission = GRANTED;
+    },
+    __request: request,
+  };
+});
+
 /* Supabase would open a real socket on import. Sync and WHOOP are not under
    test here; both providers degrade to "signed out" when the client is null,
    which is the state these tests want anyway. */

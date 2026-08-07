@@ -13,7 +13,8 @@
       "**/*"
     ],
     "//runtimeVersion": "A FIXED STRING, deliberately not the 'fingerprint' policy. Fingerprint hashes the autolinked native module directories, and under pnpm those directory names embed the peer-resolution hash — so adding eas-cli to the workspace injected 'graphql@16.8.1' into every expo-* path and silently changed the runtime version. Updates then published under a version no installed app had, and every phone correctly ignored them, with no error anywhere. BUMP THIS BY HAND, in the same commit as any NATIVE change (new native module, new permission, icon, Expo SDK bump), and ship a fresh APK with it. Never bump it for a JS-only change — that is exactly what lets those ship over the air.",
-    "runtimeVersion": "2",
+    "//runtimeVersion-3": "Bumped 2 -> 3 for expo-camera: a new native module (CameraX + ML Kit barcode-scanning) and a new CAMERA permission. Both are NATIVE changes, so no phone on runtime 2 can run this JS and every one of them must get a fresh APK. This is exactly the bump the note above demands.",
+    "runtimeVersion": "3",
     "updates": {
       "//": "u.expo.dev/<projectId> is EAS Update's fixed URL shape — same projectId as extra.eas below.",
       "url": "https://u.expo.dev/7851ad90-8dd1-443f-8ce5-6461f62c26aa"
@@ -33,6 +34,7 @@
         "android.permission.INTERNET",
         "android.permission.VIBRATE",
         "android.permission.POST_NOTIFICATIONS",
+        "android.permission.CAMERA",
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -75,7 +77,15 @@
           "isIosBackgroundLocationEnabled": true
         }
       ],
-      "expo-task-manager"
+      "expo-task-manager",
+      [
+        "expo-camera",
+        {
+          "//": "Barcode scanning only. Microphone and the media library are explicitly disabled so prebuild does not add RECORD_AUDIO or storage permissions the app has no use for — Play asks about every one of them.",
+          "cameraPermission": "Scans a food barcode so a packaged food can be looked up. Frames are read on this phone and never uploaded or saved.",
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "icon": "./assets/icon.png",
     "extra": {

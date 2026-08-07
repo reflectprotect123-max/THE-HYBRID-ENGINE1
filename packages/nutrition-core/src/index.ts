@@ -82,6 +82,10 @@ export {
   quickAddEntry,
 } from './log';
 
+export type { LabelBasis, OcrLine, ParsedNutritionLabel } from './label';
+
+export { isEmptyLabel, parseLabelLines, parseLabelText } from './label';
+
 export type { FoodSearchResult, FoodSourceKind } from './search';
 
 export {

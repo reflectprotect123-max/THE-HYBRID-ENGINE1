@@ -14,10 +14,17 @@ import { NumField, TextField, macro, positiveQty } from './fields';
  * shared, nothing has to be fetched, and the whole screen works with no
  * connection. It syncs as ordinary athlete data in this slice.
  *
- * NOTHING IS PRE-FILLED. The serving size and every macro come from the label
- * in the athlete's hand or a source they trust — MacroTrack's rule #1, and the
+ * NOTHING IS INVENTED. The serving size and every macro come from the label in
+ * the athlete's hand or a source they trust — MacroTrack's rule #1, and the
  * reference is explicit that even the serving denominator is a hint-only
- * placeholder. A helpful default here is an invented nutrition number.
+ * placeholder. A default supplied by this screen would be an invented
+ * nutrition number.
+ *
+ * `prefill` is not a default and is the only exception: it carries what the
+ * athlete just scanned or just had read off a panel they typed in. It is a
+ * transcription of their own label, arriving one screen later, and every field
+ * the reader was unsure of arrives blank rather than zeroed — which is the
+ * same rule stated from the other side.
  *
  * Editing a food does NOT change what it has already been logged as. That is
  * the snapshot invariant, and it is why this screen can be used to fix a typo
@@ -27,26 +34,48 @@ import { NumField, TextField, macro, positiveQty } from './fields';
 /** The two denominators worth one tap. Anything else is typed. */
 const COMMON_UNITS = ['g', 'ml', 'serving'] as const;
 
+/** What a barcode scan or a label read hands forward. Every field optional. */
+export interface CustomFoodPrefill {
+  barcode?: string | null;
+  calories?: number | null;
+  proteinG?: number | null;
+  carbsG?: number | null;
+  fatG?: number | null;
+  servingQty?: number | null;
+  servingUnit?: string | null;
+  /** Said on screen, so the athlete knows which numbers are not their typing. */
+  note?: string;
+}
+
 interface Props {
   /** The food being edited, or undefined when creating one. */
   editId?: string;
+  /** Values carried in from the scanner or the label reader. */
+  prefill?: CustomFoodPrefill;
   onDone: (message: string) => void;
   onCancel: () => void;
 }
 
-export function CustomFoodScreen({ editId, onDone, onCancel }: Props) {
+/** A prefilled number, or blank. Never "0" — a missing macro is not zero. */
+const initial = (n: number | null | undefined): string => (n == null ? '' : String(Math.round(n * 10) / 10));
+
+export function CustomFoodScreen({ editId, prefill, onDone, onCancel }: Props) {
   const { nutrition, update } = useNutrition();
   const existing = editId ? nutrition.customFoods.find((f) => f.id === editId) : undefined;
 
   const [name, setName] = useState(existing?.name ?? '');
   const [brand, setBrand] = useState(existing?.brand ?? '');
-  const [servingQty, setServingQty] = useState(existing ? String(existing.servingQty) : '');
-  const [servingUnit, setServingUnit] = useState(existing?.servingUnit ?? 'g');
-  const [calories, setCalories] = useState(existing ? String(existing.calories) : '');
-  const [proteinG, setProtein] = useState(existing ? String(existing.proteinG) : '');
-  const [carbsG, setCarbs] = useState(existing ? String(existing.carbsG) : '');
-  const [fatG, setFat] = useState(existing ? String(existing.fatG) : '');
+  const [servingQty, setServingQty] = useState(existing ? String(existing.servingQty) : initial(prefill?.servingQty));
+  const [servingUnit, setServingUnit] = useState(existing?.servingUnit ?? prefill?.servingUnit ?? 'g');
+  const [calories, setCalories] = useState(existing ? String(existing.calories) : initial(prefill?.calories));
+  const [proteinG, setProtein] = useState(existing ? String(existing.proteinG) : initial(prefill?.proteinG));
+  const [carbsG, setCarbs] = useState(existing ? String(existing.carbsG) : initial(prefill?.carbsG));
+  const [fatG, setFat] = useState(existing ? String(existing.fatG) : initial(prefill?.fatG));
   const [error, setError] = useState('');
+  /* The barcode is carried, not shown as an editable field: it came off a
+     scanner and a typo in it would silently attach this food to a different
+     product's code. It is only ever set when creating. */
+  const barcode = existing ? existing.barcode : (prefill?.barcode ?? null);
 
   const trimmedName = name.trim();
   const trimmedUnit = servingUnit.trim();
@@ -94,9 +123,11 @@ export function CustomFoodScreen({ editId, onDone, onCancel }: Props) {
            wrong for everything created before a sign-in. */
         userId: '',
         ...fields,
-        barcode: null,
+        // Kept so the NEXT scan of this product finds it on this device
+        // instead of ending at the same dead end again.
+        barcode,
         // Empty rather than fabricated. The athlete typed four macros, not a
-        // micronutrient profile, and the label scanner is a later slice.
+        // micronutrient profile, and no panel reader here produces one.
         nutrients: {},
         source: 'user_custom',
         createdAt: at,
@@ -137,8 +168,22 @@ export function CustomFoodScreen({ editId, onDone, onCancel }: Props) {
       <Kicker>Nutrition</Kicker>
       <Title>{existing ? 'Edit food' : 'New food'}</Title>
       <T className="mt-0.5 text-3 text-muted">
-        Enter the serving size and the numbers from the label. Nothing is filled in for you.
+        {prefill && !existing
+          ? 'Check every number against the packet before saving. Anything blank was not read — type it in.'
+          : 'Enter the serving size and the numbers from the label. Nothing is filled in for you.'}
       </T>
+
+      {prefill?.note && !existing ? (
+        <Card tone="quiet" className="mt-1.5">
+          <T className="text-3 text-muted">{prefill.note}</T>
+        </Card>
+      ) : null}
+
+      {barcode && !existing ? (
+        <T className="mt-1.5 text-3 text-dim" num>
+          Barcode {barcode}
+        </T>
+      ) : null}
 
       <Card tone="raised" className="mt-2">
         <TextField label="Food name" value={name} onChange={setName} placeholder="e.g. Rolled oats" />
