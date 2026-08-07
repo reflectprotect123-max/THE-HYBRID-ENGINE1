@@ -141,9 +141,13 @@ export interface FoodLogEntry {
 /**
  * A weigh-in, mirroring `public.weight_entries`.
  *
- * `weightKg` is clamped by the table to 20–500; `sanitizeNutritionDB` clamps
- * to the same range so a garbage local blob cannot feed the trend/expenditure
- * maths a value the server would have rejected.
+ * `weight_kg numeric not null check (weight_kg between 20 and 500)` REJECTS an
+ * out-of-range row; it does not clamp it. `sanitizeNutritionDB` therefore DROPS
+ * a weigh-in outside 20–500 rather than pulling it to the nearest bound —
+ * clamping would turn a corrupt 9000 into a plausible 500 kg weigh-in and feed
+ * the trend/expenditure maths a number the athlete never stood on. A weigh-in
+ * whose `measuredAt` will not parse is dropped for the same reason: that field
+ * is the x-axis of every trend fit, not merge metadata.
  */
 export interface WeightEntry {
   id: string;

@@ -76,14 +76,17 @@ describe('mergeNutrition — additivity', () => {
     const a = dbWith({
       logEntries: [entry('breakfast-1')],
       weightEntries: [weight('w-a')],
-      checkIns: [checkIn('c-a')],
+      // Distinct weeks: two check-ins for the SAME week are one row to the
+      // server, and the merge is required to collapse them — see the
+      // natural-key test below.
+      checkIns: [checkIn('c-a', { weekStart: '2026-08-03', weekEnd: '2026-08-09' })],
       dayStatus: [day('2026-08-05')],
       settings: { unitSystem: 'metric' },
     });
     const b = dbWith({
       logEntries: [entry('lunch-1')],
       weightEntries: [weight('w-b')],
-      checkIns: [checkIn('c-b')],
+      checkIns: [checkIn('c-b', { weekStart: '2026-08-10', weekEnd: '2026-08-16' })],
       dayStatus: [day('2026-08-06')],
       settings: { timezone: 'Australia/Sydney' },
     });
@@ -142,9 +145,125 @@ describe('mergeNutrition — additivity', () => {
       resolvedAt: null,
       updatedAt: '2026-08-10T20:00:00.000Z',
     });
-    expect(mergeNutrition(dbWith({ checkIns: [ready] }), dbWith({ checkIns: [held] })).checkIns[0]!.proposedCalories).toBe(
-      null,
-    );
+    // Both argument orders: the clear must not depend on which device synced
+    // first, or the athlete keeps last week's number next to a held status on
+    // exactly one of their devices.
+    for (const merged of [
+      mergeNutrition(dbWith({ checkIns: [ready] }), dbWith({ checkIns: [held] })),
+      mergeNutrition(dbWith({ checkIns: [held] }), dbWith({ checkIns: [ready] })),
+    ]) {
+      expect(merged.checkIns).toHaveLength(1);
+      expect(merged.checkIns[0]!.proposedCalories).toBe(null);
+      expect(merged.checkIns[0]!.status).toBe('held');
+    }
+  });
+});
+
+describe('mergeNutrition — convergence', () => {
+  /* A merge that is not commutative in CONTENT never converges: each device
+   * merges the other's blob in its own argument order and they disagree
+   * forever. Asserting `.sort()`ed id lists cannot see this — the divergence is
+   * in which record survived and in what order the array serialises. */
+  const divergent = () => {
+    const a = dbWith({
+      logEntries: [
+        entry('z-late', { displayName: 'A side', updatedAt: '2026-08-07T06:00:00.000Z' }),
+        // Both copies were repaired by the sanitizer, so both carry the epoch
+        // and no stamp can separate them.
+        entry('a-epoch', { displayName: 'A repair', updatedAt: '1970-01-01T00:00:00.000Z' }),
+      ],
+      weightEntries: [weight('w-2'), weight('w-1', { weightKg: 80.1 })],
+      checkIns: [checkIn('c-a', { weekStart: '2026-08-03' })],
+      dayStatus: [day('2026-08-06'), day('2026-08-05')],
+      settings: { unitSystem: 'metric', theme: 'dark' },
+    });
+    const b = dbWith({
+      logEntries: [
+        entry('z-late', { displayName: 'B side', updatedAt: '2026-08-07T06:00:00.000Z' }),
+        entry('a-epoch', { displayName: 'B repair', updatedAt: '1970-01-01T00:00:00.000Z' }),
+      ],
+      weightEntries: [weight('w-1', { weightKg: 80.9 }), weight('w-3')],
+      checkIns: [checkIn('c-b', { weekStart: '2026-08-10', weekEnd: '2026-08-16' })],
+      dayStatus: [day('2026-08-05', { status: 'partial' }), day('2026-08-07')],
+      settings: { timezone: 'Australia/Sydney', theme: 'light' },
+    });
+    return { a, b };
+  };
+
+  it('produces the same DB whichever side is passed first', () => {
+    const { a, b } = divergent();
+    expect(mergeNutrition(a, b)).toEqual(mergeNutrition(b, a));
+  });
+
+  it('serialises identically in both orders, so a sync fingerprint cannot flap', () => {
+    // Sync layers dirty-check the serialised blob. Array order and key order
+    // are part of that fingerprint, so an order-dependent merge makes two
+    // settled devices push a write that changes nothing, forever.
+    const { a, b } = divergent();
+    expect(JSON.stringify(mergeNutrition(a, b))).toBe(JSON.stringify(mergeNutrition(b, a)));
+  });
+
+  it('emits records in key order rather than a-then-b order', () => {
+    const { a, b } = divergent();
+    const merged = mergeNutrition(a, b);
+    expect(merged.logEntries.map((e) => e.id)).toEqual(['a-epoch', 'z-late']);
+    expect(merged.weightEntries.map((e) => e.id)).toEqual(['w-1', 'w-2', 'w-3']);
+    expect(merged.dayStatus.map((d) => d.logDate)).toEqual([
+      '2026-08-05',
+      '2026-08-06',
+      '2026-08-07',
+    ]);
+  });
+});
+
+describe('mergeNutrition — record identity', () => {
+  it('collapses two offline uuids for one week onto the server natural key', () => {
+    // Uniqueness is (user_id, program_id, week_start) — the NULLS NOT DISTINCT
+    // index in 005_checkin_program_provenance.sql. Keying on `id` shows the
+    // athlete two contradictory proposals for one week, then lets the server's
+    // upsert silently pick one.
+    const older = checkIn('local-uuid-1', { proposedCalories: 2450 });
+    const newer = checkIn('local-uuid-2', {
+      proposedCalories: 2380,
+      updatedAt: '2026-08-09T22:00:00.000Z',
+    });
+    for (const merged of [
+      mergeNutrition(dbWith({ checkIns: [older] }), dbWith({ checkIns: [newer] })),
+      mergeNutrition(dbWith({ checkIns: [newer] }), dbWith({ checkIns: [older] })),
+    ]) {
+      expect(merged.checkIns).toHaveLength(1);
+      expect(merged.checkIns[0]!.proposedCalories).toBe(2380);
+    }
+  });
+
+  it('keeps the same week under two different programs apart', () => {
+    // program_id is in the natural key precisely so a goal change mid-week
+    // cannot overwrite the previous program's proposal.
+    const cut = checkIn('c1', { programId: 'p-cut' });
+    const bulk = checkIn('c2', { programId: 'p-bulk' });
+    const merged = mergeNutrition(dbWith({ checkIns: [cut] }), dbWith({ checkIns: [bulk] }));
+    expect(merged.checkIns.map((c) => c.programId).sort()).toEqual(['p-bulk', 'p-cut']);
+  });
+
+  it('cannot be made to collide two dayStatus keys through a delimiter in userId', () => {
+    // userId and logDate are free strings from an untrusted blob. A delimiter
+    // smuggled into one part would fuse two athletes' days into one key and
+    // drop a real record.
+    const NUL = '\u0000';
+    const sneaky = day('2026-08-05', { userId: `u1${NUL}2026-08-06`, status: 'fasted' });
+    const real = day(`2026-08-06${NUL}2026-08-05`, { userId: 'u1', status: 'complete' });
+    const merged = mergeNutrition(dbWith({ dayStatus: [sneaky] }), dbWith({ dayStatus: [real] }));
+    expect(merged.dayStatus).toHaveLength(2);
+  });
+
+  it('refuses to merge across schema versions rather than mislabelling the result', () => {
+    // Math.max would stamp v1-shaped records as v2, so a real v2 device skips
+    // the migration that would have converted them.
+    const v1 = dbWith({ schemaVersion: 1, logEntries: [entry('e1')] });
+    const v2 = dbWith({ schemaVersion: 2, logEntries: [entry('e2')] });
+    expect(() => mergeNutrition(v1, v2)).toThrow(/schemaVersion/);
+    expect(() => mergeNutrition(v2, v1)).toThrow(/schemaVersion/);
+    expect(mergeNutrition(v2, dbWith({ schemaVersion: 2 })).schemaVersion).toBe(2);
   });
 });
 
@@ -218,10 +337,67 @@ describe('mergeNutrition — program', () => {
     }
   });
 
-  it('takes a one-sided program rather than dropping it', () => {
-    const a = dbWith({ program: program('p1', '2026-08-05T00:00:00.000Z', []) });
-    expect(mergeNutrition(a, emptyNutritionDB()).program?.id).toBe('p1');
-    expect(mergeNutrition(emptyNutritionDB(), a).program?.id).toBe('p1');
+  it('takes a one-sided program WITH its day targets rather than dropping them', () => {
+    // A program with `days: []` proves nothing here: the whole risk is that the
+    // side holding the calendar loses it to the side that has no program at all.
+    const a = dbWith({
+      program: program('p1', '2026-08-05T00:00:00.000Z', [
+        { targetDate: '2026-08-05', calories: 2400, createdAt: '2026-08-05T00:00:00.000Z' },
+        { targetDate: '2026-08-06', calories: 2350, createdAt: '2026-08-05T00:00:00.000Z' },
+      ]),
+    });
+    for (const merged of [mergeNutrition(a, emptyNutritionDB()), mergeNutrition(emptyNutritionDB(), a)]) {
+      expect(merged.program?.id).toBe('p1');
+      expect(merged.program?.days.map((d) => d.targetDate)).toEqual(['2026-08-05', '2026-08-06']);
+      expect(merged.program?.days.map((d) => d.calories)).toEqual([2400, 2350]);
+    }
+  });
+
+  it('resolves two targets for the SAME date by createdAt, in both orders', () => {
+    // One row per (program_id, target_date), and the row has no updatedAt — a
+    // recompute wins by having been written later, not by which device asked.
+    const a = dbWith({
+      program: program('p1', '2026-08-05T00:00:00.000Z', [
+        { targetDate: '2026-08-05', calories: 2400, createdAt: '2026-08-05T00:00:00.000Z' },
+      ]),
+    });
+    const b = dbWith({
+      program: program('p1', '2026-08-05T00:00:00.000Z', [
+        { targetDate: '2026-08-05', calories: 2250, createdAt: '2026-08-05T09:00:00.000Z' },
+      ]),
+    });
+    for (const merged of [mergeNutrition(a, b), mergeNutrition(b, a)]) {
+      expect(merged.program?.days).toHaveLength(1);
+      expect(merged.program?.days[0]!.calories).toBe(2250);
+    }
+
+    // Same date, same createdAt: `createdAt` is the row's only stamp, so two
+    // recomputes in the same second leave nothing to order them by. Resolving
+    // that by argument order hands the two devices different targets for a day
+    // the athlete is about to eat.
+    const tied = dbWith({
+      program: program('p1', '2026-08-05T00:00:00.000Z', [
+        { targetDate: '2026-08-05', calories: 2100, createdAt: '2026-08-05T09:00:00.000Z' },
+      ]),
+    });
+    expect(mergeNutrition(b, tied).program?.days).toEqual(mergeNutrition(tied, b).program?.days);
+  });
+
+  it('picks the same program when two ids carry the same updatedAt', () => {
+    // Equal stamps on different ids is permanent split-brain if it resolves by
+    // argument order: each device keeps its own program and the loser's whole
+    // day-target calendar is gone.
+    const a = dbWith({
+      program: program('p1', '2026-08-05T00:00:00.000Z', [
+        { targetDate: '2026-08-05', calories: 2400, createdAt: '2026-08-05T00:00:00.000Z' },
+      ]),
+    });
+    const b = dbWith({
+      program: program('p2', '2026-08-05T00:00:00.000Z', [
+        { targetDate: '2026-08-09', calories: 3000, createdAt: '2026-08-09T00:00:00.000Z' },
+      ]),
+    });
+    expect(mergeNutrition(a, b).program).toEqual(mergeNutrition(b, a).program);
   });
 
   it('replaces wholesale when the athlete started a different program', () => {

@@ -93,12 +93,23 @@ const idOrNull = (v: unknown): string | null => (typeof v === 'string' && v !== 
 
 const optStr = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
+/**
+ * A timestamp that must actually denote an instant.
+ *
+ * `optStr` would let `''` through, which is neither absent nor a time: every
+ * `if (x.deletedAt)` read would call the record live while every
+ * `x.deletedAt != null` read called it deleted, and the two disagree forever.
+ */
+const tsOrNull = (v: unknown): IsoTimestamp | null =>
+  typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null;
+
 const stamp = (v: unknown): IsoTimestamp => (typeof v === 'string' && v !== '' ? v : EPOCH);
 
-const num = (v: unknown, fallback: number, min: number, max: number): number => {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return fallback;
-  return Math.min(max, Math.max(min, v));
-};
+const finiteOr = (v: unknown, fallback: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+
+const num = (v: unknown, fallback: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, finiteOr(v, fallback)));
 
 const optNum = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -107,24 +118,38 @@ const oneOf = <T extends string>(v: unknown, allowed: readonly T[]): T | null =>
   typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : null;
 
 /**
- * Rebuild a free-form object from its own keys, dropping the three that can
- * re-home a prototype.
+ * Rebuild a free-form value from its own keys, dropping `__proto__` at every
+ * depth.
  *
  * `JSON.parse` materialises a hostile `"__proto__"` as an OWN enumerable
  * property, and any later `Object.assign`-style spread of the result invokes
  * the prototype setter — the prototype-poisoning hole @hybrid/engine's
- * `cleanSettings` was written to close. Every open-shaped field here
- * (`settings`, `nutrients`, `sourceSnapshot`) goes through this.
+ * `cleanSettings` was written to close.
+ *
+ * Only `__proto__` is that vector. `constructor` and `prototype` are ordinary
+ * own keys once assigned with `=`, and dropping them would silently delete a
+ * legitimate athlete-authored key (a `sourceSnapshot` recording a
+ * `constructor` field, a settings key from a newer build) — data loss to
+ * defend against a hole that is not there.
+ *
+ * Recursive rather than top-level: `sourceSnapshot` is an opaque nested blob
+ * preserved byte-for-byte, so a payload only has to be one level down to reach
+ * a consumer that spreads it.
  */
-const plainObject = (v: unknown): Record<string, unknown> => {
-  if (!isRecord(v)) return {};
+const scrubProto = (v: unknown): unknown => {
+  if (Array.isArray(v)) return v.map(scrubProto);
+  if (!isRecord(v)) return v;
   const out: Record<string, unknown> = {};
   for (const k of Object.keys(v)) {
-    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-    out[k] = v[k];
+    if (k === '__proto__') continue;
+    out[k] = scrubProto(v[k]);
   }
   return out;
 };
+
+/** Every open-shaped field (`settings`, `nutrients`, `sourceSnapshot`) goes through this. */
+const plainObject = (v: unknown): Record<string, unknown> =>
+  isRecord(v) ? (scrubProto(v) as Record<string, unknown>) : {};
 
 /**
  * Nutrients are amounts, and every consumer multiplies them. A string or null
@@ -162,15 +187,23 @@ function cleanLogEntry(raw: unknown): FoodLogEntry | null {
   // come from a legitimate write and no read path branches safely on it.
   const entryKind = oneOf<EntryKind>(raw.entryKind, ENTRY_KINDS);
   if (!entryKind) return null;
+  // `log_date` is NOT NULL and every read groups by it. A blank one would keep
+  // the entry counting towards the day's totals while being invisible to the
+  // day it belongs to, and could never be written back to the server — a
+  // permanently unsyncable phantom. Drop it instead.
+  const logDate = idOrNull(raw.logDate);
+  if (!logDate) return null;
   return {
     id,
     userId: str(raw.userId),
-    logDate: str(raw.logDate),
+    logDate,
     meal: str(raw.meal, 'other'),
     entryKind,
-    foodId: optStr(raw.foodId),
-    customFoodId: optStr(raw.customFoodId),
-    recipeId: optStr(raw.recipeId),
+    // Provenance links are a uuid or absent; `''` is neither, and would be read
+    // as "there is a source" by every truthiness check that guards a lookup.
+    foodId: idOrNull(raw.foodId),
+    customFoodId: idOrNull(raw.customFoodId),
+    recipeId: idOrNull(raw.recipeId),
     // `quantity > 0` in the schema; fall back to the column default rather than
     // to 0, which would read as "ate none of it" next to real macro numbers.
     quantity: (() => {
@@ -190,7 +223,7 @@ function cleanLogEntry(raw: unknown): FoodLogEntry | null {
     sourceSnapshot: sourceSnapshot(raw.sourceSnapshot),
     createdAt: stamp(raw.createdAt),
     updatedAt: stamp(raw.updatedAt),
-    deletedAt: optStr(raw.deletedAt),
+    deletedAt: tsOrNull(raw.deletedAt),
   };
 }
 
@@ -202,13 +235,25 @@ function cleanWeightEntry(raw: unknown): WeightEntry | null {
   // would feed the trend/expenditure maths a number the athlete never stood
   // on (MacroTrack rule #1). Drop it instead.
   if (typeof raw.weightKg !== 'number' || !Number.isFinite(raw.weightKg)) return null;
+  // `weight_kg numeric not null check (weight_kg between 20 and 500)` REJECTS
+  // the row; it does not clamp it. Clamping here would turn a corrupt 9000 into
+  // a perfectly plausible 500 kg weigh-in and hand it to the trend regression,
+  // the EWMA and the expenditure model as if the athlete had stood on the
+  // scale — the same invented number the check four lines up refuses to make.
+  if (raw.weightKg < 20 || raw.weightKg > 500) return null;
+  // `measured_at` is ATHLETE DATA, not merge metadata: it is the x-axis of
+  // every trend fit. Falling back to the epoch would plant a real weight in
+  // 1970 and drag the regression through fifty-six years of nothing, so a
+  // weigh-in that cannot say WHEN is dropped exactly like one that cannot say
+  // what. (`createdAt`/`updatedAt` below do fall back to the epoch — those are
+  // merge metadata, and losing every conflict is the right outcome there.)
+  const measuredAt = tsOrNull(raw.measuredAt);
+  if (!measuredAt) return null;
   return {
     id,
     userId: str(raw.userId),
-    measuredAt: stamp(raw.measuredAt),
-    // The schema's own 20–500 kg check, applied locally so a corrupt blob
-    // cannot feed the engine a value the server would have rejected.
-    weightKg: num(raw.weightKg, 20, 20, 500),
+    measuredAt,
+    weightKg: raw.weightKg,
     source: str(raw.source, 'manual'),
     note: optStr(raw.note),
     createdAt: stamp(raw.createdAt),
@@ -251,9 +296,12 @@ function cleanProgram(raw: unknown): MacroProgram | null {
     name: str(raw.name, 'Macro program'),
     mode,
     goal,
-    targetRateKgPerWeek: num(raw.targetRateKgPerWeek, 0, -5, 5),
+    // No bound: the table constrains this field's SIGN against `goal`, never
+    // its magnitude, and inventing a ±5 kg/week range here would silently
+    // rewrite a rate the database would have accepted.
+    targetRateKgPerWeek: finiteOr(raw.targetRateKgPerWeek, 0),
     startDate: str(raw.startDate),
-    endDate: optStr(raw.endDate),
+    endDate: idOrNull(raw.endDate),
     weeklyCalorieBudget: optNum(raw.weeklyCalorieBudget),
     proteinPreference: optStr(raw.proteinPreference),
     fatPreference: optStr(raw.fatPreference),
@@ -275,7 +323,9 @@ function cleanCheckIn(raw: unknown): CheckIn | null {
   return {
     id,
     userId: str(raw.userId),
-    programId: optStr(raw.programId),
+    // Part of the server's natural key, so `''` would key this check-in to a
+    // program that cannot exist — see `checkInKey`.
+    programId: idOrNull(raw.programId),
     weekStart: str(raw.weekStart),
     weekEnd: str(raw.weekEnd),
     status,
@@ -292,7 +342,7 @@ function cleanCheckIn(raw: unknown): CheckIn | null {
     modules: checkInModules(raw.modules),
     explanation: str(raw.explanation),
     createdAt: stamp(raw.createdAt),
-    resolvedAt: optStr(raw.resolvedAt),
+    resolvedAt: tsOrNull(raw.resolvedAt),
     updatedAt: stamp(raw.updatedAt),
   };
 }
@@ -365,10 +415,51 @@ const at = (v: IsoTimestamp | undefined): number => {
 };
 
 /**
- * Union by key. On a tie the `a` side is kept, so a merge is deterministic for
- * a caller that fixes its argument order — but callers must not read a tie as
- * meaningful: two writes stamped the same millisecond are genuinely ambiguous,
- * and the fix is a finer stamp, not a rule here.
+ * Order-independent serialisation, used ONLY to settle a conflict that every
+ * stamp on the two records left equal. Keys are sorted so the same content
+ * produces the same string regardless of the order a given device happened to
+ * write its fields in.
+ */
+const canonical = (v: unknown): string => {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  if (isRecord(v))
+    return `{${Object.keys(v)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`)
+      .join(',')}}`;
+  return JSON.stringify(v) ?? 'null';
+};
+
+const recordId = (v: unknown): string => (isRecord(v) && typeof v.id === 'string' ? v.id : '');
+
+/**
+ * Settle a conflict whose `updatedAt` values compared equal, WITHOUT consulting
+ * argument position.
+ *
+ * "The `a` side wins a tie" is not a rule, it is a coin flip that lands on
+ * whichever device synced first: `mergeNutrition(a, b)` and
+ * `mergeNutrition(b, a)` would then keep different content, so two devices that
+ * each merged the other's blob disagree permanently. Equal stamps are not
+ * hypothetical either — every record the sanitizer repaired carries the epoch,
+ * so two independently repaired copies tie forever.
+ *
+ * Lexicographic `id` first (the one field two records sharing a composite key
+ * can differ in and still be the same row), then canonical content. Both are
+ * arbitrary; both are identical on every device, which is the whole point.
+ */
+const breaksTie = (y: unknown, x: unknown): boolean => {
+  const yi = recordId(y);
+  const xi = recordId(x);
+  return yi === xi ? canonical(y) > canonical(x) : yi > xi;
+};
+
+/**
+ * Union by key, emitted in key order.
+ *
+ * The sort is not cosmetic: sync layers dirty-check by fingerprinting the
+ * serialised blob, so two devices holding identical content in `a`-then-`b`
+ * versus `b`-then-`a` order would each read the other's blob as a change and
+ * push it back, ping-ponging a write that alters nothing.
  */
 function mergeByKey<T>(a: T[], b: T[], key: (x: T) => string, newer: (x: T, y: T) => boolean): T[] {
   const map = new Map<string, T>();
@@ -378,14 +469,63 @@ function mergeByKey<T>(a: T[], b: T[], key: (x: T) => string, newer: (x: T, y: T
     const x = map.get(k);
     map.set(k, x === undefined ? y : newer(y, x) ? y : x);
   }
-  return Array.from(map.values());
+  return Array.from(map.keys())
+    .sort()
+    .map((k) => map.get(k)!);
 }
 
-const byUpdatedAt = <T extends { updatedAt: IsoTimestamp }>(y: T, x: T): boolean =>
-  at(y.updatedAt) > at(x.updatedAt);
+const byUpdatedAt = <T extends { updatedAt: IsoTimestamp }>(y: T, x: T): boolean => {
+  const ty = at(y.updatedAt);
+  const tx = at(x.updatedAt);
+  return ty === tx ? breaksTie(y, x) : ty > tx;
+};
 
-/** Two-part primary keys are joined on NUL, which cannot occur in either part. */
-const compositeKey = (...parts: string[]): string => parts.join('\u0000');
+/**
+ * Join the parts of a composite primary key injectively.
+ *
+ * A delimiter is not enough. `userId` and `logDate` reach here as free strings
+ * from an untrusted blob and are never charset-checked, and any character the
+ * delimiter uses — NUL included, a JSON string can carry one — can be smuggled
+ * into one part to make two different keys collide, which silently drops a real
+ * record on merge. Length prefixes cannot collide whatever the parts contain.
+ */
+const compositeKey = (...parts: string[]): string => parts.map((p) => `${p.length}:${p}`).join('');
+
+/**
+ * A check-in's identity is the server's natural key
+ * `(user_id, program_id, week_start)` — the NULLS NOT DISTINCT unique index in
+ * `005_checkin_program_provenance.sql` — not its local `id`. Two devices
+ * offline mint two uuids for the same week; keying on `id` keeps both, so the
+ * athlete is shown two contradictory proposals for one week and the server's
+ * `on conflict (user_id, program_id, week_start)` upsert then silently
+ * collapses them to whichever landed last. Keying on the natural key makes the
+ * merge resolve the week the way the database already would.
+ */
+const checkInKey = (c: CheckIn): string => compositeKey(c.userId, c.programId ?? '', c.weekStart);
+
+/**
+ * Union settings per key.
+ *
+ * Settings carry no per-key stamp, so a collision cannot be resolved by time;
+ * it is resolved by canonical value so both merge orders agree, where "`b`
+ * wins" would make the result depend on which device synced first. Keys are
+ * sorted for the same fingerprint-stability reason as `mergeByKey`, and the
+ * union is per key rather than whole-object so a key only one side knows about
+ * — an older or newer build's preference — survives the round trip.
+ */
+function mergeSettings(a: NutritionSettings, b: NutritionSettings): NutritionSettings {
+  const out: NutritionSettings = {};
+  for (const k of Array.from(new Set([...Object.keys(a), ...Object.keys(b)])).sort()) {
+    // Assigning this key would re-home `out`'s prototype rather than add a key.
+    if (k === '__proto__') continue;
+    const inA = Object.prototype.hasOwnProperty.call(a, k);
+    const inB = Object.prototype.hasOwnProperty.call(b, k);
+    if (!inB) out[k] = a[k];
+    else if (!inA) out[k] = b[k];
+    else out[k] = canonical(b[k]) > canonical(a[k]) ? b[k] : a[k];
+  }
+  return out;
+}
 
 /**
  * Merge two programs. Day targets union by `targetDate` even when the scalar
@@ -398,8 +538,14 @@ function mergeProgram(a: MacroProgram | null, b: MacroProgram | null): MacroProg
   // Different ids means the athlete started a NEW program, not that two copies
   // of one program diverged. Unioning their days would blend two goals'
   // targets into one calendar, so the newer program replaces the older whole.
-  if (a.id !== b.id) return at(b.updatedAt) > at(a.updatedAt) ? b : a;
-  const base = at(b.updatedAt) > at(a.updatedAt) ? b : a;
+  //
+  // This is the worst place in the merge to resolve a tie by argument order:
+  // whichever program loses takes its entire day-target calendar with it, so
+  // two devices with equal stamps would each keep a different program forever
+  // and neither could ever recover the other's targets. `byUpdatedAt` settles
+  // it on the ids themselves, which both devices read the same way.
+  if (a.id !== b.id) return byUpdatedAt(b, a) ? b : a;
+  const base = byUpdatedAt(b, a) ? b : a;
   return {
     ...base,
     days: mergeByKey(
@@ -408,29 +554,41 @@ function mergeProgram(a: MacroProgram | null, b: MacroProgram | null): MacroProg
       (d) => d.targetDate,
       // A program day has no `updatedAt` in the schema (the row is written once
       // per date); `createdAt` is its only stamp, so a recomputed target wins by
-      // being written later.
-      (y, x) => at(y.createdAt) > at(x.createdAt),
+      // being written later. Same-`createdAt` targets for one date fall back to
+      // content order rather than to which side was passed first.
+      (y, x) => {
+        const ty = at(y.createdAt);
+        const tx = at(x.createdAt);
+        return ty === tx ? breaksTie(y, x) : ty > tx;
+      },
     ),
   };
 }
 
 export function mergeNutrition(a: NutritionDB, b: NutritionDB): NutritionDB {
+  // `Math.max` would label the union of a v1 record set and a v2 record set as
+  // v2, so the v1-shaped records inside it never see their migration again and
+  // are read by v2 code as if they had already been converted. Two versions
+  // cannot be unioned record-by-record at all — the caller must migrate both
+  // sides to a common version and merge then. Failing loudly here is the only
+  // outcome that does not corrupt silently.
+  if (a.schemaVersion !== b.schemaVersion) {
+    throw new Error(
+      `mergeNutrition: refusing to merge schemaVersion ${a.schemaVersion} with ${b.schemaVersion}; migrate both sides first`,
+    );
+  }
   return {
-    schemaVersion: Math.max(a.schemaVersion, b.schemaVersion),
+    schemaVersion: a.schemaVersion,
     logEntries: mergeByKey(a.logEntries, b.logEntries, (e) => e.id, byUpdatedAt),
     weightEntries: mergeByKey(a.weightEntries, b.weightEntries, (e) => e.id, byUpdatedAt),
     program: mergeProgram(a.program, b.program),
-    checkIns: mergeByKey(a.checkIns, b.checkIns, (c) => c.id, byUpdatedAt),
+    checkIns: mergeByKey(a.checkIns, b.checkIns, checkInKey, byUpdatedAt),
     dayStatus: mergeByKey(
       a.dayStatus,
       b.dayStatus,
       (d) => compositeKey(d.userId, d.logDate),
       byUpdatedAt,
     ),
-    // Settings have no per-key stamps, so they union per key with `b` winning a
-    // collision. Union rather than replace for the same reason as everything
-    // above: a key only one side knows about — an older or newer build's
-    // preference — must survive the round trip.
-    settings: { ...a.settings, ...b.settings },
+    settings: mergeSettings(a.settings, b.settings),
   };
 }
