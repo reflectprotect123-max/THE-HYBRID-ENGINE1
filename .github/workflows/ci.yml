@@ -67,6 +67,15 @@ jobs:
       - name: Unit tests
         run: pnpm run test
 
+      # Static checks read migration TEXT and cannot see that a domain list is
+      # written in three places — the constraint and both plpgsql RPC bodies.
+      # A migration widening only the constraint applies cleanly, passes every
+      # static assertion, then rejects every write at runtime. This applies the
+      # migrations to a real throwaway Postgres and writes through the RPCs.
+      # It skips itself when no local postgres is present.
+      - name: Migrations apply to a real Postgres
+        run: node checks/migrations-apply.mjs
+
       - name: Build both web apps
         run: pnpm run build
 
