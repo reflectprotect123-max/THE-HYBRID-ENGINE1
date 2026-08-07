@@ -5,6 +5,7 @@ import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { coachAllowed } from './guard';
 import { DecisionTrace } from './DecisionTrace';
+import { NutritionPanel } from './NutritionPanel';
 import { OnboardingPanel, useOnboarding } from './Onboarding';
 import { PolicyInspector } from './PolicyInspector';
 import { ProgramGrid } from './ProgramGrid';
@@ -25,6 +26,7 @@ export function CoachShell() {
   const [showPolicyInspector, setShowPolicyInspector] = useState(false);
   const [showSimulate, setShowSimulate] = useState(false);
   const [showTrace, setShowTrace] = useState(false);
+  const [showNutrition, setShowNutrition] = useState(false);
   const onboarding = useOnboarding();
 
   const allowed = coachAllowed(
@@ -67,6 +69,13 @@ export function CoachShell() {
           title="Why today's session resolved the way it did"
         >
           Why today
+        </button>
+        <button
+          onClick={() => setShowNutrition(true)}
+          className="rounded-full bg-gold-wash px-1 py-0.5 text-[11px] tabular-nums text-gold2 outline outline-1 outline-gold-line"
+          title="The athlete's food log, adherence and expenditure — read-only"
+        >
+          Nutrition
         </button>
         <div className="ml-auto flex items-center gap-1" role="group" aria-label="Weeks shown">
           {([4, 8, 12] as const).map((h) => (
@@ -119,6 +128,7 @@ export function CoachShell() {
       {showPolicyInspector && <PolicyInspector onClose={() => setShowPolicyInspector(false)} />}
       {showSimulate && <Simulate onClose={() => setShowSimulate(false)} />}
       {showTrace && <DecisionTrace onClose={() => setShowTrace(false)} />}
+      {showNutrition && <NutritionPanel onClose={() => setShowNutrition(false)} />}
     </div>
   );
 }

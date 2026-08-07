@@ -18,6 +18,7 @@ import { useDb } from '../store/db';
 import { CheckInCard } from '../autocoach/CheckInCard';
 import { ModeSwitcher } from '../autocoach/ModeSwitcher';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
+import { NutritionCard } from './nutrition/NutritionCard';
 import { resolveDayTarget, sessionFrom } from '../lib/session';
 import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx } from '../ui';
 
@@ -262,6 +263,20 @@ export function Home() {
           ) : null}
         </div>
       </Card>
+
+      {/* Nutrition sits under Readiness for the same reason Readiness sits
+          where it does: it is context that changes what today's answer should
+          be, not an instruction. The card reads; the door leads to the screen
+          that writes. */}
+      <SectionHead
+        title="Fuel today"
+        right={
+          <button onClick={() => nav('/nutrition')} className="rounded-sm text-3 font-[650] text-gold2">
+            Food log ›
+          </button>
+        }
+      />
+      <NutritionCard />
 
       {/* Title is asserted verbatim by checks/react-smoke.mjs — keep the string.
           Full zone bars live on Conditioning, which holds you to them; this is

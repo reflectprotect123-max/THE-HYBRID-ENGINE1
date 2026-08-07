@@ -19,7 +19,7 @@ import { DbProvider } from '../src/store/db';
 import { storage } from '../src/store/storage';
 import { WeightScreen } from '../src/screens/nutrition/Weight';
 import { CoachScreen } from '../src/screens/nutrition/Coach';
-import { weekStartOf } from '../src/screens/nutrition/engine';
+import { weekStartOf } from '@hybrid/nutrition-adapter';
 
 /*
  * The three screens the adaptive engine finally drives.
