@@ -139,6 +139,183 @@ export interface FoodLogEntry {
 }
 
 /**
+ * The four numbers a scaling multiplier is applied to, plus the denominator
+ * they sit over. Ported from MacroTrack's `Scalable` interface, which `Food`
+ * and `CustomFood` both implement so `ServingScaler` can take either.
+ *
+ * `servingQty`/`servingUnit` ARE the denominator: a food whose macros are per
+ * 100 g carries `servingQty: 100, servingUnit: 'g'`. See `scaleTo` in
+ * `recipe.ts` for why a unit that does not match is an error rather than a
+ * conversion.
+ */
+export interface Scalable {
+  /** Present because `scaleByServing` refuses a serving row from another food. */
+  id: string;
+  name: string;
+  servingQty: number;
+  servingUnit: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+/**
+ * One named serving of a catalogue food, mirroring `public.food_servings`.
+ *
+ * `grams`/`millilitres` are the ONLY sanctioned route between units: they are
+ * recorded per serving in the source data, so scaling "1 slice" of a per-100g
+ * food goes through the real weight of a slice rather than through a guessed
+ * density (MacroTrack rule #1).
+ */
+export interface FoodServing {
+  id: string;
+  foodId: string;
+  label: string;
+  quantity: number;
+  unit: string;
+  grams?: number | null;
+  millilitres?: number | null;
+  isDefault: boolean;
+  sortOrder: number;
+}
+
+/**
+ * A local copy of one `public.foods` row and its servings.
+ *
+ * THE SHARED CATALOGUE IS SERVER-SIDE AND THIS APP IS OFFLINE-FIRST. `foods`
+ * is a 5,000-row Postgres table read over the network; it is not, and must not
+ * become, part of the synced blob. This record is the narrow exception: a
+ * catalogue food the athlete has actually TOUCHED — logged, favourited, or put
+ * in a recipe — is copied here so that it stays searchable and loggable with
+ * no connection, and so that a recipe built from catalogue ingredients can
+ * still resolve its macros on a plane.
+ *
+ * Two rules follow from that and are enforced by the code that writes it:
+ *
+ *  - Nothing is cached speculatively. A search result the athlete scrolled
+ *    past does not land here; caching the catalogue wholesale is the thing the
+ *    rebuild scope explicitly refused.
+ *  - Nothing is ever evicted. A recipe ingredient and a favourite both point
+ *    at a cache row by id, so an eviction would silently break a recipe the
+ *    athlete can no longer repair offline.
+ *
+ * A cached food is NOT a log entry's source of truth after the fact. Log
+ * entries snapshot their own numbers — see `FoodLogEntry`.
+ */
+export interface CachedFood extends Scalable {
+  brand?: string | null;
+  barcode?: string | null;
+  /**
+   * The denominator the catalogue says `nutrients` sits over, kept because a
+   * log entry copies `nutrients` unscaled and needs it to be interpretable
+   * later. It is deliberately NOT what `scaleTo` divides by — see `recipe.ts`.
+   */
+  nutritionBasisQty: number;
+  nutritionBasisUnit: string;
+  servingSizeText?: string | null;
+  source: string;
+  externalId?: string | null;
+  nutrients: NutrientMap;
+  servings: FoodServing[];
+  /**
+   * When this device last copied the row down. Doubles as the merge stamp:
+   * between two copies of one catalogue row, the more recently fetched one is
+   * the closer to what the server holds.
+   */
+  cachedAt: IsoTimestamp;
+}
+
+/**
+ * A food the athlete entered themselves, mirroring `public.custom_foods`.
+ *
+ * Local in every sense: it lives in this slice, is created and edited with no
+ * connection, and syncs as ordinary athlete data. Editing one does NOT change
+ * what it has already been logged as (see `FoodLogEntry`), which is exactly
+ * why the entry keeps its own numbers.
+ */
+export interface CustomFood extends Scalable {
+  id: string;
+  userId: string;
+  brand?: string | null;
+  barcode?: string | null;
+  nutrients: NutrientMap;
+  source: string;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+  /** Soft delete, for the reason given on `FoodLogEntry.deletedAt`. */
+  deletedAt?: IsoTimestamp | null;
+}
+
+/**
+ * One ingredient of a recipe, mirroring `public.recipe_items`.
+ *
+ * Exactly one of `foodId`/`customFoodId` is set — the table's own check
+ * constraint, and the branch `resolveRecipePerServing` refuses to guess at.
+ * A `foodId` resolves against `NutritionDB.foodCache`, which is why adding a
+ * catalogue food as an ingredient caches it.
+ */
+export interface RecipeItem {
+  id: string;
+  recipeId: string;
+  foodId?: string | null;
+  customFoodId?: string | null;
+  quantity: number;
+  unit: string;
+  sortOrder: number;
+}
+
+/**
+ * A recipe, mirroring `public.recipes`, with its items nested for the same
+ * reason `MacroProgram` nests its days: a `recipe_items` row is meaningless
+ * without its recipe (the SQL cascades it away on delete), and nesting removes
+ * the possibility of a merge keeping items whose recipe is gone.
+ *
+ * `servings > 0` is a check constraint on the table. A recipe's macros are
+ * never stored — they are resolved from the ingredients on demand, so
+ * correcting an ingredient corrects the recipe, while everything already
+ * LOGGED from it keeps the numbers it was logged with.
+ */
+export interface Recipe {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string | null;
+  instructions?: string | null;
+  servings: number;
+  items: RecipeItem[];
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+  /** Soft delete, for the reason given on `FoodLogEntry.deletedAt`. */
+  deletedAt?: IsoTimestamp | null;
+}
+
+/**
+ * A starred food, custom food or recipe, mirroring `public.food_favorites`.
+ *
+ * Exactly one of the three ids is set, like a log entry's provenance. Kept in
+ * this slice rather than fetched, so the athlete's starred list is the one
+ * thing that is always there to log from with no connection.
+ *
+ * NO `id`, deliberately: `food_favorites` has none either. Its identity is
+ * `(user_id, food_id | custom_food_id | recipe_id)`, enforced by three partial
+ * unique indexes, and that is what the merge keys on — two devices starring the
+ * same food offline must converge on one star, not two, exactly as `checkInKey`
+ * makes two devices agree about one week.
+ */
+export interface FoodFavorite {
+  userId: string;
+  foodId?: string | null;
+  customFoodId?: string | null;
+  recipeId?: string | null;
+  sortOrder: number;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+  /** Soft delete: un-starring is a stamp, or the star returns on next sync. */
+  deletedAt?: IsoTimestamp | null;
+}
+
+/**
  * A weigh-in, mirroring `public.weight_entries`.
  *
  * `weight_kg numeric not null check (weight_kg between 20 and 500)` REJECTS an

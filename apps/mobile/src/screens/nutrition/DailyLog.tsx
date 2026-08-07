@@ -10,12 +10,14 @@ import {
   entriesForDay,
   groupByMeal,
   macroTotals,
+  quickAddEntry,
   targetForDay,
   type FoodLogEntry,
   type MacroTotals,
 } from '@hybrid/nutrition-core';
 import { useNutrition } from '../../store/nutrition';
-import { Btn, Card, Chip, Empty, Input, Kicker, Meter, Screen, SectionHead, T, Tap, Title } from '../../ui';
+import { Btn, Card, Empty, Input, Kicker, Meter, Screen, SectionHead, T, Tap, Title } from '../../ui';
+import { MealChips, NumField, macro, round, titleCase } from './fields';
 
 /*
  * The nutrition world's home screen: one day of food.
@@ -68,20 +70,6 @@ const draftOf = (e: FoodLogEntry): Draft => ({
 });
 
 /**
- * A typed macro, or 0.
- *
- * Negative and non-finite go to 0 rather than through: the sanitizer clamps
- * them on the next load anyway, and a `NaN` written now is a total that reads
- * `NaN kcal` until then.
- */
-const macro = (s: string): number => {
-  const n = Number(s.trim());
-  return Number.isFinite(n) && n > 0 ? n : 0;
-};
-
-const round = (n: number): string => String(Math.round(n));
-
-/**
  * `YYYY-MM-DD` as a LOCAL calendar date.
  *
  * Parsed field by field rather than by `new Date(date)`, which reads a bare
@@ -99,8 +87,6 @@ const shiftDay = (date: string, days: number): string => {
   d.setDate(d.getDate() + days);
   return ymd(d);
 };
-
-const titleCase = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 export function DailyLogScreen() {
   const { nutrition, update, saveFailed, dataRecovered } = useNutrition();
@@ -146,34 +132,24 @@ export function DailyLogScreen() {
         Object.assign(existing, fields, { updatedAt: at });
         return;
       }
-      n.logEntries.push({
-        id: uid(),
-        /* Left blank on purpose. Ownership of this slice is the sync layer's
-           and RLS's, at the namespace level — a client-guessed id would be
-           wrong for everything logged before a sign-in, and the merge keys log
-           entries by `id`, never by who wrote them. */
-        userId: '',
-        logDate: date,
-        entryKind: 'quick_add',
-        // Exactly one provenance id is set for a catalogue entry and NONE for
-        // a quick add — the table's own check constraint. Food search arrives
-        // in a later slice; until then every entry is typed by the athlete.
-        foodId: null,
-        customFoodId: null,
-        recipeId: null,
-        quantity: 1,
-        unit: 'serving',
-        ...fields,
-        // Empty, not fabricated: a quick add HAS no micronutrient profile, and
-        // inventing one would feed the micronutrient surface numbers the
-        // athlete never entered.
-        nutrients: {},
-        notes: null,
-        sourceSnapshot: {},
-        createdAt: at,
-        updatedAt: at,
-        deletedAt: null,
-      });
+      /* Built by the one snapshot builder every screen writes through, so the
+         provenance rules (a quick add carries no source id, no nutrient map)
+         are stated once rather than per screen. `userId` is left blank on
+         purpose: ownership of this slice is the sync layer's and RLS's, at the
+         namespace level — a client-guessed id would be wrong for everything
+         logged before a sign-in, and the merge keys log entries by `id`. */
+      n.logEntries.push(
+        quickAddEntry(
+          { id: uid(), logDate: date, meal: draft.meal, at },
+          {
+            displayName: name,
+            calories: fields.calories,
+            proteinG: fields.proteinG,
+            carbsG: fields.carbsG,
+            fatG: fields.fatG,
+          },
+        ),
+      );
     });
     setDraft(null);
   };
@@ -362,13 +338,7 @@ function EntrySheet({
         accessibilityLabel="Food name"
         className="mt-1.5 h-5 rounded-md border border-line bg-well px-1 text-5 text-text"
       />
-      <View className="mt-1.5 flex-row flex-wrap gap-0.5">
-        {MEALS.map((m) => (
-          <Chip key={m} on={draft.meal === m} onPress={() => set({ meal: m })}>
-            {m}
-          </Chip>
-        ))}
-      </View>
+      <MealChips value={draft.meal} onChange={(m) => set({ meal: m })} />
       <View className="mt-1.5 flex-row gap-1">
         <NumField label="kcal" value={draft.calories} onChange={(v) => set({ calories: v })} />
         <NumField label="Protein g" value={draft.proteinG} onChange={(v) => set({ proteinG: v })} />
@@ -391,24 +361,5 @@ function EntrySheet({
         These numbers are stored as you type them and are never recalculated later.
       </T>
     </Card>
-  );
-}
-
-function NumField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <View className="min-w-0 flex-1">
-      <T w="semi" className="text-2 uppercase tracking-widest text-dim">
-        {label}
-      </T>
-      <Input
-        value={value}
-        onChangeText={onChange}
-        accessibilityLabel={label}
-        keyboardType="number-pad"
-        num
-        w="semi"
-        className="mt-0.5 h-5 rounded-md border border-line bg-well px-1 text-5 text-text"
-      />
-    </View>
   );
 }

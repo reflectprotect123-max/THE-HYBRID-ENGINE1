@@ -1,11 +1,15 @@
 import type {
+  CachedFood,
   CheckIn,
   CheckInModule,
   CheckInStatus,
+  CustomFood,
   DayStatus,
   DayStatusValue,
   EntryKind,
+  FoodFavorite,
   FoodLogEntry,
+  FoodServing,
   IsoTimestamp,
   MacroProgram,
   MacroProgramDay,
@@ -14,6 +18,8 @@ import type {
   ProgramGoal,
   ProgramMode,
   ProgramStatus,
+  Recipe,
+  RecipeItem,
   SourceSnapshot,
   WeightEntry,
 } from './types';
@@ -26,6 +32,24 @@ import {
   PROGRAM_STATUSES,
 } from './types';
 
+/**
+ * Still 1 after Phase 3b added `customFoods`, `recipes`, `favorites` and
+ * `foodCache`.
+ *
+ * `mergeNutrition` REFUSES to merge two versions, so a bump is a hard break of
+ * every device still on the old one — worth paying only when a merge across the
+ * boundary would corrupt data. This addition cannot: the four arrays are new,
+ * every previously-defined record shape is untouched, and a blob written before
+ * them sanitizes to empty arrays.
+ *
+ * BUMP THE MOMENT A BUILD WITH NUTRITION SYNC ENABLED HAS SHIPPED AND THE NEXT
+ * CHANGE IS NOT PURELY ADDITIVE. Today no such build exists — the nutrition
+ * domain migration has not been applied to staging and `*_ECOSYSTEM_SYNC` is
+ * off — so the only readers of a v1 blob are dev devices, whose own load path
+ * is the sanitizer and not the merge. Once a real fleet exists, an old client
+ * sanitizing a new blob would STRIP these arrays and push the stripped copy
+ * back, which is the silent data loss the version guard is for.
+ */
 export const NUTRITION_SCHEMA_VERSION = 1 as const;
 
 /**
@@ -44,6 +68,21 @@ export interface NutritionDB {
   program: MacroProgram | null;
   checkIns: CheckIn[];
   dayStatus: DayStatus[];
+  /**
+   * The athlete's own foods. Created, edited and logged with no connection —
+   * `custom_foods` is an owner-only table, so nothing is shared and nothing has
+   * to be fetched to use one.
+   */
+  customFoods: CustomFood[];
+  /** The athlete's own recipes, items nested. Local for the same reason. */
+  recipes: Recipe[];
+  favorites: FoodFavorite[];
+  /**
+   * Copies of shared-catalogue rows the athlete has actually touched. NOT the
+   * catalogue — see `CachedFood` for what may and may not land here, and why
+   * this is the offline answer rather than a synced copy of 5,000 foods.
+   */
+  foodCache: CachedFood[];
   settings: NutritionSettings;
 }
 
@@ -55,8 +94,29 @@ export function emptyNutritionDB(): NutritionDB {
     program: null,
     checkIns: [],
     dayStatus: [],
+    customFoods: [],
+    recipes: [],
+    favorites: [],
+    foodCache: [],
     settings: {},
   };
+}
+
+/**
+ * Copy a catalogue food into the local cache, in place on a draft.
+ *
+ * Called when the athlete LOGS a food, stars it, or puts it in a recipe —
+ * never on a search result they merely saw. That is the line that keeps this
+ * a cache of what the athlete uses rather than a synced copy of the catalogue.
+ *
+ * Replaces an existing row wholesale rather than merging fields: the newer
+ * fetch is the server's current answer, and half of one row beside half of
+ * another is a food that never existed.
+ */
+export function upsertCachedFood(draft: NutritionDB, food: CachedFood): void {
+  const i = draft.foodCache.findIndex((f) => f.id === food.id);
+  if (i >= 0) draft.foodCache[i] = food;
+  else draft.foodCache.push(food);
 }
 
 /*
@@ -227,6 +287,173 @@ function cleanLogEntry(raw: unknown): FoodLogEntry | null {
   };
 }
 
+/**
+ * A serving quantity that can actually be divided by.
+ *
+ * `scaleTo` throws on a non-positive `servingQty`, which would make the food
+ * un-loggable rather than merely wrong; the column's own default is the honest
+ * repair, and 100 g / 1 serving is what every write path here sets.
+ */
+const servingQty = (v: unknown): number => {
+  const q = finiteOr(v, 0);
+  return q > 0 ? q : 100;
+};
+
+/** The four macros a `Scalable` carries, clamped the way a log entry's are. */
+const macroFields = (raw: Record<string, unknown>) => ({
+  calories: num(raw.calories, 0, 0, Number.MAX_SAFE_INTEGER),
+  proteinG: num(raw.proteinG, 0, 0, Number.MAX_SAFE_INTEGER),
+  carbsG: num(raw.carbsG, 0, 0, Number.MAX_SAFE_INTEGER),
+  fatG: num(raw.fatG, 0, 0, Number.MAX_SAFE_INTEGER),
+});
+
+function cleanFoodServing(raw: unknown, foodId: string): FoodServing | null {
+  if (!isRecord(raw)) return null;
+  const id = idOrNull(raw.id);
+  if (!id) return null;
+  // `quantity > 0` is what a serving count is divided by in `resolveFoodMacros`;
+  // zero would produce an Infinity multiplier and a five-digit calorie entry.
+  const quantity = finiteOr(raw.quantity, 0);
+  if (quantity <= 0) return null;
+  const unit = str(raw.unit);
+  if (!unit) return null;
+  return {
+    id,
+    // Re-homed onto the food that carries it, exactly as a program day is
+    // re-homed onto its program: a serving whose `foodId` disagrees with its
+    // parent is refused by `scaleByServing`, so a bad copy would silently make
+    // the food un-loggable in that unit.
+    foodId,
+    label: str(raw.label),
+    quantity,
+    unit,
+    // null rather than 0: 0 g is a conversion that would scale every macro to
+    // nothing, where "no gram conversion recorded" makes the scaler say so.
+    grams: optNum(raw.grams),
+    millilitres: optNum(raw.millilitres),
+    isDefault: raw.isDefault === true,
+    sortOrder: Math.trunc(finiteOr(raw.sortOrder, 0)),
+  };
+}
+
+function cleanCachedFood(raw: unknown): CachedFood | null {
+  if (!isRecord(raw)) return null;
+  // The id is the catalogue row's; a cache row without one cannot be matched to
+  // the `foodId` on the log entry or recipe item that needed it cached.
+  const id = idOrNull(raw.id);
+  if (!id) return null;
+  return {
+    id,
+    name: str(raw.name),
+    brand: optStr(raw.brand),
+    barcode: optStr(raw.barcode),
+    servingQty: servingQty(raw.servingQty),
+    servingUnit: str(raw.servingUnit, 'g'),
+    ...macroFields(raw),
+    nutritionBasisQty: servingQty(raw.nutritionBasisQty),
+    nutritionBasisUnit: str(raw.nutritionBasisUnit, 'g'),
+    servingSizeText: optStr(raw.servingSizeText),
+    source: str(raw.source, 'custom'),
+    externalId: optStr(raw.externalId),
+    nutrients: nutrientMap(raw.nutrients),
+    servings: arr(raw.servings)
+      .map((s) => cleanFoodServing(s, id))
+      .filter((s): s is FoodServing => s !== null),
+    cachedAt: stamp(raw.cachedAt),
+  };
+}
+
+function cleanCustomFood(raw: unknown): CustomFood | null {
+  if (!isRecord(raw)) return null;
+  const id = idOrNull(raw.id);
+  if (!id) return null;
+  return {
+    id,
+    userId: str(raw.userId),
+    name: str(raw.name),
+    brand: optStr(raw.brand),
+    barcode: optStr(raw.barcode),
+    servingQty: servingQty(raw.servingQty),
+    servingUnit: str(raw.servingUnit, 'g'),
+    ...macroFields(raw),
+    nutrients: nutrientMap(raw.nutrients),
+    source: str(raw.source, 'user_custom'),
+    createdAt: stamp(raw.createdAt),
+    updatedAt: stamp(raw.updatedAt),
+    deletedAt: tsOrNull(raw.deletedAt),
+  };
+}
+
+function cleanRecipeItem(raw: unknown, recipeId: string): RecipeItem | null {
+  if (!isRecord(raw)) return null;
+  const id = idOrNull(raw.id);
+  if (!id) return null;
+  const foodId = idOrNull(raw.foodId);
+  const customFoodId = idOrNull(raw.customFoodId);
+  // `check ((food_id is not null) <> (custom_food_id is not null))`. An item
+  // with neither has no ingredient and one with both has two; `resolveRecipeItem`
+  // throws on the first and would silently ignore the second's custom food.
+  // Dropping the item is worse than either only if it is kept — a recipe that
+  // cannot resolve at all can never be logged.
+  if (!foodId === !customFoodId) return null;
+  const quantity = finiteOr(raw.quantity, 0);
+  if (quantity <= 0) return null;
+  return {
+    id,
+    recipeId,
+    foodId,
+    customFoodId,
+    quantity,
+    unit: str(raw.unit, 'g'),
+    sortOrder: Math.trunc(finiteOr(raw.sortOrder, 0)),
+  };
+}
+
+function cleanRecipe(raw: unknown): Recipe | null {
+  if (!isRecord(raw)) return null;
+  const id = idOrNull(raw.id);
+  if (!id) return null;
+  return {
+    id,
+    userId: str(raw.userId),
+    name: str(raw.name),
+    description: optStr(raw.description),
+    instructions: optStr(raw.instructions),
+    // `servings > 0` is a check constraint AND the divisor in `perServing`,
+    // which throws on anything else. The column default is the repair.
+    servings: (() => {
+      const s = finiteOr(raw.servings, 0);
+      return s > 0 ? s : 1;
+    })(),
+    items: arr(raw.items)
+      .map((i) => cleanRecipeItem(i, id))
+      .filter((i): i is RecipeItem => i !== null),
+    createdAt: stamp(raw.createdAt),
+    updatedAt: stamp(raw.updatedAt),
+    deletedAt: tsOrNull(raw.deletedAt),
+  };
+}
+
+function cleanFavorite(raw: unknown): FoodFavorite | null {
+  if (!isRecord(raw)) return null;
+  const foodId = idOrNull(raw.foodId);
+  const customFoodId = idOrNull(raw.customFoodId);
+  const recipeId = idOrNull(raw.recipeId);
+  // Exactly one, as with a log entry's provenance. A star pointing at nothing
+  // is a row the athlete can neither see nor un-star.
+  if ([foodId, customFoodId, recipeId].filter((x) => x !== null).length !== 1) return null;
+  return {
+    userId: str(raw.userId),
+    foodId,
+    customFoodId,
+    recipeId,
+    sortOrder: Math.trunc(finiteOr(raw.sortOrder, 0)),
+    createdAt: stamp(raw.createdAt),
+    updatedAt: stamp(raw.updatedAt),
+    deletedAt: tsOrNull(raw.deletedAt),
+  };
+}
+
 function cleanWeightEntry(raw: unknown): WeightEntry | null {
   if (!isRecord(raw)) return null;
   const id = idOrNull(raw.id);
@@ -388,6 +615,18 @@ export function sanitizeNutritionDB(raw: unknown): NutritionDB {
     dayStatus: arr(src.dayStatus)
       .map(cleanDayStatus)
       .filter((d): d is DayStatus => d !== null),
+    customFoods: arr(src.customFoods)
+      .map(cleanCustomFood)
+      .filter((f): f is CustomFood => f !== null),
+    recipes: arr(src.recipes)
+      .map(cleanRecipe)
+      .filter((r): r is Recipe => r !== null),
+    favorites: arr(src.favorites)
+      .map(cleanFavorite)
+      .filter((f): f is FoodFavorite => f !== null),
+    foodCache: arr(src.foodCache)
+      .map(cleanCachedFood)
+      .filter((f): f is CachedFood => f !== null),
     settings: plainObject(src.settings) as NutritionSettings,
   };
 }
@@ -504,6 +743,14 @@ const compositeKey = (...parts: string[]): string => parts.map((p) => `${p.lengt
 const checkInKey = (c: CheckIn): string => compositeKey(c.userId, c.programId ?? '', c.weekStart);
 
 /**
+ * A favourite's identity is the server's, not a local uuid — the three partial
+ * unique indexes on `food_favorites`. See `FoodFavorite` for why the row has no
+ * `id` at all.
+ */
+const favoriteRowKey = (f: FoodFavorite): string =>
+  compositeKey(f.userId, f.foodId ?? '', f.customFoodId ?? '', f.recipeId ?? '');
+
+/**
  * Union settings per key.
  *
  * Settings carry no per-key stamp, so a collision cannot be resolved by time;
@@ -589,6 +836,23 @@ export function mergeNutrition(a: NutritionDB, b: NutritionDB): NutritionDB {
       (d) => compositeKey(d.userId, d.logDate),
       byUpdatedAt,
     ),
+    customFoods: mergeByKey(a.customFoods, b.customFoods, (f) => f.id, byUpdatedAt),
+    // Whole-record, not item-by-item. A recipe's ingredient list is a
+    // STATEMENT the athlete made — "these four things" — so unioning two edits
+    // would resurrect an ingredient one device deliberately removed and put a
+    // macro back into every serving logged after it. Program days union
+    // because each day is an independent fact; recipe items are not.
+    recipes: mergeByKey(a.recipes, b.recipes, (r) => r.id, byUpdatedAt),
+    favorites: mergeByKey(a.favorites, b.favorites, favoriteRowKey, byUpdatedAt),
+    // Keyed on the CATALOGUE id, so two devices that each cached the same food
+    // hold one row afterwards rather than a duplicate per device. The newer
+    // fetch wins: between two copies of a server row, the later one is closer
+    // to what the server now holds.
+    foodCache: mergeByKey(a.foodCache, b.foodCache, (f) => f.id, (y, x) => {
+      const ty = at(y.cachedAt);
+      const tx = at(x.cachedAt);
+      return ty === tx ? breaksTie(y, x) : ty > tx;
+    }),
     settings: mergeSettings(a.settings, b.settings),
   };
 }
