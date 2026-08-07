@@ -1,4 +1,4 @@
-import type { FoodLogEntry, IsoDate, MacroProgram } from './types';
+import type { FoodLogEntry, IsoDate, IsoTimestamp, MacroProgram } from './types';
 import type { NutritionDB } from './db';
 
 /*
@@ -20,8 +20,17 @@ export interface MacroTotals {
 
 export const ZERO_TOTALS: MacroTotals = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 };
 
-/** A soft-deleted entry is a record with a stamp, not an absence — see `FoodLogEntry.deletedAt`. */
-export const isLive = (e: FoodLogEntry): boolean => e.deletedAt == null;
+/**
+ * A soft-deleted record is a record with a stamp, not an absence — see
+ * `FoodLogEntry.deletedAt`.
+ *
+ * Typed on the field rather than on `FoodLogEntry`, because every soft-deletable
+ * record in this slice (log entries, custom foods, recipes, favourites,
+ * weigh-ins) has to be read through the SAME predicate. A second copy of
+ * `e.deletedAt == null` written per call site is where one read path starts
+ * counting a deleted weigh-in that another one hides.
+ */
+export const isLive = (e: { deletedAt?: IsoTimestamp | null }): boolean => e.deletedAt == null;
 
 /**
  * The live entries logged against `date`.
