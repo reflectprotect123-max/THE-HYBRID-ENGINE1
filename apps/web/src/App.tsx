@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { DbProvider } from './store/db';
+import { NutritionProvider } from './store/nutrition';
 import { RestProvider } from './store/rest';
 import { SetTimerProvider } from './store/setTimer';
 import { SyncProvider } from './cloud/sync';
@@ -49,6 +50,10 @@ export function App() {
       {/* Above the router: a failed write has to reach the logger and the plan
           editor too, and both sit outside the shell. */}
       <SaveAlert />
+      {/* A SIBLING store, not a branch of the engine one: it holds no
+          EngineDB and DbProvider holds no NutritionDB. It sits above
+          SyncProvider only because SyncProvider reads both. */}
+      <NutritionProvider>
       <SyncProvider>
         <WhoopProvider>
           <Concept2Provider>
@@ -89,6 +94,7 @@ export function App() {
           </Concept2Provider>
         </WhoopProvider>
       </SyncProvider>
+      </NutritionProvider>
     </DbProvider>
   );
 }

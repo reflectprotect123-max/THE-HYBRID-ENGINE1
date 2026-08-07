@@ -180,7 +180,7 @@ const normaliseEvent = (v: unknown, i: number): AthleteEvent | null => {
     id: idFor(raw.id, `event-${i}`),
     type: type as AthleteEvent['type'],
     occurredAt,
-    sourceDomain: ['core', 'strength', 'conditioning', 'athlete_state', 'coordinator'].includes(String(raw.sourceDomain))
+    sourceDomain: ['core', 'strength', 'conditioning', 'athlete_state', 'coordinator', 'nutrition'].includes(String(raw.sourceDomain))
       ? raw.sourceDomain as AthleteEvent['sourceDomain']
       : 'core',
     idempotencyKey: idFor(raw.idempotencyKey, idFor(raw.id, `event-${i}`)),
@@ -367,6 +367,10 @@ export function sanitizeEcosystemNamespace(input: unknown): EcosystemSyncNamespa
       conditioning: partition(partitionsRaw.conditioning, undefined),
       athleteState: partition(partitionsRaw.athleteState, undefined),
       weeklyPlan: partition(partitionsRaw.weeklyPlan, undefined),
+      // Partitions are whitelisted, so a key missing from this list is not
+      // merely untyped — it is deleted from every namespace that passes
+      // through here, on both sides of the wire.
+      nutrition: partition(partitionsRaw.nutrition, undefined),
     },
     events: array(raw.events).map(normaliseEvent).filter((x): x is AthleteEvent => !!x).slice(-2000),
   };
@@ -394,6 +398,7 @@ export function mergeEcosystemNamespaces(
       conditioning: choosePartition(local.partitions.conditioning, remote.partitions.conditioning),
       athleteState: choosePartition(local.partitions.athleteState, remote.partitions.athleteState),
       weeklyPlan: choosePartition(local.partitions.weeklyPlan, remote.partitions.weeklyPlan),
+      nutrition: choosePartition(local.partitions.nutrition, remote.partitions.nutrition),
     },
     events: byKey([...local.events, ...remote.events], (x) => x.idempotencyKey).slice(-2000),
   };

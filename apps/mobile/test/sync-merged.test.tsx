@@ -57,6 +57,10 @@ declare const require: (id: string) => unknown;
 
 const sync = require('../src/cloud/sync') as SyncModule;
 const { DbProvider, useDb } = require('../src/store/db') as typeof import('../src/store/db');
+/* SyncProvider reads the nutrition slice as well as the engine one, so the
+   harness has to supply both stores — the mount is what proves the two
+   providers are genuinely siblings and neither owns the other. */
+const { NutritionProvider } = require('../src/store/nutrition') as typeof import('../src/store/nutrition');
 
 afterAll(() => {
   if (PREVIOUS_PRODUCT === undefined) delete process.env.EXPO_PUBLIC_HYBRID_PRODUCT;
@@ -85,9 +89,11 @@ function Probe() {
 const mount = () =>
   render(
     <DbProvider>
-      <sync.SyncProvider>
-        <Probe />
-      </sync.SyncProvider>
+      <NutritionProvider>
+        <sync.SyncProvider>
+          <Probe />
+        </sync.SyncProvider>
+      </NutritionProvider>
     </DbProvider>,
   );
 

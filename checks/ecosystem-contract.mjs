@@ -37,5 +37,41 @@ check(has(/where\s+public\.athlete_(?:core|domain_snapshots|weekly_plans)\.revis
 check(has(/on\s+conflict\s*\(user_id,\s*idempotency_key\)\s+do\s+nothing/i), 'event retries are idempotent');
 check(!/grant\s+.*\s+to\s+anon/i.test(sql), 'migration grants no ecosystem write capability to anon');
 
+/* The nutrition domain arrives as a widening migration, never as an edit to
+ * the applied 20260804 file. Assert both: the original still carries the
+ * narrow lists, and the follow-up admits 'nutrition' everywhere a domain is
+ * enumerated — table constraint AND the plpgsql guard inside the RPC, since
+ * the RPCs are the only supported write path.
+ */
+const nutritionFile = resolve(root, 'supabase/migrations/20260807_nutrition_domain.sql');
+const nutritionSql = await readFile(nutritionFile, 'utf8');
+const hasNutrition = (pattern) => pattern.test(nutritionSql);
+
+check(!/'nutrition'/i.test(sql), 'applied 20260804 migration is not edited to add nutrition');
+check(
+  hasNutrition(/constraint\s+athlete_domain_name\s+check\s*\(domain\s+in\s*\([^)]*'nutrition'[^)]*\)\)/i),
+  'nutrition migration widens the athlete_domain_name constraint',
+);
+check(
+  hasNutrition(/constraint\s+athlete_event_source\s+check\s*\(source_domain\s+in\s*\([^)]*'nutrition'[^)]*\)\)/i),
+  'nutrition migration widens the athlete_event_source constraint',
+);
+check(
+  hasNutrition(/p_domain\s+not\s+in\s*\([^)]*'nutrition'[^)]*\)/i),
+  'nutrition migration widens the upsert_athlete_domain_snapshot domain guard',
+);
+check(
+  hasNutrition(/p_source_domain\s+not\s+in\s*\([^)]*'nutrition'[^)]*\)/i),
+  'nutrition migration widens the record_athlete_event source guard',
+);
+for (const constraintName of ['athlete_domain_name', 'athlete_event_source']) {
+  check(
+    hasNutrition(new RegExp(`drop\\s+constraint\\s+if\\s+exists\\s+${constraintName}`, 'i')),
+    `nutrition migration drops ${constraintName} idempotently before re-adding it`,
+  );
+}
+check(/--\s*ROLLBACK/i.test(nutritionSql), 'nutrition migration documents its rollback statements');
+check(!/grant\s+.*\s+to\s+anon/i.test(nutritionSql), 'nutrition migration grants no ecosystem write capability to anon');
+
 if (failures) process.exitCode = 1;
 else console.log('\nAll ecosystem-contract static checks passed.');

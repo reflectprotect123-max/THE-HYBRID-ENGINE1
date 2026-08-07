@@ -42,6 +42,9 @@ importers:
       '@hybrid/guided-flow':
         specifier: workspace:*
         version: link:../../packages/guided-flow
+      '@hybrid/nutrition-core':
+        specifier: workspace:*
+        version: link:../../packages/nutrition-core
       '@hybrid/product-scope':
         specifier: workspace:*
         version: link:../../packages/product-scope
@@ -172,6 +175,9 @@ importers:
       '@hybrid/guided-flow':
         specifier: workspace:*
         version: link:../../packages/guided-flow
+      '@hybrid/nutrition-core':
+        specifier: workspace:*
+        version: link:../../packages/nutrition-core
       '@hybrid/product-scope':
         specifier: workspace:*
         version: link:../../packages/product-scope
@@ -343,6 +349,15 @@ importers:
         version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
   packages/guided-flow:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@20.0.3)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
+  packages/nutrition-core:
     devDependencies:
       typescript:
         specifier: ^5.9.3

@@ -126,7 +126,18 @@ export function applyProductSyncNamespace(db: EngineDB, remoteInput: EcosystemSy
   merged = {
     ...merged,
     core: ecosystem.core,
-    ecosystem,
+    /*
+     * The nutrition partition round-trips through this function — it survived
+     * `sanitizeEcosystemNamespace` and `mergeEcosystemNamespaces` above, and
+     * `readNutritionPartition(remoteInput)` is how the caller collects it —
+     * but it is deliberately NOT retained in the EngineDB.
+     *
+     * `cloudFp` hashes `db.ecosystem`, so a food log parked in here would make
+     * every meal dirty the TRAINING fingerprint and push the whole training
+     * blob to `app_state`. Dropping it is what makes the two slices independent
+     * rather than merely separately stored.
+     */
+    ecosystem: { ...ecosystem, partitions: { ...ecosystem.partitions, nutrition: undefined } },
   };
   return sanitizeDB(merged);
 }
@@ -147,4 +158,66 @@ export function buildMergedSyncNamespace(
   const first = buildProductSyncNamespace(db, 'strength', writer, now);
   const threaded = { ...db, core: first.core, ecosystem: first };
   return buildProductSyncNamespace(threaded, 'conditioning', writer, now);
+}
+
+/**
+ * Every domain snapshot the apps read and write, in ONE list.
+ *
+ * A reviewer counted three hand-maintained copies of this (the pull filter in
+ * each app, the push loop in the merged app), and a list that drifts is a
+ * domain written but never read back, or read and never written — invisible
+ * until an athlete's data is already one-way. Reads may scope to this list;
+ * nothing here ever filters the RECORDS inside a snapshot.
+ */
+export const SYNCED_SNAPSHOT_DOMAINS = ['strength', 'conditioning', 'nutrition'] as const;
+
+/**
+ * Carry the nutrition slice as its own partition.
+ *
+ * SHAPE: a sibling of `buildMergedSyncNamespace` taking an already-built
+ * namespace plus an opaque payload — NOT a fourth argument to that function.
+ * `buildMergedSyncNamespace` exists to PROJECT an `EngineDB` into partitions;
+ * handing it the nutrition blob as well would put a workout and a food log in
+ * one function's scope, one mis-scoped filter away from writing training
+ * records into the nutrition partition or the reverse. That is the exact shape
+ * of the two merges that already cost this repo user data. Here `productData`
+ * holds no nutrition and this holds no `EngineDB`, so the corruption is not a
+ * bug to be avoided — it is a value neither function can reach.
+ *
+ * `data` stays `unknown` for the same reason: @hybrid/engine models no
+ * nutrition schema and must not start, so no engine change can reshape the
+ * payload. @hybrid/nutrition-core owns sanitize and merge at both ends.
+ */
+export function withNutritionPartition(
+  namespace: EcosystemSyncNamespace,
+  data: unknown,
+  writer: string,
+  now = Date.now(),
+): EcosystemSyncNamespace {
+  const previous = namespace.partitions.nutrition;
+  // Content-based revisions, as in buildProductSyncNamespace: a retried push
+  // must not manufacture a snapshot newer than the one the server already holds.
+  const unchanged = previous !== undefined
+    && JSON.stringify(previous.data ?? null) === JSON.stringify(data ?? null);
+  const next: VersionedSnapshot<unknown> = unchanged
+    ? previous
+    : {
+        schemaVersion: 1,
+        domain: 'nutrition',
+        revision: (previous?.revision ?? 0) + 1,
+        updatedAt: now,
+        writer,
+        data,
+      };
+  return { ...namespace, partitions: { ...namespace.partitions, nutrition: next } };
+}
+
+/**
+ * The opaque nutrition payload a pull returned, for @hybrid/nutrition-core to
+ * sanitize and merge. Returns `undefined` when the server has never been told
+ * about this athlete's nutrition — which is not the same as an empty slice, and
+ * the caller must not confuse the two into a write.
+ */
+export function readNutritionPartition(namespace: EcosystemSyncNamespace): unknown {
+  return namespace.partitions.nutrition?.data;
 }

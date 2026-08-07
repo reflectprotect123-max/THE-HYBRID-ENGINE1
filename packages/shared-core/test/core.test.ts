@@ -52,6 +52,49 @@ describe('shared-core merge and sync namespaces', () => {
     expect(twice.events[0]?.payload).toEqual({ sessionId: 's1' });
   });
 
+  it('keeps a nutrition-sourced event attributed to nutrition through sanitisation', () => {
+    const out = sanitizeSharedCore({
+      events: [
+        {
+          id: 'e-nutrition',
+          type: 'nutrition_target_updated',
+          occurredAt: '2026-08-07T06:00:00.000Z',
+          sourceDomain: 'nutrition',
+          idempotencyKey: 'nutrition:target:2026-08-07',
+          payload: { calories: 2800 },
+        },
+        {
+          id: 'e-unknown',
+          type: 'nutrition_target_updated',
+          occurredAt: '2026-08-07T07:00:00.000Z',
+          sourceDomain: 'sleep_tracker',
+          idempotencyKey: 'unknown:2026-08-07',
+          payload: {},
+        },
+      ],
+    });
+    expect(out.events).toHaveLength(2);
+    // The nutrition domain is a first-class owner: it must survive, not be
+    // silently relabelled 'core' the way an unrecognised domain is.
+    expect(out.events[0]).toMatchObject({ id: 'e-nutrition', sourceDomain: 'nutrition', payload: { calories: 2800 } });
+    expect(out.events[1]?.sourceDomain).toBe('core');
+  });
+
+  it('carries a nutrition partition through an ecosystem merge', () => {
+    const local = emptyEcosystemNamespace();
+    const remote = emptyEcosystemNamespace();
+    const event = {
+      type: 'nutrition_target_updated' as const,
+      occurredAt: '2026-08-07T06:00:00.000Z',
+      sourceDomain: 'nutrition' as const,
+      idempotencyKey: 'nutrition:target:2026-08-07',
+      payload: { calories: 2800 },
+    };
+    local.core = appendSharedCoreEvent(emptySharedCore(1), event);
+    const out = mergeEcosystemNamespaces(local, remote);
+    expect(out.core.events[0]?.sourceDomain).toBe('nutrition');
+  });
+
   it('unions append-only facts and keeps the newer scalar state', () => {
     const a = { ...emptySharedCore(1), updatedAt: 1, bodyMetrics: [{ id: 'a', kind: 'weight' as const, value: 89, unit: 'kg', measuredAt: '2026-08-01' }] };
     const b = { ...emptySharedCore(2), updatedAt: 2, profile: { age: 32 }, bodyMetrics: [{ id: 'b', kind: 'weight' as const, value: 88.5, unit: 'kg', measuredAt: '2026-08-02' }] };

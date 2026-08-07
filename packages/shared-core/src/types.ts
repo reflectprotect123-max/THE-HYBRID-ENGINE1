@@ -12,7 +12,7 @@ export const SYNC_ENVELOPE_SCHEMA_VERSION = 1 as const;
 export type SharedCoreSchemaVersion = typeof SHARED_CORE_SCHEMA_VERSION;
 export type SyncEnvelopeSchemaVersion = typeof SYNC_ENVELOPE_SCHEMA_VERSION;
 
-export type ProductDomain = 'core' | 'strength' | 'conditioning' | 'athlete_state' | 'coordinator';
+export type ProductDomain = 'core' | 'strength' | 'conditioning' | 'athlete_state' | 'coordinator' | 'nutrition';
 export type AthleteGoal = 'strength' | 'conditioning' | 'hybrid' | 'health';
 export type Units = 'kg' | 'lb';
 export type IllnessStatus = 'clear' | 'suspected' | 'active' | 'returning';
@@ -169,6 +169,13 @@ export interface EcosystemSyncNamespace {
     conditioning?: VersionedSnapshot<unknown>;
     athleteState?: VersionedSnapshot<unknown>;
     weeklyPlan?: VersionedSnapshot<unknown>;
+    /**
+     * The athlete's nutrition slice. Carried here, never inside the training
+     * partitions and never inside `EngineDB`: the two blobs must be unable to
+     * overwrite each other, so they travel as separate rows under separate
+     * revisions.
+     */
+    nutrition?: VersionedSnapshot<unknown>;
   };
   events: AthleteEvent[];
 }
