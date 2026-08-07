@@ -1,5 +1,37 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (the Android merge shipped)**
+>
+> Supersedes the 6 August checkpoint below. In one session, spec to
+> production: the two Android apps are now ONE app.
+
+## State of the world
+
+| Item | Value |
+|---|---|
+| `main` | `4fbcb77` — every PR (#2 merge, #3 cleanup, #4 polish, #5 coach trace, #6 sync E2E) merged |
+| The app | ONE Android app, `com.hybridengine.app`. Two sealed worlds (Strength brass / Conditioning teal), switch in Settings, last world remembered. Existing installs updated in place. |
+| Conditioning app | Retired. Farewell force-sync release shipped and verified on device. Rebuildable only from merge commit `48d3064`. Play listing wind-down is a manual Play Console step, still open. |
+| Sync | Un-partitioned: one writer `hybrid:mobile`, both kinds both directions, nothing pruned — the 5 Aug in-flight residual is structurally gone. `pushEcosystem` upserts BOTH domain snapshots (a latent single-domain hole was found and fixed in cleanup). |
+| Proof | Device checklist passed on real hardware; live E2E round-trip against production Supabase green (`sync-e2e.yml`, manual dispatch — the test skips without `SB_E2E=1`). Suites: engine 588, mobile 131, web 88. Browser checks all pass; pentest 20 attacks 0 findings. |
+| Latest APK | Actions → "Mobile — EAS Android build" run #25 (from `3fe69ee`); each run's log ends with the expo.dev install link. |
+| Environment note | This sandbox's egress proxy blocks supabase.co and the Netlify site — live-backend anything must go through GitHub Actions, which is also how APKs build (`mobile-eas.yml`). |
+
+## Rules that MUST survive this checkpoint
+
+- `EXPO_PUBLIC_HYBRID_PRODUCT` is retired; setting it fails the build loudly (`apps/mobile/src/product.ts`). Do not resurrect product flavors.
+- Reads scope by discipline (`restrictToProduct` at the store), the database is NEVER filtered on write, Coordinator and whole-athlete-state see both worlds. A screen holding a session id looks it up in the WHOLE db (Recap bug, fixed).
+- The discipline preference lives in its own storage key, never on EngineDB.
+
+## Open
+
+1. Play Console: retire the conditioning listing (user-only, manual).
+2. The 6 Aug audit's still-relevant items: coach bench render/smoke coverage, `/coach` service-worker denylist question, auto-coach absent on mobile, localStorage-only coach/consent stores, `VITE_COACH_USER_IDS` in Netlify, `apps/web/index.html` title.
+3. UI/UX audit leftovers (low severity): checkbox/switch roles for the two boolean toggles, warning-banner glyphs, `text-1`/`text-2` data-label sweep.
+
+---
+
+
 > **AUTHORITATIVE CHECKPOINT — 6 August 2026 (audit + coach bench / Auto-Coached)**
 >
 > Read this before anything below. It supersedes the 5 August checkpoint
