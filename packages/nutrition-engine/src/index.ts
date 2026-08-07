@@ -43,3 +43,4 @@ export {
 export { addDays, diffDays, fromEpochDay, maxDay, toEpochDay } from './dates';
 
 export { clamp, fmean, fsum, naiveSum, pyRound } from './numeric';
+export { ENGINE_DEFECTS, type EngineDefect } from './defects';
