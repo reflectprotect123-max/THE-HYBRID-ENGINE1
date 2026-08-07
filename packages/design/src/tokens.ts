@@ -110,8 +110,48 @@ const conditioningBrand = {
   onAccent: '#04211d',
 } as const satisfies Record<keyof typeof strengthBrand, string>;
 
+/**
+ * Nutrition's brand block — amethyst, same shape as `strengthBrand`.
+ *
+ * Violet is the only hue left that cannot be misread: brass is Strength, teal
+ * is Conditioning, and green/blue/amber/red are all spoken for by the SHARED
+ * semantics above (HR zones, ok/warn/bad), which mean the same thing in every
+ * world. An accent that collided with one of those would make "in zone" and
+ * "this is the nutrition world" the same colour.
+ *
+ * Every ink here clears 4.5:1 on every surface here — `dim` included, which is
+ * the one ink the older two palettes ship at 4.2 on `panel2` (see
+ * docs/DESIGN-TOKENS.md). Nothing forced that compromise on a new palette, so
+ * it was not inherited. `node checks/contrast.mjs` prints the table.
+ */
+const nutritionBrand = {
+  bg: '#07060a',
+  panel: '#151220',
+  panel2: '#1d1a2b',
+  panel3: '#0a0810',
+  well: '#0c0a12',
+
+  line: 'rgba(219,208,255,.065)',
+  line2: 'rgba(219,208,255,.1)',
+  hair: 'rgba(219,208,255,.08)',
+
+  text: '#f3effa',
+  muted: '#b0a8c0',
+  dim: '#9188a6',
+
+  gold: '#9b83e0',
+  gold2: '#c9b6f7',
+  goldWash: 'rgba(155,131,224,.09)',
+  goldLine: 'rgba(201,182,247,.22)',
+  doneBg: 'rgba(155,131,224,.14)',
+  doneLine: 'rgba(201,182,247,.5)',
+  doneInk: '#d9c9ff',
+  onAccent: '#171033',
+} as const satisfies Record<keyof typeof strengthBrand, string>;
+
 export const strengthColor = { ...strengthBrand, ...sharedColor } as const;
 export const conditioningColor = { ...conditioningBrand, ...sharedColor } as const;
+export const nutritionColor = { ...nutritionBrand, ...sharedColor } as const;
 
 /** The shape every palette has. Use this, not `typeof color`, when a type is
  * needed independent of which palette is active. Widened to `string` per key

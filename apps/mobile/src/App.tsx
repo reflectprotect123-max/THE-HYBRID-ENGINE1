@@ -42,6 +42,9 @@ import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
 import { ConditioningScreen } from './screens/Conditioning';
+import { DailyLogScreen } from './screens/nutrition/DailyLog';
+import { NutritionSettingsScreen } from './screens/nutrition/NutritionSettings';
+import { nutritionPlaceholder } from './screens/nutrition/Placeholder';
 import './product'; // build-config guard: refuses a stale single-product env
 import { useDiscipline } from './discipline';
 
@@ -57,6 +60,14 @@ import { useDiscipline } from './discipline';
  * ONE thing and then leave — the logger, the plan editor, the recap, a
  * conditioning session — is a stack screen above them, so nothing competes with
  * the work in front of you and the back gesture means what it looks like.
+ *
+ * SEALED WORLDS. There are three worlds now, and each one gets its own whole
+ * navigator — its own five tabs and its own set of stack screens — chosen by
+ * `useDiscipline()`. Not one navigator with hidden routes: a route that is
+ * merely unlinked is still reachable by a deep link, a restored navigation
+ * state or a stray `navigate()`, and "the food log cannot open the barbell
+ * logger" is a structural claim, not a styling one. Swapping the navigator is
+ * what makes it true by construction.
  */
 
 /* Named so a stack screen can send you back to a SPECIFIC tab. Without this
@@ -88,8 +99,29 @@ export type RootStackParams = {
   Day: { date: string };
 };
 
+/**
+ * The nutrition world's tabs. Its own union, never merged into `TabParams` —
+ * a single type spanning both worlds would make `navigate('Tabs', { screen:
+ * 'Log' })` type-check from a training screen, which is the exact call the
+ * sealed-worlds rule forbids.
+ *
+ * The shape is MacroTrack's: the day's food, the catalogue, the scale, the
+ * coach, settings. Only Log and Settings have screens in this slice — see
+ * screens/nutrition/Placeholder.tsx for why the other three are declared now
+ * rather than appearing one at a time.
+ */
+export type NutritionTabParams = {
+  Log: undefined;
+  Food: undefined;
+  Weight: undefined;
+  Coach: undefined;
+  Settings: undefined;
+};
+
 const Stack = createNativeStackNavigator<RootStackParams>();
+const NutritionStack = createNativeStackNavigator<{ Tabs: undefined }>();
 const Tabs = createBottomTabNavigator<TabParams>();
+const NutritionTabs = createBottomTabNavigator<NutritionTabParams>();
 
 /* Glyph tabs rather than an icon dependency — five shapes do not justify
    pulling in a vector-icon package and its font assets. Deliberately raw
@@ -100,31 +132,54 @@ const tabIcon = (glyph: string) =>
     return <Text style={{ color: c, fontSize: focused ? 19 : 17 }}>{glyph}</Text>;
   };
 
-function TabNav() {
+/* One tab-bar skin for all three worlds. It reads entirely from the ACTIVE
+   palette, so the nutrition world's bar is amethyst by the same code path that
+   makes the conditioning world's teal — no per-world styling exists. */
+function useTabBarOptions(worldName: string) {
   const { color } = useTheme();
+  return {
+    headerShown: false,
+    tabBarActiveTintColor: color.gold2,
+    tabBarInactiveTintColor: color.dim,
+    /* The active tab per 04-athlete-03: gold ink over a soft gold wash,
+       rounded like every other selected surface in the app. */
+    tabBarActiveBackgroundColor: color.goldWash,
+    tabBarItemStyle: { borderRadius: radius.sm, marginHorizontal: 4, marginVertical: 3 },
+    tabBarStyle: { backgroundColor: color.panel3, borderTopColor: color.line },
+    tabBarLabelStyle: { fontSize: 11, fontFamily: font.med },
+    tabBarAccessibilityLabel: worldName,
+  };
+}
+
+function TabNav() {
   const discipline = useDiscipline();
   const worldName = discipline === 'conditioning' ? 'THE Conditioning System' : 'THE Strength System';
+  const screenOptions = useTabBarOptions(worldName);
   return (
-    <Tabs.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: color.gold2,
-        tabBarInactiveTintColor: color.dim,
-        /* The active tab per 04-athlete-03: gold ink over a soft gold wash,
-           rounded like every other selected surface in the app. */
-        tabBarActiveBackgroundColor: color.goldWash,
-        tabBarItemStyle: { borderRadius: radius.sm, marginHorizontal: 4, marginVertical: 3 },
-        tabBarStyle: { backgroundColor: color.panel3, borderTopColor: color.line },
-        tabBarLabelStyle: { fontSize: 11, fontFamily: font.med },
-        tabBarAccessibilityLabel: worldName,
-      }}
-    >
+    <Tabs.Navigator screenOptions={screenOptions}>
       <Tabs.Screen name="Home" component={HomeScreen} options={{ tabBarIcon: tabIcon('⌂') }} />
       <Tabs.Screen name="Train" component={TrainingScreen} options={{ tabBarIcon: tabIcon('⊟') }} />
       <Tabs.Screen name="Library" component={LibraryScreen} options={{ tabBarIcon: tabIcon('▤') }} />
       <Tabs.Screen name="Progress" component={ProgressScreen} options={{ tabBarIcon: tabIcon('◱') }} />
       <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: tabIcon('⚙') }} />
     </Tabs.Navigator>
+  );
+}
+
+const FoodScreen = nutritionPlaceholder('Food', 'Search, barcodes, custom foods and recipes land here.');
+const WeightScreen = nutritionPlaceholder('Weight', 'Weigh-ins and the smoothed trend land here.');
+const CoachScreen = nutritionPlaceholder('Coach', 'Your macro program, weekly check-ins and adjustments land here.');
+
+function NutritionTabNav() {
+  const screenOptions = useTabBarOptions('THE Nutrition System');
+  return (
+    <NutritionTabs.Navigator screenOptions={screenOptions}>
+      <NutritionTabs.Screen name="Log" component={DailyLogScreen} options={{ tabBarIcon: tabIcon('☰') }} />
+      <NutritionTabs.Screen name="Food" component={FoodScreen} options={{ tabBarIcon: tabIcon('◇') }} />
+      <NutritionTabs.Screen name="Weight" component={WeightScreen} options={{ tabBarIcon: tabIcon('◎') }} />
+      <NutritionTabs.Screen name="Coach" component={CoachScreen} options={{ tabBarIcon: tabIcon('◈') }} />
+      <NutritionTabs.Screen name="Settings" component={NutritionSettingsScreen} options={{ tabBarIcon: tabIcon('⚙') }} />
+    </NutritionTabs.Navigator>
   );
 }
 
@@ -158,9 +213,9 @@ export function App() {
   /* The app themes by the world the athlete is IN, so the switch in
      Settings repaints everything — the theme change itself is the arrival
      feedback. */
-  const discipline = useDiscipline();
+  const world = useDiscipline();
   return (
-    <ThemeProvider productId={discipline}>
+    <ThemeProvider world={world}>
       <AppInner />
     </ThemeProvider>
   );
@@ -172,6 +227,9 @@ export function App() {
    BELOW the `<ThemeProvider>` App renders, not inside the same render pass
    that produces it. */
 function AppInner() {
+  /* The world decides which navigator is mounted at all — see the sealed-worlds
+     note at the top of this file. */
+  const world = useDiscipline();
   /* Inter is the app's voice — the same family the design cards and both web
      apps set first in their stacks. Rendering before it loads would flash
      every screen in system Roboto, so the app holds on a blank frame for the
@@ -206,6 +264,20 @@ function AppInner() {
   /* Recomputed only when the palette changes, not on every render — vars()
      allocates a fresh object each call, and this is at the root of the tree. */
   const themeVars = useMemo(() => vars(buildNativeThemeVars(color)), [color]);
+  /* Shared by both stacks so a world cannot drift into its own transition
+     behaviour — the reduced-motion honouring below especially. */
+  const stackOptions = useMemo(
+    () => ({
+      headerShown: false,
+      contentStyle: { backgroundColor: color.bg },
+      /* 'fade', not 'none'. A screen that simply appears reads as a glitch —
+         the eye cannot tell a navigation from a redraw — so the calm version
+         still marks the transition, it just does not travel. */
+      animation: (reduceMotion ? 'fade' : 'slide_from_right') as 'fade' | 'slide_from_right',
+      gestureEnabled: true,
+    }),
+    [color, reduceMotion],
+  );
   const [fontsReady, fontsError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -239,29 +311,28 @@ function AppInner() {
               <SetTimerProvider>
             <NavigationContainer theme={theme}>
               <StatusBar style="light" />
-              <Stack.Navigator
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: color.bg },
-                  /* 'fade', not 'none'. A screen that simply appears reads as a
-                     glitch — the eye cannot tell a navigation from a redraw — so
-                     the calm version still marks the transition, it just does not
-                     travel. */
-                  animation: reduceMotion ? 'fade' : 'slide_from_right',
-                  gestureEnabled: true,
-                }}
-              >
-                <Stack.Screen name="Tabs" component={TabNav} />
-                <Stack.Screen name="Logger" component={LoggerScreen} />
-                <Stack.Screen name="Planner" component={PlannerScreen} />
-                <Stack.Screen name="GuidedBuilder" component={GuidedBuilderScreen} />
-                <Stack.Screen name="Recap" component={RecapScreen} />
-                <Stack.Screen name="Conditioning" component={ConditioningScreen} />
-                <Stack.Screen name="History" component={HistoryScreen} />
-                <Stack.Screen name="Calendar" component={CalendarScreen} />
-                <Stack.Screen name="Exercise" component={ExerciseScreen} />
-                <Stack.Screen name="Day" component={DayScreen} />
-              </Stack.Navigator>
+              {world === 'nutrition' ? (
+                <NutritionStack.Navigator screenOptions={stackOptions}>
+                  {/* No stack screens above the tabs yet: every nutrition flow
+                      this slice ships is completed inside the Daily Log. The
+                      training stack is not merely unlinked here — it is not
+                      registered, so no route into it exists at all. */}
+                  <NutritionStack.Screen name="Tabs" component={NutritionTabNav} />
+                </NutritionStack.Navigator>
+              ) : (
+                <Stack.Navigator screenOptions={stackOptions}>
+                  <Stack.Screen name="Tabs" component={TabNav} />
+                  <Stack.Screen name="Logger" component={LoggerScreen} />
+                  <Stack.Screen name="Planner" component={PlannerScreen} />
+                  <Stack.Screen name="GuidedBuilder" component={GuidedBuilderScreen} />
+                  <Stack.Screen name="Recap" component={RecapScreen} />
+                  <Stack.Screen name="Conditioning" component={ConditioningScreen} />
+                  <Stack.Screen name="History" component={HistoryScreen} />
+                  <Stack.Screen name="Calendar" component={CalendarScreen} />
+                  <Stack.Screen name="Exercise" component={ExerciseScreen} />
+                  <Stack.Screen name="Day" component={DayScreen} />
+                </Stack.Navigator>
+              )}
                 </NavigationContainer>
               </SetTimerProvider>
               </RestProvider>

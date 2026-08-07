@@ -8,18 +8,18 @@ function Probe() {
 }
 
 describe('ThemeProvider / useTheme', () => {
-  it('resolves the strength palette under productId="strength"', () => {
+  it('resolves the strength palette under world="strength"', () => {
     render(
-      <ThemeProvider productId="strength">
+      <ThemeProvider world="strength">
         <Probe />
       </ThemeProvider>,
     );
     expect(screen.getByTestId('ink').props.children).toBe(strengthColor.onAccent);
   });
 
-  it('resolves the conditioning palette under productId="conditioning"', () => {
+  it('resolves the conditioning palette under world="conditioning"', () => {
     render(
-      <ThemeProvider productId="conditioning">
+      <ThemeProvider world="conditioning">
         <Probe />
       </ThemeProvider>,
     );

@@ -38,3 +38,14 @@ export {
   mergeNutrition,
   sanitizeNutritionDB,
 } from './db';
+
+export type { MacroTotals } from './day';
+
+export {
+  ZERO_TOTALS,
+  entriesForDay,
+  groupByMeal,
+  isLive,
+  macroTotals,
+  targetForDay,
+} from './day';
