@@ -485,6 +485,9 @@ function cleanWeightEntry(raw: unknown): WeightEntry | null {
     note: optStr(raw.note),
     createdAt: stamp(raw.createdAt),
     updatedAt: stamp(raw.updatedAt),
+    // `tsOrNull`, so `''` cannot mean "deleted" to one read and "live" to
+    // another — see the helper's own comment.
+    deletedAt: tsOrNull(raw.deletedAt),
   };
 }
 

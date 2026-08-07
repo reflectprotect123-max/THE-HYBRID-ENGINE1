@@ -26,6 +26,7 @@
     "@hybrid/engine": "workspace:*",
     "@hybrid/guided-flow": "workspace:*",
     "@hybrid/nutrition-core": "workspace:*",
+    "@hybrid/nutrition-engine": "workspace:*",
     "@hybrid/product-scope": "workspace:*",
     "@hybrid/shared-core": "workspace:*",
     "@hybrid/whole-athlete-state": "workspace:*",

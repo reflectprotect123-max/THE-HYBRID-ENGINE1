@@ -45,6 +45,9 @@ importers:
       '@hybrid/nutrition-core':
         specifier: workspace:*
         version: link:../../packages/nutrition-core
+      '@hybrid/nutrition-engine':
+        specifier: workspace:*
+        version: link:../../packages/nutrition-engine
       '@hybrid/product-scope':
         specifier: workspace:*
         version: link:../../packages/product-scope

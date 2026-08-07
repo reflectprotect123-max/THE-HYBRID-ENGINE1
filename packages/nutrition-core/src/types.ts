@@ -342,6 +342,21 @@ export interface WeightEntry {
    * `updatedAt`, and an editable note/correction needs a stamp of its own.
    */
   updatedAt: IsoTimestamp;
+  /**
+   * Soft delete, for the reason given on `FoodLogEntry.deletedAt`, and NOT
+   * present in MacroTrack's schema: `WeightRepository.deleteEntry` issues a
+   * real SQL `delete`, which is safe against a server that is the single
+   * source of truth. `mergeNutrition` is additive, so an entry spliced out of
+   * this array is restored from the other device on the very next sync — a
+   * mis-typed 8.2 kg weigh-in the athlete deleted would come back and drag the
+   * EWMA and the expenditure estimate with it. A deletion has to travel as a
+   * newer-`updatedAt` write, exactly as it does for food.
+   *
+   * Purely additive at `NUTRITION_SCHEMA_VERSION` 1: a blob written before
+   * this field sanitizes to `null`, which is "live", which is what those rows
+   * already were.
+   */
+  deletedAt?: IsoTimestamp | null;
 }
 
 /** One concrete day target, mirroring `public.macro_program_days`. */

@@ -44,8 +44,9 @@ import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
 import { ConditioningScreen } from './screens/Conditioning';
 import { DailyLogScreen } from './screens/nutrition/DailyLog';
 import { NutritionSettingsScreen } from './screens/nutrition/NutritionSettings';
-import { nutritionPlaceholder } from './screens/nutrition/Placeholder';
 import { FoodScreen } from './screens/nutrition/Food';
+import { WeightScreen } from './screens/nutrition/Weight';
+import { CoachScreen } from './screens/nutrition/Coach';
 import './product'; // build-config guard: refuses a stale single-product env
 import { useDiscipline } from './discipline';
 
@@ -107,9 +108,8 @@ export type RootStackParams = {
  * sealed-worlds rule forbids.
  *
  * The shape is MacroTrack's: the day's food, the catalogue, the scale, the
- * coach, settings. Weight and Coach are the two still without screens — see
- * screens/nutrition/Placeholder.tsx for why the other two are declared now
- * rather than appearing one at a time.
+ * coach, settings. All five now have screens; the weekly check-in is a PANE of
+ * Coach rather than a sixth route, for the reason Coach.tsx gives.
  */
 export type NutritionTabParams = {
   Log: undefined;
@@ -166,9 +166,6 @@ function TabNav() {
     </Tabs.Navigator>
   );
 }
-
-const WeightScreen = nutritionPlaceholder('Weight', 'Weigh-ins and the smoothed trend land here.');
-const CoachScreen = nutritionPlaceholder('Coach', 'Your macro program, weekly check-ins and adjustments land here.');
 
 function NutritionTabNav() {
   const screenOptions = useTabBarOptions('THE Nutrition System');
