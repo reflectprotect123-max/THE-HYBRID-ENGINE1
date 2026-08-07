@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Session, Workout } from '@hybrid/engine';
 import type { AthleteEvent, RecoveryObservation } from '@hybrid/shared-core';
-import { summarizeWeek } from '../src/autocoach/weeklySummary';
+import { summarizeWeek } from './weeklySummary';
 
 const TODAY = '2026-08-06'; // Thursday; week is Aug 3–9
 

@@ -7,8 +7,8 @@ import {
   ledgerEntryFromApply,
   planApply,
   planUndo,
-} from '../src/autocoach/applyResolution';
-import type { LedgerEntry } from '../src/autocoach/ledger';
+} from './applyResolution';
+import type { LedgerEntry } from './ledger';
 
 const TODAY = '2026-08-06';
 

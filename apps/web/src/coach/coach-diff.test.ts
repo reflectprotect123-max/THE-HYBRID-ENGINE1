@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { SlimPlan } from '../src/coach/bench-store';
-import { diffPlans } from '../src/coach/diff';
-import { deriveOnboarding, onboardingProgress } from '../src/coach/onboarding';
+import type { SlimPlan } from './bench-store';
+import { diffPlans } from './diff';
+import { deriveOnboarding, onboardingProgress } from './onboarding';
 
 const plan = (over: Partial<SlimPlan>): SlimPlan => ({
   weekStart: '2026-08-03',

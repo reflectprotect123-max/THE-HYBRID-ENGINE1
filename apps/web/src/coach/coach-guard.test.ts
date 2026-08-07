@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coachAllowed } from '../src/coach/guard';
+import { coachAllowed } from './guard';
 
 describe('coachAllowed', () => {
   it('admits an allowlisted user, dev or prod', () => {

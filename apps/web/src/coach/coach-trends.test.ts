@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Concept2Result, Session, Workout } from '@hybrid/engine';
-import { ergTrend, liftTrends, weeklyHardBudget } from '../src/coach/trends';
+import { ergTrend, liftTrends, weeklyHardBudget } from './trends';
 
 const TODAY = '2026-08-06'; // Thursday; week is Aug 3–9
 

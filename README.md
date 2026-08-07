@@ -210,7 +210,7 @@ node checks/docs.mjs                 # this file's paths and symbols still exist
 without `VITE_COACH_USER_IDS` and would otherwise redirect away unchecked.
 
 The live three-domain sync round trip — strength, conditioning and nutrition for
-one athlete against the real backend — is `apps/web/test/sync-e2e.live.test.ts`.
+one athlete against the real backend — is `apps/web/src/cloud/sync-e2e.live.test.ts`.
 It skips unless `SB_E2E=1` and runs from the manually-dispatched `sync-e2e`
 workflow, because it needs network egress and creates a disposable auth user.
 

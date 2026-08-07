@@ -81,11 +81,15 @@ directory. A test that covers a contract across several modules — a parity
 suite, a boundary check, a merged-world sync test — sits with the module it
 mostly exercises, named for the contract rather than the file.
 
-`test/` still exists in four projects and holds only things that are not tests:
+EVERY test is colocated — there are no exceptions, including the coach bench
+and the `SB_E2E`-gated live backend round trip, which sits with the sync
+provider it drives.
+
+`test/` still exists in four projects and holds only things that are NOT tests:
 fixtures and golden vectors (`packages/engine/test/golden`,
-`packages/auto-coach/test/fixtures`, `packages/nutrition-engine/test/fixtures`),
-the mobile Jest setup and stubs, and the live backend round trip that is gated
-on `SB_E2E` and is not a unit of anything in `src/`.
+`packages/auto-coach/test/fixtures`, `packages/nutrition-engine/test/fixtures`)
+and the mobile Jest setup and stubs. If you find a `*.test.ts` under `test/`,
+it is in the wrong place.
 
 Both trees are collected — `include`/`testMatch` name `src/**` AND `test/**` in
 every project. Do not "tidy" either half away: a test that stops being collected

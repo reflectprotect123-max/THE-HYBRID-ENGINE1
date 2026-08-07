@@ -3,7 +3,7 @@ import {
   allComprehensionCorrect,
   COMPREHENSION_STATEMENTS,
   highestAllowedMode,
-} from '../src/autocoach/consent';
+} from './consent';
 
 const CORRECT: (boolean | null)[] = COMPREHENSION_STATEMENTS.map((s) => s.correct);
 

@@ -6,7 +6,7 @@ import {
   occurrenceKind,
   planWeekClear,
   planWeekCopy,
-} from '../src/coach/ops';
+} from './ops';
 
 const MON = '2026-08-10'; // a Monday
 const NEXT = '2026-08-17';

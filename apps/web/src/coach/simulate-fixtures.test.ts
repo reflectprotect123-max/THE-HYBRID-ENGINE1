@@ -3,7 +3,7 @@ import { resolveSession, DEFAULT_POLICY } from '@hybrid/auto-coach';
 import {
   buildFixtureSnapshot,
   buildFixtureWorkout,
-} from '../src/coach/simulateFixtures';
+} from './simulateFixtures';
 
 describe('buildFixtureWorkout', () => {
   it('builds a minimal single-block strength example', () => {

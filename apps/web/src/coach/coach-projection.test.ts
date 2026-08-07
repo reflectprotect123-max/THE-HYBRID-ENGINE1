@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Session, Workout } from '@hybrid/engine';
-import { gridDates, projectGrid, sameWeekday } from '../src/coach/projection';
+import { gridDates, projectGrid, sameWeekday } from './projection';
 
 const TODAY = '2026-08-06'; // a Thursday
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_POLICY, type AutoCoachResolution, type AutonomyPolicy } from '@hybrid/auto-coach';
 import type { AthleteStateSnapshot, StateConstraint } from '@hybrid/whole-athlete-state';
-import { buildDecisionTrace } from '../src/coach/trace';
+import { buildDecisionTrace } from './trace';
 
 const constraint = (over: Partial<StateConstraint> = {}): StateConstraint => ({
   code: 'low_readiness',

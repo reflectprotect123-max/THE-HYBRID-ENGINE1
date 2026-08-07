@@ -28,4 +28,4 @@ jobs:
       - name: Live sync round-trip
         env:
           SB_E2E: '1'
-        run: pnpm --filter @hybrid/web exec vitest run test/sync-e2e.live.test.ts
+        run: pnpm --filter @hybrid/web exec vitest run src/cloud/sync-e2e.live.test.ts
