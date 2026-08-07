@@ -1,11 +1,15 @@
 export type {
+  CachedFood,
   CheckIn,
   CheckInModule,
   CheckInStatus,
+  CustomFood,
   DayStatus,
   DayStatusValue,
   EntryKind,
+  FoodFavorite,
   FoodLogEntry,
+  FoodServing,
   IsoDate,
   IsoTimestamp,
   MacroProgram,
@@ -16,6 +20,9 @@ export type {
   ProgramGoal,
   ProgramMode,
   ProgramStatus,
+  Recipe,
+  RecipeItem,
+  Scalable,
   SourceSnapshot,
   WeightEntry,
 } from './types';
@@ -37,6 +44,7 @@ export {
   emptyNutritionDB,
   mergeNutrition,
   sanitizeNutritionDB,
+  upsertCachedFood,
 } from './db';
 
 export type { MacroTotals } from './day';
@@ -49,3 +57,41 @@ export {
   macroTotals,
   targetForDay,
 } from './day';
+
+export type { RecipeLookup, ScaledMacros } from './recipe';
+
+export {
+  IncompatibleUnitError,
+  ZERO_MACROS,
+  forLoggedServings,
+  perServing,
+  resolveFoodMacros,
+  resolveRecipeItem,
+  resolveRecipePerServing,
+  scaleByServing,
+  scaleTo,
+  sumMacros,
+} from './recipe';
+
+export type { LogContext } from './log';
+
+export {
+  logEntryFromCustomFood,
+  logEntryFromFood,
+  logEntryFromRecipe,
+  quickAddEntry,
+} from './log';
+
+export type { FoodSearchResult, FoodSourceKind } from './search';
+
+export {
+  catalogueResult,
+  favoriteKey,
+  favoriteKeys,
+  favoriteResults,
+  foodSearch,
+  liveCustomFoods,
+  liveRecipes,
+  recentResults,
+  searchLocal,
+} from './search';

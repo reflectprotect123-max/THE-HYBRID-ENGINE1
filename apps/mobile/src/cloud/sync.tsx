@@ -91,6 +91,17 @@ const client: SupabaseClient | null = (() => {
   }
 })();
 
+/**
+ * The one Supabase client this app has.
+ *
+ * Exported so the food catalogue can be read through it rather than through a
+ * second `createClient`: two clients on one MMKV store means two gotrue
+ * instances refreshing the same session, which race each other into signing the
+ * athlete out. It is null when the build has no Supabase config, and every
+ * caller must treat that as "offline", not as an error.
+ */
+export const supabaseClient: SupabaseClient | null = client;
+
 /* One writer identity for every domain this app owns. */
 const ECOSYSTEM_WRITER = 'hybrid:mobile';
 

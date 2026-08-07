@@ -45,6 +45,7 @@ import { ConditioningScreen } from './screens/Conditioning';
 import { DailyLogScreen } from './screens/nutrition/DailyLog';
 import { NutritionSettingsScreen } from './screens/nutrition/NutritionSettings';
 import { nutritionPlaceholder } from './screens/nutrition/Placeholder';
+import { FoodScreen } from './screens/nutrition/Food';
 import './product'; // build-config guard: refuses a stale single-product env
 import { useDiscipline } from './discipline';
 
@@ -106,8 +107,8 @@ export type RootStackParams = {
  * sealed-worlds rule forbids.
  *
  * The shape is MacroTrack's: the day's food, the catalogue, the scale, the
- * coach, settings. Only Log and Settings have screens in this slice — see
- * screens/nutrition/Placeholder.tsx for why the other three are declared now
+ * coach, settings. Weight and Coach are the two still without screens — see
+ * screens/nutrition/Placeholder.tsx for why the other two are declared now
  * rather than appearing one at a time.
  */
 export type NutritionTabParams = {
@@ -166,7 +167,6 @@ function TabNav() {
   );
 }
 
-const FoodScreen = nutritionPlaceholder('Food', 'Search, barcodes, custom foods and recipes land here.');
 const WeightScreen = nutritionPlaceholder('Weight', 'Weigh-ins and the smoothed trend land here.');
 const CoachScreen = nutritionPlaceholder('Coach', 'Your macro program, weekly check-ins and adjustments land here.');
 
