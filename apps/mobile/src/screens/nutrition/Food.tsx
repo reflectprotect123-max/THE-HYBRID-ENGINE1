@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import type { CachedFood, ParsedNutritionLabel } from '@hybrid/nutrition-core';
+import type { CachedFood, OcrLine, ParsedNutritionLabel } from '@hybrid/nutrition-core';
 import type { CatalogueBarcodeLookup, CatalogueSearch } from '../../cloud/catalogue';
 import type { LabelRecogniser } from '../../native/labelOcr';
+import { recordScan } from '../../store/scanCorpus';
 import { FoodSearchScreen } from './FoodSearch';
 import { QuickAddScreen } from './QuickAdd';
 import { CustomFoodScreen, type CustomFoodPrefill } from './CustomFood';
@@ -50,19 +51,47 @@ export function FoodScreen({ search, lookupBarcode, recogniseLabel }: Props = {}
      sheet built into the scanner would be a second place for the snapshot
      rules to drift. */
   const [scanned, setScanned] = useState<CachedFood | null>(null);
+  /*
+   * A PHOTOGRAPHED panel, held between the reader and the confirm step.
+   *
+   * The reader alone cannot produce a corpus record: what it shows can only be
+   * accepted, and a record where nothing could have been changed proves
+   * nothing. The ground truth is one screen later, where the athlete either
+   * types over the numbers or does not. This is the thread between the two,
+   * and it is dropped the moment the athlete goes anywhere else — a scan that
+   * was abandoned produced no ground truth to record.
+   */
+  const [pendingScan, setPendingScan] = useState<{ lines: OcrLine[]; parsed: ParsedNutritionLabel } | null>(null);
 
   const done = (message: string) => {
     setNotice(message);
+    setPendingScan(null);
     setPane({ kind: 'search' });
   };
 
-  const toSearch = () => setPane({ kind: 'search' });
+  const toSearch = () => {
+    setPendingScan(null);
+    setPane({ kind: 'search' });
+  };
 
   if (pane.kind === 'quickAdd') {
     return <QuickAddScreen onDone={done} onCancel={toSearch} />;
   }
   if (pane.kind === 'customFood') {
-    return <CustomFoodScreen editId={pane.editId} prefill={pane.prefill} onDone={done} onCancel={toSearch} />;
+    return (
+      <CustomFoodScreen
+        editId={pane.editId}
+        prefill={pane.prefill}
+        /* Local evidence only. Nothing reads the corpus back, and a failed
+           corpus write can never come between the athlete and their food —
+           `recordScan` swallows its own storage errors. */
+        onSaved={(before, after) => {
+          if (pendingScan) recordScan({ ...pendingScan, presented: before, confirmed: after });
+        }}
+        onDone={done}
+        onCancel={toSearch}
+      />
+    );
   }
   if (pane.kind === 'recipe') {
     return <RecipeBuilderScreen editId={pane.editId} search={search} onDone={done} onCancel={toSearch} />;
@@ -90,7 +119,10 @@ export function FoodScreen({ search, lookupBarcode, recogniseLabel }: Props = {}
     return (
       <LabelReaderScreen
         recognise={recogniseLabel}
-        onUse={(parsed) => setPane({ kind: 'customFood', prefill: fromLabel(parsed) })}
+        onUse={(parsed, lines) => {
+          setPendingScan(lines ? { lines, parsed } : null);
+          setPane({ kind: 'customFood', prefill: fromLabel(parsed) });
+        }}
         onCancel={toSearch}
       />
     );
