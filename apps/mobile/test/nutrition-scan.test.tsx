@@ -271,10 +271,15 @@ describe('label reader', () => {
   const open = () => fireEvent.press(screen.getByText('Read a label'));
   const type = (text: string) => fireEvent.changeText(screen.getByLabelText('Nutrition panel text'), text);
 
-  it('says plainly that there is no camera rather than implying one', () => {
+  /* The camera half of this screen is proved in `nutrition-label-ocr.test.tsx`.
+     What matters here is that adding it did not demote typing to a curiosity:
+     both doors are on the first screen, and the typed one still reaches the
+     same reader. */
+  it('offers the camera and the text box on the same screen', () => {
     mount(<FoodScreen />);
     open();
-    expect(screen.getByText(/no camera here yet/i)).toBeTruthy();
+    expect(screen.getByText('Scan the panel')).toBeTruthy();
+    expect(screen.getByLabelText('Nutrition panel text')).toBeTruthy();
   });
 
   it('reads a typed Australian panel and carries it into Create-a-food', () => {
