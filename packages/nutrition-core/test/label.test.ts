@@ -215,6 +215,30 @@ describe('parseLabelText — the manual path', () => {
     expect(r.proteinG).toBeCloseTo(10.7, 3);
   });
 
+  it('is not fooled by "Servings per package" on a per-100-only panel', () => {
+    // Every FSANZ panel prints that line, including one with no per-serving
+    // column at all. Reading it as evidence of a serving column stored a
+    // per-100 figure as one serving's macros — wrong by however large the
+    // serving is, which is the exact failure `basis` exists to prevent.
+    const r = parseLabelText(
+      ['Servings per package: 8', 'Serving size: 30g', 'Per 100g', 'Energy 1733kJ', 'Protein 10.7g'].join('\n'),
+    );
+    expect(r.basis).toBe('per_100');
+    expect(r.proteinG).toBeCloseTo(10.7, 3);
+  });
+
+  it('still reads a real per-serving heading first, whatever else the panel prints', () => {
+    const r = parseLabelText(
+      ['Servings per package: 8', 'Per serving   Per 100g', 'Energy  520kJ  1733kJ', 'Protein 3.2g  10.7g'].join('\n'),
+    );
+    expect(r.basis).toBe('per_serving');
+  });
+
+  it('falls back to the package line only when no per-100 heading was read', () => {
+    const r = parseLabelText(['Servings per package: 8', 'Energy 520kJ', 'Protein 3.2g'].join('\n'));
+    expect(r.basis).toBe('per_serving');
+  });
+
   it('reports an unheaded panel as unknown rather than assuming a basis', () => {
     expect(parseLabelText('Energy 520kJ\nProtein 3.2g').basis).toBe('unknown');
   });

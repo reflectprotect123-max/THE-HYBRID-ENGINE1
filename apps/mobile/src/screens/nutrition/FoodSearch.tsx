@@ -221,6 +221,17 @@ export function FoodSearchScreen({
   const openDraft = (result: FoodSearchResult) => {
     setLogError('');
     setLogged('');
+    /* Pin a drafted CATALOGUE food the same way a scanned one is pinned. The
+       sheet keeps only the food's id and re-resolves it at commit time, while
+       the search box underneath is still live — so editing the query replaced
+       `remote` wholesale and "Add to log" then failed with "That food is not on
+       this device and the catalogue is unreachable", which was not true: the
+       catalogue was reachable and the food existed. The other two kinds live in
+       the local slice and cannot go missing this way. */
+    if (result.kind === 'food') {
+      const food = findFood(nutrition, pool, result.id);
+      if (food) setPinned((prev) => [food, ...prev.filter((f) => f.id !== food.id)]);
+    }
     const defaults = unitDefaults(nutrition, pool, result);
     const units = Object.keys(defaults);
     const unit = units[0] ?? 'serving';
