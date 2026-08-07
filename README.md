@@ -31,6 +31,7 @@ The fastest way into this repo. Find the symptom, go to the file.
 | Phone doesn't get an update | `.github/workflows/mobile-ota.yml`. Native changes need a new APK — `mobile-eas.yml` |
 | WHOOP connect or sync fails | `netlify/functions/whoop-*`; check with `node checks/whoop-contract.mjs` |
 | A screen renders blank / title-only | The screen in `apps/*/src/screens/`. See `apps/mobile/test/screens.test.tsx` — that class of bug has bitten before |
+| Auto-Coached changed nothing despite an active constraint | The coach bench's **Why today** panel, or `apps/web/src/coach/trace.ts` → `buildDecisionTrace` for the outcome rules |
 
 **Rule of thumb:** if it is a decision about *training*, it is in
 `packages/engine` and has a test. If it is about *pixels*, it is in
