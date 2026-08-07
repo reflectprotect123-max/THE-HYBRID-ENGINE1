@@ -1,0 +1,7285 @@
+{
+  "source": "adaptive_engine.py (reflectprotect123-max/thehybridsystem)",
+  "python": "3.11.15",
+  "engineConfig": {
+    "kcal_per_kg": 7700.0,
+    "trend_alpha": 0.2,
+    "minimum_history_days": 14,
+    "coverage_window_days": 7,
+    "minimum_nutrition_days_per_week": 6,
+    "minimum_weight_days_per_week": 1,
+    "maximum_expenditure_step_kcal": 100.0,
+    "minimum_expenditure_kcal": 1000.0,
+    "maximum_expenditure_kcal": 6000.0,
+    "default_protein_g_per_kg": 1.8,
+    "default_fat_g_per_kg": 0.8
+  },
+  "weightTrend": [
+    {
+      "name": "smooths_a_spike",
+      "values": [
+        90.0,
+        90.2,
+        90.1,
+        95.0,
+        90.2
+      ],
+      "alpha": 0.2,
+      "expected": [
+        90.0,
+        90.04,
+        90.052,
+        91.0416,
+        90.87328000000001
+      ]
+    },
+    {
+      "name": "leading_gap",
+      "values": [
+        null,
+        null,
+        88.4,
+        88.1,
+        null,
+        87.9
+      ],
+      "alpha": 0.2,
+      "expected": [
+        null,
+        null,
+        88.4,
+        88.34000000000002,
+        88.34000000000002,
+        88.25200000000001
+      ]
+    },
+    {
+      "name": "all_missing",
+      "values": [
+        null,
+        null,
+        null
+      ],
+      "alpha": 0.2,
+      "expected": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "name": "alpha_one",
+      "values": [
+        90.0,
+        91.0,
+        89.0
+      ],
+      "alpha": 1.0,
+      "expected": [
+        90.0,
+        91.0,
+        89.0
+      ]
+    },
+    {
+      "name": "alpha_small",
+      "values": [
+        90.0,
+        91.0,
+        89.0,
+        92.5,
+        88.25
+      ],
+      "alpha": 0.05,
+      "expected": [
+        90.0,
+        90.05,
+        89.9975,
+        90.122625,
+        90.02899374999998
+      ]
+    },
+    {
+      "name": "empty",
+      "values": [],
+      "alpha": 0.2,
+      "expected": []
+    },
+    {
+      "name": "single",
+      "values": [
+        77.7
+      ],
+      "alpha": 0.2,
+      "expected": [
+        77.7
+      ]
+    },
+    {
+      "name": "long_drift",
+      "values": [
+        90.0,
+        89.963,
+        89.926,
+        89.889,
+        89.852,
+        89.815,
+        89.778,
+        89.741,
+        89.704,
+        89.667,
+        89.63,
+        89.593,
+        89.556,
+        89.519,
+        89.482,
+        89.445,
+        89.408,
+        89.371,
+        89.334,
+        89.297,
+        89.26,
+        89.223,
+        89.186,
+        89.149,
+        89.112,
+        89.075,
+        89.038,
+        89.001,
+        88.964,
+        88.927
+      ],
+      "alpha": 0.2,
+      "expected": [
+        90.0,
+        89.9926,
+        89.97928,
+        89.961224,
+        89.9393792,
+        89.91450336,
+        89.887202688,
+        89.8579621504,
+        89.82716972032,
+        89.795135776256,
+        89.76210862100481,
+        89.72828689680385,
+        89.69382951744308,
+        89.65886361395447,
+        89.62349089116357,
+        89.58779271293085,
+        89.55183417034469,
+        89.51566733627575,
+        89.4793338690206,
+        89.44286709521649,
+        89.40629367617319,
+        89.36963494093855,
+        89.33290795275084,
+        89.29612636220068,
+        89.25930108976056,
+        89.22244087180844,
+        89.18555269744675,
+        89.14864215795741,
+        89.11171372636593,
+        89.07477098109274
+      ]
+    }
+  ],
+  "linearSlope": [
+    {
+      "name": "empty",
+      "points": [],
+      "expected": null
+    },
+    {
+      "name": "single",
+      "points": [
+        [
+          "2026-07-01",
+          90.0
+        ]
+      ],
+      "expected": null
+    },
+    {
+      "name": "same_day_twice",
+      "points": [
+        [
+          "2026-07-01",
+          90.0
+        ],
+        [
+          "2026-07-01",
+          90.4
+        ]
+      ],
+      "expected": null
+    },
+    {
+      "name": "linear",
+      "points": [
+        [
+          "2026-07-01",
+          90.0
+        ],
+        [
+          "2026-07-02",
+          89.96
+        ],
+        [
+          "2026-07-03",
+          89.92
+        ],
+        [
+          "2026-07-04",
+          89.88
+        ],
+        [
+          "2026-07-05",
+          89.84
+        ],
+        [
+          "2026-07-06",
+          89.8
+        ],
+        [
+          "2026-07-07",
+          89.76
+        ],
+        [
+          "2026-07-08",
+          89.72
+        ],
+        [
+          "2026-07-09",
+          89.68
+        ],
+        [
+          "2026-07-10",
+          89.64
+        ],
+        [
+          "2026-07-11",
+          89.6
+        ],
+        [
+          "2026-07-12",
+          89.56
+        ],
+        [
+          "2026-07-13",
+          89.52
+        ],
+        [
+          "2026-07-14",
+          89.48
+        ]
+      ],
+      "expected": -0.03999999999999982
+    },
+    {
+      "name": "irregular",
+      "points": [
+        [
+          "2026-07-01",
+          90.0
+        ],
+        [
+          "2026-07-04",
+          89.55
+        ],
+        [
+          "2026-07-11",
+          89.1
+        ],
+        [
+          "2026-07-12",
+          89.34
+        ]
+      ],
+      "expected": -0.0645348837209302
+    },
+    {
+      "name": "noisy",
+      "points": [
+        [
+          "2026-07-01",
+          90.0
+        ],
+        [
+          "2026-07-02",
+          90.4
+        ],
+        [
+          "2026-07-03",
+          90.8
+        ],
+        [
+          "2026-07-04",
+          90.1
+        ],
+        [
+          "2026-07-05",
+          90.5
+        ],
+        [
+          "2026-07-06",
+          90.9
+        ],
+        [
+          "2026-07-07",
+          90.2
+        ],
+        [
+          "2026-07-08",
+          90.6
+        ],
+        [
+          "2026-07-09",
+          91.0
+        ],
+        [
+          "2026-07-10",
+          90.3
+        ],
+        [
+          "2026-07-11",
+          90.7
+        ],
+        [
+          "2026-07-12",
+          90.0
+        ],
+        [
+          "2026-07-13",
+          90.4
+        ],
+        [
+          "2026-07-14",
+          90.8
+        ],
+        [
+          "2026-07-15",
+          90.1
+        ],
+        [
+          "2026-07-16",
+          90.5
+        ],
+        [
+          "2026-07-17",
+          90.9
+        ],
+        [
+          "2026-07-18",
+          90.2
+        ],
+        [
+          "2026-07-19",
+          90.6
+        ],
+        [
+          "2026-07-20",
+          91.0
+        ],
+        [
+          "2026-07-21",
+          90.3
+        ]
+      ],
+      "expected": 0.00857142857142851
+    }
+  ],
+  "nutritionIsCountable": [
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": 2400,
+        "weight_kg": 90.0,
+        "nutrition_status": "complete"
+      },
+      "expected": true
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": 0,
+        "weight_kg": 90.0,
+        "nutrition_status": "complete"
+      },
+      "expected": true
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": -5,
+        "weight_kg": 90.0,
+        "nutrition_status": "complete"
+      },
+      "expected": false
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": null,
+        "weight_kg": 90.0,
+        "nutrition_status": "complete"
+      },
+      "expected": false
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": 2400,
+        "weight_kg": 90.0,
+        "nutrition_status": "partial"
+      },
+      "expected": false
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": null,
+        "weight_kg": 90.0,
+        "nutrition_status": "partial"
+      },
+      "expected": false
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": 2400,
+        "weight_kg": 90.0,
+        "nutrition_status": "unlogged"
+      },
+      "expected": false
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": 0,
+        "weight_kg": 90.0,
+        "nutrition_status": "fasted"
+      },
+      "expected": true
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": null,
+        "weight_kg": 90.0,
+        "nutrition_status": "fasted"
+      },
+      "expected": false
+    },
+    {
+      "record": {
+        "date": "2026-07-01",
+        "calories": 120,
+        "weight_kg": 90.0,
+        "nutrition_status": "fasted"
+      },
+      "expected": false
+    }
+  ],
+  "periodCoverage": [
+    {
+      "name": "baseline",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "start": "2026-07-01",
+      "end": "2026-07-14",
+      "expected": {
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "partial",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": null,
+          "weight_kg": 89.92,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": null,
+          "weight_kg": 89.88,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "start": "2026-07-01",
+      "end": "2026-07-07",
+      "expected": {
+        "nutritionDays": 5,
+        "weightDays": 7
+      }
+    },
+    {
+      "name": "sparse_weight",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        }
+      ],
+      "start": "2026-07-08",
+      "end": "2026-07-14",
+      "expected": {
+        "nutritionDays": 7,
+        "weightDays": 1
+      }
+    },
+    {
+      "name": "short",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        }
+      ],
+      "start": "2026-07-01",
+      "end": "2026-07-07",
+      "expected": {
+        "nutritionDays": 7,
+        "weightDays": 7
+      }
+    }
+  ],
+  "coverageExplanation": [
+    {
+      "name": "empty",
+      "records": [],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "No daily records are available."
+        ],
+        "nutritionDays": 0,
+        "weightDays": 0
+      }
+    },
+    {
+      "name": "empty_with_previous",
+      "records": [],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "No daily records are available."
+        ],
+        "nutritionDays": 0,
+        "weightDays": 0
+      }
+    },
+    {
+      "name": "baseline_with_previous",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "baseline_no_previous",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "baseline_previous_far_below",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "baseline_previous_far_above",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "partial_days_hold",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": null,
+          "weight_kg": 89.92,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": null,
+          "weight_kg": 89.88,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "Nutrition logging is below the 6-of-7-day update gate."
+        ],
+        "nutritionDays": 12,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "partial_days_hold_no_previous",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": null,
+          "weight_kg": 89.92,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": null,
+          "weight_kg": 89.88,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "Nutrition logging is below the 6-of-7-day update gate."
+        ],
+        "nutritionDays": 12,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "unlogged_days_hold",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2750,
+          "weight_kg": 89.8,
+          "nutrition_status": "unlogged"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2750,
+          "weight_kg": 89.76,
+          "nutrition_status": "unlogged"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "Nutrition logging is below the 6-of-7-day update gate."
+        ],
+        "nutritionDays": 12,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "fasted_zero_counts",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 0,
+          "weight_kg": 89.64,
+          "nutrition_status": "fasted"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "fasted_null_holds",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": null,
+          "weight_kg": 89.64,
+          "nutrition_status": "fasted"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 13,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "sparse_weight_updates",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 3
+      }
+    },
+    {
+      "name": "no_recent_weight_holds",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "At least one weigh-in is required in each seven-day period."
+        ],
+        "nutritionDays": 14,
+        "weightDays": 7
+      }
+    },
+    {
+      "name": "single_weight_holds",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "At least one weigh-in is required in each seven-day period."
+        ],
+        "nutritionDays": 14,
+        "weightDays": 1
+      }
+    },
+    {
+      "name": "spike_absorbed",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 2800,
+          "weight_kg": 89.44,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 2800,
+          "weight_kg": 95.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 2800,
+          "weight_kg": 89.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 2800,
+          "weight_kg": 89.32,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-19",
+          "calories": 2800,
+          "weight_kg": 89.28,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-20",
+          "calories": 2800,
+          "weight_kg": 89.24,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-21",
+          "calories": 2800,
+          "weight_kg": 89.2,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "long_history_high_confidence",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 2800,
+          "weight_kg": 89.44,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 2800,
+          "weight_kg": 89.4,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 2800,
+          "weight_kg": 89.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 2800,
+          "weight_kg": 89.32,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-19",
+          "calories": 2800,
+          "weight_kg": 89.28,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-20",
+          "calories": 2800,
+          "weight_kg": 89.24,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-21",
+          "calories": 2800,
+          "weight_kg": 89.2,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-22",
+          "calories": 2800,
+          "weight_kg": 89.16,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-23",
+          "calories": 2800,
+          "weight_kg": 89.12,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-24",
+          "calories": 2800,
+          "weight_kg": 89.08,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-25",
+          "calories": 2800,
+          "weight_kg": 89.04,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-26",
+          "calories": 2800,
+          "weight_kg": 89.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-27",
+          "calories": 2800,
+          "weight_kg": 88.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-28",
+          "calories": 2800,
+          "weight_kg": 88.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-29",
+          "calories": 2800,
+          "weight_kg": 88.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-30",
+          "calories": 2800,
+          "weight_kg": 88.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-31",
+          "calories": 2800,
+          "weight_kg": 88.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-08-01",
+          "calories": 2800,
+          "weight_kg": 88.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-08-02",
+          "calories": 2800,
+          "weight_kg": 88.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-08-03",
+          "calories": 2800,
+          "weight_kg": 88.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-08-04",
+          "calories": 2800,
+          "weight_kg": 88.64,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "gaining_athlete",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 3400,
+          "weight_kg": 82.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 3400,
+          "weight_kg": 82.06,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 3400,
+          "weight_kg": 82.12,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 3400,
+          "weight_kg": 82.18,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 3400,
+          "weight_kg": 82.24,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 3400,
+          "weight_kg": 82.3,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 3400,
+          "weight_kg": 82.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 3400,
+          "weight_kg": 82.42,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 3400,
+          "weight_kg": 82.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 3400,
+          "weight_kg": 82.54,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 3400,
+          "weight_kg": 82.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 3400,
+          "weight_kg": 82.66,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 3400,
+          "weight_kg": 82.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 3400,
+          "weight_kg": 82.78,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 3400,
+          "weight_kg": 82.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 3400,
+          "weight_kg": 82.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 3400,
+          "weight_kg": 82.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 3400,
+          "weight_kg": 83.02,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-19",
+          "calories": 3400,
+          "weight_kg": 83.08,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-20",
+          "calories": 3400,
+          "weight_kg": 83.14,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-21",
+          "calories": 3400,
+          "weight_kg": 83.2,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "clamped_to_maximum",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 1500,
+          "weight_kg": 95.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 1500,
+          "weight_kg": 94.1,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 1500,
+          "weight_kg": 93.2,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 1500,
+          "weight_kg": 92.3,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 1500,
+          "weight_kg": 91.4,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 1500,
+          "weight_kg": 90.5,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 1500,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 1500,
+          "weight_kg": 88.7,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 1500,
+          "weight_kg": 87.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 1500,
+          "weight_kg": 86.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 1500,
+          "weight_kg": 86.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 1500,
+          "weight_kg": 85.1,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 1500,
+          "weight_kg": 84.2,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 1500,
+          "weight_kg": 83.3,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "clamped_to_minimum",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 1200,
+          "weight_kg": 80.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 1200,
+          "weight_kg": 80.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 1200,
+          "weight_kg": 81.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 1200,
+          "weight_kg": 82.7,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 1200,
+          "weight_kg": 83.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 1200,
+          "weight_kg": 84.5,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 1200,
+          "weight_kg": 85.4,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 1200,
+          "weight_kg": 86.3,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 1200,
+          "weight_kg": 87.2,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 1200,
+          "weight_kg": 88.1,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 1200,
+          "weight_kg": 89.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 1200,
+          "weight_kg": 89.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 1200,
+          "weight_kg": 90.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 1200,
+          "weight_kg": 91.7,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "flat_weight",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "shuffled_input",
+      "records": [
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "jagged_calories",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2450,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2587,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2724,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2861,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2998,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 3135,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 3272,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2509,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2646,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2783,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2920,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 3057,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 3194,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 3331,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 2568,
+          "weight_kg": 89.44,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 2705,
+          "weight_kg": 89.4,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 2842,
+          "weight_kg": 89.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 2979,
+          "weight_kg": 89.32,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": true,
+        "reasons": [],
+        "nutritionDays": 14,
+        "weightDays": 14
+      }
+    },
+    {
+      "name": "short_history_holds",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "More history is required before updating expenditure."
+        ],
+        "nutritionDays": 0,
+        "weightDays": 0
+      }
+    },
+    {
+      "name": "sparse_calendar",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "expected": {
+        "enough": false,
+        "reasons": [
+          "Nutrition logging is below the 6-of-7-day update gate."
+        ],
+        "nutritionDays": 4,
+        "weightDays": 4
+      }
+    }
+  ],
+  "estimateExpenditure": [
+    {
+      "name": "empty",
+      "records": [],
+      "previousEstimateKcal": null,
+      "expected": {
+        "state": "holding",
+        "confidence": "holding",
+        "estimate_kcal": null,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": null,
+        "trend_slope_kg_per_week": null,
+        "nutrition_days": 0,
+        "weight_days": 0,
+        "window_start": null,
+        "window_end": null,
+        "explanation": "No records are available."
+      }
+    },
+    {
+      "name": "empty_with_previous",
+      "records": [],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "holding",
+        "confidence": "holding",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": null,
+        "nutrition_days": 0,
+        "weight_days": 0,
+        "window_start": null,
+        "window_end": null,
+        "explanation": "No records are available."
+      }
+    },
+    {
+      "name": "baseline_with_previous",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2900.0,
+        "raw_estimate_kcal": 3026.6,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "baseline_no_previous",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": null,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 3026.6,
+        "raw_estimate_kcal": 3026.6,
+        "previous_estimate_kcal": null,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "baseline_previous_far_below",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 1500,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 1600.0,
+        "raw_estimate_kcal": 3026.6,
+        "previous_estimate_kcal": 1500,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "baseline_previous_far_above",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 4200,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 4100.0,
+        "raw_estimate_kcal": 3026.6,
+        "previous_estimate_kcal": 4200,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "partial_days_hold",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": null,
+          "weight_kg": 89.92,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": null,
+          "weight_kg": 89.88,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "holding",
+        "confidence": "low",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.20601168372240294,
+        "nutrition_days": 12,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+      }
+    },
+    {
+      "name": "partial_days_hold_no_previous",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": null,
+          "weight_kg": 89.92,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": null,
+          "weight_kg": 89.88,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": null,
+      "expected": {
+        "state": "holding",
+        "confidence": "holding",
+        "estimate_kcal": null,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": null,
+        "trend_slope_kg_per_week": -0.20601168372240294,
+        "nutrition_days": 12,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+      }
+    },
+    {
+      "name": "unlogged_days_hold",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2750,
+          "weight_kg": 89.8,
+          "nutrition_status": "unlogged"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2750,
+          "weight_kg": 89.76,
+          "nutrition_status": "unlogged"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "holding",
+        "confidence": "low",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.20601168372240294,
+        "nutrition_days": 12,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+      }
+    },
+    {
+      "name": "fasted_zero_counts",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 0,
+          "weight_kg": 89.64,
+          "nutrition_status": "fasted"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2826.6,
+        "raw_estimate_kcal": 2826.6,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "fasted_null_holds",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": null,
+          "weight_kg": 89.64,
+          "nutrition_status": "fasted"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2900.0,
+        "raw_estimate_kcal": 3026.6,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 13,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "sparse_weight_updates",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2879.2,
+        "raw_estimate_kcal": 2879.2,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.072,
+        "nutrition_days": 14,
+        "weight_days": 3,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "no_recent_weight_holds",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "holding",
+        "confidence": "low",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.07177322338460893,
+        "nutrition_days": 14,
+        "weight_days": 7,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "At least one weigh-in is required in each seven-day period."
+      }
+    },
+    {
+      "name": "single_weight_holds",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "holding",
+        "confidence": "low",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": null,
+        "nutrition_days": 14,
+        "weight_days": 1,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "At least one weigh-in is required in each seven-day period."
+      }
+    },
+    {
+      "name": "spike_absorbed",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 2800,
+          "weight_kg": 89.44,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 2800,
+          "weight_kg": 95.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 2800,
+          "weight_kg": 89.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 2800,
+          "weight_kg": 89.32,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-19",
+          "calories": 2800,
+          "weight_kg": 89.28,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-20",
+          "calories": 2800,
+          "weight_kg": 89.24,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-21",
+          "calories": 2800,
+          "weight_kg": 89.2,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2900,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2800.0,
+        "raw_estimate_kcal": 2619.9,
+        "previous_estimate_kcal": 2900,
+        "trend_slope_kg_per_week": 0.1638,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-08",
+        "window_end": "2026-07-21",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "long_history_high_confidence",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 2800,
+          "weight_kg": 89.44,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 2800,
+          "weight_kg": 89.4,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 2800,
+          "weight_kg": 89.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 2800,
+          "weight_kg": 89.32,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-19",
+          "calories": 2800,
+          "weight_kg": 89.28,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-20",
+          "calories": 2800,
+          "weight_kg": 89.24,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-21",
+          "calories": 2800,
+          "weight_kg": 89.2,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-22",
+          "calories": 2800,
+          "weight_kg": 89.16,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-23",
+          "calories": 2800,
+          "weight_kg": 89.12,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-24",
+          "calories": 2800,
+          "weight_kg": 89.08,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-25",
+          "calories": 2800,
+          "weight_kg": 89.04,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-26",
+          "calories": 2800,
+          "weight_kg": 89.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-27",
+          "calories": 2800,
+          "weight_kg": 88.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-28",
+          "calories": 2800,
+          "weight_kg": 88.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-29",
+          "calories": 2800,
+          "weight_kg": 88.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-30",
+          "calories": 2800,
+          "weight_kg": 88.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-31",
+          "calories": 2800,
+          "weight_kg": 88.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-08-01",
+          "calories": 2800,
+          "weight_kg": 88.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-08-02",
+          "calories": 2800,
+          "weight_kg": 88.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-08-03",
+          "calories": 2800,
+          "weight_kg": 88.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-08-04",
+          "calories": 2800,
+          "weight_kg": 88.64,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "updating",
+        "confidence": "high",
+        "estimate_kcal": 2900.0,
+        "raw_estimate_kcal": 3107.2,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.2793,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-22",
+        "window_end": "2026-08-04",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "gaining_athlete",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 3400,
+          "weight_kg": 82.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 3400,
+          "weight_kg": 82.06,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 3400,
+          "weight_kg": 82.12,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 3400,
+          "weight_kg": 82.18,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 3400,
+          "weight_kg": 82.24,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 3400,
+          "weight_kg": 82.3,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 3400,
+          "weight_kg": 82.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 3400,
+          "weight_kg": 82.42,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 3400,
+          "weight_kg": 82.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 3400,
+          "weight_kg": 82.54,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 3400,
+          "weight_kg": 82.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 3400,
+          "weight_kg": 82.66,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 3400,
+          "weight_kg": 82.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 3400,
+          "weight_kg": 82.78,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 3400,
+          "weight_kg": 82.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 3400,
+          "weight_kg": 82.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 3400,
+          "weight_kg": 82.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 3400,
+          "weight_kg": 83.02,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-19",
+          "calories": 3400,
+          "weight_kg": 83.08,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-20",
+          "calories": 3400,
+          "weight_kg": 83.14,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-21",
+          "calories": 3400,
+          "weight_kg": 83.2,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 3200,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 3100.0,
+        "raw_estimate_kcal": 2963.6,
+        "previous_estimate_kcal": 3200,
+        "trend_slope_kg_per_week": 0.3967,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-08",
+        "window_end": "2026-07-21",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "clamped_to_maximum",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 1500,
+          "weight_kg": 95.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 1500,
+          "weight_kg": 94.1,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 1500,
+          "weight_kg": 93.2,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 1500,
+          "weight_kg": 92.3,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 1500,
+          "weight_kg": 91.4,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 1500,
+          "weight_kg": 90.5,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 1500,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 1500,
+          "weight_kg": 88.7,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 1500,
+          "weight_kg": 87.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 1500,
+          "weight_kg": 86.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 1500,
+          "weight_kg": 86.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 1500,
+          "weight_kg": 85.1,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 1500,
+          "weight_kg": 84.2,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 1500,
+          "weight_kg": 83.3,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": null,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 6000.0,
+        "raw_estimate_kcal": 6000.0,
+        "previous_estimate_kcal": null,
+        "trend_slope_kg_per_week": -4.6353,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "clamped_to_minimum",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 1200,
+          "weight_kg": 80.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 1200,
+          "weight_kg": 80.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 1200,
+          "weight_kg": 81.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 1200,
+          "weight_kg": 82.7,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 1200,
+          "weight_kg": 83.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 1200,
+          "weight_kg": 84.5,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 1200,
+          "weight_kg": 85.4,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 1200,
+          "weight_kg": 86.3,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 1200,
+          "weight_kg": 87.2,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 1200,
+          "weight_kg": 88.1,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 1200,
+          "weight_kg": 89.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 1200,
+          "weight_kg": 89.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 1200,
+          "weight_kg": 90.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 1200,
+          "weight_kg": 91.7,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": null,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 1000.0,
+        "raw_estimate_kcal": 1000.0,
+        "previous_estimate_kcal": null,
+        "trend_slope_kg_per_week": 4.6353,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "flat_weight",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": null,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2800.0,
+        "raw_estimate_kcal": 2800.0,
+        "previous_estimate_kcal": null,
+        "trend_slope_kg_per_week": 0.0,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "shuffled_input",
+      "records": [
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2900.0,
+        "raw_estimate_kcal": 3026.6,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "jagged_calories",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2450,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2587,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2724,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2861,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2998,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 3135,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 3272,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2509,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2646,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2783,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2920,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 3057,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 3194,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 3331,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 2568,
+          "weight_kg": 89.44,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 2705,
+          "weight_kg": 89.4,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 2842,
+          "weight_kg": 89.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 2979,
+          "weight_kg": 89.32,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2900.0,
+        "raw_estimate_kcal": 3198.9,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.2497,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-05",
+        "window_end": "2026-07-18",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "short_history_holds",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "holding",
+        "confidence": "low",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.14445567999998943,
+        "nutrition_days": 7,
+        "weight_days": 7,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-07",
+        "explanation": "More history is required before updating expenditure."
+      }
+    },
+    {
+      "name": "sparse_calendar",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "expected": {
+        "state": "holding",
+        "confidence": "low",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.0972437113402064,
+        "nutrition_days": 4,
+        "weight_days": 4,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+      }
+    }
+  ],
+  "estimateExpenditureWithConfig": [
+    {
+      "name": "faster_ewma_wider_step",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 1500,
+      "config": {
+        "trend_alpha": 0.5,
+        "maximum_expenditure_step_kcal": 300
+      },
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 1800,
+        "raw_estimate_kcal": 3093.1,
+        "previous_estimate_kcal": 1500,
+        "trend_slope_kg_per_week": -0.2665,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "short_window_gate",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "config": {
+        "minimum_history_days": 7,
+        "coverage_window_days": 3,
+        "minimum_nutrition_days_per_week": 3
+      },
+      "expected": {
+        "state": "updating",
+        "confidence": "low",
+        "estimate_kcal": 2900.0,
+        "raw_estimate_kcal": 2976.8,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.1607,
+        "nutrition_days": 6,
+        "weight_days": 6,
+        "window_start": "2026-07-02",
+        "window_end": "2026-07-07",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "narrow_sanity_range",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": null,
+      "config": {
+        "minimum_expenditure_kcal": 2000,
+        "maximum_expenditure_kcal": 2500
+      },
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2500,
+        "raw_estimate_kcal": 2500,
+        "previous_estimate_kcal": null,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "perfect_logging_required",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": null,
+          "weight_kg": 89.64,
+          "nutrition_status": "fasted"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "config": {
+        "minimum_nutrition_days_per_week": 7
+      },
+      "expected": {
+        "state": "holding",
+        "confidence": "low",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.20601168372240294,
+        "nutrition_days": 13,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+      }
+    },
+    {
+      "name": "alternative_kcal_per_kg",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": null,
+      "config": {
+        "kcal_per_kg": 3500
+      },
+      "expected": {
+        "state": "updating",
+        "confidence": "medium",
+        "estimate_kcal": 2903.0,
+        "raw_estimate_kcal": 2903.0,
+        "previous_estimate_kcal": null,
+        "trend_slope_kg_per_week": -0.206,
+        "nutrition_days": 14,
+        "weight_days": 14,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+      }
+    },
+    {
+      "name": "two_weigh_ins_required",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousEstimateKcal": 2800,
+      "config": {
+        "minimum_weight_days_per_week": 2
+      },
+      "expected": {
+        "state": "holding",
+        "confidence": "low",
+        "estimate_kcal": 2800,
+        "raw_estimate_kcal": null,
+        "previous_estimate_kcal": 2800,
+        "trend_slope_kg_per_week": -0.07199999999999618,
+        "nutrition_days": 14,
+        "weight_days": 3,
+        "window_start": "2026-07-01",
+        "window_end": "2026-07-14",
+        "explanation": "At least one weigh-in is required in each seven-day period."
+      }
+    }
+  ],
+  "initialExpenditure": [
+    {
+      "name": "male_moderate",
+      "input": {
+        "weight_kg": 90,
+        "height_cm": 177,
+        "age_years": 32,
+        "sex": "male",
+        "activity_level": "moderate"
+      },
+      "expected": 2869.4
+    },
+    {
+      "name": "female_light",
+      "input": {
+        "weight_kg": 62,
+        "height_cm": 165,
+        "age_years": 28,
+        "sex": "female",
+        "activity_level": "light"
+      },
+      "expected": 1856.6
+    },
+    {
+      "name": "unspecified_sedentary",
+      "input": {
+        "weight_kg": 75,
+        "height_cm": 170,
+        "age_years": 45,
+        "sex": "unspecified",
+        "activity_level": "sedentary"
+      },
+      "expected": 1811.4
+    },
+    {
+      "name": "male_very_high",
+      "input": {
+        "weight_kg": 104.4,
+        "height_cm": 188.5,
+        "age_years": 21.5,
+        "sex": "male",
+        "activity_level": "very_high"
+      },
+      "expected": 4027.3
+    },
+    {
+      "name": "body_fat_known",
+      "input": {
+        "weight_kg": 90,
+        "height_cm": 177,
+        "age_years": 32,
+        "sex": "male",
+        "activity_level": "high",
+        "body_fat_pct": 14.5
+      },
+      "expected": 3505.4
+    },
+    {
+      "name": "body_fat_out_of_range_low",
+      "input": {
+        "weight_kg": 90,
+        "height_cm": 177,
+        "age_years": 32,
+        "sex": "male",
+        "body_fat_pct": 1.5
+      },
+      "expected": 2869.4
+    },
+    {
+      "name": "body_fat_out_of_range_high",
+      "input": {
+        "weight_kg": 90,
+        "height_cm": 177,
+        "age_years": 32,
+        "sex": "female",
+        "body_fat_pct": 80
+      },
+      "expected": 2612.1
+    },
+    {
+      "name": "body_fat_boundary_low",
+      "input": {
+        "weight_kg": 90,
+        "height_cm": 177,
+        "age_years": 32,
+        "sex": "male",
+        "body_fat_pct": 2
+      },
+      "expected": 3526.4
+    },
+    {
+      "name": "body_fat_boundary_high",
+      "input": {
+        "weight_kg": 90,
+        "height_cm": 177,
+        "age_years": 32,
+        "sex": "male",
+        "body_fat_pct": 70
+      },
+      "expected": 1477.5
+    },
+    {
+      "name": "unknown_activity_falls_back",
+      "input": {
+        "weight_kg": 90,
+        "height_cm": 177,
+        "age_years": 32,
+        "sex": "male",
+        "activity_level": "ultra"
+      },
+      "expected": 2869.4
+    },
+    {
+      "name": "tiny_athlete_floor",
+      "input": {
+        "weight_kg": 30,
+        "height_cm": 120,
+        "age_years": 80,
+        "sex": "female",
+        "activity_level": "sedentary"
+      },
+      "expected": 1000.0
+    }
+  ],
+  "calorieTarget": [
+    {
+      "expenditureKcal": 2800,
+      "targetRateKgPerWeek": -0.5,
+      "expected": 2250.0
+    },
+    {
+      "expenditureKcal": 2800,
+      "targetRateKgPerWeek": 0.5,
+      "expected": 3350.0
+    },
+    {
+      "expenditureKcal": 2800,
+      "targetRateKgPerWeek": 0.0,
+      "expected": 2800.0
+    },
+    {
+      "expenditureKcal": 2734.6,
+      "targetRateKgPerWeek": -0.25,
+      "expected": 2459.6
+    },
+    {
+      "expenditureKcal": 3111.1,
+      "targetRateKgPerWeek": 0.35,
+      "expected": 3496.1
+    },
+    {
+      "expenditureKcal": 2500,
+      "targetRateKgPerWeek": -1.0,
+      "expected": 1400.0
+    },
+    {
+      "expenditureKcal": 2000.05,
+      "targetRateKgPerWeek": -0.125,
+      "expected": 1862.5
+    },
+    {
+      "expenditureKcal": 2200,
+      "targetRateKgPerWeek": 0.0714285714285714,
+      "expected": 2278.6
+    }
+  ],
+  "macroTargets": [
+    {
+      "calories": 2500,
+      "bodyWeightKg": 90,
+      "proteinGPerKg": 2.0,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "calories": 2500,
+        "protein_g": 180.0,
+        "carbs_g": 283.0,
+        "fat_g": 72.0,
+        "macro_calories": 2500.0
+      }
+    },
+    {
+      "calories": 2500,
+      "bodyWeightKg": 90,
+      "proteinGPerKg": null,
+      "fatGPerKg": null,
+      "expected": {
+        "calories": 2500,
+        "protein_g": 162.0,
+        "carbs_g": 301.0,
+        "fat_g": 72.0,
+        "macro_calories": 2500.0
+      }
+    },
+    {
+      "calories": 2225.0,
+      "bodyWeightKg": 88.5,
+      "proteinGPerKg": 1.9,
+      "fatGPerKg": 0.75,
+      "expected": {
+        "calories": 2225.0,
+        "protein_g": 168.2,
+        "carbs_g": 238.8,
+        "fat_g": 66.4,
+        "macro_calories": 2225.0
+      }
+    },
+    {
+      "calories": 1441.0,
+      "bodyWeightKg": 90,
+      "proteinGPerKg": 2.0,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "calories": 1441.0,
+        "protein_g": 180.0,
+        "carbs_g": 18.2,
+        "fat_g": 72.0,
+        "macro_calories": 1441.0
+      }
+    },
+    {
+      "calories": 1200,
+      "bodyWeightKg": 110,
+      "proteinGPerKg": 2.2,
+      "fatGPerKg": 1.1,
+      "expected": {
+        "calories": 1200,
+        "protein_g": 242.0,
+        "carbs_g": 0.0,
+        "fat_g": 121.0,
+        "macro_calories": 2057.0
+      }
+    },
+    {
+      "calories": 0,
+      "bodyWeightKg": 80,
+      "proteinGPerKg": 1.8,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "calories": 0,
+        "protein_g": 144.0,
+        "carbs_g": 0.0,
+        "fat_g": 64.0,
+        "macro_calories": 1152.0
+      }
+    },
+    {
+      "calories": 3333.33,
+      "bodyWeightKg": 77.77,
+      "proteinGPerKg": 1.85,
+      "fatGPerKg": 0.85,
+      "expected": {
+        "calories": 3333.3,
+        "protein_g": 143.9,
+        "carbs_g": 540.7,
+        "fat_g": 66.1,
+        "macro_calories": 3333.3
+      }
+    },
+    {
+      "calories": 2000.5,
+      "bodyWeightKg": 90,
+      "proteinGPerKg": 2.0,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "calories": 2000.5,
+        "protein_g": 180.0,
+        "carbs_g": 158.1,
+        "fat_g": 72.0,
+        "macro_calories": 2000.5
+      }
+    }
+  ],
+  "weeklyCheckIn": [
+    {
+      "name": "ready_cut",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousExpenditureKcal": 2800,
+      "bodyWeightKg": 90,
+      "targetRateKgPerWeek": -0.3,
+      "proteinGPerKg": 1.8,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "status": "ready",
+        "estimate": {
+          "state": "updating",
+          "confidence": "medium",
+          "estimate_kcal": 2900.0,
+          "raw_estimate_kcal": 3026.6,
+          "previous_estimate_kcal": 2800,
+          "trend_slope_kg_per_week": -0.206,
+          "nutrition_days": 14,
+          "weight_days": 14,
+          "window_start": "2026-07-01",
+          "window_end": "2026-07-14",
+          "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+        },
+        "modules": [
+          {
+            "key": "program_update",
+            "action": "review and accept the proposed calorie and macro targets"
+          }
+        ],
+        "targets": {
+          "calories": 2570.0,
+          "protein_g": 162.0,
+          "carbs_g": 318.5,
+          "fat_g": 72.0,
+          "macro_calories": 2570.0
+        },
+        "explanation": "The next target uses observed expenditure and the signed goal rate; it does not punish or average in unlogged days."
+      }
+    },
+    {
+      "name": "ready_bulk",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 3400,
+          "weight_kg": 82.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 3400,
+          "weight_kg": 82.06,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 3400,
+          "weight_kg": 82.12,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 3400,
+          "weight_kg": 82.18,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 3400,
+          "weight_kg": 82.24,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 3400,
+          "weight_kg": 82.3,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 3400,
+          "weight_kg": 82.36,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 3400,
+          "weight_kg": 82.42,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 3400,
+          "weight_kg": 82.48,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 3400,
+          "weight_kg": 82.54,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 3400,
+          "weight_kg": 82.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 3400,
+          "weight_kg": 82.66,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 3400,
+          "weight_kg": 82.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 3400,
+          "weight_kg": 82.78,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-15",
+          "calories": 3400,
+          "weight_kg": 82.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-16",
+          "calories": 3400,
+          "weight_kg": 82.9,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-17",
+          "calories": 3400,
+          "weight_kg": 82.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-18",
+          "calories": 3400,
+          "weight_kg": 83.02,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-19",
+          "calories": 3400,
+          "weight_kg": 83.08,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-20",
+          "calories": 3400,
+          "weight_kg": 83.14,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-21",
+          "calories": 3400,
+          "weight_kg": 83.2,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousExpenditureKcal": 3200,
+      "bodyWeightKg": 82,
+      "targetRateKgPerWeek": 0.25,
+      "proteinGPerKg": 2.2,
+      "fatGPerKg": 1.0,
+      "expected": {
+        "status": "ready",
+        "estimate": {
+          "state": "updating",
+          "confidence": "medium",
+          "estimate_kcal": 3100.0,
+          "raw_estimate_kcal": 2963.6,
+          "previous_estimate_kcal": 3200,
+          "trend_slope_kg_per_week": 0.3967,
+          "nutrition_days": 14,
+          "weight_days": 14,
+          "window_start": "2026-07-08",
+          "window_end": "2026-07-21",
+          "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+        },
+        "modules": [
+          {
+            "key": "program_update",
+            "action": "review and accept the proposed calorie and macro targets"
+          }
+        ],
+        "targets": {
+          "calories": 3375.0,
+          "protein_g": 180.4,
+          "carbs_g": 478.9,
+          "fat_g": 82.0,
+          "macro_calories": 3375.0
+        },
+        "explanation": "The next target uses observed expenditure and the signed goal rate; it does not punish or average in unlogged days."
+      }
+    },
+    {
+      "name": "ready_maintain",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousExpenditureKcal": null,
+      "bodyWeightKg": 88,
+      "targetRateKgPerWeek": 0.0,
+      "proteinGPerKg": 1.8,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "status": "ready",
+        "estimate": {
+          "state": "updating",
+          "confidence": "medium",
+          "estimate_kcal": 2800.0,
+          "raw_estimate_kcal": 2800.0,
+          "previous_estimate_kcal": null,
+          "trend_slope_kg_per_week": 0.0,
+          "nutrition_days": 14,
+          "weight_days": 14,
+          "window_start": "2026-07-01",
+          "window_end": "2026-07-14",
+          "explanation": "Expenditure updated from logged intake and smoothed weight trend."
+        },
+        "modules": [
+          {
+            "key": "program_update",
+            "action": "review and accept the proposed calorie and macro targets"
+          }
+        ],
+        "targets": {
+          "calories": 2800.0,
+          "protein_g": 158.4,
+          "carbs_g": 383.2,
+          "fat_g": 70.4,
+          "macro_calories": 2800.0
+        },
+        "explanation": "The next target uses observed expenditure and the signed goal rate; it does not punish or average in unlogged days."
+      }
+    },
+    {
+      "name": "held_short_history",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousExpenditureKcal": 2800,
+      "bodyWeightKg": 90,
+      "targetRateKgPerWeek": -0.3,
+      "proteinGPerKg": 1.8,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "status": "held",
+        "estimate": {
+          "state": "holding",
+          "confidence": "low",
+          "estimate_kcal": 2800,
+          "raw_estimate_kcal": null,
+          "previous_estimate_kcal": 2800,
+          "trend_slope_kg_per_week": -0.14445567999998943,
+          "nutrition_days": 7,
+          "weight_days": 7,
+          "window_start": "2026-07-01",
+          "window_end": "2026-07-07",
+          "explanation": "More history is required before updating expenditure."
+        },
+        "modules": [
+          {
+            "key": "partial_logging",
+            "action": "review incomplete nutrition days"
+          },
+          {
+            "key": "logging_break",
+            "action": "carry forward the last high-confidence estimate"
+          }
+        ],
+        "targets": null,
+        "explanation": "More history is required before updating expenditure."
+      }
+    },
+    {
+      "name": "held_partial",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": null,
+          "weight_kg": 89.92,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": null,
+          "weight_kg": 89.88,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousExpenditureKcal": 2800,
+      "bodyWeightKg": 90,
+      "targetRateKgPerWeek": -0.3,
+      "proteinGPerKg": 1.8,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "status": "held",
+        "estimate": {
+          "state": "holding",
+          "confidence": "low",
+          "estimate_kcal": 2800,
+          "raw_estimate_kcal": null,
+          "previous_estimate_kcal": 2800,
+          "trend_slope_kg_per_week": -0.20601168372240294,
+          "nutrition_days": 12,
+          "weight_days": 14,
+          "window_start": "2026-07-01",
+          "window_end": "2026-07-14",
+          "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+        },
+        "modules": [
+          {
+            "key": "logging_break",
+            "action": "carry forward the last high-confidence estimate"
+          }
+        ],
+        "targets": null,
+        "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+      }
+    },
+    {
+      "name": "held_no_previous",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": null,
+          "weight_kg": 89.92,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": null,
+          "weight_kg": 89.88,
+          "nutrition_status": "partial"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": 89.72,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": 89.68,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": 89.64,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": 89.6,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": 89.56,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": 89.52,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": 89.48,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousExpenditureKcal": null,
+      "bodyWeightKg": 90,
+      "targetRateKgPerWeek": -0.3,
+      "proteinGPerKg": 1.8,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "status": "held",
+        "estimate": {
+          "state": "holding",
+          "confidence": "holding",
+          "estimate_kcal": null,
+          "raw_estimate_kcal": null,
+          "previous_estimate_kcal": null,
+          "trend_slope_kg_per_week": -0.20601168372240294,
+          "nutrition_days": 12,
+          "weight_days": 14,
+          "window_start": "2026-07-01",
+          "window_end": "2026-07-14",
+          "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+        },
+        "modules": [
+          {
+            "key": "logging_break",
+            "action": "carry forward the last high-confidence estimate"
+          }
+        ],
+        "targets": null,
+        "explanation": "Nutrition logging is below the 6-of-7-day update gate."
+      }
+    },
+    {
+      "name": "held_no_weight",
+      "records": [
+        {
+          "date": "2026-07-01",
+          "calories": 2800,
+          "weight_kg": 90.0,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-02",
+          "calories": 2800,
+          "weight_kg": 89.96,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-03",
+          "calories": 2800,
+          "weight_kg": 89.92,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-04",
+          "calories": 2800,
+          "weight_kg": 89.88,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-05",
+          "calories": 2800,
+          "weight_kg": 89.84,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-06",
+          "calories": 2800,
+          "weight_kg": 89.8,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-07",
+          "calories": 2800,
+          "weight_kg": 89.76,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-08",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-09",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-10",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-11",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-12",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-13",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        },
+        {
+          "date": "2026-07-14",
+          "calories": 2800,
+          "weight_kg": null,
+          "nutrition_status": "complete"
+        }
+      ],
+      "previousExpenditureKcal": 2600,
+      "bodyWeightKg": 90,
+      "targetRateKgPerWeek": -0.5,
+      "proteinGPerKg": 2.0,
+      "fatGPerKg": 0.9,
+      "expected": {
+        "status": "held",
+        "estimate": {
+          "state": "holding",
+          "confidence": "low",
+          "estimate_kcal": 2600,
+          "raw_estimate_kcal": null,
+          "previous_estimate_kcal": 2600,
+          "trend_slope_kg_per_week": -0.07177322338460893,
+          "nutrition_days": 14,
+          "weight_days": 7,
+          "window_start": "2026-07-01",
+          "window_end": "2026-07-14",
+          "explanation": "At least one weigh-in is required in each seven-day period."
+        },
+        "modules": [
+          {
+            "key": "logging_break",
+            "action": "carry forward the last high-confidence estimate"
+          }
+        ],
+        "targets": null,
+        "explanation": "At least one weigh-in is required in each seven-day period."
+      }
+    },
+    {
+      "name": "held_empty",
+      "records": [],
+      "previousExpenditureKcal": null,
+      "bodyWeightKg": 90,
+      "targetRateKgPerWeek": -0.3,
+      "proteinGPerKg": 1.8,
+      "fatGPerKg": 0.8,
+      "expected": {
+        "status": "held",
+        "estimate": {
+          "state": "holding",
+          "confidence": "holding",
+          "estimate_kcal": null,
+          "raw_estimate_kcal": null,
+          "previous_estimate_kcal": null,
+          "trend_slope_kg_per_week": null,
+          "nutrition_days": 0,
+          "weight_days": 0,
+          "window_start": null,
+          "window_end": null,
+          "explanation": "No records are available."
+        },
+        "modules": [
+          {
+            "key": "partial_logging",
+            "action": "review incomplete nutrition days"
+          },
+          {
+            "key": "weigh_in",
+            "action": "add a weigh-in for each seven-day period"
+          },
+          {
+            "key": "logging_break",
+            "action": "carry forward the last high-confidence estimate"
+          }
+        ],
+        "targets": null,
+        "explanation": "No records are available."
+      }
+    }
+  ]
+}
