@@ -65,11 +65,18 @@ reuse the Strength project's id. This repository does not invent credentials.
 
 ## Deliberate boundaries and remaining release work
 
-- Nutrition remains a separate product. This repository defines integration
-  event names but does not prescribe calories, macros or food targets.
-- The new Supabase migration is not applied by local TypeScript tests. Apply it
-  in a staging project, run RLS and old-version compatibility tests, then set
-  the ecosystem sync feature flag.
+- Nutrition is no longer a separate product. It was rebuilt into this
+  repository as a third world (MacroTrack rebuild, Phases 0–4, 7 Aug 2026):
+  `@hybrid/nutrition-engine` owns calorie and macro prescription and nothing
+  else does, the Coordinator never sees a macro, and whole-athlete-state reads
+  nutrition FACTS as context only. See `CLAUDE.md`'s amended nutrition rule and
+  the checkpoint at the top of `handoff.md`.
+- The Supabase migrations are not applied by local TypeScript tests. Three are
+  now staged and unapplied — `20260804_fitness_ecosystem_contracts.sql`,
+  `20260807_nutrition_domain.sql` and `20260807_macrotrack_food_catalogue.sql`.
+  Apply them in a staging project, run RLS and old-version compatibility tests,
+  then set the ecosystem sync feature flag. `node checks/migrations-apply.mjs`
+  rehearses all three against a throwaway Postgres first.
 - The production store split still needs device testing for BLE, GPS,
   Concept2, permissions, deep links, app deletion/reinstall and rollback.
 - A Coordinator service or approved canonical writer must own persisted weekly

@@ -143,6 +143,24 @@ So the catalogue here starts empty, and someone must decide:
 Either way the catalogue is **529 foods short of the 5,000 target** and needs
 more OFF API pages (`--max-pages`) or a local dump run to close the gap.
 
+### What an empty catalogue looks like in the app
+
+Phases 3 and 4 shipped the screens that read these tables, so the emptiness is
+now visible rather than theoretical. `apps/mobile/src/cloud/catalogue.ts` is the
+only reader: `foods` by name, `foods` by exact barcode, and `food_servings` for
+a chosen food.
+
+- **Food Search** finds only the athlete's own custom foods, recipes and
+  favourites. That is a working screen with a thin result list, not an error.
+- **The barcode scanner** will essentially always miss, because the lookup is
+  exact and only exact — no leading zero added, no UPC-A widened to EAN-13, no
+  fallback to a name search. A barcode that nearly matches is a different
+  product, and logging the wrong product's macros is silent. A miss routes to
+  Create-a-food carrying the barcode, which is the ordinary path rather than a
+  dead end.
+- **Nothing else degrades.** Quick Add, the Daily Log, weigh-ins, the engine and
+  the weekly check-in never touch the catalogue.
+
 ## Rules the importers keep
 
 Carried over from the reference project and still binding:

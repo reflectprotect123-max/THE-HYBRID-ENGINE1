@@ -20,6 +20,12 @@
  * empty "Start a session" state, then walks the gym path and measures every
  * visible `button, a, [role="button"], select`.
  *
+ * `/nutrition` joined the walk with the third world: the food log's per-entry
+ * row is an edit button and a ✕ side by side, the smallest pair of controls in
+ * the app and the first place a thumb lands on the wrong one. It is seeded with
+ * a day of food for the same reason `/training` is seeded with a live session —
+ * an empty state has no controls to measure.
+ *
  * `/build/:id` — the guided builder — is walked too, and driven as far as its
  * reps step, because that is where the one control the coarse-pointer rule
  * cannot save lives: a native checkbox, which tokens.css deliberately excludes
@@ -136,7 +142,30 @@ const SEED = {
   settings: { profile: { age: 30, restingHr: 50 } },
 };
 
-const ROUTES = ['/', '/training', '/library', '/build/w1'];
+/*
+ * The nutrition slice, in its own store — `/nutrition` renders nothing but an
+ * empty state without it, and the controls that matter here (the per-entry edit
+ * and delete pair) exist only once a day has food in it. The ✕ is the smallest
+ * control on the screen and the one a thumb misses first.
+ */
+const NUTRITION_SEED = (() => {
+  const today = new Date().toISOString().slice(0, 10);
+  const at = new Date().toISOString();
+  const entry = (id, meal, name, kcal) => ({
+    id, userId: 'touch', logDate: today, meal, entryKind: 'quick_add',
+    foodId: null, customFoodId: null, recipeId: null, quantity: 1, unit: 'serving',
+    calories: kcal, proteinG: 30, carbsG: 40, fatG: 12, displayName: name,
+    nutrients: {}, notes: null, sourceSnapshot: {}, createdAt: at, updatedAt: at, deletedAt: null,
+  });
+  return {
+    schemaVersion: 1,
+    logEntries: [entry('n1', 'breakfast', 'Oats and whey', 520), entry('n2', 'lunch', 'Chicken and rice', 640)],
+    weightEntries: [], program: null, checkIns: [], dayStatus: [],
+    customFoods: [], recipes: [], favorites: [], foodCache: [], settings: {},
+  };
+})();
+
+const ROUTES = ['/', '/training', '/library', '/nutrition', '/build/w1'];
 const SELECTOR = 'button, a, [role="button"], select, label:has(input[type="checkbox"])';
 
 /** Every visible control's height on every gym-path route, under a given
@@ -152,8 +181,9 @@ async function heights({ hasTouch }) {
   // re-runs on every subsequent goto too, but the store is written once and
   // read from then on, so re-seeding the identical object is a no-op.
   await page.addInitScript((seed) => {
-    localStorage.setItem('hybrid-engine-v1', JSON.stringify(seed));
-  }, SEED);
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(seed.db));
+    localStorage.setItem('hybrid-nutrition-v1', JSON.stringify(seed.nutrition));
+  }, { db: SEED, nutrition: NUTRITION_SEED });
   const visible = () =>
     page.evaluate(
       (sel) =>
@@ -218,8 +248,9 @@ for (const width of [320, 360, 390]) {
   const ctx = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width, height: 844 } });
   const page = await ctx.newPage();
   await page.addInitScript((seed) => {
-    localStorage.setItem('hybrid-engine-v1', JSON.stringify(seed));
-  }, SEED);
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(seed.db));
+    localStorage.setItem('hybrid-nutrition-v1', JSON.stringify(seed.nutrition));
+  }, { db: SEED, nutrition: NUTRITION_SEED });
   await page.goto(base + '/calendar', { waitUntil: 'networkidle' });
   await page.waitForSelector('.grid-cols-7 button');
   const grid = await page.evaluate(() => {

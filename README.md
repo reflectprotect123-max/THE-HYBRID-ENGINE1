@@ -1,7 +1,8 @@
 # THE Hybrid System
 
-A local-first training app: an athlete PWA and an Android app, over one
-shared engine and one Supabase project.
+A local-first training and nutrition app: an athlete PWA and an Android app,
+over one shared engine and one Supabase project. Three worlds — Strength,
+Conditioning and Nutrition — one athlete.
 
 Everything works offline. The cloud is a sync target, never the source of
 truth — the app on the device owns the data and merges toward the server.
@@ -33,9 +34,27 @@ The fastest way into this repo. Find the symptom, go to the file.
 | A screen renders blank / title-only | The screen in `apps/*/src/screens/`. See `apps/mobile/test/screens.test.tsx` — that class of bug has bitten before |
 | Auto-Coached changed nothing despite an active constraint | The coach bench's **Why today** panel, or `apps/web/src/coach/trace.ts` → `buildDecisionTrace` for the outcome rules |
 
+### Nutrition
+
+| Symptom | Look in |
+|---|---|
+| A day's calories or macros add up wrong | `packages/nutrition-core/src/day.ts` → `entriesForDay`, `macroTotals` (a deleted entry is stamped, never spliced — see `isLive`) |
+| A logged meal vanished, or a deleted one came back | `packages/nutrition-core/src/db.ts` → `mergeNutrition`; the merge is additive and resolves by the newer edit stamp |
+| A logged meal's macros changed after the fact | Nothing may re-derive them. `packages/nutrition-core/src/log.ts` → `logEntryFromFood`, `quickAddEntry` snapshot at log time |
+| The calorie/macro target looks wrong | `packages/nutrition-engine/src/engine.ts` → `estimateExpenditure`, `calorieTarget`, `macroTargets`. Parity with the Python reference is a merged contract — see the defect list in `handoff.md` before "fixing" one |
+| The weight trend reads flatter than the scale does | `packages/nutrition-engine/src/engine.ts` → `weightTrend`, `linearSlope`. Sparse weigh-ins repeat the last weight and bias expenditure LOW; `packages/nutrition-adapter/src/slice.ts` → `weighInCoverage` is what surfaces it |
+| The engine says "holding" and never updates | `packages/nutrition-engine/src/engine.ts` → `coverageExplanation`. Holding is a normal outcome, not a failure |
+| Home's nutrition card and the coach bench disagree | They must not — both read `packages/nutrition-adapter/src/summary.ts` → `nutritionSummary` |
+| Nutrition changed a training plan | It may not. `packages/whole-athlete-state/src/state.ts` → `deriveAthleteState` takes nutrition as context only, and the Coordinator never sees it |
+| Barcode scanning fails | `apps/mobile/src/screens/nutrition/BarcodeScanner.tsx` — needs a real camera and a native build (`runtimeVersion` 3), so it can never arrive over the air |
+| A nutrition label reads wrong | `packages/nutrition-core/src/label.ts` → `parseLabelText`, `parseLabelLines`. There is no camera behind it yet — see `apps/mobile/src/screens/nutrition/LabelReader.tsx` |
+| The food catalogue is empty or a search finds nothing | The catalogue is server-side and relational: [`docs/NUTRITION_CATALOGUE.md`](docs/NUTRITION_CATALOGUE.md). Local matching is `packages/nutrition-core/src/search.ts` → `foodSearch` |
+
 **Rule of thumb:** if it is a decision about *training*, it is in
-`packages/engine` and has a test. If it is about *pixels*, it is in
-`apps/*/src`. Almost nothing that matters lives in a screen.
+`packages/engine` and has a test. If it is a decision about *macros*, it is in
+`packages/nutrition-engine` and has a fixture proving it agrees with the Python
+reference. If it is about *pixels*, it is in `apps/*/src`. Almost nothing that
+matters lives in a screen.
 
 ---
 
@@ -49,6 +68,16 @@ packages/strength-engine specialist Strength ownership and proposal boundary.
 packages/conditioning-engine specialist Conditioning ownership and proposal boundary.
 packages/coordinator deterministic weekly reconciliation and reason codes.
 packages/coordinator-adapter app projection from specialist proposals to a plan.
+packages/nutrition-core athlete-side nutrition model: log entries, weigh-ins,
+                    macro programs, check-ins — sanitize and merge. No
+                    prescription lives here.
+packages/nutrition-engine the deterministic adaptive engine: weight trend,
+                    expenditure, coverage, targets. A function-for-function
+                    port of the Python reference, with generated parity
+                    fixtures. Depends on no training package.
+packages/nutrition-adapter the only sanctioned bridge between nutrition and
+                    everything else: one shared projection for the app
+                    surfaces, and nutrition FACTS for whole-athlete-state.
 packages/design     colour, type and spacing tokens on an 8px grid.
 packages/config     Supabase URL/anon key and site origin.
 packages/guided-flow the pure step-sequencing logic shared by the web and
@@ -116,7 +145,28 @@ Web routes and the mobile stack carry the same names.
 | History | `/history` | Any past day's logged sets |
 | Calendar | `/calendar` | Month grid: planned vs trained |
 | Recap | `/recap/:id` | What just happened, and what it earned |
+| Nutrition | `/nutrition` | One day of food: totals against target, add, edit, delete |
 | Settings | `/settings` | Profile, cloud, WHOOP, backup **and restore** |
+
+Home carries the nutrition card above the zone card
+(`apps/web/src/screens/nutrition/NutritionCard.tsx`) and the coach bench carries
+a read-only nutrition panel (`apps/web/src/coach/NutritionPanel.tsx`).
+
+### The nutrition world, on the phone
+
+The web has one nutrition screen; the phone has the world. Its own tab layout,
+its own accent, and the flows that need hardware:
+
+| Screen | Does |
+|---|---|
+| Daily Log | The day's food, by meal — the screen the world opens on |
+| Food Search / Quick Add | Catalogue, custom foods, recipes, favourites; or four numbers |
+| Custom Food / Recipe Builder | Foods and recipes the athlete owns |
+| Weight | Weigh-ins, and the smoothed trend they feed |
+| Check-in | The weekly proposal: accept, decline, or a held week that says what is missing |
+| Coach | The macro program, the expenditure estimate, and the engine's own explanation |
+| Barcode scanner | `expo-camera` + ML Kit. Native — never ships over the air |
+| Label reader | The parse, without the camera. See the file header for the kill and what would revive it |
 
 ---
 
@@ -144,11 +194,25 @@ node checks/supabase-contract.mjs    # every query against the real schema + RLS
 node checks/supabase-auth.mjs        # forged tokens against the verifier
 node checks/whoop-contract.mjs       # OAuth URLs, and no secret client-side
 node checks/pwa-update.mjs           # a deploy actually reaches an installed app
-node checks/react-smoke.mjs          # the three apps in a real browser
-node checks/contrast.mjs             # text meets contrast on the real palette
+node checks/react-smoke.mjs          # the athlete app, the food log and the
+                                     # coach bench's nutrition panel, in a
+                                     # real browser
+node checks/contrast.mjs             # text meets contrast on all three palettes
 node checks/web-touch.mjs            # touch targets on coarse pointers
 node checks/mobile-touch.mjs         # ditto, React Native
+node checks/migrations-apply.mjs     # every migration against a real Postgres,
+                                     # RLS and owner-reference policies proven
+node checks/docs.mjs                 # this file's paths and symbols still exist
 ```
+
+`checks/react-smoke.mjs` builds a second, coach-enabled bundle into
+`apps/web/dist-coach` (gitignored, never deployed) because `/coach` fails closed
+without `VITE_COACH_USER_IDS` and would otherwise redirect away unchecked.
+
+The live three-domain sync round trip — strength, conditioning and nutrition for
+one athlete against the real backend — is `apps/web/test/sync-e2e.live.test.ts`.
+It skips unless `SB_E2E=1` and runs from the manually-dispatched `sync-e2e`
+workflow, because it needs network egress and creates a disposable auth user.
 
 `.github/workflows/ci.yml` runs exactly this on every push, and **fails if a
 browser section skips** — a suite that quietly tested nothing is worse than one
