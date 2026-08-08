@@ -1399,6 +1399,76 @@ try {
     if (!wasRefused(out)) throw new Error('actor_user_id was reassigned to a different identity instead of only being nulled');
   });
 
+  /* ---------------------------------------------------------------------
+   * ERASURE (creators): the other five `on delete restrict` columns
+   * docs/RISK_REGISTER.md named as still open when the actor fix shipped.
+   * ONE erasable coach seeds a row on every affected table so a single
+   * account deletion proves every column nulls out together, the same
+   * shape a real erasure request looks like. A SEPARATE coach seeds the
+   * two triggered tables' escape-hatch negative tests, so `old.<col>` is
+   * still non-null when the smuggled update runs.
+   * ------------------------------------------------------------------- */
+  const ERASABLE_COACH_3 = 'ea5ab1e0-0003-0003-0003-ea5ab1e00003';
+  const ERASABLE_COACH_4 = 'ea5ab1e0-0004-0004-0004-ea5ab1e00004';
+  const ERASE_ORG = '9d9d9d9d-0001-0001-0001-9d9d9d9d0001';
+  const ERASE_TPL = '9d9d9d9d-0002-0002-0002-9d9d9d9d0002';
+  const ERASE_TPLV = '9d9d9d9d-0003-0003-0003-9d9d9d9d0003';
+  const ERASE_BLOCK = '9d9d9d9d-0004-0004-0004-9d9d9d9d0004';
+  const ERASE_ASSIGN = '9d9d9d9d-0005-0005-0005-9d9d9d9d0005';
+  const ERASE_INPUT = '9d9d9d9d-0006-0006-0006-9d9d9d9d0006';
+  const ERASE_TPLV_2 = '9d9d9d9d-0007-0007-0007-9d9d9d9d0007';
+  const ERASE_INPUT_2 = '9d9d9d9d-0008-0008-0008-9d9d9d9d0008';
+  asOwnerSql(`
+    insert into auth.users (id) values ('${ERASABLE_COACH_3}'), ('${ERASABLE_COACH_4}') on conflict do nothing;
+    insert into public.organizations (id, name, created_by) values ('${ERASE_ORG}', 'Erasure Test Org', '${ERASABLE_COACH_3}');
+    insert into public.program_templates (id, organization_id, domain, name, created_by)
+      values ('${ERASE_TPL}', '${ORG_1}', 'strength', 'Erasure Test Template', '${ERASABLE_COACH_3}');
+    insert into public.program_template_versions (id, template_id, version, published_by)
+      values ('${ERASE_TPLV}', '${ERASE_TPL}', 1, '${ERASABLE_COACH_3}');
+    insert into public.training_block_templates (id, organization_id, domain, name, created_by)
+      values ('${ERASE_BLOCK}', '${ORG_1}', 'strength', 'Erasure Test Block', '${ERASABLE_COACH_3}');
+    insert into public.program_assignments (id, organization_id, athlete_user_id, template_version_id, preferred_start_date, preferred_weekdays, created_by)
+      values ('${ERASE_ASSIGN}', '${ORG_1}', '${ATHLETE_A}', '${TPLV}', date '2026-10-01', '{1,3}', '${ERASABLE_COACH_3}');
+    insert into public.assignment_input_versions (id, assignment_id, version, created_by)
+      values ('${ERASE_INPUT}', '${ERASE_ASSIGN}', 1, '${ERASABLE_COACH_3}');
+    insert into public.program_template_versions (id, template_id, version, published_by)
+      values ('${ERASE_TPLV_2}', '${ERASE_TPL}', 2, '${ERASABLE_COACH_4}');
+    insert into public.assignment_input_versions (id, assignment_id, version, created_by)
+      values ('${ERASE_INPUT_2}', '${ERASE_ASSIGN}', 2, '${ERASABLE_COACH_4}');`);
+
+  check('ERASURE (creators): deleting a coach nulls every creator/publisher column that names them, across every table, and none of the rows are lost', () => {
+    const out = asOwnerProbe(`delete from auth.users where id = '${ERASABLE_COACH_3}'`);
+    if (!out.includes('ACCEPTED')) throw new Error(`the coach could not be erased: ${lastLine(out)}`);
+    const check6 = lastLine(asOwnerSqlOut(`select
+        (select coalesce(created_by::text,'NULL') from public.organizations where id = '${ERASE_ORG}')
+        || '/' || (select coalesce(created_by::text,'NULL') from public.program_templates where id = '${ERASE_TPL}')
+        || '/' || (select coalesce(published_by::text,'NULL') from public.program_template_versions where id = '${ERASE_TPLV}')
+        || '/' || (select coalesce(created_by::text,'NULL') from public.training_block_templates where id = '${ERASE_BLOCK}')
+        || '/' || (select coalesce(created_by::text,'NULL') from public.program_assignments where id = '${ERASE_ASSIGN}')
+        || '/' || (select coalesce(created_by::text,'NULL') from public.assignment_input_versions where id = '${ERASE_INPUT}');`));
+    if (check6 !== 'NULL/NULL/NULL/NULL/NULL/NULL') throw new Error(`expected all six columns null, got ${check6}`);
+    const stillThere = lastLine(asOwnerSqlOut(`select
+        (select count(*) from public.organizations where id = '${ERASE_ORG}')
+        + (select count(*) from public.program_templates where id = '${ERASE_TPL}')
+        + (select count(*) from public.program_template_versions where id = '${ERASE_TPLV}')
+        + (select count(*) from public.training_block_templates where id = '${ERASE_BLOCK}')
+        + (select count(*) from public.program_assignments where id = '${ERASE_ASSIGN}')
+        + (select count(*) from public.assignment_input_versions where id = '${ERASE_INPUT}');`));
+    if (stillThere !== '6') throw new Error(`expected all six rows to survive, got ${stillThere} of 6`);
+  });
+
+  check('ERASURE (creators): program_template_versions escape hatch refuses a rule_set_version change riding along', () => {
+    const out = asOwnerProbe(
+      `update public.program_template_versions set published_by = null, rule_set_version = 'v2-forged' where id = '${ERASE_TPLV_2}'`);
+    if (!wasRefused(out)) throw new Error('a rule_set_version change was smuggled in alongside published_by erasure');
+  });
+
+  check('ERASURE (creators): assignment_input_versions escape hatch refuses a proposals change riding along', () => {
+    const out = asOwnerProbe(
+      `update public.assignment_input_versions set created_by = null, proposals = '[{"forged":true}]'::jsonb where id = '${ERASE_INPUT_2}'`);
+    if (!wasRefused(out)) throw new Error('a proposals change was smuggled in alongside created_by erasure');
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });

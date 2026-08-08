@@ -283,12 +283,32 @@ they are real.
     smuggling a `kind` change, a `payload` change, or an actor
     REASSIGNMENT (to a different living coach, not a null) alongside the
     erasure is refused in every case.
-    Still open, and explicitly NOT what this migration claims to fix: a
-    coach who created an organisation or template
-    (`organizations.created_by`, `program_templates.created_by`,
-    `program_template_versions.published_by`, all separately
-    `on delete restrict`) is still unerasable. Same policy question, not yet
-    decided for those columns.
+  - RESOLVED (8 August 2026): the three columns this entry originally named
+    as still open (`organizations.created_by`, `program_templates.created_by`,
+    `program_template_versions.published_by`), plus two more in the same
+    shape this note had not yet named (`training_block_templates.created_by`,
+    `program_assignments.created_by`) and one already-open dependant
+    (`assignment_input_versions.created_by`) — six columns total, all
+    `on delete restrict` against `auth.users` — are now all `on delete set
+    null`, same "anonymise, never transfer" policy as the actor fix. Built in
+    `supabase/migrations/20260808_arc_erasure_creators.sql`. Four of the six
+    columns (`organizations`, `program_templates`, `training_block_templates`,
+    `program_assignments`) sit under no immutability trigger at all, so
+    widening the column and the FK action was the whole fix. The other two
+    (`program_template_versions.published_by`,
+    `assignment_input_versions.created_by`) sit behind `deny_mutation()` and
+    each got its own narrow escape-hatch function
+    (`deny_template_version_mutation`, `deny_assignment_input_version_mutation`),
+    same schema-generic-diff shape as `deny_coach_decision_mutation` —
+    permitting exactly one UPDATE shape (that table's own actor column moving
+    to null, nothing else changing). A shared `TG_ARGV`-parameterised
+    function was considered and rejected: a novel mechanism this codebase
+    doesn't otherwise use, for two call sites. Mutation-tested: disabling
+    each escape hatch's diff check was confirmed to let a smuggled
+    `rule_set_version` / `proposals` change ride along with the erasure, then
+    restored and reconfirmed refused. `checks/migrations-apply.mjs` proves,
+    in one pass, that erasing a single coach who created one row on every
+    affected table nulls all six columns and loses none of the six rows.
 
 ## Gaps in this register
 
