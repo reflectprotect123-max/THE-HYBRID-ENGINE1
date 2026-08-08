@@ -121,7 +121,7 @@ function RosterAuthoringView({ clientId, clientName }: { clientId: string; clien
               <fieldset className="mt-1">
                 <legend className="text-[10px] uppercase tracking-wide text-dim">Preferred days · input, not placement</legend>
                 <div className="mt-0.5 grid grid-cols-7 gap-0.5">
-                  {DAYS.map((day) => {
+                  {PUBLISH_WEEKDAYS.map((day) => {
                     const selected = (publishWeekdays[draft.workoutId] ?? []).includes(day.value);
                     return (
                       <label key={day.value} title={day.label} className={`grid min-h-6 place-items-center rounded border text-[11px] ${selected ? 'border-gold-line bg-gold-wash text-gold2' : 'border-line2 text-muted'}`}>
@@ -161,6 +161,22 @@ const DAYS = [
   { value: 5, short: 'F', label: 'Friday' },
   { value: 6, short: 'S', label: 'Saturday' },
   { value: 7, short: 'S', label: 'Sunday' },
+];
+
+/**
+ * 0=Sunday..6=Saturday — matches CoachLibrary.tsx's WEEKDAYS and the
+ * backend's `preferred_weekdays <@ array[0,1,2,3,4,5,6]` CHECK constraint.
+ * `DAYS` above is a self-coach-only display convention (1=Monday..7=Sunday)
+ * that never reaches the backend; this list must NOT be merged with it.
+ */
+const PUBLISH_WEEKDAYS = [
+  { value: 1, short: 'M', label: 'Monday' },
+  { value: 2, short: 'T', label: 'Tuesday' },
+  { value: 3, short: 'W', label: 'Wednesday' },
+  { value: 4, short: 'T', label: 'Thursday' },
+  { value: 5, short: 'F', label: 'Friday' },
+  { value: 6, short: 'S', label: 'Saturday' },
+  { value: 0, short: 'S', label: 'Sunday' },
 ];
 
 function isoToday(): string {
