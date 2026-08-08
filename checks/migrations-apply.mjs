@@ -117,6 +117,15 @@ const refusalProbe = (sql) => `do $probe$ begin
 exception when others then raise notice 'REFUSED (%)', sqlerrm;
 end $probe$;`;
 
+/* The ARC deny suite needs a writer, because the coach tables grant no client
+   INSERT at all — every write goes through a server-side command. Running the
+   seed as the table owner is the honest model of that command layer: it is the
+   only actor that can write, and the suite then proves what CLIENTS can and
+   cannot see of what it wrote. */
+const asOwnerSql = (sql) => runSql(sql);
+const asOwnerSqlOut = (sql) => runSql(sql);
+const asOwnerProbe = (sql) => runSql(refusalProbe(sql));
+
 let failures = 0;
 const check = (label, fn) => {
   try { fn(); console.log(`  PASS — ${label}`); }
@@ -287,6 +296,151 @@ try {
       `select (select count(*) from public.food_favorites) || '/' || (select count(*) from public.recipe_items);`));
     if (got !== '2/2') throw new Error(`athlete A's own writes were blocked: ${got}`);
   });
+
+  /* ---------------------------------------------------------------------
+   * ARC coach workspace — the deny suite docs/ARC_CLAUDE_HANDOFF.md mandates.
+   *
+   * EVERY ASSERTION HERE IS A COUNT, NOT AN ERROR. Postgres RLS removes rows
+   * rather than raising, so an unauthorised read succeeds and returns nothing.
+   * A test that asserted "this threw" would pass against a policy that grants
+   * everything, and a UI that renders the empty result says "no training"
+   * rather than "not allowed". Counting is the only honest probe.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC coach workspace — tenancy, roles and immutability:\n');
+
+  const ORG_1 = '11111111-1111-1111-1111-111111111111';
+  const ORG_2 = '22222222-2222-2222-2222-222222222222';
+  const COACH_1 = 'c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1';
+  const COACH_2 = 'c2c2c2c2-c2c2-c2c2-c2c2-c2c2c2c2c2c2';
+  const SUPPORT_1 = '55555555-5555-5555-5555-555555555555';
+  const EX_COACH = 'e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0';
+  const TPL = '33333333-3333-3333-3333-333333333333';
+  const TPLV = '44444444-4444-4444-4444-444444444444';
+  const ASSIGN = '66666666-6666-6666-6666-666666666666';
+  const DECISION = '77777777-7777-7777-7777-777777777777';
+  const RECEIPT = '88888888-8888-8888-8888-888888888888';
+
+  /* Seeded as the table owner: these writes model what the server-side command
+     layer does, which is the only sanctioned writer. */
+  asOwnerSql(`
+    insert into auth.users (id) values
+      ('${COACH_1}'), ('${COACH_2}'), ('${SUPPORT_1}'), ('${EX_COACH}')
+      on conflict do nothing;
+    insert into public.organizations (id, name, created_by) values
+      ('${ORG_1}', 'Org One', '${COACH_1}'),
+      ('${ORG_2}', 'Org Two', '${COACH_2}');
+    insert into public.organization_memberships (organization_id, user_id, role, status) values
+      ('${ORG_1}', '${COACH_1}', 'coach', 'active'),
+      ('${ORG_1}', '${SUPPORT_1}', 'support', 'active'),
+      ('${ORG_1}', '${EX_COACH}', 'coach', 'revoked'),
+      ('${ORG_1}', '${ATHLETE_A}', 'athlete', 'active'),
+      ('${ORG_2}', '${COACH_2}', 'coach', 'active'),
+      ('${ORG_2}', '${ATHLETE_B}', 'athlete', 'active');
+    insert into public.coach_athlete_assignments (organization_id, coach_user_id, athlete_user_id) values
+      ('${ORG_1}', '${COACH_1}', '${ATHLETE_A}'),
+      ('${ORG_1}', '${EX_COACH}', '${ATHLETE_A}');
+    insert into public.program_templates (id, organization_id, domain, name, created_by)
+      values ('${TPL}', '${ORG_1}', 'strength', 'Base Strength', '${COACH_1}');
+    insert into public.program_template_versions (id, template_id, version, published_by)
+      values ('${TPLV}', '${TPL}', 1, '${COACH_1}');
+    insert into public.program_assignments (id, organization_id, athlete_user_id, template_version_id, preferred_start_date, preferred_weekdays, created_by)
+      values ('${ASSIGN}', '${ORG_1}', '${ATHLETE_A}', '${TPLV}', date '2026-08-10', '{1,3,5}', '${COACH_1}');
+    insert into public.coach_decisions (id, organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
+      values ('${DECISION}', '${ORG_1}', '${ATHLETE_A}', '${COACH_1}', 'assignment_created', 'idem-1');
+    insert into public.decision_receipts (id, decision_id, organization_id, athlete_user_id, summary)
+      values ('${RECEIPT}', '${DECISION}', '${ORG_1}', '${ATHLETE_A}', 'Program assigned');`);
+
+  const countAs = (uid, sql) => lastLine(asAthlete(uid, `select count(*) ${sql};`));
+
+  check("a coach sees their own athlete's assignment", () => {
+    const got = countAs(COACH_1, `from public.program_assignments where id = '${ASSIGN}'`);
+    if (got !== '1') throw new Error(`the legitimate read returned ${got}, so every deny below proves nothing`);
+  });
+
+  check('the athlete sees their own assignment and receipt', () => {
+    const got = countAs(ATHLETE_A,
+      `from public.program_assignments where id = '${ASSIGN}'`);
+    const r = countAs(ATHLETE_A, `from public.decision_receipts where id = '${RECEIPT}'`);
+    if (got !== '1' || r !== '1') throw new Error(`athlete saw ${got} assignment, ${r} receipt`);
+  });
+
+  check('CROSS-TENANT: a coach in another organisation sees nothing', () => {
+    const got = countAs(COACH_2, `from public.program_assignments where id = '${ASSIGN}'`);
+    if (got !== '0') throw new Error(`org 2's coach read ${got} of org 1's assignments`);
+  });
+
+  check('CROSS-ATHLETE: an athlete cannot read another athlete\'s assignment', () => {
+    const got = countAs(ATHLETE_B, `from public.program_assignments where id = '${ASSIGN}'`);
+    if (got !== '0') throw new Error(`athlete B read ${got} of athlete A's assignments`);
+  });
+
+  check('REVOKED MEMBERSHIP: a coach removed from the org loses access, assignment row notwithstanding', () => {
+    const got = countAs(EX_COACH, `from public.program_assignments where id = '${ASSIGN}'`);
+    if (got !== '0') throw new Error(`a revoked coach still read ${got} assignments`);
+  });
+
+  check('SUPPORT ROLE: support cannot read assignments, decisions or receipts', () => {
+    const a = countAs(SUPPORT_1, `from public.program_assignments where id = '${ASSIGN}'`);
+    const d = countAs(SUPPORT_1, `from public.coach_decisions where id = '${DECISION}'`);
+    const r = countAs(SUPPORT_1, `from public.decision_receipts where id = '${RECEIPT}'`);
+    if (a !== '0' || d !== '0' || r !== '0') throw new Error(`support read ${a}/${d}/${r} (assignment/decision/receipt)`);
+  });
+
+  check('GUESSED RECEIPT ID: knowing the id does not reveal it, and the miss is indistinguishable', () => {
+    const real = countAs(ATHLETE_B, `from public.decision_receipts where id = '${RECEIPT}'`);
+    const fake = countAs(ATHLETE_B, `from public.decision_receipts where id = '99999999-9999-9999-9999-999999999999'`);
+    if (real !== '0' || fake !== '0') throw new Error(`guessing returned ${real} for a real id, ${fake} for a fake one`);
+    if (real !== fake) throw new Error('a real id and a fake one answered differently — that leaks existence');
+  });
+
+  check('ROLE ESCALATION: no client role may write any of these tables', () => {
+    for (const [who, sql] of [
+      [COACH_1, `insert into public.organization_memberships (organization_id, user_id, role) values ('${ORG_1}', '${COACH_1}', 'owner')`],
+      [COACH_2, `insert into public.coach_athlete_assignments (organization_id, coach_user_id, athlete_user_id) values ('${ORG_1}', '${COACH_2}', '${ATHLETE_A}')`],
+      [ATHLETE_A, `insert into public.program_assignments (organization_id, athlete_user_id, template_version_id, preferred_start_date, created_by) values ('${ORG_1}', '${ATHLETE_A}', '${TPLV}', date '2026-08-10', '${ATHLETE_A}')`],
+    ]) {
+      const out = asAthlete(who, refusalProbe(sql));
+      if (!out.includes('REFUSED')) throw new Error(`a client write was ACCEPTED: ${sql.slice(0, 60)}...`);
+    }
+  });
+
+  check('REPLAYED IDEMPOTENCY KEY: the same key twice in one org is rejected', () => {
+    const out = asOwnerProbe(
+      `insert into public.coach_decisions (organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
+       values ('${ORG_1}', '${ATHLETE_A}', '${COACH_1}', 'assignment_updated', 'idem-1')`);
+    if (!out.includes('REFUSED')) throw new Error('a replayed idempotency key was accepted');
+  });
+
+  check('the same key in a DIFFERENT organisation is fine, so keys cannot be probed across tenants', () => {
+    const out = asOwnerProbe(
+      `insert into public.coach_decisions (organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
+       values ('${ORG_2}', '${ATHLETE_B}', '${COACH_2}', 'assignment_created', 'idem-1')`);
+    if (!out.includes('ACCEPTED')) throw new Error('idempotency is global rather than per-organisation');
+  });
+
+  check('IMMUTABLE: decisions, receipts and published versions cannot be edited or deleted', () => {
+    for (const sql of [
+      `update public.coach_decisions set kind = 'progression_approved' where id = '${DECISION}'`,
+      `delete from public.coach_decisions where id = '${DECISION}'`,
+      `update public.decision_receipts set summary = 'rewritten' where id = '${RECEIPT}'`,
+      `delete from public.decision_receipts where id = '${RECEIPT}'`,
+      `update public.program_template_versions set body = '{"x":1}'::jsonb where id = '${TPLV}'`,
+    ]) {
+      const out = asOwnerProbe(sql);
+      if (!out.includes('REFUSED')) throw new Error(`an immutable record accepted: ${sql.slice(0, 50)}...`);
+    }
+  });
+
+  check('an assignment carries INTENT, never resolved dates', () => {
+    const got = lastLine(asAthlete(COACH_1,
+      `select array_to_string(preferred_weekdays, ',') from public.program_assignments where id = '${ASSIGN}';`));
+    if (got !== '1,3,5') throw new Error(`preferred weekdays read back as ${got}`);
+    const cols = lastLine(asOwnerSqlOut(
+      `select count(*) from information_schema.columns
+        where table_name = 'program_assignments' and column_name in ('resolved_dates', 'calendar', 'placed_dates');`));
+    if (cols !== '0') throw new Error(`the assignment table has ${cols} placement column(s) — the Coordinator owns placement`);
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });
