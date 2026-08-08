@@ -36,10 +36,21 @@ import type { ClientSummary } from './contracts';
  * went through `useCoachWorkspace()` would find `selectedClient` stuck at
  * null (the provider's fetch never resolves) and would only ever exercise
  * the "allow" branch — the one case that needs no test.
+ *
+ * `layer3Ready` is per-ROUTE, not global: layer 3's backend covers
+ * authoring, progression, nutrition and week review (each screen branches
+ * internally on `selectedClient.source` to render its own roster view) but
+ * NOT the legacy program bench, the guided workout builder, or the planner
+ * — those still only ever read and write the signed-in account's own local
+ * `Workout[]`/`EngineDB`, so a roster client must still be blocked there.
  */
-export function clientDetailGateVerdict(selectedClient: ClientSummary | null): 'allow' | 'roster' | 'fixture' {
+export function clientDetailGateVerdict(
+  selectedClient: ClientSummary | null,
+  layer3Ready: boolean,
+): 'allow' | 'roster' | 'fixture' {
   if (!selectedClient || selectedClient.source === 'engine-local') return 'allow';
-  return selectedClient.source === 'roster-summary' ? 'roster' : 'fixture';
+  if (selectedClient.source === 'roster-summary') return layer3Ready ? 'allow' : 'roster';
+  return 'fixture';
 }
 
 /** The presentational half, given the verdict explicitly rather than pulling
@@ -91,13 +102,15 @@ export function ClientDetailGateView({
   );
 }
 
-/** The wrapper every route in index.tsx actually uses. */
-export function ClientDetailGate({ tool, children }: { tool: string; children: ReactNode }) {
+/** The wrapper every route in index.tsx actually uses. Pass `layer3Ready` on
+ *  the four routes with a real backend (author, nutrition, progression,
+ *  review); leave it unset everywhere else. */
+export function ClientDetailGate({ tool, layer3Ready = false, children }: { tool: string; layer3Ready?: boolean; children: ReactNode }) {
   const { selectedClient, selectClient } = useCoachWorkspace();
   return (
     <ClientDetailGateView
       tool={tool}
-      verdict={clientDetailGateVerdict(selectedClient)}
+      verdict={clientDetailGateVerdict(selectedClient, layer3Ready)}
       clientName={selectedClient?.name ?? ''}
       onSwitchToLocal={() => selectClient('engine-local')}
     >

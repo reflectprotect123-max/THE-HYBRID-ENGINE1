@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { uid, type Workout } from '@hybrid/engine';
 import {
@@ -7,8 +7,151 @@ import {
   type SessionProposal,
 } from '@hybrid/coordinator-adapter';
 import { useDb } from '../store/db';
+import { useCoachWorkspace } from './CoachWorkspaceContext';
+import type { AthleteWorkoutDraft } from './contracts';
 import { applyProposalInputs, defaultProposalInput, type ProposalInput } from './authoring';
 import { setProposalInput, useAuthoringInputs } from './authoring-store';
+
+/**
+ * The REAL roster view. There is deliberately no block/set editor here —
+ * `GuidedBuilder` still only reads and writes the SIGNED-IN coach's own
+ * local `Workout[]` (see index.tsx), so it stays blocked for a roster
+ * client rather than silently editing the wrong person's data under the
+ * right person's name. What IS real: creating and publishing a named
+ * shell draft, live-tuned server-side, that becomes a real assignment
+ * through the same Coordinator-placement path as any shared template.
+ */
+function RosterAuthoringView({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const { repository } = useCoachWorkspace();
+  const [drafts, setDrafts] = useState<readonly AthleteWorkoutDraft[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newKind, setNewKind] = useState<'strength' | 'conditioning'>('strength');
+  const [busy, setBusy] = useState(false);
+  const [publishWeekdays, setPublishWeekdays] = useState<Record<string, number[]>>({});
+
+  const load = () => {
+    /* `?? Promise.resolve([])` — `?.()` alone short-circuits to `undefined`
+       when unimplemented, and chaining `.then` on that throws rather than
+       degrading to an empty library. */
+    (repository.listWorkoutDrafts?.(clientId) ?? Promise.resolve([]))
+      .then(setDrafts)
+      .catch(() => setError('The workout library could not be loaded.'));
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [repository, clientId]);
+
+  async function createDraft() {
+    if (!newName.trim() || !repository.saveWorkoutDraft) return;
+    setBusy(true);
+    try {
+      const workoutId = uid();
+      const body: Workout = { id: workoutId, kind: newKind, name: newName.trim(), blocks: [], updatedAt: Date.now() };
+      await repository.saveWorkoutDraft(clientId, workoutId, newKind, body, null);
+      setNewName('');
+      load();
+    } catch {
+      setError('The draft could not be created.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function publish(draft: AthleteWorkoutDraft) {
+    if (!repository.publishWorkoutDraft) return;
+    const weekdays = publishWeekdays[draft.workoutId] ?? [];
+    if (weekdays.length === 0) {
+      setError('Choose at least one preferred weekday before publishing.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const start = new Date();
+      const startDate = start.toISOString().slice(0, 10);
+      await repository.publishWorkoutDraft(clientId, draft.workoutId, draft.baseVersion, startDate, weekdays);
+      load();
+    } catch {
+      setError('The draft could not be published.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-bg text-text">
+      <header className="border-b border-line2 px-3 py-3 sm:px-4">
+        <div className="mx-auto max-w-[900px]">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-gold">ARC · plan</p>
+          <h1 className="mt-0.5 text-xl font-semibold">{clientName}&rsquo;s workout library</h1>
+          <p className="mt-0.5 text-xs text-muted">
+            A block-by-block editor isn&rsquo;t wired to real clients yet — this creates a named shell
+            you can iterate on later, and publishing turns it into a real assignment for {clientName}.
+          </p>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-[900px] space-y-2 p-2">
+        {error && <p className="rounded border border-bad/50 bg-panel3 p-2 text-xs text-bad">{error}</p>}
+
+        <section className="rounded-md border border-line2 bg-panel3 p-2">
+          <h2 className="text-sm font-semibold">New draft</h2>
+          <div className="mt-1 flex flex-wrap gap-1">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Workout name"
+              className="min-w-0 flex-1 rounded border border-line2 bg-well px-1.5 py-1 text-xs text-text outline-none focus:border-gold-line"
+            />
+            <select value={newKind} onChange={(e) => setNewKind(e.target.value as 'strength' | 'conditioning')} className="rounded border border-line2 bg-panel3 px-1 py-1 text-xs">
+              <option value="strength">Strength</option>
+              <option value="conditioning">Conditioning</option>
+            </select>
+            <button type="button" disabled={busy || !newName.trim()} onClick={createDraft} className="rounded border border-gold-line bg-gold-wash px-1.5 py-1 text-xs font-medium text-gold2 disabled:opacity-40">
+              Create
+            </button>
+          </div>
+        </section>
+
+        <section className="space-y-1.5">
+          {drafts?.map((draft) => (
+            <article key={draft.workoutId} className="rounded-md border border-line2 bg-panel3 p-2">
+              <div className="flex items-baseline gap-1">
+                <h3 className="text-sm font-semibold">{draft.body.name}</h3>
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-dim">{draft.kind} · v{draft.baseVersion}</span>
+              </div>
+              <fieldset className="mt-1">
+                <legend className="text-[10px] uppercase tracking-wide text-dim">Preferred days · input, not placement</legend>
+                <div className="mt-0.5 grid grid-cols-7 gap-0.5">
+                  {DAYS.map((day) => {
+                    const selected = (publishWeekdays[draft.workoutId] ?? []).includes(day.value);
+                    return (
+                      <label key={day.value} title={day.label} className={`grid min-h-6 place-items-center rounded border text-[11px] ${selected ? 'border-gold-line bg-gold-wash text-gold2' : 'border-line2 text-muted'}`}>
+                        <input
+                          className="sr-only"
+                          type="checkbox"
+                          aria-label={day.label}
+                          checked={selected}
+                          onChange={() => setPublishWeekdays((current) => {
+                            const existing = current[draft.workoutId] ?? [];
+                            return { ...current, [draft.workoutId]: selected ? existing.filter((v) => v !== day.value) : [...existing, day.value] };
+                          })}
+                        />
+                        {day.short}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <button type="button" disabled={busy} onClick={() => publish(draft)} className="mt-1.5 rounded border border-gold-line bg-gold-wash px-1.5 py-0.5 text-xs font-semibold text-gold2 disabled:opacity-40">
+                Publish and assign
+              </button>
+            </article>
+          ))}
+          {drafts?.length === 0 && <p className="rounded border border-dashed border-line2 p-3 text-center text-xs text-muted">No drafts yet for {clientName}.</p>}
+        </section>
+      </div>
+    </main>
+  );
+}
 
 const DAYS = [
   { value: 1, short: 'M', label: 'Monday' },
@@ -34,6 +177,13 @@ function proposalInput(proposal: SessionProposal, inputs: ReturnType<typeof useA
 }
 
 export function CoachAuthoring() {
+  const { selectedClient } = useCoachWorkspace();
+  return selectedClient && selectedClient.source === 'roster-summary'
+    ? <RosterAuthoringView clientId={selectedClient.id} clientName={selectedClient.name} />
+    : <SelfCoachAuthoringView />;
+}
+
+function SelfCoachAuthoringView() {
   const { db, update, athleteState } = useDb();
   const inputs = useAuthoringInputs();
   const navigate = useNavigate();

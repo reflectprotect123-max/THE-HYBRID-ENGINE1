@@ -23,11 +23,28 @@ backend it describes is now built.**
   8 was closed by inspection — see the migration's header comment for the
   citation.
 
-**What is NOT built**: the frontend wiring. `apps/web/src/coach/*.tsx` still
-read the signed-in account's own local stores for every screen except the
-workout library repository plumbing added alongside layers 1–2
-(`apps/web/src/cloud/coach-repository.ts`). Every RPC above exists and is
-tested against real Postgres; none of them has a caller in the UI yet.
+**Frontend wiring — done for the four ClientDetailGate routes with a real
+backend.** `CoachProgression`, `CoachNutrition`, `WeekReview` and
+`CoachAuthoring` each branch on `selectedClient.source`: `engine-local`
+renders the original, unchanged self-coach screen; `roster-summary` renders
+a NEW, separate roster view built directly against what the backend
+actually returns — `AthleteProgressionProposal`, `AthleteNutritionSummary`/
+`AthleteNutritionWindow`, `AthleteWeekSummary`, `AthleteWorkoutDraft` in
+`apps/web/src/coach/contracts.ts` — never a forced fit into the richer
+local types (`ProgressionProposal`, `WeeklyPlan`+`Session`), which would
+mean fabricating fields the backend deliberately doesn't carry (free-text
+`reason`/`evidence`, block/set detail, a `locked` flag per plan entry).
+`ClientDetailGate` gained a `layer3Ready` prop, set on exactly these four
+routes; `legacy`/`build`/`planner` stay blocked, because `GuidedBuilder` and
+`Planner` still only read and write the signed-in account's own local
+`Workout[]` — there is no roster-aware block editor yet, and
+`CoachAuthoring`'s roster view says so rather than pretending otherwise.
+
+**Not built**: a block/set editor for a roster client's workout drafts (the
+roster `CoachAuthoring` view can create a named shell and publish it, not
+edit its structure), and `AthleteStatus` (the trend rail widget) is not
+wired — `getTrendSnapshot` exists in the repository and is tested at the
+SQL layer, but has no UI caller yet.
 
 Context: `docs/ARC_CLAUDE_HANDOFF.md`, `docs/HANDOFF_2026-08-08_ARC_IMPORT.md`,
 `docs/RISK_REGISTER.md`, `apps/web/src/coach/ClientDetailGate.tsx`. Layers 1–2

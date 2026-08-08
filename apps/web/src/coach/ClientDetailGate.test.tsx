@@ -24,21 +24,33 @@ const client = (over: Partial<ClientSummary>): ClientSummary => ({
 
 describe('clientDetailGateVerdict', () => {
   it('allows the signed-in athlete — this IS their own detail', () => {
-    expect(clientDetailGateVerdict(client({ source: 'engine-local' }))).toBe('allow');
+    expect(clientDetailGateVerdict(client({ source: 'engine-local' }), false)).toBe('allow');
   });
 
   it('allows when nothing is selected yet, rather than blocking on a transient null', () => {
-    expect(clientDetailGateVerdict(null)).toBe('allow');
+    expect(clientDetailGateVerdict(null, false)).toBe('allow');
   });
 
-  it('blocks a real roster client — their detail is not backed yet', () => {
-    expect(clientDetailGateVerdict(client({ source: 'roster-summary' }))).toBe('roster');
+  it('blocks a real roster client on a route without a layer-3 backend', () => {
+    expect(clientDetailGateVerdict(client({ source: 'roster-summary' }), false)).toBe('roster');
+  });
+
+  it('allows a real roster client through on a route WITH a layer-3 backend', () => {
+    // The screen itself is responsible for branching on selectedClient.source
+    // from here — this gate only decides whether to let it try.
+    expect(clientDetailGateVerdict(client({ source: 'roster-summary' }), true)).toBe('allow');
+  });
+
+  it('still blocks a synthetic fixture even on a layer-3-ready route', () => {
+    // A fixture has nothing behind it at all, in any tier — layer3Ready does
+    // not change that.
+    expect(clientDetailGateVerdict(client({ source: 'synthetic-fixture' }), true)).toBe('fixture');
   });
 
   it('blocks a synthetic fixture, with its own distinct verdict', () => {
     // Distinct from 'roster' because the two are different facts: one is a
     // real person whose detail is not built yet, the other is not a person.
-    expect(clientDetailGateVerdict(client({ source: 'synthetic-fixture' }))).toBe('fixture');
+    expect(clientDetailGateVerdict(client({ source: 'synthetic-fixture' }), false)).toBe('fixture');
   });
 });
 

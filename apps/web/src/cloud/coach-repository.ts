@@ -1,9 +1,17 @@
+import type { Workout } from '@hybrid/engine';
 import type {
+  AthleteNutritionSummary,
+  AthleteNutritionWindow,
+  AthleteProgressionProposal,
+  AthleteTrendSnapshot,
+  AthleteWeekSummary,
+  AthleteWorkoutDraft,
   ClientSummary,
   CoachWorkspaceRepository,
   CoachWorkspaceSettings,
   ProgramAssignmentDraft,
   ProgramTemplate,
+  TrainingDomain,
 } from '../coach/contracts';
 import { validateProgramAssignmentDraft } from '../coach/contracts';
 import { COACH_CLIENT_FIXTURES } from '../coach/mock-fixtures';
@@ -285,6 +293,215 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
     if (!row) throw new Error('The assignment was not written. Nothing has changed — try again.');
 
     return { ...draft, state: 'ready-for-coordinator' };
+  }
+
+  /** Every layer-3 RPC takes (organisation, athlete), and the UI only knows
+   *  the athlete. Resolved once, from the coach's own active assignment row
+   *  — the RPCs re-check it server-side regardless, same as
+   *  saveAssignmentDraft above; this is only about not sending a guess. */
+  private async orgIdFor(clientId: string): Promise<string> {
+    if (!this.client) throw new Error('This needs a connection.');
+    const { data: session } = await this.client.auth.getUser();
+    if (!session?.user) throw new Error('Sign in to continue.');
+    const { data: link, error } = await this.client
+      .from('coach_athlete_assignments')
+      .select('organization_id')
+      .eq('coach_user_id', session.user.id)
+      .eq('athlete_user_id', clientId)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (error) throw error;
+    if (!link) throw new Error('That athlete is not on your roster.');
+    return (link as { organization_id: string }).organization_id;
+  }
+
+  async listProgressionProposals(clientId: string): Promise<readonly AthleteProgressionProposal[]> {
+    if (!this.client) return [];
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('get_athlete_progression_proposals', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+    });
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: row.id as string,
+      domain: row.domain as TrainingDomain,
+      subject: row.subject as string,
+      clientKey: row.client_key as string,
+      before: row.before as Record<string, unknown> | null,
+      after: row.after as Record<string, unknown>,
+      confidence: row.confidence as AthleteProgressionProposal['confidence'],
+      hard: row.hard as boolean,
+      direction: row.direction as AthleteProgressionProposal['direction'],
+      createdAt: row.created_at as string,
+    }));
+  }
+
+  /** Never mutates a prescription directly — that command doesn't exist. The
+   *  athlete's own device reads the resulting receipt on its next sync and
+   *  applies the change itself, through the unmodified engine path. */
+  async decideProgressionProposal(clientId: string, proposalId: string, decision: 'approved' | 'declined'): Promise<void> {
+    if (!this.client) throw new Error('This needs a connection.');
+    const organizationId = await this.orgIdFor(clientId);
+    const { error } = await this.client.rpc('decide_progression_proposal', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+      p_proposal_id: proposalId,
+      p_decision: decision,
+      p_idempotency_key: `${proposalId}:${decision}`,
+    });
+    if (error) throw error;
+  }
+
+  async getTrendSnapshot(clientId: string, kind: AthleteTrendSnapshot['kind']): Promise<AthleteTrendSnapshot | null> {
+    if (!this.client) return null;
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('get_athlete_trend_series', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+      p_kind: kind,
+    });
+    if (error) throw error;
+    const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+    if (!row || row.id == null) return null;
+    return { kind, points: (row.points ?? []) as Record<string, unknown>[], generatedAt: row.generated_at as string };
+  }
+
+  async getNutritionSummary(clientId: string, weekStart: string): Promise<AthleteNutritionSummary | null> {
+    if (!this.client) return null;
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('get_athlete_nutrition_summary', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+      p_week_start: weekStart,
+    });
+    if (error) throw error;
+    const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+    if (!row) return null;
+    return {
+      loggedDays: row.logged_days as number,
+      windowDays: row.window_days as number,
+      trendDirection: (row.trend_direction ?? null) as AthleteNutritionSummary['trendDirection'],
+      estimateConfidence: (row.estimate_confidence ?? null) as AthleteNutritionSummary['estimateConfidence'],
+    };
+  }
+
+  /** Null covers BOTH "not readable" and "no consent grant" — the RPC
+   *  refuses identically either way, so a caller cannot use this to probe
+   *  which one it was. Use `hasNutritionGrant` to show the coach their own
+   *  grant state, which is a different, non-privileged question. */
+  async getNutritionWindow(clientId: string, weekStart: string): Promise<AthleteNutritionWindow | null> {
+    if (!this.client) return null;
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('get_athlete_nutrition_window', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+      p_week_start: weekStart,
+    });
+    if (error) return null;
+    return data as AthleteNutritionWindow | null;
+  }
+
+  async hasNutritionGrant(clientId: string): Promise<boolean> {
+    if (!this.client) return false;
+    const { data: session } = await this.client.auth.getUser();
+    if (!session?.user) return false;
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client
+      .from('nutrition_read_grants')
+      .select('revoked_at')
+      .eq('organization_id', organizationId)
+      .eq('athlete_user_id', clientId)
+      .eq('granted_to', session.user.id)
+      .is('revoked_at', null)
+      .maybeSingle();
+    if (error) return false;
+    return data != null;
+  }
+
+  async listWorkoutDrafts(clientId: string): Promise<readonly AthleteWorkoutDraft[]> {
+    if (!this.client) return [];
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('get_athlete_workout_library', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+    });
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      workoutId: row.workout_id as string,
+      kind: row.kind as TrainingDomain,
+      body: row.body as Workout,
+      baseVersion: row.base_version as number,
+      updatedAt: row.updated_at as string,
+    }));
+  }
+
+  async saveWorkoutDraft(clientId: string, workoutId: string, kind: TrainingDomain, body: Workout, baseVersion: number | null): Promise<AthleteWorkoutDraft> {
+    if (!this.client) throw new Error('Live-tuning a client workout needs a connection.');
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('save_workout_draft', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+      p_workout_id: workoutId,
+      p_kind: kind,
+      p_body: body,
+      p_base_version: baseVersion,
+    });
+    if (error) throw error;
+    const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+    if (!row) throw new Error('The draft was not saved. Nothing has changed — try again.');
+    return {
+      workoutId: row.workout_id as string,
+      kind: row.kind as TrainingDomain,
+      body: row.body as Workout,
+      baseVersion: row.base_version as number,
+      updatedAt: row.updated_at as string,
+    };
+  }
+
+  /** Snapshots the draft into an immutable version and assigns it in one
+   *  step, through the same Coordinator-placement path every other
+   *  assignment uses. Nothing here places a session on a date. */
+  async publishWorkoutDraft(clientId: string, workoutId: string, baseVersion: number, preferredStartDate: string, preferredWeekdays: number[]): Promise<void> {
+    if (!this.client) throw new Error('Publishing needs a connection.');
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('publish_workout_draft', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+      p_workout_id: workoutId,
+      p_base_version: baseVersion,
+      p_preferred_start_date: preferredStartDate,
+      p_preferred_weekdays: preferredWeekdays,
+      p_idempotency_key: `${workoutId}:${baseVersion}`,
+    });
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error('The workout was not published. Nothing has changed — try again.');
+  }
+
+  /**
+   * Entries, decisions and session SUMMARIES only — this is deliberately NOT
+   * `getAthleteWeek`. That method promises a full `AthleteWeekProjection`
+   * (real `Session[]` with block/set detail); this backend tier does not
+   * return that, and fabricating empty blocks to satisfy the richer type
+   * would misrepresent what is actually known.
+   */
+  async getAthleteWeekSummary(clientId: string, weekStart: string): Promise<AthleteWeekSummary | null> {
+    if (!this.client) return null;
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('get_athlete_week_plan', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+      p_week_start: weekStart,
+    });
+    if (error) return null;
+    if (!data) return null;
+    const result = data as { plan?: { entries?: unknown[]; decisions?: unknown[] }; sessions?: unknown[] };
+    return {
+      entries: (result.plan?.entries ?? []) as AthleteWeekSummary['entries'],
+      decisions: (result.plan?.decisions ?? []) as AthleteWeekSummary['decisions'],
+      sessions: (result.sessions ?? []) as AthleteWeekSummary['sessions'],
+    };
   }
 
   /* Workspace preferences are the coach's own display settings — not athlete

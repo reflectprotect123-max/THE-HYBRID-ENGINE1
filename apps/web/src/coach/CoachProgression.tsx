@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useCoachWorkspace } from './CoachWorkspaceContext';
 import { useDb } from '../store/db';
+import type { AthleteProgressionProposal } from './contracts';
 import {
   applyApprovedProposal,
   proposalIsStale,
@@ -7,6 +9,139 @@ import {
   type ProgressionProposal,
 } from './progression';
 import { appendProgressionDecision, useProgressionLedger } from './progression-store';
+
+const ROSTER_DIRECTION_STYLE: Record<AthleteProgressionProposal['direction'], string> = {
+  increase: 'border-gold-line bg-gold-wash text-gold2',
+  hold: 'border-line2 bg-panel2 text-muted',
+  decrease: 'border-warn bg-panel2 text-warn',
+  review: 'border-bad bg-panel2 text-bad',
+};
+
+function rosterPrescription(value: Record<string, unknown> | null): string {
+  if (!value) return 'No accepted baseline';
+  if (typeof value.kg === 'number') return `${value.kg} kg${typeof value.reps === 'number' ? ` × ${value.reps}` : ''}`;
+  if (typeof value.level === 'number') return `Level ${value.level}${typeof value.miss === 'number' ? ` · ${value.miss} miss` : ''}`;
+  return 'Unknown shape';
+}
+
+/**
+ * The REAL roster view. Deliberately much thinner than the self-coach panel
+ * below: this tier of the backend carries no free-text `reason`, `evidence`
+ * or `intent` — those are stripped at the source (see
+ * docs/ARC_LAYER3_DESIGN.md §4 finding 5) — and "Approve" here never
+ * touches a prescription directly. It writes a decision the athlete's OWN
+ * device reads on its next sync and applies itself, through the unmodified
+ * engine path. There is no local mutation to roll back if it's wrong.
+ */
+function RosterProgressionView({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const { repository } = useCoachWorkspace();
+  const [proposals, setProposals] = useState<readonly AthleteProgressionProposal[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setProposals(null);
+    setError(null);
+    /* `?.()` alone short-circuits to `undefined` when the repository doesn't
+       implement this — chaining `.then` on that throws, not degrades. An
+       older build or the mock repository must show "not available", not
+       crash the screen. */
+    if (!repository.listProgressionProposals) { setProposals([]); return; }
+    repository.listProgressionProposals(clientId)
+      .then((rows) => { if (active) setProposals(rows); })
+      .catch(() => { if (active) setError('Proposals could not be loaded.'); });
+    return () => { active = false; };
+  }, [repository, clientId]);
+
+  async function decide(proposal: AthleteProgressionProposal, decision: 'approved' | 'declined') {
+    if (!repository.decideProgressionProposal) return;
+    setBusyId(proposal.id);
+    try {
+      await repository.decideProgressionProposal(clientId, proposal.id, decision);
+      setProposals((current) => (current ?? []).filter((p) => p.id !== proposal.id));
+      setMessage(`${proposal.subject}: ${decision}. ${clientName}'s device will apply this on its next sync.`);
+    } catch {
+      setMessage('The decision could not be recorded. Nothing has changed — try again.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-bg text-text">
+      <header className="border-b border-line2 px-3 py-3 sm:px-4">
+        <div className="mx-auto max-w-[1240px]">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-gold">ARC · decisions</p>
+          <h1 className="mt-0.5 text-xl font-semibold">{clientName}&rsquo;s pending proposals</h1>
+          <p className="mt-0.5 text-xs text-muted">
+            A coach decision here never edits {clientName}&rsquo;s prescription directly. It writes a
+            receipt their own device reads and applies on its next sync.
+          </p>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-[1240px] space-y-1.5 p-2">
+        {error && <p className="rounded border border-bad/50 bg-panel3 p-2 text-xs text-bad">{error}</p>}
+        {proposals === null && !error && <p className="p-2 text-xs text-muted">Loading…</p>}
+        {proposals?.map((proposal) => (
+          <article key={proposal.id} className="rounded-md border border-line2 bg-panel3">
+            <div className="flex flex-wrap items-start gap-1 border-b border-line px-2 py-1.5">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-dim">
+                  {proposal.domain} · {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(proposal.createdAt))}
+                </p>
+                <h3 className="text-sm font-semibold">{proposal.subject}</h3>
+              </div>
+              <span className={`ml-auto rounded-full border px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${ROSTER_DIRECTION_STYLE[proposal.direction]}`}>
+                {proposal.direction === 'increase' ? 'approval required' : proposal.direction}
+              </span>
+            </div>
+            <div className="p-2 text-xs">
+              {proposal.hard && (
+                <p className="mb-1 rounded border border-bad/50 bg-panel p-1 text-[11px] text-bad">
+                  A pain or illness hold was active when this was computed. Route {clientName} for direct review before approving.
+                </p>
+              )}
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 rounded border border-line bg-panel p-1">
+                <span>{rosterPrescription(proposal.before)}</span>
+                <span aria-hidden="true" className="text-gold">→</span>
+                <strong>{rosterPrescription(proposal.after)}</strong>
+              </div>
+              <p className="mt-1 text-[10px] uppercase tracking-wide text-dim">Confidence</p>
+              <p className="text-muted">{proposal.confidence}</p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  disabled={proposal.direction === 'review' || busyId === proposal.id}
+                  onClick={() => decide(proposal, 'approved')}
+                  className="rounded border border-gold-line bg-gold-wash px-1.5 py-0.5 text-xs font-semibold text-gold2 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  disabled={busyId === proposal.id}
+                  onClick={() => decide(proposal, 'declined')}
+                  className="rounded border border-line2 bg-panel2 px-1.5 py-0.5 text-xs text-muted"
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
+          </article>
+        ))}
+        {proposals?.length === 0 && (
+          <div className="rounded-md border border-dashed border-line2 bg-panel3 p-3 text-center">
+            <h3 className="text-sm font-semibold">No pending proposals for {clientName}</h3>
+          </div>
+        )}
+      </div>
+      <div className="sr-only" aria-live="polite">{message}</div>
+    </main>
+  );
+}
 
 const DIRECTION_STYLE: Record<ProgressionProposal['direction'], string> = {
   increase: 'border-gold-line bg-gold-wash text-gold2',
@@ -30,6 +165,13 @@ function prescription(proposal: ProgressionProposal, side: 'before' | 'after'): 
 }
 
 export function CoachProgression() {
+  const { selectedClient } = useCoachWorkspace();
+  return selectedClient && selectedClient.source === 'roster-summary'
+    ? <RosterProgressionView clientId={selectedClient.id} clientName={selectedClient.name} />
+    : <SelfCoachProgressionView />;
+}
+
+function SelfCoachProgressionView() {
   const { settings, update, athleteState } = useDb();
   const ledger = useProgressionLedger();
   const [domain, setDomain] = useState<'all' | ProgressionProposal['domain']>('all');

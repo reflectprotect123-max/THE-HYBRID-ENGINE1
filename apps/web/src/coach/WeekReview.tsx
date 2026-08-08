@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { nutritionSummary } from '@hybrid/nutrition-adapter';
 import { useLedger } from '../autocoach/ledger';
 import { useDb } from '../store/db';
 import { useNutrition } from '../store/nutrition';
+import { useCoachWorkspace } from './CoachWorkspaceContext';
+import type { AthleteWeekSummary } from './contracts';
 import { buildWeekReview, type ReviewStatus } from './week-review';
 
 const STATUS_LABEL: Record<ReviewStatus, string> = {
@@ -25,7 +27,104 @@ function niceDate(value: string): string {
     .format(new Date(`${value}T00:00:00Z`));
 }
 
+/**
+ * The REAL roster view. Deliberately NOT a "reconciled ledger" the way
+ * `buildWeekReview` produces for the self-coach screen — that reconciliation
+ * needs a stable `workoutId` match between plan entries and sessions, and
+ * this backend tier doesn't return one (docs/ARC_LAYER3_DESIGN.md §4,
+ * finding 3, closed by minting a server-side id rather than trusting a
+ * client string; the id never round-trips into this summary). Showing
+ * "planned" and "recorded" as two honest, separate lists is truthful about
+ * what the server actually knows; a false reconciliation would not be.
+ */
+function RosterWeekReview({ clientId, clientName, weekStart }: { clientId: string; clientName: string; weekStart: string }) {
+  const { repository } = useCoachWorkspace();
+  const [summary, setSummary] = useState<AthleteWeekSummary | null | undefined>(undefined);
+
+  useEffect(() => {
+    let active = true;
+    setSummary(undefined);
+    /* `?? Promise.resolve(null)` — `?.()` alone short-circuits to
+       `undefined` when unimplemented, and chaining `.then` on that throws
+       rather than degrading to "not readable". */
+    (repository.getAthleteWeekSummary?.(clientId, weekStart) ?? Promise.resolve(null))
+      .then((v) => { if (active) setSummary(v); })
+      .catch(() => { if (active) setSummary(null); });
+    return () => { active = false; };
+  }, [repository, clientId, weekStart]);
+
+  const dropped = summary?.decisions.filter((d) => d.action === 'dropped') ?? [];
+
+  return (
+    <main className="mx-auto max-w-[900px] p-3 text-text">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-gold">ARC · week</p>
+      <h1 className="mt-0.5 text-xl font-semibold">{clientName}&rsquo;s week of {niceDate(weekStart)}</h1>
+
+      {summary === undefined && <p className="mt-2 text-sm text-muted">Loading…</p>}
+      {summary === null && <p className="mt-2 text-sm text-muted">Not readable for this week.</p>}
+
+      {summary && (
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          <section className="rounded-md border border-line2 bg-panel3 p-2">
+            <h2 className="text-sm font-semibold">Planned</h2>
+            <div className="mt-1 space-y-1">
+              {summary.entries.map((entry) => (
+                <article key={entry.proposalId} className="rounded border border-line bg-panel p-1 text-xs">
+                  <div className="flex items-baseline gap-1"><span className="font-medium">{entry.title}</span><span className="ml-auto tabular-nums text-muted">{niceDate(entry.date)}</span></div>
+                  <p className="mt-0.5 text-[10px] uppercase tracking-wide text-dim">{entry.domain} · {entry.status}</p>
+                </article>
+              ))}
+              {summary.entries.length === 0 && <p className="text-xs text-muted">Nothing was placed this week.</p>}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-line2 bg-panel3 p-2">
+            <h2 className="text-sm font-semibold">Recorded</h2>
+            <div className="mt-1 space-y-1">
+              {summary.sessions.map((session) => (
+                <article key={session.id} className="rounded border border-line bg-panel p-1 text-xs">
+                  <div className="flex items-baseline gap-1"><span className="font-medium">{session.name ?? (session.kind === 'strength' ? 'Strength session' : 'Conditioning session')}</span><span className="ml-auto tabular-nums text-muted">{niceDate(session.date)}</span></div>
+                  <p className="mt-0.5 text-[10px] uppercase tracking-wide text-dim">{session.kind} · {session.status}</p>
+                </article>
+              ))}
+              {summary.sessions.length === 0 && <p className="text-xs text-muted">Nothing recorded this week.</p>}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-line2 bg-panel3 p-2 md:col-span-2">
+            <h2 className="text-sm font-semibold">What competed and lost</h2>
+            <div className="mt-1 grid gap-1 sm:grid-cols-2">
+              {dropped.map((decision) => (
+                <article key={`${decision.proposalId}:${decision.reasonCode}`} className="rounded border border-line bg-panel p-1.5 text-xs">
+                  <p className="text-[10px] uppercase tracking-wide text-gold2">{decision.reasonCode.replaceAll('_', ' ')}</p>
+                  <p className="mt-0.5 text-muted">{decision.explanation}</p>
+                </article>
+              ))}
+              {dropped.length === 0 && <p className="text-xs text-muted">Nothing was dropped in this projection.</p>}
+            </div>
+          </section>
+        </div>
+      )}
+    </main>
+  );
+}
+
 export function WeekReview() {
+  const { selectedClient } = useCoachWorkspace();
+  const params = useParams();
+  if (selectedClient && selectedClient.source === 'roster-summary') {
+    return (
+      <RosterWeekReview
+        clientId={selectedClient.id}
+        clientName={selectedClient.name}
+        weekStart={params.weekStart ?? new Date().toISOString().slice(0, 10)}
+      />
+    );
+  }
+  return <SelfCoachWeekReview />;
+}
+
+function SelfCoachWeekReview() {
   const { weekStart } = useParams();
   const { weeklyPlan, sessions } = useDb();
   const interventions = useLedger();

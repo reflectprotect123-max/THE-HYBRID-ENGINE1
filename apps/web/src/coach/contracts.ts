@@ -1,4 +1,4 @@
-import type { Session } from '@hybrid/engine';
+import type { Session, Workout } from '@hybrid/engine';
 import type { WeeklyPlan } from '@hybrid/coordinator-adapter';
 
 /**
@@ -115,6 +115,88 @@ export interface AthleteWeekProjection {
   nutrition: { loggedDays: number; windowDays: number } | null;
 }
 
+/*
+ * Layer 3 read/write surfaces — deliberately SEPARATE types from the local,
+ * self-coach shapes (`ProgressionProposal`, `WeeklyPlan`, `Session`,
+ * `TrendSeries`) rather than a forced fit into them.
+ *
+ * The backend was built to return LESS than the local demo data does, on
+ * purpose — no free-text reason/evidence on a progression proposal (just a
+ * sanitised `hard` boolean), no block/set detail on a session (just a
+ * summary), no raw macro values without a consent grant. Reusing the local
+ * types would mean either fabricating the missing fields (a lie: an empty
+ * `evidence: []` reads as "no evidence recorded", not "this tier doesn't
+ * carry evidence") or loosening those types for everyone, including the
+ * genuinely richer engine-local screens. Separate types keep both honest.
+ */
+
+export interface AthleteProgressionProposal {
+  id: string;
+  domain: TrainingDomain;
+  subject: string;
+  clientKey: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown>;
+  confidence: 'low' | 'medium' | 'high';
+  /** The sanitised safety signal — never the athlete's own words. */
+  hard: boolean;
+  direction: 'increase' | 'hold' | 'decrease' | 'review';
+  createdAt: string;
+}
+
+export interface AthleteTrendSnapshot {
+  kind: 'lift_trend' | 'erg_trend' | 'hard_budget';
+  points: readonly Record<string, unknown>[];
+  generatedAt: string;
+}
+
+/** Counts and already-computed signals only — no raw macro or weight value. */
+export interface AthleteNutritionSummary {
+  loggedDays: number;
+  windowDays: number;
+  trendDirection: 'gaining' | 'losing' | 'stable' | null;
+  estimateConfidence: 'holding' | 'low' | 'medium' | 'high' | null;
+}
+
+/** The raw-detail tier. Requesting this is a privileged read, logged and
+ *  gated by the athlete's own revocable consent grant. */
+export interface AthleteNutritionWindow {
+  dailyStatus: readonly { date: string; status: string; note: string | null }[];
+  weightEntries: readonly { measuredAt: string; weightKg: number }[];
+  macroTargets: readonly { date: string; calories: number; proteinG: number; carbsG: number; fatG: number }[];
+  latestCheckIn: {
+    status: string;
+    explanation: string;
+    proposedCalories: number | null;
+    proposedProteinG: number | null;
+    proposedCarbsG: number | null;
+    proposedFatG: number | null;
+  } | null;
+}
+
+/** A coach-authored workout for one real athlete, live-tuned before it is
+ *  published into an assignment. */
+export interface AthleteWorkoutDraft {
+  workoutId: string;
+  kind: TrainingDomain;
+  body: Workout;
+  baseVersion: number;
+  updatedAt: string;
+}
+
+/**
+ * Entries, decisions and session SUMMARIES for one athlete's week — never
+ * block/set detail. `sessions[].name` may be absent; nothing here is a
+ * reconciled ledger the way `buildWeekReview` produces for the self-coach
+ * screen, because that reconciliation needs richer session identity
+ * (`workoutId`, full block data) than this tier is willing to return.
+ */
+export interface AthleteWeekSummary {
+  entries: readonly { proposalId: string; domain: TrainingDomain; date: string; status: string; title: string }[];
+  decisions: WeeklyPlan['decisions'];
+  sessions: readonly { id: string; kind: TrainingDomain; date: string; status: string; name: string | null }[];
+}
+
 export interface CoachWorkspaceRepository {
   listClients(): Promise<readonly ClientSummary[]>;
   /**
@@ -127,6 +209,31 @@ export interface CoachWorkspaceRepository {
   saveAssignmentDraft(draft: ProgramAssignmentDraft): Promise<ProgramAssignmentDraft>;
   getSettings(): Promise<CoachWorkspaceSettings>;
   saveSettings(settings: CoachWorkspaceSettings): Promise<CoachWorkspaceSettings>;
+
+  /** Pending progression proposals for a real roster client. */
+  listProgressionProposals?(clientId: string): Promise<readonly AthleteProgressionProposal[]>;
+  /** Approve or decline. The athlete's OWN device applies the prescription
+   *  change on its next sync — this never mutates anything directly. */
+  decideProgressionProposal?(clientId: string, proposalId: string, decision: 'approved' | 'declined'): Promise<void>;
+
+  getTrendSnapshot?(clientId: string, kind: AthleteTrendSnapshot['kind']): Promise<AthleteTrendSnapshot | null>;
+
+  getNutritionSummary?(clientId: string, weekStart: string): Promise<AthleteNutritionSummary | null>;
+  /** Null means either "not readable" or "no consent grant" — both refuse
+   *  identically, so this cannot be used to probe which one it was. */
+  getNutritionWindow?(clientId: string, weekStart: string): Promise<AthleteNutritionWindow | null>;
+  /** Whether the SIGNED-IN coach currently holds a live consent grant for
+   *  this client's raw nutrition detail. */
+  hasNutritionGrant?(clientId: string): Promise<boolean>;
+
+  listWorkoutDrafts?(clientId: string): Promise<readonly AthleteWorkoutDraft[]>;
+  saveWorkoutDraft?(clientId: string, workoutId: string, kind: TrainingDomain, body: Workout, baseVersion: number | null): Promise<AthleteWorkoutDraft>;
+  /** Snapshots the draft into an immutable, assignable version and creates
+   *  the program_assignment in one step — the same Coordinator-placement
+   *  path as assigning a shared template. */
+  publishWorkoutDraft?(clientId: string, workoutId: string, baseVersion: number, preferredStartDate: string, preferredWeekdays: number[]): Promise<void>;
+
+  getAthleteWeekSummary?(clientId: string, weekStart: string): Promise<AthleteWeekSummary | null>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

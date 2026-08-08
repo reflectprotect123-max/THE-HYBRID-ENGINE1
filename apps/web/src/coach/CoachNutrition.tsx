@@ -1,7 +1,103 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { goalLabel } from '@hybrid/nutrition-adapter';
 import { useNutrition } from '../store/nutrition';
+import { useCoachWorkspace } from './CoachWorkspaceContext';
+import type { AthleteNutritionSummary, AthleteNutritionWindow } from './contracts';
 import { buildCoachNutritionReview, type NutritionDayReview } from './nutrition-review';
+
+function mondayOf(d: Date): string {
+  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
+  return copy.toISOString().slice(0, 10);
+}
+
+/**
+ * The REAL roster view, in two tiers matching the backend exactly.
+ *
+ * Summary (counts, a trend direction, an estimate confidence) needs no
+ * consent grant — it is the same tier as the training summary counts.
+ * Raw detail (macros, weight, the check-in) needs the ATHLETE's own
+ * revocable grant; `getNutritionWindow` returns null for either "not
+ * readable" or "no grant", and this screen must not guess which.
+ */
+function RosterNutritionView({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const { repository } = useCoachWorkspace();
+  const weekStart = useMemo(() => mondayOf(new Date()), []);
+  const [summary, setSummary] = useState<AthleteNutritionSummary | null | undefined>(undefined);
+  const [window_, setWindow] = useState<AthleteNutritionWindow | null | undefined>(undefined);
+  const [granted, setGranted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    /* `?.()` alone short-circuits to `undefined` when unimplemented (an
+       older build, or the mock repository) — chaining `.then` on that
+       throws rather than degrading. `?? Promise.resolve(null)` substitutes
+       the same "not available" null every other branch already renders. */
+    (repository.getNutritionSummary?.(clientId, weekStart) ?? Promise.resolve(null))
+      .then((v) => { if (active) setSummary(v); }).catch(() => { if (active) setSummary(null); });
+    (repository.hasNutritionGrant?.(clientId) ?? Promise.resolve(false))
+      .then((v) => { if (active) setGranted(v); }).catch(() => { if (active) setGranted(false); });
+    (repository.getNutritionWindow?.(clientId, weekStart) ?? Promise.resolve(null))
+      .then((v) => { if (active) setWindow(v); }).catch(() => { if (active) setWindow(null); });
+    return () => { active = false; };
+  }, [repository, clientId, weekStart]);
+
+  return (
+    <main className="min-h-screen bg-bg text-text">
+      <header className="border-b border-line2 px-3 py-3 sm:px-4">
+        <div className="mx-auto max-w-[1240px]">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-gold">ARC · nutrition</p>
+          <h1 className="mt-0.5 text-xl font-semibold">{clientName}&rsquo;s nutrition review</h1>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-[1240px] space-y-2 p-2">
+        <section className="rounded-md border border-line2 bg-panel3 p-2">
+          <p className="text-[10px] uppercase tracking-wider text-gold">Summary — no consent needed</p>
+          {summary === undefined && <p className="mt-0.5 text-xs text-muted">Loading…</p>}
+          {summary === null && <p className="mt-0.5 text-xs text-muted">Not available.</p>}
+          {summary && (
+            <dl className="mt-1 grid grid-cols-3 gap-2 text-xs">
+              <div><dt className="text-dim">Logged days</dt><dd className="tabular-nums">{summary.loggedDays}/{summary.windowDays}</dd></div>
+              <div><dt className="text-dim">Weight trend</dt><dd className="capitalize">{summary.trendDirection ?? 'Unknown'}</dd></div>
+              <div><dt className="text-dim">Estimate confidence</dt><dd className="capitalize">{summary.estimateConfidence ?? 'Unknown'}</dd></div>
+            </dl>
+          )}
+        </section>
+
+        <section className="rounded-md border border-line2 bg-panel3 p-2">
+          <p className="text-[10px] uppercase tracking-wider text-gold">Raw detail — needs {clientName}&rsquo;s consent</p>
+          {granted === false && (
+            <p className="mt-0.5 text-xs text-muted">
+              {clientName} has not granted raw nutrition access to your account. Ask them to grant it from their own device — it can be revoked at any time and every read is logged to their receipt trail.
+            </p>
+          )}
+          {granted && window_ === undefined && <p className="mt-0.5 text-xs text-muted">Loading…</p>}
+          {granted && window_ === null && <p className="mt-0.5 text-xs text-muted">Not available.</p>}
+          {granted && window_ && (
+            <div className="mt-1 space-y-1.5 text-xs">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-dim">Daily status</p>
+                <ul className="mt-0.5 space-y-0.5">
+                  {window_.dailyStatus.map((day) => <li key={day.date} className="flex gap-1"><span className="tabular-nums">{day.date}</span><span className="ml-auto capitalize text-muted">{day.status}</span></li>)}
+                  {window_.dailyStatus.length === 0 && <li className="text-muted">No logged days this week.</li>}
+                </ul>
+              </div>
+              {window_.latestCheckIn && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-dim">Latest check-in</p>
+                  <p className="mt-0.5 capitalize">{window_.latestCheckIn.status}</p>
+                  <p className="mt-0.5 text-muted">{window_.latestCheckIn.explanation}</p>
+                </div>
+              )}
+              <p className="text-[10px] text-dim">This read was logged to {clientName}&rsquo;s receipt trail.</p>
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
 
 const STATUS_LABEL: Record<NutritionDayReview['status'], string> = {
   complete: 'Complete',
@@ -31,6 +127,13 @@ function number(value: number | null | undefined, suffix = ''): string {
 }
 
 export function CoachNutrition() {
+  const { selectedClient } = useCoachWorkspace();
+  return selectedClient && selectedClient.source === 'roster-summary'
+    ? <RosterNutritionView clientId={selectedClient.id} clientName={selectedClient.name} />
+    : <SelfCoachNutritionView />;
+}
+
+function SelfCoachNutritionView() {
   const { nutrition, dataRecovered } = useNutrition();
   const review = useMemo(() => buildCoachNutritionReview(nutrition, today()), [nutrition]);
   const declaredDays = review.days.filter((day) => day.status !== 'unlogged').length;

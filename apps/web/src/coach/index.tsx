@@ -31,17 +31,22 @@ export default function Coach() {
             <Route path="library" element={<CoachLibrary />} />
             <Route path="settings" element={<CoachSettings />} />
             {/*
-              Everything below reads and writes the SIGNED-IN account's own
-              local stores (useDb / useNutrition / the progression and
-              authoring ledgers) — correct while `engine-local` is selected,
-              and the self-coach bench nothing here writes a roster client's
-              record. ClientDetailGate blocks it instead of merely disclosing
-              it, for any other selection. See ClientDetailGate.tsx.
+              author / nutrition / progression / review have a real layer-3
+              backend now (docs/ARC_LAYER3_DESIGN.md) and each screen branches
+              internally on selectedClient.source to render its own roster
+              view — `layer3Ready` lets a roster client through the gate for
+              exactly these four.
+
+              legacy / build / planner still only ever read and write the
+              SIGNED-IN account's own local stores (useDb / EngineDB) — there
+              is no backend behind them for a roster client, so
+              ClientDetailGate keeps blocking rather than merely disclosing.
+              See ClientDetailGate.tsx.
             */}
-            <Route path="author" element={<ClientDetailGate tool="Authoring"><CoachAuthoring /></ClientDetailGate>} />
-            <Route path="nutrition" element={<ClientDetailGate tool="Nutrition"><CoachNutrition /></ClientDetailGate>} />
-            <Route path="progression" element={<ClientDetailGate tool="Decisions"><CoachProgression /></ClientDetailGate>} />
-            <Route path="review/:weekStart" element={<ClientDetailGate tool="Week review"><WeekReview /></ClientDetailGate>} />
+            <Route path="author" element={<ClientDetailGate tool="Authoring" layer3Ready><CoachAuthoring /></ClientDetailGate>} />
+            <Route path="nutrition" element={<ClientDetailGate tool="Nutrition" layer3Ready><CoachNutrition /></ClientDetailGate>} />
+            <Route path="progression" element={<ClientDetailGate tool="Decisions" layer3Ready><CoachProgression /></ClientDetailGate>} />
+            <Route path="review/:weekStart" element={<ClientDetailGate tool="Week review" layer3Ready><WeekReview /></ClientDetailGate>} />
             <Route path="legacy" element={<ClientDetailGate tool="Program bench"><CoachShell /></ClientDetailGate>} />
             <Route path="build/:id" element={<ClientDetailGate tool="Workout builder"><GuidedBuilder /></ClientDetailGate>} />
             <Route path="planner/:id" element={<ClientDetailGate tool="Planner"><Planner /></ClientDetailGate>} />
