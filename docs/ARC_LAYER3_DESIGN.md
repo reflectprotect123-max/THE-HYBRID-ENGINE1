@@ -68,18 +68,35 @@ overwhelming majority of accounts with no coaching relationship at all:
   hard-budget series (`push_trend_snapshot`) whenever they change.
 - **Assignments** — `ArcAssignmentCard.tsx` on the athlete's Home screen
   surfaces any assignment awaiting accept/decline and calls the new
-  commands. Accepting records consent; it does **not** yet place anything
-  on the athlete's calendar — see the gap below.
+  commands. Accepting records consent, and now — see below — materializes
+  the program into the athlete's local training.
 
-**Still not built, and this is the real remaining gap**: turning an
-*accepted* assignment into scheduled sessions. That needs a mapping from a
-coach-authored `Workout` body into the `SessionProposal` shape
-`buildWeeklyPlanFromProposals` actually consumes (priority, effort,
-interference tags, staleness) — real domain design, not a command
-signature, and deliberately not decided in this pass rather than rushed.
-Also not built: a block/set editor for a roster client's workout drafts
-(the roster `CoachAuthoring` view can create a named shell and publish it,
-not edit its structure).
+**The remaining gap is now closed**: `materializeAcceptedAssignments`
+(`apps/web/src/cloud/arc-athlete-sync.ts`), wired into `SyncProvider`'s
+reconcile cycle alongside the rest of the BACKEND→ATHLETE loop. On each
+sync, every `program_assignments` row in state `'accepted'` for this
+athlete that hasn't been materialized yet (tracked in `localStorage`,
+`hybrid-arc-materialized-assignments-v1`, so re-accepting or resyncing
+never resurrects a workout the athlete deliberately deleted) is turned
+into a real local `Workout`: its `program_template_versions.body` is read
+directly (RLS already permits it — `can_read_program_template` allows
+`template_athlete = auth.uid()`), passed through a defensive shape guard
+(`sanitizeAssignedWorkoutBody` — the body is coach-written, unconstrained
+jsonb, same trust posture as `athlete_domain_snapshots`), and given a
+stable id (`arc:<assignmentId>`) and `days` from `preferred_weekdays`
+(already 0=Sunday on both sides of this boundary — see the `CoachAuthoring`
+weekday-encoding fix this same session caught and corrected). No date is
+ever written — placement still goes through the *existing, unmodified*
+`proposalsFromDB` → `buildWeeklyPlanFromProposals` → Coordinator pipeline,
+exactly like a self-authored recurring workout; the Coordinator never
+learns a session came from a coach. Colocated tests:
+`arc-athlete-sync.test.ts`, `sanitizeAssignedWorkoutBody` — the
+kind-allowlist guard mutation-tested (reverting it to a bare cast makes the
+"drops an unrecognised kind" test fail, confirmed then restored).
+
+**Still not built**: a block/set editor for a roster client's workout
+drafts (the roster `CoachAuthoring` view can create a named shell and
+publish it, not edit its structure).
 
 Context: `docs/ARC_CLAUDE_HANDOFF.md`, `docs/HANDOFF_2026-08-08_ARC_IMPORT.md`,
 `docs/RISK_REGISTER.md`, `apps/web/src/coach/ClientDetailGate.tsx`. Layers 1–2

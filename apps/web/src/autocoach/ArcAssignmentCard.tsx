@@ -9,12 +9,11 @@ import { Button, Card } from '../ui';
  * non-empty for an account enrolled in a real ARC organisation.
  *
  * Accepting records consent (accept_program_assignment writes an immutable
- * decision + receipt) — it does NOT yet place anything on this athlete's
- * calendar. Turning an accepted assignment into scheduled sessions needs
- * its own design pass (mapping a coach-authored Workout into the
- * SessionProposal shape the Coordinator consumes), which has not happened
- * yet. Saying so here is more honest than a checkmark that implies more
- * than is true.
+ * decision + receipt); the next sync then materializes the assignment's
+ * coach-authored program version into a real local Workout (recurring on
+ * its preferred weekdays), which the existing Coordinator pipeline picks up
+ * and schedules exactly like a self-authored session — see
+ * `materializeAcceptedAssignments` in cloud/arc-athlete-sync.ts.
  */
 export function ArcAssignmentCard() {
   const { pendingAssignments, acceptAssignment, declineAssignment } = useSync();
@@ -59,7 +58,7 @@ export function ArcAssignmentCard() {
         ))}
       </div>
       <p className="mt-1.5 text-2 text-dim">
-        Accepting records your consent. It does not yet schedule anything — that step isn&rsquo;t built.
+        Accepting adds this to your training the next time you sync.
       </p>
     </Card>
   );

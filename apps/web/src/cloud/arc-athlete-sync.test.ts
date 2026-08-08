@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyServerProgression, structurallyEqual, trendSnapshotInputs } from './arc-athlete-sync';
+import { applyServerProgression, sanitizeAssignedWorkoutBody, structurallyEqual, trendSnapshotInputs } from './arc-athlete-sync';
 
 /*
  * These test the boundary this file exists to cross: a value the athlete's
@@ -74,6 +74,39 @@ describe('applyServerProgression', () => {
     const settings = { liftProgress: { squat: { kg: 100, at: 1000 } }, conProgress: { 'row:steady': { level: 2, miss: 1 } } };
     const out = applyServerProgression('strength', 'squat', { kg: 100, at: 1000 }, { kg: 102, at: 2000 }, settings);
     expect(out?.conProgress?.['row:steady']).toEqual({ level: 2, miss: 1 });
+  });
+});
+
+describe('sanitizeAssignedWorkoutBody', () => {
+  it('carries kind, name and blocks through from a well-shaped body', () => {
+    const out = sanitizeAssignedWorkoutBody({ kind: 'strength', name: 'Upper A', blocks: [{ id: 'b1' }] }, [1, 3]);
+    expect(out).toEqual({ kind: 'strength', name: 'Upper A', blocks: [{ id: 'b1' }], days: [1, 3] });
+  });
+
+  it('sorts days regardless of input order — the backend union relies on it staying sorted', () => {
+    const out = sanitizeAssignedWorkoutBody({ kind: 'strength', name: 'Upper A', blocks: [] }, [5, 0, 3]);
+    expect(out?.days).toEqual([0, 3, 5]);
+  });
+
+  it('defaults a missing/garbage name rather than shipping an unnamed workout', () => {
+    const out = sanitizeAssignedWorkoutBody({ kind: 'strength', blocks: [] }, []);
+    expect(out?.name).toBe('Assigned workout');
+  });
+
+  it('defaults blocks to [] rather than trusting a non-array', () => {
+    const out = sanitizeAssignedWorkoutBody({ kind: 'strength', name: 'X', blocks: 'not-an-array' }, []);
+    expect(out?.blocks).toEqual([]);
+  });
+
+  it('drops an unrecognised kind rather than passing through an arbitrary string', () => {
+    const out = sanitizeAssignedWorkoutBody({ kind: 'sabotage', name: 'X', blocks: [] }, []);
+    expect(out?.kind).toBeUndefined();
+  });
+
+  it('refuses entirely when the body is not an object — a null/scalar jsonb write', () => {
+    expect(sanitizeAssignedWorkoutBody(null, [1])).toBeNull();
+    expect(sanitizeAssignedWorkoutBody('sabotage', [1])).toBeNull();
+    expect(sanitizeAssignedWorkoutBody(42, [1])).toBeNull();
   });
 });
 

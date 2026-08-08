@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { LiftState, ProgressState, Settings } from '@hybrid/engine';
+import type { LiftState, ProgressState, Settings, Workout } from '@hybrid/engine';
 import type { ProgressionProposal } from '../coach/progression';
 import type { TrendSeries, HardBudget } from '../coach/trends';
 
@@ -9,7 +9,7 @@ import type { TrendSeries, HardBudget } from '../coach/trends';
  * Everything built earlier today (supabase/migrations/20260808_arc_*.sql,
  * apps/web/src/cloud/coach-repository.ts) is the COACH -> BACKEND half: a
  * coach approves a proposal or publishes a workout, and a row lands in
- * Supabase. Nothing pulled it back until this file. It closes three loops:
+ * Supabase. Nothing pulled it back until this file. It closes four loops:
  *
  *   1. PUSH — the athlete's device has always computed progression proposals
  *      and trend series locally (progression.ts, trends.ts). This adds a
@@ -22,6 +22,12 @@ import type { TrendSeries, HardBudget } from '../coach/trends';
  *      same `applyApprovedProposal`-shaped mutation the local self-coach
  *      flow already uses. A mismatch is left alone, not overwritten.
  *   3. Assignment accept/decline — thin RPC callers.
+ *   4. MATERIALIZE — once accepted, an assignment's coach-authored program
+ *      version becomes a real local `Workout` (see
+ *      `materializeAcceptedAssignments` below), so the existing, unmodified
+ *      `proposalsFromDB` / `buildWeeklyPlanFromProposals` pipeline schedules
+ *      it exactly like a self-authored session. No Coordinator change; the
+ *      Coordinator never learns a session came from a coach.
  *
  * EVERYTHING HERE IS BEST-EFFORT AND SILENT ON FAILURE, deliberately. An
  * athlete with no coach (the overwhelming majority of local/self-coach
@@ -317,4 +323,95 @@ export async function declineAssignment(client: SupabaseClient, orgId: string, a
     p_idempotency_key: `decline:${assignmentId}`,
   });
   if (error) throw error;
+}
+
+const MATERIALIZED_ASSIGNMENTS_KEY = 'hybrid-arc-materialized-assignments-v1';
+
+function loadMaterializedAssignments(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MATERIALIZED_ASSIGNMENTS_KEY) ?? '[]') as unknown;
+    return new Set(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveMaterializedAssignments(ids: Set<string>): void {
+  try {
+    localStorage.setItem(MATERIALIZED_ASSIGNMENTS_KEY, JSON.stringify([...ids].slice(-500)));
+  } catch {
+    /* Worst case: the same assignment is re-fetched and re-diffed next sync
+       — `materializeAcceptedAssignments` below is idempotent against that,
+       since it always checks the local `Workout` id before adding. */
+  }
+}
+
+/**
+ * `program_template_versions.body` is unconstrained, coach-written jsonb —
+ * the same "opaque to Postgres" contract as `athlete_domain_snapshots` —
+ * so it gets the same defensive shape guard before it can become a local
+ * `Workout` the render tree trusts. Anything that doesn't look like a real
+ * workout body is dropped rather than partially trusted.
+ */
+export function sanitizeAssignedWorkoutBody(body: unknown, days: readonly number[]): Omit<Workout, 'id' | 'updatedAt'> | null {
+  if (!body || typeof body !== 'object') return null;
+  const b = body as Record<string, unknown>;
+  const kind = b.kind === 'strength' || b.kind === 'conditioning' ? b.kind : undefined;
+  const name = typeof b.name === 'string' && b.name.trim() ? b.name : 'Assigned workout';
+  const blocks = Array.isArray(b.blocks) ? (b.blocks as Workout['blocks']) : [];
+  return { kind, name, blocks, days: [...days].sort((m, n) => m - n) };
+}
+
+/**
+ * The other end of §"MATERIALIZE" above. An `accepted` assignment's
+ * template-version body becomes a local `Workout`, tagged with a stable id
+ * derived from the assignment (`arc:<assignmentId>`) so this is idempotent
+ * across syncs and safe to call every reconcile. Deliberately does NOT
+ * write a date — only `days` (from `preferred_weekdays`, already 0=Sunday
+ * on both sides of this boundary) — so placement still goes through the
+ * existing Coordinator, exactly like a self-authored recurring workout.
+ *
+ * Materialized once per assignment, tracked in localStorage: if the athlete
+ * later deletes the resulting local Workout, this must not resurrect it on
+ * the next sync — that would make the workout impossible to get rid of.
+ */
+export async function materializeAcceptedAssignments(
+  client: SupabaseClient,
+  userId: string,
+  existingWorkoutIds: ReadonlySet<string>,
+): Promise<Workout[]> {
+  const { data, error } = await client
+    .from('program_assignments')
+    .select('id, template_version_id, preferred_weekdays')
+    .eq('athlete_user_id', userId)
+    .eq('state', 'accepted');
+  if (error || !data || data.length === 0) return [];
+
+  const materialized = loadMaterializedAssignments();
+  const rows = data as Record<string, unknown>[];
+  const fresh = rows.filter((row) => !materialized.has(row.id as string));
+  if (fresh.length === 0) return [];
+
+  const versionIds = [...new Set(fresh.map((row) => row.template_version_id as string))];
+  const { data: versions, error: verr } = await client
+    .from('program_template_versions')
+    .select('id, body')
+    .in('id', versionIds);
+  if (verr || !versions) return [];
+  const bodyById = new Map((versions as Record<string, unknown>[]).map((v) => [v.id as string, v.body]));
+
+  const result: Workout[] = [];
+  for (const row of fresh) {
+    const assignmentId = row.id as string;
+    materialized.add(assignmentId);
+    const workoutId = `arc:${assignmentId}`;
+    if (existingWorkoutIds.has(workoutId)) continue;
+    const body = sanitizeAssignedWorkoutBody(
+      bodyById.get(row.template_version_id as string),
+      (row.preferred_weekdays as number[]) ?? [],
+    );
+    if (body) result.push({ ...body, id: workoutId, updatedAt: Date.now() });
+  }
+  saveMaterializedAssignments(materialized);
+  return result;
 }

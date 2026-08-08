@@ -22,6 +22,7 @@ import {
   declineAssignment as declineAssignmentRpc,
   getMyArcOrgId,
   listPendingAssignments,
+  materializeAcceptedAssignments,
   pushProgressionProposals,
   type PendingAssignment,
 } from './arc-athlete-sync';
@@ -326,6 +327,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           const pending = ledgerRef.current.proposals.filter((p) => !decided.has(p.id));
           await pushProgressionProposals(client, orgId, pending);
           setPendingAssignments(await listPendingAssignments(client, user.id));
+
+          const existingWorkoutIds = new Set(dbRef.current.workouts.map((w) => w.id));
+          const newWorkouts = await materializeAcceptedAssignments(client, user.id, existingWorkoutIds);
+          if (newWorkouts.length > 0) {
+            update((draft) => {
+              for (const w of newWorkouts) {
+                if (!draft.workouts.some((existing) => existing.id === w.id)) draft.workouts.push(w);
+              }
+            });
+            const toAdd = newWorkouts.filter((w) => !dbRef.current.workouts.some((existing) => existing.id === w.id));
+            dbRef.current = { ...dbRef.current, workouts: [...dbRef.current.workouts, ...toAdd] };
+          }
         } else {
           setPendingAssignments([]);
         }
