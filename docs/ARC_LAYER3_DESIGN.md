@@ -40,11 +40,46 @@ routes; `legacy`/`build`/`planner` stay blocked, because `GuidedBuilder` and
 `Workout[]` — there is no roster-aware block editor yet, and
 `CoachAuthoring`'s roster view says so rather than pretending otherwise.
 
-**Not built**: a block/set editor for a roster client's workout drafts (the
-roster `CoachAuthoring` view can create a named shell and publish it, not
-edit its structure), and `AthleteStatus` (the trend rail widget) is not
-wired — `getTrendSnapshot` exists in the repository and is tested at the
-SQL layer, but has no UI caller yet.
+**The other half of the loop — BACKEND → ATHLETE — is now built too.**
+Everything above was coach → backend: a coach acts on web, a row lands in
+Supabase. Nothing read it back until `apps/web/src/cloud/arc-athlete-sync.ts`
+and `supabase/migrations/20260808_arc_program_assignment_lifecycle.sql`
+(the missing `accept_program_assignment`/`decline_program_assignment`
+commands — every prior migration could insert a `program_assignments` row
+in `'draft'` and nothing could ever move it to `'accepted'` or
+`'withdrawn'`). Wired into `SyncProvider`'s existing reconcile cycle
+(`apps/web/src/cloud/sync.tsx`), best-effort and silently no-op for the
+overwhelming majority of accounts with no coaching relationship at all:
+
+- **Progression** — the athlete's device pushes every pending local
+  proposal (`push_progression_proposal`) on each sync, and pulls
+  `decision_receipts` for approved ones, REVALIDATES the proposal's
+  `before` against the athlete's current local baseline, and only then
+  applies it via `applyServerProgression` — refusing rather than
+  overwriting when the athlete trained again since the push. A real
+  correctness bug was caught and fixed here before it shipped: comparing
+  a pushed value against one read back through Postgres jsonb by
+  `JSON.stringify` would have called a perfectly fresh value "stale",
+  because jsonb does not preserve key order. Fixed with a proper
+  structural comparison (`structurallyEqual`), mutation-tested by reverting
+  it to `JSON.stringify` and confirming the two regression tests that
+  exist for exactly this fail.
+- **Trends** — `AthleteStatus.tsx` pushes its already-computed lift/erg/
+  hard-budget series (`push_trend_snapshot`) whenever they change.
+- **Assignments** — `ArcAssignmentCard.tsx` on the athlete's Home screen
+  surfaces any assignment awaiting accept/decline and calls the new
+  commands. Accepting records consent; it does **not** yet place anything
+  on the athlete's calendar — see the gap below.
+
+**Still not built, and this is the real remaining gap**: turning an
+*accepted* assignment into scheduled sessions. That needs a mapping from a
+coach-authored `Workout` body into the `SessionProposal` shape
+`buildWeeklyPlanFromProposals` actually consumes (priority, effort,
+interference tags, staleness) — real domain design, not a command
+signature, and deliberately not decided in this pass rather than rushed.
+Also not built: a block/set editor for a roster client's workout drafts
+(the roster `CoachAuthoring` view can create a named shell and publish it,
+not edit its structure).
 
 Context: `docs/ARC_CLAUDE_HANDOFF.md`, `docs/HANDOFF_2026-08-08_ARC_IMPORT.md`,
 `docs/RISK_REGISTER.md`, `apps/web/src/coach/ClientDetailGate.tsx`. Layers 1–2

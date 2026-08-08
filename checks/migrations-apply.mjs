@@ -1143,6 +1143,75 @@ try {
   });
 
   /* ---------------------------------------------------------------------
+   * ARC — the assignment lifecycle. Every prior test left an assignment in
+   * 'draft' forever; these prove the missing accept/decline half.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC — the assignment lifecycle (accept / decline):\n');
+
+  const LIFECYCLE_ASSIGN = '9a9a9a9a-9a9a-9a9a-9a9a-9a9a9a9a9a9a';
+  asOwnerSql(`
+    insert into public.program_assignments (id, organization_id, athlete_user_id, template_version_id, preferred_start_date, preferred_weekdays, created_by)
+      values ('${LIFECYCLE_ASSIGN}', '${ORG_1}', '${ATHLETE_A}', '${TPLV}', date '2026-09-14', '{1,3,5}', '${COACH_1}');`);
+
+  check('LIFECYCLE: it starts in draft, per create_program_assignment, and no other command moves it', () => {
+    const state = lastLine(asOwnerSqlOut(`select state from public.program_assignments where id = '${LIFECYCLE_ASSIGN}';`));
+    if (state !== 'draft') throw new Error(`expected a fresh assignment to start in draft, got ${state}`);
+  });
+
+  check("LIFECYCLE: a coach cannot accept an athlete's assignment — consent is the athlete's alone", () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.accept_program_assignment('${ORG_1}', '${LIFECYCLE_ASSIGN}', 'accept-wrong-actor')`));
+    if (!wasRefused(out)) throw new Error("a coach accepted their athlete's own assignment");
+  });
+
+  check("LIFECYCLE: a different athlete cannot accept someone else's assignment", () => {
+    const out = asAthlete(ATHLETE_B, refusalProbe(
+      `perform public.accept_program_assignment('${ORG_1}', '${LIFECYCLE_ASSIGN}', 'accept-wrong-athlete')`));
+    if (!wasRefused(out)) throw new Error("athlete B accepted athlete A's assignment");
+  });
+
+  check('LIFECYCLE: the athlete accepts, and it writes a decision and a receipt', () => {
+    const state = lastLine(asAthlete(ATHLETE_A,
+      `select state from public.accept_program_assignment('${ORG_1}', '${LIFECYCLE_ASSIGN}', 'accept-1');`));
+    if (state !== 'accepted') throw new Error(`expected accepted, got ${state}`);
+    const counts = lastLine(asOwnerSqlOut(
+      `select (select count(*) from public.coach_decisions where organization_id = '${ORG_1}' and athlete_user_id = '${ATHLETE_A}' and kind = 'assignment_accepted' and idempotency_key = 'accept-1')
+           || '/' || (select count(*) from public.decision_receipts r join public.coach_decisions d on d.id = r.decision_id where d.idempotency_key = 'accept-1');`));
+    if (counts !== '1/1') throw new Error(`expected one decision and one receipt, got ${counts}`);
+  });
+
+  check('LIFECYCLE: a replayed accept returns the original, does not re-decide', () => {
+    const out = asAthlete(ATHLETE_A, `select state from public.accept_program_assignment('${ORG_1}', '${LIFECYCLE_ASSIGN}', 'accept-1');`);
+    if (!out.includes('accepted')) throw new Error('a replayed accept did not return the original state');
+    const count = lastLine(asOwnerSqlOut(
+      `select count(*) from public.coach_decisions where idempotency_key = 'accept-1';`));
+    if (count !== '1') throw new Error(`the replay created ${count} decisions`);
+  });
+
+  check('LIFECYCLE: an already-accepted assignment cannot be accepted again under a new key, nor declined', () => {
+    const acceptOut = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.accept_program_assignment('${ORG_1}', '${LIFECYCLE_ASSIGN}', 'accept-2')`));
+    if (!wasRefused(acceptOut)) throw new Error('an already-accepted assignment was accepted again');
+    const declineOut = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.decline_program_assignment('${ORG_1}', '${LIFECYCLE_ASSIGN}', 'decline-1')`));
+    if (!wasRefused(declineOut)) throw new Error('an already-accepted assignment was declined');
+  });
+
+  check('LIFECYCLE: decline moves a fresh assignment to withdrawn, with its own decision and receipt', () => {
+    const declineAssign = '9b9b9b9b-9b9b-9b9b-9b9b-9b9b9b9b9b9b';
+    asOwnerSql(`
+      insert into public.program_assignments (id, organization_id, athlete_user_id, template_version_id, preferred_start_date, preferred_weekdays, created_by)
+        values ('${declineAssign}', '${ORG_1}', '${ATHLETE_A}', '${TPLV}', date '2026-09-15', '{2,4}', '${COACH_1}');`);
+    const state = lastLine(asAthlete(ATHLETE_A,
+      `select state from public.decline_program_assignment('${ORG_1}', '${declineAssign}', 'decline-2');`));
+    if (state !== 'withdrawn') throw new Error(`expected withdrawn, got ${state}`);
+    const counts = lastLine(asOwnerSqlOut(
+      `select (select count(*) from public.coach_decisions where kind = 'assignment_withdrawn' and idempotency_key = 'decline-2')
+           || '/' || (select count(*) from public.decision_receipts r join public.coach_decisions d on d.id = r.decision_id where d.idempotency_key = 'decline-2');`));
+    if (counts !== '1/1') throw new Error(`expected one decision and one receipt, got ${counts}`);
+  });
+
+  /* ---------------------------------------------------------------------
    * Immutability's two remaining holes. Both are destructive, so they run
    * last: the erasure test really does delete an organisation.
    * ------------------------------------------------------------------- */

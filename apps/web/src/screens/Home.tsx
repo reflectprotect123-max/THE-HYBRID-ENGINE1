@@ -15,6 +15,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { ArcAssignmentCard } from '../autocoach/ArcAssignmentCard';
 import { CheckInCard } from '../autocoach/CheckInCard';
 import { ModeSwitcher } from '../autocoach/ModeSwitcher';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
@@ -204,6 +205,10 @@ export function Home() {
           />
         </>
       )}
+
+      {/* Renders nothing for the overwhelming majority of accounts, which
+          have no coaching relationship at all — see ArcAssignmentCard.tsx. */}
+      <ArcAssignmentCard />
 
       {/* Cause, then consequence, then the setting that governs future
           consequences — CheckInCard is the input, SessionReceipt is what the

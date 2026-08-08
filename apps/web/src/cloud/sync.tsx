@@ -15,6 +15,16 @@ import {
   readNutritionPartition,
 } from './ecosystem';
 import { PRODUCT_ID } from '../product';
+import { useProgressionLedger } from '../coach/progression-store';
+import {
+  acceptAssignment as acceptAssignmentRpc,
+  applyPendingArcDecisions,
+  declineAssignment as declineAssignmentRpc,
+  getMyArcOrgId,
+  listPendingAssignments,
+  pushProgressionProposals,
+  type PendingAssignment,
+} from './arc-athlete-sync';
 
 /*
  * Cloud sync.
@@ -38,6 +48,12 @@ interface SyncCtx {
   signUp: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
+  /** Program assignments a real coach has proposed, awaiting this athlete's
+   *  own accept/decline. Empty for the overwhelming majority of accounts,
+   *  which have no coaching relationship at all. */
+  pendingAssignments: readonly PendingAssignment[];
+  acceptAssignment: (assignmentId: string) => Promise<void>;
+  declineAssignment: (assignmentId: string) => Promise<void>;
 }
 
 const Ctx = createContext<SyncCtx | null>(null);
@@ -80,10 +96,13 @@ const nutritionFp = (n: NutritionDB): string => JSON.stringify(n);
 export function SyncProvider({ children }: { children: ReactNode }) {
   const { db, update } = useDb();
   const { nutrition, replace: replaceNutrition } = useNutrition();
+  const ledger = useProgressionLedger();
   const [user, setUser] = useState<User | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [syncedAt, setSyncedAt] = useState(0);
+  const [pendingAssignments, setPendingAssignments] = useState<readonly PendingAssignment[]>([]);
+  const arcOrgRef = useRef<string | null>(null);
 
   // The DB changes on every logged set; reading it through a ref keeps the
   // reconcile callback stable so the visibility listener isn't torn down and
@@ -97,6 +116,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const nutritionRef = useRef(nutrition);
   nutritionRef.current = nutrition;
   const lastNutritionFp = useRef<string | null>(null);
+  const ledgerRef = useRef(ledger);
+  ledgerRef.current = ledger;
   /* The last namespace the server handed us: the only carrier of the nutrition
      revision, since the EngineDB deliberately does not retain that partition.
      A cold start before the first pull pushes revision 1, the RPC ignores it,
@@ -282,6 +303,37 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       }
       if (needsPush) await pushNow(true, remoteState);
 
+      /*
+       * The BACKEND -> ATHLETE half of the ARC loop, best-effort and
+       * deliberately isolated in its own try/catch: an athlete with no
+       * coach — the common case — has no organisation membership, every
+       * call below refuses, and that refusal must never become an error
+       * banner on the training sync that has nothing to do with it.
+       *
+       * Runs AFTER the pull above, so a coach's decision applies against
+       * this device's freshest known baseline, not a stale pre-pull one.
+       */
+      try {
+        const orgId = await getMyArcOrgId(client, user.id);
+        arcOrgRef.current = orgId;
+        if (orgId) {
+          const { settings: patchedSettings } = await applyPendingArcDecisions(client, user.id, dbRef.current.settings);
+          if (patchedSettings) {
+            update((draft) => { draft.settings = patchedSettings; });
+            dbRef.current = { ...dbRef.current, settings: patchedSettings };
+          }
+          const decided = new Set(ledgerRef.current.decisions.map((d) => d.proposalId));
+          const pending = ledgerRef.current.proposals.filter((p) => !decided.has(p.id));
+          await pushProgressionProposals(client, orgId, pending);
+          setPendingAssignments(await listPendingAssignments(client, user.id));
+        } else {
+          setPendingAssignments([]);
+        }
+      } catch {
+        /* Best-effort — see the comment above. Nothing here is allowed to
+           fail the training sync it rides alongside. */
+      }
+
       setSyncedAt(Date.now());
     } catch (e) {
       setError(humanizeError(e, 'sync'));
@@ -289,7 +341,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       inFlight.current = false;
       setBusy(false);
     }
-  }, [user, applyMerged, pushNow, reconcileNutrition]);
+  }, [user, applyMerged, pushNow, reconcileNutrition, update]);
 
   /* ---- auth ---- */
   useEffect(() => {
@@ -366,10 +418,23 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         lastFp.current = null;
         lastNutritionFp.current = null;
         remoteNamespace.current = null;
+        arcOrgRef.current = null;
+        setPendingAssignments([]);
       },
       syncNow: reconcile,
+      pendingAssignments,
+      acceptAssignment: async (assignmentId: string) => {
+        if (!client || !arcOrgRef.current) return;
+        await acceptAssignmentRpc(client, arcOrgRef.current, assignmentId);
+        setPendingAssignments((current) => current.filter((a) => a.id !== assignmentId));
+      },
+      declineAssignment: async (assignmentId: string) => {
+        if (!client || !arcOrgRef.current) return;
+        await declineAssignmentRpc(client, arcOrgRef.current, assignmentId);
+        setPendingAssignments((current) => current.filter((a) => a.id !== assignmentId));
+      },
     }),
-    [user, busy, error, syncedAt, reconcile],
+    [user, busy, error, syncedAt, reconcile, pendingAssignments],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

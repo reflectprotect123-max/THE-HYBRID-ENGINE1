@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useDb } from '../store/db';
 import { useConcept2 } from '../cloud/concept2';
+import { useSync, supabaseClient } from '../cloud/sync';
+import { getMyArcOrgId, pushTrendSnapshots } from '../cloud/arc-athlete-sync';
 import { cx } from '../ui';
 import { ergTrend, liftTrends, weeklyHardBudget, type TrendSeries } from './trends';
 
@@ -122,6 +124,29 @@ export function AthleteStatus() {
     [workouts, sessions, today, budgetTarget],
   );
   const { capacity } = athleteState;
+
+  /*
+   * Best-effort push of what THIS component already computes, to the ARC
+   * backend, so a coach's `get_athlete_trend_series` has something to read.
+   * Fires only when the computed series actually change (the deps below),
+   * never on every render — and, like every ARC call in this codebase,
+   * silently no-ops for the overwhelming majority of accounts that have no
+   * coach and therefore no organisation membership at all.
+   */
+  const { user } = useSync();
+  useEffect(() => {
+    if (!supabaseClient || !user) return;
+    void (async () => {
+      const orgId = await getMyArcOrgId(supabaseClient, user.id);
+      if (!orgId) return;
+      await pushTrendSnapshots(supabaseClient, orgId, lifts, erg, hard);
+    })();
+    // `hard` and `erg` are plain objects recomputed by useMemo above and
+    // compared by reference here, which is intentional — pushing only when
+    // the computed VALUE actually changed (their own deps arrays already
+    // guarantee that) is the point, not pushing on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, lifts, erg, hard]);
 
   return (
     // Pure trend reference — never itself a decision point, so it recedes
