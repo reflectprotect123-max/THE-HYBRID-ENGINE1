@@ -135,7 +135,15 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
               <div className="mt-1.5 flex flex-wrap gap-1">
                 <button
                   type="button"
-                  disabled={proposal.direction === 'review' || busyId === proposal.id}
+                  /* `hard` and `direction` are independent fields on
+                     AthleteProgressionProposal -- the backend pairs
+                     hard:true with direction:'review' today, but nothing
+                     HERE enforces that invariant, so `hard` gates Approve
+                     directly too, defence-in-depth. Pain/illness flags
+                     outrank every other signal (CLAUDE.md); Approve must
+                     never be one dropped invariant away from clickable on
+                     a pain/illness-blocked proposal. */
+                  disabled={proposal.direction === 'review' || proposal.hard || busyId === proposal.id}
                   onClick={() => decide(proposal, 'approved')}
                   className="rounded border border-gold-line bg-gold-wash px-1.5 py-0.5 text-xs font-semibold text-gold2 disabled:cursor-not-allowed disabled:opacity-40"
                 >

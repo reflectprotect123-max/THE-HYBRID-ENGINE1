@@ -106,6 +106,22 @@ describe('CoachProgression (roster)', () => {
     expect(screen.getByRole('button', { name: 'Decline' })).toBeEnabled();
   });
 
+  it('disables Approve for hard:true even paired with a non-review direction — defence-in-depth, not just the direction gate', async () => {
+    // hard and direction are independent fields; nothing in this component
+    // enforces that a hard proposal always carries direction:'review'. If
+    // that pairing invariant ever slipped (a backend change, a bad fixture),
+    // Approve must still refuse a pain/illness-blocked proposal on `hard`
+    // alone -- this is the regression test for that specific defence.
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [CLIENT];
+    repo.progressionProposals = [rosterProposal({ hard: true, direction: 'increase' })];
+    await renderProgression(repo);
+
+    expect(screen.getByText(/A pain or illness hold was active/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeEnabled();
+  });
+
   it('approving calls repository.decideProgressionProposal and removes the proposal from the list', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [CLIENT];

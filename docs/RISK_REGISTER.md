@@ -147,16 +147,17 @@ Two things this pass caught that were NOT test-writing bugs:
   earlier the same session) despite its own test correctly asserting `0`.
   Caught by diffing every production file before committing, not just
   running tests; reverted before it ever reached `main`.
-- **Not fixed, flagged for a human decision**: `CoachProgression.tsx`'s
-  `RosterProgressionView` Approve button disables on
-  `proposal.direction === 'review'`, never checking `proposal.hard`
-  directly. `hard` and `direction` are independent fields on
-  `AthleteProgressionProposal` — nothing today enforces that a `hard: true`
-  proposal always also carries `direction: 'review'`, and nothing in this
-  file would break if that stopped being true. Presumably safe only because
-  of an invariant enforced elsewhere (the backend), not in this component.
-  Worth deciding whether `hard` should independently gate Approve as
-  defence-in-depth.
+- **RESOLVED**: `CoachProgression.tsx`'s `RosterProgressionView` Approve
+  button disabled only on `proposal.direction === 'review'`, never checking
+  `proposal.hard` directly. `hard` and `direction` are independent fields on
+  `AthleteProgressionProposal`, and the self-coach view on the same screen
+  already gated on both (`hardSafety.length > 0` alongside its own
+  direction check) — only the roster view was missing the second gate. Now
+  `disabled={proposal.direction === 'review' || proposal.hard || busyId ===
+  proposal.id}`, matching the self-coach view's posture and CLAUDE.md's
+  "pain and illness flags outrank every other signal." Mutation-tested: a
+  `hard: true` proposal paired with a non-review direction (the exact case
+  the old code would have left clickable) is now confirmed disabled.
 
 ### R9 · Label OCR unverified against real packets
 The parser is well tested (38 tests) and the camera path bundles, but no one has
