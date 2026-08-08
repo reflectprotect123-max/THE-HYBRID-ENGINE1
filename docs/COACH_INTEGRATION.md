@@ -67,6 +67,76 @@ Pick one, knowing the cost:
 
 Do not design for (2) and assume (1) will stretch. It will not.
 
+## Three worlds, two authority models — this is the product
+
+This is not a strength app with cardio and a food log bolted on. Get this wrong
+and the coach surface is generic, which is the most likely way to build the
+wrong thing while ticking every box.
+
+```
+WorldId = ProductId | 'nutrition'
+ProductId = 'strength' | 'conditioning'     <- the two TRAINING identities
+SessionDomain = 'strength' | 'conditioning' <- what the Coordinator arbitrates
+```
+
+Three worlds in one install, three sync partitions
+(`SYNCED_SNAPSHOT_DOMAINS = ['strength', 'conditioning', 'nutrition']`), and
+**two different authority models over them**:
+
+- **Strength and Conditioning are ARBITRATED against each other.** They are two
+  engines proposing sessions into one week and one body. The Coordinator
+  resolves the conflict. That conflict IS the hybrid problem — the reason this
+  system exists rather than two apps.
+- **Nutrition is NOT arbitrated.** The Coordinator has no knowledge of it —
+  `grep -rin nutrition packages/coordinator/src/*.ts` returns nothing outside
+  its boundary test, and that is enforced deliberately. Nutrition runs
+  alongside with its own prescription domain (`nutrition-engine`) and feeds
+  training only as CONTEXT, through `whole-athlete-state`.
+
+So a coach view is not one list of sessions with a food log beside it. It is
+two competing training domains whose conflict was resolved by a deterministic
+engine, plus a third domain that informs but never competes.
+
+### The Coordinator already tells you WHY, and this is the material
+
+`reconcileWeeklyPlan` returns a `WeeklyPlan` carrying `decisions:
+PlanDecision[]`, one per proposal:
+
+```ts
+interface PlanDecision {
+  proposalId: string;
+  action: 'scheduled' | 'dropped';
+  reasonCode: PlanReasonCode;
+  explanation: string;
+}
+```
+
+And the reason codes are a complete account of the week:
+
+| Code | What it means |
+|---|---|
+| `accepted` / `locked_existing` | It made the week |
+| `dropped_illness_safety` / `dropped_pain_safety` | A SAFETY flag removed it — outranks everything |
+| `dropped_interference` | It collided with another domain's session — the hybrid trade-off, made explicit |
+| `dropped_spacing` | Too close to a session it must be spaced from |
+| `dropped_domain_cap` / `dropped_weekly_cap` | The strength/conditioning balance or the weekly ceiling |
+| `dropped_no_available_slot` | The athlete's schedule had nowhere to put it |
+
+Proposals also carry `InterferenceTag`s — `heavy_lower`, `high_intensity`,
+`upper`, `easy_aerobic`, `full_body`, `pain_sensitive` — which is how
+interference is actually computed.
+
+**A coach surface that shows only what got scheduled is throwing away the
+interesting half.** What a coach needs is what COMPETED and lost: the squat
+session that was dropped because Thursday's intervals were already
+`high_intensity`, the run dropped for spacing, the whole day cleared by a pain
+flag. That is the conversation with the athlete, and the engine already emits
+it — nobody has to infer it.
+
+`apps/web/src/coach/DecisionTrace.tsx` and `trace.ts` are the existing attempt
+at rendering this. Read them before rebuilding: they are where the reason codes
+get grouped against the constraints that caused them.
+
 ## The four rules that are fixed
 
 These are from `CLAUDE.md`, which is binding. A design that breaks one of them
@@ -155,7 +225,13 @@ including this file.
 
 1. Single-athlete lens, or real multi-athlete? Everything else follows from
    this, and (2) is a backend project first.
-2. What does the coach DO with what they see — is the output a decision, a
+2. Does the design show the week as a SCHEDULE, or as a set of RESOLVED
+   CONFLICTS between strength and conditioning? Only the second is this
+   product. If the coach cannot see what lost and why, the surface is generic.
+3. Where does nutrition sit? Beside training as context — never merged into the
+   same authority, never arbitrated by the Coordinator, never presented as
+   though a macro target caused a training decision.
+4. What does the coach DO with what they see — is the output a decision, a
    message to the athlete, or a change to next week's inputs? The Coordinator
    constraint means it has to be the third, expressed as inputs.
-3. What should `/coach` do offline?
+5. What should `/coach` do offline?
