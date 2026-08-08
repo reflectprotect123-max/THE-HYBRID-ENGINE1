@@ -916,6 +916,233 @@ try {
   });
 
   /* ---------------------------------------------------------------------
+   * ARC — progression proposals, trends, nutrition review, week plan and
+   * session detail, per docs/ARC_LAYER3_DESIGN.md §§1-5 (§6 is the workout
+   * library, tested above). Tests are named for the finding they close.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC — progression proposals, trends and nutrition review:\n');
+
+  const pushProposal = (uid, org, domain, subject, clientKey, before, after, confidence, hard, direction, sourceAt) =>
+    lastLine(asAthlete(uid,
+      `select id || '|' || status from public.push_progression_proposal(
+         '${org}', '${domain}', '${subject}', '${clientKey}',
+         ${before === null ? 'null' : `'${before}'::jsonb`}, '${after}'::jsonb,
+         '${confidence}', ${hard}, '${direction}', '${sourceAt}'::timestamptz);`));
+
+  let proposalIdA;
+  check('PROGRESSION: an athlete can push their own proposal', () => {
+    const out = pushProposal(ATHLETE_A, ORG_1, 'strength', 'Back Squat', 'strength:sq', null,
+      '{"kg":100,"at":1000}', 'high', false, 'increase', '2026-08-08T00:00:00Z');
+    const [id, status] = out.split('|');
+    if (!id || status !== 'pending') throw new Error(`expected a pending proposal, got: ${out}`);
+    proposalIdA = id;
+  });
+
+  check('PROGRESSION: a coach who is not this athlete\'s org role "athlete" cannot push on their behalf', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.push_progression_proposal('${ORG_1}', 'strength', 'Bench', 'strength:bp', null, '{"kg":80}'::jsonb, 'low', false, 'increase', '2026-08-08T00:00:00Z')`));
+    if (!wasRefused(out)) throw new Error("a non-athlete role pushed a proposal as if it were the athlete's own");
+  });
+
+  check('PROGRESSION: a repeated push (same org, athlete, domain, key, source_at) replays, not duplicates', () => {
+    const before = lastLine(asOwnerSqlOut(`select count(*) from public.progression_proposal_snapshots where athlete_user_id = '${ATHLETE_A}';`));
+    pushProposal(ATHLETE_A, ORG_1, 'strength', 'Back Squat (retry)', 'strength:sq', null,
+      '{"kg":100,"at":1000}', 'high', false, 'increase', '2026-08-08T00:00:00Z');
+    const after = lastLine(asOwnerSqlOut(`select count(*) from public.progression_proposal_snapshots where athlete_user_id = '${ATHLETE_A}';`));
+    if (before !== after) throw new Error(`a replayed push created a new row: ${before} -> ${after}`);
+  });
+
+  check('FINDING (idempotency omits domain): a strength and a conditioning proposal sharing a key and timestamp do not collide', () => {
+    const before = lastLine(asOwnerSqlOut(`select count(*) from public.progression_proposal_snapshots where athlete_user_id = '${ATHLETE_A}';`));
+    pushProposal(ATHLETE_A, ORG_1, 'conditioning', 'Row 2k', 'strength:sq', null,
+      '{"level":3}', 'medium', false, 'hold', '2026-08-08T00:00:00Z');
+    const after = lastLine(asOwnerSqlOut(`select count(*) from public.progression_proposal_snapshots where athlete_user_id = '${ATHLETE_A}';`));
+    if (Number(after) !== Number(before) + 1) {
+      throw new Error(`a conditioning proposal sharing a key/timestamp with a strength one collided instead of coexisting: ${before} -> ${after}`);
+    }
+  });
+
+  check('FINDING (safety signal reaches the reviewer): a hard proposal is visible as hard to the coach', () => {
+    pushProposal(ATHLETE_A, ORG_1, 'strength', 'Deadlift (pain hold)', 'strength:dl', null,
+      '{"kg":140}', 'low', true, 'review', '2026-08-08T00:00:00Z');
+    const out = lastLine(asAthlete(COACH_1,
+      `select bool_or(hard) from public.get_athlete_progression_proposals('${ORG_1}', '${ATHLETE_A}');`));
+    if (out !== 't') throw new Error('a hard=true proposal did not reach the coach as hard=true');
+  });
+
+  check('PROGRESSION: a same-org coach who does not coach this athlete is refused', () => {
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform count(*) from public.get_athlete_progression_proposals('${ORG_1}', '${ATHLETE_A}')`));
+    if (!wasRefused(out)) throw new Error('a non-coaching coach read the progression proposals');
+  });
+
+  let progressionDecision;
+  check('PROGRESSION: a coach can approve a pending proposal', () => {
+    const out = lastLine(asAthlete(COACH_1,
+      `select kind from public.decide_progression_proposal('${ORG_1}', '${ATHLETE_A}', '${proposalIdA}', 'approved', 'decide-1');`));
+    if (out !== 'progression_approved') throw new Error(`expected progression_approved, got ${out}`);
+    const status = lastLine(asOwnerSqlOut(`select status from public.progression_proposal_snapshots where id = '${proposalIdA}';`));
+    if (status !== 'approved') throw new Error(`proposal status did not flip to approved: ${status}`);
+    progressionDecision = true;
+  });
+
+  check('PROGRESSION: a replayed decision returns the original, does not re-decide', () => {
+    if (!progressionDecision) throw new Error('setup failed: no prior decision to replay');
+    const out = asAthlete(COACH_1,
+      `select kind from public.decide_progression_proposal('${ORG_1}', '${ATHLETE_A}', '${proposalIdA}', 'approved', 'decide-1');`);
+    if (!out.includes('progression_approved')) throw new Error('a replayed decision did not return the original');
+  });
+
+  check('PROGRESSION: an already-decided proposal cannot be decided again under a new key', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.decide_progression_proposal('${ORG_1}', '${ATHLETE_A}', '${proposalIdA}', 'declined', 'decide-2')`));
+    if (!wasRefused(out)) throw new Error('an already-decided proposal was decided a second time');
+  });
+
+  check('PROGRESSION: a non-coaching coach cannot decide', () => {
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.decide_progression_proposal('${ORG_1}', '${ATHLETE_A}', '${proposalIdA}', 'approved', 'decide-3')`));
+    if (!wasRefused(out)) throw new Error('a non-coaching coach decided a proposal');
+  });
+
+  check('PROGRESSION: a coach cannot decide a proposal under the WRONG athlete', () => {
+    /* COACH_1 coaches both ATHLETE_A and ATHLETE_E. proposalIdA belongs to
+       ATHLETE_A -- deciding it while claiming ATHLETE_E must be refused, the
+       same cross-athlete shape the workout-library CRITICAL finding closed. */
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.decide_progression_proposal('${ORG_1}', '${ATHLETE_E}', '${proposalIdA}', 'approved', 'decide-4')`));
+    if (!wasRefused(out)) throw new Error("a proposal was decided under an athlete it doesn't belong to");
+  });
+
+  console.log('\nARC — athlete trend snapshots:\n');
+
+  check('TRENDS: the athlete pushes a trend series and the coach reads the latest', () => {
+    asAthlete(ATHLETE_A, `select public.push_trend_snapshot('${ORG_1}', 'lift_trend', '[{"date":"2026-08-01","e1rm":100}]'::jsonb, '2026-08-01T00:00:00Z'::timestamptz);`);
+    asAthlete(ATHLETE_A, `select public.push_trend_snapshot('${ORG_1}', 'lift_trend', '[{"date":"2026-08-08","e1rm":102}]'::jsonb, '2026-08-08T00:00:00Z'::timestamptz);`);
+    const out = lastLine(asAthlete(COACH_1,
+      `select points::text from public.get_athlete_trend_series('${ORG_1}', '${ATHLETE_A}', 'lift_trend');`));
+    if (!out.includes('102')) throw new Error(`expected the MOST RECENT trend snapshot, got: ${out}`);
+  });
+
+  check('TRENDS: a non-coaching coach is refused', () => {
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.get_athlete_trend_series('${ORG_1}', '${ATHLETE_A}', 'lift_trend')`));
+    if (!wasRefused(out)) throw new Error('a non-coaching coach read a trend series');
+  });
+
+  console.log('\nARC — nutrition review, two tiers:\n');
+
+  asOwnerSql(`
+    insert into public.daily_log_status (user_id, log_date, status) values
+      ('${ATHLETE_A}', '2026-08-10', 'complete'), ('${ATHLETE_A}', '2026-08-11', 'partial');
+    insert into public.weight_entries (user_id, measured_at, weight_kg) values
+      ('${ATHLETE_A}', '2026-08-10T07:00:00Z', 82.4);
+    insert into public.expenditure_estimates (user_id, window_start, window_end, estimate_kcal, trend_slope_kg_per_week, confidence, state)
+      values ('${ATHLETE_A}', '2026-08-01', '2026-08-14', 2600, -0.2, 'medium', 'updating');`);
+
+  check('NUTRITION SUMMARY: a coach reads counts and computed signals with no grant needed', () => {
+    const out = lastLine(asAthlete(COACH_1,
+      `select logged_days || '/' || trend_direction || '/' || estimate_confidence
+         from public.get_athlete_nutrition_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10');`));
+    if (out !== '2/losing/medium') throw new Error(`expected 2/losing/medium, got ${out}`);
+  });
+
+  check('NUTRITION WINDOW: refused without a consent grant, even though the coach really coaches this athlete', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.get_athlete_nutrition_window('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
+    if (!wasRefused(out)) throw new Error('raw nutrition detail was readable with no consent grant at all');
+  });
+
+  check("NUTRITION GRANT: an athlete cannot grant access to someone who isn't actually their coach", () => {
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.set_nutrition_read_grant('${ORG_1}', '${COACH_3}', true)`));
+    if (!wasRefused(out)) throw new Error('a grant was created for a non-coach');
+  });
+
+  check('NUTRITION WINDOW: readable once granted, and every read is logged to coach_read_audit', () => {
+    asAthlete(ATHLETE_A, `select public.set_nutrition_read_grant('${ORG_1}', '${COACH_1}', true);`);
+    const out = lastLine(asAthlete(COACH_1,
+      `select (result->'dailyStatus') is not null from public.get_athlete_nutrition_window('${ORG_1}', '${ATHLETE_A}', date '2026-08-10') as result;`));
+    if (out !== 't') throw new Error('a granted coach could not read the nutrition window');
+    const logged = lastLine(asOwnerSqlOut(
+      `select count(*) from public.coach_read_audit where athlete_user_id = '${ATHLETE_A}' and rpc_name = 'get_athlete_nutrition_window';`));
+    if (logged === '0') throw new Error('a raw nutrition read was not logged to coach_read_audit');
+  });
+
+  check('NUTRITION WINDOW: the athlete can see the audit log of who read their data', () => {
+    const out = lastLine(asAthlete(ATHLETE_A,
+      `select count(*) from public.coach_read_audit where athlete_user_id = '${ATHLETE_A}';`));
+    if (out === '0') throw new Error("the athlete could not see the audit log of reads on their own data");
+  });
+
+  check('FINDING (nutrition gate not AND-ed): revoking the grant refuses the very next read, live', () => {
+    asAthlete(ATHLETE_A, `select public.set_nutrition_read_grant('${ORG_1}', '${COACH_1}', false);`);
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.get_athlete_nutrition_window('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
+    if (!wasRefused(out)) throw new Error('a revoked coach could still read the nutrition window');
+  });
+
+  console.log('\nARC — the read-only week plan and session detail:\n');
+
+  asOwnerSql(`
+    insert into public.athlete_weekly_plans (user_id, week_start, plan) values
+      ('${ATHLETE_A}', '2026-08-10', '${JSON.stringify({
+        entries: [{ proposalId: 'p1', domain: 'strength', date: '2026-08-11', status: 'scheduled', title: 'Squat day' }],
+        decisions: [{ proposalId: 'p1', action: 'scheduled', reasonCode: 'accepted', explanation: 'Placed without violating safety, spacing or interference rules.' }],
+      }).replace(/'/g, "''")}'::jsonb)
+      on conflict (user_id, week_start) do update set plan = excluded.plan;`);
+
+  check('WEEK PLAN: a coach reads entries, decisions and session summaries for the week', () => {
+    const out = lastLine(asAthlete(COACH_1,
+      `select jsonb_array_length(result->'plan'->'entries') || '/' || jsonb_array_length(result->'sessions')
+         from public.get_athlete_week_plan('${ORG_1}', '${ATHLETE_A}', date '2026-08-10') as result;`));
+    const [entries, sessions] = out.split('/');
+    if (entries !== '1') throw new Error(`expected 1 plan entry, got ${entries}`);
+    if (Number(sessions) < 1) throw new Error(`expected at least 1 session summary, got ${sessions}`);
+  });
+
+  check('WEEK PLAN: a malformed weekly plan degrades to empty structures rather than aborting', () => {
+    asOwnerSql(`
+      insert into public.athlete_weekly_plans (user_id, week_start, plan) values
+        ('${ATHLETE_E}', '2026-08-10', '{"entries":"not an array","decisions":42}'::jsonb)
+      on conflict (user_id, week_start) do update set plan = excluded.plan;`);
+    const out = lastLine(asAthlete(COACH_3,
+      `select jsonb_array_length(result->'plan'->'entries') || '/' || jsonb_array_length(result->'plan'->'decisions')
+         from public.get_athlete_week_plan('${ORG_1}', '${ATHLETE_E}', date '2026-08-10') as result;`));
+    if (out !== '0/0') throw new Error(`expected 0/0 from a malformed plan, got ${out}`);
+  });
+
+  check('WEEK PLAN: a non-coaching coach gets nothing', () => {
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.get_athlete_week_plan('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
+    if (!wasRefused(out)) throw new Error('a non-coaching coach read the week plan');
+  });
+
+  check('SESSION DETAIL: a coach can request one session and the read is audited', () => {
+    const sessionId = lastLine(asAthlete(COACH_1,
+      `select result->'sessions'->0->>'id' from public.get_athlete_week_plan('${ORG_1}', '${ATHLETE_A}', date '2026-08-10') as result;`));
+    if (!sessionId) throw new Error('setup failed: no session id available to request detail for');
+    const detail = lastLine(asAthlete(COACH_1,
+      `select (public.request_session_detail('${ORG_1}', '${ATHLETE_A}', '${sessionId}') ->> 'id');`));
+    if (detail !== sessionId) throw new Error(`expected session ${sessionId}, got ${detail}`);
+    const logged = lastLine(asOwnerSqlOut(
+      `select count(*) from public.coach_read_audit where athlete_user_id = '${ATHLETE_A}' and rpc_name = 'request_session_detail';`));
+    if (logged === '0') throw new Error('session detail read was not logged');
+  });
+
+  check('SESSION DETAIL: a non-existent session id is refused, not silently null', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.request_session_detail('${ORG_1}', '${ATHLETE_A}', 'does-not-exist')`));
+    if (!wasRefused(out)) throw new Error('a non-existent session id was accepted');
+  });
+
+  check('SESSION DETAIL: a non-coaching coach is refused', () => {
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.request_session_detail('${ORG_1}', '${ATHLETE_A}', 's1')`));
+    if (!wasRefused(out)) throw new Error('a non-coaching coach read session detail');
+  });
+
+  /* ---------------------------------------------------------------------
    * Immutability's two remaining holes. Both are destructive, so they run
    * last: the erasure test really does delete an organisation.
    * ------------------------------------------------------------------- */

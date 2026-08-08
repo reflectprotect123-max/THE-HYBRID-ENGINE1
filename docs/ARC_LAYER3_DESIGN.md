@@ -1,21 +1,33 @@
-# ARC layer 3 — design, and one part now built
+# ARC layer 3 — built
 
 Status: 8 August 2026. This started as a design-only document — a mapping
 pass over the 7 remaining self-coach screens, three independent backend
 proposals, a synthesis, and an adversarial design-stage critique, the same
-review the layer-2 migration got, applied one stage earlier.
+review the layer-2 migration got, applied one stage earlier. **The entire
+backend it describes is now built.**
 
-**§6 (`get_athlete_workout_library`) is now built**, in
-`supabase/migrations/20260808_arc_workout_library.sql`, with every finding
-from its own critique fixed and the two most critical fixes (the
-cross-athlete leak in finding 2, the private-template RLS leak in finding 3)
-proven able to fail by mutation. Its deny suite lives in
-`checks/migrations-apply.mjs` under "ARC — the coach workout library".
+- **§6 (`get_athlete_workout_library`)** —
+  `supabase/migrations/20260808_arc_workout_library.sql`. Every finding from
+  its critique fixed; the cross-athlete leak (finding 2) and the
+  private-template RLS leak (finding 3) proven able to fail by mutation.
+  Deny suite: `checks/migrations-apply.mjs`, "ARC — the coach workout
+  library".
+- **§§1–5 (progression proposals, athlete trends, nutrition review, week
+  plan, session detail)** —
+  `supabase/migrations/20260808_arc_progression_review.sql`. Every finding
+  in §4 fixed; the idempotency domain-scoping fix (finding 2) and the
+  nutrition dual-gate fix (finding 6) proven able to fail by mutation. Deny
+  suites: `checks/migrations-apply.mjs`, "ARC — progression proposals,
+  trends and nutrition review" and "ARC — the read-only week plan and
+  session detail". Sign-offs 3–7 were built to their stated defaults; sign-off
+  8 was closed by inspection — see the migration's header comment for the
+  citation.
 
-**Everything else in this document (§§1–5, progression / nutrition / week
-review / trends) is still design-only.** Do not start writing SQL from those
-sections until the remaining sign-offs in §5 are answered; several change
-the schema materially.
+**What is NOT built**: the frontend wiring. `apps/web/src/coach/*.tsx` still
+read the signed-in account's own local stores for every screen except the
+workout library repository plumbing added alongside layers 1–2
+(`apps/web/src/cloud/coach-repository.ts`). Every RPC above exists and is
+tested against real Postgres; none of them has a caller in the UI yet.
 
 Context: `docs/ARC_CLAUDE_HANDOFF.md`, `docs/HANDOFF_2026-08-08_ARC_IMPORT.md`,
 `docs/RISK_REGISTER.md`, `apps/web/src/coach/ClientDetailGate.tsx`. Layers 1–2
