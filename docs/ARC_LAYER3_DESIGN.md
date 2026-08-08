@@ -134,9 +134,10 @@ Numbered for reference. 1 and 2 are decided (8 August 2026); the rest are
 defaults stated explicitly so silence is not mistaken for approval.
 
 1. **DECIDED — CoachAuthoring live-tuning mode gets a real backend.**
-   Not retired. `get_athlete_workout_library` is to be built — see §6 for
-   its own reviewed design, produced separately because it needed its own
-   proposal-and-critique pass, not a one-line default.
+   Not retired. `get_athlete_workout_library` is designed and reviewed —
+   see §6. One critique finding (a cross-athlete content leak through the
+   unmodified `create_program_assignment`) must change the plan, not just
+   the SQL, before this is built.
 2. **DECIDED — nutrition consent is per-coach, immediate revocation.**
    `nutrition_read_grants.granted_to` is `not null` — a specific coach id,
    never org-wide. The raw-window RPC checks `revoked_at is null` as a live
@@ -163,3 +164,98 @@ defaults stated explicitly so silence is not mistaken for approval.
    confirm today's decision-explanation templates don't already interpolate
    raw `constraint.reason` before `get_athlete_week_plan` ships, since that
    would leak the same detail sign-off 3 is deciding to withhold.
+
+## 6. `get_athlete_workout_library` — reviewed design (resolves sign-off 1)
+
+Same process as §§1–4: two independent proposals, a synthesis, an
+adversarial critique. The critique found a genuinely serious hole the
+synthesis's own prose had papered over — recorded here so it cannot be
+missed when this becomes SQL.
+
+**The central question, resolved.** A published draft becomes a real
+`program_assignment`, through the *existing, unmodified*
+`create_program_assignment` — not a second, parallel intent channel.
+Publishing: (1) snapshots the draft into an immutable
+`program_template_versions` row, (2) calls `create_program_assignment`
+against that version, in the same transaction. The assignment lands in its
+existing `draft → ready-for-coordinator → accepted` state machine; the
+Coordinator places it exactly like any templated program. The coach never
+writes a session or a date.
+
+**New table**, `coach_workout_drafts` — the mutable head a coach live-tunes
+before publishing: `id, organization_id, athlete_id, coach_id` (last
+editor), `workout_id` (client-minted, matches the real `Workout.id` used in
+`EngineDB.workouts`), `template_id` (FK `program_templates`, nullable,
+created lazily on first save), `kind`, `body jsonb` (the real `Workout`
+shape — `name`, `blocks`, `days`, `dates`, `folderIds` — opaque to Postgres,
+no progression math in SQL), `base_version`, `updated_at`, `updated_by`.
+`program_templates` gains a nullable `athlete_user_id` for a private,
+single-athlete template.
+
+**RPCs**, same SECURITY DEFINER + `coaches_athlete()`-first + one-transaction
+shape as everything else: `get_athlete_workout_library` (read),
+`save_workout_draft` (optimistic concurrency on `base_version`, conflict on
+mismatch, never silent overwrite), `publish_workout_draft` (snapshots,
+assigns, all in one transaction).
+
+**Conflict handling** — one mechanism: `base_version` optimistic concurrency
+for coach-vs-coach; for coach-vs-athlete, there is no shared row to race on,
+since a draft only ever reaches the athlete's device via an explicit
+`accepted` assignment.
+
+### Critique — fix these before this becomes SQL
+
+1. **The proposed `program_templates.athlete_user_id` CHECK constraint is
+   invalid SQL.** It puts a subquery inside a `CHECK`, which Postgres
+   forbids — the existing migration already hit and documented this exact
+   mistake for `preferred_weekdays` (`<@` was the fix there). Enforce the
+   athlete/org pairing in `save_workout_draft`'s body, not in a constraint.
+2. **CRITICAL — a cross-athlete content leak through the unmodified
+   `create_program_assignment`.** That RPC only checks
+   `coaches_athlete(org, p_athlete_user_id)`; it never checks that
+   `template_version_id` belongs to that athlete or to no athlete. A coach
+   who coaches both athlete A and athlete B can take a
+   `template_version_id` snapshotted from B's *private* draft and call the
+   existing RPC with `p_athlete_user_id = A`, assigning B's private workout
+   content to A. The synthesis's claim that "the RPC layer forbids this" is
+   prose only — no such check exists, and the design insists
+   `create_program_assignment` stay unmodified. **This is the one finding
+   that must change the plan, not just the SQL**: either add an ownership
+   check inside `create_program_assignment` itself (a real modification of
+   the already-audited function), or forbid private-athlete templates from
+   ever reaching the generic assignment path at all and only assign them
+   through `publish_workout_draft`'s own gated snapshot-and-assign call.
+3. **Private templates leak through every existing template-listing
+   surface.** `program_templates` RLS today is org-scoped
+   (`is_org_member`), built for shared reference material. Adding
+   `athlete_user_id` without touching RLS means any coach in the org sees
+   every athlete's private drafts through whatever already lists templates
+   by organisation. RLS must exclude `athlete_user_id is not null and not
+   coaches_athlete(organization_id, athlete_user_id)`, and every existing
+   template-listing query needs auditing against this new row shape.
+4. **`coach_decisions.kind` doesn't have the value this needs, and the
+   design contradicts itself on audit volume.** The existing enum has no
+   `workout_draft_saved`; `save_workout_draft` as specified would fail on
+   insert. Separately, §"Immutability/audit" says drafts are unaudited
+   "no row-per-keystroke," while the RPC section has `save_workout_draft`
+   writing a decision row on every save — a row-per-keystroke audit trail,
+   contradicting the stated intent. Resolve to: no decision row on save,
+   only on publish.
+5. **No uniqueness on `workout_id` scoped to (org, athlete).** Two
+   concurrent first-saves for the same `workout_id` can each pass a
+   check-then-insert race and produce two `program_templates` rows for one
+   client-side `Workout.id`. Needs `unique (organization_id, athlete_id,
+   workout_id)` and an `insert ... on conflict` lazy-create, not
+   check-then-insert.
+6. **Unspecified: `Workout.dates` (one-off dates) has no mapping to
+   `program_assignments.preferred_start_date`/`preferred_weekdays`.**
+   `Workout` supports arbitrary one-off dates as an alternative to a
+   recurring weekday set; `program_assignments` only models the latter.
+   `publish_workout_draft` needs an explicit rule — reject a dates-based
+   workout, or a real mapping — not silent dropping.
+
+Holds up: the Coordinator-placement principle itself, once finding 2 is
+fixed — publish never writes a date, only calls the existing intent RPC.
+Idempotency scoping matches the audited pattern. `Workout` carries no
+safety-flag-shaped field, so the layer-2 snapshot-crash class doesn't recur
+here as-is.
