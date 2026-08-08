@@ -164,7 +164,15 @@ export interface AthleteAutocoachReceipt {
   workoutId: string;
   action: 'applied' | 'undone';
   wasForked: boolean;
-  operations: readonly { type: string; targetPath: string; before: string; after: string; reasonCode: string; materiality: string }[];
+  /* No `before`/`after` — auto-coach's resolver interpolates the raw
+     exercise NAME into those two fields for some operation types (see
+     packages/auto-coach/src/resolve.ts's `cap_intensity` branch), which is
+     block/set-level content this roster tier must never carry. Stripped at
+     the source (arc-athlete-sync.ts `sanitizeReceiptOperations`) and
+     re-validated server-side (supabase/migrations/20260808_arc_receipts_autocoach.sql
+     `push_autocoach_receipt`), since the raw RPC is reachable by more than
+     the sanctioned client path. */
+  operations: readonly { type: string; targetPath: string; reasonCode: string; materiality: string }[];
   reasonCodes: readonly string[];
 }
 

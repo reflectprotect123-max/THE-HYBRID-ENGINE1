@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LiftState, ProgressState, Settings, Workout } from '@hybrid/engine';
+import type { ResolutionOperation } from '@hybrid/auto-coach';
 import type { ProgressionProposal } from '../coach/progression';
 import type { TrendSeries, HardBudget } from '../coach/trends';
 import type { LedgerEntry } from '../autocoach/ledger';
@@ -444,6 +445,34 @@ function savePushedAutocoachIds(ids: Set<string>): void {
 }
 
 /**
+ * The sanitiser that keeps an auto-coach receipt on the SUMMARY tier.
+ *
+ * `ResolutionOperation.before`/`after` are the only free-text-bearing fields
+ * on the shape, and they really do carry raw workout content: `resolve.ts`'s
+ * `cap_intensity` branch interpolates the exercise NAME into both
+ * (`` `${ex.name} above @${policy.rpeCap}` ``). Auto-coach runs on
+ * self-authored sessions too, so a roster coach reading those strings would
+ * learn exercise names from a workout they never authored — block/set detail,
+ * which is exactly the tier `get_athlete_week_plan` and every other roster
+ * read deliberately withhold. Dropped rather than pattern-stripped: a
+ * denylist would have to be re-audited every time a new operation type is
+ * written, and the next one to interpolate content would leak silently.
+ *
+ * What survives is what a coach actually needs and is already entitled to:
+ * WHAT changed (`type`), WHERE structurally (`targetPath` is block/exercise
+ * INDICES, never content), WHY (`reasonCode` — the same closed constraint
+ * vocabulary `has_safety_flag` already exposes) and HOW MUCH (`materiality`).
+ */
+export function sanitizeReceiptOperations(operations: readonly ResolutionOperation[]): Record<string, unknown>[] {
+  return operations.map((op) => ({
+    type: op.type,
+    targetPath: op.targetPath,
+    reasonCode: op.reasonCode,
+    materiality: op.materiality,
+  }));
+}
+
+/**
  * Best-effort, same reasoning as pushProgressionProposals/pushTrendSnapshots:
  * an athlete with no coach refuses every call, silently. Tracks which
  * `LedgerEntry.id`s have already been pushed so a long-lived session does not
@@ -465,7 +494,7 @@ export async function pushAutocoachReceipts(client: SupabaseClient, orgId: strin
         p_workout_id: entry.workoutId,
         p_action: entry.action,
         p_was_forked: entry.wasForked,
-        p_operations: entry.operations,
+        p_operations: sanitizeReceiptOperations(entry.operations),
         p_reason_codes: entry.reasonCodes,
       });
       pushed.add(entry.id);

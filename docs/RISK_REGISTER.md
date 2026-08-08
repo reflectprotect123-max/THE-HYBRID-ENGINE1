@@ -55,6 +55,28 @@ adjustment receipts" — cross-tenant, cross-athlete-relationship and idempotent
 replay all mutation-tested (the `coaches_athlete()` gate was removed and both
 denial tests confirmed to fail, then restored).
 
+**A real HIGH-severity finding survived to the first commit, caught by an
+independent adversarial-critique pass before this went further.** The first
+draft's own header comment claimed `ResolutionOperation.before`/`after` were
+always "short structured strings" and safe to forward as-is. False:
+`packages/auto-coach/src/resolve.ts`'s `cap_intensity` branch interpolates
+the raw EXERCISE NAME into both fields — block/set-level content this roster
+tier exists to withhold, and reachable for any roster athlete's real
+workout, already wired end-to-end (pushed, read, rendered) by the time the
+critique ran. Fixed by stripping `before`/`after` entirely at the source
+(`sanitizeReceiptOperations`, colocated-tested and mutation-tested) — a
+coach now sees only `type`/`targetPath` (block/exercise INDICES, never
+content)/`reasonCode`/`materiality`. Because `push_autocoach_receipt` is
+callable directly (not only through the sanitised client path), the same
+shape is re-validated server-side against the closed `ActionType`/
+`Materiality` vocabularies, and `reason_codes` against every real code
+`resolve.ts` emits (verified by reading the source, not assumed) — both
+paths mutation-tested. Two lower-severity findings from the same pass were
+also closed: `occurred_at`/`session_date` plausibility bounds, and a UI copy
+line that misattributed the change to `whole-athlete-state` instead of
+`@hybrid/auto-coach`, the package that actually owns the autonomy decision
+per this file's package-ownership rule.
+
 ### R4 · Silent empty screens if a coach surface queries per-athlete
 Every RLS policy is `auth.uid() = user_id`; RLS **filters** rather than raising.
 A coach UI fetching another athlete gets an empty result, not an error.

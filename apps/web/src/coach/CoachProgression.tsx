@@ -17,6 +17,17 @@ const ROSTER_DIRECTION_STYLE: Record<AthleteProgressionProposal['direction'], st
   review: 'border-bad bg-panel2 text-bad',
 };
 
+/* No exercise name, no free-text before/after — see AthleteAutocoachReceipt's
+   doc comment. A label per ActionType is all there is to show. */
+const OPERATION_LABEL: Record<string, string> = {
+  keep_as_planned: 'Kept as planned',
+  cap_intensity: 'Capped intensity',
+  trim_conditioning_minutes: 'Trimmed conditioning minutes',
+  hold_progression: 'Held progression',
+  rest_or_pause: 'Rest or pause',
+  ask_for_clarification: 'Asked for clarification',
+};
+
 function rosterPrescription(value: Record<string, unknown> | null): string {
   if (!value) return 'No accepted baseline';
   if (typeof value.kg === 'number') return `${value.kg} kg${typeof value.reps === 'number' ? ` × ${value.reps}` : ''}`;
@@ -154,8 +165,9 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
               <p className="text-[10px] uppercase tracking-wider text-dim">Autonomy · read-only</p>
               <h2 className="text-sm font-semibold">What the system adjusted for {clientName}</h2>
               <p className="mt-0.5 text-[11px] text-muted">
-                Whole-athlete-state changed a session automatically, before {clientName} started it. Nothing here
-                is editable — it is a record of what already happened locally on their device.
+                Auto-Coach changed a session automatically, before {clientName} started it, using
+                whole-athlete-state's constraints as its input. Nothing here is editable — it is a record of
+                what already happened locally on their device.
               </p>
             </div>
             <div className="space-y-1 p-2">
@@ -171,7 +183,8 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
                   </div>
                   {receipt.operations.map((op, i) => (
                     <p key={i} className="mt-0.5 text-[11px] text-muted">
-                      {op.before} → {op.after} <span className="text-dim">({op.reasonCode.replaceAll('_', ' ')})</span>
+                      {OPERATION_LABEL[op.type] ?? op.type} at {op.targetPath || 'session level'}
+                      {' '}<span className="text-dim">({op.materiality} · {op.reasonCode.replaceAll('_', ' ')})</span>
                     </p>
                   ))}
                 </article>

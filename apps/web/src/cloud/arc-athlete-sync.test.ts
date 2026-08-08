@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { applyServerProgression, sanitizeAssignedWorkoutBody, structurallyEqual, trendSnapshotInputs } from './arc-athlete-sync';
+import type { ResolutionOperation } from '@hybrid/auto-coach';
+import {
+  applyServerProgression,
+  sanitizeAssignedWorkoutBody,
+  sanitizeReceiptOperations,
+  structurallyEqual,
+  trendSnapshotInputs,
+} from './arc-athlete-sync';
 
 /*
  * These test the boundary this file exists to cross: a value the athlete's
@@ -74,6 +81,44 @@ describe('applyServerProgression', () => {
     const settings = { liftProgress: { squat: { kg: 100, at: 1000 } }, conProgress: { 'row:steady': { level: 2, miss: 1 } } };
     const out = applyServerProgression('strength', 'squat', { kg: 100, at: 1000 }, { kg: 102, at: 2000 }, settings);
     expect(out?.conProgress?.['row:steady']).toEqual({ level: 2, miss: 1 });
+  });
+});
+
+describe('sanitizeReceiptOperations', () => {
+  const op = (over: Partial<ResolutionOperation> = {}): ResolutionOperation => ({
+    type: 'cap_intensity' as const,
+    targetPath: 'blocks[0].exercises[1]',
+    before: 'Bulgarian Split Squat above @7',
+    after: 'Bulgarian Split Squat capped @7',
+    reasonCode: 'low_readiness',
+    materiality: 'material' as const,
+    reversible: true as const,
+    ...over,
+  });
+
+  it('drops before/after — the exercise-name leak this function exists to close', () => {
+    const [out] = sanitizeReceiptOperations([op()]);
+    expect(out).not.toHaveProperty('before');
+    expect(out).not.toHaveProperty('after');
+  });
+
+  it('keeps type, targetPath, reasonCode and materiality — what a coach is actually entitled to', () => {
+    const [out] = sanitizeReceiptOperations([op()]);
+    expect(out).toEqual({
+      type: 'cap_intensity',
+      targetPath: 'blocks[0].exercises[1]',
+      reasonCode: 'low_readiness',
+      materiality: 'material',
+    });
+  });
+
+  it('maps every operation in the array, preserving order', () => {
+    const out = sanitizeReceiptOperations([op({ type: 'rest_or_pause' }), op({ type: 'hold_progression' })]);
+    expect(out.map((o) => o.type)).toEqual(['rest_or_pause', 'hold_progression']);
+  });
+
+  it('returns an empty array for an empty input', () => {
+    expect(sanitizeReceiptOperations([])).toEqual([]);
   });
 });
 

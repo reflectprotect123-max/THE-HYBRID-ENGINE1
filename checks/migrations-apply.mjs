@@ -1218,17 +1218,22 @@ try {
    * ------------------------------------------------------------------- */
   console.log('\nARC — autonomous adjustment receipts:\n');
 
-  const AC_OPS = `'[{"type":"drop_set","targetPath":"blocks[0].exercises[1]","before":"3x8","after":"2x8","reasonCode":"pain_flag","materiality":"material","reversible":true}]'::jsonb`;
+  // No `before`/`after`/`reversible` -- push_autocoach_receipt only accepts
+  // these exact four keys, all closed vocabulary except targetPath/reasonCode
+  // (see the migration's own header comment for why: a first draft carried
+  // the raw exercise name through `before`/`after`, caught by adversarial
+  // review before this ever reached a real coach).
+  const AC_OPS = `'[{"type":"cap_intensity","targetPath":"blocks[0].exercises[1]","reasonCode":"low_readiness","materiality":"material"}]'::jsonb`;
 
   check('AUTOCOACH RECEIPT: the athlete pushes a receipt and the coach reads it', () => {
-    asAthlete(ATHLETE_A, `select public.push_autocoach_receipt('${ORG_1}', 'ac-1', '2026-08-08T10:00:00Z'::timestamptz, date '2026-08-08', 'w1', 'applied', false, ${AC_OPS}, array['pain_flag']);`);
+    asAthlete(ATHLETE_A, `select public.push_autocoach_receipt('${ORG_1}', 'ac-1', '2026-08-08T10:00:00Z'::timestamptz, date '2026-08-08', 'w1', 'applied', false, ${AC_OPS}, array['pain_hold_active']);`);
     const out = lastLine(asAthlete(COACH_1,
       `select count(*)::text from public.get_athlete_autocoach_receipts('${ORG_1}', '${ATHLETE_A}');`));
     if (out !== '1') throw new Error(`expected 1 receipt visible to the coach, got ${out}`);
   });
 
   check('AUTOCOACH RECEIPT: a replayed push returns the original, does not duplicate', () => {
-    asAthlete(ATHLETE_A, `select public.push_autocoach_receipt('${ORG_1}', 'ac-1', '2026-08-08T10:00:00Z'::timestamptz, date '2026-08-08', 'w1', 'applied', false, ${AC_OPS}, array['pain_flag']);`);
+    asAthlete(ATHLETE_A, `select public.push_autocoach_receipt('${ORG_1}', 'ac-1', '2026-08-08T10:00:00Z'::timestamptz, date '2026-08-08', 'w1', 'applied', false, ${AC_OPS}, array['pain_hold_active']);`);
     const out = lastLine(asAthlete(COACH_1,
       `select count(*)::text from public.get_athlete_autocoach_receipts('${ORG_1}', '${ATHLETE_A}');`));
     if (out !== '1') throw new Error(`expected the replay to leave exactly 1 row, got ${out}`);
@@ -1262,6 +1267,37 @@ try {
     const out = asAthlete(ATHLETE_A, refusalProbe(
       `perform public.push_autocoach_receipt('${ORG_1}', 'ac-bad-action', now(), current_date, 'w1', 'sabotage', false, '[]'::jsonb, '{}')`));
     if (!wasRefused(out)) throw new Error('an invalid action value was accepted');
+  });
+
+  check('FINDING (block/set content leak): before/after are refused, even bypassing the client sanitiser', () => {
+    /* The adversarial finding this migration was fixed for: raw calls to
+       push_autocoach_receipt are reachable directly (EXECUTE granted to every
+       athlete member), so the server, not just arc-athlete-sync.ts's
+       sanitizeReceiptOperations, must refuse an operation carrying the raw
+       exercise name a `before`/`after` field could smuggle through. */
+    const withBeforeAfter = `'[{"type":"cap_intensity","targetPath":"blocks[0]","reasonCode":"low_readiness","materiality":"material","before":"Bulgarian Split Squat above @7","after":"Bulgarian Split Squat capped @7"}]'::jsonb`;
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'ac-leak-attempt', now(), current_date, 'w1', 'applied', false, ${withBeforeAfter}, '{}')`));
+    if (!wasRefused(out)) throw new Error('an operation carrying before/after (raw exercise content) was accepted');
+  });
+
+  check('AUTOCOACH RECEIPT: an unrecognised operation type is refused', () => {
+    const badType = `'[{"type":"sabotage","targetPath":"blocks[0]","reasonCode":"low_readiness","materiality":"material"}]'::jsonb`;
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'ac-bad-type', now(), current_date, 'w1', 'applied', false, ${badType}, '{}')`));
+    if (!wasRefused(out)) throw new Error('an unrecognised operation type was accepted');
+  });
+
+  check('AUTOCOACH RECEIPT: an unrecognised reason code is refused', () => {
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'ac-bad-reason', now(), current_date, 'w1', 'applied', false, '[]'::jsonb, array['sabotage'])`));
+    if (!wasRefused(out)) throw new Error('an unrecognised reason code was accepted');
+  });
+
+  check('AUTOCOACH RECEIPT: an implausible far-future occurred_at is refused', () => {
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'ac-future', '9999-01-01T00:00:00Z'::timestamptz, date '2026-08-08', 'w1', 'applied', false, '[]'::jsonb, '{}')`));
+    if (!wasRefused(out)) throw new Error('an implausible occurred_at was accepted, letting it sort first forever');
   });
 
   /* ---------------------------------------------------------------------
