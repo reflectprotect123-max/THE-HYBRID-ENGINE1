@@ -52,7 +52,14 @@ create table if not exists public.organization_memberships (
   revoked_at timestamptz,
   primary key (organization_id, user_id),
   constraint organization_membership_role check (role in ('owner', 'coach', 'support', 'athlete')),
-  constraint organization_membership_status check (status in ('active', 'revoked'))
+  constraint organization_membership_status check (status in ('active', 'revoked')),
+  -- `status` is the load-bearing column and `revoked_at` is the timestamp for
+  -- it — but only if they cannot disagree. A revocation recorded by stamping
+  -- the date alone would read as revoked to a human and as active to every
+  -- policy in this file, which is the worst of the two failure modes: the
+  -- audit trail says access ended and access did not.
+  constraint organization_membership_revoked_at
+    check ((status = 'revoked') = (revoked_at is not null))
 );
 
 create index if not exists organization_memberships_user_idx
@@ -75,7 +82,11 @@ create table if not exists public.coach_athlete_assignments (
   -- A coach is not their own client. This is not pedantry: without it, the
   -- bench's "own data" mode and its "client" mode become the same query and
   -- the truth boundary the handoff protects disappears.
-  constraint coach_athlete_distinct check (coach_user_id <> athlete_user_id)
+  constraint coach_athlete_distinct check (coach_user_id <> athlete_user_id),
+  -- Same reason as the membership: a revocation date that leaves `status`
+  -- alone would be a revocation only on paper.
+  constraint coach_athlete_revoked_at
+    check ((status = 'revoked') = (revoked_at is not null))
 );
 
 create index if not exists coach_athlete_coach_idx
@@ -101,25 +112,48 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 -- Does the CURRENT user coach this athlete, right now, in this organisation?
--- Revocation is checked on both the assignment and the membership: a coach
--- removed from the organisation must lose access even if the athlete
--- assignment row was left behind.
+--
+-- Revocation is checked on BOTH memberships and on the assignment. Three rows
+-- have to agree, and each one is a separate way for access to end:
+--
+--   * the coach↔athlete assignment is active;
+--   * the COACH still holds an active owner/coach membership — a coach removed
+--     from the organisation loses access even if the assignment row was left
+--     behind;
+--   * the ATHLETE still holds an active membership. This is the one that is
+--     easy to leave out and expensive to leave out. An athlete who leaves the
+--     organisation has withdrawn from being coached; if only the coach's side
+--     were checked, deleting the athlete's membership would revoke nothing and
+--     their pain-hold flag would keep flowing to a coach they had left.
 create or replace function public.coaches_athlete(org uuid, athlete uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (
     select 1
     from public.coach_athlete_assignments a
-    join public.organization_memberships m
-      on m.organization_id = a.organization_id
-     and m.user_id = a.coach_user_id
+    join public.organization_memberships mc
+      on mc.organization_id = a.organization_id
+     and mc.user_id = a.coach_user_id
+    join public.organization_memberships ma
+      on ma.organization_id = a.organization_id
+     and ma.user_id = a.athlete_user_id
     where a.organization_id = org
       and a.coach_user_id = auth.uid()
       and a.athlete_user_id = athlete
       and a.status = 'active'
-      and m.status = 'active'
-      and m.role in ('owner', 'coach')
+      and mc.status = 'active'
+      and mc.role in ('owner', 'coach')
+      and ma.status = 'active'
   );
 $$;
+
+-- The helpers are the authorization layer; nothing but a policy or a command
+-- should be calling them, and `anon` should not be able to call them at all.
+-- `public` holds EXECUTE on a new function by default, which would leave an
+-- unauthenticated caller able to run the membership probe directly.
+revoke all on function public.is_org_member(uuid, text[]) from public, anon;
+revoke all on function public.coaches_athlete(uuid, uuid) from public, anon;
+grant execute on function public.is_org_member(uuid, text[]) to authenticated;
+grant execute on function public.coaches_athlete(uuid, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 4. Program templates, and their IMMUTABLE versions
@@ -247,14 +281,23 @@ create table if not exists public.coach_decisions (
   -- Optimistic concurrency: a command states the version it believed it was
   -- acting on, and a replay against a moved base is rejected by the caller.
   base_version text,
-  -- Idempotency is per organisation, so two organisations cannot collide and
-  -- one cannot probe the other's key space.
+  -- Idempotency is scoped to (organisation, athlete, kind), not to the
+  -- organisation alone.
+  --
+  -- Two reasons, both learned the hard way. Keys are DERIVABLE — the client
+  -- builds `assignment:<athleteUserId>:<templateVersionId>` — so an
+  -- organisation-wide key space is one a coach can compute entries in for
+  -- athletes they do not coach, and a lookup on that space is an existence
+  -- oracle even when the row itself stays unreadable. And a key legitimately
+  -- reused across two `kind` values collided, which made the command find a
+  -- decision that named no assignment and return NULL: a write that never
+  -- happened, reported to the coach as a success.
   idempotency_key text not null,
   payload jsonb not null default '{}'::jsonb,
   rule_set_version text not null default 'v1',
   rule_set_hash text,
   created_at timestamptz not null default now(),
-  unique (organization_id, idempotency_key),
+  unique (organization_id, athlete_user_id, kind, idempotency_key),
   constraint coach_decision_kind check (kind in (
     'assignment_created', 'assignment_updated', 'assignment_accepted',
     'assignment_withdrawn', 'progression_approved', 'progression_declined',
@@ -279,10 +322,64 @@ create table if not exists public.decision_receipts (
 create index if not exists decision_receipts_athlete_idx
   on public.decision_receipts (athlete_user_id, created_at desc);
 
+-- Immutability, with ONE hole in it, deliberately shaped.
+--
+-- An audit record that cannot be deleted at all is an audit record that makes
+-- an erasure request impossible to satisfy — the organisation cannot be closed
+-- and the athlete cannot be removed, because the cascade hits this trigger and
+-- the whole statement rolls back. "Immutable" has to mean "nobody can edit or
+-- remove this record while the thing it describes still exists", not "these
+-- rows outlive the account forever".
+--
+-- The discriminator is the parent row. A CASCADE deletes the parent FIRST, so
+-- by the time this fires the organisation, athlete or parent record is already
+-- gone and the lookup below finds nothing. A direct `delete from
+-- coach_decisions where ...` leaves every parent in place and is refused. The
+-- test suite proves both halves.
 create or replace function public.deny_mutation()
 returns trigger language plpgsql as $$
+declare
+  v_row jsonb := to_jsonb(old);
+  v_orphaned boolean := false;
 begin
+  if tg_op = 'DELETE' then
+    if (v_row ->> 'organization_id') is not null then
+      v_orphaned := not exists (
+        select 1 from public.organizations o where o.id = (v_row ->> 'organization_id')::uuid);
+    end if;
+    if not v_orphaned and (v_row ->> 'athlete_user_id') is not null then
+      v_orphaned := not exists (
+        select 1 from auth.users u where u.id = (v_row ->> 'athlete_user_id')::uuid);
+    end if;
+    if not v_orphaned and (v_row ->> 'template_id') is not null then
+      v_orphaned := not exists (
+        select 1 from public.program_templates t where t.id = (v_row ->> 'template_id')::uuid);
+    end if;
+    if not v_orphaned and (v_row ->> 'assignment_id') is not null then
+      v_orphaned := not exists (
+        select 1 from public.program_assignments a where a.id = (v_row ->> 'assignment_id')::uuid);
+    end if;
+    if not v_orphaned and (v_row ->> 'decision_id') is not null then
+      v_orphaned := not exists (
+        select 1 from public.coach_decisions c where c.id = (v_row ->> 'decision_id')::uuid);
+    end if;
+    if v_orphaned then
+      return old;
+    end if;
+  end if;
   raise exception 'immutable record: % rows cannot be updated or deleted', tg_table_name
+    using errcode = 'restrict_violation';
+end;
+$$;
+
+-- TRUNCATE does not fire row triggers. Without this, one statement empties the
+-- entire audit trail past every guard above — the trail's only real adversary
+-- is whoever wants it gone, and that is exactly the statement they would reach
+-- for. Statement-level, because TRUNCATE has no rows to offer.
+create or replace function public.deny_truncate()
+returns trigger language plpgsql as $$
+begin
+  raise exception 'immutable record: % cannot be truncated', tg_table_name
     using errcode = 'restrict_violation';
 end;
 $$;
@@ -307,6 +404,26 @@ create trigger decision_receipts_immutable
   before update or delete on public.decision_receipts
   for each row execute function public.deny_mutation();
 
+drop trigger if exists program_template_versions_no_truncate on public.program_template_versions;
+create trigger program_template_versions_no_truncate
+  before truncate on public.program_template_versions
+  for each statement execute function public.deny_truncate();
+
+drop trigger if exists assignment_input_versions_no_truncate on public.assignment_input_versions;
+create trigger assignment_input_versions_no_truncate
+  before truncate on public.assignment_input_versions
+  for each statement execute function public.deny_truncate();
+
+drop trigger if exists coach_decisions_no_truncate on public.coach_decisions;
+create trigger coach_decisions_no_truncate
+  before truncate on public.coach_decisions
+  for each statement execute function public.deny_truncate();
+
+drop trigger if exists decision_receipts_no_truncate on public.decision_receipts;
+create trigger decision_receipts_no_truncate
+  before truncate on public.decision_receipts
+  for each statement execute function public.deny_truncate();
+
 -- ---------------------------------------------------------------------------
 -- Row level security
 -- ---------------------------------------------------------------------------
@@ -321,6 +438,23 @@ alter table public.program_assignments enable row level security;
 alter table public.assignment_input_versions enable row level security;
 alter table public.coach_decisions enable row level security;
 alter table public.decision_receipts enable row level security;
+
+-- ON `force row level security`, WHICH IS DELIBERATELY ABSENT
+--
+-- ENABLE exempts the table OWNER from its own policies; FORCE removes that
+-- exemption. FORCE is the stricter setting and it is still the wrong one here,
+-- because the owner exemption is not a gap in this design — it IS the write
+-- path. There is no INSERT policy on any table in this file, on purpose. Every
+-- write goes through a SECURITY DEFINER command that runs as the owner and
+-- does its own organisation, athlete and role checks. Forcing RLS would make
+-- those commands fail against policies that do not exist, and the only way to
+-- bring them back would be to add INSERT policies — which is precisely the
+-- direct-table-write surface the commands were built to remove. Strictness
+-- here would buy a weaker boundary.
+--
+-- What that leaves is a real, named residual: anything connecting AS the owner
+-- reads everything. That is the service-role key, and it is why it must never
+-- leave the server. Recorded in docs/RISK_REGISTER.md rather than papered over.
 
 drop policy if exists organizations_read on public.organizations;
 create policy organizations_read on public.organizations for select to authenticated
@@ -430,6 +564,12 @@ grant select on public.assignment_input_versions to authenticated;
 grant select on public.coach_decisions to authenticated;
 grant select on public.decision_receipts to authenticated;
 
+-- The trigger bodies are invoked by the trigger machinery, never by a caller.
+-- Default PUBLIC EXECUTE lets any role call them directly; they raise either
+-- way, but a trigger function reachable as a function is surface with no use.
+revoke all on function public.deny_mutation() from public, anon, authenticated;
+revoke all on function public.deny_truncate() from public, anon, authenticated;
+
 -- Rollback, for the staging rehearsal this repository requires before any
 -- release. Order matters: dependants first.
 --
@@ -446,6 +586,7 @@ grant select on public.decision_receipts to authenticated;
 --   drop function if exists public.coaches_athlete(uuid, uuid);
 --   drop function if exists public.is_org_member(uuid, text[]);
 --   drop function if exists public.deny_mutation();
+--   drop function if exists public.deny_truncate();
 
 -- ---------------------------------------------------------------------------
 -- The one sanctioned write path.
@@ -506,11 +647,32 @@ begin
   -- A replay returns the ORIGINAL result rather than erroring: the caller
   -- retrying after a dropped connection did nothing wrong and should see the
   -- write it already made.
+  --
+  -- EVERY PARAMETER OF THE SCOPE IS IN BOTH LOOKUPS, and that is not
+  -- belt-and-braces. This function is SECURITY DEFINER, so neither statement
+  -- is filtered by RLS; whatever the predicate does not say, nothing else
+  -- says. A lookup keyed on the organisation alone returned another coach's
+  -- athlete's assignment to any coach in the organisation who could guess the
+  -- key — and the key is derivable from two values the read policies already
+  -- expose. The second select is scoped for the same reason: an id read out of
+  -- a payload is caller-influenced data, not a proof of ownership.
   select * into v_existing from public.coach_decisions
-   where organization_id = p_organization_id and idempotency_key = p_idempotency_key;
+   where organization_id = p_organization_id
+     and athlete_user_id = p_athlete_user_id
+     and kind = 'assignment_created'
+     and idempotency_key = p_idempotency_key;
   if found then
     select * into v_assignment from public.program_assignments
-     where id = (v_existing.payload ->> 'assignment_id')::uuid;
+     where id = (v_existing.payload ->> 'assignment_id')::uuid
+       and organization_id = p_organization_id
+       and athlete_user_id = p_athlete_user_id;
+    if v_assignment is null then
+      -- The decision exists but names no assignment we are entitled to
+      -- return. Returning NULL here would surface in the client as a success
+      -- with no row, which is how a write that never happened gets reported
+      -- as one that did.
+      raise exception 'not permitted' using errcode = 'insufficient_privilege';
+    end if;
     return v_assignment;
   end if;
 
@@ -613,11 +775,22 @@ begin
 
   select state into v_core from public.athlete_core where user_id = p_athlete_user_id;
 
+  -- THE SNAPSHOT IS ATHLETE-WRITTEN DATA AND IS NOT TRUSTED TO HAVE A SHAPE.
+  --
+  -- It arrives through the athlete's own sanctioned write path, which does not
+  -- validate its interior. `jsonb_array_elements` on an object raises 22023 and
+  -- casting "maybe" to boolean raises 22P02 — either one aborts this function,
+  -- and the function aborting is not a neutral outcome: `has_safety_flag` never
+  -- reaches the roster, so one athlete with a malformed snapshot suppresses the
+  -- pain flag this projection exists to carry. A bad shape has to degrade to
+  -- "nothing countable here", never to "no answer at all".
   return query
   with sessions as (
     select s.value as s
     from public.athlete_domain_snapshots d,
-         lateral jsonb_array_elements(coalesce(d.snapshot -> 'sessions', '[]'::jsonb)) s
+         lateral jsonb_array_elements(
+           case when jsonb_typeof(d.snapshot -> 'sessions') = 'array'
+                then d.snapshot -> 'sessions' else '[]'::jsonb end) s
     where d.user_id = p_athlete_user_id
       and d.domain in ('strength', 'conditioning')
       and (s.value ->> 'date') between p_week_start::text and v_week_end::text
@@ -625,7 +798,9 @@ begin
   nutrition as (
     select count(distinct e.value ->> 'logDate') as days
     from public.athlete_domain_snapshots d,
-         lateral jsonb_array_elements(coalesce(d.snapshot -> 'logEntries', '[]'::jsonb)) e
+         lateral jsonb_array_elements(
+           case when jsonb_typeof(d.snapshot -> 'logEntries') = 'array'
+                then d.snapshot -> 'logEntries' else '[]'::jsonb end) e
     where d.user_id = p_athlete_user_id
       and d.domain = 'nutrition'
       and (e.value ->> 'deletedAt') is null
@@ -637,11 +812,17 @@ begin
     (select count(*)::integer from sessions where s ->> 'kind' = 'conditioning' and s ->> 'status' = 'complete'),
     (select count(*)::integer from sessions where s ->> 'kind' = 'conditioning'),
     (select days::integer from nutrition),
-    coalesce(
-      (v_core #>> '{safety,painHold,active}')::boolean
-        or (v_core #>> '{safety,illness,status}') is distinct from 'clear',
-      false
-    );
+    -- Compared as text rather than cast, for the reason above: the value is
+    -- athlete-written and `'maybe'::boolean` raises. Anything that is not the
+    -- literal true is not a raised hold.
+    --
+    -- Illness flags on a value that is PRESENT and not 'clear'. An absent
+    -- field is unknown, not unwell — and reading it as unwell would put
+    -- "Pain or illness flag is active" beside every athlete who has never
+    -- filled the field in, which retires the flag by making it constant.
+    ((v_core #>> '{safety,painHold,active}') = 'true')
+      or ((v_core #>> '{safety,illness,status}') is not null
+          and (v_core #>> '{safety,illness,status}') <> 'clear');
 end;
 $$;
 

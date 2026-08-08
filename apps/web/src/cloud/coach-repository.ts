@@ -265,7 +265,7 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
     if (linkError) throw linkError;
     if (!link) throw new Error('That athlete is not on your roster.');
 
-    const { error } = await this.client.rpc('create_program_assignment', {
+    const { data: written, error } = await this.client.rpc('create_program_assignment', {
       p_organization_id: (link as { organization_id: string }).organization_id,
       p_athlete_user_id: draft.clientId,
       p_template_version_id: draft.programTemplateId,
@@ -275,6 +275,14 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
       p_base_version: draft.baseProgramVersion,
     });
     if (error) throw error;
+    /* A command that returns no row wrote nothing, and `error` alone does not
+       say so. Reporting "assigned" for a call that came back empty is the one
+       failure the coach cannot detect from the screen — they would close the
+       tab believing an athlete has a program. The server raises rather than
+       returning null now; this is the second lock on the same door, because
+       the first one was added after it was found open. */
+    const row = Array.isArray(written) ? written[0] : written;
+    if (!row) throw new Error('The assignment was not written. Nothing has changed — try again.');
 
     return { ...draft, state: 'ready-for-coordinator' };
   }

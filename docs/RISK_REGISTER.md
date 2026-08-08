@@ -145,6 +145,35 @@ Each of these was checked rather than assumed:
 - **HRV as a safety gate**: not found anywhere.
 - **Destructive restore**: not audited in depth this pass — see gaps below.
 
+## ARC coach workspace — accepted residual risks
+
+`supabase/migrations/20260808_arc_coach_workspace.sql` was reviewed
+adversarially on 8 August 2026. Nine findings were raised; the boundary breaks
+are fixed and covered by mutation-proven tests in `checks/migrations-apply.mjs`.
+Two things were decided rather than fixed, and they are recorded here because
+they are real.
+
+- **The table owner reads everything.** No coach table carries
+  `force row level security`, so the owner is exempt from its own policies.
+  That exemption is not an oversight — it IS the write path. There is no INSERT
+  policy anywhere in the file; every write goes through a `SECURITY DEFINER`
+  command that runs as the owner and performs its own organisation, athlete and
+  role checks. Forcing RLS would break those commands, and the only repair
+  would be to add INSERT policies, which is precisely the direct-table-write
+  surface the commands exist to remove. **Consequence: the service-role key is
+  a full read of every athlete's coaching data. It must never reach a client
+  bundle, a log, a CI variable that is echoed, or a chat window.**
+- **Audit records are deletable by cascade, and only by cascade.** A direct
+  `delete` or `update` on a decision or receipt is refused by trigger. A
+  deletion of the organisation or the athlete cascades and is allowed, because
+  a record that can never be removed makes an erasure request impossible to
+  satisfy. The discriminator is that the parent row is already gone by the time
+  the trigger fires. Both halves are tested.
+  - Still open: `coach_decisions.actor_user_id` is `on delete restrict`, so
+    deleting a COACH's `auth.users` row is blocked outright. Erasing a coach
+    therefore needs a decided policy — anonymise the actor, or transfer it —
+    and that decision has not been made.
+
 ## Gaps in this register
 
 - Restore/import destructiveness was not traced end to end.

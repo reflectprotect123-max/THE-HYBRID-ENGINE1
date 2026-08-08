@@ -81,7 +81,9 @@ describe('SupabaseCoachWorkspaceRepository', () => {
   it('sends INTENT to the command and never a resolved date', async () => {
     // Typed args so `mock.calls[0][1]` is the parameter object rather than
     // an untyped empty tuple — the assertion below reads it.
-    const rpc = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({ data: null, error: null }));
+    const rpc = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
+      data: { id: 'assignment-1', athlete_user_id: 'athlete-1' }, error: null,
+    }));
     const repo = new SupabaseCoachWorkspaceRepository(clientWith({
       from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({
         maybeSingle: async () => ({ data: { organization_id: 'org-1' }, error: null }),
@@ -111,6 +113,20 @@ describe('SupabaseCoachWorkspaceRepository', () => {
       rpc: vi.fn(),
     }) as never);
     await expect(repo.saveAssignmentDraft(draft())).rejects.toThrow(/not on your roster/);
+  });
+
+  it('does not report success for a command that came back empty', async () => {
+    /* An idempotency-key collision used to make the command return no row with
+       no error, and this method reported "ready-for-coordinator" for a write
+       that never happened — the one failure a coach cannot see from the
+       screen. The server raises now; this asserts the client half. */
+    const repo = new SupabaseCoachWorkspaceRepository(clientWith({
+      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({
+        maybeSingle: async () => ({ data: { organization_id: 'org-1' }, error: null }),
+      }) }) }) }) }),
+      rpc: async () => ({ data: null, error: null }),
+    }) as never);
+    await expect(repo.saveAssignmentDraft(draft())).rejects.toThrow(/not written/);
   });
 
   it('says assignments need a connection rather than failing silently offline', async () => {

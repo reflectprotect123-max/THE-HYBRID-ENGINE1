@@ -82,6 +82,7 @@ const asOwner = (cmd) => {
     : execFileSync('/bin/bash', ['-c', script], { encoding: 'utf8' });
 };
 const psql = (args) => asOwner(`psql -h ${dir} -p 5433 -U postgres -v ON_ERROR_STOP=1 ${args}`);
+const DEBUG = process.env.PGCHECK_DEBUG === '1';
 
 /* Arbitrary SQL is easier to get right in a file than through six layers of
    shell and psql quoting, so every ad-hoc script below is written to disk and
@@ -92,7 +93,12 @@ const runSql = (sql) => {
   const f = join(dir, `probe-${sqlSeq++}.sql`);
   writeFileSync(f, sql);
   chmodSync(f, 0o644);
-  return psql(`-tAq -f ${f} 2>&1`);
+  try {
+    return psql(`-tAq -f ${f} 2>&1`);
+  } catch (e) {
+    if (DEBUG) console.error(`--- probe ${f} exited non-zero ---\n${sql}\n--- output ---\n${e.stdout ?? ''}${e.stderr ?? ''}`);
+    throw e;
+  }
 };
 
 /* Become an athlete. Both halves are load-bearing: the JWT claim is what the
@@ -114,8 +120,29 @@ const lastLine = (out) => out.trim().split('\n').filter((l) => l.trim()).pop() ?
 const refusalProbe = (sql) => `do $probe$ begin
   ${sql};
   raise notice 'ACCEPTED';
-exception when others then raise notice 'REFUSED (%)', sqlerrm;
+exception when others then raise notice 'REFUSED [%] %', sqlstate, sqlerrm;
 end $probe$;`;
+
+/* THE SQLSTATE IS REPORTED ABOVE, AND `wasRefused()` READS IT.
+ *
+ * `exception when others` catches the failure a test is for and also every
+ * failure that means the TEST is broken — a renamed function, a dropped table,
+ * a typo in a column name. All of those raise, so all of them were being
+ * scored as successful denials. A suite that passes louder as the schema
+ * disappears is worse than no suite, so the two classes are separated here.
+ *
+ * 42883 undefined_function, 42P01 undefined_table, 42703 undefined_column,
+ * 42601 syntax_error, 42P02 undefined_parameter. */
+const BROKEN_PROBE = new Set(['42883', '42P01', '42703', '42601', '42P02']);
+const refusalState = (out) => (out.match(/REFUSED \[([0-9A-Z]+)\]/) ?? [])[1] ?? null;
+const wasRefused = (out) => {
+  const state = refusalState(out);
+  if (state === null) return false;
+  if (BROKEN_PROBE.has(state)) {
+    throw new Error(`the probe itself is broken (SQLSTATE ${state}) — that is not a denial: ${lastLine(out)}`);
+  }
+  return true;
+};
 
 /* The ARC deny suite needs a writer, because the coach tables grant no client
    INSERT at all — every write goes through a server-side command. Running the
@@ -268,7 +295,7 @@ try {
      half of the ported 004/005 policies stops it. */
   const refused = (label, sql, uid = ATHLETE_B) => check(label, () => {
     const out = asAthlete(uid, refusalProbe(sql));
-    if (!out.includes('REFUSED')) throw new Error(`the write was ACCEPTED: ${out.trim().split('\n').slice(-2).join(' ')}`);
+    if (!wasRefused(out)) throw new Error(`the write was ACCEPTED: ${out.trim().split('\n').slice(-2).join(' ')}`);
   });
   refused('B cannot log an entry owned by A', `insert into public.food_log_entries (user_id, log_date, entry_kind, display_name)
       values ('${ATHLETE_A}', current_date, 'quick_add', 'planted')`);
@@ -314,6 +341,21 @@ try {
   const COACH_2 = 'c2c2c2c2-c2c2-c2c2-c2c2-c2c2c2c2c2c2';
   const SUPPORT_1 = '55555555-5555-5555-5555-555555555555';
   const EX_COACH = 'e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0';
+  /* THE ACTOR THIS SUITE DID NOT HAVE.
+     Every "unauthorised coach" above was COACH_2, who is in the OTHER
+     organisation — so every deny they proved was a tenancy deny, and the
+     within-tenant boundary went untested. COACH_3 is a fully legitimate,
+     active coach in ORG_1 who simply does not coach ATHLETE_A. They are the
+     realistic adversary: same tenant, same key space, same visibility of
+     template versions and memberships, no relationship to this athlete. */
+  const COACH_3 = 'c3c3c3c3-c3c3-c3c3-c3c3-c3c3c3c3c3c3';
+  /* COACH_3's own athlete, so COACH_3 can make authorised calls of their own
+     and we can ask whose data comes back. */
+  const ATHLETE_E = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+  /* An athlete who LEFT the organisation. The assignment row survives, as it
+     does in practice; the membership does not. */
+  const ATHLETE_D = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+  const ASSIGN_D = '6d6d6d6d-6d6d-6d6d-6d6d-6d6d6d6d6d6d';
   const TPL = '33333333-3333-3333-3333-333333333333';
   const TPLV = '44444444-4444-4444-4444-444444444444';
   const ASSIGN = '66666666-6666-6666-6666-666666666666';
@@ -324,20 +366,27 @@ try {
      layer does, which is the only sanctioned writer. */
   asOwnerSql(`
     insert into auth.users (id) values
-      ('${COACH_1}'), ('${COACH_2}'), ('${SUPPORT_1}'), ('${EX_COACH}')
+      ('${COACH_1}'), ('${COACH_2}'), ('${COACH_3}'), ('${SUPPORT_1}'), ('${EX_COACH}'),
+      ('${ATHLETE_D}'), ('${ATHLETE_E}')
       on conflict do nothing;
     insert into public.organizations (id, name, created_by) values
       ('${ORG_1}', 'Org One', '${COACH_1}'),
       ('${ORG_2}', 'Org Two', '${COACH_2}');
-    insert into public.organization_memberships (organization_id, user_id, role, status) values
-      ('${ORG_1}', '${COACH_1}', 'coach', 'active'),
-      ('${ORG_1}', '${SUPPORT_1}', 'support', 'active'),
-      ('${ORG_1}', '${EX_COACH}', 'coach', 'revoked'),
-      ('${ORG_1}', '${ATHLETE_A}', 'athlete', 'active'),
-      ('${ORG_2}', '${COACH_2}', 'coach', 'active'),
-      ('${ORG_2}', '${ATHLETE_B}', 'athlete', 'active');
+    insert into public.organization_memberships (organization_id, user_id, role, status, revoked_at) values
+      ('${ORG_1}', '${COACH_1}', 'coach', 'active', null),
+      ('${ORG_1}', '${COACH_3}', 'coach', 'active', null),
+      ('${ORG_1}', '${SUPPORT_1}', 'support', 'active', null),
+      ('${ORG_1}', '${EX_COACH}', 'coach', 'revoked', now()),
+      ('${ORG_1}', '${ATHLETE_A}', 'athlete', 'active', null),
+      ('${ORG_1}', '${ATHLETE_E}', 'athlete', 'active', null),
+      -- The athlete who left. Their coach's membership is untouched.
+      ('${ORG_1}', '${ATHLETE_D}', 'athlete', 'revoked', now()),
+      ('${ORG_2}', '${COACH_2}', 'coach', 'active', null),
+      ('${ORG_2}', '${ATHLETE_B}', 'athlete', 'active', null);
     insert into public.coach_athlete_assignments (organization_id, coach_user_id, athlete_user_id) values
       ('${ORG_1}', '${COACH_1}', '${ATHLETE_A}'),
+      ('${ORG_1}', '${COACH_1}', '${ATHLETE_D}'),
+      ('${ORG_1}', '${COACH_3}', '${ATHLETE_E}'),
       ('${ORG_1}', '${EX_COACH}', '${ATHLETE_A}');
     insert into public.program_templates (id, organization_id, domain, name, created_by)
       values ('${TPL}', '${ORG_1}', 'strength', 'Base Strength', '${COACH_1}');
@@ -345,6 +394,8 @@ try {
       values ('${TPLV}', '${TPL}', 1, '${COACH_1}');
     insert into public.program_assignments (id, organization_id, athlete_user_id, template_version_id, preferred_start_date, preferred_weekdays, created_by)
       values ('${ASSIGN}', '${ORG_1}', '${ATHLETE_A}', '${TPLV}', date '2026-08-10', '{1,3,5}', '${COACH_1}');
+    insert into public.program_assignments (id, organization_id, athlete_user_id, template_version_id, preferred_start_date, preferred_weekdays, created_by)
+      values ('${ASSIGN_D}', '${ORG_1}', '${ATHLETE_D}', '${TPLV}', date '2026-08-10', '{2,4}', '${COACH_1}');
     insert into public.coach_decisions (id, organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
       values ('${DECISION}', '${ORG_1}', '${ATHLETE_A}', '${COACH_1}', 'assignment_created', 'idem-1');
     insert into public.decision_receipts (id, decision_id, organization_id, athlete_user_id, summary)
@@ -400,15 +451,15 @@ try {
       [ATHLETE_A, `insert into public.program_assignments (organization_id, athlete_user_id, template_version_id, preferred_start_date, created_by) values ('${ORG_1}', '${ATHLETE_A}', '${TPLV}', date '2026-08-10', '${ATHLETE_A}')`],
     ]) {
       const out = asAthlete(who, refusalProbe(sql));
-      if (!out.includes('REFUSED')) throw new Error(`a client write was ACCEPTED: ${sql.slice(0, 60)}...`);
+      if (!wasRefused(out)) throw new Error(`a client write was ACCEPTED: ${sql.slice(0, 60)}...`);
     }
   });
 
-  check('REPLAYED IDEMPOTENCY KEY: the same key twice in one org is rejected', () => {
+  check('REPLAYED IDEMPOTENCY KEY: the same key, athlete and kind twice is rejected', () => {
     const out = asOwnerProbe(
       `insert into public.coach_decisions (organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
-       values ('${ORG_1}', '${ATHLETE_A}', '${COACH_1}', 'assignment_updated', 'idem-1')`);
-    if (!out.includes('REFUSED')) throw new Error('a replayed idempotency key was accepted');
+       values ('${ORG_1}', '${ATHLETE_A}', '${COACH_1}', 'assignment_created', 'idem-1')`);
+    if (!wasRefused(out)) throw new Error('a replayed idempotency key was accepted');
   });
 
   check('the same key in a DIFFERENT organisation is fine, so keys cannot be probed across tenants', () => {
@@ -416,6 +467,63 @@ try {
       `insert into public.coach_decisions (organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
        values ('${ORG_2}', '${ATHLETE_B}', '${COACH_2}', 'assignment_created', 'idem-1')`);
     if (!out.includes('ACCEPTED')) throw new Error('idempotency is global rather than per-organisation');
+  });
+
+  check('the same key for a DIFFERENT KIND is fine — a collision used to return a write that never happened', () => {
+    /* Keys are derivable from the athlete and the template version, so one key
+       legitimately describes several decisions about the same assignment. When
+       uniqueness ignored `kind`, the second of those collided, the command
+       found a decision whose payload named no assignment, and returned NULL —
+       which the client reads as success. */
+    const out = asOwnerProbe(
+      `insert into public.coach_decisions (organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
+       values ('${ORG_1}', '${ATHLETE_A}', '${COACH_1}', 'assignment_updated', 'idem-1')`);
+    if (!out.includes('ACCEPTED')) throw new Error('idempotency ignores kind, so two kinds of decision collide');
+  });
+
+  check('the same key for a DIFFERENT ATHLETE is fine, so one coach cannot probe another coach\'s key space', () => {
+    const out = asOwnerProbe(
+      `insert into public.coach_decisions (organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
+       values ('${ORG_1}', '${ATHLETE_E}', '${COACH_3}', 'assignment_created', 'idem-1')`);
+    if (!out.includes('ACCEPTED')) throw new Error('idempotency is org-wide, so a derivable key is an existence oracle across athletes');
+  });
+
+  check("ATHLETE LEFT THE ORG: their coach loses access even though the assignment row remains", () => {
+    /* The membership on the ATHLETE's side is the one that is easy to omit —
+       `coaches_athlete` originally joined only the coach's. Deleting an
+       athlete's membership then revoked nothing, and their pain flag kept
+       reaching a coach they had left. */
+    const rows = countAs(COACH_1, `from public.program_assignments where id = '${ASSIGN_D}'`);
+    if (rows !== '0') throw new Error(`a departed athlete's coach still read ${rows} assignment(s)`);
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_D}', date '2026-08-10')`));
+    if (!wasRefused(out)) throw new Error("a departed athlete's summary was still readable");
+  });
+
+  check('WITHIN-TENANT: a real coach in the same org who does not coach this athlete sees nothing', () => {
+    const a = countAs(COACH_3, `from public.program_assignments where id = '${ASSIGN}'`);
+    const d = countAs(COACH_3, `from public.coach_decisions where id = '${DECISION}'`);
+    const r = countAs(COACH_3, `from public.decision_receipts where id = '${RECEIPT}'`);
+    if (a !== '0' || d !== '0' || r !== '0') {
+      throw new Error(`a same-org coach read ${a}/${d}/${r} of an athlete who is not theirs`);
+    }
+  });
+
+  check('REVOKED_AT CANNOT DISAGREE WITH STATUS: a paper-only revocation is rejected', () => {
+    /* `revoked_at` used to be decorative. Stamping it alone read as revoked to
+       a human and as fully active to every policy in the file — the audit trail
+       saying access ended while access continued. */
+    for (const sql of [
+      `insert into public.organization_memberships (organization_id, user_id, role, status, revoked_at)
+         values ('${ORG_1}', '${COACH_2}', 'coach', 'active', now())`,
+      `insert into public.coach_athlete_assignments (organization_id, coach_user_id, athlete_user_id, status, revoked_at)
+         values ('${ORG_1}', '${COACH_3}', '${ATHLETE_A}', 'active', now())`,
+      `insert into public.coach_athlete_assignments (organization_id, coach_user_id, athlete_user_id, status, revoked_at)
+         values ('${ORG_1}', '${COACH_2}', '${ATHLETE_E}', 'revoked', null)`,
+    ]) {
+      const out = asOwnerProbe(sql);
+      if (!wasRefused(out)) throw new Error(`a revocation that contradicts itself was accepted: ${sql.slice(0, 70)}...`);
+    }
   });
 
   check('IMMUTABLE: decisions, receipts and published versions cannot be edited or deleted', () => {
@@ -427,7 +535,7 @@ try {
       `update public.program_template_versions set body = '{"x":1}'::jsonb where id = '${TPLV}'`,
     ]) {
       const out = asOwnerProbe(sql);
-      if (!out.includes('REFUSED')) throw new Error(`an immutable record accepted: ${sql.slice(0, 50)}...`);
+      if (!wasRefused(out)) throw new Error(`an immutable record accepted: ${sql.slice(0, 50)}...`);
     }
   });
 
@@ -461,7 +569,10 @@ try {
            || '/' || (select count(*) from public.decision_receipts r
                        join public.coach_decisions d on d.id = r.decision_id
                       where d.idempotency_key = 'cmd-ok-1');`));
-    if (got !== '2/1/1') throw new Error(`assignment/decision/receipt counts were ${got}`);
+    /* Three assignments in ORG_1: the two seeded (ATHLETE_A, ATHLETE_D) plus
+       the one this command just wrote. One decision and one receipt for the
+       key, which is the part being asserted. */
+    if (got !== '3/1/1') throw new Error(`assignment/decision/receipt counts were ${got}`);
   });
 
   check('COMMAND: a replay returns the original instead of writing twice', () => {
@@ -474,22 +585,22 @@ try {
 
   check('COMMAND: a coach cannot assign to an athlete who is not theirs', () => {
     const out = callAssign(COACH_2, ORG_1, ATHLETE_A, 'cmd-cross-1');
-    if (!out.includes('REFUSED')) throw new Error("another org's coach wrote an assignment");
+    if (!wasRefused(out)) throw new Error("another org's coach wrote an assignment");
   });
 
   check('COMMAND: a revoked coach cannot assign', () => {
     const out = callAssign(EX_COACH, ORG_1, ATHLETE_A, 'cmd-revoked-1');
-    if (!out.includes('REFUSED')) throw new Error('a revoked coach wrote an assignment');
+    if (!wasRefused(out)) throw new Error('a revoked coach wrote an assignment');
   });
 
   check('COMMAND: an athlete cannot assign to themselves', () => {
     const out = callAssign(ATHLETE_A, ORG_1, ATHLETE_A, 'cmd-self-1');
-    if (!out.includes('REFUSED')) throw new Error('an athlete assigned a program to themselves');
+    if (!wasRefused(out)) throw new Error('an athlete assigned a program to themselves');
   });
 
   check('COMMAND: support cannot assign', () => {
     const out = callAssign(SUPPORT_1, ORG_1, ATHLETE_A, 'cmd-support-1');
-    if (!out.includes('REFUSED')) throw new Error('support wrote an assignment');
+    if (!wasRefused(out)) throw new Error('support wrote an assignment');
   });
 
   check("COMMAND: a coach cannot assign another tenant's template version", () => {
@@ -499,16 +610,32 @@ try {
       insert into public.program_template_versions (id, template_id, version, published_by)
         values ('aaaa1111-0000-0000-0000-000000000002', 'aaaa1111-0000-0000-0000-000000000001', 1, '${COACH_2}');`);
     const out = callAssign(COACH_1, ORG_1, ATHLETE_A, 'cmd-tpl-1', 'aaaa1111-0000-0000-0000-000000000002');
-    if (!out.includes('REFUSED')) throw new Error("a coach assigned another organisation's program");
+    if (!wasRefused(out)) throw new Error("a coach assigned another organisation's program");
   });
 
   check('COMMAND: the refusal does not say WHICH check failed, so athletes cannot be enumerated', () => {
     const notMine = callAssign(COACH_2, ORG_1, ATHLETE_A, 'cmd-probe-1');
     const notReal = callAssign(COACH_2, ORG_1, '00000000-0000-0000-0000-0000000000ff', 'cmd-probe-2');
-    const norm = (s) => (s.match(/REFUSED \(([^)]*)\)/) ?? [])[1] ?? s;
+    const norm = (s) => (s.match(/REFUSED \[[0-9A-Z]+\] (.*)/) ?? [])[1] ?? s;
     if (norm(notMine) !== norm(notReal)) {
       throw new Error(`a real athlete and a fake one produced different errors: "${norm(notMine)}" vs "${norm(notReal)}"`);
     }
+  });
+
+  check('COMMAND: a replay is scoped to the ATHLETE, not just the organisation', () => {
+    /* The one that mattered most. `create_program_assignment` is SECURITY
+       DEFINER, so its replay lookup is not filtered by RLS — whatever the
+       predicate omits, nothing else supplies. Keyed on the organisation alone,
+       it returned ANOTHER coach's athlete's assignment to any coach in the
+       organisation who reused a key, and the key is derivable from two values
+       the read policies already hand out.
+       COACH_3 is authorised for ATHLETE_E and reuses COACH_1's key. What comes
+       back must be ATHLETE_E's own new assignment. */
+    const got = lastLine(asAthlete(COACH_3,
+      `select athlete_user_id from public.create_program_assignment(
+         '${ORG_1}', '${ATHLETE_E}', '${TPLV}', date '2026-09-01', '{1,3}'::smallint[], 'cmd-ok-1');`));
+    if (got === ATHLETE_A) throw new Error("a reused key handed one coach another coach's athlete's assignment");
+    if (got !== ATHLETE_E) throw new Error(`expected the caller's own athlete, got ${got}`);
   });
 
 
@@ -548,25 +675,25 @@ try {
   check('PROJECTION: another tenant\'s coach is refused', () => {
     const out = asAthlete(COACH_2, refusalProbe(
       `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
-    if (!out.includes('REFUSED')) throw new Error("another org's coach read the summary");
+    if (!wasRefused(out)) throw new Error("another org's coach read the summary");
   });
 
   check('PROJECTION: a revoked coach is refused', () => {
     const out = asAthlete(EX_COACH, refusalProbe(
       `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
-    if (!out.includes('REFUSED')) throw new Error('a revoked coach read the summary');
+    if (!wasRefused(out)) throw new Error('a revoked coach read the summary');
   });
 
   check('PROJECTION: support is refused', () => {
     const out = asAthlete(SUPPORT_1, refusalProbe(
       `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
-    if (!out.includes('REFUSED')) throw new Error('support read the summary');
+    if (!wasRefused(out)) throw new Error('support read the summary');
   });
 
   check('PROJECTION: another athlete is refused', () => {
     const out = asAthlete(ATHLETE_B, refusalProbe(
       `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
-    if (!out.includes('REFUSED')) throw new Error("athlete B read athlete A's summary");
+    if (!wasRefused(out)) throw new Error("athlete B read athlete A's summary");
   });
 
   check('PROJECTION: it returns COUNTS and cannot return the snapshot', () => {
@@ -591,6 +718,76 @@ try {
     if (!/REFUSED|ROWS 0/.test(raw)) {
       throw new Error(`a coach read the athlete's raw snapshots directly: ${lastLine(raw)}`);
     }
+  });
+
+  /* The snapshot is athlete-written and arrives through a write path that does
+     not validate its interior. If a bad shape can abort this function, then one
+     athlete can suppress the pain flag the projection exists to carry — for
+     themselves, by writing nonsense. That is the failure mode being closed. */
+  asOwnerSql(`
+    insert into public.athlete_domain_snapshots (user_id, domain, writer, snapshot) values
+      ('${ATHLETE_E}', 'strength', 'test', '{"sessions":{"not":"an array"}}'::jsonb)
+      on conflict (user_id, domain) do update set snapshot = excluded.snapshot;
+    insert into public.athlete_domain_snapshots (user_id, domain, writer, snapshot) values
+      ('${ATHLETE_E}', 'nutrition', 'test', '{"logEntries":"not an array either"}'::jsonb)
+      on conflict (user_id, domain) do update set snapshot = excluded.snapshot;
+    insert into public.athlete_core (user_id, state) values
+      ('${ATHLETE_E}', jsonb_build_object('safety', jsonb_build_object(
+         'painHold', jsonb_build_object('active', 'maybe'))))
+      on conflict (user_id) do update set state = excluded.state;`);
+
+  check('PROJECTION: a malformed snapshot degrades to zero counts, it does not abort the answer', () => {
+    const got = summary(COACH_3, ORG_1, ATHLETE_E);
+    if (got !== '0/0/0/0/false') throw new Error(`expected 0/0/0/0/false from an unusable snapshot, got ${got}`);
+  });
+
+  check('PROJECTION: an absent illness field is unknown, not unwell', () => {
+    /* `is distinct from 'clear'` reads a missing field as a raised flag, which
+       puts "Pain or illness flag is active" beside every athlete who has never
+       filled it in — and a flag that is always on is a flag nobody reads. */
+    const got = summary(COACH_3, ORG_1, ATHLETE_E);
+    if (!got.endsWith('/false')) throw new Error(`an athlete with no illness data was reported as flagged: ${got}`);
+  });
+
+  check('PROJECTION: an illness that IS recorded and is not clear does flag', () => {
+    asOwnerSql(`update public.athlete_core
+                   set state = jsonb_set(state, '{safety,illness}', '{"status":"suspected"}'::jsonb)
+                 where user_id = '${ATHLETE_E}';`);
+    const got = summary(COACH_3, ORG_1, ATHLETE_E);
+    if (!got.endsWith('/true')) throw new Error(`a recorded illness did not reach the coach: ${got}`);
+  });
+
+  /* ---------------------------------------------------------------------
+   * Immutability's two remaining holes. Both are destructive, so they run
+   * last: the erasure test really does delete an organisation.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC — immutability, erasure and the statements that go around both:\n');
+
+  check('TRUNCATE cannot empty the audit trail — row triggers do not fire for it', () => {
+    for (const t of ['coach_decisions', 'decision_receipts', 'program_template_versions', 'assignment_input_versions']) {
+      const out = asOwnerProbe(`truncate table public.${t} cascade`);
+      if (!wasRefused(out)) throw new Error(`${t} was truncated past its immutability trigger`);
+    }
+  });
+
+  check('ERASURE STILL WORKS: removing the organisation cascades through the immutable records', () => {
+    /* An audit record that cannot be deleted under ANY circumstance makes an
+       erasure request impossible to satisfy — the cascade hits the trigger and
+       the whole statement rolls back. The trigger therefore yields only when
+       the parent it describes is already gone, which is exactly what a cascade
+       looks like from inside it. */
+    const out = asOwnerProbe(`delete from public.organizations where id = '${ORG_2}'`);
+    if (!out.includes('ACCEPTED')) {
+      throw new Error(`an organisation could not be deleted, so erasure is impossible: ${lastLine(out)}`);
+    }
+    const left = lastLine(asOwnerSqlOut(
+      `select count(*) from public.coach_decisions where organization_id = '${ORG_2}';`));
+    if (left !== '0') throw new Error(`${left} decision(s) survived the organisation's deletion`);
+  });
+
+  check('and a DIRECT delete is still refused, so the erasure hole is only that', () => {
+    const out = asOwnerProbe(`delete from public.coach_decisions where id = '${DECISION}'`);
+    if (!wasRefused(out)) throw new Error('a decision was deleted while its organisation and athlete still existed');
   });
 
 } finally {

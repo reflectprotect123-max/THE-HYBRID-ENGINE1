@@ -1,3 +1,6 @@
+import type { Session } from '@hybrid/engine';
+import type { WeeklyPlan } from '@hybrid/coordinator-adapter';
+
 /**
  * Where a client's data comes from, and therefore what may be shown.
  *
@@ -92,8 +95,34 @@ export interface CoachWorkspaceSettings {
   };
 }
 
+/**
+ * One athlete's week, as the server is willing to describe it.
+ *
+ * The week review needs a resolved plan and the sessions inside the window —
+ * `buildWeekReview(plan, sessions, interventions)` takes exactly that and is
+ * already athlete-agnostic, so nothing in the projection layer changes.
+ *
+ * `interventions` is deliberately ABSENT. The auto-coach ledger is device-local
+ * and never syncs (`AGENTS.md`), so for a remote athlete there is no source for
+ * it. Passing the COACH's own ledger would attribute the coach's interventions
+ * to the athlete — precisely the bug layer 3 exists to remove. The caller
+ * passes an empty list and the screen says so.
+ */
+export interface AthleteWeekProjection {
+  weeklyPlan: WeeklyPlan;
+  sessions: Session[];
+  /** Nutrition adherence, the only nutrition the week review reads. */
+  nutrition: { loggedDays: number; windowDays: number } | null;
+}
+
 export interface CoachWorkspaceRepository {
   listClients(): Promise<readonly ClientSummary[]>;
+  /**
+   * The selected athlete's week, or null when this client's detail is not
+   * readable. Null is a FACT, not a failure — a `roster-summary` client has an
+   * authorised summary and no readable detail yet.
+   */
+  getAthleteWeek?(clientId: string, weekStart: string): Promise<AthleteWeekProjection | null>;
   listProgramTemplates(): Promise<readonly ProgramTemplate[]>;
   saveAssignmentDraft(draft: ProgramAssignmentDraft): Promise<ProgramAssignmentDraft>;
   getSettings(): Promise<CoachWorkspaceSettings>;
