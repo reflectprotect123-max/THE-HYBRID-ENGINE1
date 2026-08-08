@@ -213,10 +213,25 @@ they are real.
   a record that can never be removed makes an erasure request impossible to
   satisfy. The discriminator is that the parent row is already gone by the time
   the trigger fires. Both halves are tested.
-  - Still open: `coach_decisions.actor_user_id` is `on delete restrict`, so
-    deleting a COACH's `auth.users` row is blocked outright. Erasing a coach
-    therefore needs a decided policy — anonymise the actor, or transfer it —
-    and that decision has not been made.
+  - RESOLVED (8 August 2026): `coach_decisions.actor_user_id` was
+    `on delete restrict`, blocking deletion of a coach's `auth.users` row
+    outright. Decided: anonymise the actor, never transfer it — the decision
+    row and its receipt belong to the ATHLETE's history, which needs to keep
+    knowing WHAT happened and WHEN, not WHO, once that identity is erased.
+    Built in `supabase/migrations/20260808_arc_erasure_actor.sql`:
+    `actor_user_id` is now nullable with `on delete set null`, and
+    `coach_decisions`'s immutability trigger is replaced with a narrower
+    function (`deny_coach_decision_mutation`, `deny_mutation` itself and
+    every other table using it are untouched) that permits EXACTLY one
+    UPDATE shape — the actor moving to null, every other column
+    byte-for-byte unchanged. Mutation-tested: a hand-crafted UPDATE
+    smuggling a `kind` change alongside the actor erasure is still refused.
+    Still open, and explicitly NOT what this migration claims to fix: a
+    coach who created an organisation or template
+    (`organizations.created_by`, `program_templates.created_by`,
+    `program_template_versions.published_by`, all separately
+    `on delete restrict`) is still unerasable. Same policy question, not yet
+    decided for those columns.
 
 ## Gaps in this register
 

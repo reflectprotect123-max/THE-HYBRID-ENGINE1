@@ -1333,6 +1333,50 @@ try {
     if (!wasRefused(out)) throw new Error('a decision was deleted while its organisation and athlete still existed');
   });
 
+  /* ---------------------------------------------------------------------
+   * The still-open half of the erasure gap, now closed:
+   * coach_decisions.actor_user_id was `not null ... on delete restrict`,
+   * which blocked deleting a COACH's auth.users row outright. A minimal,
+   * actor-ONLY fixture user is used here on purpose — COACH_1 is also
+   * `organizations.created_by`/`program_templates.created_by`/etc., all
+   * SEPARATELY `on delete restrict`, and deleting COACH_1 would hit one of
+   * those first, proving nothing about the specific fix this migration
+   * makes. ERASABLE_COACH_1/2 exist ONLY as a coach_decisions actor.
+   * ------------------------------------------------------------------- */
+  const ERASABLE_COACH_1 = 'ea5ab1e0-0001-0001-0001-ea5ab1e00001';
+  const ERASABLE_COACH_2 = 'ea5ab1e0-0002-0002-0002-ea5ab1e00002';
+  const ERASURE_DECISION_1 = '9c9c9c9c-0001-0001-0001-9c9c9c9c0001';
+  const ERASURE_DECISION_2 = '9c9c9c9c-0002-0002-0002-9c9c9c9c0002';
+  asOwnerSql(`
+    insert into auth.users (id) values ('${ERASABLE_COACH_1}'), ('${ERASABLE_COACH_2}') on conflict do nothing;
+    insert into public.coach_decisions (id, organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
+      values ('${ERASURE_DECISION_1}', '${ORG_1}', '${ATHLETE_A}', '${ERASABLE_COACH_1}', 'assignment_created', 'erasure-test-1');
+    insert into public.coach_decisions (id, organization_id, athlete_user_id, actor_user_id, kind, idempotency_key)
+      values ('${ERASURE_DECISION_2}', '${ORG_1}', '${ATHLETE_A}', '${ERASABLE_COACH_2}', 'assignment_created', 'erasure-test-2');`);
+
+  check('ERASURE (actor): deleting a COACH erases actor_user_id, not the decision', () => {
+    const out = asOwnerProbe(`delete from auth.users where id = '${ERASABLE_COACH_1}'`);
+    if (!out.includes('ACCEPTED')) throw new Error(`the coach could not be erased: ${lastLine(out)}`);
+    const actor = lastLine(asOwnerSqlOut(
+      `select coalesce(actor_user_id::text, 'NULL') from public.coach_decisions where id = '${ERASURE_DECISION_1}';`));
+    if (actor !== 'NULL') throw new Error(`expected actor_user_id nulled, got ${actor}`);
+    const stillThere = lastLine(asOwnerSqlOut(
+      `select count(*) from public.coach_decisions where id = '${ERASURE_DECISION_1}';`));
+    if (stillThere !== '1') throw new Error('the decision row itself was lost, not just its actor');
+  });
+
+  check('ERASURE (actor): the escape hatch permits ONLY the actor moving to null, nothing else riding along', () => {
+    /* ERASABLE_COACH_2's row still has a non-null actor -- a genuinely
+       erasure-shaped update (actor_user_id -> null) that ALSO changes `kind`
+       in the same statement must still be refused, proving the escape hatch
+       checks every other column, not just that the actor went null. */
+    const out = asOwnerProbe(
+      `update public.coach_decisions set actor_user_id = null, kind = 'progression_approved' where id = '${ERASURE_DECISION_2}'`);
+    if (!wasRefused(out)) throw new Error('an update smuggled a kind change alongside actor erasure');
+    const kind = lastLine(asOwnerSqlOut(`select kind from public.coach_decisions where id = '${ERASURE_DECISION_2}';`));
+    if (kind !== 'assignment_created') throw new Error(`kind changed to ${kind} despite the refusal`);
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });
