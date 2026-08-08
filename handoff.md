@@ -1,11 +1,85 @@
 # Claude Handoff — THE Hybrid System
 
-> **AUTHORITATIVE CHECKPOINT — 7 August 2026 (after the debug pass): everything
-> is built, merged and installable, and a full adversarial debug has been run
-> and its findings fixed. What remains is verification on real hardware.**
+> **AUTHORITATIVE CHECKPOINT — 8 August 2026 (ARC coach workspace, layers 1–2
+> plus a hardened layer 3 seam): the roster-based ARC backend is live, its
+> security review findings are fixed, and the pre-existing self-coach bench can
+> no longer show a coach their own training under a roster client's name.**
 >
-> Supersedes every checkpoint below. They stay as history and remain accurate
-> about their own scope; where one contradicts this, this wins.
+> Supersedes every checkpoint below, including the 7 August ones. They stay as
+> history and remain accurate about their own scope; where one contradicts
+> this, this wins.
+
+## ARC coach workspace — where it actually stands
+
+Full detail: `docs/ARC_CLAUDE_HANDOFF.md`, `docs/HANDOFF_2026-08-08_ARC_IMPORT.md`,
+`docs/RISK_REGISTER.md`. This section is the short version.
+
+**Layers 1–2 (repository + backend) are built and tested.**
+`supabase/migrations/20260808_arc_coach_workspace.sql` — ten tables, RLS,
+`create_program_assignment` and `get_athlete_training_summary`, both
+SECURITY DEFINER with authorization as the first statement. Not yet applied
+to the real Supabase project; verified against a throwaway local Postgres in
+`checks/migrations-apply.mjs` (40+ ARC-specific deny tests).
+
+**An adversarial security review found nine issues; four were live boundary
+breaks, all fixed and each covered by a test demonstrated able to fail by
+mutating the migration** (commit `e89d51c`):
+cross-tenant read through `create_program_assignment`'s replay lookup (scoped
+by organisation only, SECURITY DEFINER, keys derivable from data the read
+policies already expose); `coaches_athlete` never checked the ATHLETE's own
+membership, so a departed athlete's pain flag kept reaching their old coach;
+`revoked_at` was decorative — only `status` was load-bearing — now a check
+constraint forbids the two disagreeing; the athlete-written snapshot could
+crash `get_athlete_training_summary` and suppress the safety flag it exists
+to carry, now degrades to zero counts instead. TRUNCATE bypassed the audit
+trail's row triggers; the same triggers blocked organisation/athlete erasure
+outright — both fixed, the second by yielding only when the parent row is
+already gone (a real cascade), never on a direct delete. Deny-suite probes
+used to score a broken test (renamed function, dropped table) as a passing
+denial; they now read SQLSTATE and fail on the five states that mean the
+probe itself is broken.
+
+**Two residual risks are accepted, not fixed, and recorded in
+`docs/RISK_REGISTER.md`:** no coach table carries `force row level security`
+— the owner exemption IS the write path, since every write is a SECURITY
+DEFINER command and there are no client INSERT policies — so the
+service-role key is a full read of every athlete's coaching data and must
+never leave the server; and `coach_decisions.actor_user_id on delete
+restrict` blocks erasing a COACH outright, which needs a product decision
+(anonymise vs. transfer) nobody has made yet.
+
+**Layer 3 (rewire the pre-existing self-coach bench from "me" to "this
+athlete") is NOT built** — that is real new backend surface (per-athlete
+progression ledgers, authoring, nutrition detail) the handoff correctly
+sized at 2–4 weeks, and none of it exists today. What IS done: the actual
+risk the handoff flagged — "renders the coach's own records under a
+client's name" — is closed structurally rather than left as a banner a
+coach can act straight past.
+
+`ClientDetailGate` (`apps/web/src/coach/ClientDetailGate.tsx`) now wraps
+every coach route that reads or writes the signed-in account's own local
+stores (`author`, `nutrition`, `progression`, `review/:weekStart`, `legacy`,
+`build/:id`, `planner/:id`) and blocks entirely — not just discloses —
+unless `engine-local` (the self-coach case) is selected. `CoachCommandCenter`
+had two sections that were never gated at all even though the rest of the
+page already was (the resolved week, and the readiness/capacity/trend
+figures under "Operating context") — those now match the page's own
+existing per-client pattern. `checks/coach-contract.mjs` rule 9 asserts both
+structurally (every listed route wrapped in `<ClientDetailGate>`; the two
+`CoachCommandCenter` reads sit within 500 characters of the `isLocalClient`
+guard token) and was proven able to fail by un-wrapping a route and by
+reverting one guard.
+
+**Still true and unstarted:** layer 3's real backend surface, and layer 4
+(offline outbox, replay re-authorization, account-switch isolation).
+
+Verified before this checkpoint: `pnpm run typecheck` (17/17),
+`pnpm run test` (mobile 243, web 148 incl. 9 new ClientDetailGate tests),
+`node checks/coach-contract.mjs`, `node checks/migrations-apply.mjs`,
+`node checks/react-smoke.mjs` (incl. "the coach bench opens... no uncaught
+page errors"), `node checks/docs.mjs`, `pnpm run check:ecosystem`,
+`pnpm --filter @hybrid/web build:strength`. All green.
+
 
 ## State
 

@@ -248,6 +248,59 @@ console.log('Coach surface contract\n');
   } else pass('the standalone coach workspace stays on coach routes');
 }
 
+/* ---------------------------------------------------------------------------
+ * 9. A roster client's screen never shows the SIGNED-IN account's own
+ *    training data as if it were theirs.
+ *
+ * `useDb()` / `useNutrition()` / the progression and authoring ledgers are the
+ * signed-in account's own local stores — correct only while `engine-local` is
+ * selected. Every route that reads them behind `/coach/author`, `/nutrition`,
+ * `/progression`, `/review/:weekStart`, `/legacy`, `/build/:id` and
+ * `/planner/:id` must be wrapped in `ClientDetailGate`, which blocks instead
+ * of merely disclosing (see ClientDetailGate.tsx's own header comment for
+ * why a disclosure banner a coach can act past is not a guard).
+ *
+ * CoachCommandCenter is the one screen that is NOT fully behind that gate —
+ * its client-overview sections are meant to render for every client — so its
+ * two sections that read local athlete state directly (the resolved week,
+ * and readiness/capacity/trends) are checked individually: each risky read
+ * must sit close enough after the literal token `isLocalClient` in the source
+ * that removing the gate is the only way to make this check pass again.
+ * ------------------------------------------------------------------------- */
+{
+  const routerFile = 'apps/web/src/coach/index.tsx';
+  const router = code(resolve(ROOT, routerFile));
+  const gatedPaths = ['author', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'build/:id', 'planner/:id'];
+  const ungatedRoutes = gatedPaths.filter((path) => {
+    // The route line itself, e.g. `<Route path="author" element={<ClientDetailGate ...`
+    const line = new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*element=\\{<ClientDetailGate\\b`);
+    return !line.test(router);
+  });
+  if (ungatedRoutes.length) {
+    fail(
+      "a roster client's screen never shows the signed-in account's own training as theirs",
+      `${routerFile} routes not wrapped in <ClientDetailGate>: ${ungatedRoutes.join(', ')}.`,
+    );
+  } else pass("every coach detail route is behind ClientDetailGate");
+
+  const ccFile = 'apps/web/src/coach/CoachCommandCenter.tsx';
+  const cc = code(resolve(ROOT, ccFile));
+  const GUARD = 'isLocalClient';
+  const riskyMarkers = ['<AthleteStatus', 'weeklyPlan.entries.map', 'athleteState.readiness.band'];
+  const unguarded = riskyMarkers.filter((marker) => {
+    const at = cc.indexOf(marker);
+    if (at === -1) return true; // moved or renamed — fail closed, do not silently pass
+    const before = cc.slice(Math.max(0, at - 500), at);
+    return !before.includes(GUARD);
+  });
+  if (unguarded.length) {
+    fail(
+      'CoachCommandCenter never renders local athlete state unguarded',
+      `${ccFile} has ${unguarded.join(', ')} not preceded by an '${GUARD}' guard within 500 characters.`,
+    );
+  } else pass("CoachCommandCenter's local-only sections stay behind isLocalClient");
+}
+
 console.log(
   failures ? `\n${failures} FAILURE(S)` : '\nAll coach contract checks passed.',
 );

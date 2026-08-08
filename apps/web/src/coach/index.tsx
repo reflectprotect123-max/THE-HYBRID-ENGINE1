@@ -8,6 +8,7 @@ import { CoachCommandCenter } from './CoachCommandCenter';
 import { ArcCoachFrame } from './ArcCoachFrame';
 import { CoachLibrary } from './CoachLibrary';
 import { CoachSettings } from './CoachSettings';
+import { ClientDetailGate } from './ClientDetailGate';
 import { Planner } from '../screens/Planner';
 import { GuidedBuilder } from '../screens/guided/GuidedBuilder';
 import { CoachWorkspaceProvider } from './CoachWorkspaceContext';
@@ -29,13 +30,21 @@ export default function Coach() {
             <Route index element={<CoachCommandCenter />} />
             <Route path="library" element={<CoachLibrary />} />
             <Route path="settings" element={<CoachSettings />} />
-            <Route path="author" element={<CoachAuthoring />} />
-            <Route path="nutrition" element={<CoachNutrition />} />
-            <Route path="progression" element={<CoachProgression />} />
-            <Route path="review/:weekStart" element={<WeekReview />} />
-            <Route path="legacy" element={<CoachShell />} />
-            <Route path="build/:id" element={<GuidedBuilder />} />
-            <Route path="planner/:id" element={<Planner />} />
+            {/*
+              Everything below reads and writes the SIGNED-IN account's own
+              local stores (useDb / useNutrition / the progression and
+              authoring ledgers) — correct while `engine-local` is selected,
+              and the self-coach bench nothing here writes a roster client's
+              record. ClientDetailGate blocks it instead of merely disclosing
+              it, for any other selection. See ClientDetailGate.tsx.
+            */}
+            <Route path="author" element={<ClientDetailGate tool="Authoring"><CoachAuthoring /></ClientDetailGate>} />
+            <Route path="nutrition" element={<ClientDetailGate tool="Nutrition"><CoachNutrition /></ClientDetailGate>} />
+            <Route path="progression" element={<ClientDetailGate tool="Decisions"><CoachProgression /></ClientDetailGate>} />
+            <Route path="review/:weekStart" element={<ClientDetailGate tool="Week review"><WeekReview /></ClientDetailGate>} />
+            <Route path="legacy" element={<ClientDetailGate tool="Program bench"><CoachShell /></ClientDetailGate>} />
+            <Route path="build/:id" element={<ClientDetailGate tool="Workout builder"><GuidedBuilder /></ClientDetailGate>} />
+            <Route path="planner/:id" element={<ClientDetailGate tool="Planner"><Planner /></ClientDetailGate>} />
           </Route>
           <Route path="*" element={<Navigate to="/coach" replace />} />
         </Routes>

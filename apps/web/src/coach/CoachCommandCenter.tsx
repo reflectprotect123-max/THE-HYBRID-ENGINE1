@@ -142,7 +142,13 @@ export function CoachCommandCenter() {
   if (clientsLoading || !selectedClient) return <main className="min-h-screen bg-bg p-4 text-sm text-muted" aria-busy="true">Loading coach workspace…</main>;
   if (clientsError) return <main className="min-h-screen bg-bg p-4 text-sm text-bad" role="alert">{clientsError}</main>;
 
-  const displayedPriorities = selectedClient.source === 'engine-local' ? priorities : selectedClient.alert ? [{ id: `client:${selectedClient.id}`, level: 'decision' as const, title: selectedClient.alert, detail: `${selectedClient.name} is in ${selectedClient.week.toLowerCase()} of ${selectedClient.block}.`, next: 'Backend evidence is required before this fixture can be actioned.', to: '/coach' }] : [];
+  // The one flag every section below gates on. `weeklyPlan` and `athleteState`
+  // (from useDb()) are the SIGNED-IN account's own — real and correct only for
+  // this client. Rendering them for any other selection is the exact failure
+  // named in the handoff: "renders the coach's own records under a client's
+  // name." Every section on this page must ask this before showing either.
+  const isLocalClient = selectedClient.source === 'engine-local';
+  const displayedPriorities = isLocalClient ? priorities : selectedClient.alert ? [{ id: `client:${selectedClient.id}`, level: 'decision' as const, title: selectedClient.alert, detail: `${selectedClient.name} is in ${selectedClient.week.toLowerCase()} of ${selectedClient.block}.`, next: 'Backend evidence is required before this fixture can be actioned.', to: '/coach' }] : [];
 
   return (
     <main className="min-h-screen bg-bg text-text">
@@ -202,20 +208,39 @@ export function CoachCommandCenter() {
           </section>
 
           <section aria-labelledby="week-title">
-            <div className="mb-2 flex items-end"><div><p className="text-[9px] uppercase tracking-wider text-dim">Coordinator output</p><h2 id="week-title" className="text-base font-semibold">Resolved week</h2></div><Link to={`/coach/review/${weeklyPlan.weekStart}`} className="ml-auto text-xs text-gold2 hover:text-gold">Open ledger →</Link></div>
-            <div className="overflow-hidden rounded-lg border border-line2 bg-panel3">
-              {weeklyPlan.entries.map((entry) => <article key={entry.id} className="grid items-center gap-1 border-b border-line px-2.5 py-2 last:border-b-0 sm:grid-cols-[72px_1fr_auto]"><span className="text-[10px] uppercase tracking-wide text-gold2">{shortDate(entry.date)}</span><div className="min-w-0"><h3 className="truncate text-sm font-medium">{entry.title}</h3><p className="text-[11px] capitalize text-muted">{entry.effort} · {entry.locked ? 'locked intent' : 'Coordinator placed'}</p></div><span className="text-[9px] uppercase tracking-wide text-dim">{entry.domain}</span></article>)}
-              {weeklyPlan.entries.length === 0 && <p className="p-3 text-xs text-muted">No sessions resolved. Inspect safety, schedule and proposal inputs; do not invent a plan.</p>}
-            </div>
+            <div className="mb-2 flex items-end"><div><p className="text-[9px] uppercase tracking-wider text-dim">Coordinator output</p><h2 id="week-title" className="text-base font-semibold">Resolved week</h2></div>{isLocalClient && <Link to={`/coach/review/${weeklyPlan.weekStart}`} className="ml-auto text-xs text-gold2 hover:text-gold">Open ledger →</Link>}</div>
+            {isLocalClient ? (
+              <div className="overflow-hidden rounded-lg border border-line2 bg-panel3">
+                {weeklyPlan.entries.map((entry) => <article key={entry.id} className="grid items-center gap-1 border-b border-line px-2.5 py-2 last:border-b-0 sm:grid-cols-[72px_1fr_auto]"><span className="text-[10px] uppercase tracking-wide text-gold2">{shortDate(entry.date)}</span><div className="min-w-0"><h3 className="truncate text-sm font-medium">{entry.title}</h3><p className="text-[11px] capitalize text-muted">{entry.effort} · {entry.locked ? 'locked intent' : 'Coordinator placed'}</p></div><span className="text-[9px] uppercase tracking-wide text-dim">{entry.domain}</span></article>)}
+                {weeklyPlan.entries.length === 0 && <p className="p-3 text-xs text-muted">No sessions resolved. Inspect safety, schedule and proposal inputs; do not invent a plan.</p>}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-line2 bg-panel3 p-3 text-xs text-muted">
+                {selectedClient.name}&rsquo;s resolved week is not readable here yet — only their
+                weekly counts above are authorised today.
+              </p>
+            )}
           </section>
         </div>
 
         <aside className="xl:sticky xl:top-4 xl:self-start">
           <section className="mb-5" aria-labelledby="conditioning-load-title"><div><p className="text-[9px] uppercase tracking-wider text-dim">Conditioning</p><h2 id="conditioning-load-title" className="text-base font-semibold">Intensity distribution</h2></div><div className="mt-2 space-y-2"><LoadBar label="Easy" value={selectedClient.easy} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /><LoadBar label="Moderate" value={selectedClient.moderate} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /><LoadBar label="Hard" value={selectedClient.hard} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /></div><p className="mt-2 text-[10px] text-dim">Logged minutes by prescribed intensity. Distribution is context, not a readiness score.</p></section>
           <section aria-labelledby="context-title">
-            <div className="flex items-baseline"><div><p className="text-[9px] uppercase tracking-wider text-dim">Athlete state</p><h2 id="context-title" className="text-base font-semibold">Operating context</h2></div><span className="ml-auto text-[9px] uppercase tracking-wide text-muted">{athleteState.dataQuality}</span></div>
-            <dl className="mt-2 grid grid-cols-3 divide-x divide-line2 border-y border-line2 py-2 text-center"><Metric label="Readiness" value={athleteState.readiness.band} /><Metric label="Strength" value={athleteState.capacity.strength} /><Metric label="Conditioning" value={athleteState.capacity.conditioning} /></dl>
-            <div className="mt-2"><AthleteStatus /></div>
+            <div className="flex items-baseline"><div><p className="text-[9px] uppercase tracking-wider text-dim">Athlete state</p><h2 id="context-title" className="text-base font-semibold">Operating context</h2></div>{isLocalClient && <span className="ml-auto text-[9px] uppercase tracking-wide text-muted">{athleteState.dataQuality}</span>}</div>
+            {isLocalClient ? (
+              <>
+                <dl className="mt-2 grid grid-cols-3 divide-x divide-line2 border-y border-line2 py-2 text-center"><Metric label="Readiness" value={athleteState.readiness.band} /><Metric label="Strength" value={athleteState.capacity.strength} /><Metric label="Conditioning" value={athleteState.capacity.conditioning} /></dl>
+                <div className="mt-2"><AthleteStatus /></div>
+              </>
+            ) : (
+              <p className="mt-2 rounded border border-line2 bg-panel3 p-2 text-[11px] text-muted">
+                {/* Not a banner disclosure — this replaces the readiness/capacity
+                    figures entirely, so nothing of the signed-in coach's own
+                    state is on screen while {selectedClient.name} is selected. */}
+                {selectedClient.name}&rsquo;s readiness and capacity are not readable here yet.
+                Only the counts and safety flag above are authorised today.
+              </p>
+            )}
             <details className="mt-3 border-t border-line2 pt-2 text-xs">
               <summary className="cursor-pointer select-none font-medium text-muted hover:text-text">Truth layers and authority</summary>
               <ol className="mt-2 space-y-1.5"><Truth number="01" title="Intent" detail="The authored session and protected goal." /><Truth number="02" title="Resolution" detail="What the Coordinator allowed this week." /><Truth number="03" title="Actual" detail="What the athlete recorded—never imputed." /><Truth number="04" title="Decision" detail="What the coach approved, rejected or held." /></ol>
