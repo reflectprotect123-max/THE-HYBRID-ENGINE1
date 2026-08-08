@@ -378,8 +378,6 @@ export function LoggerScreen({ route, navigation }: Props) {
             txt: `${lead} — ${dtxt} for ${isFinal ? 'next session' : 'Set ' + (si + 2)} (${adj.newWeight} kg).`,
             cls: adj.cls,
           };
-          const nx = dex.sets[si + 1];
-          if (!isFinal && nx && !nx.done && !nx.aVal) nx.aVal = String(adj.newWeight);
         }
       }
       ds.updatedAt = Date.now();

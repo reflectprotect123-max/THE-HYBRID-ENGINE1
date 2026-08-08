@@ -316,6 +316,31 @@ describe('Logger', () => {
     expect(screen.getByText('Set 2 of 2')).toBeTruthy();
   });
 
+  it('shows the next-set weight adjustment as advice, and never silently writes it into the next set', () => {
+    // coach-contract rule 7: "athlete performance may propose progression, it
+    // may not apply it." A completed set is an ACTUAL; writing its computed
+    // adjustment straight into the next set's field collapses actual,
+    // proposal and coach decision into one invisible mutation. This regressed
+    // once already (2026-08-08) — the web Logger was fixed, the mobile one
+    // (this file) kept the silent write.
+    //
+    // 100kg x5 @ RPE 7.5 against this fixture's '5'@8 target computes a
+    // +2.5kg suggestion (102.5kg) — see computeSetAdjustment. The bug wrote
+    // that 102.5 straight into Set 2's kg field. The field opening at 100
+    // instead is Set 2 correctly falling back to what Set 1 ITSELF logged
+    // (prefillPrimary's same-exercise fallback), not a leftover suggestion.
+    liveSession();
+    mount();
+    fireEvent.changeText(screen.getByLabelText('kg'), '100');
+    fireEvent.changeText(screen.getByLabelText('reps'), '5');
+    fireEvent.press(screen.getByText('Finish Set'));
+    fireEvent.press(screen.getByText('Confirm Set'));
+
+    expect(screen.getByText(/\+2\.5 kg for Set 2 \(102\.5 kg\)/)).toBeTruthy();
+    fireEvent.press(screen.getByText('Skip rest'));
+    expect(screen.getByLabelText('kg').props.value).toBe('100');
+  });
+
   it('survives being opened with no live session instead of crashing', () => {
     // Reachable for real: finish a session on one device, then restore the
     // stack on another with the logger still on top.

@@ -205,6 +205,13 @@ console.log('Coach surface contract\n');
     'apps/web/src/screens/Training.tsx',
     'apps/web/src/screens/Conditioning.tsx',
     'apps/web/src/screens/Logger.tsx',
+    // The mobile Logger is the surface athletes actually train from — the
+    // same collapse-of-actual-into-prescription rule 7 forbids on web was
+    // found here too (2026-08-08) and fixed the same way: delete the write,
+    // keep the hint informational. Listed explicitly rather than globbed, so
+    // a NEW mobile screen that reintroduces this pattern is still caught the
+    // moment someone adds it here — silence was exactly how this one hid.
+    'apps/mobile/src/screens/Logger.tsx',
   ];
   const forbidden = [
     /liftProgress\s*=\s*liftAdapt\s*\(/,

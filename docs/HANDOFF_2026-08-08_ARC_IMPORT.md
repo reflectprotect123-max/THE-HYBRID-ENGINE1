@@ -120,6 +120,20 @@ Note the open question that surfaced from it: the contract lists only the three
 web files as targets, so the mobile Logger still auto-applies. Either mobile is a
 later phase or it is an oversight — nobody has decided.
 
+**Resolved (8 August 2026, later the same day).** It was an oversight, not a
+later phase — mobile already had the correct opt-in "Apply" suggestion UI for
+the first working set of an exercise (`strengthSuggestion`/`decideStrengthProgression`);
+the silent set-to-set write at `Logger.tsx:381-382` was the one thing left
+over. Deleted, mirroring the web fix exactly (the hint text stays, informational
+only — no replacement Apply affordance needed for this specific case, same as
+web). `checks/coach-contract.mjs` rule 7 now lists `apps/mobile/src/screens/Logger.tsx`
+alongside the three web files, so this class of regression is caught statically
+on mobile too, not just by a test. New colocated regression test:
+`apps/mobile/src/screens/logger.test.tsx`, "shows the next-set weight adjustment
+as advice, and never silently writes it into the next set" — mutation-tested by
+restoring the deleted lines and confirming both the test and the contract check
+fail, then reverting.
+
 ### One check in the delivered snapshot was stale
 
 `checks/react-smoke.mjs` arrived driving `/coach` for a nutrition modal that had
