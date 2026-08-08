@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LiftState, ProgressState, Settings, Workout } from '@hybrid/engine';
 import type { ProgressionProposal } from '../coach/progression';
 import type { TrendSeries, HardBudget } from '../coach/trends';
+import type { LedgerEntry } from '../autocoach/ledger';
 
 /*
  * The BACKEND -> ATHLETE half of the ARC loop.
@@ -9,7 +10,7 @@ import type { TrendSeries, HardBudget } from '../coach/trends';
  * Everything built earlier today (supabase/migrations/20260808_arc_*.sql,
  * apps/web/src/cloud/coach-repository.ts) is the COACH -> BACKEND half: a
  * coach approves a proposal or publishes a workout, and a row lands in
- * Supabase. Nothing pulled it back until this file. It closes four loops:
+ * Supabase. Nothing pulled it back until this file. It closes five loops:
  *
  *   1. PUSH — the athlete's device has always computed progression proposals
  *      and trend series locally (progression.ts, trends.ts). This adds a
@@ -28,6 +29,11 @@ import type { TrendSeries, HardBudget } from '../coach/trends';
  *      `proposalsFromDB` / `buildWeeklyPlanFromProposals` pipeline schedules
  *      it exactly like a self-authored session. No Coordinator change; the
  *      Coordinator never learns a session came from a coach.
+ *   5. PUSH the auto-coach ledger — `@hybrid/auto-coach`'s apply/undo history
+ *      (autocoach/ledger.ts) was device-local only, by explicit design, until
+ *      a real coach existed to read it (docs/RISK_REGISTER.md R3). This
+ *      mirrors it best-effort, read-only, same as the trend series — the
+ *      ledger itself, and undo, are untouched and stay entirely local.
  *
  * EVERYTHING HERE IS BEST-EFFORT AND SILENT ON FAILURE, deliberately. An
  * athlete with no coach (the overwhelming majority of local/self-coach
@@ -414,4 +420,60 @@ export async function materializeAcceptedAssignments(
   }
   saveMaterializedAssignments(materialized);
   return result;
+}
+
+const PUSHED_AUTOCOACH_KEY = 'hybrid-arc-pushed-autocoach-v1';
+
+function loadPushedAutocoachIds(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PUSHED_AUTOCOACH_KEY) ?? '[]') as unknown;
+    return new Set(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function savePushedAutocoachIds(ids: Set<string>): void {
+  try {
+    localStorage.setItem(PUSHED_AUTOCOACH_KEY, JSON.stringify([...ids].slice(-500)));
+  } catch {
+    /* Worst case: an already-pushed entry gets pushed again next sync —
+       push_autocoach_receipt is idempotent on (org, athlete, client_entry_id),
+       so a retry replays rather than duplicates. */
+  }
+}
+
+/**
+ * Best-effort, same reasoning as pushProgressionProposals/pushTrendSnapshots:
+ * an athlete with no coach refuses every call, silently. Tracks which
+ * `LedgerEntry.id`s have already been pushed so a long-lived session does not
+ * re-send the same ~30 entries every sync — the RPC's own idempotency makes
+ * that safe either way, this only saves the network round trips.
+ */
+export async function pushAutocoachReceipts(client: SupabaseClient, orgId: string, entries: readonly LedgerEntry[]): Promise<void> {
+  const pushed = loadPushedAutocoachIds();
+  const fresh = entries.filter((e) => !pushed.has(e.id));
+  if (fresh.length === 0) return;
+
+  for (const entry of fresh) {
+    try {
+      await client.rpc('push_autocoach_receipt', {
+        p_organization_id: orgId,
+        p_client_entry_id: entry.id,
+        p_occurred_at: new Date(entry.at).toISOString(),
+        p_session_date: entry.date,
+        p_workout_id: entry.workoutId,
+        p_action: entry.action,
+        p_was_forked: entry.wasForked,
+        p_operations: entry.operations,
+        p_reason_codes: entry.reasonCodes,
+      });
+      pushed.add(entry.id);
+    } catch {
+      /* Best-effort — the local ledger this entry already lives in is the
+         source of truth regardless of whether the push succeeded. Left out
+         of `pushed` so the next sync retries it. */
+    }
+  }
+  savePushedAutocoachIds(pushed);
 }

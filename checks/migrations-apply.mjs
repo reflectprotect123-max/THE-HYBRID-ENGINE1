@@ -1212,6 +1212,59 @@ try {
   });
 
   /* ---------------------------------------------------------------------
+   * ARC — visibility into what auto-coach did (docs/RISK_REGISTER.md R3).
+   * Mirrors the trend-snapshot suite's shape: push is athlete-only, read is
+   * coach-only, and a replay must not duplicate.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC — autonomous adjustment receipts:\n');
+
+  const AC_OPS = `'[{"type":"drop_set","targetPath":"blocks[0].exercises[1]","before":"3x8","after":"2x8","reasonCode":"pain_flag","materiality":"material","reversible":true}]'::jsonb`;
+
+  check('AUTOCOACH RECEIPT: the athlete pushes a receipt and the coach reads it', () => {
+    asAthlete(ATHLETE_A, `select public.push_autocoach_receipt('${ORG_1}', 'ac-1', '2026-08-08T10:00:00Z'::timestamptz, date '2026-08-08', 'w1', 'applied', false, ${AC_OPS}, array['pain_flag']);`);
+    const out = lastLine(asAthlete(COACH_1,
+      `select count(*)::text from public.get_athlete_autocoach_receipts('${ORG_1}', '${ATHLETE_A}');`));
+    if (out !== '1') throw new Error(`expected 1 receipt visible to the coach, got ${out}`);
+  });
+
+  check('AUTOCOACH RECEIPT: a replayed push returns the original, does not duplicate', () => {
+    asAthlete(ATHLETE_A, `select public.push_autocoach_receipt('${ORG_1}', 'ac-1', '2026-08-08T10:00:00Z'::timestamptz, date '2026-08-08', 'w1', 'applied', false, ${AC_OPS}, array['pain_flag']);`);
+    const out = lastLine(asAthlete(COACH_1,
+      `select count(*)::text from public.get_athlete_autocoach_receipts('${ORG_1}', '${ATHLETE_A}');`));
+    if (out !== '1') throw new Error(`expected the replay to leave exactly 1 row, got ${out}`);
+  });
+
+  check('AUTOCOACH RECEIPT: a coach cannot push on the athlete\'s behalf', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'ac-coach-attempt', now(), current_date, 'w1', 'applied', false, '[]'::jsonb, '{}')`));
+    if (!wasRefused(out)) throw new Error('a coach pushed a receipt as if they were the athlete');
+  });
+
+  check('AUTOCOACH RECEIPT: a non-coaching coach cannot read', () => {
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.get_athlete_autocoach_receipts('${ORG_1}', '${ATHLETE_A}')`));
+    if (!wasRefused(out)) throw new Error('a non-coaching coach read autocoach receipts');
+  });
+
+  check('AUTOCOACH RECEIPT: a coach in another organisation cannot read', () => {
+    const out = asAthlete(COACH_2, refusalProbe(
+      `perform public.get_athlete_autocoach_receipts('${ORG_1}', '${ATHLETE_A}')`));
+    if (!wasRefused(out)) throw new Error("org 2's coach read org 1's autocoach receipts");
+  });
+
+  check('AUTOCOACH RECEIPT: an athlete cannot push into an organisation they are not enrolled in', () => {
+    const out = asAthlete(ATHLETE_B, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'ac-wrong-org', now(), current_date, 'w1', 'applied', false, '[]'::jsonb, '{}')`));
+    if (!wasRefused(out)) throw new Error('athlete B pushed a receipt into org 1, which they are not a member of');
+  });
+
+  check('AUTOCOACH RECEIPT: invalid action is refused, not silently coerced', () => {
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'ac-bad-action', now(), current_date, 'w1', 'sabotage', false, '[]'::jsonb, '{}')`));
+    if (!wasRefused(out)) throw new Error('an invalid action value was accepted');
+  });
+
+  /* ---------------------------------------------------------------------
    * Immutability's two remaining holes. Both are destructive, so they run
    * last: the erasure test really does delete an organisation.
    * ------------------------------------------------------------------- */

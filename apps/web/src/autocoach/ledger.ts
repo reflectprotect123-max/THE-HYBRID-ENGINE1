@@ -73,6 +73,13 @@ export function useLedger(): LedgerEntry[] {
   );
 }
 
+/** The non-hook read, for code that runs outside a component render (the ARC
+ *  sync cycle, which best-effort mirrors this ledger to a roster coach —
+ *  see cloud/arc-athlete-sync.ts). */
+export function getLedgerEntries(): LedgerEntry[] {
+  return state.entries;
+}
+
 export type NewLedgerEntry = Omit<LedgerEntry, 'id' | 'at' | 'action'>;
 
 export function recordApply(entry: NewLedgerEntry): LedgerEntry {

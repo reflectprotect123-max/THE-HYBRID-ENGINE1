@@ -1,5 +1,6 @@
 import type { Workout } from '@hybrid/engine';
 import type {
+  AthleteAutocoachReceipt,
   AthleteNutritionSummary,
   AthleteNutritionWindow,
   AthleteProgressionProposal,
@@ -365,6 +366,26 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
     const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
     if (!row || row.id == null) return null;
     return { kind, points: (row.points ?? []) as Record<string, unknown>[], generatedAt: row.generated_at as string };
+  }
+
+  async listAutocoachReceipts(clientId: string): Promise<readonly AthleteAutocoachReceipt[]> {
+    if (!this.client) return [];
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('get_athlete_autocoach_receipts', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+    });
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      clientEntryId: row.client_entry_id as string,
+      occurredAt: row.occurred_at as string,
+      sessionDate: row.session_date as string,
+      workoutId: row.workout_id as string,
+      action: row.action as AthleteAutocoachReceipt['action'],
+      wasForked: row.was_forked as boolean,
+      operations: (row.operations ?? []) as AthleteAutocoachReceipt['operations'],
+      reasonCodes: (row.reason_codes ?? []) as string[],
+    }));
   }
 
   async getNutritionSummary(clientId: string, weekStart: string): Promise<AthleteNutritionSummary | null> {

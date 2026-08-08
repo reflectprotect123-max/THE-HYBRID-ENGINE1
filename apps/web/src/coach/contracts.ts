@@ -150,6 +150,24 @@ export interface AthleteTrendSnapshot {
   generatedAt: string;
 }
 
+/**
+ * What `@hybrid/auto-coach`'s autonomy policy did to one session, before the
+ * athlete ever saw it — a read-only mirror of `LedgerEntry`
+ * (autocoach/ledger.ts), never a write path back into training. Carries no
+ * block/set detail: `LedgerEntry.beforeBlocks` and `forkedWorkoutId` are
+ * stripped at the source, the same boundary every other roster tier draws.
+ */
+export interface AthleteAutocoachReceipt {
+  clientEntryId: string;
+  occurredAt: string;
+  sessionDate: string;
+  workoutId: string;
+  action: 'applied' | 'undone';
+  wasForked: boolean;
+  operations: readonly { type: string; targetPath: string; before: string; after: string; reasonCode: string; materiality: string }[];
+  reasonCodes: readonly string[];
+}
+
 /** Counts and already-computed signals only — no raw macro or weight value. */
 export interface AthleteNutritionSummary {
   loggedDays: number;
@@ -217,6 +235,11 @@ export interface CoachWorkspaceRepository {
   decideProgressionProposal?(clientId: string, proposalId: string, decision: 'approved' | 'declined'): Promise<void>;
 
   getTrendSnapshot?(clientId: string, kind: AthleteTrendSnapshot['kind']): Promise<AthleteTrendSnapshot | null>;
+
+  /** Most recent auto-coach receipts, newest first. Empty means either "none
+   *  yet" or "not readable" — both refuse identically, same as every other
+   *  roster tier. */
+  listAutocoachReceipts?(clientId: string): Promise<readonly AthleteAutocoachReceipt[]>;
 
   getNutritionSummary?(clientId: string, weekStart: string): Promise<AthleteNutritionSummary | null>;
   /** Null means either "not readable" or "no consent grant" — both refuse

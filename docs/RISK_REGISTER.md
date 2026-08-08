@@ -31,13 +31,29 @@ approval". Note the mitigating context: there is no coach in the system today,
 and the athlete approves by performing the set. Under any coach model this
 becomes the largest required behavioural change.
 
-### R3 · Automation receipts are device-local
+### R3 · Automation receipts are device-local — RESOLVED (8 August 2026)
 `apps/web/src/autocoach/ledger.ts:27` — `hybrid-auto-coach-ledger-v1` in
 localStorage, in no sync partition
 (`packages/engine/src/ecosystem.ts:172`). A coach on another device cannot see
 that the system adjusted a session, and the athlete loses the record on
 reinstall.
 *Disposition*: synced, append-only, before any coach surface claims otherwise.
+
+Built: `supabase/migrations/20260808_arc_receipts_autocoach.sql` —
+`autocoach_receipts` (append-only, RLS-gated, no client INSERT/UPDATE/DELETE
+policy — write only through `push_autocoach_receipt`, a SECURITY DEFINER
+command, same shape as every other ARC push), `get_athlete_autocoach_receipts`
+(coach-only, `coaches_athlete()`-gated). The local ledger itself, and undo,
+stay entirely local and untouched — this only mirrors a read-only summary.
+Deliberately excludes `LedgerEntry.beforeBlocks` (block/set detail) and
+`forkedWorkoutId`, matching the boundary every other roster tier draws.
+Pushed best-effort from `apps/web/src/cloud/arc-athlete-sync.ts`
+(`pushAutocoachReceipts`) in `SyncProvider`'s reconcile cycle; read in
+`CoachProgression.tsx`'s roster view, "What the system adjusted for
+{clientName}". Deny suite: `checks/migrations-apply.mjs`, "ARC — autonomous
+adjustment receipts" — cross-tenant, cross-athlete-relationship and idempotent
+replay all mutation-tested (the `coaches_athlete()` gate was removed and both
+denial tests confirmed to fail, then restored).
 
 ### R4 · Silent empty screens if a coach surface queries per-athlete
 Every RLS policy is `auth.uid() = user_id`; RLS **filters** rather than raising.

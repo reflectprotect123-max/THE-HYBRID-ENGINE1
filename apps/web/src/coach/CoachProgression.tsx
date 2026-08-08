@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import { useDb } from '../store/db';
-import type { AthleteProgressionProposal } from './contracts';
+import type { AthleteAutocoachReceipt, AthleteProgressionProposal } from './contracts';
 import {
   applyApprovedProposal,
   proposalIsStale,
@@ -39,6 +39,7 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [receipts, setReceipts] = useState<readonly AthleteAutocoachReceipt[] | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -52,6 +53,15 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
     repository.listProgressionProposals(clientId)
       .then((rows) => { if (active) setProposals(rows); })
       .catch(() => { if (active) setError('Proposals could not be loaded.'); });
+    return () => { active = false; };
+  }, [repository, clientId]);
+
+  useEffect(() => {
+    let active = true;
+    setReceipts(null);
+    (repository.listAutocoachReceipts?.(clientId) ?? Promise.resolve([]))
+      .then((rows) => { if (active) setReceipts(rows); })
+      .catch(() => { if (active) setReceipts([]); });
     return () => { active = false; };
   }, [repository, clientId]);
 
@@ -136,6 +146,38 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
           <div className="rounded-md border border-dashed border-line2 bg-panel3 p-3 text-center">
             <h3 className="text-sm font-semibold">No pending proposals for {clientName}</h3>
           </div>
+        )}
+
+        {receipts && receipts.length > 0 && (
+          <section className="mt-2 rounded-md border border-line2 bg-panel3">
+            <div className="border-b border-line px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-dim">Autonomy · read-only</p>
+              <h2 className="text-sm font-semibold">What the system adjusted for {clientName}</h2>
+              <p className="mt-0.5 text-[11px] text-muted">
+                Whole-athlete-state changed a session automatically, before {clientName} started it. Nothing here
+                is editable — it is a record of what already happened locally on their device.
+              </p>
+            </div>
+            <div className="space-y-1 p-2">
+              {receipts.map((receipt) => (
+                <article key={receipt.clientEntryId} className="rounded border border-line bg-panel p-1.5 text-xs">
+                  <div className="flex flex-wrap items-baseline gap-1">
+                    <span className="font-medium">
+                      {receipt.action === 'undone' ? 'Undone' : receipt.wasForked ? 'Forked a copy' : 'Adjusted in place'}
+                    </span>
+                    <span className="ml-auto text-[10px] uppercase tracking-wide text-dim">
+                      {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(receipt.occurredAt))}
+                    </span>
+                  </div>
+                  {receipt.operations.map((op, i) => (
+                    <p key={i} className="mt-0.5 text-[11px] text-muted">
+                      {op.before} → {op.after} <span className="text-dim">({op.reasonCode.replaceAll('_', ' ')})</span>
+                    </p>
+                  ))}
+                </article>
+              ))}
+            </div>
+          </section>
         )}
       </div>
       <div className="sr-only" aria-live="polite">{message}</div>
