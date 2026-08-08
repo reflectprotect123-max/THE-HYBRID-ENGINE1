@@ -441,6 +441,76 @@ try {
     if (cols !== '0') throw new Error(`the assignment table has ${cols} placement column(s) — the Coordinator owns placement`);
   });
 
+
+  /* The write path. RLS grants no client INSERT at all, so every one of these
+     goes through create_program_assignment — which means these tests probe the
+     door rather than the floor. Here a refusal IS the right assertion: the
+     function raises, unlike a policy, which merely filters. */
+  const callAssign = (uid, org, athlete, key, tplv = TPLV) => asAthlete(uid, refusalProbe(
+    `perform public.create_program_assignment('${org}', '${athlete}', '${tplv}', date '2026-09-01', '{1,3}'::smallint[], '${key}')`));
+
+  check('COMMAND: a coach can assign to their own athlete', () => {
+    const out = callAssign(COACH_1, ORG_1, ATHLETE_A, 'cmd-ok-1');
+    if (!out.includes('ACCEPTED')) throw new Error(`the legitimate command was refused: ${out.trim().split('\n').pop()}`);
+  });
+
+  check('COMMAND: it wrote the assignment, a decision AND a receipt, in one go', () => {
+    const got = lastLine(asOwnerSqlOut(
+      `select (select count(*) from public.program_assignments where organization_id = '${ORG_1}')
+           || '/' || (select count(*) from public.coach_decisions where idempotency_key = 'cmd-ok-1')
+           || '/' || (select count(*) from public.decision_receipts r
+                       join public.coach_decisions d on d.id = r.decision_id
+                      where d.idempotency_key = 'cmd-ok-1');`));
+    if (got !== '2/1/1') throw new Error(`assignment/decision/receipt counts were ${got}`);
+  });
+
+  check('COMMAND: a replay returns the original instead of writing twice', () => {
+    const out = callAssign(COACH_1, ORG_1, ATHLETE_A, 'cmd-ok-1');
+    if (!out.includes('ACCEPTED')) throw new Error('a replay errored rather than returning the original');
+    const got = lastLine(asOwnerSqlOut(
+      `select count(*) from public.coach_decisions where idempotency_key = 'cmd-ok-1';`));
+    if (got !== '1') throw new Error(`the replay created ${got} decisions`);
+  });
+
+  check('COMMAND: a coach cannot assign to an athlete who is not theirs', () => {
+    const out = callAssign(COACH_2, ORG_1, ATHLETE_A, 'cmd-cross-1');
+    if (!out.includes('REFUSED')) throw new Error("another org's coach wrote an assignment");
+  });
+
+  check('COMMAND: a revoked coach cannot assign', () => {
+    const out = callAssign(EX_COACH, ORG_1, ATHLETE_A, 'cmd-revoked-1');
+    if (!out.includes('REFUSED')) throw new Error('a revoked coach wrote an assignment');
+  });
+
+  check('COMMAND: an athlete cannot assign to themselves', () => {
+    const out = callAssign(ATHLETE_A, ORG_1, ATHLETE_A, 'cmd-self-1');
+    if (!out.includes('REFUSED')) throw new Error('an athlete assigned a program to themselves');
+  });
+
+  check('COMMAND: support cannot assign', () => {
+    const out = callAssign(SUPPORT_1, ORG_1, ATHLETE_A, 'cmd-support-1');
+    if (!out.includes('REFUSED')) throw new Error('support wrote an assignment');
+  });
+
+  check("COMMAND: a coach cannot assign another tenant's template version", () => {
+    asOwnerSql(`
+      insert into public.program_templates (id, organization_id, domain, name, created_by)
+        values ('aaaa1111-0000-0000-0000-000000000001', '${ORG_2}', 'strength', 'Org2 Program', '${COACH_2}');
+      insert into public.program_template_versions (id, template_id, version, published_by)
+        values ('aaaa1111-0000-0000-0000-000000000002', 'aaaa1111-0000-0000-0000-000000000001', 1, '${COACH_2}');`);
+    const out = callAssign(COACH_1, ORG_1, ATHLETE_A, 'cmd-tpl-1', 'aaaa1111-0000-0000-0000-000000000002');
+    if (!out.includes('REFUSED')) throw new Error("a coach assigned another organisation's program");
+  });
+
+  check('COMMAND: the refusal does not say WHICH check failed, so athletes cannot be enumerated', () => {
+    const notMine = callAssign(COACH_2, ORG_1, ATHLETE_A, 'cmd-probe-1');
+    const notReal = callAssign(COACH_2, ORG_1, '00000000-0000-0000-0000-0000000000ff', 'cmd-probe-2');
+    const norm = (s) => (s.match(/REFUSED \(([^)]*)\)/) ?? [])[1] ?? s;
+    if (norm(notMine) !== norm(notReal)) {
+      throw new Error(`a real athlete and a fake one produced different errors: "${norm(notMine)}" vs "${norm(notReal)}"`);
+    }
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });

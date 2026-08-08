@@ -446,3 +446,112 @@ grant select on public.decision_receipts to authenticated;
 --   drop function if exists public.coaches_athlete(uuid, uuid);
 --   drop function if exists public.is_org_member(uuid, text[]);
 --   drop function if exists public.deny_mutation();
+
+-- ---------------------------------------------------------------------------
+-- The one sanctioned write path.
+--
+-- No client role holds INSERT on any table above, deliberately. A coach saving
+-- an assignment therefore goes through this function, which is the only place
+-- that can write — and it derives the actor from the session rather than
+-- believing anything the caller says about who they are.
+--
+-- Four things the handoff requires, all of them here:
+--   * the actor comes from auth.uid(), never from a parameter;
+--   * organisation and coach↔athlete authorization are checked in the body,
+--     not left to RLS — RLS is the floor, this is the door;
+--   * an idempotency key makes a replay a no-op rather than a second write;
+--   * the assignment, the decision and the receipt commit in ONE transaction,
+--     so a receipt can never describe a change that did not happen, and a
+--     change can never happen without a receipt.
+--
+-- There is no `resolved_dates` parameter and cannot be. The coach states
+-- preferred weekdays; the Coordinator places sessions.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.create_program_assignment(
+  p_organization_id uuid,
+  p_athlete_user_id uuid,
+  p_template_version_id uuid,
+  p_preferred_start_date date,
+  p_preferred_weekdays smallint[],
+  p_idempotency_key text,
+  p_base_version text default null
+)
+returns public.program_assignments
+language plpgsql security definer set search_path = public as $$
+declare
+  v_actor uuid := auth.uid();
+  v_existing public.coach_decisions;
+  v_assignment public.program_assignments;
+  v_decision_id uuid;
+begin
+  if v_actor is null then
+    raise exception 'not authenticated' using errcode = 'insufficient_privilege';
+  end if;
+
+  -- Authorization in the application layer, as mandated. `coaches_athlete`
+  -- checks the assignment AND the membership, so a revoked coach fails here
+  -- even if their athlete row was left behind.
+  if not public.coaches_athlete(p_organization_id, p_athlete_user_id) then
+    -- Deliberately the same message whether the organisation does not exist,
+    -- the athlete does not exist, or the caller simply is not their coach.
+    -- Distinguishing them would let a caller enumerate athletes.
+    raise exception 'not permitted' using errcode = 'insufficient_privilege';
+  end if;
+
+  if p_idempotency_key is null or length(btrim(p_idempotency_key)) = 0 then
+    raise exception 'idempotency key required' using errcode = 'invalid_parameter_value';
+  end if;
+
+  -- A replay returns the ORIGINAL result rather than erroring: the caller
+  -- retrying after a dropped connection did nothing wrong and should see the
+  -- write it already made.
+  select * into v_existing from public.coach_decisions
+   where organization_id = p_organization_id and idempotency_key = p_idempotency_key;
+  if found then
+    select * into v_assignment from public.program_assignments
+     where id = (v_existing.payload ->> 'assignment_id')::uuid;
+    return v_assignment;
+  end if;
+
+  -- The template version must belong to the same organisation. Without this a
+  -- coach could assign another tenant's program by id.
+  if not exists (
+    select 1 from public.program_template_versions v
+    join public.program_templates t on t.id = v.template_id
+    where v.id = p_template_version_id and t.organization_id = p_organization_id
+  ) then
+    raise exception 'not permitted' using errcode = 'insufficient_privilege';
+  end if;
+
+  insert into public.program_assignments (
+    organization_id, athlete_user_id, template_version_id,
+    preferred_start_date, preferred_weekdays, state, created_by
+  ) values (
+    p_organization_id, p_athlete_user_id, p_template_version_id,
+    p_preferred_start_date, coalesce(p_preferred_weekdays, '{}'), 'draft', v_actor
+  ) returning * into v_assignment;
+
+  insert into public.coach_decisions (
+    organization_id, athlete_user_id, actor_user_id, kind,
+    base_version, idempotency_key, payload
+  ) values (
+    p_organization_id, p_athlete_user_id, v_actor, 'assignment_created',
+    p_base_version, p_idempotency_key,
+    jsonb_build_object('assignment_id', v_assignment.id, 'template_version_id', p_template_version_id)
+  ) returning id into v_decision_id;
+
+  insert into public.decision_receipts (
+    decision_id, organization_id, athlete_user_id, summary, detail
+  ) values (
+    v_decision_id, p_organization_id, p_athlete_user_id,
+    'A program was assigned to you.',
+    jsonb_build_object('assignment_id', v_assignment.id, 'starts', p_preferred_start_date)
+  );
+
+  return v_assignment;
+end;
+$$;
+
+revoke all on function public.create_program_assignment(uuid, uuid, uuid, date, smallint[], text, text) from public, anon;
+grant execute on function public.create_program_assignment(uuid, uuid, uuid, date, smallint[], text, text) to authenticated;
