@@ -1,12 +1,12 @@
-import { Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
+import { useState, type ReactNode } from 'react';
 import './coach.css';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { coachAllowed } from './guard';
 import { DecisionTrace } from './DecisionTrace';
 import { NutritionPanel } from './NutritionPanel';
-import { OnboardingPanel, useOnboarding } from './Onboarding';
+import { OnboardingPanel, useOnboarding } from './OnboardingPanel';
 import { PolicyInspector } from './PolicyInspector';
 import { ProgramGrid } from './ProgramGrid';
 import { ResolutionPreview } from './ResolutionPreview';
@@ -18,8 +18,7 @@ import { Simulate } from './Simulate';
  * beats navigation — nothing in here routes away from the week.
  */
 export function CoachShell() {
-  const { user } = useSync();
-  const { dataRecovered } = useDb();
+  const { dataRecovered, weeklyPlan } = useDb();
   const [horizon, setHorizon] = useState<4 | 8 | 12>(8);
   const [showPreview, setShowPreview] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -28,13 +27,6 @@ export function CoachShell() {
   const [showTrace, setShowTrace] = useState(false);
   const [showNutrition, setShowNutrition] = useState(false);
   const onboarding = useOnboarding();
-
-  const allowed = coachAllowed(
-    user?.id,
-    import.meta.env.VITE_COACH_USER_IDS as string | undefined,
-    import.meta.env.DEV,
-  );
-  if (!allowed) return <Navigate to="/" replace />;
 
   return (
     <div className="coach-root min-h-screen bg-bg text-text">
@@ -77,6 +69,12 @@ export function CoachShell() {
         >
           Nutrition
         </button>
+        <Link
+          to={`/coach/review/${weeklyPlan.weekStart}`}
+          className="rounded-full bg-gold px-1 py-0.5 text-[11px] font-medium text-bg outline outline-1 outline-gold-line"
+        >
+          Review week
+        </Link>
         <div className="ml-auto flex items-center gap-1" role="group" aria-label="Weeks shown">
           {([4, 8, 12] as const).map((h) => (
             <button
@@ -131,4 +129,16 @@ export function CoachShell() {
       {showNutrition && <NutritionPanel onClose={() => setShowNutrition(false)} />}
     </div>
   );
+}
+
+/** UI visibility gate for every route in the lazy coach chunk. */
+export function CoachAccess({ children }: { children: ReactNode }) {
+  const { user } = useSync();
+  const allowed = coachAllowed(
+    user?.id,
+    import.meta.env.VITE_COACH_USER_IDS as string | undefined,
+    import.meta.env.DEV,
+    import.meta.env.VITE_COACH_DEMO_MODE === 'true',
+  );
+  return allowed ? children : <Navigate to="/" replace />;
 }

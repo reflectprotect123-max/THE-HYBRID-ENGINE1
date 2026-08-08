@@ -27,4 +27,9 @@ describe('coachAllowed', () => {
     expect(coachAllowed(null, undefined, true)).toBe(true);
     expect(coachAllowed('anyone', '', true)).toBe(true);
   });
+
+  it('opens only an explicitly flagged synthetic demo build', () => {
+    expect(coachAllowed(null, undefined, false, true)).toBe(true);
+    expect(coachAllowed(null, undefined, false, false)).toBe(false);
+  });
 });

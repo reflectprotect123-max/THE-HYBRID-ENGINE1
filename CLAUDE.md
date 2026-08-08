@@ -62,6 +62,23 @@ Do not move recovery, pain or illness logic into a specialist engine. Do not
 use HRV as a pain, injury or illness gate. Pain and illness are safety flags,
 not ordinary readiness penalties.
 
+## The coach workspace is WEB ONLY
+
+The ARC coach workspace — every route under `/coach`, `CoachWorkspaceRepository`
+and everything that consumes it — is a desktop web surface and nothing else. It
+must never be ported to `apps/mobile`, and it must never be designed, reviewed
+or screenshotted at a phone viewport. Judge it at desktop width; 1440px is what
+the layout is built for.
+
+This already holds in code: no `CoachWorkspace`, `CoachCommandCenter`,
+`CoachAccess` or `ArcCoachFrame` symbol appears anywhere in `apps/mobile`. Keep
+it that way. (`apps/mobile/src/screens/nutrition/Coach.tsx` is unrelated — it is
+the athlete's own nutrition coach, not the coach bench.)
+
+The athlete app is the opposite case: it ships on web AND mobile, it is used on a
+phone, and `checks/screens.mjs` shoots it at 420px for that reason. That harness
+covers athlete routes only. Do not add coach routes to it.
+
 ## Storage and release rules
 
 The legacy `app_state` JSON row remains a migration bridge. The public

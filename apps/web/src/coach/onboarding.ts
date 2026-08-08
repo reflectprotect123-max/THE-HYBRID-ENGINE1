@@ -43,28 +43,28 @@ export function deriveOnboarding(i: OnboardingInput): OnboardingStep[] {
       'Athlete profile',
       'The shared core holds who is training — the engines and the Coordinator read from it.',
       i.hasCore,
-      '/settings',
+      '/coach/legacy',
     ),
     step(
       'schedule',
       'Weekly schedule',
       'Which days are available. The Coordinator places sessions only on days the athlete gave it.',
       i.availableDays > 0,
-      '/settings',
+      '/coach/legacy',
     ),
     step(
       'goal',
       'Primary goal',
       'Strength-led, conditioning-led, or hybrid — it weights how conflicts resolve.',
       i.hasPrimaryGoal,
-      '/settings',
+      '/coach/legacy',
     ),
     step(
       'whoop',
       'Connect Whoop',
       'Recovery, HRV and sleep feed readiness. Without it, readiness reads unknown — never assumed.',
       i.whoopConnected,
-      '/settings',
+      '/coach/legacy',
       true,
     ),
     step(
@@ -72,7 +72,7 @@ export function deriveOnboarding(i: OnboardingInput): OnboardingStep[] {
       'Connect Concept2',
       'Erg results sync automatically instead of being typed in.',
       i.c2Connected,
-      '/settings',
+      '/coach/legacy',
       true,
     ),
     step(
@@ -85,9 +85,9 @@ export function deriveOnboarding(i: OnboardingInput): OnboardingStep[] {
     step(
       'log',
       'Log the first session',
-      'Training happens in the athlete app; the bench reads the same database the moment it lands.',
+      'Completed training arrives as a separate actual; the coach workspace never impersonates the training experience.',
       i.loggedSessions > 0,
-      '/training',
+      '/coach/legacy',
     ),
   ];
 }

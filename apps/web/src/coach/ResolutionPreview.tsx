@@ -374,7 +374,7 @@ export function ResolutionPreview() {
                       {editable && (
                         <button
                           className="rounded bg-gold-wash px-1 py-[1px] text-[11px] text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
-                          onClick={() => nav(`/planner/${d.proposalId}`)}
+                          onClick={() => nav(`/coach/planner/${d.proposalId}?returnTo=${encodeURIComponent('/coach/legacy')}`)}
                           title="Edit the proposal so it can resolve differently — the Coordinator re-runs on save"
                         >
                           Adjust proposal

@@ -10,7 +10,6 @@ import {
   ensureSharedCore,
   isCond,
   isText,
-  liftAdapt,
   rxLine,
   sessionLetters,
   sessionProgress,
@@ -26,6 +25,8 @@ import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { sessionFrom } from '../lib/session';
 import { useDb } from '../store/db';
 import { Button, Card, Empty, Kicker, LetterChip, Meter, ScreenTitle, SectionHead, cx } from '../ui';
+import { strengthProgressionProposals, type StrengthProgressionProposal } from '../coach/progression';
+import { recordProgressionProposals } from '../coach/progression-store';
 
 /*
  * Training is the session list: what today's work is, block by block, with each
@@ -37,7 +38,7 @@ import { Button, Card, Empty, Kicker, LetterChip, Meter, ScreenTitle, SectionHea
  */
 export function Training() {
   const nav = useNavigate();
-  const { db, activeSession, sessions, update } = useDb();
+  const { db, activeSession, sessions, update, athleteState } = useDb();
   const today = ymd(new Date());
   const dow = new Date().getDay();
 
@@ -61,6 +62,7 @@ export function Training() {
 
   function finishSession() {
     if (!activeSession) return;
+    let proposals: StrengthProgressionProposal[] = [];
     // Finishing cannot be undone — nothing reopens a completed session — and
     // this is a full-width button at the bottom of a list you thumb through
     // mid-workout. Only ask when there is actually work left to lose.
@@ -79,11 +81,13 @@ export function Training() {
       ds.status = 'completed';
       ds.completedAt = completedAt;
       ds.updatedAt = completedAt;
-      /* Bank each lift's next working weight, in the SAME write that closes the
-         session — the way conditioning banks its level in the write that
-         records the effort. Split across two updates, a crash between them
-         would leave a finished session that progressed nothing. */
-      draft.settings.liftProgress = liftAdapt(ds, draft.settings).liftProgress;
+      /* Completed work remains immutable evidence. The resulting change is a
+         separate proposal; only coach review can alter a prescription. */
+      proposals = strengthProgressionProposals(
+        ds,
+        draft.settings,
+        athleteState.constraints.filter((constraint) => constraint.hard).map((constraint) => constraint.reason),
+      );
       const core = ensureSharedCore(draft, completedAt).core!;
       draft.core = appendSharedCoreEvent(core, {
         type: 'workout_completed',
@@ -93,6 +97,7 @@ export function Training() {
         payload: { sessionId: ds.id, domain: ds.kind || 'strength' },
       });
     });
+    recordProgressionProposals(proposals);
     // Straight to the recap: the moment after finishing is the only time
     // anyone actually reads what they just did.
     nav(`/recap/${activeSession.id}`);

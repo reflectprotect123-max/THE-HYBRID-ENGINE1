@@ -53,6 +53,19 @@ const client: SupabaseClient | null = (() => {
   }
 })();
 
+/**
+ * The one Supabase client this app has.
+ *
+ * Exported so the coach repository can read through it rather than construct a
+ * second one: two clients over the same storage means two gotrue instances
+ * refreshing the same session, and they race each other into signing the user
+ * out. The mobile app learned this and says so in the same place.
+ *
+ * Null when the build has no Supabase config. Every caller must treat that as
+ * "offline", not as an error.
+ */
+export const supabaseClient: SupabaseClient | null = client;
+
 const ECOSYSTEM_WRITER = `${PRODUCT_ID}:web`;
 
 /* A slice nobody has written to yet. Phase 0 ships no nutrition UI, so this is

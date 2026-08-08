@@ -413,7 +413,7 @@ export function SessionDrawer({
               </button>
               <span className="ml-auto">Edits save as you type.</span>
               <button
-                onClick={() => nav(`/planner/${item.id}`)}
+                onClick={() => nav(`/coach/planner/${item.id}?returnTo=${encodeURIComponent('/coach/legacy')}`)}
                 className="rounded bg-gold-wash px-1 py-0.5 text-[11px] text-gold2 outline outline-1 outline-gold-line"
               >
                 Full editor

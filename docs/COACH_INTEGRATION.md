@@ -235,3 +235,68 @@ including this file.
    message to the athlete, or a change to next week's inputs? The Coordinator
    constraint means it has to be the third, expressed as inputs.
 5. What should `/coach` do offline?
+
+## Implemented progression-review contract (8 August 2026)
+
+The web front end now treats Strength and Conditioning progression as an
+explicit coach decision rather than a side effect of completing work.
+
+- `apps/web/src/coach/progression.ts` owns the pure typed proposal contract.
+  Strength reuses `liftMoves`; Conditioning reuses `conAdapt` and
+  `explainConAdapt`. The UI does not invent a second progression algorithm.
+- `apps/web/src/coach/progression-store.ts` is a local demonstration adapter.
+  Proposals and decision events are separate append-only arrays under
+  `hybrid-coach-progression-v1`.
+- `/coach/progression` renders both domains using Status → Intent → Change →
+  Reason → Next. It requires a rationale for approve, reject, or hold.
+- An approval applies only when the accepted prescription still matches the
+  proposal's recorded before-state. A stale proposal is held; it is never
+  last-write-wins.
+- A pain stop, active pain hold, or illness constraint creates a review state.
+  It cannot be approved as progression.
+- Completing a Strength session no longer writes `settings.liftProgress`.
+  Completing a Conditioning session no longer writes `settings.conProgress`.
+  The in-session Logger still explains its computed adjustment, but no longer
+  silently prefills the next set from that result.
+
+This is a front-end contract, not a security boundary. The local coach ledger
+does not sync and is not an authoritative audit record. Backend integration
+should replace the ledger adapter with versioned proposal and decision
+commands; it should not move decision logic into JSX. At minimum, an approval
+command needs organization/athlete authorization, a proposal id, idempotency
+key, base prescription version, rationale, actor, rule version/hash, and one
+transaction that writes the new accepted prescription and immutable decision
+event together.
+
+For a synthetic downloadable build only, `VITE_COACH_DEMO_MODE=true` opens the
+coach routes without a signed-in user. This is an explicit build-time flag; an
+ordinary production build still fails closed when `VITE_COACH_USER_IDS` is
+unset. Demo mode changes only the client-side UI gate and grants no backend
+access or authorization.
+
+### Standalone coach-only navigation
+
+The generated one-file demo is intentionally a coach product, not the athlete
+app with a coach route attached:
+
+- `/coach` opens the command center rather than redirecting to one feature.
+- Coach session creation and editing stay under `/coach/build/:id` and
+  `/coach/planner/:id`, while reusing the same tested authoring components.
+- Every builder return target is a coach route.
+- The single-HTML generator watches hash navigation and replaces any non-coach
+  location with `#/coach`. A completion, stale link or manual `#/` therefore
+  cannot reveal the athlete home screen.
+- `checks/coach-contract.mjs` makes these route boundaries executable.
+
+The command center restores the deeper operational workspace: risk-first
+action queue, Strength/Conditioning/Nutrition system cards, resolved week,
+athlete operating context, trends, and the Intent → Resolution → Actual →
+Decision truth model. It does not invent multi-athlete access; the current
+screen remains an explicit single-athlete local demonstration.
+
+`ArcCoachFrame.tsx` is now the shared shell for every coach workflow. Plan
+authoring, progression review, week ledger, Nutrition context, deep inspection,
+the guided builder and the dense planner retain the ARC identity, navigation,
+active section, authority reminder and local-demo disclosure. Coach source is
+also statically checked for direct athlete-route strings, so a future button
+cannot quietly reintroduce the same coach-to-athlete navigation leak.

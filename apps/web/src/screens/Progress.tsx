@@ -18,7 +18,7 @@ import {
   type ZoneKey,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { WeeklySummary } from '../autocoach/WeeklySummary';
+import { WeeklySummary } from '../autocoach/WeeklySummaryPanel';
 import { Card, Empty, Kicker, ScreenTitle, SectionHead } from '../ui';
 
 /*
