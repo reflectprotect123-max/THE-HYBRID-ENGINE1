@@ -1,5 +1,51 @@
 # AGENTS.md — read this before writing any code
 
+> ## ⚠ This is not the live repository
+>
+> Active development moved to **[`reflectprotect123-max/the-coach-brain`](https://github.com/reflectprotect123-max/the-coach-brain)**
+> on 8 August 2026, when the ARC coach workspace (302 files) was imported there.
+> That repository is **strictly ahead of this one** and is the single source of
+> truth. Do not start feature work here.
+>
+> A file-by-file comparison on 8 August (`the-coach-brain@cf4e80c` against this
+> repository at `71b14b2`) found 30 files present only there — the entire coach
+> workspace — and nothing here worth recovering. The two files present only here
+> are renames that work performed.
+>
+> One deliberate difference, so nobody "fixes" it back: this repository still
+> carries the Logger auto-apply pair (`apps/web/src/screens/Logger.tsx:297`,
+> `apps/mobile/src/screens/Logger.tsx:382`) that writes an adjusted weight into
+> the next set. `the-coach-brain` removed the web one on purpose, and its
+> `coach-contract` check has a seventh rule forbidding it. The copy here has six
+> rules and would not catch it.
+>
+> This repository's history, documentation and handoff bundle remain valid for
+> reference. Its `main` is `71b14b2`.
+
+
+> ## ⚠ This is not the live repository
+>
+> Active development moved to **[`reflectprotect123-max/the-coach-brain`](https://github.com/reflectprotect123-max/the-coach-brain)**
+> on 8 August 2026, when the ARC coach workspace (302 files) was imported there.
+> That repository is **strictly ahead of this one** and is the single source of
+> truth. Do not start feature work here.
+>
+> A file-by-file comparison on 8 August (`the-coach-brain@cf4e80c` against this
+> repository at `71b14b2`) found 30 files present only there — the entire coach
+> workspace — and nothing here worth recovering. The two files present only here
+> are renames that work performed.
+>
+> One deliberate difference, so nobody "fixes" it back: this repository still
+> carries the Logger auto-apply pair (`apps/web/src/screens/Logger.tsx:297`,
+> `apps/mobile/src/screens/Logger.tsx:382`) that writes an adjusted weight into
+> the next set. `the-coach-brain` removed the web one on purpose, and its
+> `coach-contract` check has a seventh rule forbidding it. The copy here has six
+> rules and would not catch it.
+>
+> This repository's history, documentation and handoff bundle remain valid for
+> reference. Its `main` is `71b14b2`.
+
+
 Short on purpose. If you read one file in this repository, make it this one.
 
 ## What this is
