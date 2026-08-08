@@ -112,11 +112,25 @@ genuine gap.
 
 Each of these was checked rather than assumed:
 
-- **Secrets in the repository**: none found. Only env var *names* appear
-  (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_COACH_USER_IDS`,
-  `VITE_SITE_ORIGIN`, `VITE_HYBRID_PRODUCT`, `VITE_HYBRID_ECOSYSTEM_SYNC`,
-  `EXPO_PUBLIC_HYBRID_ECOSYSTEM_SYNC`, `EXPO_PUBLIC_HYBRID_PRODUCT`). No `.env`
-  is tracked.
+- **Secrets in the repository**: no service-role key, no private key, no
+  password, no `.env` tracked. Every `*_SECRET = '...'` found is a
+  self-labelled test fixture in `checks/` (`'contract-test-secret'`,
+  `'local-fixture-secret-not-the-real-one'`). Each `service_role` hit is either
+  a SQL comment explaining that the role bypasses RLS, or a test signing a fake
+  token.
+
+  **One qualified exception, stated precisely rather than waved through** —
+  `packages/config/src/index.ts:24-27` carries a real production Supabase
+  project URL and a real `anon` JWT as fallback defaults. Decoded, its claims
+  are `role: anon`, ref `orysjncrksmdfabpuftd`, expiring 2036.
+
+  An anon key is *designed* to be public: it ships in every browser bundle and
+  is what RLS exists to constrain — and RLS here is proven to isolate two
+  athletes against a real Postgres. So this is **not a credential leak**, and
+  handing over the repo does not expose anything the deployed site does not.
+  It is nonetheless a live pointer at a real project, and whether that goes to
+  an outside party is the owner's call, not a mechanical one. Rotating it is
+  cheap if the answer is no.
 - **Account leakage**: RLS proven to isolate two real athletes against a live
   Postgres, including six cross-owner write attempts
   (`checks/migrations-apply.mjs`).
