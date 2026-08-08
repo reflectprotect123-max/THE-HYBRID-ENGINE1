@@ -39,3 +39,22 @@ end $d$;
 -- Supabase grants these at the project level; a bare cluster does not.
 grant usage on schema auth to anon, authenticated, service_role;
 grant select on auth.users to authenticated;
+
+-- Same story for the public schema, where every migration's tables actually
+-- live. Supabase grants broad table privileges (select/insert/update/delete)
+-- to anon/authenticated/service_role by default at the project level; RLS,
+-- or the deliberate ABSENCE of a policy, is what actually gates access, not
+-- the table grant itself. Every ARC migration's own `revoke all ... from
+-- anon` only means something if a broader default was there to revoke from
+-- in the first place -- and a table that relies on the platform default
+-- rather than an explicit grant (athlete_domain_snapshots and friends, from
+-- 20260804_fitness_ecosystem_contracts.sql, predating the ARC migrations'
+-- more explicit convention) was UNREADABLE by `authenticated` on a bare
+-- cluster until this line existed, which is not what real Supabase does and
+-- was never caught because nothing had exercised that table as
+-- `authenticated` with RLS applied before. `alter default privileges`
+-- covers every table created by migrations AFTER this prelude runs, since
+-- none exist yet at this point.
+grant usage on schema public to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to anon, authenticated, service_role;
