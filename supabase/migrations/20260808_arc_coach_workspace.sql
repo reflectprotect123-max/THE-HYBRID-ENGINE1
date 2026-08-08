@@ -555,3 +555,95 @@ $$;
 
 revoke all on function public.create_program_assignment(uuid, uuid, uuid, date, smallint[], text, text) from public, anon;
 grant execute on function public.create_program_assignment(uuid, uuid, uuid, date, smallint[], text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The authorised, tenant-scoped projection.
+--
+-- docs/ARC_CLAUDE_HANDOFF.md: "Do not remove that guard until the backend can
+-- fetch an authorised, tenant-scoped projection for the selected client."
+-- This is that projection, and its shape is the point.
+--
+-- IT RETURNS COUNTS, NEVER THE SNAPSHOT.
+--
+-- A coach needs to know how the week went. They do not need — and this will
+-- not give them — the athlete's every logged set, body weight or meal. The
+-- snapshot stays behind `auth.uid() = user_id`; only the summary crosses.
+-- Widening this to return `snapshot` would hand a coach the whole training
+-- history through a function whose name says "summary", and would do it
+-- without any of the RLS the athlete's own tables carry.
+--
+-- SECURITY DEFINER, so it can read across the athlete's RLS — which makes the
+-- authorization check in the body the ONLY thing standing between a coach and
+-- somebody else's records. It is the first statement for that reason.
+--
+-- SAFETY IS NOT AN AGGREGATE. `has_safety_flag` reports whether a pain hold or
+-- illness is active, because a coach reading "3 of 4 sessions done" without
+-- knowing the fourth was dropped for pain has been told the opposite of what
+-- happened. It is a boolean, not a diagnosis: the coach learns that a flag
+-- exists, not what the athlete reported.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.get_athlete_training_summary(
+  p_organization_id uuid,
+  p_athlete_user_id uuid,
+  p_week_start date
+)
+returns table (
+  strength_completed integer,
+  strength_planned integer,
+  conditioning_completed integer,
+  conditioning_planned integer,
+  nutrition_days integer,
+  has_safety_flag boolean
+)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_week_end date := p_week_start + 6;
+  v_core jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated' using errcode = 'insufficient_privilege';
+  end if;
+
+  -- The whole boundary, in one line. Same message regardless of which part
+  -- failed, so a caller cannot probe for who exists.
+  if not public.coaches_athlete(p_organization_id, p_athlete_user_id) then
+    raise exception 'not permitted' using errcode = 'insufficient_privilege';
+  end if;
+
+  select state into v_core from public.athlete_core where user_id = p_athlete_user_id;
+
+  return query
+  with sessions as (
+    select s.value as s
+    from public.athlete_domain_snapshots d,
+         lateral jsonb_array_elements(coalesce(d.snapshot -> 'sessions', '[]'::jsonb)) s
+    where d.user_id = p_athlete_user_id
+      and d.domain in ('strength', 'conditioning')
+      and (s.value ->> 'date') between p_week_start::text and v_week_end::text
+  ),
+  nutrition as (
+    select count(distinct e.value ->> 'logDate') as days
+    from public.athlete_domain_snapshots d,
+         lateral jsonb_array_elements(coalesce(d.snapshot -> 'logEntries', '[]'::jsonb)) e
+    where d.user_id = p_athlete_user_id
+      and d.domain = 'nutrition'
+      and (e.value ->> 'deletedAt') is null
+      and (e.value ->> 'logDate') between p_week_start::text and v_week_end::text
+  )
+  select
+    (select count(*)::integer from sessions where s ->> 'kind' = 'strength' and s ->> 'status' = 'complete'),
+    (select count(*)::integer from sessions where s ->> 'kind' = 'strength'),
+    (select count(*)::integer from sessions where s ->> 'kind' = 'conditioning' and s ->> 'status' = 'complete'),
+    (select count(*)::integer from sessions where s ->> 'kind' = 'conditioning'),
+    (select days::integer from nutrition),
+    coalesce(
+      (v_core #>> '{safety,painHold,active}')::boolean
+        or (v_core #>> '{safety,illness,status}') is distinct from 'clear',
+      false
+    );
+end;
+$$;
+
+revoke all on function public.get_athlete_training_summary(uuid, uuid, date) from public, anon;
+grant execute on function public.get_athlete_training_summary(uuid, uuid, date) to authenticated;

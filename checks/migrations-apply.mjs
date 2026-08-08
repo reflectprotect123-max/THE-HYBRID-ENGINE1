@@ -511,6 +511,88 @@ try {
     }
   });
 
+
+  /* The projection. This is the function that lets a coach see anything at all
+     about another person, so it gets the most hostile tests in this file. */
+  console.log('\nARC — the authorised, tenant-scoped projection:\n');
+
+  asOwnerSql(`
+    insert into public.athlete_domain_snapshots (user_id, domain, writer, snapshot) values
+      ('${ATHLETE_A}', 'strength', 'test', jsonb_build_object('sessions', jsonb_build_array(
+         jsonb_build_object('id','s1','kind','strength','date','2026-08-10','status','complete'),
+         jsonb_build_object('id','s2','kind','strength','date','2026-08-12','status','planned'))))
+      on conflict (user_id, domain) do update set snapshot = excluded.snapshot;
+    insert into public.athlete_domain_snapshots (user_id, domain, writer, snapshot) values
+      ('${ATHLETE_A}', 'conditioning', 'test', jsonb_build_object('sessions', jsonb_build_array(
+         jsonb_build_object('id','c1','kind','conditioning','date','2026-08-11','status','complete'))))
+      on conflict (user_id, domain) do update set snapshot = excluded.snapshot;
+    insert into public.athlete_core (user_id, state) values
+      ('${ATHLETE_A}', jsonb_build_object('safety', jsonb_build_object('painHold', jsonb_build_object('active', true))))
+      on conflict (user_id) do update set state = excluded.state;`);
+
+  const summary = (uid, org, athlete) => lastLine(asAthlete(uid,
+    `select strength_completed || '/' || strength_planned || '/' || conditioning_completed
+         || '/' || conditioning_planned || '/' || has_safety_flag
+       from public.get_athlete_training_summary('${org}', '${athlete}', date '2026-08-10');`));
+
+  check('PROJECTION: a coach gets their athlete\'s week as counts', () => {
+    const got = summary(COACH_1, ORG_1, ATHLETE_A);
+    if (got !== '1/2/1/1/true') throw new Error(`expected 1/2/1/1/true (strength 1 of 2, conditioning 1 of 1, pain flag), got ${got}`);
+  });
+
+  check('PROJECTION: the pain flag travels, so a coach is not told the opposite of what happened', () => {
+    const got = summary(COACH_1, ORG_1, ATHLETE_A);
+    if (!got.endsWith('/true')) throw new Error(`an active pain hold did not reach the coach: ${got}`);
+  });
+
+  check('PROJECTION: another tenant\'s coach is refused', () => {
+    const out = asAthlete(COACH_2, refusalProbe(
+      `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
+    if (!out.includes('REFUSED')) throw new Error("another org's coach read the summary");
+  });
+
+  check('PROJECTION: a revoked coach is refused', () => {
+    const out = asAthlete(EX_COACH, refusalProbe(
+      `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
+    if (!out.includes('REFUSED')) throw new Error('a revoked coach read the summary');
+  });
+
+  check('PROJECTION: support is refused', () => {
+    const out = asAthlete(SUPPORT_1, refusalProbe(
+      `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
+    if (!out.includes('REFUSED')) throw new Error('support read the summary');
+  });
+
+  check('PROJECTION: another athlete is refused', () => {
+    const out = asAthlete(ATHLETE_B, refusalProbe(
+      `perform public.get_athlete_training_summary('${ORG_1}', '${ATHLETE_A}', date '2026-08-10')`));
+    if (!out.includes('REFUSED')) throw new Error("athlete B read athlete A's summary");
+  });
+
+  check('PROJECTION: it returns COUNTS and cannot return the snapshot', () => {
+    /* The privacy boundary. A coach learns how the week went; they do not get
+       the athlete's every logged set. If a column ever carries jsonb, this
+       fails — which is the point. */
+    /* A function's TABLE return is not in information_schema.columns —
+       pg_get_function_result is where it lives. */
+    const ret = lastLine(asOwnerSqlOut(
+      `select pg_get_function_result(p.oid) from pg_proc p
+        where p.proname = 'get_athlete_training_summary';`));
+    if (!ret) throw new Error('the projection function was not found');
+    if (/json/i.test(ret)) throw new Error(`the projection returns json: ${ret}`);
+    /* And the raw snapshot stays unreadable directly. Either answer is
+       correct and they are different mechanisms: a hard permission denial (no
+       grant on the table) or an empty set (RLS filtering). What must never
+       happen is a row coming back. */
+    const raw = asAthlete(COACH_1, `do $p$ declare n integer; begin
+      select count(*) into n from public.athlete_domain_snapshots where user_id = '${ATHLETE_A}';
+      raise notice 'ROWS %', n;
+    exception when others then raise notice 'REFUSED'; end $p$;`);
+    if (!/REFUSED|ROWS 0/.test(raw)) {
+      throw new Error(`a coach read the athlete's raw snapshots directly: ${lastLine(raw)}`);
+    }
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });

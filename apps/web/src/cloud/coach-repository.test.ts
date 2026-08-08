@@ -61,6 +61,7 @@ describe('SupabaseCoachWorkspaceRepository', () => {
       from: () => ({ select: () => ({ eq: () => ({ eq: async () => ({
         data: [{ athlete_user_id: 'abcdef12-0000-0000-0000-000000000000', organization_id: 'org-1' }], error: null,
       }) }) }) }),
+      rpc: async () => ({ data: null, error: new Error('nope') }),
     }) as never);
     const real = (await repo.listClients()).find((c) => c.id.startsWith('abcdef12'));
     expect(real).toBeDefined();
@@ -112,5 +113,52 @@ describe('SupabaseCoachWorkspaceRepository', () => {
   it('says assignments need a connection rather than failing silently offline', async () => {
     const repo = new SupabaseCoachWorkspaceRepository(null as never);
     await expect(repo.saveAssignmentDraft(draft())).rejects.toThrow(/connection/);
+  });
+});
+
+describe('the roster projection', () => {
+  const withRoster = (rpc: unknown) => new SupabaseCoachWorkspaceRepository(clientWith({
+    from: () => ({ select: () => ({ eq: () => ({ eq: async () => ({
+      data: [{ athlete_user_id: 'abcdef12-0000-0000-0000-000000000000', organization_id: 'org-1' }], error: null,
+    }) }) }) }),
+    rpc,
+  }) as never);
+
+  const summary = (over: Record<string, unknown> = {}) => ({
+    strength_completed: 2, strength_planned: 3,
+    conditioning_completed: 1, conditioning_planned: 2,
+    nutrition_days: 5, has_safety_flag: false, ...over,
+  });
+
+  it('shows the real counts the server returned', async () => {
+    const repo = withRoster(async () => ({ data: [summary()], error: null }));
+    const client = (await repo.listClients()).find((c) => c.id.startsWith('abcdef12'))!;
+    expect(client.completion.strength).toEqual({ completed: 2, planned: 3 });
+    expect(client.completion.nutritionDays).toBe(5);
+  });
+
+  it('surfaces a safety flag on the roster, because it outranks the counts', async () => {
+    // "3 of 4 done" without "the fourth was dropped for pain" is the opposite
+    // of what happened.
+    const repo = withRoster(async () => ({ data: [summary({ has_safety_flag: true })], error: null }));
+    const client = (await repo.listClients()).find((c) => c.id.startsWith('abcdef12'))!;
+    expect(client.attention?.level).toBe('safety');
+  });
+
+  it('degrades ONE client to not-readable rather than blanking the roster', async () => {
+    const repo = withRoster(async () => ({ data: null, error: new Error('not permitted') }));
+    const clients = await repo.listClients();
+    // The roster still lists them, and the signed-in athlete is untouched.
+    expect(clients.some((c) => c.source === 'engine-local')).toBe(true);
+    const client = clients.find((c) => c.id.startsWith('abcdef12'))!;
+    expect(client.completion.strength).toEqual({ completed: 0, planned: 0 });
+  });
+
+  it('keeps detail gated even when the counts are real', async () => {
+    // Layer 3: the detail screens still read local stores, so unlocking them
+    // would show the coach their OWN training under this athlete's name.
+    const repo = withRoster(async () => ({ data: [summary()], error: null }));
+    const client = (await repo.listClients()).find((c) => c.id.startsWith('abcdef12'))!;
+    expect(client.source).toBe('synthetic-fixture');
   });
 });

@@ -87,6 +87,22 @@ interface AssignmentRow {
   organization_id: string;
 }
 
+interface SummaryRow {
+  strength_completed: number;
+  strength_planned: number;
+  conditioning_completed: number;
+  conditioning_planned: number;
+  nutrition_days: number;
+  has_safety_flag: boolean;
+}
+
+/** The Monday on or before `d`, matching the Coordinator's week. */
+function weekStart(d: Date): string {
+  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
+  return `${copy.getFullYear()}-${String(copy.getMonth() + 1).padStart(2, '0')}-${String(copy.getDate()).padStart(2, '0')}`;
+}
+
 interface TemplateRow {
   id: string;
   domain: 'strength' | 'conditioning';
@@ -124,20 +140,61 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
       .eq('status', 'active');
     if (error) throw error;
 
-    return [...ENGINE_LOCAL, ...((data ?? []) as AssignmentRow[]).map((row) => ({
-      id: row.athlete_user_id,
-      /* No profile table is readable cross-athlete yet, so the id's first
-         segment stands in. A placeholder that looks like an id reads as
-         missing data; a placeholder that looks like a name would be a
-         fabricated person. */
-      name: `Athlete ${row.athlete_user_id.slice(0, 8)}`,
-      initials: initialsOf(row.athlete_user_id.slice(0, 2)),
-      source: 'synthetic-fixture' as const,
-      assignment: null,
-      completion: NO_COMPLETION,
-      conditioningMinutes: NO_MINUTES,
-      attention: null,
-    }))];
+    const monday = weekStart(new Date());
+    const rows = (data ?? []) as AssignmentRow[];
+
+    /* One projection call per client, in parallel. Each is authorised
+       server-side; a refusal for one client must not blank the whole roster,
+       so a failed summary degrades that ONE row to "not readable" rather than
+       rejecting the list. */
+    const summaries = await Promise.all(rows.map(async (row) => {
+      try {
+        const { data: s, error: e } = await this.client!.rpc('get_athlete_training_summary', {
+          p_organization_id: row.organization_id,
+          p_athlete_user_id: row.athlete_user_id,
+          p_week_start: monday,
+        });
+        if (e) return null;
+        return (Array.isArray(s) ? s[0] : s) as SummaryRow | null;
+      } catch {
+        return null;
+      }
+    }));
+
+    return [...ENGINE_LOCAL, ...rows.map((row, i) => {
+      const s = summaries[i];
+      return {
+        id: row.athlete_user_id,
+        /* No profile table is readable cross-athlete yet, so the id's first
+           segment stands in. A placeholder that looks like an id reads as
+           missing data; a placeholder that looks like a name would be a
+           fabricated person. */
+        name: `Athlete ${row.athlete_user_id.slice(0, 8)}`,
+        initials: initialsOf(row.athlete_user_id.slice(0, 2)),
+        /* Still not `engine-local`: the counts are real, but the DETAIL
+           screens read local stores and would show the coach their own
+           training under this athlete's name. That is layer 3, and the guard
+           stays until it lands. */
+        source: 'synthetic-fixture' as const,
+        assignment: null,
+        completion: s
+          ? {
+              strength: { completed: s.strength_completed, planned: s.strength_planned },
+              conditioning: { completed: s.conditioning_completed, planned: s.conditioning_planned },
+              nutritionDays: s.nutrition_days,
+              checkInDays: 0,
+            }
+          : NO_COMPLETION,
+        conditioningMinutes: NO_MINUTES,
+        /* A safety flag outranks everything, so it is the one thing that
+           reaches the roster. `safety`, not `decision`: a coach who sees "3 of
+           4 done" without knowing the fourth was dropped for pain has been
+           told the opposite of what happened. */
+        attention: s?.has_safety_flag
+          ? { level: 'safety' as const, label: 'Pain or illness flag is active' }
+          : null,
+      };
+    })];
   }
 
   async listProgramTemplates(): Promise<readonly ProgramTemplate[]> {
