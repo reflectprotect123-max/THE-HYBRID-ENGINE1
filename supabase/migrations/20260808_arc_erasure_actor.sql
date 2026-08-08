@@ -46,28 +46,37 @@ create or replace function public.deny_coach_decision_mutation()
 returns trigger language plpgsql as $$
 begin
   -- The one permitted UPDATE: actor erasure, and nothing else about the row
-  -- moved. Every column that could theoretically be forged onto the same
-  -- statement is checked explicitly, not skipped.
+  -- moved. A schema-generic diff, not a hand-enumerated column list --
+  -- an adversarial review of the first draft (which listed all 10 other
+  -- columns by name) caught that a hardcoded allowlist is a latent trap:
+  -- unlike deny_mutation() itself (which refuses every UPDATE
+  -- unconditionally and so needs no such list), a per-column enumeration's
+  -- safety depends on staying exhaustive, and nothing ties it to the live
+  -- schema. The next `alter table coach_decisions add column ...` would
+  -- have silently exempted the new column from immutability instead of
+  -- failing closed. `to_jsonb(...) - 'actor_user_id'` compares every OTHER
+  -- column at once, automatically, including `id` (so this also implicitly
+  -- enforces "still the same row") and any column added after this
+  -- migration ships.
   if tg_op = 'UPDATE'
     and new.actor_user_id is null
     and old.actor_user_id is not null
-    and new.id = old.id
-    and new.organization_id = old.organization_id
-    and new.athlete_user_id = old.athlete_user_id
-    and new.kind = old.kind
-    and new.base_version is not distinct from old.base_version
-    and new.idempotency_key = old.idempotency_key
-    and new.payload = old.payload
-    and new.rule_set_version = old.rule_set_version
-    and new.rule_set_hash is not distinct from old.rule_set_hash
-    and new.created_at = old.created_at
+    and (to_jsonb(new) - 'actor_user_id') = (to_jsonb(old) - 'actor_user_id')
   then
     return new;
   end if;
 
   -- The same orphaned-row DELETE escape hatch `deny_mutation()` gives every
   -- other immutable table, narrowed to the two parent references this table
-  -- actually has (no template_id/assignment_id/decision_id column here).
+  -- actually has (no template_id/assignment_id/decision_id column here) --
+  -- confirmed functionally identical to deny_mutation()'s own check for
+  -- THIS table, since its other three not-exists branches key off columns
+  -- coach_decisions doesn't have and are already no-ops here. Accepted as a
+  -- duplication, not extracted into a shared helper: a future correction to
+  -- deny_mutation()'s orphan logic would need a matching edit here too,
+  -- nothing enforces that, and that risk is judged cheaper to accept than
+  -- editing 20260808_arc_coach_workspace.sql's already-shipped function to
+  -- route through a new shared helper it was never written to call.
   if tg_op = 'DELETE' then
     if not exists (select 1 from public.organizations o where o.id = old.organization_id)
        or not exists (select 1 from auth.users u where u.id = old.athlete_user_id)

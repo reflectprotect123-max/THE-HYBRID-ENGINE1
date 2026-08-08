@@ -1377,6 +1377,28 @@ try {
     if (kind !== 'assignment_created') throw new Error(`kind changed to ${kind} despite the refusal`);
   });
 
+  check('ERASURE (actor): a payload change riding along with actor erasure is also refused', () => {
+    /* The `kind` test above proves ONE column is still checked. Payload is a
+       DIFFERENT column, checked by a different clause in the schema-generic
+       jsonb diff -- this is the concrete regression an adversarial review
+       named: an edit that accidentally dropped just the payload comparison
+       would stay green if `kind` were the only column ever exercised. */
+    const out = asOwnerProbe(
+      `update public.coach_decisions set actor_user_id = null, payload = '{"forged":true}'::jsonb where id = '${ERASURE_DECISION_2}'`);
+    if (!wasRefused(out)) throw new Error('a payload change was smuggled in alongside actor erasure');
+  });
+
+  check('ERASURE (actor): the escape hatch refuses actor REASSIGNMENT, only ever a null', () => {
+    /* The design decision this migration makes is explicit: anonymise the
+       actor, never transfer it. Moving actor_user_id from one real coach to
+       ANOTHER real coach must be refused exactly like any other mutation --
+       there is no legitimate reason a decision's actor would change to a
+       different living identity. */
+    const out = asOwnerProbe(
+      `update public.coach_decisions set actor_user_id = '${ERASABLE_COACH_1}' where id = '${ERASURE_DECISION_2}'`);
+    if (!wasRefused(out)) throw new Error('actor_user_id was reassigned to a different identity instead of only being nulled');
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });

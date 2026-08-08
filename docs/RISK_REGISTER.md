@@ -223,9 +223,22 @@ they are real.
     `coach_decisions`'s immutability trigger is replaced with a narrower
     function (`deny_coach_decision_mutation`, `deny_mutation` itself and
     every other table using it are untouched) that permits EXACTLY one
-    UPDATE shape — the actor moving to null, every other column
-    byte-for-byte unchanged. Mutation-tested: a hand-crafted UPDATE
-    smuggling a `kind` change alongside the actor erasure is still refused.
+    UPDATE shape — the actor moving to null, every other column unchanged,
+    checked via a schema-generic `to_jsonb(new) - 'actor_user_id' =
+    to_jsonb(old) - 'actor_user_id'` diff. That diff replaced a first draft
+    that enumerated all 10 other columns by name — an independent
+    adversarial critique caught that a hand-enumerated allowlist is a latent
+    trap (unlike `deny_mutation()` itself, which refuses every UPDATE
+    unconditionally and needs no such list, this fork's safety would have
+    depended on the list staying exhaustive against every future `alter
+    table coach_decisions add column`, with nothing tying the two
+    together). The same critique also independently reproduced the
+    FK-auto-name assumption from a clean `initdb` and confirmed it correct
+    (and confirmed, by hand-forcing a wrong name, that the deny suite would
+    have caught it if it weren't). Mutation-tested: a hand-crafted UPDATE
+    smuggling a `kind` change, a `payload` change, or an actor
+    REASSIGNMENT (to a different living coach, not a null) alongside the
+    erasure is refused in every case.
     Still open, and explicitly NOT what this migration claims to fix: a
     coach who created an organisation or template
     (`organizations.created_by`, `program_templates.created_by`,
