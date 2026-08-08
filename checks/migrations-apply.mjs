@@ -386,6 +386,10 @@ try {
     insert into public.coach_athlete_assignments (organization_id, coach_user_id, athlete_user_id) values
       ('${ORG_1}', '${COACH_1}', '${ATHLETE_A}'),
       ('${ORG_1}', '${COACH_1}', '${ATHLETE_D}'),
+      -- COACH_1 also coaches ATHLETE_E, alongside COACH_3 -- the actor the
+      -- workout-library cross-athlete leak test needs: one coach who
+      -- legitimately coaches TWO different athletes in the same org.
+      ('${ORG_1}', '${COACH_1}', '${ATHLETE_E}'),
       ('${ORG_1}', '${COACH_3}', '${ATHLETE_E}'),
       ('${ORG_1}', '${EX_COACH}', '${ATHLETE_A}');
     insert into public.program_templates (id, organization_id, domain, name, created_by)
@@ -755,6 +759,160 @@ try {
                  where user_id = '${ATHLETE_E}';`);
     const got = summary(COACH_3, ORG_1, ATHLETE_E);
     if (!got.endsWith('/true')) throw new Error(`a recorded illness did not reach the coach: ${got}`);
+  });
+
+  /* ---------------------------------------------------------------------
+   * ARC — get_athlete_workout_library, per docs/ARC_LAYER3_DESIGN.md §6.
+   * Six findings came out of that design's own adversarial review before any
+   * SQL existed; each test below is named for the finding it proves closed.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC — the coach workout library:\n');
+
+  const WORKOUT_1 = 'strength:sessA:squat:1000';
+  const bodyOf = (name) => JSON.stringify({ name, blocks: [] }).replace(/'/g, "''");
+
+  const saveDraft = (uid, org, athlete, workoutId, kind, body, baseVersion) => lastLine(asAthlete(uid,
+    `select id || '|' || base_version || '|' || template_id from public.save_workout_draft(
+       '${org}', '${athlete}', '${workoutId}', '${kind}', '${body}'::jsonb,
+       ${baseVersion === null || baseVersion === undefined ? 'null' : baseVersion});`));
+
+  check('WORKOUT LIBRARY: first save creates a draft at version 0', () => {
+    const got = saveDraft(COACH_1, ORG_1, ATHLETE_A, WORKOUT_1, 'strength', bodyOf('Squat day'), null);
+    const [, version] = got.split('|');
+    if (version !== '0') throw new Error(`expected base_version 0 on first save, got: ${got}`);
+  });
+
+  check('WORKOUT LIBRARY: a further save against the right version advances it', () => {
+    const got = saveDraft(COACH_1, ORG_1, ATHLETE_A, WORKOUT_1, 'strength', bodyOf('Squat day v2'), 0);
+    const [, version] = got.split('|');
+    if (version !== '1') throw new Error(`expected base_version 1, got: ${got}`);
+  });
+
+  check('FINDING (stale version): a save against a stale base_version is rejected, not merged', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.save_workout_draft('${ORG_1}', '${ATHLETE_A}', '${WORKOUT_1}', 'strength', '${bodyOf('stale')}'::jsonb, 0)`));
+    if (!wasRefused(out)) throw new Error('a stale-version save was accepted rather than rejected');
+  });
+
+  check('a draft cannot change kind after creation', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.save_workout_draft('${ORG_1}', '${ATHLETE_A}', '${WORKOUT_1}', 'conditioning', '${bodyOf('x')}'::jsonb, 1)`));
+    if (!wasRefused(out)) throw new Error('a draft was allowed to switch kind mid-life');
+  });
+
+  check("FINDING (race → duplicate template): two drafts cannot share one (org, athlete, workout_id)", () => {
+    /* This is the direct-write proxy for the race save_workout_draft closes
+       with ON CONFLICT: the unique constraint it relies on must actually
+       exist and actually fire, or two concurrent first saves would each
+       believe they won. A second, unrelated template stands in for the
+       "second concurrent caller minted its own template row" half of the
+       race — what must be impossible is a SECOND draft for the same
+       (org, athlete, workout_id), regardless of which template it points at. */
+    const dupTemplateId = lastLine(asOwnerSqlOut(
+      `insert into public.program_templates (organization_id, domain, name, athlete_user_id, created_by)
+         values ('${ORG_1}', 'strength', 'dup', '${ATHLETE_A}', '${COACH_1}')
+         returning id;`));
+    const out = asOwnerProbe(
+      `insert into public.coach_workout_drafts (organization_id, athlete_user_id, coach_user_id, workout_id, template_id, kind, body, updated_by)
+         values ('${ORG_1}', '${ATHLETE_A}', '${COACH_1}', '${WORKOUT_1}', '${dupTemplateId}', 'strength', '{}'::jsonb, '${COACH_1}')`);
+    if (!wasRefused(out)) throw new Error('a second draft for the same (org, athlete, workout_id) was accepted');
+  });
+
+  check('WORKOUT LIBRARY: get_athlete_workout_library returns the drafting coach their athlete\'s drafts', () => {
+    const got = lastLine(asAthlete(COACH_1,
+      `select count(*) from public.get_athlete_workout_library('${ORG_1}', '${ATHLETE_A}');`));
+    if (got !== '1') throw new Error(`expected 1 draft, got ${got}`);
+  });
+
+  check('WORKOUT LIBRARY: a same-org coach who does not coach this athlete gets nothing from it', () => {
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.get_athlete_workout_library('${ORG_1}', '${ATHLETE_A}')`));
+    if (!wasRefused(out)) throw new Error("a non-coaching coach's call to get_athlete_workout_library was not refused");
+  });
+
+  check('ROLE ESCALATION: no client role may write coach_workout_drafts directly', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `insert into public.coach_workout_drafts (organization_id, athlete_user_id, coach_user_id, workout_id, template_id, kind, body, updated_by)
+         select organization_id, athlete_user_id, coach_user_id, 'direct-insert', template_id, kind, body, updated_by
+           from public.coach_workout_drafts where workout_id = '${WORKOUT_1}' limit 1`));
+    if (!wasRefused(out)) throw new Error('a client role wrote coach_workout_drafts directly');
+  });
+
+  let publishedVersionId;
+  check('WORKOUT LIBRARY: publish snapshots the draft, publishes the template, and assigns it', () => {
+    const out = lastLine(asAthlete(COACH_1,
+      `select template_version_id from public.publish_workout_draft(
+         '${ORG_1}', '${ATHLETE_A}', '${WORKOUT_1}', 1, date '2026-09-07', '{2,4}'::smallint[], 'publish-1');`));
+    if (!out || out === '') throw new Error('publish_workout_draft did not return an assignment');
+    publishedVersionId = out;
+    const status = lastLine(asOwnerSqlOut(
+      `select status from public.program_templates t
+         join public.coach_workout_drafts d on d.template_id = t.id
+        where d.workout_id = '${WORKOUT_1}' and d.athlete_user_id = '${ATHLETE_A}';`));
+    if (status !== 'published') throw new Error(`expected template status published, got ${status}`);
+  });
+
+  check('WORKOUT LIBRARY: a replayed publish returns the original assignment, no second template version', () => {
+    const templateId = lastLine(asOwnerSqlOut(
+      `select template_id from public.coach_workout_drafts where workout_id = '${WORKOUT_1}' and athlete_user_id = '${ATHLETE_A}';`));
+    const before = lastLine(asOwnerSqlOut(
+      `select count(*) from public.program_template_versions where template_id = '${templateId}';`));
+    asAthlete(COACH_1, `select public.publish_workout_draft(
+       '${ORG_1}', '${ATHLETE_A}', '${WORKOUT_1}', 1, date '2026-09-07', '{2,4}'::smallint[], 'publish-1');`);
+    const after = lastLine(asOwnerSqlOut(
+      `select count(*) from public.program_template_versions where template_id = '${templateId}';`));
+    if (before !== after) throw new Error(`a replayed publish minted a new version: ${before} -> ${after}`);
+  });
+
+  check('FINDING (one-off dates): a dates-based workout is refused at publish, not silently dropped', () => {
+    saveDraft(COACH_1, ORG_1, ATHLETE_A, 'strength:sessA:oneoff:2000', 'strength',
+      JSON.stringify({ name: 'One-off', blocks: [], dates: ['2026-09-10'] }).replace(/'/g, "''"), null);
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.publish_workout_draft('${ORG_1}', '${ATHLETE_A}', 'strength:sessA:oneoff:2000', 0, date '2026-09-10', '{}'::smallint[], 'publish-oneoff-1')`));
+    if (!wasRefused(out)) throw new Error('a one-off dated workout was published rather than refused');
+  });
+
+  check('FINDING (private template leak): a same-org coach who does not coach this athlete cannot see the published private template', () => {
+    if (!publishedVersionId) throw new Error('setup failed: no published version to check');
+    const templateCount = lastLine(asAthlete(COACH_3,
+      `select count(*) from public.program_templates t
+         join public.program_template_versions v on v.template_id = t.id
+        where v.id = '${publishedVersionId}';`));
+    const versionCount = lastLine(asAthlete(COACH_3,
+      `select count(*) from public.program_template_versions where id = '${publishedVersionId}';`));
+    if (templateCount !== '0' || versionCount !== '0') {
+      throw new Error(`a non-coaching same-org coach read ${templateCount} template(s), ${versionCount} version(s) of a private template`);
+    }
+  });
+
+  check('FINDING (private template leak): the OWNING coach and the athlete themselves can still see it', () => {
+    const coachSees = lastLine(asAthlete(COACH_1,
+      `select count(*) from public.program_template_versions where id = '${publishedVersionId}';`));
+    const athleteSees = lastLine(asAthlete(ATHLETE_A,
+      `select count(*) from public.program_template_versions where id = '${publishedVersionId}';`));
+    if (coachSees !== '1' || athleteSees !== '1') {
+      throw new Error(`expected the owning coach and the athlete to both see it: coach=${coachSees} athlete=${athleteSees}`);
+    }
+  });
+
+  check('CRITICAL — a private template cannot be assigned to a DIFFERENT athlete the same coach also coaches', () => {
+    /* COACH_1 coaches both ATHLETE_A and ATHLETE_E. Build and publish a
+       private draft for ATHLETE_E, then try to assign that exact version to
+       ATHLETE_A instead. Before this fix, create_program_assignment only
+       checked the template's ORGANISATION, never its ATHLETE, so this
+       succeeded — one athlete's private workout content, assigned to
+       another, by a coach who happened to be authorised for both. */
+    saveDraft(COACH_1, ORG_1, ATHLETE_E, 'strength:sessE:bench:3000', 'strength', bodyOf('Bench day'), null);
+    const eVersionId = lastLine(asAthlete(COACH_1,
+      `select template_version_id from public.publish_workout_draft(
+         '${ORG_1}', '${ATHLETE_E}', 'strength:sessE:bench:3000', 0, date '2026-09-07', '{1,3}'::smallint[], 'publish-e-1');`));
+    if (!eVersionId) throw new Error('setup failed: could not publish a private draft for ATHLETE_E');
+
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.create_program_assignment('${ORG_1}', '${ATHLETE_A}', '${eVersionId}', date '2026-09-08', '{1}'::smallint[], 'cmd-leak-1')`));
+    if (!wasRefused(out)) {
+      throw new Error("COACH_1 assigned ATHLETE_E's private workout to ATHLETE_A — the cross-athlete leak the design review found");
+    }
   });
 
   /* ---------------------------------------------------------------------

@@ -1,11 +1,21 @@
-# ARC layer 3 — reviewed design, not yet built
+# ARC layer 3 — design, and one part now built
 
-Status: 8 August 2026. This is a design document, produced by a mapping pass
-over the 7 remaining self-coach screens, three independent backend proposals,
-a synthesis, and an adversarial design-stage critique — the same review the
-layer-2 migration got, applied one stage earlier. **No migration exists for
-any of this yet.** Do not start writing SQL from this document until the
-sign-offs in §3 are answered; several change the schema materially.
+Status: 8 August 2026. This started as a design-only document — a mapping
+pass over the 7 remaining self-coach screens, three independent backend
+proposals, a synthesis, and an adversarial design-stage critique, the same
+review the layer-2 migration got, applied one stage earlier.
+
+**§6 (`get_athlete_workout_library`) is now built**, in
+`supabase/migrations/20260808_arc_workout_library.sql`, with every finding
+from its own critique fixed and the two most critical fixes (the
+cross-athlete leak in finding 2, the private-template RLS leak in finding 3)
+proven able to fail by mutation. Its deny suite lives in
+`checks/migrations-apply.mjs` under "ARC — the coach workout library".
+
+**Everything else in this document (§§1–5, progression / nutrition / week
+review / trends) is still design-only.** Do not start writing SQL from those
+sections until the remaining sign-offs in §5 are answered; several change
+the schema materially.
 
 Context: `docs/ARC_CLAUDE_HANDOFF.md`, `docs/HANDOFF_2026-08-08_ARC_IMPORT.md`,
 `docs/RISK_REGISTER.md`, `apps/web/src/coach/ClientDetailGate.tsx`. Layers 1–2
@@ -165,7 +175,14 @@ defaults stated explicitly so silence is not mistaken for approval.
    raw `constraint.reason` before `get_athlete_week_plan` ships, since that
    would leak the same detail sign-off 3 is deciding to withhold.
 
-## 6. `get_athlete_workout_library` — reviewed design (resolves sign-off 1)
+## 6. `get_athlete_workout_library` — BUILT (resolves sign-off 1)
+
+Migration: `supabase/migrations/20260808_arc_workout_library.sql`. Deny
+suite: `checks/migrations-apply.mjs`, "ARC — the coach workout library".
+Every finding below is fixed in the shipped SQL, not deferred; findings 2
+and 3 additionally have a mutation-proven test — the deny check was
+confirmed to fail when the fix is reverted, the same standard applied to
+every other check in this migration set.
 
 Same process as §§1–4: two independent proposals, a synthesis, an
 adversarial critique. The critique found a genuinely serious hole the
