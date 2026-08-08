@@ -11,6 +11,10 @@ import { CoachSettings } from './CoachSettings';
 import { Planner } from '../screens/Planner';
 import { GuidedBuilder } from '../screens/guided/GuidedBuilder';
 import { CoachWorkspaceProvider } from './CoachWorkspaceContext';
+/* The live repository. Imported, not constructed here — this file is under
+   coach/, which coach-contract rule 1 forbids from touching Supabase, and the
+   implementation lives in cloud/ for exactly that reason. */
+import { supabaseCoachWorkspaceRepository } from '../cloud/coach-repository';
 
 /**
  * Default export so App.tsx can `React.lazy(() => import('./coach'))` — the
@@ -19,7 +23,7 @@ import { CoachWorkspaceProvider } from './CoachWorkspaceContext';
 export default function Coach() {
   return (
     <CoachAccess>
-      <CoachWorkspaceProvider>
+      <CoachWorkspaceProvider repository={supabaseCoachWorkspaceRepository}>
         <Routes>
           <Route element={<ArcCoachFrame />}>
             <Route index element={<CoachCommandCenter />} />
