@@ -41,12 +41,12 @@ import { supabaseClient } from './sync';
  * which is the flag the bench already uses to disable detail links and print
  * "Detailed records await the backend adapter".
  *
- * That flag is now carrying two different meanings — "this person is invented"
- * and "this person is real but their detail is not readable yet" — and the
- * second is not a fixture. Renaming it needs a third member on
- * `CoachDataSource` and a pass over its consumers; until then the guard is
- * correct and the WORD is not. Zeroes below are "not readable", never "did
- * nothing", and nothing here fabricates a number to fill a shape.
+ * A roster client is returned as `roster-summary` — a real person whose
+ * summary is authorised and whose detail is not readable yet. That is a
+ * distinct state from `synthetic-fixture`, which is an invented client, and
+ * conflating them made the UI call a real athlete a fixture. Zeroes below are
+ * "not readable", never "did nothing", and nothing here fabricates a number to
+ * fill a shape.
  */
 
 const initialsOf = (name: string): string =>
@@ -171,11 +171,12 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
            fabricated person. */
         name: `Athlete ${row.athlete_user_id.slice(0, 8)}`,
         initials: initialsOf(row.athlete_user_id.slice(0, 2)),
-        /* Still not `engine-local`: the counts are real, but the DETAIL
-           screens read local stores and would show the coach their own
-           training under this athlete's name. That is layer 3, and the guard
-           stays until it lands. */
-        source: 'synthetic-fixture' as const,
+        /* A REAL athlete whose summary is authorised and whose detail is not
+           readable yet — which is a different thing from an invented one, and
+           now says so. Still not `engine-local`: the detail screens read local
+           stores and would show the coach their own training under this
+           person's name. That is layer 3. */
+        source: 'roster-summary' as const,
         assignment: null,
         completion: s
           ? {

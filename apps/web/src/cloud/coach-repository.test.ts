@@ -65,9 +65,12 @@ describe('SupabaseCoachWorkspaceRepository', () => {
     }) as never);
     const real = (await repo.listClients()).find((c) => c.id.startsWith('abcdef12'));
     expect(real).toBeDefined();
-    // The guard the handoff protects: no detail links for a client whose
-    // detail cannot be fetched.
-    expect(real?.source).toBe('synthetic-fixture');
+    /* The guard the handoff protects is "detail is not this person's", and
+       every consumer asks it as `=== 'engine-local'`. Asserting THAT rather
+       than the label is what keeps this test honest when the label changes —
+       and it just did: a real athlete is `roster-summary`, not a fixture. */
+    expect(real?.source).not.toBe('engine-local');
+    expect(real?.source).toBe('roster-summary');
     // Zeroes here mean "not readable", and nothing invented a completion.
     expect(real?.completion.strength).toEqual({ completed: 0, planned: 0 });
     expect(real?.assignment).toBeNull();
@@ -159,6 +162,8 @@ describe('the roster projection', () => {
     // would show the coach their OWN training under this athlete's name.
     const repo = withRoster(async () => ({ data: [summary()], error: null }));
     const client = (await repo.listClients()).find((c) => c.id.startsWith('abcdef12'))!;
-    expect(client.source).toBe('synthetic-fixture');
+    expect(client.source).not.toBe('engine-local');
+    // And it is not called a fixture — it is a real person.
+    expect(client.source).toBe('roster-summary');
   });
 });

@@ -39,10 +39,22 @@ export function ArcCoachFrame() {
         )}
       </aside>
       <div className="min-w-0">
-        {selectedClient?.source === 'synthetic-fixture' && !location.pathname.includes('/library') && !location.pathname.includes('/settings') && location.pathname !== '/coach' && (
+        {/* The warning is keyed on "detail is not this person's", which is true
+            of both non-local states — but they are not the same fact, and
+            telling a coach their real athlete is a fixture is its own bug. */}
+        {selectedClient && selectedClient.source !== 'engine-local' && !location.pathname.includes('/library') && !location.pathname.includes('/settings') && location.pathname !== '/coach' && (
           <div className="border-b border-warn/40 bg-warn/10 px-3 py-2 text-xs text-muted" role="status">
-            <strong className="text-text">{selectedClient.name} is a synthetic handoff fixture.</strong>{' '}
-            Detailed engine records below belong to the local demonstration athlete. The future backend adapter must supply this route per selected client.
+            {selectedClient.source === 'roster-summary' ? (
+              <>
+                <strong className="text-text">{selectedClient.name}&apos;s detailed records are not readable yet.</strong>{' '}
+                Their weekly counts are real and authorised. Everything below this line is the local athlete&apos;s data, not theirs.
+              </>
+            ) : (
+              <>
+                <strong className="text-text">{selectedClient.name} is a synthetic handoff fixture.</strong>{' '}
+                Detailed engine records below belong to the local demonstration athlete.
+              </>
+            )}
           </div>
         )}
         <Outlet />
