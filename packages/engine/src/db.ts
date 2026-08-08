@@ -507,6 +507,22 @@ export function mergeSettings(base: Settings = {}, winner: Settings = {}): Setti
   return out;
 }
 
+/**
+ * Record that a record is deleted, so the deletion SURVIVES a merge.
+ *
+ * Removing a record from the array is only half of a delete. The merge is
+ * additive, so the other device still holds it and hands it straight back on
+ * the next sync — the deletion is the thing that gets lost, not the record.
+ * `notTombstoned` is what suppresses it, and it reads this map.
+ *
+ * Exported because eight call sites were hand-rolling the same two lines and
+ * the three on the coach surface did not: a workout deleted from the bench
+ * came back from the phone. One helper, so the next caller cannot forget.
+ */
+export function tombstone(db: { settings: Settings }, id: string, now: number = Date.now()): void {
+  db.settings.deletedIds = { ...(db.settings.deletedIds || {}), [id]: now };
+}
+
 /** Local scalar edits win; additive fields are unioned; tombstones are applied. */
 export function mergeEngines(local: EngineDB, remote: EngineDB): EngineDB {
   const settings = mergeSettings(remote.settings || {}, local.settings || {});

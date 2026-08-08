@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { resolveSession } from '@hybrid/auto-coach';
-import { uid, type Workout } from '@hybrid/engine';
+import { tombstone, uid, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Card, Kicker, cx } from '../ui';
 import { canApply, ledgerEntryFromApply, planApply, planUndo } from './applyResolution';
@@ -107,6 +107,9 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
       } else {
         const i = draft.workouts.findIndex((x) => x.id === plan.workoutId);
         if (i >= 0) draft.workouts.splice(i, 1);
+        // Undo removes a workout the apply may already have pushed, so the
+        // removal needs a tombstone or the other device hands it back.
+        tombstone(draft, plan.workoutId);
       }
     });
     recordUndo(appliedEntry);
