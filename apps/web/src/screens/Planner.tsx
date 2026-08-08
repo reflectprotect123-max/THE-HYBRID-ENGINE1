@@ -45,7 +45,22 @@ import { TextBlockCard } from './planner/TextBlockCard';
 const MOVEMENT_LIST_ID = 'known-movements';
 const PREP_LIST_ID = 'prep-movements';
 
-export function Planner() {
+/**
+ * External-workout mode: a caller that already owns a `Workout` outside the
+ * local `EngineDB` (a coach live-tuning a roster client's draft, see
+ * `RosterPlanner`) supplies it directly, along with its own `edit`
+ * (mutate-and-persist) and `onBack`. Everything below the `w`/`edit`
+ * definitions is unchanged either way — the whole block/exercise/set editor
+ * only ever calls `edit(...)`, never `db`/`update` directly.
+ */
+export interface PlannerProps {
+  workout?: Workout;
+  onEdit?: (fn: (draft: Workout) => void) => void;
+  onBack?: () => void;
+  headerNote?: string;
+}
+
+export function Planner(props: PlannerProps = {}) {
   const { id } = useParams();
   const nav = useNavigate();
   const [search] = useSearchParams();
@@ -72,14 +87,16 @@ export function Planner() {
     return [...mobility, ...known.filter((k) => !seen.has(k.toLowerCase()))];
   }, [mobility, known]);
 
-  const w = db.workouts.find((x) => x.id === id);
+  const external = props.workout !== undefined && props.onEdit !== undefined && props.onBack !== undefined;
+  const w = external ? props.workout : db.workouts.find((x) => x.id === id);
+  const back = external ? (props.onBack as () => void) : () => nav(returnTo);
 
   if (!w) {
     return (
       <div className="grid min-h-full place-items-center p-3">
         <Card className="text-center">
           <p className="text-6 font-[750]">That session is gone</p>
-          <Button className="mt-2" variant="brass" onClick={() => nav(returnTo)}>
+          <Button className="mt-2" variant="brass" onClick={back}>
             Back
           </Button>
         </Card>
@@ -91,13 +108,15 @@ export function Planner() {
 
   // Typed as Workout, not `typeof w`: `typeof` reads the DECLARED type, which
   // still includes the undefined that the early return above has ruled out.
-  const edit = (fn: (draft: Workout) => void) =>
-    update((draft) => {
-      const t = draft.workouts.find((x) => x.id === w.id);
-      if (!t) return false;
-      fn(t);
-      t.updatedAt = Date.now();
-    });
+  const edit = external
+    ? (props.onEdit as (fn: (draft: Workout) => void) => void)
+    : (fn: (draft: Workout) => void) =>
+        update((draft) => {
+          const t = draft.workouts.find((x) => x.id === w.id);
+          if (!t) return false;
+          fn(t);
+          t.updatedAt = Date.now();
+        });
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-2 pt-2 pb-3">
@@ -130,14 +149,14 @@ export function Planner() {
 
       <header className="flex items-start gap-1">
         <button
-          onClick={() => nav(returnTo)}
+          onClick={back}
           aria-label="back"
           className="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-line2 bg-panel2 text-6 text-muted hover:text-text"
         >
           ←
         </button>
         <div className="min-w-0 flex-1">
-          <Kicker>Plan editor · saves as you go</Kicker>
+          <Kicker>{props.headerNote ?? 'Plan editor · saves as you go'}</Kicker>
           <input
             value={w.name || ''}
             onChange={(e) => edit((d) => void (d.name = e.target.value))}
@@ -302,7 +321,7 @@ export function Planner() {
         )}
       </div>
 
-      <Button variant="brass" size="lg" className="mt-3 w-full" onClick={() => nav(returnTo)}>
+      <Button variant="brass" size="lg" className="mt-3 w-full" onClick={back}>
         Done
       </Button>
     </div>

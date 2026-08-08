@@ -22,6 +22,7 @@ import { setProposalInput, useAuthoringInputs } from './authoring-store';
  * through the same Coordinator-placement path as any shared template.
  */
 function RosterAuthoringView({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const navigate = useNavigate();
   const { repository } = useCoachWorkspace();
   const [drafts, setDrafts] = useState<readonly AthleteWorkoutDraft[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -141,9 +142,18 @@ function RosterAuthoringView({ clientId, clientName }: { clientId: string; clien
                   })}
                 </div>
               </fieldset>
-              <button type="button" disabled={busy} onClick={() => publish(draft)} className="mt-1.5 rounded border border-gold-line bg-gold-wash px-1.5 py-0.5 text-xs font-semibold text-gold2 disabled:opacity-40">
-                Publish and assign
-              </button>
+              <div className="mt-1.5 flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/coach/roster-plan/${draft.workoutId}`)}
+                  className="rounded border border-line2 bg-panel px-1.5 py-0.5 text-xs text-muted hover:text-text"
+                >
+                  Edit blocks
+                </button>
+                <button type="button" disabled={busy} onClick={() => publish(draft)} className="rounded border border-gold-line bg-gold-wash px-1.5 py-0.5 text-xs font-semibold text-gold2 disabled:opacity-40">
+                  Publish and assign
+                </button>
+              </div>
             </article>
           ))}
           {drafts?.length === 0 && <p className="rounded border border-dashed border-line2 p-3 text-center text-xs text-muted">No drafts yet for {clientName}.</p>}

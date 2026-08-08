@@ -94,9 +94,23 @@ learns a session came from a coach. Colocated tests:
 kind-allowlist guard mutation-tested (reverting it to a bare cast makes the
 "drops an unrecognised kind" test fail, confirmed then restored).
 
-**Still not built**: a block/set editor for a roster client's workout
-drafts (the roster `CoachAuthoring` view can create a named shell and
-publish it, not edit its structure).
+**The roster block/set editor is now built too.** `Planner`
+(`apps/web/src/screens/Planner.tsx`) was refactored to accept an optional
+external `workout`/`onEdit`/`onBack` — everything below that (every block,
+exercise and set control) already only ever called one `edit(fn)` closure,
+so this is a ~15-line change, not a fork. `RosterPlanner.tsx`
+(`/coach/roster-plan/:workoutId`, gated `layer3Ready`) supplies that
+closure against a roster client's draft: local edits apply instantly for a
+responsive UI, and a `SaveCoalescer` (`coach/save-coalescer.ts`) debounces
+the actual `saveWorkoutDraft` network write, guaranteeing at most one save
+in flight at a time — required because `save_workout_draft`'s optimistic
+concurrency is a single `base_version` compare-and-swap, and two concurrent
+writes from the same tab would race on it even with nothing else touching
+the draft. An edit that arrives mid-save is never dropped — the coalescer
+marks itself dirty and re-fires with the latest value the instant the
+in-flight save resolves. `RosterAuthoringView` gained an "Edit blocks"
+button per draft. Colocated test: `save-coalescer.test.ts`, both the
+coalescing and the never-two-in-flight property mutation-tested.
 
 Context: `docs/ARC_CLAUDE_HANDOFF.md`, `docs/HANDOFF_2026-08-08_ARC_IMPORT.md`,
 `docs/RISK_REGISTER.md`, `apps/web/src/coach/ClientDetailGate.tsx`. Layers 1–2

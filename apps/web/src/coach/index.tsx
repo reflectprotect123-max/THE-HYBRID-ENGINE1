@@ -11,6 +11,7 @@ import { CoachSettings } from './CoachSettings';
 import { ClientDetailGate } from './ClientDetailGate';
 import { Planner } from '../screens/Planner';
 import { GuidedBuilder } from '../screens/guided/GuidedBuilder';
+import { RosterPlanner } from './RosterPlanner';
 import { CoachWorkspaceProvider } from './CoachWorkspaceContext';
 /* The live repository. Imported, not constructed here — this file is under
    coach/, which coach-contract rule 1 forbids from touching Supabase, and the
@@ -50,6 +51,14 @@ export default function Coach() {
             <Route path="legacy" element={<ClientDetailGate tool="Program bench"><CoachShell /></ClientDetailGate>} />
             <Route path="build/:id" element={<ClientDetailGate tool="Workout builder"><GuidedBuilder /></ClientDetailGate>} />
             <Route path="planner/:id" element={<ClientDetailGate tool="Planner"><Planner /></ClientDetailGate>} />
+            {/*
+              A roster client's draft has a real backend
+              (save_workout_draft/publish_workout_draft) so this one gets
+              layer3Ready — unlike build/:id and planner/:id above, which
+              stay local-only. RosterPlanner reads/writes the draft through
+              the same repository, never local `EngineDB`.
+            */}
+            <Route path="roster-plan/:workoutId" element={<ClientDetailGate tool="Workout builder" layer3Ready><RosterPlanner /></ClientDetailGate>} />
           </Route>
           <Route path="*" element={<Navigate to="/coach" replace />} />
         </Routes>
