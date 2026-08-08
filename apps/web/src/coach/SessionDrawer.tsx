@@ -12,6 +12,7 @@ import {
   type LoggedSet,
   type StrengthBlock,
   type Workout,
+  tombstone,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { cx } from '../ui';
@@ -295,11 +296,13 @@ export function SessionDrawer({
         t.updatedAt = Date.now();
         if (!t.dates.length && !t.days?.length && t.blocks.length === 0) {
           draft.workouts.splice(draft.workouts.indexOf(t), 1);
+          tombstone(draft, t.id);
         }
       } else {
         // Recurring: there is no per-date exclusion in the schema (deferred
         // design), so the honest operation is removing the whole slot.
         draft.workouts.splice(draft.workouts.indexOf(t), 1);
+        tombstone(draft, t.id);
       }
     });
     dirty.current = false;

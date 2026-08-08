@@ -59,6 +59,13 @@ cost real user data twice.
 file. If this file disagrees with the code, the code wins and the disagreement
 is worth reporting.
 
+**`node checks/coach-contract.mjs` enforces five of the constraints above.** It
+runs in CI. It will fail your build if the coach surface queries the backend
+per-athlete, mints a weekly plan, imports nutrition into the coordinator,
+collapses the safety reason codes, uses the allowlist as a data scope, or
+splices a record out without a tombstone. Run it before you hand anything back
+— a failure there is always real.
+
 ## Layout
 
 - `packages/*` — engines and contracts, consumed as **raw TypeScript source**

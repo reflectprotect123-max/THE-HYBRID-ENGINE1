@@ -1,4 +1,4 @@
-import type { Block, EngineDB, Workout } from '@hybrid/engine';
+import { tombstone, type Block, type EngineDB, type Workout } from '@hybrid/engine';
 
 /**
  * Pure week-operation planning against the real store model.
@@ -149,6 +149,10 @@ export function applyWeekClear(draft: EngineDB, plan: ClearPlan, now: number): v
     if (r.deletesWorkout) {
       const i = draft.workouts.findIndex((x) => x.id === r.workoutId);
       if (i >= 0) draft.workouts.splice(i, 1);
+      // A tombstone, not just a local delete: without one the next sync sees a
+      // workout the remote still has and cheerfully restores it. Every
+      // athlete-side delete does this; the coach surface did not.
+      tombstone(draft, r.workoutId, now);
     }
   }
 }

@@ -1,0 +1,197 @@
+/*
+ * The coach surface's contract, made executable.
+ *
+ * A document tells an agent what to do; it does not stop it. This does.
+ * Every assertion below encodes a constraint that, when broken, produces a
+ * coach surface that looks finished and is wrong — and each of them has
+ * already been broken once, by a well-intentioned build against the same
+ * written brief.
+ *
+ * These are STATIC assertions over source text. That is a deliberate ceiling:
+ * they cannot prove a design is right, only catch the specific wrong shapes
+ * that are cheap to detect and expensive to discover late. A finding here is
+ * always real; silence here is not a certificate.
+ *
+ * Run: node checks/coach-contract.mjs
+ */
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { resolve, dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+let failures = 0;
+
+const fail = (name, detail) => {
+  failures++;
+  console.error(`FAIL — ${name}\n       ${detail}`);
+};
+const pass = (name) => console.log(`  PASS — ${name}`);
+
+const walk = (dir) => {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) out.push(...walk(full));
+    else if (/\.tsx?$/.test(full)) out.push(full);
+  }
+  return out;
+};
+
+const read = (f) => readFileSync(f, 'utf8');
+/* Comments explain the rules as often as they break them, so a naive grep over
+   raw source reports the documentation as a violation. Strip comments first. */
+const code = (f) => read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const sourceFiles = (dir) => walk(resolve(ROOT, dir)).filter((f) => !/\.test\.tsx?$/.test(f));
+
+console.log('Coach surface contract\n');
+
+/* ---------------------------------------------------------------------------
+ * 1. The coach surface must not reach the backend directly.
+ *
+ * Every RLS policy is `auth.uid() = user_id`, and RLS FILTERS rather than
+ * raising — so a coach query for another athlete returns empty, not an error,
+ * and the screen simply looks like the athlete has no data. Today the bench
+ * reads the local store only. If that changes, it must be a decision somebody
+ * makes deliberately, not a line that slips in.
+ * ------------------------------------------------------------------------- */
+{
+  const offenders = [];
+  for (const dir of ['apps/web/src/coach', 'apps/web/src/autocoach']) {
+    for (const f of sourceFiles(dir)) {
+      const src = code(f);
+      if (/\bclient\s*\.\s*from\s*\(|\bsupabase\w*\s*\.\s*from\s*\(|\.rpc\s*\(/.test(src)) {
+        offenders.push(relative(ROOT, f));
+      }
+    }
+  }
+  if (offenders.length) {
+    fail(
+      'the coach surface does not query the backend directly',
+      `These files call Supabase: ${offenders.join(', ')}.\n` +
+        '       There is no coach-athlete RLS policy, so a per-athlete query returns an\n' +
+        '       EMPTY result rather than an error. If multi-athlete access is now intended,\n' +
+        '       it needs tables and policies first — see docs/COACH_INTEGRATION.md.',
+    );
+  } else pass('the coach surface does not query the backend directly');
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. The Coordinator is the only writer of a weekly plan.
+ *
+ * A coach steers INPUTS. Anything that mints a WeeklyPlan outside the
+ * coordinator package is hand-placing sessions, which this architecture does
+ * not permit.
+ * ------------------------------------------------------------------------- */
+{
+  const offenders = [];
+  for (const dir of ['apps/web/src', 'apps/mobile/src']) {
+    for (const f of sourceFiles(dir)) {
+      const src = code(f);
+      /* A TYPE annotation (`writer: 'coordinator'` inside a `type X = {...}`)
+         describes what the server returns and mints nothing. Only an object
+         literal assignment does. Requiring a following comma-or-brace on the
+         same statement is crude but distinguishes the two in practice. */
+      const minted = /writer\s*:\s*['"]coordinator['"]\s*,/.test(src) && !/^type\s|\btype\s+\w+\s*=/m.test(src.split(/writer\s*:/)[0].split('\n').slice(-6).join('\n'));
+      if (minted) offenders.push(relative(ROOT, f));
+    }
+  }
+  if (offenders.length) {
+    fail(
+      'only the coordinator package claims the coordinator writer identity',
+      `App code claiming writer:'coordinator': ${offenders.join(', ')}.\n` +
+        '       The weekly plan has exactly one author by design.',
+    );
+  } else pass('only the coordinator package claims the coordinator writer identity');
+}
+
+/* ---------------------------------------------------------------------------
+ * 3. The Coordinator arbitrates TRAINING only.
+ *
+ * Nutrition informs training through whole-athlete-state as CONTEXT. A
+ * nutrition import inside the coordinator means a macro target is being allowed
+ * to influence a training decision directly.
+ * ------------------------------------------------------------------------- */
+{
+  const offenders = sourceFiles('packages/coordinator/src').filter((f) =>
+    /(?:from|import)\s*\(?\s*['"]@hybrid\/nutrition/.test(code(f)),
+  );
+  if (offenders.length) {
+    fail(
+      'the coordinator does not import nutrition',
+      `${offenders.map((f) => relative(ROOT, f)).join(', ')} imports a nutrition package.`,
+    );
+  } else pass('the coordinator does not import nutrition');
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. Safety has its own reason codes, distinct from capacity.
+ *
+ * Pain and illness must DROP a session, not scale it, and must stay
+ * distinguishable from "there was no room this week". Collapsing them into a
+ * generic drop is how a safety event becomes invisible in a review surface.
+ * ------------------------------------------------------------------------- */
+{
+  const types = read(resolve(ROOT, 'packages/coordinator/src/types.ts'));
+  const required = ['dropped_pain_safety', 'dropped_illness_safety', 'dropped_interference'];
+  const missing = required.filter((c) => !types.includes(c));
+  if (missing.length) {
+    fail('safety and interference reason codes exist and are distinct', `Missing: ${missing.join(', ')}.`);
+  } else pass('safety and interference reason codes exist and are distinct');
+}
+
+/* ---------------------------------------------------------------------------
+ * 5. The coach allowlist is a UI gate, never a data scope.
+ *
+ * VITE_COACH_USER_IDS decides who SEES /coach. If it ever reaches a query or a
+ * data filter it starts looking like authorization, which it is not — the
+ * authorization boundary is RLS, and this list is client-side and trivially
+ * editable.
+ * ------------------------------------------------------------------------- */
+{
+  const offenders = [];
+  for (const f of sourceFiles('apps/web/src')) {
+    const src = code(f);
+    if (!src.includes('VITE_COACH_USER_IDS')) continue;
+    const rel = relative(ROOT, f);
+    if (!/coach\/(guard|CoachShell)\.tsx?$/.test(rel)) offenders.push(rel);
+  }
+  if (offenders.length) {
+    fail(
+      'the coach allowlist stays a UI gate',
+      `VITE_COACH_USER_IDS is read outside the guard in: ${offenders.join(', ')}.\n` +
+        '       It is client-side and editable — it is not an authorization boundary.',
+    );
+  } else pass('the coach allowlist stays a UI gate');
+}
+
+/* ---------------------------------------------------------------------------
+ * 6. Deletes are tombstones, in the coach surface too.
+ *
+ * A splice returns from the other device on the next sync, taking the deletion
+ * with it. This has cost real user data twice.
+ * ------------------------------------------------------------------------- */
+{
+  const offenders = [];
+  for (const dir of ['apps/web/src/coach', 'apps/web/src/autocoach']) {
+    for (const f of sourceFiles(dir)) {
+      /* Only TOP-LEVEL record arrays. Splicing a set out of a workout being
+         authored is editing content; the workout is the record. What must
+         never be spliced without a tombstone is the record itself. */
+      const src = code(f);
+      const spliced = /\b(workouts|sessions|logEntries|weightEntries|customFoods|recipes)\s*\.splice\s*\(/.test(src);
+      const tombstoned = /\btombstone\s*\(|deletedIds|deletedAt/.test(src);
+      if (spliced && !tombstoned) offenders.push(relative(ROOT, f));
+    }
+  }
+  if (offenders.length) {
+    fail(
+      'the coach surface never splices a record out',
+      `${offenders.join(', ')} calls .splice(). Deleting stamps deletedAt.`,
+    );
+  } else pass('the coach surface never splices a record out');
+}
+
+console.log(
+  failures ? `\n${failures} FAILURE(S)` : '\nAll coach contract checks passed.',
+);
+process.exit(failures ? 1 : 0);

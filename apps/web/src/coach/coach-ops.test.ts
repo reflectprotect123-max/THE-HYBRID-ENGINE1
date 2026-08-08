@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EngineDB, Workout } from '@hybrid/engine';
+import { mergeEngines, sanitizeDB, type EngineDB, type Workout } from '@hybrid/engine';
 import {
   applyWeekClear,
   applyWeekCopy,
@@ -115,5 +115,36 @@ describe('planWeekClear / applyWeekClear', () => {
   it('never clears dates before today', () => {
     const plan = planWeekClear([w({ id: 'a', dates: ['2026-08-04'] })], '2026-08-03', TODAY);
     expect(plan.removals).toEqual([]);
+  });
+});
+
+/*
+ * The deletion has to survive the merge, which is a different claim from "the
+ * workout is gone locally". The merge is ADDITIVE: the other device still holds
+ * the workout and hands it straight back, so what gets lost in a splice-only
+ * delete is the deletion, not the record.
+ *
+ * Found by `checks/coach-contract.mjs` — every athlete-side delete stamps
+ * `deletedIds`; all three coach-surface deletes did not.
+ */
+describe('a coach-surface delete survives a sync', () => {
+  const workout = (id: string, dates: string[]): Workout =>
+    ({ id, name: id, blocks: [], dates, updatedAt: 1 }) as unknown as Workout;
+
+  const dbWith = (ws: Workout[]): EngineDB =>
+    sanitizeDB({ workouts: ws, sessions: [], settings: {} } as unknown as EngineDB);
+
+  it('stamps a tombstone, so the other device cannot hand the workout back', () => {
+    const local = dbWith([workout('w1', [MON])]);
+    // The phone, which has not heard about the deletion yet.
+    const remote = dbWith([workout('w1', [MON])]);
+
+    applyWeekClear(local, planWeekClear(local.workouts, MON, MON), 5000);
+    expect(local.workouts.find((w) => w.id === 'w1')).toBeUndefined();
+    expect(local.settings.deletedIds?.w1).toBe(5000);
+
+    // The whole point: after a merge with the device that still has it.
+    const merged = mergeEngines(local, remote);
+    expect(merged.workouts.find((w) => w.id === 'w1')).toBeUndefined();
   });
 });
