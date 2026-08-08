@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import {
   CON_EFFORTS,
@@ -48,6 +48,9 @@ const PREP_LIST_ID = 'prep-movements';
 export function Planner() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [search] = useSearchParams();
+  const requestedReturn = search.get('returnTo');
+  const returnTo = requestedReturn?.startsWith('/coach') ? requestedReturn : '/library';
   const { db, update } = useDb();
   const [openEx, setOpenEx] = useState<string | null>('0-0');
 
@@ -76,8 +79,8 @@ export function Planner() {
       <div className="grid min-h-full place-items-center p-3">
         <Card className="text-center">
           <p className="text-6 font-[750]">That session is gone</p>
-          <Button className="mt-2" variant="brass" onClick={() => nav('/library')}>
-            Back to Library
+          <Button className="mt-2" variant="brass" onClick={() => nav(returnTo)}>
+            Back
           </Button>
         </Card>
       </div>
@@ -127,8 +130,8 @@ export function Planner() {
 
       <header className="flex items-start gap-1">
         <button
-          onClick={() => nav('/library')}
-          aria-label="back to library"
+          onClick={() => nav(returnTo)}
+          aria-label="back"
           className="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-line2 bg-panel2 text-6 text-muted hover:text-text"
         >
           ←
@@ -299,7 +302,7 @@ export function Planner() {
         )}
       </div>
 
-      <Button variant="brass" size="lg" className="mt-3 w-full" onClick={() => nav('/library')}>
+      <Button variant="brass" size="lg" className="mt-3 w-full" onClick={() => nav(returnTo)}>
         Done
       </Button>
     </div>

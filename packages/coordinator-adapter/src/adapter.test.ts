@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptySharedCore } from '@hybrid/shared-core';
 import { deriveAthleteState } from '@hybrid/whole-athlete-state';
-import { buildWeeklyPlan, mondayOf, proposalsFromDB } from '.';
+import { buildWeeklyPlan, buildWeeklyPlanFromProposals, mondayOf, proposalsFromDB } from '.';
 import type { EngineDB } from '@hybrid/engine';
 
 const db: EngineDB = {
@@ -29,5 +29,16 @@ describe('coordinator adapter', () => {
     expect(plan.writer).toBe('coordinator');
     expect(plan.entries.length).toBe(2);
     expect(plan.generatedAt).toBe(123);
+  });
+
+  it('lets coach tooling steer proposal inputs without writing the plan', () => {
+    const core = emptySharedCore(1);
+    const state = deriveAthleteState({ core, today: '2026-08-05' });
+    const proposals = proposalsFromDB(db).map((proposal) =>
+      proposal.id === 's' ? { ...proposal, priority: 'must' as const, preferredWeekdays: [5] } : proposal,
+    );
+    const plan = buildWeeklyPlanFromProposals(db, state, '2026-08-05', proposals, 123);
+    expect(plan.writer).toBe('coordinator');
+    expect(plan.entries.find((entry) => entry.proposalId === 's')?.date).toBe('2026-08-07');
   });
 });

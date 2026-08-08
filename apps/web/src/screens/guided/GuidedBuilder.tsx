@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
 import {
   canAdvance,
   nextStep,
@@ -67,7 +67,11 @@ export function GuidedBuilder() {
   const { id } = useParams<{ id: string }>();
   const { db, update } = useDb();
   const nav = useNavigate();
+  const [search] = useSearchParams();
   const location = useLocation();
+  const requestedReturn = search.get('returnTo');
+  const returnTo = requestedReturn?.startsWith('/coach') ? requestedReturn : '/library';
+  const plannerPath = `${location.pathname.startsWith('/coach/') ? '/coach/planner' : '/planner'}/${id}?returnTo=${encodeURIComponent(returnTo)}`;
   const navType = useNavigationType();
   const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
   const currentWorkout = db.workouts.find((x) => x.id === id);
@@ -114,9 +118,9 @@ export function GuidedBuilder() {
           d.settings.deletedIds = { ...(d.settings.deletedIds || {}), [id]: Date.now() };
         });
       }
-      nav('/library', { replace });
+      nav(returnTo, { replace });
     },
-    [added.length, id, nav, update],
+    [added.length, id, nav, returnTo, update],
   );
 
   /*
@@ -157,13 +161,13 @@ export function GuidedBuilder() {
       if (phase === 'add-another') {
         // Not a step, and the block is already saved, so the honest destination is
         // the Planner — the same place "No, I'm done" goes.
-        if (id) nav(`/planner/${id}`, { replace: true });
+        if (id) nav(plannerPath, { replace: true });
         return;
       }
       const target = (poppedState as { guidedStep?: FlowStep } | null)?.guidedStep ?? 'block-type';
       setStep(target);
     },
-    [id, nav, phase],
+    [id, nav, phase, plannerPath],
   );
 
   /*
@@ -384,7 +388,7 @@ export function GuidedBuilder() {
           >
             Yes, add another
           </Button>
-          <Button onClick={() => nav(`/planner/${id}`)}>No, I'm done</Button>
+          <Button onClick={() => nav(plannerPath)}>No, I'm done</Button>
         </div>
       </div>
     );

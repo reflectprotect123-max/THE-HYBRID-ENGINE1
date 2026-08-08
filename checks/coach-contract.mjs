@@ -152,7 +152,9 @@ console.log('Coach surface contract\n');
   for (const f of sourceFiles('apps/web/src')) {
     const src = code(f);
     if (!src.includes('VITE_COACH_USER_IDS')) continue;
-    const rel = relative(ROOT, f);
+    // Contract paths are repository paths, not host-OS paths. Normalising here
+    // keeps the allowlist check identical on Windows and POSIX runners.
+    const rel = relative(ROOT, f).replaceAll('\\', '/');
     if (!/coach\/(guard|CoachShell)\.tsx?$/.test(rel)) offenders.push(rel);
   }
   if (offenders.length) {
@@ -189,6 +191,61 @@ console.log('Coach surface contract\n');
       `${offenders.join(', ')} calls .splice(). Deleting stamps deletedAt.`,
     );
   } else pass('the coach surface never splices a record out');
+}
+
+/* ---------------------------------------------------------------------------
+ * 7. Athlete performance may propose progression; it may not apply it.
+ *
+ * A completed set or conditioning result is an actual. Turning it directly
+ * into the next prescription collapses actual, proposal and coach decision
+ * into one invisible mutation. Increases are approval-only in v1.
+ * ------------------------------------------------------------------------- */
+{
+  const targets = [
+    'apps/web/src/screens/Training.tsx',
+    'apps/web/src/screens/Conditioning.tsx',
+    'apps/web/src/screens/Logger.tsx',
+  ];
+  const forbidden = [
+    /liftProgress\s*=\s*liftAdapt\s*\(/,
+    /conProgress\s*=\s*conAdapt\s*\(/,
+    /settings\.conProgress\s*=\s*conProgress\b/,
+    /\.aVal\s*=\s*String\s*\(\s*adj\.newWeight\s*\)/,
+  ];
+  const offenders = targets.filter((file) => forbidden.some((pattern) => pattern.test(code(resolve(ROOT, file)))));
+  if (offenders.length) {
+    fail(
+      'athlete performance creates proposals instead of applying progression',
+      `${offenders.join(', ')} automatically mutates a future prescription from an athlete actual.`,
+    );
+  } else pass('athlete performance creates proposals instead of applying progression');
+}
+
+/* ---------------------------------------------------------------------------
+ * 8. The standalone coach workspace cannot fall into athlete navigation.
+ *
+ * Shared authoring components are allowed, but every doorway and return path
+ * must remain under /coach. The single-file artifact also guards its hash.
+ * ------------------------------------------------------------------------- */
+{
+  const coachDoorways = [
+    'apps/web/src/coach/CoachAuthoring.tsx',
+    'apps/web/src/coach/ResolutionPreview.tsx',
+    'apps/web/src/coach/SessionDrawer.tsx',
+  ];
+  const offenders = coachDoorways.filter((file) => /[`'"]\/(?:build|planner)\//.test(code(resolve(ROOT, file))));
+  const coachRouter = code(resolve(ROOT, 'apps/web/src/coach/index.tsx'));
+  const generator = read(resolve(ROOT, 'tooling/build-single-html.mjs'));
+  if (!coachRouter.includes('path="planner/:id"') || !coachRouter.includes('path="build/:id"')) offenders.push('apps/web/src/coach/index.tsx');
+  if (!generator.includes("location.hash.startsWith('#/coach')")) offenders.push('tooling/build-single-html.mjs');
+  const athleteRoutes = /[`'"]\/(?:training|library|conditioning|history|progress|exercise|calendar|day|recap|nutrition|settings|log)(?:\/|[`'"])/;
+  for (const file of sourceFiles('apps/web/src/coach')) {
+    const navigationCode = code(file).replace(/\.includes\(\s*['"][^'"]+['"]\s*\)/g, '');
+    if (athleteRoutes.test(navigationCode)) offenders.push(relative(ROOT, file));
+  }
+  if (offenders.length) {
+    fail('the standalone coach workspace stays on coach routes', `Route leak or missing guard: ${offenders.join(', ')}.`);
+  } else pass('the standalone coach workspace stays on coach routes');
 }
 
 console.log(

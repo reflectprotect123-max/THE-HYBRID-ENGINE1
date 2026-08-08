@@ -62,4 +62,27 @@ export function buildWeeklyPlan(
   });
 }
 
+/**
+ * Resolve an explicitly prepared proposal set against the same athlete facts
+ * as the normal app projection. Coach tooling uses this boundary to steer
+ * proposal inputs without acquiring a second weekly-plan writer.
+ */
+export function buildWeeklyPlanFromProposals(
+  db: EngineDB,
+  state: AthleteStateSnapshot,
+  today: string,
+  proposals: SessionProposal[],
+  now = Date.now(),
+): WeeklyPlan {
+  const current = ensureSharedCore(db, now);
+  return reconcileWeeklyPlan({
+    weekStart: mondayOf(today),
+    proposals,
+    state,
+    goals: current.core!.goals,
+    schedule: current.core!.schedule,
+    now,
+  });
+}
+
 export type { AthleteStateSnapshot, ProductDomain, SessionProposal, WeeklyPlan };

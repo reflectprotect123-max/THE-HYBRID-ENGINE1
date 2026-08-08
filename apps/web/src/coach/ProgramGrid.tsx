@@ -402,8 +402,7 @@ export function ProgramGrid({ horizon }: { horizon: 4 | 8 | 12 }) {
         <div className="px-2 py-3 text-sm text-muted">
           <p className="font-medium text-text">Nothing planned or logged in this window.</p>
           <p className="mt-0.5">
-            Sessions logged in the athlete app and workouts with scheduled days appear here
-            automatically — this bench reads the same database. Use the + on any future day to
+            Recorded sessions and workouts with scheduled days appear here automatically. Use the + on any future day to
             start planning.
           </p>
         </div>

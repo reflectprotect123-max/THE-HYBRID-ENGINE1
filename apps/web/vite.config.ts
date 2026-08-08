@@ -71,12 +71,11 @@ export default defineConfig({
         navigateFallbackDenylist: [
           // Serverless functions are never a navigation.
           /^\/\.netlify\//,
-          // THE COACH SITE IS A DIFFERENT APP AT THE SAME ORIGIN. Without this
-          // the athlete shell's service worker answers every /coach/ navigation
-          // with the athlete's index.html, and the builder simply never loads
-          // for anyone who has opened the athlete app first. The old hand-rolled
-          // service worker carried the same bypass; it is not optional.
-          /^\/coach(\/|$)/,
+          // Review routes are part of this SPA and are safe to reopen from its
+          // precached shell. Progression decisions are explicitly local demo
+          // records; the screen labels that boundary. Keep authoring and the
+          // mutation-heavy legacy bench online-only until a real outbox exists.
+          /^\/coach(?:\/?$|\/(?!(?:review|nutrition|progression)(?:\/|$)).*)/,
         ],
         runtimeCaching: [
           {

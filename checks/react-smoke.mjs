@@ -211,7 +211,7 @@ await t('the rest control reads "Skip rest", lowercase r', async () => {
   assert(!txt.includes('Skip Rest'), 'the rest control regressed to title-case "Skip Rest"');
 });
 
-await t('a working set is logged and autoregulation moves the next one', async () => {
+await t('a working set is logged and autoregulation PROPOSES the next one without applying it', async () => {
   const skip = await page.$('button:has-text("Skip rest")');
   if (skip) await skip.click();
   await page.waitForSelector('text=Set 2 of 3');
@@ -225,16 +225,26 @@ await t('a working set is logged and autoregulation moves the next one', async (
   const state = await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
     const sets = db.sessions[0].blocks[0].exercises[0].sets;
-    return { logged: sets[1], next: sets[2].aVal };
+    return { logged: sets[1], next: sets[2].aVal, body: document.body.textContent };
   });
   assert(state.logged.done === true, 'set 2 not marked done');
   assert(state.logged.aVal === '100' && state.logged.aVal2 === '5', 'values not stored: ' + JSON.stringify(state.logged));
   assert(state.logged.felt === '6.5', 'felt RPE not stored: ' + state.logged.felt);
-  // 100 × (1 + (8 − 6.5) × 2.5/100) = 103.75, snapped to the 2.5kg increment:
-  // 103.75 / 2.5 = 41.5, and Math.round rounds a half up, so 42 × 2.5 = 105.
-  // This is the shipped app's arithmetic exactly — the golden vectors pin all
-  // 672 combinations of it.
-  assert(state.next === '105', 'expected next set prefilled at 105, got ' + state.next);
+  /*
+   * 100 × (1 + (8 − 6.5) × 2.5/100) = 103.75, snapped to the 2.5kg increment:
+   * 103.75 / 2.5 = 41.5, and Math.round rounds a half up, so 42 × 2.5 = 105.
+   * This is the shipped app's arithmetic exactly — the golden vectors pin all
+   * 672 combinations of it.
+   *
+   * The number must be SAID and not WRITTEN. `checks/coach-contract.mjs` rule 7
+   * forbids the web Logger from assigning `adj.newWeight` onto a future set:
+   * a completed set is an actual, and turning an actual straight into the next
+   * prescription collapses actual, proposal and coach decision into one
+   * invisible mutation. Increases are approval-only in v1. So this asserts both
+   * halves — the proposal is visible, and the next set is still untouched.
+   */
+  assert(/105 kg/.test(state.body), 'the autoregulation proposal is not shown to the athlete: ' + state.body.slice(0, 400));
+  assert(!state.next, 'the Logger APPLIED progression onto the next set (' + state.next + ') — it may only propose it');
 });
 
 await t('the rest timer survives a reload', async () => {
@@ -2220,10 +2230,16 @@ await coachPage.addInitScript(
   { uid: COACH_UID, today: TODAY, key: NUTRITION_KEY },
 );
 
+/*
+ * `/coach` is now the ARC command centre; the shell that owns the read-only
+ * nutrition modal this section exercises moved to `/coach/legacy`. Both sit
+ * behind the same `CoachAccess` allowlist, so driving the legacy route still
+ * proves the bench opens for an allowlisted user and redirects everyone else.
+ */
 await t('the coach bench opens at all with an allowlisted session', async () => {
-  await coachPage.goto(coachBase + '/coach', { waitUntil: 'networkidle' });
+  await coachPage.goto(coachBase + '/coach/legacy', { waitUntil: 'networkidle' });
   await coachPage.waitForSelector('button:has-text("Nutrition")');
-  assert(/\/coach$/.test(coachPage.url()), 'the bench redirected away despite an allowlisted user: ' + coachPage.url());
+  assert(/\/coach\/legacy$/.test(coachPage.url()), 'the bench redirected away despite an allowlisted user: ' + coachPage.url());
 });
 
 await t("the bench's nutrition panel shows the athlete's day, and says it is read-only", async () => {

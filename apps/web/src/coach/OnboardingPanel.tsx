@@ -103,8 +103,8 @@ export function OnboardingPanel({ onClose }: { onClose: () => void }) {
         </ul>
         {complete && (
           <p className="mt-1 text-[11px] text-ok">
-            Setup complete — the loop is live: plan here, train in the athlete app, review the
-            resolution as it lands.
+            Setup complete — the loop is live: preserve intent here, receive completed work as
+            a separate actual, and review the resolution as it lands.
           </p>
         )}
         <div className="mt-1 flex justify-end">

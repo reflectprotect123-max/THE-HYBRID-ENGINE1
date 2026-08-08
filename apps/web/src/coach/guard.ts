@@ -15,7 +15,12 @@ export function coachAllowed(
   userId: string | null | undefined,
   allowlist: string | undefined,
   isDev: boolean,
+  demoMode = false,
 ): boolean {
+  // Deliberate, build-time escape hatch for synthetic downloadable demos.
+  // Never infer this from a missing allowlist: ordinary production stays
+  // fail-closed. This is UI access only and grants no backend data rights.
+  if (demoMode) return true;
   const ids = (allowlist ?? '')
     .split(',')
     .map((s) => s.trim())

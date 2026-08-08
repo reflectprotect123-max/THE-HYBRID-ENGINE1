@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { DbProvider } from './store/db';
 import { NutritionProvider } from './store/nutrition';
@@ -46,6 +46,7 @@ const Coach = lazy(() => import('./coach'));
  * it on a pull, so DbProvider has to be outermost.
  */
 export function App() {
+  const Router = import.meta.env.VITE_SINGLE_HTML === 'true' ? HashRouter : BrowserRouter;
   return (
     <DbProvider>
       {/* Above the router: a failed write has to reach the logger and the plan
@@ -60,7 +61,7 @@ export function App() {
           <Concept2Provider>
           <RestProvider>
           <SetTimerProvider>
-            <BrowserRouter>
+            <Router>
               <Routes>
                 <Route path="/log/:bi/:ei" element={<Logger />} />
                 <Route
@@ -90,7 +91,7 @@ export function App() {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>
-            </BrowserRouter>
+            </Router>
           </SetTimerProvider>
           </RestProvider>
           </Concept2Provider>

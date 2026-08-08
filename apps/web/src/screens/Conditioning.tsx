@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import {
   CON_FORMATS,
   cardioCompletionFor,
-  conAdapt,
   conDownsample,
   conHrr,
   conPrescription,
@@ -27,6 +26,8 @@ import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
 import { connectEchoV3, type EchoV3Connection, type EchoV3Event } from '../native/echoV3';
 import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
+import { conditioningProgressionProposal } from '../coach/progression';
+import { recordProgressionProposals } from '../coach/progression-store';
 
 /*
  * Conditioning: pick a format, run it against live heart rate, bank the time.
@@ -174,7 +175,7 @@ async function connectEcho(): Promise<void> {
 }
 
 export function Conditioning() {
-  const { hr, sessions, settings, whoop, activeSession, update } = useDb();
+  const { hr, sessions, settings, whoop, activeSession, update, athleteState } = useDb();
   const [params] = useSearchParams();
   const sinkBid = params.get('block') || '';
   // -1 when absent — Number(null) is 0, which silently aimed a
@@ -379,10 +380,14 @@ export function Conditioning() {
     setResult(rec);
     setRating(false);
 
+    let proposal: ReturnType<typeof conditioningProgressionProposal> = null;
     update((draft) => {
       const at = Date.now();
-      const { conProgress } = conAdapt(rec, draft.settings);
-      draft.settings.conProgress = conProgress;
+      proposal = conditioningProgressionProposal(
+        rec,
+        draft.settings,
+        athleteState.constraints.filter((constraint) => constraint.hard).map((constraint) => constraint.reason),
+      );
       draft.settings.updatedAt = at;
       const core = ensureSharedCore(draft, at).core!;
       draft.core = appendSharedCoreEvent(core, {
@@ -410,6 +415,7 @@ export function Conditioning() {
       }
       draft.settings.conditioning = pushCondHistory(draft.settings, rec);
     });
+    if (proposal) recordProgressionProposals([proposal]);
   }
 
   return (
