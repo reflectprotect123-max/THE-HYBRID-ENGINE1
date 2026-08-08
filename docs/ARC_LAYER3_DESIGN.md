@@ -128,19 +128,23 @@ same defensive jsonb-shape guards `get_athlete_training_summary` needed for
 `athlete_domain_snapshots`/`athlete_weekly_plans` — both are unconstrained,
 client-written JSON.
 
-## 5. Sign-offs required before any migration is written
+## 5. Sign-offs
 
-Numbered for reference. 1 and 2 change the shape of what gets built; the
-rest are defaults stated explicitly so silence is not mistaken for approval.
+Numbered for reference. 1 and 2 are decided (8 August 2026); the rest are
+defaults stated explicitly so silence is not mistaken for approval.
 
-1. **CoachAuthoring live-tuning mode** — retire for roster clients (default
-   above), or build `get_athlete_workout_library`. Retiring is recommended:
-   the ad hoc mode duplicates the Coordinator's placement job that
-   `program_assignments` already does correctly.
-2. **Nutrition consent shape** — does the coaching relationship alone
-   authorize the *summary* tier (default: yes), and for the raw-window
-   grant: is `granted_to` per-coach or org-wide (nullable)? Default
-   duration? Does revocation take effect immediately or next sync?
+1. **DECIDED — CoachAuthoring live-tuning mode gets a real backend.**
+   Not retired. `get_athlete_workout_library` is to be built — see §6 for
+   its own reviewed design, produced separately because it needed its own
+   proposal-and-critique pass, not a one-line default.
+2. **DECIDED — nutrition consent is per-coach, immediate revocation.**
+   `nutrition_read_grants.granted_to` is `not null` — a specific coach id,
+   never org-wide. The raw-window RPC checks `revoked_at is null` as a live
+   read on every call (not a cached/synced flag), so there is no window
+   after revocation where a removed coach still reads raw macros or weight;
+   the very next call simply fails the grant check. Default grant duration:
+   none stated by the user — until explicitly revoked, matching how
+   `coach_athlete_assignments.status` itself has no expiry today.
 3. **Progression sanitization** — is `hard: boolean` sufficient in place of
    `constraint.reason` (default: yes, matches `has_safety_flag`), or does
    coaching need a coarser reason category as a middle ground?
