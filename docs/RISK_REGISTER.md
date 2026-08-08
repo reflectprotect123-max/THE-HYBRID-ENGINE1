@@ -111,9 +111,52 @@ route stays online-only until a real offline outbox exists, and a NEW
 mutation route is denylisted by default. See `docs/COACH_INTEGRATION.md`,
 "The PWA trap".
 
-### R8 · Coach bench has no render tests
-~2,700 lines of UI covered only by `checks/react-smoke.mjs`. Its logic is
-unit-tested; its rendering is not.
+### R8 · Coach bench has no render tests — RESOLVED (8 August 2026)
+~2,700 lines of UI covered only by `checks/react-smoke.mjs`, which drives
+exactly one legacy route (`/coach/legacy`) in a real browser and never
+touched any ARC layer-3 screen. Its logic was unit-tested; its rendering
+was not.
+
+`apps/web` had no `@testing-library/react` before this — the one prior
+render test (`ClientDetailGate.test.tsx`) deliberately used
+`renderToStaticMarkup` specifically to avoid needing it, by testing a pure
+presentational sub-component rather than the hook-wired screen, which
+doesn't reach real screens calling `useCoachWorkspace()`/`useEffect`
+directly. Added `@testing-library/react`, `@testing-library/jest-dom` and
+`jsdom` as devDependencies (dev-only); `vitest.config.ts`'s global
+`environment: 'node'` is untouched — each consuming file opts in via the
+standard `// @vitest-environment jsdom` per-file directive.
+
+`apps/web/src/coach/coach-test-harness.tsx`: `FakeCoachWorkspaceRepository`
+(every `CoachWorkspaceRepository` method implemented and independently
+settable) and `renderCoachScreen()`/`rosterClient()`. 8 screens now covered
+— `ArcCoachFrame`, `CoachProgression`, `RosterPlanner`, `CoachAuthoring`,
+`CoachNutrition`, `WeekReview`, `AthleteStatus`, `CoachCommandCenter` —
+every one mutation-tested (a real behavioral bug seeded into the component,
+confirmed the specific test catches it, reverted). A real testing-pattern
+trap surfaced and is documented in the harness: `CoachWorkspaceProvider`
+populates `clients`/`selectedClient` via an async `useEffect` that resolves
+after `render()` returns, so an absence assertion run immediately after
+`render()` can pass for the wrong reason; every test flushes with
+`await act(async () => {})` first.
+
+Two things this pass caught that were NOT test-writing bugs:
+- `CoachAuthoring.test.tsx`'s generating agent left behind an unrelated,
+  incorrect edit to `CoachAuthoring.tsx` itself (reverting
+  `PUBLISH_WEEKDAYS`'s Sunday from `0` back to `7` — the exact bug fixed
+  earlier the same session) despite its own test correctly asserting `0`.
+  Caught by diffing every production file before committing, not just
+  running tests; reverted before it ever reached `main`.
+- **Not fixed, flagged for a human decision**: `CoachProgression.tsx`'s
+  `RosterProgressionView` Approve button disables on
+  `proposal.direction === 'review'`, never checking `proposal.hard`
+  directly. `hard` and `direction` are independent fields on
+  `AthleteProgressionProposal` — nothing today enforces that a `hard: true`
+  proposal always also carries `direction: 'review'`, and nothing in this
+  file would break if that stopped being true. Presumably safe only because
+  of an invariant enforced elsewhere (the backend), not in this component.
+  Worth deciding whether `hard` should independently gate Approve as
+  defence-in-depth.
 
 ### R9 · Label OCR unverified against real packets
 The parser is well tested (38 tests) and the camera path bundles, but no one has
