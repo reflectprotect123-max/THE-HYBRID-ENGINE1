@@ -174,23 +174,37 @@ source — there is no build step, `main` points at `./src/index.ts`.
 are separated from the TARGETS it may not. Go through it; do not reach into
 `NutritionDB` yourself.
 
-## The PWA trap, and it is aimed directly at you
+## The PWA trap — RESOLVED (8 August 2026)
 
-`apps/web/vite.config.ts` excludes `/coach` from `navigateFallback`:
-
-```js
-/^\/coach(\/|$)/,
-```
-
-The comment says the coach is "a different app at the same origin". **It no
-longer is** — it is a lazy chunk of the same SPA (`apps/web/src/App.tsx`:
+This section used to warn that `apps/web/vite.config.ts` excluded ALL of
+`/coach` from `navigateFallback`, with a stale comment claiming the coach was
+"a different app at the same origin" — wrong even then, since it is a lazy
+chunk of the same SPA (`apps/web/src/App.tsx`:
 `const Coach = lazy(() => import('./coach'))`, routed at `/coach/*`).
 
-Effect today: **`/coach` works online and fails offline.** This is a known open
-item, not a bug you found. If you are building a PWA for the coach, this line
-is the first thing to deal with, and deciding what offline should even MEAN for
-a coach view is a design question worth answering before you write the service
-worker config.
+That has since been fixed with a real answer to "what should offline even
+mean for a coach view", not just a blanket unblock:
+
+```js
+navigateFallbackDenylist: [
+  /^\/\.netlify\//,
+  // Review routes are part of this SPA and are safe to reopen from its
+  // precached shell. Progression decisions are explicitly local demo
+  // records; the screen labels that boundary. Keep authoring and the
+  // mutation-heavy legacy bench online-only until a real outbox exists.
+  /^\/coach(?:\/?$|\/(?!(?:review|nutrition|progression)(?:\/|$)).*)/,
+],
+```
+
+`/coach/review`, `/coach/nutrition` and `/coach/progression` — the three
+read-oriented ARC layer-3 routes — now reopen from the precached shell
+offline. `/coach` (the command centre), `/coach/author`,
+`/coach/roster-plan`, `/coach/build`, `/coach/planner` and `/coach/legacy`
+stay online-only, deliberately: those are the mutation-heavy routes, and
+there is still no offline outbox that could replay a save/publish/decision
+made while disconnected. If you add a new mutation-heavy `/coach/*` route,
+it is denylisted by default (the pattern only ALLOWS the three named
+prefixes) — check that default is still what you want before shipping.
 
 ## Practical facts
 

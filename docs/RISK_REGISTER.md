@@ -99,11 +99,17 @@ imply physiological authority the inputs do not support.
 *Disposition*: relabel, or document provenance as explicitly as
 `nutrition-engine/src/defects.ts` does for its known flaws.
 
-### R7 · `/coach` fails offline in a PWA
-`apps/web/vite.config.ts:79` excludes `/coach` from `navigateFallback`, with a
-comment asserting the coach is "a different app at the same origin". It is a
-lazy chunk of the same SPA (`apps/web/src/App.tsx:33`). Known open; directly in
-the path of any coach PWA work.
+### R7 · `/coach` fails offline in a PWA — RESOLVED
+`apps/web/vite.config.ts` used to exclude ALL of `/coach` from
+`navigateFallback`, with a stale comment asserting the coach is "a different
+app at the same origin". It is a lazy chunk of the same SPA
+(`apps/web/src/App.tsx`).
+Fixed with a real per-route answer, not a blanket unblock: the three
+read-oriented ARC layer-3 routes (`review`, `nutrition`, `progression`)
+reopen offline from the precached shell; every mutation-heavy `/coach/*`
+route stays online-only until a real offline outbox exists, and a NEW
+mutation route is denylisted by default. See `docs/COACH_INTEGRATION.md`,
+"The PWA trap".
 
 ### R8 · Coach bench has no render tests
 ~2,700 lines of UI covered only by `checks/react-smoke.mjs`. Its logic is
