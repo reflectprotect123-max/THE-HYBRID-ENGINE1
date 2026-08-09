@@ -79,20 +79,30 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   const appliedEntry = latestToday?.action === 'applied' ? latestToday : null;
 
   // Propose automatically once eligible; withdraw silently the moment a
-  // fresh resolve (this same render's `r`) turns hard-unsafe. A decided
-  // (approved/declined) proposal is left alone — a decision, once made,
-  // stays made for the day.
+  // fresh resolve (this same render's `r`) turns hard-unsafe, OR the
+  // underlying source workout no longer matches what was frozen at propose
+  // time — an athlete edit to today's workout after proposing must not be
+  // silently overwritten by Approve applying the stale frozen blocks. A
+  // decided (approved/declined) proposal is left alone — a decision, once
+  // made, stays made for the day.
   useEffect(() => {
     if (!workout || !r || appliedEntry) return;
     if (pending) {
-      if (pending.status === 'pending' && r.state === 'safety_stop') withdrawPending();
+      if (
+        pending.status === 'pending' &&
+        (r.state === 'safety_stop' ||
+          pending.sourceWorkoutId !== workout.id ||
+          pending.sourceWorkoutUpdatedAt !== workout.updatedAt)
+      ) {
+        withdrawPending();
+      }
       return;
     }
     if (canApply(r)) {
       proposePending({
         date: today,
         sourceWorkoutId: workout.id,
-        sourceWorkoutUpdatedAt: workout.updatedAt ?? Date.now(),
+        sourceWorkoutUpdatedAt: workout.updatedAt ?? 0,
         resolution: r,
       });
     }
@@ -109,10 +119,15 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   const handleApprove = () => {
     if (!pending || pending.status !== 'pending') return;
     // Defence-in-depth backstop: the effect above should already have
-    // withdrawn a now-unsafe proposal before this button could be clicked,
-    // but a hard constraint could in principle land between that render and
-    // this click, so the safety check is repeated here too.
-    if (r.state === 'safety_stop') {
+    // withdrawn a now-unsafe or now-stale proposal before this button could
+    // be clicked, but a hard constraint — or an athlete edit to today's
+    // workout — could in principle land between that render and this click,
+    // so both checks are repeated here too.
+    if (
+      r.state === 'safety_stop' ||
+      pending.sourceWorkoutId !== workout.id ||
+      pending.sourceWorkoutUpdatedAt !== workout.updatedAt
+    ) {
       withdrawPending();
       return;
     }

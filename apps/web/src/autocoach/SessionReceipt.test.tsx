@@ -182,6 +182,44 @@ describe('SessionReceipt — propose, approve, decline', () => {
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
   });
 
+  it('a change to the source workout after proposing withdraws the pending proposal silently', async () => {
+    // hold_progression is turned off for this test so that, once the athlete's
+    // own edit already brings the session within the RPE cap, resolveSession
+    // finds nothing left to propose (operations: [keep_as_planned]) and the
+    // auto-propose effect that runs after withdrawal has nothing eligible to
+    // re-offer — isolating the assertion to "the stale proposal is gone"
+    // rather than "a fresh one immediately replaces it" (both are safe; this
+    // test targets the withdrawal itself).
+    updatePolicy((p) => ({
+      ...p,
+      permissions: { ...p.permissions, hold_progression: 'off' },
+    }));
+    await renderReceipt();
+    expect(getPendingProposal()?.status).toBe('pending');
+
+    // The athlete edits today's workout in the editor after the proposal was
+    // raised but before they decide on it — bumping updatedAt and bringing
+    // the exercise's RPE within the policy cap themselves, so the frozen
+    // proposal (which would still cap the OLD, higher-RPE sets) now targets
+    // blocks that no longer match what's in the store, and nothing further
+    // needs proposing for the edited version.
+    mockWorkouts = [
+      strengthWorkout({
+        updatedAt: 2000,
+        blocks: [
+          {
+            id: 'work',
+            exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '6' }] }],
+          },
+        ],
+      }),
+    ];
+    await renderReceipt();
+
+    expect(getPendingProposal()).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
   it('a new day proposes fresh, ignoring a stale-dated declined proposal', async () => {
     proposePending({
       date: '2000-01-01',
