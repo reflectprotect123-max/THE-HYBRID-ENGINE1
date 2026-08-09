@@ -86,7 +86,13 @@ export function CoachLibrary() {
         <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-end gap-2"><div><p className="text-[9px] uppercase tracking-wider text-dim">Program templates</p><h2 className="text-base font-semibold">Strength and conditioning systems</h2></div><div className="ml-auto flex rounded-md border border-line2 p-0.5" role="group" aria-label="Filter Library by training system">{(['strength', 'conditioning'] as const).map((value) => <button key={value} type="button" aria-pressed={domain === value} onClick={() => setDomain(value)} className={`min-h-8 rounded px-2 text-xs capitalize ${domain === value ? 'bg-panel text-text' : 'text-muted'}`}>{value}</button>)}</div></div>
           <div className="divide-y divide-line border-y border-line2">
-            {!loading && visible.length === 0 && (
+            {!loading && error && (
+              <div className="px-2 py-6 text-center" role="alert">
+                <p className="text-sm text-bad">{error}</p>
+                <p className="mt-1 text-xs text-dim">This is a connection problem, not an empty Library.</p>
+              </div>
+            )}
+            {!loading && !error && visible.length === 0 && (
               <div className="px-2 py-6 text-center">
                 <p className="text-sm text-muted">No {domain} templates published yet.</p>
                 <p className="mt-1 text-xs text-dim">Build a session and publish it as a template to assign it to a client.</p>

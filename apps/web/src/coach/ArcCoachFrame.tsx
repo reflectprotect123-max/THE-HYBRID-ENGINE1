@@ -19,9 +19,9 @@ export function ArcCoachFrame() {
       <aside className="border-b border-line2 bg-panel3 px-2 py-2 lg:border-r lg:border-b-0 lg:px-2.5 lg:py-3">
         <Link to="/coach" className="flex items-center gap-1.5" aria-label="ARC coach command center">
           <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-gold-line/70 bg-gold-wash text-sm font-black text-gold2">A</div>
-          <div><p className="text-[9px] uppercase tracking-[.2em] text-gold">ARC</p><p className="text-sm font-semibold leading-tight">Coach workspace</p></div>
-          <span className="ml-auto text-[9px] uppercase tracking-wide text-dim">Demo</span>
+          <div className="min-w-0"><p className="text-[9px] uppercase tracking-[.2em] text-gold">ARC</p><p className="text-sm font-semibold leading-tight">Coach workspace</p></div>
         </Link>
+        <p className="mt-0.5 pl-[34px] text-[9px] uppercase tracking-wide text-dim">Demo</p>
         <nav className="mt-2 flex gap-0.5 overflow-x-auto pb-0.5 text-xs lg:mt-5 lg:grid lg:overflow-visible" aria-label="ARC primary navigation">
           <ArcNavLink to="/coach" label="Command" count={commandCount} current={!inLibrary && !location.pathname.includes('/settings')} />
           <ArcNavLink to="/coach/library" label="Library" current={inLibrary} />

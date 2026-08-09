@@ -77,6 +77,7 @@ export function rosterClient(over: Partial<ClientSummary> = {}): ClientSummary {
 export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   clients: readonly ClientSummary[] = [];
   templates: readonly ProgramTemplate[] = [];
+  templatesError = false;
   settings: CoachWorkspaceSettings = DEFAULT_COACH_SETTINGS;
   athleteWeek: AthleteWeekProjection | null = null;
   progressionProposals: readonly AthleteProgressionProposal[] = [];
@@ -100,6 +101,7 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   }
 
   async listProgramTemplates(): Promise<readonly ProgramTemplate[]> {
+    if (this.templatesError) throw new Error('simulated listProgramTemplates failure');
     return this.templates;
   }
 

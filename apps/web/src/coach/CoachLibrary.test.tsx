@@ -46,6 +46,15 @@ describe('CoachLibrary', () => {
     expect(screen.getByRole('link', { name: /session builder|build/i })).toHaveAttribute('href', '/coach/author');
   });
 
+  it('shows a distinct error message, not the empty-catalog message, when the Library fails to load', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.templatesError = true;
+    await renderLibrary(repo);
+
+    expect(screen.getAllByText(/could not be loaded/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/no.*templates.*published/i)).not.toBeInTheDocument();
+  });
+
   it('still shows the empty state for a domain with zero templates, even when the other domain has some', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.templates = PROGRAM_TEMPLATE_FIXTURES.filter((t) => t.domain === 'strength');
