@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useDb } from '../store/db';
 import { useProgressionLedger } from './progression-store';
@@ -14,15 +15,42 @@ export function ArcCoachFrame() {
   const commandCount = pending + weekExceptions;
   const inLibrary = location.pathname.includes('/library') || location.pathname.includes('/author') || location.pathname.includes('/build/') || location.pathname.includes('/planner/');
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   return (
     <div className="mx-auto grid min-h-screen max-w-[1440px] bg-bg text-text lg:grid-cols-[208px_minmax(0,1fr)]">
-      <aside className="border-b border-line2 bg-panel3 px-2 py-2 lg:border-r lg:border-b-0 lg:px-2.5 lg:py-3">
+      <div className="flex items-center gap-2 border-b border-line2 bg-panel3 px-2 py-2 sm:hidden">
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open coach navigation"
+          aria-expanded={drawerOpen}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-line2 bg-panel"
+        >
+          <span className="h-4 w-1 rounded-full bg-gold" aria-hidden="true" />
+        </button>
+        <p className="text-sm font-semibold">Coach workspace</p>
+      </div>
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 sm:hidden"
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-[240px] -translate-x-full overflow-y-auto border-r border-line2 bg-panel3 px-2 py-2 transition-transform duration-200 sm:static sm:z-auto sm:w-auto sm:translate-x-0 sm:border-b sm:transition-none lg:border-b-0 lg:border-r lg:px-2.5 lg:py-3 ${drawerOpen ? 'translate-x-0' : ''}`}
+      >
         <Link to="/coach" className="flex items-center gap-1.5" aria-label="ARC coach command center">
           <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-gold-line/70 bg-gold-wash text-sm font-black text-gold2">A</div>
           <div className="min-w-0"><p className="text-[9px] uppercase tracking-[.2em] text-gold">ARC</p><p className="text-sm font-semibold leading-tight">Coach workspace</p></div>
         </Link>
         <p className="mt-0.5 pl-[34px] text-[9px] uppercase tracking-wide text-dim">Demo</p>
-        <nav className="mt-2 flex gap-0.5 overflow-x-auto pb-0.5 text-xs lg:mt-5 lg:grid lg:overflow-visible" aria-label="ARC primary navigation">
+        <nav
+          className="mt-2 flex gap-0.5 overflow-x-auto pb-0.5 text-xs lg:mt-5 lg:grid lg:overflow-visible"
+          aria-label="ARC primary navigation"
+          onClick={() => setDrawerOpen(false)}
+        >
           <ArcNavLink to="/coach" label="Command" count={commandCount} current={!inLibrary && !location.pathname.includes('/settings')} />
           <ArcNavLink to="/coach/library" label="Library" current={inLibrary} />
           <ArcNavLink to="/coach/settings" label="Settings" current={location.pathname.includes('/settings')} />

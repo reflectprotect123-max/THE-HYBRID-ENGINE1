@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { act, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { DbProvider } from '../store/db';
 import { ArcCoachFrame } from './ArcCoachFrame';
 import { resetProgressionLedgerForTests } from './progression-store';
@@ -99,5 +99,17 @@ describe('ArcCoachFrame', () => {
     // proposals and dropped weekly-plan decisions. With neither seeded, the
     // badge must not render at all rather than show a bare 0.
     expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('the mobile nav trigger opens the rail drawer, and a nav link closes it', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ source: 'roster-summary' })];
+    await renderFrame(repo, '/coach');
+    const trigger = screen.getByRole('button', { name: /open coach navigation/i });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByRole('link', { name: /library/i }));
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 });
