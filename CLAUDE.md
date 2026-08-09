@@ -62,22 +62,32 @@ Do not move recovery, pain or illness logic into a specialist engine. Do not
 use HRV as a pain, injury or illness gate. Pain and illness are safety flags,
 not ordinary readiness penalties.
 
-## The coach workspace is WEB ONLY
+## The coach workspace is desktop-first, mobile is open for exploration (amended 9 August 2026)
 
-The ARC coach workspace — every route under `/coach`, `CoachWorkspaceRepository`
-and everything that consumes it — is a desktop web surface and nothing else. It
-must never be ported to `apps/mobile`, and it must never be designed, reviewed
-or screenshotted at a phone viewport. Judge it at desktop width; 1440px is what
-the layout is built for.
+This rule used to read "WEB ONLY" — never ported, never designed at a phone
+viewport, full stop. That was true because it was never asked; it stops being
+true once a coach without a desktop is a real scenario. The wall moves, the
+principle behind it does not: judge the workspace at desktop width until a
+mobile design is actually approved, and don't let one surface's constraints
+leak into the other's code.
 
-This already holds in code: no `CoachWorkspace`, `CoachCommandCenter`,
-`CoachAccess` or `ArcCoachFrame` symbol appears anywhere in `apps/mobile`. Keep
-it that way. (`apps/mobile/src/screens/nutrition/Coach.tsx` is unrelated — it is
-the athlete's own nutrition coach, not the coach bench.)
-
-The athlete app is the opposite case: it ships on web AND mobile, it is used on a
-phone, and `checks/screens.mjs` shoots it at 420px for that reason. That harness
-covers athlete routes only. Do not add coach routes to it.
+- `1440px` is still the build target and the default review width for every
+  route under `/coach`, `CoachWorkspaceRepository` and everything that
+  consumes it. Nothing here changes that.
+- A phone layout for the coach workspace is now in scope to explore — design,
+  mock up, and review at phone width — but it is exploration until a design is
+  explicitly approved for implementation. Do not port `CoachWorkspace`,
+  `CoachCommandCenter`, `CoachAccess`, `ArcCoachFrame` or any route under
+  `/coach` into `apps/mobile`, and do not wire up a live mobile build, without
+  that explicit approval.
+- `checks/screens.mjs` still shoots the athlete app only at 420px; do not add
+  coach routes to it until a mobile coach surface is actually approved and
+  built. (`apps/mobile/src/screens/nutrition/Coach.tsx` remains unrelated — the
+  athlete's own nutrition coach, not the coach bench.)
+- When a mobile design is approved, treat it the same as any other product
+  decision here: update this section with the real boundary (what ships on
+  mobile, what stays desktop-only, e.g. Nutrition's macro table and
+  WeekReview's ledger) rather than leaving the old absolute wording standing.
 
 ## Storage and release rules
 
