@@ -22,6 +22,7 @@ import { useTheme } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { ForeignSessionNotice } from './ForeignSession';
 import { resolveDayTarget, sessionFrom } from '../store/session';
+import { SessionReceipt } from '../autocoach/SessionReceipt';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
 
@@ -220,6 +221,8 @@ export function HomeScreen() {
           />
         </>
       )}
+
+      <SessionReceipt />
 
       <SectionHead title="Readiness" />
       <Card>
