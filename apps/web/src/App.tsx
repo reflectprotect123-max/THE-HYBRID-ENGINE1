@@ -26,7 +26,7 @@ import { Day } from './screens/Day';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
 import { FoodLog } from './screens/nutrition/FoodLog';
-import { PRODUCT, PRODUCT_ID } from './product';
+import { IS_SCOPED_BUILD, PRODUCT, PRODUCT_ID } from './product';
 
 /* The coach bench is its own chunk: athletes never download it, and a failure
    inside it can never take down an athlete route. */
@@ -75,7 +75,7 @@ export function App() {
                 <Route path="/planner/:id" element={<Planner />} />
                 <Route path="/build/:id" element={<GuidedBuilder />} />
                 <Route element={<Shell />}>
-                  <Route path="/" element={<Home />} />
+                  <Route path="/" element={IS_SCOPED_BUILD ? <Home /> : <Navigate to="/coach" replace />} />
                   <Route path="/training" element={<Training />} />
                   <Route path="/library" element={<Library />} />
                   <Route path="/conditioning" element={<Conditioning />} />
