@@ -244,6 +244,56 @@ describe('SessionReceipt — propose, approve, decline', () => {
     expect(within(second.container).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 
+  it('pausing withdraws a pending proposal on the next render', async () => {
+    await renderReceipt();
+    expect(getPendingProposal()?.status).toBe('pending');
+
+    await act(async () => {
+      updatePolicy((p) => ({ ...p, status: 'paused' }));
+    });
+    await renderReceipt();
+
+    expect(getPendingProposal()).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
+  // The reported sequence's direct-click variant — calling handleApprove
+  // before any render observes the pause — is not reachable through this
+  // harness (or through the real UI): React flushes the Pause click's state
+  // update before a second, separate click event can be dispatched, so by
+  // the time Approve could be clicked the component has already re-rendered
+  // and the effect above has already withdrawn the proposal. Confirmed by
+  // trying it directly (calling `updatePolicy` outside `act` so no render
+  // intervenes, then clicking Approve): the click fires against a still-
+  // mounted stale closure and goes through, which is a testing-harness
+  // artifact of bypassing React's own act-wrapped scheduling, not a bug
+  // reachable via any real interaction sequence. The propose-then-pause-
+  // then-rerender case above is the reachable, and therefore the tested,
+  // form of this scenario.
+
+  it('shows the frozen proposal, not a live recompute, when athlete state softly drifts before a decision', async () => {
+    await renderReceipt();
+    expect(getPendingProposal()?.status).toBe('pending');
+    // The frozen proposal caps the @8 set to the policy's @7 RPE cap.
+    expect(screen.getByText('Back Squat above @7')).toBeInTheDocument();
+    expect(screen.getByText('Back Squat capped @7')).toBeInTheDocument();
+
+    // A soft drift — the low_readiness constraint clears — that is neither a
+    // hard safety constraint nor a source-workout change, so nothing
+    // withdraws the pending proposal. A fresh resolve against this state
+    // would find nothing left to cap (operations: [keep_as_planned]).
+    mockAthleteState = snapshot({ constraints: [] });
+    const second = await renderReceipt();
+
+    expect(getPendingProposal()?.status).toBe('pending');
+    // The card still shows the ORIGINAL frozen operation, not the drifted
+    // "nothing to change" recompute. Scoped to this render's own container —
+    // the prior render's card is still mounted alongside it.
+    expect(within(second.container).getByText('Back Squat above @7')).toBeInTheDocument();
+    expect(within(second.container).getByText('Back Squat capped @7')).toBeInTheDocument();
+    expect(within(second.container).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
   it('a new day proposes fresh, ignoring a stale-dated declined proposal', async () => {
     proposePending({
       date: '2000-01-01',

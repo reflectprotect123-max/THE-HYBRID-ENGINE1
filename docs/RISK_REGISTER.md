@@ -23,7 +23,15 @@ automated change requires an inspectable receipt".
 *Disposition*: make the pre-fill an explicit accept, or mark it visually as a
 proposal.
 
-### R2 · Progression applied without approval — RESOLVED (9 August 2026)
+### R2 · Auto-Coached session adjustment applied without approval — RESOLVED (9 August 2026)
+**Scope note, read this first:** this entry, and its RESOLVED status, cover
+only `SessionReceipt.tsx`'s Auto-Coached adjustment (`resolveSession()` →
+propose → Approve/Decline → `LedgerEntry`). `Training.tsx:86`'s per-set
+`liftProgress` banking at session completion — the smaller,
+session-in-progress case this entry originally also described — is
+**untouched and remains open**. No approval step exists for it. Do not read
+this header as closing that path too.
+
 `apps/web/src/screens/Training.tsx:86` banks `liftProgress` at session
 completion. No approval step exists anywhere.
 **Contradicted** "progression may be proposed but requires explicit coach
@@ -31,11 +39,7 @@ approval". Note the mitigating context that existed at the time: there is no
 coach in the system for a self-coached athlete, and the athlete approved by
 performing the set.
 
-This entry is specifically about `SessionReceipt.tsx`'s Auto-Coached
-adjustment (`resolveSession()` → single-click Apply → `LedgerEntry`), not
-`Training.tsx`'s per-set weight banking, which is untouched and remains the
-smaller, session-in-progress case. Design:
-`docs/superpowers/specs/2026-08-09-self-coach-approval-gate-design.md`.
+Design: `docs/superpowers/specs/2026-08-09-self-coach-approval-gate-design.md`.
 
 Built: a propose-then-decide gate, the same shape `CoachProgression.tsx`'s
 `RosterProgressionView` already used for a human coach, now applied to the

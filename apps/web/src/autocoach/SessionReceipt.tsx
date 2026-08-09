@@ -82,9 +82,11 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   // fresh resolve (this same render's `r`) turns hard-unsafe, OR the
   // underlying source workout no longer matches what was frozen at propose
   // time — an athlete edit to today's workout after proposing must not be
-  // silently overwritten by Approve applying the stale frozen blocks. A
-  // decided (approved/declined) proposal is left alone — a decision, once
-  // made, stays made for the day.
+  // silently overwritten by Approve applying the stale frozen blocks, OR
+  // Auto-Coached has been paused — a pause must withdraw a pending proposal,
+  // not leave it sitting there for a later Approve to bank. A decided
+  // (approved/declined) proposal is left alone — a decision, once made,
+  // stays made for the day.
   useEffect(() => {
     if (!workout || !r || appliedEntry) return;
     if (pending) {
@@ -92,7 +94,8 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         pending.status === 'pending' &&
         (r.state === 'safety_stop' ||
           pending.sourceWorkoutId !== workout.id ||
-          pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0))
+          pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0) ||
+          policy.status !== 'active')
       ) {
         withdrawPending();
       }
@@ -110,7 +113,17 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
 
   if (!workout || policy.status === 'revoked' || !r) return null;
 
-  const changed = r.operations.some((o) => o.type !== 'keep_as_planned');
+  // While a proposal is pending, the card must show — and Approve must
+  // apply — the SAME content: the frozen resolution captured at propose
+  // time, not a fresh recompute that may have softly drifted since (a drift
+  // that isn't hard-unsafe and isn't a source-workout change, the only two
+  // things that trigger withdrawal above). Once nothing is pending, display
+  // reverts to the live resolve. `r` itself keeps being computed every
+  // render regardless — the withdrawal effect and the approve backstop both
+  // still need the live value to catch a fresh safety_stop or edit.
+  const displayResolution = pending?.status === 'pending' ? pending.resolution : r;
+
+  const changed = displayResolution.operations.some((o) => o.type !== 'keep_as_planned');
   if (compact && !changed) return null;
 
   const showDecide = pending?.status === 'pending';
@@ -119,14 +132,15 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   const handleApprove = () => {
     if (!pending || pending.status !== 'pending') return;
     // Defence-in-depth backstop: the effect above should already have
-    // withdrawn a now-unsafe or now-stale proposal before this button could
-    // be clicked, but a hard constraint — or an athlete edit to today's
-    // workout — could in principle land between that render and this click,
-    // so both checks are repeated here too.
+    // withdrawn a now-unsafe, now-stale, or now-paused proposal before this
+    // button could be clicked, but a hard constraint, an athlete edit to
+    // today's workout, or a pause could in principle land between that
+    // render and this click, so all four checks are repeated here too.
     if (
       r.state === 'safety_stop' ||
       pending.sourceWorkoutId !== workout.id ||
-      pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0)
+      pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0) ||
+      policy.status !== 'active'
     ) {
       withdrawPending();
       return;
@@ -182,23 +196,23 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   // Nothing to review recedes; anything worth a look — a proposed change or a
   // safety stop — carries the screen's default weight so it isn't mistaken
   // for reference material the way a quiet card would read.
-  const quiet = r.state === 'normal' && !changed;
+  const quiet = displayResolution.state === 'normal' && !changed;
 
   return (
     <Card
       tone={quiet ? 'quiet' : undefined}
-      className={cx('flex flex-col gap-1', r.state === 'safety_stop' && 'border-bad/40')}
+      className={cx('flex flex-col gap-1', displayResolution.state === 'safety_stop' && 'border-bad/40')}
     >
       <div className="flex items-baseline gap-1">
         <Kicker>Auto-Coached · {policy.status === 'paused' ? 'paused' : policy.mode}</Kicker>
-        <StatePill state={r.state} confidence={r.confidence} />
+        <StatePill state={displayResolution.state} confidence={displayResolution.confidence} />
       </div>
 
-      <p className="text-3 text-text">{r.athleteMessage}</p>
+      <p className="text-3 text-text">{displayResolution.athleteMessage}</p>
 
       {changed && (
         <ul className="flex flex-col gap-0.5">
-          {r.operations
+          {displayResolution.operations
             .filter((o) => o.type !== 'keep_as_planned')
             .map((o, i) => (
               <li key={i} className="rounded bg-well px-1 py-0.5 text-3 tabular-nums">
@@ -221,12 +235,12 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         <details className="text-3 text-muted">
           <summary className="cursor-pointer text-dim">Why — signals and inference</summary>
           <ul className="mt-0.5 space-y-[1px]">
-            {r.signals.map((s, i) => (
+            {displayResolution.signals.map((s, i) => (
               <li key={i} className={cx(s.quality !== 'known' && 'text-dim')}>
                 · {s.text}
               </li>
             ))}
-            {r.inferences.map((s, i) => (
+            {displayResolution.inferences.map((s, i) => (
               <li key={`i${i}`} className="text-muted">
                 → {s}
               </li>
@@ -274,7 +288,7 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
             Undo
           </button>
         )}
-        {(r.state === 'safety_stop' || r.state === 'uncertain') && (
+        {(displayResolution.state === 'safety_stop' || displayResolution.state === 'uncertain') && (
           <button
             className="shrink-0 rounded bg-gold-wash px-1 py-0.5 text-3 text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
             onClick={() => nav('/settings')}

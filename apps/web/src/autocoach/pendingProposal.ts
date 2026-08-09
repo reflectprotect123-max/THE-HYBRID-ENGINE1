@@ -31,12 +31,27 @@ const empty = (): PendingState => ({ schemaVersion: 1, proposal: null });
 let state: PendingState = load();
 const listeners = new Set<() => void>();
 
+/** A structural check on a persisted proposal, mirroring ledger.ts's own
+ *  `Array.isArray(parsed.entries)` guard — a malformed record (e.g. missing
+ *  `resolution`) must not pass load() and later crash `planApply` inside a
+ *  click handler. */
+function isValidProposal(p: unknown): p is PendingProposal {
+  if (p === null) return true;
+  if (typeof p !== 'object') return false;
+  const c = p as Partial<PendingProposal>;
+  return (
+    typeof c.date === 'string' &&
+    !!c.resolution &&
+    (c.status === 'pending' || c.status === 'approved' || c.status === 'declined')
+  );
+}
+
 function load(): PendingState {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return empty();
     const parsed = JSON.parse(raw) as PendingState;
-    if (parsed?.schemaVersion !== 1) return empty();
+    if (parsed?.schemaVersion !== 1 || !isValidProposal(parsed.proposal)) return empty();
     return parsed;
   } catch {
     return empty();
