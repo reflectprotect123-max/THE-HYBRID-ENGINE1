@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../store/db';
 import { CoachAuthoring } from './CoachAuthoring';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
@@ -125,5 +126,47 @@ describe('CoachAuthoring (roster)', () => {
 
     expect(screen.getByText('Choose at least one preferred weekday before publishing.')).toBeInTheDocument();
     expect(repo.publishedDrafts).toHaveLength(0);
+  });
+
+  it('sizes weekday-picker labels to a 44px touch target in the roster view', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [CLIENT];
+    repo.workoutDrafts = [draftFixture()];
+    const { container } = await renderAuthoring(repo);
+
+    const dayLabels = container.querySelectorAll('fieldset .grid-cols-7 label');
+    expect(dayLabels.length).toBeGreaterThan(0);
+    dayLabels.forEach((label) => expect(label).toHaveClass('min-h-11'));
+  });
+});
+
+/**
+ * `SelfCoachAuthoringView` derives its `ProposalCard`s from `proposalsFromDB`
+ * (packages/coordinator-adapter), which reads `db.workouts` — with the
+ * default empty `DbProvider` boot state there are zero workouts, so no
+ * `ProposalCard` (and thus no weekday-picker fieldset) ever renders. Seed the
+ * exact localStorage blob `DbProvider` boots from, the same way
+ * `AthleteStatus.test.tsx`'s `seedRecoveryToday` does, with one minimal
+ * strength workout so a `ProposalCard` mounts.
+ */
+function seedStrengthWorkout() {
+  const db = {
+    workouts: [{ id: 'w-self-1', kind: 'strength', name: 'Self-coach workout', blocks: [], updatedAt: Date.now() }],
+    sessions: [],
+    settings: {},
+  };
+  localStorage.setItem(LS_KEY, JSON.stringify(db));
+}
+
+describe('CoachAuthoring (self-coach)', () => {
+  it('sizes weekday-picker labels to a 44px touch target', async () => {
+    seedStrengthWorkout();
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [];
+    const { container } = await renderAuthoring(repo);
+
+    const dayLabels = container.querySelectorAll('fieldset .grid-cols-7 label');
+    expect(dayLabels.length).toBeGreaterThan(0);
+    dayLabels.forEach((label) => expect(label).toHaveClass('min-h-11'));
   });
 });
