@@ -92,7 +92,7 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         pending.status === 'pending' &&
         (r.state === 'safety_stop' ||
           pending.sourceWorkoutId !== workout.id ||
-          pending.sourceWorkoutUpdatedAt !== workout.updatedAt)
+          pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0))
       ) {
         withdrawPending();
       }
@@ -126,7 +126,7 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
     if (
       r.state === 'safety_stop' ||
       pending.sourceWorkoutId !== workout.id ||
-      pending.sourceWorkoutUpdatedAt !== workout.updatedAt
+      pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0)
     ) {
       withdrawPending();
       return;

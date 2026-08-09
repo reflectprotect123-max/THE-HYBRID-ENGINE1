@@ -1,7 +1,7 @@
 // apps/web/src/autocoach/SessionReceipt.test.tsx
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Workout } from '@hybrid/engine';
@@ -218,6 +218,30 @@ describe('SessionReceipt — propose, approve, decline', () => {
 
     expect(getPendingProposal()).toBeNull();
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
+  it('a workout with no updatedAt does not spuriously self-withdraw on the next render', async () => {
+    // updatedAt is optional (packages/engine/src/types.ts) — a workout that
+    // has never been touched since creation, or one migrated through the
+    // legacy app_state bridge, can genuinely have none. The propose-time
+    // write normalizes this with `?? 0`; the staleness comparison must
+    // normalize the live read the same way, or `0 !== undefined` reads as
+    // "changed" on every single render and the proposal never survives long
+    // enough to be decided.
+    mockWorkouts = [strengthWorkout({ updatedAt: undefined })];
+    await renderReceipt();
+    expect(getPendingProposal()?.status).toBe('pending');
+
+    // Nothing about the workout changed — same render conditions, no edit.
+    // Scoped to this render's own container: the prior render's card is
+    // still mounted alongside it (this suite doesn't unmount between
+    // renderReceipt() calls) and, since the proposal correctly survives,
+    // both cards show their own Approve button — querying the whole
+    // document would find two.
+    const second = await renderReceipt();
+
+    expect(getPendingProposal()?.status).toBe('pending');
+    expect(within(second.container).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 
   it('a new day proposes fresh, ignoring a stale-dated declined proposal', async () => {
