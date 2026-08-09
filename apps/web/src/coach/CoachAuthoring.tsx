@@ -385,17 +385,17 @@ function ProposalCard({
 
       <div className="mt-1 grid grid-cols-3 gap-1.5">
         <label className="text-[10px] uppercase tracking-wide text-dim">Priority
-          <select className="mt-0.5 w-full rounded border border-line2 bg-panel3 px-0.5 py-2 text-xs normal-case tracking-normal text-text" value={input.priority} onChange={(event) => patch({ priority: event.target.value as ProposalInput['priority'] })}>
+          <select className="mt-0.5 w-full rounded border border-line2 bg-panel3 px-0.5 py-0.5 text-xs normal-case tracking-normal text-text" value={input.priority} onChange={(event) => patch({ priority: event.target.value as ProposalInput['priority'] })}>
             <option value="must">Must</option><option value="preferred">Preferred</option><option value="optional">Optional</option>
           </select>
         </label>
         <label className="text-[10px] uppercase tracking-wide text-dim">Effort
-          <select className="mt-0.5 w-full rounded border border-line2 bg-panel3 px-0.5 py-2 text-xs normal-case tracking-normal text-text" value={input.effort} onChange={(event) => patch({ effort: event.target.value as ProposalInput['effort'] })}>
+          <select className="mt-0.5 w-full rounded border border-line2 bg-panel3 px-0.5 py-0.5 text-xs normal-case tracking-normal text-text" value={input.effort} onChange={(event) => patch({ effort: event.target.value as ProposalInput['effort'] })}>
             <option value="easy">Easy</option><option value="moderate">Moderate</option><option value="hard">Hard</option>
           </select>
         </label>
         <label className="text-[10px] uppercase tracking-wide text-dim">Minutes
-          <input className="mt-0.5 w-full rounded border border-line2 bg-panel3 px-0.5 py-2 text-xs normal-case tracking-normal text-text" type="number" min={5} max={240} step={5} value={input.durationMinutes} onChange={(event) => patch({ durationMinutes: Number(event.target.value) || 5 })} />
+          <input className="mt-0.5 w-full rounded border border-line2 bg-panel3 px-0.5 py-0.5 text-xs normal-case tracking-normal text-text" type="number" min={5} max={240} step={5} value={input.durationMinutes} onChange={(event) => patch({ durationMinutes: Number(event.target.value) || 5 })} />
         </label>
       </div>
 

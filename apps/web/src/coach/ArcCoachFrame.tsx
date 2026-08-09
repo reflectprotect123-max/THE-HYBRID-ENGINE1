@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useDb } from '../store/db';
 import { useProgressionLedger } from './progression-store';
@@ -16,6 +16,15 @@ export function ArcCoachFrame() {
   const inLibrary = location.pathname.includes('/library') || location.pathname.includes('/author') || location.pathname.includes('/build/') || location.pathname.includes('/planner/');
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDrawerOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [drawerOpen]);
 
   return (
     <div className="mx-auto grid min-h-screen max-w-[1440px] bg-bg text-text lg:grid-cols-[208px_minmax(0,1fr)]">
@@ -39,7 +48,8 @@ export function ArcCoachFrame() {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-[240px] -translate-x-full overflow-y-auto border-r border-line2 bg-panel3 px-2 py-2 transition-transform duration-200 sm:static sm:z-auto sm:w-auto sm:translate-x-0 sm:border-b sm:transition-none lg:border-b-0 lg:border-r lg:px-2.5 lg:py-3 ${drawerOpen ? 'translate-x-0' : ''}`}
+        aria-hidden={!drawerOpen}
+        className={`fixed inset-y-0 left-0 z-40 w-[240px] -translate-x-full overflow-y-auto border-r border-line2 bg-panel3 px-2 py-2 transition-transform duration-200 invisible sm:visible sm:static sm:z-auto sm:w-auto sm:translate-x-0 sm:border-b sm:transition-none lg:border-b-0 lg:border-r lg:px-2.5 lg:py-3 ${drawerOpen ? 'visible translate-x-0' : ''}`}
       >
         <Link to="/coach" className="flex items-center gap-1.5" aria-label="ARC coach command center">
           <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-gold-line/70 bg-gold-wash text-sm font-black text-gold2">A</div>
@@ -93,7 +103,7 @@ export function ArcCoachFrame() {
 
 function ArcNavLink({ to, label, current, count }: { to: string; label: string; current: boolean; count?: number }) {
   return (
-    <Link to={to} aria-current={current ? 'page' : undefined} className={`flex min-h-8 shrink-0 items-center rounded-md border px-2 py-1.5 transition-colors ${current ? 'border-line2 bg-panel text-text' : 'border-transparent text-muted hover:bg-panel hover:text-text'}`}>
+    <Link to={to} aria-current={current ? 'page' : undefined} className={`flex pointer-coarse:min-h-11 shrink-0 items-center rounded-md border px-2 py-1.5 transition-colors ${current ? 'border-line2 bg-panel text-text' : 'border-transparent text-muted hover:bg-panel hover:text-text'}`}>
       <span aria-hidden="true" className={`mr-1 h-1 w-1 rounded-full ${current ? 'bg-gold' : 'bg-transparent'}`} />
       <span>{label}</span>
       {count ? <span className="ml-auto rounded-full border border-current px-0.5 text-[9px] tabular-nums">{count}</span> : null}

@@ -79,14 +79,24 @@ describe('CoachLibrary', () => {
     expect(screen.queryByText(/no.*templates.*published/i)).not.toBeInTheDocument();
   });
 
-  it('sizes the domain-filter and weekday-picker buttons to a 44px touch target', async () => {
+  it('leaves the domain-filter and weekday-picker buttons at desktop density, relying on the global coarse-pointer rule for touch sizing', async () => {
+    // packages/design/src/tokens.css already floors every <button> at 44px
+    // under `@media (pointer: coarse)`. An unconditional min-h-11 here would
+    // do nothing extra on touch and would inflate desktop density with a
+    // mouse — see the final-review fix wave. These buttons must NOT carry it.
     const repo = new FakeCoachWorkspaceRepository();
     const { container } = await renderLibrary(repo);
     const fieldsetButtons = container.querySelectorAll('fieldset button[aria-pressed]');
     expect(fieldsetButtons.length).toBeGreaterThan(0);
-    fieldsetButtons.forEach((button) => expect(button).toHaveClass('min-h-11'));
+    fieldsetButtons.forEach((button) => {
+      expect(button).toHaveClass('min-h-8');
+      expect(button).not.toHaveClass('min-h-11');
+    });
     const toggleGroupButtons = container.querySelectorAll('[role="group"][aria-label="Filter Library by training system"] button[aria-pressed]');
     expect(toggleGroupButtons.length).toBeGreaterThan(0);
-    toggleGroupButtons.forEach((button) => expect(button).toHaveClass('min-h-11'));
+    toggleGroupButtons.forEach((button) => {
+      expect(button).toHaveClass('min-h-8');
+      expect(button).not.toHaveClass('min-h-11');
+    });
   });
 });

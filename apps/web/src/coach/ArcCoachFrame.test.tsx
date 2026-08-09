@@ -112,4 +112,32 @@ describe('ArcCoachFrame', () => {
     fireEvent.click(screen.getByRole('link', { name: /library/i }));
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
+
+  it('nav links use the coarse-pointer touch-target class, not an unconditional one', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ source: 'roster-summary' })];
+    await renderFrame(repo, '/coach');
+    const trigger = screen.getByRole('button', { name: /open coach navigation/i });
+    fireEvent.click(trigger);
+    expect(screen.getByRole('link', { name: /library/i })).toHaveClass('pointer-coarse:min-h-11');
+  });
+
+  it('the closed drawer is hidden from the accessibility tree, and Escape closes it while open', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ source: 'roster-summary' })];
+    await renderFrame(repo, '/coach');
+    // Closed: the drawer's own nav links must not be reachable via role queries
+    // (aria-hidden removes them from the accessibility tree, and they must not
+    // be tabbable either).
+    expect(screen.queryByRole('link', { name: /library/i })).not.toBeInTheDocument();
+
+    const trigger = screen.getByRole('button', { name: /open coach navigation/i });
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('link', { name: /library/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('link', { name: /library/i })).not.toBeInTheDocument();
+  });
 });
