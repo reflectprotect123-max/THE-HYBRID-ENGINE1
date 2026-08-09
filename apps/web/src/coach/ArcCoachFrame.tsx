@@ -57,7 +57,7 @@ export function ArcCoachFrame() {
         </Link>
         <p className="mt-0.5 pl-[34px] text-[9px] uppercase tracking-wide text-dim">Demo</p>
         <nav
-          className="mt-2 flex gap-0.5 overflow-x-auto pb-0.5 text-xs lg:mt-5 lg:grid lg:overflow-visible"
+          className="mt-2 flex flex-col gap-0.5 text-xs sm:flex-row sm:overflow-x-auto sm:pb-0.5 lg:mt-5 lg:grid lg:overflow-visible"
           aria-label="ARC primary navigation"
           onClick={() => setDrawerOpen(false)}
         >
@@ -103,7 +103,7 @@ export function ArcCoachFrame() {
 
 function ArcNavLink({ to, label, current, count }: { to: string; label: string; current: boolean; count?: number }) {
   return (
-    <Link to={to} aria-current={current ? 'page' : undefined} className={`flex pointer-coarse:min-h-11 shrink-0 items-center rounded-md border px-2 py-1.5 transition-colors ${current ? 'border-line2 bg-panel text-text' : 'border-transparent text-muted hover:bg-panel hover:text-text'}`}>
+    <Link to={to} aria-current={current ? 'page' : undefined} className={`flex w-full pointer-coarse:min-h-11 shrink-0 items-center rounded-md border px-2 py-1.5 transition-colors sm:w-auto ${current ? 'border-line2 bg-panel text-text' : 'border-transparent text-muted hover:bg-panel hover:text-text'}`}>
       <span aria-hidden="true" className={`mr-1 h-1 w-1 rounded-full ${current ? 'bg-gold' : 'bg-transparent'}`} />
       <span>{label}</span>
       {count ? <span className="ml-auto rounded-full border border-current px-0.5 text-[9px] tabular-nums">{count}</span> : null}

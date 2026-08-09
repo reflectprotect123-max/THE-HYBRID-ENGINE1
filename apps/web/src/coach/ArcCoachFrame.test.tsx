@@ -122,6 +122,25 @@ describe('ArcCoachFrame', () => {
     expect(screen.getByRole('link', { name: /library/i })).toHaveClass('pointer-coarse:min-h-11');
   });
 
+  it('the drawer nav stacks vertically, not the desktop rail\'s horizontal-scroll row', async () => {
+    // Regression: the nav borrowed the desktop/tablet rail's `flex
+    // overflow-x-auto` row wholesale, so inside the drawer's 240px-wide panel
+    // "Command"/"Settings" rendered clipped, requiring a horizontal scroll to
+    // read — reported directly from a phone screenshot. flex-col is the
+    // drawer's own layout; sm:flex-row restores the horizontal strip for the
+    // 640-1023px tablet band, where the rail is a static full-width bar and
+    // horizontal scroll is the right call.
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ source: 'roster-summary' })];
+    await renderFrame(repo, '/coach');
+    const trigger = screen.getByRole('button', { name: /open coach navigation/i });
+    fireEvent.click(trigger);
+    const nav = screen.getByRole('navigation', { name: /arc primary navigation/i });
+    expect(nav).toHaveClass('flex-col');
+    expect(nav).not.toHaveClass('overflow-x-auto');
+    expect(nav).toHaveClass('sm:flex-row', 'sm:overflow-x-auto');
+  });
+
   it('the closed drawer is hidden from the accessibility tree, and Escape closes it while open', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [rosterClient({ source: 'roster-summary' })];
