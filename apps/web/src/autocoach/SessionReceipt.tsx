@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+// apps/web/src/autocoach/SessionReceipt.tsx
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { resolveSession } from '@hybrid/auto-coach';
 import { tombstone, uid, type Workout } from '@hybrid/engine';
@@ -6,15 +7,20 @@ import { useDb } from '../store/db';
 import { Card, Kicker, cx } from '../ui';
 import { canApply, ledgerEntryFromApply, planApply, planUndo } from './applyResolution';
 import { canUndo, recordApply, recordUndo, useLedger } from './ledger';
+import { decidePending, proposePending, usePendingProposal, withdrawPending } from './pendingProposal';
 import { updatePolicy, usePolicy } from './policy';
 
 /**
  * The Auto-Coached receipt for today's session — signal, inference, action,
  * with the original always visible. The resolver's output is a resolved
- * COPY; the coach-authored workout is never mutated. Applying writes that
- * copy into the real store — in place for a one-off placement, or as a
- * fresh forked one-off when today's workout is a recurring template, so the
- * adaptation never leaks into future occurrences. See applyResolution.ts.
+ * COPY; the coach-authored workout is never mutated. An eligible resolution
+ * is PROPOSED automatically (docs/RISK_REGISTER.md R2) — nothing applies
+ * until the athlete taps Approve; Decline is always safe, since today's
+ * as-authored session is what trains either way, decided or not. Applying
+ * writes the FROZEN proposed copy into the real store — in place for a
+ * one-off placement, or as a fresh forked one-off when today's workout is a
+ * recurring template, so the adaptation never leaks into future
+ * occurrences. See applyResolution.ts and pendingProposal.ts.
  */
 
 function todaysWorkout(workouts: Workout[], today: string): Workout | null {
@@ -53,15 +59,17 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   const { workouts, update, athleteState } = useDb();
   const policy = usePolicy();
   const ledger = useLedger();
+  const pendingRaw = usePendingProposal();
   const nav = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
   const workout = useMemo(() => todaysWorkout(workouts, today), [workouts, today]);
 
-  if (!workout || policy.status === 'revoked') return null;
+  const r = useMemo(
+    () => (workout ? resolveSession({ workout, policy, state: athleteState }) : null),
+    [workout, policy, athleteState],
+  );
 
-  const r = resolveSession({ workout, policy, state: athleteState });
-  const changed = r.operations.some((o) => o.type !== 'keep_as_planned');
-  if (compact && !changed) return null;
+  const pending = pendingRaw?.date === today ? pendingRaw : null;
 
   // The most recent apply/undo recorded for today, regardless of which
   // workout id it targeted — a fork changes today's resolved workout's id,
@@ -69,11 +77,46 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   // stays valid across that change.
   const latestToday = ledger.find((e) => e.date === today) ?? null;
   const appliedEntry = latestToday?.action === 'applied' ? latestToday : null;
-  const showApply = !appliedEntry && canApply(r);
+
+  // Propose automatically once eligible; withdraw silently the moment a
+  // fresh resolve (this same render's `r`) turns hard-unsafe. A decided
+  // (approved/declined) proposal is left alone — a decision, once made,
+  // stays made for the day.
+  useEffect(() => {
+    if (!workout || !r || appliedEntry) return;
+    if (pending) {
+      if (pending.status === 'pending' && r.state === 'safety_stop') withdrawPending();
+      return;
+    }
+    if (canApply(r)) {
+      proposePending({
+        date: today,
+        sourceWorkoutId: workout.id,
+        sourceWorkoutUpdatedAt: workout.updatedAt ?? Date.now(),
+        resolution: r,
+      });
+    }
+  }, [workout, r, pending, appliedEntry, today]);
+
+  if (!workout || policy.status === 'revoked' || !r) return null;
+
+  const changed = r.operations.some((o) => o.type !== 'keep_as_planned');
+  if (compact && !changed) return null;
+
+  const showDecide = pending?.status === 'pending';
   const showUndo = appliedEntry !== null && canUndo(appliedEntry);
 
-  const handleApply = () => {
-    const plan = planApply(workout, r, today, uid);
+  const handleApprove = () => {
+    if (!pending || pending.status !== 'pending') return;
+    // Defence-in-depth backstop: the effect above should already have
+    // withdrawn a now-unsafe proposal before this button could be clicked,
+    // but a hard constraint could in principle land between that render and
+    // this click, so the safety check is repeated here too.
+    if (r.state === 'safety_stop') {
+      withdrawPending();
+      return;
+    }
+    const plan = planApply(workout, pending.resolution, today, uid);
     update((draft) => {
       if (plan.kind === 'mutate') {
         const target = draft.workouts.find((x) => x.id === plan.workoutId);
@@ -91,7 +134,13 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         });
       }
     });
-    recordApply(ledgerEntryFromApply(plan, r, today));
+    recordApply(ledgerEntryFromApply(plan, pending.resolution, today));
+    decidePending('approved');
+  };
+
+  const handleDecline = () => {
+    if (!pending || pending.status !== 'pending') return;
+    decidePending('declined');
   };
 
   const handleUndo = () => {
@@ -186,13 +235,21 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         >
           {policy.status === 'paused' ? 'Resume' : 'Pause'}
         </button>
-        {showApply && (
-          <button
-            className="shrink-0 rounded bg-gold-wash px-1 py-0.5 text-3 text-gold2 outline outline-1 outline-gold-line hover:brightness-110 focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
-            onClick={handleApply}
-          >
-            Apply
-          </button>
+        {showDecide && (
+          <>
+            <button
+              className="shrink-0 rounded px-1 py-0.5 text-3 text-muted outline outline-1 outline-line hover:text-text focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
+              onClick={handleDecline}
+            >
+              Decline
+            </button>
+            <button
+              className="shrink-0 rounded bg-gold-wash px-1 py-0.5 text-3 text-gold2 outline outline-1 outline-gold-line hover:brightness-110 focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
+              onClick={handleApprove}
+            >
+              Approve
+            </button>
+          </>
         )}
         {showUndo && (
           <button
