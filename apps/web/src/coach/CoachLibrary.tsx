@@ -21,10 +21,14 @@ export function CoachLibrary() {
   const [preferredWeekdays, setPreferredWeekdays] = useState<number[]>([1, 4]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    repository.listProgramTemplates().then((items) => { if (active) setTemplates(items); }).catch(() => { if (active) setError('The Library could not be loaded.'); });
+    repository.listProgramTemplates()
+      .then((items) => { if (active) setTemplates(items); })
+      .catch(() => { if (active) setError('The Library could not be loaded.'); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [repository]);
 
@@ -82,6 +86,13 @@ export function CoachLibrary() {
         <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-end gap-2"><div><p className="text-[9px] uppercase tracking-wider text-dim">Program templates</p><h2 className="text-base font-semibold">Strength and conditioning systems</h2></div><div className="ml-auto flex rounded-md border border-line2 p-0.5" role="group" aria-label="Filter Library by training system">{(['strength', 'conditioning'] as const).map((value) => <button key={value} type="button" aria-pressed={domain === value} onClick={() => setDomain(value)} className={`min-h-8 rounded px-2 text-xs capitalize ${domain === value ? 'bg-panel text-text' : 'text-muted'}`}>{value}</button>)}</div></div>
           <div className="divide-y divide-line border-y border-line2">
+            {!loading && visible.length === 0 && (
+              <div className="px-2 py-6 text-center">
+                <p className="text-sm text-muted">No {domain} templates published yet.</p>
+                <p className="mt-1 text-xs text-dim">Build a session and publish it as a template to assign it to a client.</p>
+                <Link to="/coach/author" className="mt-3 inline-block rounded-md border border-gold-line bg-gold-wash px-2 py-1.5 text-xs font-semibold text-gold2">Open the session builder</Link>
+              </div>
+            )}
             {visible.map((item) => <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} aria-pressed={selected?.id === item.id} className={`grid w-full gap-2 px-2 py-3 text-left hover:bg-panel sm:grid-cols-[minmax(0,1fr)_125px_110px_24px] ${selected?.id === item.id ? 'bg-panel' : ''}`}><div><div className="flex flex-wrap items-baseline gap-1.5"><h3 className="text-sm font-semibold">{item.name}</h3><span className="text-[9px] uppercase tracking-wide text-dim">{item.category}</span>{item.status === 'draft' && <span className="text-[9px] uppercase tracking-wide text-warn">Draft</span>}</div><p className="mt-0.5 text-xs text-muted">{item.summary}</p></div><div><p className="text-[9px] uppercase tracking-wide text-dim">Starting point</p><p className="mt-0.5 text-xs capitalize">{item.level}</p></div><div><p className="text-[9px] uppercase tracking-wide text-dim">Dose</p><p className="mt-0.5 text-xs">{item.sessionsPerWeek}× · {item.weeks} weeks</p></div><span aria-hidden="true" className="self-center text-gold2">→</span></button>)}
           </div>
           {selected && <section className="grid gap-3 rounded-lg border border-line2 bg-panel3 p-3 lg:grid-cols-[1fr_auto]"><div><p className="text-[9px] uppercase tracking-wider text-dim">{selected.source === 'engine-derived' ? 'Engine-derived progression' : 'Coach template progression'}</p><h2 className="mt-0.5 text-base font-semibold">{selected.name}</h2><ol className="mt-2 flex flex-wrap gap-1 text-xs">{selected.progression.stages.map((stage, index) => <li key={stage} className="rounded border border-line2 bg-well px-2 py-1"><span className="mr-1 text-gold2">{index + 1}</span>{stage}</li>)}</ol><p className="mt-2 text-[11px] text-dim">All increases remain coach-approval proposals. Pain, illness or contradictory data routes to hold or review.</p></div><div className="flex items-end gap-1"><Link to="/coach/author" className="rounded-md border border-line2 bg-panel px-2 py-1.5 text-xs text-muted hover:text-text">Open session builder</Link><button type="button" onClick={prepareAssignment} className="rounded-md border border-gold-line bg-gold-wash px-2 py-1.5 text-xs font-semibold text-gold2">Prepare assignment</button></div></section>}
