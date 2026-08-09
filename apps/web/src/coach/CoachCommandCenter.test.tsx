@@ -157,4 +157,14 @@ describe('CoachCommandCenter', () => {
     expect(screen.getByText(/Riley Roster.s resolved week is not readable here yet/)).toBeInTheDocument();
     expect(screen.getByText(/Riley Roster.s readiness and capacity are not readable here yet/)).toBeInTheDocument();
   });
+
+  it('marks the decision queue to render first on phone width, via order utilities', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ source: 'engine-local', id: 'engine-local' })];
+    const { container } = await renderCommandCenter(repo);
+    const queueSection = container.querySelector('section[aria-labelledby="priority-title"]');
+    const overviewSection = container.querySelector('section[aria-labelledby="client-overview-title"]');
+    expect(queueSection).toHaveClass('order-first', 'sm:order-none');
+    expect(overviewSection).not.toHaveClass('order-first');
+  });
 });
