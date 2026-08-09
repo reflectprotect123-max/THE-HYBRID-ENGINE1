@@ -47,7 +47,7 @@ jest.mock('@hybrid/auto-coach', () => ({
     schemaVersion: 1,
     state: 'normal',
     originalWorkoutId: '',
-    resolvedWorkout: undefined,
+    resolvedWorkout: { id: '', name: '', kind: 'strength', blocks: [] },
     operations: [],
     signals: [],
     inferences: [],

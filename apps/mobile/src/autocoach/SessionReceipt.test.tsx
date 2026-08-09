@@ -94,6 +94,7 @@ describe('mobile SessionReceipt', () => {
     const { rerender } = render(<SessionReceipt />);
     expect(getPendingProposal()?.status).toBe('pending');
     mockResolveSession.mockReturnValue(baseResolution({ state: 'safety_stop' }));
+    mockUseDb.mockReturnValue({ workouts: [TODAY_WORKOUT], update: updateSpy, athleteState: {} });
     rerender(<SessionReceipt />);
     expect(getPendingProposal()).toBeNull();
   });

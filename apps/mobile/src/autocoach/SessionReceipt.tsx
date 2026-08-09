@@ -54,12 +54,10 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
   const dow = new Date().getDay();
   const workout = useMemo(() => todaysWorkout(workouts, today, dow), [workouts, today, dow]);
 
-  // Recomputed every render, not memoized on [workout, policy, athleteState]:
-  // those references can stay stable across a render (e.g. a rerender
-  // triggered by the pending-proposal store) while resolveSession's answer
-  // has genuinely changed underneath — the withdrawal effect below depends
-  // on seeing that fresh state, not a stale memoized one.
-  const r = workout ? resolveSession({ workout, policy, state: athleteState }) : null;
+  const r = useMemo(
+    () => (workout ? resolveSession({ workout, policy, state: athleteState }) : null),
+    [workout, policy, athleteState],
+  );
 
   const pending = pendingRaw?.date === today ? pendingRaw : null;
 
