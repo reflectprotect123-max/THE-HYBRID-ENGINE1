@@ -202,22 +202,27 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
           onPress={() =>
             updatePolicy((p) => ({ ...p, status: p.status === 'paused' ? 'active' : 'paused' }))
           }
+          box={{ h: 24 }}
           className="shrink-0 rounded border border-line px-1 py-0.5"
         >
           <T className="text-3 text-muted">{policy.status === 'paused' ? 'Resume' : 'Pause'}</T>
         </Tap>
         {showDecide && (
           <>
-            <Tap onPress={handleDecline} className="shrink-0 rounded border border-line px-1 py-0.5">
+            <Tap onPress={handleDecline} box={{ h: 24 }} className="shrink-0 rounded border border-line px-1 py-0.5">
               <T className="text-3 text-muted">Decline</T>
             </Tap>
-            <Tap onPress={handleApprove} className="shrink-0 rounded border border-gold-line bg-gold-wash px-1 py-0.5">
+            <Tap
+              onPress={handleApprove}
+              box={{ h: 24 }}
+              className="shrink-0 rounded border border-gold-line bg-gold-wash px-1 py-0.5"
+            >
               <T className="text-3 text-gold2">Approve</T>
             </Tap>
           </>
         )}
         {showUndo && (
-          <Tap onPress={handleUndo} className="shrink-0 rounded border border-line px-1 py-0.5">
+          <Tap onPress={handleUndo} box={{ h: 24 }} className="shrink-0 rounded border border-line px-1 py-0.5">
             <T className="text-3 text-muted">Undo</T>
           </Tap>
         )}

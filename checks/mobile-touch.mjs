@@ -22,10 +22,18 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 const root = resolve(process.cwd(), process.argv.slice(2).find((a) => !a.startsWith('-')) || '.');
-const screens = join(root, 'apps/mobile/src/screens');
+/*
+ * The sweep used to stop at `apps/mobile/src/screens`, so any tappable code
+ * living beside the screens — `autocoach/`'s approval-gate components, for
+ * one — was invisible to this check: not scanned, not counted, not failed.
+ * The root now covers all of mobile's source, `ui.tsx` excluded because it is
+ * where `Tap`/`Btn` are DEFINED, not a call site that could bypass them.
+ */
+const src = join(root, 'apps/mobile/src');
+const EXCLUDE_FILES = new Set(['ui.tsx']);
 
 /*
- * Every screen, at any depth.
+ * Every source file, at any depth.
  *
  * This was a flat `readdirSync`, which silently stopped at the top level — so
  * the guided builder's eight screens under `screens/guided/` were never scanned
@@ -36,21 +44,21 @@ function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const p = join(dir, e.name);
     if (e.isDirectory()) return walk(p);
-    return e.name.endsWith('.tsx') ? [p] : [];
+    return e.name.endsWith('.tsx') && !EXCLUDE_FILES.has(e.name) ? [p] : [];
   });
 }
 
 let files;
 try {
-  files = walk(screens);
+  files = walk(src);
 } catch {
-  console.error(`cannot read ${screens} — run this from the repo root, or pass the root as an argument.`);
+  console.error(`cannot read ${src} — run this from the repo root, or pass the root as an argument.`);
   process.exit(1);
 }
 if (!files.length) {
   // An empty sweep passing is worse than a failing one: it reports green while
   // testing nothing.
-  console.error('no screens found — the path is wrong, not the code.');
+  console.error('no source files found — the path is wrong, not the code.');
   process.exit(1);
 }
 
@@ -58,16 +66,19 @@ if (!files.length) {
  * The same failure the recursive `walk` above was written to fix, one world
  * later. `screens/guided/` was silently unscanned for as long as the sweep was
  * flat; `screens/nutrition/` is now the largest subdirectory in the app, and a
- * sweep that stopped covering it would report the identical green.
+ * sweep that stopped covering it would report the identical green. `autocoach/`
+ * — the self-coach approval gate — joined the same way: a new directory next to
+ * `screens/`, not under it, so widening the root without also widening this
+ * floor would have covered it in name only.
  *
- * A directory-shaped floor rather than a count: the number of nutrition screens
- * will keep moving, but "the nutrition world is in this sweep at all" must not.
+ * A directory-shaped floor rather than a count: the number of files in each
+ * world will keep moving, but "this world is in the sweep at all" must not.
  */
-const worlds = ['nutrition', 'guided'];
-const missing = worlds.filter((w) => !files.some((f) => relative(screens, f).startsWith(w + '/')));
+const worlds = ['screens/nutrition', 'screens/guided', 'autocoach'];
+const missing = worlds.filter((w) => !files.some((f) => relative(src, f).startsWith(w + '/')));
 if (missing.length) {
-  console.error(`FAIL — the sweep reached no screens under ${missing.map((w) => w + '/').join(', ')}.`);
-  console.error('Either those screens moved, or this walk stopped descending. Either way it is testing less than it says.');
+  console.error(`FAIL — the sweep reached no files under ${missing.map((w) => w + '/').join(', ')}.`);
+  console.error('Either those files moved, or this walk stopped descending. Either way it is testing less than it says.');
   process.exit(1);
 }
 
@@ -76,12 +87,12 @@ for (const f of files) {
   readFileSync(f, 'utf8')
     .split(/\r?\n/)
     .forEach((line, i) => {
-      if (/<Pressable[\s>]/.test(line)) offenders.push(`${relative(screens, f)}:${i + 1}`);
+      if (/<Pressable[\s>]/.test(line)) offenders.push(`${relative(src, f)}:${i + 1}`);
     });
 }
 
 if (offenders.length) {
-  console.error(`FAIL — ${offenders.length} raw <Pressable> in apps/mobile/src/screens:\n`);
+  console.error(`FAIL — ${offenders.length} raw <Pressable> in apps/mobile/src:\n`);
   offenders.forEach((o) => console.error('  ' + o));
   console.error(`
 Use <Tap> from ../ui instead. It computes hitSlop to reach 48dp from the box you
@@ -90,5 +101,5 @@ press feedback and accessibility role every tappable thing in this app needs.`);
   process.exit(1);
 }
 
-const perWorld = worlds.map((w) => `${files.filter((f) => relative(screens, f).startsWith(w + '/')).length} ${w}`).join(', ');
-console.log(`OK — ${files.length} screens (${perWorld}), every tappable goes through <Tap>.`);
+const perWorld = worlds.map((w) => `${files.filter((f) => relative(src, f).startsWith(w + '/')).length} ${w}`).join(', ');
+console.log(`OK — ${files.length} source files (${perWorld}), every tappable goes through <Tap>.`);

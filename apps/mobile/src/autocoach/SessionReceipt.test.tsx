@@ -1,5 +1,6 @@
 import { render, fireEvent, screen } from '@testing-library/react-native';
 import type { AutoCoachResolution } from '@hybrid/auto-coach';
+import { ymd } from '@hybrid/engine';
 
 jest.mock('@hybrid/auto-coach', () => ({
   ...jest.requireActual('@hybrid/auto-coach'),
@@ -23,7 +24,7 @@ const TODAY_WORKOUT = {
   name: 'Push Day',
   kind: 'strength' as const,
   blocks: [],
-  dates: [new Date().toISOString().slice(0, 10)],
+  dates: [ymd(new Date())],
   updatedAt: 1000,
 };
 

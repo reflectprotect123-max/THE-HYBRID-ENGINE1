@@ -76,3 +76,58 @@ describe('mobile consent store', () => {
     ).toBe('auto_daily');
   });
 });
+
+/*
+ * `load()` itself — the localStorage→MMKV swap's actual mobile-specific risk.
+ * `resetConsentForTests()` clears storage and resets in-memory `consent`
+ * directly; it never calls `load()`. Only a fresh module instance, forced via
+ * `jest.resetModules()`, re-runs it against whatever is already in storage —
+ * the same path a cold app start takes.
+ */
+describe('mobile consent store — load() from persisted storage', () => {
+  const KEY = 'hybrid-auto-coach-consent-v1';
+
+  beforeEach(() => {
+    jest.resetModules();
+  });
+
+  it('reads back a valid persisted consent record on load()', () => {
+    const { storage } = require('../store/storage');
+    const seeded = {
+      schemaVersion: 1,
+      version: 3,
+      proposalsConsent: { accepted: true, at: 1000, textVersion: 1 },
+      autoApplyConsent: null,
+      comprehensionPassed: true,
+    };
+    storage.setItem(KEY, JSON.stringify(seeded));
+    const fresh = require('./consent');
+    expect(fresh.getConsent().proposalsConsent?.accepted).toBe(true);
+    expect(fresh.getConsent().comprehensionPassed).toBe(true);
+  });
+
+  it('falls back to DEFAULT_CONSENT on a stale schemaVersion', () => {
+    const { storage } = require('../store/storage');
+    storage.setItem(KEY, JSON.stringify({ schemaVersion: 0, comprehensionPassed: true }));
+    const fresh = require('./consent');
+    expect(fresh.getConsent().comprehensionPassed).toBe(false);
+    expect(fresh.getConsent().proposalsConsent).toBeNull();
+  });
+
+  it('falls back to DEFAULT_CONSENT on corrupt JSON', () => {
+    const { storage } = require('../store/storage');
+    storage.setItem(KEY, '{{{not json');
+    const fresh = require('./consent');
+    expect(fresh.getConsent().proposalsConsent).toBeNull();
+  });
+
+  it('recordConsent degrades to session-local when storage.setItem throws — no throw, state still updates', () => {
+    const { storage } = require('../store/storage');
+    const fresh = require('./consent');
+    jest.spyOn(storage, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+    expect(() => fresh.recordConsent('proposals', true)).not.toThrow();
+    expect(fresh.getConsent().proposalsConsent?.accepted).toBe(true);
+  });
+});

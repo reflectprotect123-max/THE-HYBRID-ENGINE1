@@ -79,3 +79,66 @@ describe('mobile ledger store', () => {
     expect(getLedgerEntries()).toEqual([]);
   });
 });
+
+/*
+ * These exercise the module's `load()` — the actual mobile-specific risk
+ * surface (the localStorage→MMKV swap). `resetLedgerForTests()` alone never
+ * re-runs `load()`: it just resets the in-memory `state` and re-persists,
+ * so a fresh `jest.resetModules()` + `require()` is needed to force the
+ * module to re-read whatever is sitting in storage at import time, the same
+ * way a cold app start would.
+ */
+describe('mobile ledger store — load() from persisted storage', () => {
+  const KEY = 'hybrid-auto-coach-ledger-v1';
+
+  beforeEach(() => {
+    jest.resetModules();
+  });
+
+  it('reads back a valid persisted payload on load()', () => {
+    const { storage } = require('../store/storage');
+    const seeded = {
+      schemaVersion: 1,
+      entries: [
+        {
+          id: 'e1',
+          at: 1000,
+          date: '2026-08-09',
+          workoutId: 'w-1',
+          action: 'applied',
+          wasForked: false,
+          beforeBlocks: [],
+          operations: [],
+          reasonCodes: ['low_readiness'],
+        },
+      ],
+    };
+    storage.setItem(KEY, JSON.stringify(seeded));
+    const fresh = require('./ledger');
+    expect(fresh.getLedgerEntries()).toEqual(seeded.entries);
+  });
+
+  it('falls back to empty state on a stale schemaVersion', () => {
+    const { storage } = require('../store/storage');
+    storage.setItem(KEY, JSON.stringify({ schemaVersion: 99, entries: [{ id: 'x' }] }));
+    const fresh = require('./ledger');
+    expect(fresh.getLedgerEntries()).toEqual([]);
+  });
+
+  it('falls back to empty state on corrupt JSON', () => {
+    const { storage } = require('../store/storage');
+    storage.setItem(KEY, '{not valid json');
+    const fresh = require('./ledger');
+    expect(fresh.getLedgerEntries()).toEqual([]);
+  });
+
+  it('recordApply degrades to session-local when storage.setItem throws — no throw, state still updates', () => {
+    const { storage } = require('../store/storage');
+    const fresh = require('./ledger');
+    jest.spyOn(storage, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+    expect(() => fresh.recordApply(fixtureEntry())).not.toThrow();
+    expect(fresh.getLedgerEntries()).toHaveLength(1);
+  });
+});

@@ -84,3 +84,57 @@ describe('mobile pendingProposal store', () => {
     expect(p?.status).toBe('pending');
   });
 });
+
+/*
+ * `load()` itself — the localStorage→MMKV swap's actual mobile-specific risk.
+ * `resetPendingProposalForTests()` persists an empty record through the
+ * normal write path; it never calls `load()`. Only a fresh module instance,
+ * forced via `jest.resetModules()`, re-runs it against whatever is already in
+ * storage — the same path a cold app start takes.
+ */
+describe('mobile pendingProposal store — load() from persisted storage', () => {
+  const KEY = 'hybrid-auto-coach-pending-v1';
+
+  beforeEach(() => {
+    jest.resetModules();
+  });
+
+  it('reads back a valid persisted proposal on load()', () => {
+    const { storage } = require('../store/storage');
+    const seeded = {
+      schemaVersion: 1,
+      proposal: { ...fixtureEntry(), status: 'pending' },
+    };
+    storage.setItem(KEY, JSON.stringify(seeded));
+    const fresh = require('./pendingProposal');
+    expect(fresh.getPendingProposal()?.status).toBe('pending');
+    expect(fresh.getPendingProposal()?.sourceWorkoutId).toBe('w-1');
+  });
+
+  it('falls back to an empty proposal on a stale schemaVersion', () => {
+    const { storage } = require('../store/storage');
+    storage.setItem(
+      KEY,
+      JSON.stringify({ schemaVersion: 0, proposal: { ...fixtureEntry(), status: 'pending' } }),
+    );
+    const fresh = require('./pendingProposal');
+    expect(fresh.getPendingProposal()).toBeNull();
+  });
+
+  it('falls back to an empty proposal on a malformed record (fails isValidProposal) or corrupt JSON', () => {
+    const { storage } = require('../store/storage');
+    storage.setItem(KEY, JSON.stringify({ schemaVersion: 1, proposal: { status: 'pending' } }));
+    const fresh = require('./pendingProposal');
+    expect(fresh.getPendingProposal()).toBeNull();
+  });
+
+  it('proposePending degrades to session-local when storage.setItem throws — no throw, state still updates', () => {
+    const { storage } = require('../store/storage');
+    const fresh = require('./pendingProposal');
+    jest.spyOn(storage, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+    expect(() => fresh.proposePending(fixtureEntry())).not.toThrow();
+    expect(fresh.getPendingProposal()?.status).toBe('pending');
+  });
+});

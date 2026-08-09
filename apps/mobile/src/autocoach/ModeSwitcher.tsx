@@ -143,7 +143,7 @@ export function ModeSwitcher() {
             · You choose what it's allowed to touch, and you can pause it any time from the receipt.
           </T>
           <View className="mt-1 flex-row items-center gap-1">
-            <Tap onPress={cancel}>
+            <Tap onPress={cancel} box={{ h: 16 }}>
               <T className="text-3 text-dim underline">Cancel</T>
             </Tap>
             <Btn variant="brass" className="ml-auto" onPress={() => setStage('quiz')}>
@@ -163,6 +163,7 @@ export function ModeSwitcher() {
                 <Tap
                   key={String(v)}
                   onPress={() => setAnswers((cur) => cur.map((a, ai) => (ai === i ? v : a)))}
+                  box={{ h: 24 }}
                   className={`rounded-pill border px-1 py-0.5 ${
                     answers[i] === v ? 'border-gold-line' : 'border-line'
                   }`}
@@ -176,7 +177,7 @@ export function ModeSwitcher() {
           ))}
           {showRetry && <T className="mt-1 text-3 text-warn">Not quite — let's go over that again.</T>}
           <View className="mt-1 flex-row items-center gap-1">
-            <Tap onPress={cancel}>
+            <Tap onPress={cancel} box={{ h: 16 }}>
               <T className="text-3 text-dim underline">Cancel</T>
             </Tap>
             <Btn variant="brass" className="ml-auto" onPress={submitQuiz} disabled={!allAnswered}>
@@ -193,7 +194,7 @@ export function ModeSwitcher() {
             approve them — review is always available, and pausing is one tap.
           </T>
           <View className="mt-1 flex-row items-center gap-1">
-            <Tap onPress={cancel}>
+            <Tap onPress={cancel} box={{ h: 16 }}>
               <T className="text-3 text-dim underline">Cancel</T>
             </Tap>
             <Btn variant="brass" className="ml-auto" onPress={acceptAutoApply}>
@@ -207,12 +208,12 @@ export function ModeSwitcher() {
         <View className="mt-1 flex-row flex-wrap items-center gap-1 border-t border-line pt-1">
           <T className="text-2 uppercase tracking-wide text-dim">Consent</T>
           {consent.proposalsConsent?.accepted && (
-            <Tap onPress={revokeProposals}>
+            <Tap onPress={revokeProposals} box={{ h: 16 }}>
               <T className="text-3 text-dim underline">Revoke reading & proposing</T>
             </Tap>
           )}
           {consent.autoApplyConsent?.accepted && (
-            <Tap onPress={revokeAutoApply}>
+            <Tap onPress={revokeAutoApply} box={{ h: 16 }}>
               <T className="text-3 text-dim underline">Revoke automatic application</T>
             </Tap>
           )}
