@@ -27,6 +27,9 @@ importers:
       '@expo-google-fonts/inter':
         specifier: ^0.4.2
         version: 0.4.2
+      '@hybrid/auto-coach':
+        specifier: workspace:*
+        version: link:../../packages/auto-coach
       '@hybrid/config':
         specifier: workspace:*
         version: link:../../packages/config
