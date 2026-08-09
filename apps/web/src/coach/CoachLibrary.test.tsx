@@ -78,4 +78,12 @@ describe('CoachLibrary', () => {
     expect(screen.getAllByRole('button', { name: /prepare/i }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/no.*templates.*published/i)).not.toBeInTheDocument();
   });
+
+  it('sizes the domain-filter and weekday-picker buttons to a 44px touch target', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    const { container } = await renderLibrary(repo);
+    const dayButtons = container.querySelectorAll('fieldset button[aria-pressed]');
+    expect(dayButtons.length).toBeGreaterThan(0);
+    dayButtons.forEach((button) => expect(button).toHaveClass('min-h-11'));
+  });
 });
