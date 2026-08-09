@@ -1,15 +1,108 @@
 # Claude Handoff — THE Hybrid System
 
-> **AUTHORITATIVE CHECKPOINT — 8 August 2026 (ARC coach workspace, layers 1–2
-> plus a hardened layer 3 seam): the roster-based ARC backend is live, its
-> security review findings are fixed, and the pre-existing self-coach bench can
-> no longer show a coach their own training under a roster client's name.**
+> **AUTHORITATIVE CHECKPOINT — 9 August 2026: the seven ARC migrations from
+> the 8 August checkpoint are now APPLIED to the real production Supabase
+> project, mobile has full parity on the self-coach approval gate (R2), a
+> live production sync bug is fixed, and two real UX bugs on the ARC coach
+> workspace are fixed and deployed. A TrainHeroic-informed nav/polish plan
+> exists as reviewed mockups but nothing from it is wired yet.**
 >
-> Supersedes every checkpoint below, including the 7 August ones. They stay as
-> history and remain accurate about their own scope; where one contradicts
-> this, this wins.
+> Supersedes every checkpoint below, including 8 August and 7 August. They
+> stay as history and remain accurate about their own scope; where one
+> contradicts this, this wins.
 
-## ARC coach workspace — where it actually stands
+## What changed since the 8 August checkpoint
+
+**The seven ARC migrations are live in production**, not just verified
+against a throwaway Postgres. The user ran all seven (`20260808_arc_coach_
+workspace.sql` through `20260808_arc_workout_library.sql`, filename-sort
+order) via the Supabase SQL editor — this session has no network egress to
+Supabase, so this was necessarily human-run, the same constraint the 8
+August checkpoint already documented. Both `checks/sql/verify-staging.sql`
+and `checks/sql/verify-staging-product-isolation.sql` were then run the
+same way and came back clean ("both passed no fails," user's words). The
+Layer 3 smoke-test script (`layer3-smoke-test.sql`, persisted rows, not a
+rollback) was handed to the user separately to exercise the real coach↔
+athlete RPC flow end to end; it has not been confirmed run.
+
+**Mobile self-coach approval gate (R2) has full parity with web.** All four
+stores (`ledger`, `policy`, `consent`, `applyResolution`) plus
+`pendingProposal`, `SessionReceipt.tsx` (wired into `Home.tsx`) and
+`ModeSwitcher.tsx` (wired into `Settings.tsx`) ported via
+subagent-driven-development, 9 tasks, one final whole-branch review that
+found and fixed 4 issues (a UTC leak in a test, 15 controls missing touch
+`box` props, `checks/mobile-touch.mjs` blind to the new directory, zero
+coverage on the stores' `load()`/write-failure paths). Merged to `main`,
+commit range `e6e412f..07b28be`. `docs/RISK_REGISTER.md` updated to record
+the parity.
+
+**A live production bug is fixed:** WHOOP/Concept2 sync from the mobile app
+was failing because Netlify was missing `SUPABASE_JWT_SECRET` — the legacy
+HS256 shared secret `verifyHs256()`/`ownerFromEvent`
+(`netlify/functions/_lib/supabase.mjs`, `identity.mjs`) needs for every
+bearer-token function call. Set via the Netlify env-vars tool; user
+confirmed WHOOP sync working on their phone afterward.
+
+**Two real ARC coach-workspace bugs, found via a full page-by-page UI/UX
+audit and fixed same-session:**
+1. The rail's "Demo" badge was clipped to "DEM" on **every single coach
+   page** — a flex-row width collision in `ArcCoachFrame.tsx`. Fixed by
+   moving it to its own line under the wordmark instead of fighting the
+   logo/label for space (commit `a07ea9f`).
+2. `/coach/library`'s empty state was a dead end: a real load failure and a
+   legitimately-empty catalogue rendered identically (or, on failure, blank)
+   — a coach hitting a network hiccup would see nothing and no path forward.
+   `CoachLibrary.tsx` now distinguishes "could not load" from "nothing
+   published yet" (commit `3cb1b8f`, hardened in `a07ea9f`). Both fixes have
+   colocated tests (`CoachLibrary.test.tsx`, 4 cases; `coach-test-harness.tsx`
+   gained a `templatesError` fault-injection flag) and are live in
+   production — Netlify auto-deployed on push, confirmed via
+   `get-deploy-for-site`: `commit_ref` matches, state `ready`, context
+   `production`, secret scan clean.
+
+**The rest of that audit is a reviewed plan, not yet code.** The full
+page-by-page findings (every route under `/coach`, screenshotted at 1440px,
+cross-referenced against the `ui-ux-pro-max` design database) live in this
+session's transcript, not a repo doc. Highest-priority items still open:
+`CoachCommandCenter`'s intensity bar chart self-normalizes per-bar
+(misleading — each bar scales to its own max, not a shared total);
+`/coach/legacy` (`CoachShell.tsx`) uses pill-shaped buttons while every
+other coach page uses rectangles, the single biggest "feels like two
+different apps" tell; Command Center's loading state has no timeout or
+retry. A separate, later request produced a **TrainHeroic-informed nav and
+"incredibly simple" polish plan** — phased (0: persistent client-context
+breadcrumb+tabs nav, replacing the sub-nav buried in `CoachCommandCenter`;
+1: expose the Draft→Published toggle the schema already has; 2: a
+"Save to Library as…" bridge from Authoring plus one shared kebab menu; 3:
+an honest roster-health nudge and fixed roll-up metrics replacing the
+misleading bar chart) with two static HTML mockups sent to the user as
+artifacts. **Nothing from this plan is implemented.** It is explicitly
+scoped against ARC's Coordinator-owns-placement rule (TrainHeroic lets a
+coach place dates directly on a calendar; ARC does not and this plan does
+not propose changing that) and explicitly excludes Teams-as-an-entity,
+marketplace, messaging, and auto-publish scheduling as out of scope for
+"simple."
+
+Verified this session: `pnpm --filter @hybrid/web exec vitest run src/coach`
+(24 files, 121 tests, all green after the two fixes above),
+`pnpm --filter @hybrid/web exec tsc --noEmit` clean. The 8 August
+checkpoint's own verification (typecheck 17/17, full test suite,
+`coach-contract.mjs`, `migrations-apply.mjs`, `react-smoke.mjs`, `docs.mjs`,
+`check:ecosystem`) was not re-run in full this session — only the coach
+package's own suite and typecheck, scoped to what actually changed.
+
+## State (9 August, current)
+
+| Item | Value |
+|---|---|
+| `main` | `a07ea9f` — pushed, matches `origin/main` |
+| Supabase (ARC) | All seven `20260808_arc_*` migrations applied to production. Both staging verify scripts re-run clean against it. |
+| Netlify | Production deploy `6a78146f...` matches `main`, `SUPABASE_JWT_SECRET` set. |
+| Mobile | Self-coach approval gate (R2) has full parity with web. |
+| ARC coach UI | Two critical bugs fixed and live; a phased polish/nav plan is designed and mocked, not implemented. |
+| Layer 3 real backend, Layer 4 | Still not started — see the 8 August section below, unchanged. |
+
+## ARC coach workspace — where it actually stands (8 August checkpoint, historical — see above for what's changed since)
 
 Full detail: `docs/ARC_CLAUDE_HANDOFF.md`, `docs/HANDOFF_2026-08-08_ARC_IMPORT.md`,
 `docs/RISK_REGISTER.md`. This section is the short version.
