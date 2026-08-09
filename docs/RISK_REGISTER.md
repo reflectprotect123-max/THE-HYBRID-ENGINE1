@@ -141,6 +141,13 @@ fresh, ignoring a stale-dated declined proposal from a prior day. Full
 node checks/ecosystem-contract.mjs`: all green, unaffected as expected since
 none touch `apps/web/src/autocoach/**`.
 
+Ported to `apps/mobile` (2026-08-09): the same propose-then-decide gate,
+policy, consent and ledger now exist on mobile
+(`apps/mobile/src/autocoach/*`), independently persisted (mobile and web
+keep separate storage — this was never a shared/synced concept on either
+platform) but structurally identical and covered by the same test
+discipline.
+
 ### R3 · Automation receipts are device-local — RESOLVED (8 August 2026)
 `apps/web/src/autocoach/ledger.ts:27` — `hybrid-auto-coach-ledger-v1` in
 localStorage, in no sync partition
