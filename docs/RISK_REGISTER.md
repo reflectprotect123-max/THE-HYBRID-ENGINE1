@@ -116,16 +116,21 @@ doc comment for `autoApplyConsent` still asserted the old "applies without a
 per-instance confirmation" behavior — fixed to describe suggestion, not
 unasked application (`1907b07`).
 
-New tests: `pendingProposal.test.ts` (8, store logic — create/read,
-date-boundary expiry, status transitions, single record per day) and
-`SessionReceipt.test.tsx` (7, `apps/web`'s first render-level test for this
-component, using the `@testing-library/react`/jsdom harness R8 added) —
-propose without mutating, approve re-checks safety then runs the existing
-apply sequence, decline marks declined without mutating, a new hard
-constraint withdraws silently on the next render, a source-workout edit
-withdraws silently, a workout with no `updatedAt` does not spuriously
-self-withdraw (the round-2 regression test), and a new day proposes fresh
-ignoring a stale-dated decision. Full `apps/web` suite (`pnpm --filter
+New tests: `pendingProposal.test.ts` (8, store logic — create/read, status
+transitions via `decidePending`, `withdrawPending` clearing the record, a
+fresh `proposePending` replacing any existing record even a decided one, and
+localStorage persistence; the store itself has no date concept — per its own
+docstring, "date-matching against 'today' is the caller's job", so it never
+filters by date) and `SessionReceipt.test.tsx` (7, `apps/web`'s first
+render-level test for this component, using the
+`@testing-library/react`/jsdom harness R8 added) — propose without mutating,
+approve re-checks safety then runs the existing apply sequence, decline marks
+declined without mutating, a new hard constraint withdraws silently on the
+next render, a source-workout edit withdraws silently, a workout with no
+`updatedAt` does not spuriously self-withdraw (the round-2 regression test),
+and — the one test that does exercise the date boundary — a new day proposes
+fresh, ignoring a stale-dated declined proposal from a prior day. Full
+`apps/web` suite (`pnpm --filter
 @hybrid/web exec vitest run`): 220 passed, 2 skipped (unrelated,
 `SB_E2E`-gated live backend round trip), 0 failed. `pnpm run typecheck`:
 17/17 projects. `node checks/docs.mjs && node checks/coach-contract.mjs &&
