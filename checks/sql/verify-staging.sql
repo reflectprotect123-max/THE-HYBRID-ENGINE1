@@ -9,14 +9,25 @@
 --
 -- HOW TO RUN
 --
---   1. Apply the four migrations to staging first, in this order (the
---      filenames already sort correctly):
+--   1. Apply the seven ARC migrations to staging first, in this order (the
+--      filenames already sort correctly — this is plain `ls | sort` order,
+--      the same order checks/migrations-apply.mjs itself applies them in):
 --        supabase/migrations/20260808_arc_coach_workspace.sql
+--        supabase/migrations/20260808_arc_erasure_actor.sql
+--        supabase/migrations/20260808_arc_erasure_creators.sql
 --        supabase/migrations/20260808_arc_program_assignment_lifecycle.sql
 --        supabase/migrations/20260808_arc_progression_review.sql
+--        supabase/migrations/20260808_arc_receipts_autocoach.sql
 --        supabase/migrations/20260808_arc_workout_library.sql
 --      via `supabase db push` or `psql <connection-string> -f <file>` for
---      each, in order.
+--      each, in order. This assumes the two OLDER, unrelated migrations
+--      (20260804_fitness_ecosystem_contracts.sql, 20260807_nutrition_domain.sql)
+--      are already applied — per handoff.md's checkpoint they were, on 7
+--      August, before any of the ARC work existed. Confirm that on YOUR
+--      target database before proceeding — e.g.
+--      `select 1 from pg_tables where tablename = 'athlete_domain_snapshots'`
+--      — since nutrition_domain's own migration only applies cleanly on top
+--      of fitness_ecosystem_contracts' tables and constraints.
 --
 --   2. Run this file with the STAGING PROJECT'S DIRECT POSTGRES CONNECTION
 --      STRING — Supabase dashboard → Settings → Database → Connection
@@ -66,7 +77,8 @@ declare
     'program_templates', 'program_template_versions', 'training_block_templates',
     'program_assignments', 'assignment_input_versions', 'coach_decisions',
     'decision_receipts', 'progression_proposal_snapshots', 'athlete_trend_snapshots',
-    'nutrition_read_grants', 'coach_read_audit', 'coach_workout_drafts'
+    'nutrition_read_grants', 'coach_read_audit', 'coach_workout_drafts',
+    'autocoach_receipts'
   ];
   v_missing text[];
   v_no_rls text[];
@@ -113,13 +125,16 @@ do $$
 declare
   v_expected text[] := array[
     'is_org_member', 'coaches_athlete', 'deny_mutation', 'deny_truncate',
+    'deny_coach_decision_mutation', 'deny_template_version_mutation',
+    'deny_assignment_input_version_mutation',
     'create_program_assignment', 'get_athlete_training_summary',
     'accept_program_assignment', 'decline_program_assignment',
     'push_progression_proposal', 'get_athlete_progression_proposals',
     'decide_progression_proposal', 'push_trend_snapshot', 'get_athlete_trend_series',
     'set_nutrition_read_grant', 'get_athlete_nutrition_summary', 'get_athlete_nutrition_window',
     'get_athlete_week_plan', 'request_session_detail', 'can_read_program_template',
-    'save_workout_draft', 'get_athlete_workout_library', 'publish_workout_draft'
+    'save_workout_draft', 'get_athlete_workout_library', 'publish_workout_draft',
+    'push_autocoach_receipt', 'get_athlete_autocoach_receipts'
   ];
   v_missing text[];
   v_public_execute text[];
@@ -241,14 +256,6 @@ do $$ begin perform set_config('request.jwt.claims', '{"sub":"c1c1c1c1-c1c1-c1c1
 
 do $$
 begin
-  update public.coach_decisions set kind = 'template_published' where organization_id = '11111111-1111-1111-1111-111111111111';
-  raise notice 'FAIL — IMMUTABLE: a coach_decisions row was updated';
-exception when others then
-  raise notice 'PASS — IMMUTABLE: coach_decisions cannot be updated [%]', sqlstate;
-end $$;
-
-do $$
-begin
   perform public.create_program_assignment(
     '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     '44444444-4444-4444-4444-444444444444', current_date + 7, '{2,4}'::smallint[], 'staging-verify-1');
@@ -256,6 +263,37 @@ begin
 exception when others then
   raise notice 'FAIL — COMMAND: the legitimate assignment command was refused [%] %', sqlstate, sqlerrm;
 end $$;
+
+-- MUST run after the COMMAND check above, not before: the fixture block only
+-- inserts organizations/templates/assignments directly, never a coach_decisions
+-- row, so an UPDATE run any earlier matches zero rows.
+--
+-- MUST also run as the OWNER, not as the impersonated coach: coach_decisions
+-- carries no UPDATE/INSERT/DELETE policy for `authenticated` at all — that is
+-- the whole design ("no client role holds INSERT" — every write goes through
+-- a SECURITY DEFINER command). With no applicable policy, Postgres's RLS
+-- silently excludes every row from an `authenticated`-role UPDATE, so the
+-- statement below would report "0 rows updated" and raise NOTHING whether or
+-- not the immutability trigger even exists — RLS masks the trigger entirely
+-- for that role, so the check would have zero power to catch a regression.
+-- `reset role` drops back to the connection's real owning role, exactly like
+-- checks/migrations-apply.mjs's own `asOwnerProbe` does for this same class
+-- of test — the owner bypasses RLS but NOT triggers, so this is the only
+-- context that actually exercises deny_coach_decision_mutation().
+reset role;
+
+do $$
+begin
+  update public.coach_decisions set kind = 'template_published' where organization_id = '11111111-1111-1111-1111-111111111111';
+  raise notice 'FAIL — IMMUTABLE: a coach_decisions row was updated';
+exception when others then
+  raise notice 'PASS — IMMUTABLE: coach_decisions cannot be updated [%]', sqlstate;
+end $$;
+
+-- Restore the coach impersonation for the checks below, which call
+-- SECURITY DEFINER commands that require it.
+do $$ begin perform set_config('request.jwt.claims', '{"sub":"c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1"}', true); end $$;
+set local role authenticated;
 
 do $$
 begin

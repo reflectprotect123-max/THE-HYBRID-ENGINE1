@@ -39,14 +39,79 @@ used to score a broken test (renamed function, dropped table) as a passing
 denial; they now read SQLSTATE and fail on the five states that mean the
 probe itself is broken.
 
-**Two residual risks are accepted, not fixed, and recorded in
+**One residual risk is accepted, not fixed, and recorded in
 `docs/RISK_REGISTER.md`:** no coach table carries `force row level security`
 — the owner exemption IS the write path, since every write is a SECURITY
 DEFINER command and there are no client INSERT policies — so the
 service-role key is a full read of every athlete's coaching data and must
-never leave the server; and `coach_decisions.actor_user_id on delete
-restrict` blocks erasing a COACH outright, which needs a product decision
-(anonymise vs. transfer) nobody has made yet.
+never leave the server. This is a permanent design property, not a gap to
+close.
+
+The erasure gap this section used to describe here — `on delete restrict`
+blocking deletion of a coach's `auth.users` row — is now RESOLVED for all
+six affected columns (8 August): `coach_decisions.actor_user_id` first
+(`supabase/migrations/20260808_arc_erasure_actor.sql`), then the remaining
+five creator/publisher columns across `organizations`, `program_templates`,
+`program_template_versions`, `training_block_templates`,
+`program_assignments` and `assignment_input_versions`
+(`supabase/migrations/20260808_arc_erasure_creators.sql`). Same policy both
+times: anonymise the actor to `null`, never transfer it to a different
+coach. Full detail in `docs/RISK_REGISTER.md`.
+
+### Applying to Supabase — the next step, not yet done
+
+Nothing ARC-related has touched the real Supabase project. Per the table
+below, `20260804_fitness_ecosystem_contracts.sql` and
+`20260807_nutrition_domain.sql` were already applied on 7 August — confirm
+that's still true on your target database first (e.g.
+`select 1 from pg_tables where tablename = 'athlete_domain_snapshots'`)
+before proceeding, since `nutrition_domain` only applies cleanly on top of
+`fitness_ecosystem_contracts`' tables and constraints.
+
+Apply these seven, in this exact order (plain filename-sort order — the
+same order `checks/migrations-apply.mjs` itself applies them in, and the
+only order verified against a real Postgres cluster):
+
+1. `supabase/migrations/20260808_arc_coach_workspace.sql`
+2. `supabase/migrations/20260808_arc_erasure_actor.sql`
+3. `supabase/migrations/20260808_arc_erasure_creators.sql`
+4. `supabase/migrations/20260808_arc_program_assignment_lifecycle.sql`
+5. `supabase/migrations/20260808_arc_progression_review.sql`
+6. `supabase/migrations/20260808_arc_receipts_autocoach.sql`
+7. `supabase/migrations/20260808_arc_workout_library.sql`
+
+via `supabase db push` or `psql <connection-string> -f <file>` per file, in
+order. This is a deliberate, human-run step — nothing in this session has
+credentials or network egress to a real Supabase project, and none of this
+has been applied there.
+
+After applying, verify against staging with the STAGING PROJECT'S DIRECT
+POSTGRES CONNECTION STRING (never the anon key, never pasted into chat —
+treat it exactly like a service-role key):
+
+```
+psql "$STAGING_DATABASE_URL" -f checks/sql/verify-staging.sql
+psql "$STAGING_DATABASE_URL" -f checks/sql/verify-staging-product-isolation.sql
+```
+
+Both scripts are read-only in effect — every behavioural check runs inside
+one transaction that ends in an explicit `rollback`, never `commit`, so
+nothing they do persists in staging either way. Read every `FAIL` line; a
+clean run prints none. Both were just re-verified against a fresh throwaway
+Postgres cluster built from all ten current migrations (a real bug was
+found and fixed in the process: `verify-staging.sql`'s immutability check
+was running as the impersonated coach, whose role holds no UPDATE policy on
+`coach_decisions` at all, so RLS silently zeroed out the update before the
+trigger it meant to test ever ran — always reporting FAIL regardless of
+whether the trigger worked. Fixed to run as the table owner, the same way
+`checks/migrations-apply.mjs`'s own deny-suite does it, and mutation-tested:
+disabling the real trigger now correctly flips this check to FAIL, and
+re-enabling it flips back to PASS.)
+
+Only once staging verification is clean should `VITE_HYBRID_ECOSYSTEM_SYNC=1`
+or the ARC-specific equivalent be considered for production — and that's a
+separate, later decision with its own rollback rehearsal, not a next step
+implied by this one.
 
 **Layer 3 (rewire the pre-existing self-coach bench from "me" to "this
 athlete") is NOT built** — that is real new backend surface (per-athlete
