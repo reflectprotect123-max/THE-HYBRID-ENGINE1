@@ -18,7 +18,7 @@ export const CONSENT_SCHEMA_VERSION = 1 as const;
 
 /** Bump when the consent copy changes materially, so a stale acceptance can
  * be told apart from one made against the current text. */
-export const CONSENT_TEXT_VERSION = 1;
+export const CONSENT_TEXT_VERSION = 2;
 
 export interface ConsentRecord {
   accepted: boolean;

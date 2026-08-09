@@ -29,7 +29,7 @@ const MODE_LABEL: Record<AutonomyPolicy['mode'], string> = {
 const MODE_DESCRIPTION: Record<AutonomyPolicy['mode'], string> = {
   shadow: 'Shows what it would do. Nothing is ever applied.',
   assisted: 'Proposes changes to today. You confirm before anything applies.',
-  auto_daily: 'Applies permitted changes to today automatically. Review stays available; pause is one tap.',
+  auto_daily: 'Suggests permitted changes to today automatically — nothing applies until you approve it. Review stays available; pause is one tap.',
 };
 
 type Stage = 'idle' | 'explain' | 'quiz' | 'autoApplyConsent';
@@ -188,7 +188,7 @@ export function ModeSwitcher() {
       {stage === 'autoApplyConsent' && (
         <div className="flex flex-col gap-1 rounded-md border border-line bg-well p-1.5">
           <p className="text-3 text-text">
-            Permitted changes will apply to today’s session without asking first — review is always available, and pausing is one tap.
+            Permitted changes will be suggested for today’s session and applied only once you approve them — review is always available, and pausing is one tap.
           </p>
           <div className="flex items-center gap-1">
             <button className="text-3 text-dim underline hover:text-text" onClick={cancel}>
