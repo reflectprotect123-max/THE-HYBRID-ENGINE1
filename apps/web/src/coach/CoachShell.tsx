@@ -1,9 +1,10 @@
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import './coach.css';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { coachAllowed } from './guard';
+import { CoachSignIn } from './CoachSignIn';
 import { DecisionTrace } from './DecisionTrace';
 import { NutritionPanel } from './NutritionPanel';
 import { OnboardingPanel, useOnboarding } from './OnboardingPanel';
@@ -140,5 +141,5 @@ export function CoachAccess({ children }: { children: ReactNode }) {
     import.meta.env.DEV,
     import.meta.env.VITE_COACH_DEMO_MODE === 'true',
   );
-  return allowed ? children : <Navigate to="/" replace />;
+  return allowed ? children : <CoachSignIn />;
 }
