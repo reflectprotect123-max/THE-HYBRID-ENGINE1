@@ -15,6 +15,7 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { IS_SCOPED_BUILD, PRODUCT_ID } from '../product';
 import { ArcAssignmentCard } from '../autocoach/ArcAssignmentCard';
 import { CheckInCard } from '../autocoach/CheckInCard';
 import { ModeSwitcher } from '../autocoach/ModeSwitcher';
@@ -39,6 +40,16 @@ import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx }
  * `resolveDayTarget` — "Start a run ›" opens /conditioning, and the 7-day
  * totals link to /history.
  */
+
+/*
+ * A strength-scoped build owns no conditioning content, so the zones door
+ * doesn't belong on its Home. The unscoped dashboard build stays unfiltered
+ * on purpose — isScopedBuild is false there — and a conditioning-scoped
+ * build keeps it too, since it's a door into a screen that build owns.
+ */
+export function showZonesCard(productId: string, isScopedBuild: boolean) {
+  return !(isScopedBuild && productId === 'strength');
+}
 
 export function Home() {
   const nav = useNavigate();
@@ -284,21 +295,27 @@ export function Home() {
       <NutritionCard />
 
       {/* Title is asserted verbatim by checks/react-smoke.mjs — keep the string.
+          That smoke run serves the unscoped dashboard build (apps/web/dist),
+          where showZonesCard is always true, so the assertion still holds.
           Full zone bars live on Conditioning, which holds you to them; this is
-          just the door. */}
-      <SectionHead
-        title="Your zones today"
-        right={
-          <button onClick={() => nav('/conditioning')} className="rounded-sm text-3 font-[650] text-gold2">
-            Start a run ›
-          </button>
-        }
-      />
-      <Card tone="quiet">
-        <p className="text-3 text-dim">
-          Heart-rate zones for today's session, re-zoned for how you've recovered — full breakdown on Conditioning.
-        </p>
-      </Card>
+          just the door — and a strength-scoped build owns no such door. */}
+      {showZonesCard(PRODUCT_ID, IS_SCOPED_BUILD) ? (
+        <>
+          <SectionHead
+            title="Your zones today"
+            right={
+              <button onClick={() => nav('/conditioning')} className="rounded-sm text-3 font-[650] text-gold2">
+                Start a run ›
+              </button>
+            }
+          />
+          <Card tone="quiet">
+            <p className="text-3 text-dim">
+              Heart-rate zones for today's session, re-zoned for how you've recovered — full breakdown on Conditioning.
+            </p>
+          </Card>
+        </>
+      ) : null}
 
       <SectionHead
         title="Last 7 days"

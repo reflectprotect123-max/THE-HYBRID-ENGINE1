@@ -1,18 +1,32 @@
 import { NavLink } from 'react-router-dom';
+import type { ProductId } from '@hybrid/product-scope';
+import { IS_SCOPED_BUILD, PRODUCT_ID } from '../product';
 import { cx } from '../ui';
 
 /*
- * Three tabs plus Settings, matching the nav the app settled on. Settings sits
- * in the bar rather than behind a gear in a header because on a phone in a gym
- * the header is the one place a thumb cannot reach.
+ * Five tabs, matching the nav the app settled on. Settings sits in the bar
+ * rather than behind a gear in a header because on a phone in a gym the
+ * header is the one place a thumb cannot reach.
+ *
+ * The second tab is the one product-scoped slot: a conditioning build has no
+ * lifting to train, so it points at /conditioning instead of /training. The
+ * unscoped dashboard build (no VITE_HYBRID_PRODUCT set) keeps /training —
+ * IS_SCOPED_BUILD is false there, so this never narrows the live dashboard.
  */
-const TABS = [
-  { to: '/', label: 'Home', icon: HomeIcon },
-  { to: '/training', label: 'Train', icon: TrainIcon },
-  { to: '/library', label: 'Library', icon: LibIcon },
-  { to: '/progress', label: 'Progress', icon: ChartIcon },
-  { to: '/settings', label: 'Settings', icon: CogIcon },
-];
+export function navTabs(productId: ProductId, isScopedBuild: boolean) {
+  const trainTab = isScopedBuild && productId === 'conditioning'
+    ? { to: '/conditioning', label: 'Cond', icon: CondIcon }
+    : { to: '/training', label: 'Train', icon: TrainIcon };
+  return [
+    { to: '/', label: 'Home', icon: HomeIcon },
+    trainTab,
+    { to: '/library', label: 'Library', icon: LibIcon },
+    { to: '/progress', label: 'Progress', icon: ChartIcon },
+    { to: '/settings', label: 'Settings', icon: CogIcon },
+  ];
+}
+
+const TABS = navTabs(PRODUCT_ID, IS_SCOPED_BUILD);
 
 export function BottomNav() {
   return (
@@ -68,6 +82,9 @@ function HomeIcon({ lit }: { lit?: boolean }) {
 }
 function TrainIcon({ lit }: { lit?: boolean }) {
   return S('M3 12h2M19 12h2M7 8v8M17 8v8M9.5 12h5M7 8h2.5v8H7zM14.5 8H17v8h-2.5z', lit);
+}
+function CondIcon({ lit }: { lit?: boolean }) {
+  return S('M3 12h3l1.5-4L11 17l2.5-10L15 12h6', lit);
 }
 function LibIcon({ lit }: { lit?: boolean }) {
   return S('M5 4.5h3.4v15H5zM10.2 4.5h3.4v15h-3.4zM16.2 5.4l3.1.8-3.6 13.9-3.1-.8z', lit);

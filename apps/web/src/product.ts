@@ -21,3 +21,11 @@ const rawProduct = import.meta.env.VITE_HYBRID_PRODUCT;
 export const PRODUCT = rawProduct === 'strength' || rawProduct === 'conditioning'
   ? productDefinition(PRODUCT_ID)
   : { ...productDefinition(PRODUCT_ID), name: 'THE Hybrid System — Dashboard', shortName: 'Dashboard' };
+
+/*
+ * True only for the two branded, single-purpose builds. The live dashboard
+ * build sets no VITE_HYBRID_PRODUCT at all and stays unfiltered on purpose —
+ * gating nav or screen content on PRODUCT_ID alone would wrongly narrow that
+ * build too, since PRODUCT_ID silently falls back to 'strength'.
+ */
+export const IS_SCOPED_BUILD = rawProduct === 'strength' || rawProduct === 'conditioning';
