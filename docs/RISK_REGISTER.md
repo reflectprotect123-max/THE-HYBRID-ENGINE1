@@ -23,13 +23,114 @@ automated change requires an inspectable receipt".
 *Disposition*: make the pre-fill an explicit accept, or mark it visually as a
 proposal.
 
-### R2 · Progression applied without approval
+### R2 · Progression applied without approval — RESOLVED (9 August 2026)
 `apps/web/src/screens/Training.tsx:86` banks `liftProgress` at session
 completion. No approval step exists anywhere.
-**Contradicts** "progression may be proposed but requires explicit coach
-approval". Note the mitigating context: there is no coach in the system today,
-and the athlete approves by performing the set. Under any coach model this
-becomes the largest required behavioural change.
+**Contradicted** "progression may be proposed but requires explicit coach
+approval". Note the mitigating context that existed at the time: there is no
+coach in the system for a self-coached athlete, and the athlete approved by
+performing the set.
+
+This entry is specifically about `SessionReceipt.tsx`'s Auto-Coached
+adjustment (`resolveSession()` → single-click Apply → `LedgerEntry`), not
+`Training.tsx`'s per-set weight banking, which is untouched and remains the
+smaller, session-in-progress case. Design:
+`docs/superpowers/specs/2026-08-09-self-coach-approval-gate-design.md`.
+
+Built: a propose-then-decide gate, the same shape `CoachProgression.tsx`'s
+`RosterProgressionView` already used for a human coach, now applied to the
+self-coached majority case. New file
+`apps/web/src/autocoach/pendingProposal.ts` — its own `localStorage` key
+(`hybrid-auto-coach-pending-v1`, additive, never a field on `EngineDB`, no
+sync partition, same idiom as `ledger.ts`/`policy.ts`/`consent.ts`), holding
+at most one `PendingProposal` (`date`, `sourceWorkoutId`,
+`sourceWorkoutUpdatedAt`, the frozen `AutoCoachResolution`, and
+`status: 'pending' | 'approved' | 'declined'`), read via
+`useSyncExternalStore` (`usePendingProposal`) and a non-hook
+`getPendingProposal()` for use outside render. `SessionReceipt.tsx` was
+rewritten (`apps/web/src/autocoach/SessionReceipt.tsx`): an eligible
+resolution now proposes itself automatically on render
+(`canApply(r)` and no existing record for today), rendering a card with
+`[Approve]` `[Decline]` instead of applying. Today's as-authored session
+stays fully trainable while a proposal sits undecided — the design's
+explicit decision that ignoring the card is always safe. Approve applies the
+**frozen** resolution captured at propose time, not a fresh re-resolve, via
+the same unchanged `planApply → update → recordApply` sequence Apply always
+used; Decline marks the record `declined` and mutates nothing. A day
+boundary is a plain `date !== today` read-time check, matching the
+convention `SessionReceipt` already used for `appliedEntry` — no expiry job,
+nothing carries forward. The unconditional hard-safety gate in
+`resolveSession()`/`canApply()` — a pain/illness constraint has always made a
+resolution un-appliable — is unchanged and is still the thing that actually
+keeps a hard constraint from being banked; the approval click is a pause
+point on top of it, not a replacement for it.
+
+**Two real bugs surfaced across two review rounds on the first implementation
+commit (`2633dd7`), each fixed and committed separately.** Round 1
+(`46d5a83`) was a genuine data-loss path: the original effect and
+`handleApprove` re-checked only `r.state === 'safety_stop'` before applying,
+never whether the *source workout itself* had changed since the proposal was
+frozen — so an athlete who edited today's workout after a proposal was
+raised, then clicked Approve, would have the frozen (now-stale) blocks
+silently overwrite their edit. Fixed by adding
+`pending.sourceWorkoutId !== workout.id ||
+pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0)` to both the
+withdrawal effect and `handleApprove`'s defence-in-depth backstop, withdrawing
+the proposal silently (per the design's decision on silent withdrawal)
+instead of applying stale content. Round 2 (`1951695`) found that fix itself
+introduced a spurious propose/withdraw loop: comparing the raw
+`pending.sourceWorkoutUpdatedAt !== workout.updatedAt` is asymmetric for a
+workout with no `updatedAt` field, since one side normalizes through
+`?? 0` at propose time and the other did not at re-check time, so a freshly
+proposed record could immediately compare unequal to itself and
+withdraw-then-repropose in a loop. Fixed by applying the same `?? 0`
+normalization on both sides of both comparisons. This second fix was
+mutation-tested by reverting the comparison to its pre-fix asymmetric form —
+the test didn't just fail an assertion, it reproduced the literal reported
+symptom live: React's "Maximum update depth exceeded", thrown from inside
+`withdrawPending`'s `persist()` → `listeners.forEach` notify call — about as
+direct a confirmation as a mutation test gets. Restored exactly (verified via
+`git diff` showing only the intended two-line change) and reconfirmed
+passing.
+
+The staleness re-check itself (added in round 1) was separately
+mutation-tested by disabling just the new staleness condition while keeping
+the pre-existing `safety_stop` check: confirmed the test then failed for the
+right reason (the stale proposal survived instead of being withdrawn), then
+restored exactly and reconfirmed passing. The original withdrawal branch
+(pain/illness re-check) was mutation-tested the same way when first written:
+temporarily replaced with a no-op, confirmed `-t "withdraws"` then failed
+because `getPendingProposal()` stayed `'pending'` instead of becoming
+`null`, then restored and reconfirmed. All three mutation tests, in other
+words, proved the assertions they guard are load-bearing rather than
+vacuously passing.
+
+Copy that described the old immediate-apply behavior was updated so athletes
+aren't consenting to language that no longer matches what happens:
+`ModeSwitcher.tsx`'s `auto_daily` mode description and its auto-apply
+consent paragraph now say changes are suggested and apply only once
+approved; `consent.ts`'s `CONSENT_TEXT_VERSION` was bumped 1 → 2 so an
+athlete who accepted the old wording is distinguished from one accepting the
+new wording. A follow-up review caught that `consent.ts`'s own module-level
+doc comment for `autoApplyConsent` still asserted the old "applies without a
+per-instance confirmation" behavior — fixed to describe suggestion, not
+unasked application (`1907b07`).
+
+New tests: `pendingProposal.test.ts` (8, store logic — create/read,
+date-boundary expiry, status transitions, single record per day) and
+`SessionReceipt.test.tsx` (7, `apps/web`'s first render-level test for this
+component, using the `@testing-library/react`/jsdom harness R8 added) —
+propose without mutating, approve re-checks safety then runs the existing
+apply sequence, decline marks declined without mutating, a new hard
+constraint withdraws silently on the next render, a source-workout edit
+withdraws silently, a workout with no `updatedAt` does not spuriously
+self-withdraw (the round-2 regression test), and a new day proposes fresh
+ignoring a stale-dated decision. Full `apps/web` suite (`pnpm --filter
+@hybrid/web exec vitest run`): 220 passed, 2 skipped (unrelated,
+`SB_E2E`-gated live backend round trip), 0 failed. `pnpm run typecheck`:
+17/17 projects. `node checks/docs.mjs && node checks/coach-contract.mjs &&
+node checks/ecosystem-contract.mjs`: all green, unaffected as expected since
+none touch `apps/web/src/autocoach/**`.
 
 ### R3 · Automation receipts are device-local — RESOLVED (8 August 2026)
 `apps/web/src/autocoach/ledger.ts:27` — `hybrid-auto-coach-ledger-v1` in
