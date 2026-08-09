@@ -7,8 +7,8 @@ import type { AutonomyPolicy } from '@hybrid/auto-coach';
  *
  *  - proposalsConsent: Auto-Coached may read check-ins/state to PROPOSE
  *    changes (required to leave shadow for assisted).
- *  - autoApplyConsent: permitted changes may APPLY without a per-instance
- *    confirmation (required, additionally, for auto_daily).
+ *  - autoApplyConsent: permitted changes are SUGGESTED automatically
+ *    (required, additionally, for auto_daily).
  *
  * Additive store: its own localStorage key, same useSyncExternalStore shape
  * as policy.ts, never a field on EngineDB.
