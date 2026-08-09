@@ -100,3 +100,7 @@ export function canUndo(entry: LedgerEntry): boolean {
   if (entry.action !== 'applied') return false;
   return entry.wasForked ? !!entry.forkedWorkoutId : entry.beforeBlocks !== undefined;
 }
+
+export function resetLedgerForTests(): void {
+  persist(empty());
+}
