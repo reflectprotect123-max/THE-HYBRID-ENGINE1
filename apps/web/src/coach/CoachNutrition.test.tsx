@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, screen } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { NutritionProvider } from '../store/nutrition';
 import { CoachNutrition } from './CoachNutrition';
@@ -35,6 +35,24 @@ import type { AthleteNutritionSummary, AthleteNutritionWindow } from './contract
  * the same pattern every other roster screen in this batch uses.
  */
 async function renderNutrition(repository: FakeCoachWorkspaceRepository) {
+  const result = renderCoachScreen(
+    <NutritionProvider>
+      <CoachNutrition />
+    </NutritionProvider>,
+    { repository },
+  );
+  await act(async () => {});
+  return result;
+}
+
+/**
+ * Renders the self-coach branch: no roster client is selected, so
+ * `selectedClient` stays `null` and `CoachNutrition` falls into
+ * `SelfCoachNutritionView`, same pattern as `CoachCommandCenter.test.tsx`'s
+ * `renderCommandCenter`.
+ */
+async function renderSelfNutrition() {
+  const repository = new FakeCoachWorkspaceRepository();
   const result = renderCoachScreen(
     <NutritionProvider>
       <CoachNutrition />
@@ -127,5 +145,26 @@ describe('CoachNutrition (roster)', () => {
     expect(screen.getByText('DISTINCT_CHECKIN_EXPLANATION_TOKEN')).toBeInTheDocument();
     expect(screen.getByText('holding')).toBeInTheDocument();
     expect(screen.getByText(/logged to Riley Roster.s receipt trail/)).toBeInTheDocument();
+  });
+});
+
+describe('CoachNutrition (self-coach)', () => {
+  it('renders Actionable exceptions first in DOM order, ahead of the collapsed reference sections, on the self-coach nutrition screen', async () => {
+    const { container } = await renderSelfNutrition();
+    const exceptionsSection = container.querySelector('section[aria-labelledby="exceptions-title"]');
+    const firstDetails = container.querySelector('details');
+    expect(exceptionsSection).toBeInTheDocument();
+    expect(firstDetails).toBeInTheDocument();
+    expect(exceptionsSection!.compareDocumentPosition(firstDetails!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('collapses the Data state and Current program sections by default', async () => {
+    const { container } = await renderSelfNutrition();
+    const dataStateSummary = screen.getByText(/days declared/);
+    const dataStateDetails = dataStateSummary.closest('details');
+    expect(dataStateDetails).not.toHaveAttribute('open');
+    expect(within(dataStateDetails as HTMLElement).getByText(/Unlogged means unknown/)).not.toBeVisible();
+
+    expect(container.querySelector('section[aria-labelledby="exceptions-title"]')?.tagName).not.toBe('DETAILS');
   });
 });
