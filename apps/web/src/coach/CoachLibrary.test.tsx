@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { CoachLibrary } from './CoachLibrary';
@@ -92,11 +92,19 @@ describe('CoachLibrary', () => {
       expect(button).toHaveClass('min-h-8');
       expect(button).not.toHaveClass('min-h-11');
     });
-    const toggleGroupButtons = container.querySelectorAll('[role="group"][aria-label="Filter Library by training system"] button[aria-pressed]');
-    expect(toggleGroupButtons.length).toBeGreaterThan(0);
-    toggleGroupButtons.forEach((button) => {
-      expect(button).toHaveClass('min-h-8');
-      expect(button).not.toHaveClass('min-h-11');
+  });
+
+  it('exposes the training-system filter as a real tablist', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    await renderLibrary(repo);
+    const tablist = screen.getByRole('tablist', { name: 'Filter Library by training system' });
+    const tabs = within(tablist).getAllByRole('tab');
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    await act(async () => {
+      fireEvent.click(tabs[1]);
     });
+    expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
   });
 });
