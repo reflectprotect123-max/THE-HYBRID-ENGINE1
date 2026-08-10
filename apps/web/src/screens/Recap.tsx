@@ -18,6 +18,7 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { PostSessionFeedback } from '../autocoach/PostSessionFeedback';
+import { IS_SCOPED_BUILD } from '../product';
 import { Button, Card, Kicker, ScreenTitle, SectionHead, Stat, cx } from '../ui';
 
 /*
@@ -175,7 +176,9 @@ export function Recap() {
         ))}
       </div>
 
-      <Button variant="brass" size="lg" className="mt-3 w-full" onClick={() => nav('/')}>
+      {/* `/` is Home on a branded build but the coach bench on the unscoped
+          dashboard build — same reasoning as BottomNav's Home tab. */}
+      <Button variant="brass" size="lg" className="mt-3 w-full" onClick={() => nav(IS_SCOPED_BUILD ? '/' : '/home')}>
         Done
       </Button>
     </>
