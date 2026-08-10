@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { act, screen } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import { DbProvider } from '../store/db';
 import { NutritionProvider } from '../store/nutrition';
 import { WeekReview } from './WeekReview';
@@ -45,6 +45,40 @@ async function renderWeekReview(repository: FakeCoachWorkspaceRepository, weekSt
         <MemoryRouter initialEntries={[`/coach/review/${weekStart}`]}>
           <Routes>
             <Route path="/coach/review/:weekStart" element={<WeekReview />} />
+          </Routes>
+        </MemoryRouter>
+      </NutritionProvider>
+    </DbProvider>,
+    { repository },
+  );
+  await act(async () => {});
+  return result;
+}
+
+/**
+ * The self-coach branch: a `FakeCoachWorkspaceRepository` whose `clients`
+ * stays at its default `[]` (no `roster-summary` client), so
+ * `CoachWorkspaceProvider` resolves `selectedClient` to `null` and
+ * `WeekReview` falls into `SelfCoachWeekReview` — same
+ * `DbProvider`/`NutritionProvider`/`MemoryRouter` nesting as
+ * `renderWeekReview` above, mirroring `CoachCommandCenter.test.tsx`'s
+ * `renderCommandCenter`.
+ *
+ * Unlike `renderWeekReview`, the route carries no `:weekStart` param — `useDb()`
+ * computes `weeklyPlan.weekStart` from the real current date, and
+ * `SelfCoachWeekReview` only takes the "historical plan unavailable" branch
+ * when a URL `weekStart` disagrees with it. Leaving the param out of the
+ * route entirely (`/coach/review`, matched by a paramless route) keeps
+ * `useParams().weekStart` `undefined`, so that check never fires and the full
+ * screen renders regardless of what day the suite runs on.
+ */
+async function renderSelfWeekReview(repository = new FakeCoachWorkspaceRepository()) {
+  const result = renderCoachScreen(
+    <DbProvider>
+      <NutritionProvider>
+        <MemoryRouter initialEntries={['/coach/review']}>
+          <Routes>
+            <Route path="/coach/review" element={<WeekReview />} />
           </Routes>
         </MemoryRouter>
       </NutritionProvider>
@@ -128,5 +162,29 @@ describe('WeekReview (roster tier)', () => {
     expect(screen.queryByText('Planned')).not.toBeInTheDocument();
     expect(screen.queryByText('Recorded')).not.toBeInTheDocument();
     expect(screen.queryByRole('article')).not.toBeInTheDocument();
+  });
+});
+
+describe('WeekReview (self-coach tier)', () => {
+  it('renders the Planned-versus-actual ledger before the collapsed reference sections, on the self-coach week review screen', async () => {
+    const { container } = await renderSelfWeekReview();
+    const ledgerSection = container.querySelector('section[aria-labelledby="ledger-title"]');
+    const firstDetails = container.querySelector('details');
+    expect(ledgerSection).toBeInTheDocument();
+    expect(firstDetails).toBeInTheDocument();
+    expect(ledgerSection!.compareDocumentPosition(firstDetails!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('collapses the Review state and Automation receipts sections by default', async () => {
+    const { container } = await renderSelfWeekReview();
+    const reviewStateSummary = screen.getByText('Review state');
+    const reviewStateDetails = reviewStateSummary.closest('details');
+    expect(reviewStateDetails).not.toHaveAttribute('open');
+
+    const receiptsSummary = screen.getByText('Automation receipts');
+    const receiptsDetails = receiptsSummary.closest('details');
+    expect(receiptsDetails).not.toHaveAttribute('open');
+
+    expect(container.querySelector('section[aria-labelledby="ledger-title"]')?.tagName).not.toBe('DETAILS');
   });
 });

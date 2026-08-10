@@ -4,6 +4,7 @@ import { nutritionSummary } from '@hybrid/nutrition-adapter';
 import { useLedger } from '../autocoach/ledger';
 import { useDb } from '../store/db';
 import { useNutrition } from '../store/nutrition';
+import { CoachSection } from './CoachSection';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import type { AthleteWeekSummary } from './contracts';
 import { buildWeekReview, type ReviewStatus } from './week-review';
@@ -168,19 +169,6 @@ function SelfCoachWeekReview() {
 
       <div className="mx-auto grid max-w-[1180px] gap-2 p-2 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-2">
-          <section className="rounded-md border border-line2 bg-panel3 p-2" aria-labelledby="review-state">
-            <div className="flex flex-wrap items-center gap-1">
-              <h2 id="review-state" className="text-sm font-semibold">Review state</h2>
-              <span className="rounded-full border border-line2 bg-panel px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted">
-                live projection
-              </span>
-            </div>
-            <p className="mt-0.5 text-xs text-muted">
-              This is the Coordinator’s current deterministic projection paired with local actuals. It is not a stored
-              historical plan snapshot; ambiguous matches remain explicit.
-            </p>
-          </section>
-
           {reconciled.safetyDrops.length > 0 && (
             <section className="rounded-md border border-bad/50 bg-panel3 p-2" aria-labelledby="safety-title">
               <p className="text-[10px] uppercase tracking-wider text-bad">Safety first</p>
@@ -221,9 +209,15 @@ function SelfCoachWeekReview() {
             </div>
           </section>
 
-          <section className="rounded-md border border-line2 bg-panel3 p-2" aria-labelledby="decisions-title">
-            <h2 id="decisions-title" className="text-sm font-semibold">What competed and lost</h2>
-            <p className="mt-0.5 text-[11px] text-muted">Dropped proposals are part of the week, not hidden failures.</p>
+          <CoachSection eyebrow="Live projection" title="Review state">
+            <p className="text-xs text-muted">
+              This is the Coordinator&rsquo;s current deterministic projection paired with local actuals. It is not a
+              stored historical plan snapshot; ambiguous matches remain explicit.
+            </p>
+          </CoachSection>
+
+          <CoachSection eyebrow="Coordinator arbitration" title="What competed and lost" count={reconciled.dropped.length}>
+            <p className="text-[11px] text-muted">Dropped proposals are part of the week, not hidden failures.</p>
             <div className="mt-1 grid gap-1 sm:grid-cols-2">
               {reconciled.dropped.map((decision) => (
                 <article key={`${decision.proposalId}:${decision.reasonCode}`} className="rounded border border-line bg-panel p-1.5">
@@ -233,13 +227,12 @@ function SelfCoachWeekReview() {
               ))}
               {reconciled.dropped.length === 0 && <p className="text-xs text-muted">No proposals were dropped in this projection.</p>}
             </div>
-          </section>
+          </CoachSection>
         </div>
 
         <aside className="space-y-2">
-          <section className="rounded-md border border-line2 bg-panel3 p-2" aria-labelledby="receipts-title">
-            <h2 id="receipts-title" className="text-sm font-semibold">Automation receipts</h2>
-            <p className="mt-0.5 text-[11px] text-warn">Device-local evidence. It is not yet synced or authoritative off this device.</p>
+          <CoachSection eyebrow="Automation" title="Automation receipts" count={reconciled.interventions.length}>
+            <p className="text-[11px] text-warn">Device-local evidence. It is not yet synced or authoritative off this device.</p>
             <div className="mt-1 space-y-1">
               {reconciled.interventions.map((entry) => (
                 <article key={entry.id} className="rounded border border-line bg-panel p-1">
@@ -249,16 +242,16 @@ function SelfCoachWeekReview() {
               ))}
               {reconciled.interventions.length === 0 && <p className="text-xs text-muted">No local automation receipt for this week.</p>}
             </div>
-          </section>
+          </CoachSection>
 
-          <section className="rounded-md border border-line2 bg-panel3 p-2" aria-labelledby="nutrition-title">
-            <div className="flex items-baseline"><h2 id="nutrition-title" className="text-sm font-semibold">Nutrition context</h2><Link to="/coach/nutrition" className="ml-auto text-[10px] uppercase tracking-wide text-gold2">Open review</Link></div>
+          <CoachSection eyebrow="Context" title="Nutrition context">
+            <Link to="/coach/nutrition" className="text-[10px] uppercase tracking-wide text-gold2">Open review</Link>
             <dl className="mt-1 space-y-0.5 text-xs">
               <div className="flex"><dt className="text-muted">Days logged</dt><dd className="ml-auto tabular-nums">{nutritionContext.adherence.loggedDays} of {nutritionContext.adherence.windowDays}</dd></div>
               <div className="flex"><dt className="text-muted">Today logged</dt><dd className="ml-auto tabular-nums">{Math.round(nutritionContext.today.totals.calories)} kcal</dd></div>
             </dl>
             <p className="mt-1 text-[11px] text-dim">Shown beside training as context only. It did not schedule, drop, or alter a session.</p>
-          </section>
+          </CoachSection>
 
           <section className="rounded-md border border-gold-line bg-gold-wash p-2" aria-labelledby="next-title">
             <p className="text-[10px] uppercase tracking-wider text-gold2">Next</p>
