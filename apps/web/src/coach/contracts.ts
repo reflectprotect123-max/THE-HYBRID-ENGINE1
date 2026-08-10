@@ -145,7 +145,7 @@ export interface AthleteProgressionProposal {
 }
 
 export interface AthleteTrendSnapshot {
-  kind: 'lift_trend' | 'erg_trend' | 'hard_budget';
+  kind: 'lift_trend' | 'erg_trend' | 'hard_budget' | 'readiness_trend';
   points: readonly Record<string, unknown>[];
   generatedAt: string;
 }
@@ -256,6 +256,11 @@ export interface CoachWorkspaceRepository {
   /** Whether the SIGNED-IN coach currently holds a live consent grant for
    *  this client's raw nutrition detail. */
   hasNutritionGrant?(clientId: string): Promise<boolean>;
+  /** Whether the SIGNED-IN coach currently holds a live consent grant for
+   *  this client's raw readiness trend detail (HRV, resting heart rate,
+   *  sleep performance, strain — the raw series whole-athlete-state itself
+   *  never exposes; this is a separate, athlete-consented read path). */
+  hasReadinessGrant?(clientId: string): Promise<boolean>;
 
   listWorkoutDrafts?(clientId: string): Promise<readonly AthleteWorkoutDraft[]>;
   saveWorkoutDraft?(clientId: string, workoutId: string, kind: TrainingDomain, body: Workout, baseVersion: number | null): Promise<AthleteWorkoutDraft>;

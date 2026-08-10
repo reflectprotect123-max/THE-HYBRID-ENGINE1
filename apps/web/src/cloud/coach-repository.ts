@@ -440,6 +440,23 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
     return data != null;
   }
 
+  async hasReadinessGrant(clientId: string): Promise<boolean> {
+    if (!this.client) return false;
+    const { data: session } = await this.client.auth.getUser();
+    if (!session?.user) return false;
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client
+      .from('readiness_read_grants')
+      .select('revoked_at')
+      .eq('organization_id', organizationId)
+      .eq('athlete_user_id', clientId)
+      .eq('granted_to', session.user.id)
+      .is('revoked_at', null)
+      .maybeSingle();
+    if (error) return false;
+    return data != null;
+  }
+
   async listWorkoutDrafts(clientId: string): Promise<readonly AthleteWorkoutDraft[]> {
     if (!this.client) return [];
     const organizationId = await this.orgIdFor(clientId);

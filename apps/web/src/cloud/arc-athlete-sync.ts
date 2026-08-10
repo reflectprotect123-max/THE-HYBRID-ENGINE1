@@ -192,7 +192,7 @@ export async function pushProgressionProposals(client: SupabaseClient, orgId: st
 }
 
 interface TrendSnapshotInput {
-  kind: 'lift_trend' | 'erg_trend' | 'hard_budget';
+  kind: 'lift_trend' | 'erg_trend' | 'hard_budget' | 'readiness_trend';
   points: readonly Record<string, unknown>[];
 }
 
@@ -204,6 +204,15 @@ export function trendSnapshotInputs(lifts: TrendSeries[], erg: TrendSeries | nul
   if (erg) inputs.push({ kind: 'erg_trend', points: [erg as unknown as Record<string, unknown>] });
   inputs.push({ kind: 'hard_budget', points: [hard as unknown as Record<string, unknown>] });
   return inputs;
+}
+
+/** Serialises the raw readiness series for the push RPC.
+ *  Pure and separately testable — the network call itself is not. */
+export function readinessTrendSnapshotInput(
+  whoopDaily: readonly { date: string; recovery: number | null; strain: number | null; hrvMs?: number | null; restingHr?: number | null; sleepPerformance?: number | null }[],
+): TrendSnapshotInput | null {
+  if (!whoopDaily.length) return null;
+  return { kind: 'readiness_trend', points: whoopDaily as unknown as Record<string, unknown>[] };
 }
 
 export async function pushTrendSnapshots(client: SupabaseClient, orgId: string, lifts: TrendSeries[], erg: TrendSeries | null, hard: HardBudget): Promise<void> {
@@ -219,6 +228,25 @@ export async function pushTrendSnapshots(client: SupabaseClient, orgId: string, 
     } catch {
       /* Best-effort, same reasoning as pushProgressionProposals. */
     }
+  }
+}
+
+export async function pushReadinessTrendSnapshot(
+  client: SupabaseClient,
+  orgId: string,
+  whoopDaily: readonly { date: string; recovery: number | null; strain: number | null; hrvMs?: number | null; restingHr?: number | null; sleepPerformance?: number | null }[],
+): Promise<void> {
+  const input = readinessTrendSnapshotInput(whoopDaily);
+  if (!input) return;
+  try {
+    await client.rpc('push_trend_snapshot', {
+      p_organization_id: orgId,
+      p_kind: input.kind,
+      p_points: input.points,
+      p_generated_at: new Date().toISOString(),
+    });
+  } catch {
+    /* Best-effort, same reasoning as pushTrendSnapshots/pushProgressionProposals. */
   }
 }
 

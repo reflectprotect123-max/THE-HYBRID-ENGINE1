@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ResolutionOperation } from '@hybrid/auto-coach';
 import {
   applyServerProgression,
+  pushReadinessTrendSnapshot,
+  readinessTrendSnapshotInput,
   sanitizeAssignedWorkoutBody,
   sanitizeReceiptOperations,
   structurallyEqual,
@@ -168,5 +171,45 @@ describe('trendSnapshotInputs', () => {
     const erg = { label: '2000m row', sub: '', points: [120], latest: 120, delta: null };
     const inputs = trendSnapshotInputs(lifts, erg, hard);
     expect(inputs.map((i) => i.kind)).toEqual(['lift_trend', 'erg_trend', 'hard_budget']);
+  });
+});
+
+describe('readinessTrendSnapshotInput', () => {
+  const day = { date: '2026-08-09', recovery: 62, strain: 11.4, hrvMs: 58, restingHr: 52, sleepPerformance: 88 };
+
+  it('returns null for an empty series — nothing to push', () => {
+    expect(readinessTrendSnapshotInput([])).toBeNull();
+  });
+
+  it('passes a non-empty series through as readiness_trend points', () => {
+    const input = readinessTrendSnapshotInput([day]);
+    expect(input?.kind).toBe('readiness_trend');
+    expect(input?.points).toEqual([day]);
+  });
+});
+
+describe('pushReadinessTrendSnapshot', () => {
+  const day = { date: '2026-08-09', recovery: 62, strain: 11.4 };
+
+  it('pushes a readiness_trend snapshot when there is a series', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    await pushReadinessTrendSnapshot({ rpc } as unknown as SupabaseClient, 'org-1', [day]);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('push_trend_snapshot', expect.objectContaining({
+      p_organization_id: 'org-1',
+      p_kind: 'readiness_trend',
+      p_points: [day],
+    }));
+  });
+
+  it('does not call the RPC at all for an empty series', async () => {
+    const rpc = vi.fn();
+    await pushReadinessTrendSnapshot({ rpc } as unknown as SupabaseClient, 'org-1', []);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('swallows an RPC failure — best-effort, like every other push here', async () => {
+    const rpc = vi.fn().mockRejectedValue(new Error('offline'));
+    await expect(pushReadinessTrendSnapshot({ rpc } as unknown as SupabaseClient, 'org-1', [day])).resolves.toBeUndefined();
   });
 });
