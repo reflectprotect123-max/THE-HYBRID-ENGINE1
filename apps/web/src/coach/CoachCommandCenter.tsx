@@ -8,6 +8,7 @@ import { buildCoachNutritionReview } from './nutrition-review';
 import { useProgressionLedger } from './progression-store';
 import { buildWeekReview } from './week-review';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
+import { CoachSection } from './CoachSection';
 import type { ClientSummary } from './contracts';
 
 interface PriorityItem {
@@ -170,22 +171,33 @@ export function CoachCommandCenter() {
         </div>
       </section>
 
-      <div className="grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 flex flex-col gap-5">
-          <section aria-labelledby="client-overview-title">
-            <div className="flex flex-wrap items-end gap-2"><div><p className="text-[9px] uppercase tracking-wider text-gold">Selected client</p><h2 id="client-overview-title" className="text-lg font-semibold">{selectedClient.name}</h2></div><div className="sm:ml-3"><p className="text-sm font-medium">{selectedClient.block}</p><p className="text-[11px] text-muted">{selectedClient.week}</p></div><Link to="/coach/library" className="ml-auto rounded-md border border-line2 bg-panel px-2 py-1.5 text-xs text-muted hover:text-text">Assign training</Link></div>
-            <dl className="mt-3 grid grid-cols-2 divide-x divide-y divide-line2 border-y border-line2 sm:grid-cols-4 sm:divide-y-0"><OverviewMetric label="Strength" value={selectedClient.strength} detail="sessions complete" /><OverviewMetric label="Conditioning" value={selectedClient.conditioning} detail="sessions complete" /><OverviewMetric label="Nutrition" value={selectedClient.nutrition} detail="logged" /><OverviewMetric label="Check-ins" value={selectedClient.checkIns} detail="submitted" /></dl>
-            <nav className="mt-2 flex items-center gap-1 overflow-x-auto text-xs" aria-label={`${selectedClient.name} details`}><span aria-current="page" className="pointer-coarse:min-h-11 shrink-0 rounded-md border border-line2 bg-panel px-2 py-1.5 text-text">Summary</span>{selectedClient.source === 'engine-local' ? <><Link to={`/coach/review/${weeklyPlan.weekStart}`} className="pointer-coarse:min-h-11 shrink-0 rounded-md border border-transparent px-2 py-1.5 text-muted hover:bg-panel hover:text-text">Week</Link><Link to="/coach/progression" className="pointer-coarse:min-h-11 shrink-0 rounded-md border border-transparent px-2 py-1.5 text-muted hover:bg-panel hover:text-text">Decisions</Link><Link to="/coach/nutrition" className="pointer-coarse:min-h-11 shrink-0 rounded-md border border-transparent px-2 py-1.5 text-muted hover:bg-panel hover:text-text">Nutrition</Link><Link to="/coach/legacy" className="pointer-coarse:min-h-11 shrink-0 rounded-md border border-transparent px-2 py-1.5 text-muted hover:bg-panel hover:text-text">Inspect details</Link></> : <span className="px-2 py-1.5 text-dim">Detailed records await the backend adapter</span>}</nav>
-          </section>
+      {/* Identity line — who you're looking at, always visible, never a card.
+          Everything below it either matters right now (the queue, elevated
+          and always open) or is reference material (everything else, quiet
+          by default, one tap away). */}
+      <div className="border-b border-line2 px-3 py-2.5 sm:px-4">
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <p className="text-[9px] uppercase tracking-wider text-gold">Selected client</p>
+            <h2 className="text-lg font-semibold">{selectedClient.name}</h2>
+          </div>
+          <div className="sm:ml-3"><p className="text-sm font-medium">{selectedClient.block}</p><p className="text-[11px] text-muted">{selectedClient.week}</p></div>
+          <Link to="/coach/library" className="ml-auto pointer-coarse:min-h-11 rounded-md border border-line2 bg-panel px-2 py-1.5 text-xs text-muted hover:text-text">Assign training</Link>
+        </div>
+      </div>
 
-          <section aria-labelledby="priority-title" className="order-first sm:order-none">
-            <div className="mb-2 flex items-end">
+      <div className="grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
+          {/* The one elevated, always-open card — everything else in this
+              column is a CoachSection, collapsed by default. */}
+          <section aria-labelledby="priority-title" className="card raised mb-4 overflow-hidden rounded-lg border border-gold-line bg-gold-wash/[0.03] border-l-0">
+            <div className="flex items-end gap-2 border-b border-gold-line/40 bg-gold-wash px-3 py-2">
               <div><p className="text-[9px] uppercase tracking-wider text-gold">Now</p><h2 id="priority-title" className="text-base font-semibold">Coach queue</h2></div>
               <span className="ml-auto text-xs tabular-nums text-muted">{displayedPriorities.length} open</span>
             </div>
-            <div className="overflow-hidden rounded-lg border border-line2 bg-panel3">
-              {displayedPriorities.slice(0, 5).map((item, index) => (
-                <Link key={item.id} to={item.to} className={`group flex gap-2 border-l-2 px-2.5 py-2.5 transition-colors hover:bg-panel ${index ? 'border-t border-t-line' : ''} ${LEVEL_STYLE[item.level]}`}>
+            <div className="divide-y divide-line">
+              {displayedPriorities.slice(0, 5).map((item) => (
+                <Link key={item.id} to={item.to} className={`group flex gap-2 border-l-2 px-2.5 py-2.5 transition-colors hover:bg-panel ${LEVEL_STYLE[item.level]}`}>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline gap-1.5"><h3 className="text-sm font-semibold">{item.title}</h3><span className="text-[9px] uppercase tracking-wide text-dim">{LEVEL_LABEL[item.level]}</span></div>
                     <p className="mt-0.5 text-xs text-muted">{item.detail}</p>
@@ -198,17 +210,28 @@ export function CoachCommandCenter() {
             </div>
           </section>
 
-          <section aria-labelledby="systems-title">
-            <div className="mb-2"><p className="text-[9px] uppercase tracking-wider text-dim">Specialist inputs</p><h2 id="systems-title" className="text-base font-semibold">Three systems</h2></div>
-            <div className="divide-y divide-line border-y border-line2">
+          <CoachSection eyebrow="Selected client" title="Overview">
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4"><OverviewMetric label="Strength" value={selectedClient.strength} detail="sessions complete" /><OverviewMetric label="Conditioning" value={selectedClient.conditioning} detail="sessions complete" /><OverviewMetric label="Nutrition" value={selectedClient.nutrition} detail="logged" /><OverviewMetric label="Check-ins" value={selectedClient.checkIns} detail="submitted" /></dl>
+            {selectedClient.source === 'engine-local' ? (
+              <nav className="mt-3 flex flex-wrap gap-1 text-xs" aria-label={`${selectedClient.name} details`}>
+                <Link to={`/coach/review/${weeklyPlan.weekStart}`} className="pointer-coarse:min-h-11 rounded-md border border-line2 bg-panel px-2 py-1.5 text-muted hover:text-text">Week</Link>
+                <Link to="/coach/progression" className="pointer-coarse:min-h-11 rounded-md border border-line2 bg-panel px-2 py-1.5 text-muted hover:text-text">Decisions</Link>
+                <Link to="/coach/nutrition" className="pointer-coarse:min-h-11 rounded-md border border-line2 bg-panel px-2 py-1.5 text-muted hover:text-text">Nutrition</Link>
+                <Link to="/coach/legacy" className="pointer-coarse:min-h-11 rounded-md border border-line2 bg-panel px-2 py-1.5 text-muted hover:text-text">Inspect details</Link>
+              </nav>
+            ) : <p className="mt-3 text-xs text-dim">Detailed records await the backend adapter.</p>}
+          </CoachSection>
+
+          <CoachSection eyebrow="Specialist inputs" title="Three systems">
+            <div className="divide-y divide-line">
               <SystemRow domain="Strength" detail={selectedClient.source === 'engine-local' ? `${strengthWorkouts} authored · ${strengthPending} pending` : `${selectedClient.strength} completed in the current week`} state={selectedClient.source === 'engine-local' ? athleteState.capacity.strength : 'fixture'} to={selectedClient.source === 'engine-local' ? '/coach/author' : '/coach/library'} />
               <SystemRow domain="Conditioning" detail={selectedClient.source === 'engine-local' ? `${conditioningWorkouts} authored · ${conditioningPending} pending` : `${selectedClient.conditioning} completed in the current week`} state={selectedClient.source === 'engine-local' ? athleteState.capacity.conditioning : 'fixture'} to={selectedClient.source === 'engine-local' ? '/coach/author' : '/coach/library'} />
               <SystemRow domain="Nutrition" detail={selectedClient.source === 'engine-local' ? `${nutritionReview.days.filter((day) => day.status !== 'unlogged').length} of 7 days declared · ${nutritionReview.exceptions.length} notes` : `${selectedClient.nutrition} logged`} state={selectedClient.source === 'engine-local' ? nutritionReview.summary.estimate.confidence : 'fixture'} to={selectedClient.source === 'engine-local' ? '/coach/nutrition' : '/coach'} />
             </div>
-          </section>
+          </CoachSection>
 
-          <section aria-labelledby="week-title">
-            <div className="mb-2 flex items-end"><div><p className="text-[9px] uppercase tracking-wider text-dim">Coordinator output</p><h2 id="week-title" className="text-base font-semibold">Resolved week</h2></div>{isLocalClient && <Link to={`/coach/review/${weeklyPlan.weekStart}`} className="ml-auto text-xs text-gold2 hover:text-gold">Open ledger →</Link>}</div>
+          <CoachSection eyebrow="Coordinator output" title="Resolved week" count={isLocalClient ? weeklyPlan.entries.length : undefined}>
+            {isLocalClient && <Link to={`/coach/review/${weeklyPlan.weekStart}`} className="mb-2 inline-block text-xs text-gold2 hover:text-gold">Open ledger →</Link>}
             {isLocalClient ? (
               <div className="overflow-hidden rounded-lg border border-line2 bg-panel3">
                 {weeklyPlan.entries.map((entry) => <article key={entry.id} className="grid items-center gap-1 border-b border-line px-2.5 py-2 last:border-b-0 sm:grid-cols-[72px_1fr_auto]"><span className="text-[10px] uppercase tracking-wide text-gold2">{shortDate(entry.date)}</span><div className="min-w-0"><h3 className="truncate text-sm font-medium">{entry.title}</h3><p className="text-[11px] capitalize text-muted">{entry.effort} · {entry.locked ? 'locked intent' : 'Coordinator placed'}</p></div><span className="text-[9px] uppercase tracking-wide text-dim">{entry.domain}</span></article>)}
@@ -220,20 +243,23 @@ export function CoachCommandCenter() {
                 weekly counts above are authorised today.
               </p>
             )}
-          </section>
+          </CoachSection>
         </div>
 
         <aside className="xl:sticky xl:top-4 xl:self-start">
-          <section className="mb-5" aria-labelledby="conditioning-load-title"><div><p className="text-[9px] uppercase tracking-wider text-dim">Conditioning</p><h2 id="conditioning-load-title" className="text-base font-semibold">Intensity distribution</h2></div><div className="mt-2 space-y-2"><LoadBar label="Easy" value={selectedClient.easy} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /><LoadBar label="Moderate" value={selectedClient.moderate} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /><LoadBar label="Hard" value={selectedClient.hard} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /></div><p className="mt-2 text-[10px] text-dim">Logged minutes by prescribed intensity. Distribution is context, not a readiness score.</p></section>
-          <section aria-labelledby="context-title">
-            <div className="flex items-baseline"><div><p className="text-[9px] uppercase tracking-wider text-dim">Athlete state</p><h2 id="context-title" className="text-base font-semibold">Operating context</h2></div>{isLocalClient && <span className="ml-auto text-[9px] uppercase tracking-wide text-muted">{athleteState.dataQuality}</span>}</div>
+          <CoachSection eyebrow="Conditioning" title="Intensity distribution">
+            <div className="space-y-2"><LoadBar label="Easy" value={selectedClient.easy} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /><LoadBar label="Moderate" value={selectedClient.moderate} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /><LoadBar label="Hard" value={selectedClient.hard} max={Math.max(selectedClient.easy, selectedClient.moderate, selectedClient.hard)} /></div>
+            <p className="mt-2 text-[10px] text-dim">Logged minutes by prescribed intensity. Distribution is context, not a readiness score.</p>
+          </CoachSection>
+          <CoachSection eyebrow="Athlete state" title="Operating context">
+            {isLocalClient && <p className="mb-2 text-[9px] uppercase tracking-wide text-muted">{athleteState.dataQuality}</p>}
             {isLocalClient ? (
               <>
-                <dl className="mt-2 grid grid-cols-3 divide-x divide-line2 border-y border-line2 py-2 text-center"><Metric label="Readiness" value={athleteState.readiness.band} /><Metric label="Strength" value={athleteState.capacity.strength} /><Metric label="Conditioning" value={athleteState.capacity.conditioning} /></dl>
+                <dl className="grid grid-cols-3 divide-x divide-line2 border-y border-line2 py-2 text-center"><Metric label="Readiness" value={athleteState.readiness.band} /><Metric label="Strength" value={athleteState.capacity.strength} /><Metric label="Conditioning" value={athleteState.capacity.conditioning} /></dl>
                 <div className="mt-2"><AthleteStatus /></div>
               </>
             ) : (
-              <p className="mt-2 rounded border border-line2 bg-panel3 p-2 text-[11px] text-muted">
+              <p className="rounded border border-line2 bg-panel3 p-2 text-[11px] text-muted">
                 {/* Not a banner disclosure — this replaces the readiness/capacity
                     figures entirely, so nothing of the signed-in coach's own
                     state is on screen while {selectedClient.name} is selected. */}
@@ -245,7 +271,7 @@ export function CoachCommandCenter() {
               <summary className="cursor-pointer select-none font-medium text-muted hover:text-text">Truth layers and authority</summary>
               <ol className="mt-2 space-y-1.5"><Truth number="01" title="Intent" detail="The authored session and protected goal." /><Truth number="02" title="Resolution" detail="What the Coordinator allowed this week." /><Truth number="03" title="Actual" detail="What the athlete recorded—never imputed." /><Truth number="04" title="Decision" detail="What the coach approved, rejected or held." /></ol>
             </details>
-          </section>
+          </CoachSection>
         </aside>
       </div>
     </main>

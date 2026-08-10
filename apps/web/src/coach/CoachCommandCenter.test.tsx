@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DbProvider } from '../store/db';
 import { NutritionProvider } from '../store/nutrition';
@@ -158,13 +158,37 @@ describe('CoachCommandCenter', () => {
     expect(screen.getByText(/Riley Roster.s readiness and capacity are not readable here yet/)).toBeInTheDocument();
   });
 
-  it('marks the decision queue to render first on phone width, via order utilities', async () => {
+  it('renders the decision queue first in DOM order, ahead of the collapsed reference sections', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [rosterClient({ source: 'engine-local', id: 'engine-local' })];
     const { container } = await renderCommandCenter(repo);
     const queueSection = container.querySelector('section[aria-labelledby="priority-title"]');
-    const overviewSection = container.querySelector('section[aria-labelledby="client-overview-title"]');
-    expect(queueSection).toHaveClass('order-first', 'sm:order-none');
-    expect(overviewSection).not.toHaveClass('order-first');
+    const overviewSection = container.querySelector('summary');
+    expect(queueSection).toBeInTheDocument();
+    expect(overviewSection).toBeInTheDocument();
+    // compareDocumentPosition: DOCUMENT_POSITION_FOLLOWING (4) means `overviewSection`
+    // comes AFTER `queueSection` in the document — true for every reader, not just
+    // a CSS `order` trick that only ever affected sighted, visual-order users.
+    expect(queueSection!.compareDocumentPosition(overviewSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('collapses the Overview and Three systems sections by default', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ source: 'engine-local', id: 'engine-local' })];
+    const { container } = await renderCommandCenter(repo);
+
+    const overviewSummary = screen.getByText('Overview');
+    expect(overviewSummary).toBeInTheDocument();
+    const overviewDetails = overviewSummary.closest('details');
+    expect(overviewDetails).not.toHaveAttribute('open');
+    expect(within(overviewDetails as HTMLElement).getByText('Strength')).not.toBeVisible();
+
+    const systemsSummary = screen.getByText('Three systems');
+    const systemsDetails = systemsSummary.closest('details');
+    expect(systemsDetails).not.toHaveAttribute('open');
+
+    // The queue card itself is NOT a <details> — it's always open, unlike
+    // every CoachSection around it.
+    expect(container.querySelector('section[aria-labelledby="priority-title"]')?.tagName).not.toBe('DETAILS');
   });
 });
