@@ -144,11 +144,19 @@ export function Logger() {
   // athlete may leave sitting on their lock screen indefinitely.
   useEffect(() => {
     if (!s) return;
+    let cancelled = false;
     let lock: WakeLockSentinel | null = null;
     requestWakeLock().then((l) => {
+      if (cancelled) {
+        l?.release();
+        return;
+      }
       lock = l;
     });
-    return () => releaseWakeLock(lock);
+    return () => {
+      cancelled = true;
+      releaseWakeLock(lock);
+    };
   }, [!!s]);
 
   const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);

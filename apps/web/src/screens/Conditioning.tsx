@@ -270,11 +270,19 @@ export function Conditioning() {
   // (Conditioning.tsx:249-364, start() through finish()).
   useEffect(() => {
     if (!live) return;
+    let cancelled = false;
     let lock: WakeLockSentinel | null = null;
     requestWakeLock().then((l) => {
+      if (cancelled) {
+        l?.release();
+        return;
+      }
       lock = l;
     });
-    return () => releaseWakeLock(lock);
+    return () => {
+      cancelled = true;
+      releaseWakeLock(lock);
+    };
   }, [live]);
 
   const zone = bpm == null ? null : conZoneOf(bpm, zones);
