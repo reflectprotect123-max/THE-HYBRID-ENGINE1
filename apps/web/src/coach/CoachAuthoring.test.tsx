@@ -98,6 +98,25 @@ describe('CoachAuthoring (roster)', () => {
     expect(repo.publishedDrafts[0].preferredWeekdays).toEqual([0]);
   });
 
+  it('tapping "Build a strength session" creates a draft and jumps straight into the builder', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [CLIENT];
+    repo.workoutDrafts = [];
+    await renderAuthoring(repo);
+
+    expect(screen.queryByText(/Roster plan editor for/)).not.toBeInTheDocument();
+    const buildButton = screen.getByRole('button', { name: 'Build a strength session' });
+    await act(async () => {
+      fireEvent.click(buildButton);
+    });
+
+    expect(repo.savedDrafts).toHaveLength(1);
+    expect(repo.savedDrafts[0].clientId).toBe('roster-1');
+    expect(repo.savedDrafts[0].kind).toBe('strength');
+    expect(repo.savedDrafts[0].baseVersion).toBeNull();
+    expect(screen.getByText(`Roster plan editor for ${repo.savedDrafts[0].workoutId}`)).toBeInTheDocument();
+  });
+
   it('renders an Edit blocks button per draft that navigates to /coach/roster-plan/<workoutId>', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [CLIENT];

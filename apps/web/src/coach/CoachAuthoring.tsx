@@ -27,8 +27,6 @@ function RosterAuthoringView({ clientId, clientName }: { clientId: string; clien
   const { repository } = useCoachWorkspace();
   const [drafts, setDrafts] = useState<readonly AthleteWorkoutDraft[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [newName, setNewName] = useState('');
-  const [newKind, setNewKind] = useState<'strength' | 'conditioning'>('strength');
   const [busy, setBusy] = useState(false);
   const [publishWeekdays, setPublishWeekdays] = useState<Record<string, number[]>>({});
 
@@ -42,18 +40,16 @@ function RosterAuthoringView({ clientId, clientName }: { clientId: string; clien
   };
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [repository, clientId]);
 
-  async function createDraft() {
-    if (!newName.trim() || !repository.saveWorkoutDraft) return;
+  async function buildSession(kind: 'strength' | 'conditioning') {
+    if (!repository.saveWorkoutDraft) return;
     setBusy(true);
     try {
       const workoutId = uid();
-      const body: Workout = { id: workoutId, kind: newKind, name: newName.trim(), blocks: [], updatedAt: Date.now() };
-      await repository.saveWorkoutDraft(clientId, workoutId, newKind, body, null);
-      setNewName('');
-      load();
+      const body: Workout = { id: workoutId, kind, name: kind === 'strength' ? 'New strength session' : 'New conditioning session', blocks: [], updatedAt: Date.now() };
+      await repository.saveWorkoutDraft(clientId, workoutId, kind, body, null);
+      navigate(`/coach/roster-plan/${workoutId}`);
     } catch {
       setError('The draft could not be created.');
-    } finally {
       setBusy(false);
     }
   }
@@ -95,20 +91,13 @@ function RosterAuthoringView({ clientId, clientName }: { clientId: string; clien
         {error && <p className="rounded border border-bad/50 bg-panel3 p-2 text-xs text-bad">{error}</p>}
 
         <section className="rounded-md border border-line2 bg-panel3 p-2">
-          <h2 className="text-sm font-semibold">New draft</h2>
-          <div className="mt-1 flex flex-wrap gap-1">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Workout name"
-              className="min-w-0 flex-1 rounded border border-line2 bg-well px-1.5 py-1 text-xs text-text outline-none focus:border-gold-line"
-            />
-            <select value={newKind} onChange={(e) => setNewKind(e.target.value as 'strength' | 'conditioning')} className="rounded border border-line2 bg-panel3 px-1 py-1 text-xs">
-              <option value="strength">Strength</option>
-              <option value="conditioning">Conditioning</option>
-            </select>
-            <button type="button" disabled={busy || !newName.trim()} onClick={createDraft} className="rounded border border-gold-line bg-gold-wash px-1.5 py-1 text-xs font-medium text-gold2 disabled:opacity-40">
-              Create
+          <h2 className="text-sm font-semibold">Build a session</h2>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            <button type="button" disabled={busy} onClick={() => buildSession('strength')} className="rounded border border-gold-line bg-gold-wash px-2 py-1.5 text-xs font-semibold text-gold2 disabled:opacity-40">
+              Build a strength session
+            </button>
+            <button type="button" disabled={busy} onClick={() => buildSession('conditioning')} className="rounded border border-gold-line bg-gold-wash px-2 py-1.5 text-xs font-semibold text-gold2 disabled:opacity-40">
+              Build a conditioning session
             </button>
           </div>
         </section>
