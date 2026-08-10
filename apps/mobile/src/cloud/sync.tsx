@@ -114,6 +114,19 @@ const EMPTY_NUTRITION_FP = JSON.stringify(emptyNutritionDB());
 
 const nutritionFp = (n: NutritionDB): string => JSON.stringify(n);
 
+/* The server's revision guard refused the snapshot: another writer is ahead of
+   this device. Benign and self-healing — the next reconcile pushes with a
+   refreshed base — but it is NOT a completed sync, and saying "Last synced
+   <now>" for it hid a nutrition partition that had stopped being written at
+   all. */
+const REFUSED_PUSH = 'Another device is ahead — your latest changes have not been sent yet. They will go up on the next sync.';
+
+/* `mergeNutrition` refused the two slices because their schema versions differ.
+   The training sync around it is unaffected and still runs; nutrition is what
+   this build cannot safely touch, in EITHER direction. */
+const NUTRITION_SCHEMA_MISMATCH =
+  "This app version can't read a newer nutrition update — update the app to sync nutrition again.";
+
 export function SyncProvider({ children }: { children: ReactNode }) {
   const { db, update } = useDb();
   const { nutrition, replace: replaceNutrition } = useNutrition();
@@ -134,13 +147,44 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const nutritionRef = useRef(nutrition);
   nutritionRef.current = nutrition;
   const lastNutritionFp = useRef<string | null>(null);
-  /* The last namespace the server handed us: the only carrier of the nutrition
+  /* What the server is known to hold: the only carrier of the nutrition
      revision, since the EngineDB deliberately does not retain that partition.
      A cold start before the first pull pushes revision 1, the RPC ignores it,
      and the next reconcile re-pushes with the right revision — see the
-     needs-push comparison below, which is what makes that self-healing. */
+     needs-push comparison below, which is what makes that self-healing.
+
+     Written by the pull AND by a successful nutrition push. It used to be the
+     pull alone, which meant the base for every nutrition write after the first
+     one in a foreground session was a revision the server had already moved
+     past. */
   const remoteNamespace = useRef<EcosystemSyncNamespace | null>(null);
   const inFlight = useRef(false);
+  /*
+   * Every push, in the order it was asked for.
+   *
+   * `reconcile` has always had its own in-flight guard; `pushNow` had none, and
+   * the 900ms debounce calls it directly. A meal logged just before a
+   * foreground/`Sync now` therefore had a push in flight carrying a PRE-merge
+   * snapshot while the reconcile pulled another device's entries, merged them,
+   * and pushed the union — and whichever landed last won on the server's
+   * equal-revision `client_updated_at` tiebreak. Landing last was the debounced
+   * one often enough to drop the entries that had just been merged in.
+   *
+   * A chained promise rather than a "drop it if one is running" flag, because
+   * dropping is the wrong answer for BOTH callers: the debounced push carries
+   * an athlete's write that nothing else will re-arm, and the reconcile's push
+   * is the one that must reach the server. Chaining keeps both, in order, and
+   * the later one re-reads `dbRef`/`nutritionRef` when its turn comes — so the
+   * loser of the old race now simply pushes the merged result.
+   */
+  const pushQueue = useRef<Promise<void>>(Promise.resolve());
+  /* `mergeNutrition` refused this athlete's two slices on a schema-version
+     mismatch. Merging is not the only thing that must then stop: the push arms
+     off a fingerprint and a carry-forward flag of its own, so without this the
+     OLDER local slice was pushed over the NEWER remote one, on the remote's own
+     revision. Set by the reconcile that caught the throw, cleared by the first
+     one that merges cleanly again. */
+  const nutritionSchemaBlocked = useRef(false);
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /*
@@ -184,12 +228,22 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [update],
   );
 
-  const pushNow = useCallback(
-    async (force: boolean, knownRemote?: Record<string, unknown>) => {
-      if (!client || !user) return;
+  /**
+   * One push, assumed to be alone on the wire — `pushNow` below is what
+   * guarantees that. Returns false when the server REFUSED part of the
+   * snapshot on its revision guard: that is not a completed sync, and nothing
+   * may record it as one.
+   *
+   * Every read of local state happens HERE rather than in `pushNow`, so a push
+   * that waited its turn in the queue sends what the app holds when it runs —
+   * including whatever a reconcile merged in while it waited.
+   */
+  const runPush = useCallback(
+    async (force: boolean, knownRemote?: Record<string, unknown>): Promise<boolean> => {
+      if (!client || !user) return true;
       const fp = cloudFp(dbRef.current);
       const nfp = nutritionFp(nutritionRef.current);
-      if (!force && fp === lastFp.current && nfp === lastNutritionFp.current) return;
+      if (!force && fp === lastFp.current && nfp === lastNutritionFp.current) return true;
 
       // Read the current row first so unrelated keys in this user's state
       // survive, and so the merge is against what is actually up there rather
@@ -217,8 +271,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const { error: e } = await client.from('app_state').upsert({ user_id: user.id, state }, { onConflict: 'user_id' });
       if (e) throw e;
       if (ECOSYSTEM_SYNC_ENABLED) {
-        const carryNutrition = nfp !== EMPTY_NUTRITION_FP || !!remoteNamespace.current?.partitions.nutrition;
-        const { namespace: pushed, stale } = await pushEcosystem(
+        /* A caught schema mismatch blocks the WRITE as well as the merge. The
+           local slice is the older one, and pushing it would overwrite the
+           newer remote partition using that partition's own revision as the
+           base — a real divergence discarded with nothing said. */
+        const carryNutrition = !nutritionSchemaBlocked.current
+          && (nfp !== EMPTY_NUTRITION_FP || !!remoteNamespace.current?.partitions.nutrition);
+        const { namespace: pushed, stale, nutrition: pushedNutrition } = await pushEcosystem(
           client,
           source,
           ECOSYSTEM_WRITER,
@@ -230,20 +289,66 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           draft.core = pushed.core;
           draft.ecosystem = pushed;
         });
+        /*
+         * Advance the locally-tracked nutrition base to what was just WRITTEN.
+         *
+         * The training partitions get this for free: they live in
+         * `EngineDB.ecosystem`, which the `update` above refreshes from the
+         * push's own namespace. Nutrition deliberately does not live there, and
+         * `remoteNamespace` — its only carrier — used to be written in exactly
+         * one place, the pull. So the base stayed at the last PULLED revision
+         * for the rest of the foreground session and every further meal was
+         * pushed on a revision the server already held.
+         *
+         * Recorded on the ref only, never into the EngineDB, for the reason on
+         * `EcosystemPushResult.nutrition`. Skipped when the server refused this
+         * very partition: a write that did not happen advances nothing.
+         */
+        if (pushedNutrition && !stale.includes('nutrition')) {
+          const base = remoteNamespace.current ?? pushed;
+          remoteNamespace.current = {
+            ...base,
+            partitions: { ...base.partitions, nutrition: pushedNutrition },
+          };
+        }
         if (stale.length) {
           // The server refused a snapshot on its revision guard. Leaving the
           // fingerprints unrecorded is what makes the next push retry with a
           // refreshed base instead of treating this one as clean and going
           // quiet until unrelated content changes.
-          setSyncedAt(Date.now());
-          return;
+          //
+          // And NOT stamping `syncedAt`: the screen renders that as "Last
+          // synced <time>" with no error beside it, which is the app claiming
+          // a sync the server declined.
+          setError(REFUSED_PUSH);
+          return false;
         }
       }
       lastFp.current = cloudFp(source);
       lastNutritionFp.current = nfp;
       setSyncedAt(Date.now());
+      return true;
     },
     [user, update],
+  );
+
+  /**
+   * The only way a push is started. Serialises against every other push — see
+   * `pushQueue` — and reports whether the server accepted the whole snapshot.
+   */
+  const pushNow = useCallback(
+    async (force: boolean, knownRemote?: Record<string, unknown>): Promise<boolean> => {
+      const run = pushQueue.current.then(() => runPush(force, knownRemote));
+      // The queue itself must never hold a rejection: the next push awaits it
+      // for ORDER only, and the failure belongs to the caller that asked for
+      // this push — which still receives it through `run`.
+      pushQueue.current = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      return run;
+    },
+    [runPush],
   );
 
   /*
@@ -264,7 +369,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // populated local slice unpushed forever.
       const remoteSlice = payload === undefined ? null : sanitizeNutritionDB(payload);
       const local = sanitizeNutritionDB(nutritionRef.current);
-      if (!remoteSlice) return nutritionFp(local) !== EMPTY_NUTRITION_FP;
+      if (!remoteSlice) {
+        nutritionSchemaBlocked.current = false;
+        return nutritionFp(local) !== EMPTY_NUTRITION_FP;
+      }
       let merged: NutritionDB;
       try {
         merged = mergeNutrition(local, remoteSlice);
@@ -273,8 +381,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         // — silent corruption is worse. Contained here so a newer build's
         // nutrition schema cannot abort the TRAINING sync running around it;
         // the local slice is left alone until a build that understands both.
+        //
+        // "No push owed" was never enough on its own: the push arms off its own
+        // fingerprint and carry-forward flag, so it fired anyway and sent the
+        // older local slice on the newer remote's revision. The flag closes
+        // that path, and the athlete is told, rather than a real divergence
+        // being resolved by overwriting the side this build cannot read.
+        nutritionSchemaBlocked.current = true;
+        setError(NUTRITION_SCHEMA_MISMATCH);
         return false;
       }
+      nutritionSchemaBlocked.current = false;
       const mergedFp = nutritionFp(merged);
       if (mergedFp !== nutritionFp(nutritionRef.current)) {
         nutritionRef.current = merged;
@@ -342,12 +459,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         ? previousLocal
         : sanitizeDB(mergeEngines(dbRef.current, merged));
       dbRef.current = local;
-      if (needsPush) await pushNow(true, remoteState);
+      const accepted = needsPush ? await pushNow(true, remoteState) : true;
 
       // The app hosts both worlds — nothing is narrowed.
       if (cloudFp(local) !== cloudFp(previousLocal)) applyMerged(local);
 
-      setSyncedAt(Date.now());
+      // A refused push has already said so through `error`. Stamping the clock
+      // on top of it would put "Last synced <now>" beside the message and make
+      // the refusal read as a completed sync.
+      if (accepted) setSyncedAt(Date.now());
     } catch (e) {
       setError(humanizeError(e, 'sync'));
     } finally {
@@ -454,6 +574,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         lastFp.current = null;
         lastNutritionFp.current = null;
         remoteNamespace.current = null;
+        nutritionSchemaBlocked.current = false;
       },
       syncNow: reconcile,
     }),
