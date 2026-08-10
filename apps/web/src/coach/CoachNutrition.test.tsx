@@ -165,6 +165,10 @@ describe('CoachNutrition (self-coach)', () => {
     expect(dataStateDetails).not.toHaveAttribute('open');
     expect(within(dataStateDetails as HTMLElement).getByText(/Unlogged means unknown/)).not.toBeVisible();
 
+    const programSummary = screen.getByText('No program established');
+    const programDetails = programSummary.closest('details');
+    expect(programDetails).not.toHaveAttribute('open');
+
     expect(container.querySelector('section[aria-labelledby="exceptions-title"]')?.tagName).not.toBe('DETAILS');
   });
 });

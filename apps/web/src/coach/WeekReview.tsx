@@ -168,9 +168,9 @@ function SelfCoachWeekReview() {
       </header>
 
       <div className="mx-auto grid max-w-[1180px] gap-2 p-2 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 space-y-2">
+        <div className="min-w-0">
           {reconciled.safetyDrops.length > 0 && (
-            <section className="rounded-md border border-bad/50 bg-panel3 p-2" aria-labelledby="safety-title">
+            <section className="mb-2 rounded-md border border-bad/50 bg-panel3 p-2" aria-labelledby="safety-title">
               <p className="text-[10px] uppercase tracking-wider text-bad">Safety first</p>
               <h2 id="safety-title" className="mt-0.5 text-sm font-semibold">{reconciled.safetyDrops.length} session {reconciled.safetyDrops.length === 1 ? 'was' : 'were'} held</h2>
               {reconciled.safetyDrops.map((decision) => (
@@ -183,7 +183,7 @@ function SelfCoachWeekReview() {
             </section>
           )}
 
-          <section className="overflow-hidden rounded-md border border-line2 bg-panel3" aria-labelledby="ledger-title">
+          <section className="mb-2 overflow-hidden rounded-md border border-line2 bg-panel3" aria-labelledby="ledger-title">
             <div className="border-b border-line px-2 py-1.5">
               <h2 id="ledger-title" className="text-sm font-semibold">Planned versus actual ledger</h2>
               <p className="mt-0.5 text-[11px] text-muted">No compliance score. Substitutions and unmatched work stay visible.</p>
@@ -230,7 +230,7 @@ function SelfCoachWeekReview() {
           </CoachSection>
         </div>
 
-        <aside className="space-y-2">
+        <aside>
           <CoachSection eyebrow="Automation" title="Automation receipts" count={reconciled.interventions.length}>
             <p className="text-[11px] text-warn">Device-local evidence. It is not yet synced or authoritative off this device.</p>
             <div className="mt-1 space-y-1">
@@ -253,7 +253,7 @@ function SelfCoachWeekReview() {
             <p className="mt-1 text-[11px] text-dim">Shown beside training as context only. It did not schedule, drop, or alter a session.</p>
           </CoachSection>
 
-          <section className="rounded-md border border-gold-line bg-gold-wash p-2" aria-labelledby="next-title">
+          <section className="mt-2 rounded-md border border-gold-line bg-gold-wash p-2" aria-labelledby="next-title">
             <p className="text-[10px] uppercase tracking-wider text-gold2">Next</p>
             <h2 id="next-title" className="mt-0.5 text-sm font-semibold">Steer inputs, not the resolved week</h2>
             <p className="mt-0.5 text-xs text-muted">Future coach actions should change goals, availability, or constraints and let the Coordinator resolve again.</p>

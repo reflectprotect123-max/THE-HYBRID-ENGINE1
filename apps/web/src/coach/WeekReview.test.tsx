@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { act, screen, within } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import { DbProvider } from '../store/db';
 import { NutritionProvider } from '../store/nutrition';
 import { WeekReview } from './WeekReview';

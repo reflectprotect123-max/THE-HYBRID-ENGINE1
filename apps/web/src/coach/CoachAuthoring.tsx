@@ -319,9 +319,9 @@ function SelfCoachAuthoringView() {
         </div>
 
         <aside className="space-y-2 xl:sticky xl:top-[58px] xl:self-start">
-          <CoachSection eyebrow="Coordinator output" title="Resolved week" count={plan.entries.length}>
+          <CoachSection eyebrow={`Coordinator output · Week of ${readableDate(plan.weekStart)}`} title="Resolved week" count={plan.entries.length}>
             <p className="text-[11px] text-muted">{plan.decisions.filter((decision) => decision.action === 'dropped').length} held back</p>
-            <h3 className="mt-2 text-[10px] uppercase tracking-wider text-dim">Resolved sessions</h3>
+            <p className="mt-2 text-[10px] uppercase tracking-wider text-dim">Resolved sessions</p>
             <div className="mt-0.5 space-y-1">
               {plan.entries.map((entry) => (
                 <article key={entry.id} className="rounded border border-line bg-panel p-1">
@@ -331,7 +331,7 @@ function SelfCoachAuthoringView() {
               ))}
               {plan.entries.length === 0 && <p className="py-2 text-xs text-muted">No session was placed. Review safety, availability and proposal inputs.</p>}
             </div>
-            <h3 className="mt-1.5 text-[10px] uppercase tracking-wider text-dim">Held proposals</h3>
+            <p className="mt-1.5 text-[10px] uppercase tracking-wider text-dim">Held proposals</p>
             <div className="mt-0.5 space-y-1">
               {plan.decisions.filter((decision) => decision.action === 'dropped').map((decision) => (
                 <article key={`${decision.proposalId}:${decision.reasonCode}`} className="rounded border border-line bg-panel p-1">
@@ -341,7 +341,10 @@ function SelfCoachAuthoringView() {
               ))}
               {!plan.decisions.some((decision) => decision.action === 'dropped') && <p className="py-1 text-xs text-muted">Nothing was held back in this resolution.</p>}
             </div>
-            <p className="mt-2 text-[10px] text-dim">Workout structure uses the real synced EngineDB path. Coach proposal inputs are local-only in this phase and are not a published server plan.</p>
+          </CoachSection>
+
+          <CoachSection eyebrow="Persistence status" title="What this screen does and does not save">
+            <p className="text-[11px] text-dim">Workout structure uses the real synced EngineDB path. Coach proposal inputs are local-only in this phase and are not a published server plan.</p>
           </CoachSection>
         </aside>
       </div>

@@ -355,7 +355,10 @@ function SelfCoachProgressionView() {
               })}
               {ledger.decisions.length === 0 && <p className="text-xs text-muted">No coach decision has been recorded yet.</p>}
             </div>
-            <p className="mt-2 text-[11px] text-dim">This is real front-end decision logic and local demo persistence. It is not server authorization, a durable audit trail, or multi-device sync.</p>
+          </CoachSection>
+
+          <CoachSection eyebrow="Implemented boundary" title="What this screen does and does not do">
+            <p className="text-[11px] text-dim">This is real front-end decision logic and local demo persistence. It is not server authorization, a durable audit trail, or multi-device sync.</p>
           </CoachSection>
         </aside>
       </div>

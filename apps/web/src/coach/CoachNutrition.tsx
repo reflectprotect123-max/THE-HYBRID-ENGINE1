@@ -225,7 +225,7 @@ function SelfCoachNutritionView() {
               </div>
             </CoachSection>
 
-            <CoachSection eyebrow={`Weekly check-in · ${review.weekStart} – ${review.weekEnd}`} title={review.checkIn?.status ?? 'Not recorded'}>
+            <CoachSection eyebrow={`Weekly check-in · ${review.weekStart} – ${review.weekEnd}`} title={review.checkIn ? review.checkIn.status.charAt(0).toUpperCase() + review.checkIn.status.slice(1) : 'Not recorded'}>
               {review.checkIn ? (
                 <>
                   <p className="text-xs text-muted">{review.checkIn.explanation}</p>

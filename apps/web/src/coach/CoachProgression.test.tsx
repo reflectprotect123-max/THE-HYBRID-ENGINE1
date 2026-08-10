@@ -76,26 +76,6 @@ async function renderProgression(repository: FakeCoachWorkspaceRepository) {
   return result;
 }
 
-/**
- * Renders `CoachProgression` with a repository whose `clients` stays empty
- * (the `FakeCoachWorkspaceRepository` default) — `selectedClient` therefore
- * resolves to `null` in `CoachWorkspaceContext`, so `CoachProgression` takes
- * the self-coach branch (`SelfCoachProgressionView`) instead of the roster
- * one. No router hook is used anywhere in `CoachProgression.tsx`, so unlike
- * `renderCommandCenter` in `CoachCommandCenter.test.tsx` this doesn't need a
- * `MemoryRouter`.
- */
-async function renderSelfProgression(repository: FakeCoachWorkspaceRepository) {
-  const result = renderCoachScreen(
-    <DbProvider>
-      <CoachProgression />
-    </DbProvider>,
-    { repository },
-  );
-  await act(async () => {});
-  return result;
-}
-
 beforeEach(() => {
   localStorage.clear();
   resetProgressionLedgerForTests();
@@ -210,7 +190,7 @@ describe('CoachProgression (roster)', () => {
 describe('CoachProgression (self-coach)', () => {
   it('collapses the decision-history sidebar by default on the self-coach progression screen', async () => {
     const repo = new FakeCoachWorkspaceRepository();
-    await renderSelfProgression(repo);
+    await renderProgression(repo);
 
     const summary = screen.getByText('Decision history');
     const details = summary.closest('details');
