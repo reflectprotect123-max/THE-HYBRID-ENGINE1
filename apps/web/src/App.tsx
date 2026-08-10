@@ -76,6 +76,10 @@ export function App() {
                 <Route path="/build/:id" element={<GuidedBuilder />} />
                 <Route element={<Shell />}>
                   <Route path="/" element={IS_SCOPED_BUILD ? <Home /> : <Navigate to="/coach" replace />} />
+                  {/* Home's own path, identical on all three builds. `/` is
+                      the bench on the unscoped dashboard, so without this the
+                      athlete Home screen would have no address there at all. */}
+                  <Route path="/home" element={<Home />} />
                   <Route path="/training" element={<Training />} />
                   <Route path="/library" element={<Library />} />
                   <Route path="/conditioning" element={<Conditioning />} />

@@ -240,7 +240,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 
 await t('the athlete app boots under the real CSP', async () => {
-  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.goto(base + '/home', { waitUntil: 'networkidle' });
   await page.waitForSelector('h1', { timeout: 8000 });
   assert(violations.length === 0, 'CSP violations: ' + violations.join(' | '));
   assert(errors.length === 0, 'page errors: ' + errors.join(' | '));

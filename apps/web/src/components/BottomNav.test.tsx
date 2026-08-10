@@ -18,4 +18,16 @@ describe('navTabs', () => {
     const tabs = navTabs('strength', true).map((t) => t.to);
     expect(tabs).toEqual(['/', '/training', '/library', '/progress', '/settings']);
   });
+
+  it('points Home at / for a scoped build, where / IS the Home screen', () => {
+    expect(navTabs('strength', true)[0].to).toBe('/');
+    expect(navTabs('conditioning', true)[0].to).toBe('/');
+  });
+
+  it('points Home at /home for the unscoped dashboard build, where / is the coach bench', () => {
+    // Leaving this at `/` would make the Home tab eject the athlete into the
+    // coach workspace — the one place the athlete app must not send them.
+    expect(navTabs('conditioning', false)[0].to).toBe('/home');
+    expect(navTabs('strength', false)[0].to).toBe('/home');
+  });
 });

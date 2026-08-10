@@ -1,9 +1,11 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import './coach.css';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
+import { IS_SCOPED_BUILD } from '../product';
 import { coachAllowed } from './guard';
+import { CoachNotAuthorized } from './CoachNotAuthorized';
 import { CoachSignIn } from './CoachSignIn';
 import { DecisionTrace } from './DecisionTrace';
 import { NutritionPanel } from './NutritionPanel';
@@ -134,12 +136,24 @@ export function CoachShell() {
 
 /** UI visibility gate for every route in the lazy coach chunk. */
 export function CoachAccess({ children }: { children: ReactNode }) {
-  const { user } = useSync();
+  const { user, authReady } = useSync();
+  /* `user` is null both while the stored session is still being restored and
+     when there is genuinely nobody signed in. Deciding on the first render
+     would flash the denied state at the one coach who IS allowed, on every
+     cold load — so wait for the restore to finish before judging anyone. */
+  if (!authReady) return null;
   const allowed = coachAllowed(
     user?.id,
     import.meta.env.VITE_COACH_USER_IDS as string | undefined,
     import.meta.env.DEV,
     import.meta.env.VITE_COACH_DEMO_MODE === 'true',
   );
-  return allowed ? children : <CoachSignIn />;
+  if (allowed) return children;
+  /* The branded athlete builds never had a reachable coach door — denial
+     bounced to `/`, which is Home there. Keep that: the sign-in screen belongs
+     to the unscoped dashboard, which is the only build whose `/` is the bench.
+     Signed in but not on the allowlist is a different answer from signed out,
+     and it needs a way back out — CoachSignIn would just re-render silently. */
+  if (IS_SCOPED_BUILD) return <Navigate to="/" replace />;
+  return user ? <CoachNotAuthorized /> : <CoachSignIn />;
 }

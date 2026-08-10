@@ -17,8 +17,18 @@ export function CoachSignIn() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setWorking(true);
-    setMsg((await signIn(email, password)) || '');
-    setWorking(false);
+    try {
+      setMsg((await signIn(email, password)) || '');
+    } catch {
+      // signIn REJECTING is not the same as it returning an error string, and
+      // an unhandled rejection here would leave the form silent as well as
+      // stuck. Say something rather than nothing.
+      setMsg('Sign-in failed. Check your connection and try again.');
+    } finally {
+      // A REJECTED signIn is not a returned error string, and without this the
+      // button would sit on "Signing in…" forever with no way to retry.
+      setWorking(false);
+    }
   };
 
   return (
@@ -36,6 +46,7 @@ export function CoachSignIn() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           type="email"
+          required
           autoComplete="email"
           placeholder="email"
           aria-label="email"
@@ -45,6 +56,7 @@ export function CoachSignIn() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           type="password"
+          required
           autoComplete="current-password"
           placeholder="password"
           aria-label="password"

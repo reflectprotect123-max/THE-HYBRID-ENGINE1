@@ -124,7 +124,7 @@ await page.addInitScript(() => {
   );
 });
 
-await page.goto(base + '/', { waitUntil: 'networkidle' });
+await page.goto(base + '/home', { waitUntil: 'networkidle' });
 
 await t('athlete app mounts and renders Home', async () => {
   await page.waitForSelector('h1', { timeout: 5000 });
@@ -137,7 +137,7 @@ await t('zones are computed by Karvonen when a resting HR is known', async () =>
   await page.goto(base + '/conditioning', { waitUntil: 'networkidle' });
   const txt = await page.textContent('body');
   assert(/Karvonen · resting 50/.test(txt), 'expected Karvonen method line, got: ' + txt.slice(0, 400));
-  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.goto(base + '/home', { waitUntil: 'networkidle' });
 });
 
 await t("today's plan surfaces the seeded workout", async () => {
@@ -953,7 +953,7 @@ await t('a conditioning run asks how it felt, then if the work was completed, an
     // explains ITS OWN reasoning with a line reading "Readiness moderate
     // (68)", which a substring `text=Readiness` also matches — ambiguous
     // between that and the section heading this is actually waiting for.
-    await page.click('nav[aria-label="Main"] a[href="/"]');
+    await page.click('nav[aria-label="Main"] a[href="/home"]');
     await page.waitForSelector('text="Readiness"');
     await page.goBack();
     await page.waitForSelector('text=How did that feel?');
@@ -970,7 +970,7 @@ await t('a conditioning run asks how it felt, then if the work was completed, an
     // The NEW interruption point: between the two questions. The pending record
     // — felt answer included — still rides RUN, so a nav-away and return must
     // land back on the second question, not the first and not the setup screen.
-    await page.click('nav[aria-label="Main"] a[href="/"]');
+    await page.click('nav[aria-label="Main"] a[href="/home"]');
     await page.waitForSelector('text="Readiness"');
     await page.goBack();
     await page.waitForSelector('text=Did you complete the work?');
@@ -1314,7 +1314,7 @@ await t("tapping a trained day on Home's week strip lands on that day's Recap", 
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
   }, iso);
   await clearRestTimer();
-  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.goto(base + '/home', { waitUntil: 'networkidle' });
   await page.click(dayCell(label));
   await page.waitForURL(/\/recap\/homeTapRecap1/);
 });
@@ -1337,7 +1337,7 @@ await t("tapping today on Home's week strip lands on Training", async () => {
   });
   try {
     await clearRestTimer();
-    await page.goto(base + '/', { waitUntil: 'networkidle' });
+    await page.goto(base + '/home', { waitUntil: 'networkidle' });
     const label = await page.evaluate(() =>
       new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
     );
@@ -1366,7 +1366,7 @@ await t("tapping an untrained day on Home's week strip lands on the Day preview 
   }, iso);
   try {
     await clearRestTimer();
-    await page.goto(base + '/', { waitUntil: 'networkidle' });
+    await page.goto(base + '/home', { waitUntil: 'networkidle' });
     await page.click(dayCell(label));
     await page.waitForURL(new RegExp('/day/' + iso));
     await page.waitForSelector('text=Back Squat');
@@ -1404,7 +1404,7 @@ await t('Home\'s "Start today\'s session →" actually starts one', async () => 
   // button, a separate code path (`Home.tsx`'s `onStart`) that must mint the
   // session and land the same way. The prior session finished (status
   // 'completed'), so `Lower A` — scheduled every day — is offered again.
-  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.goto(base + '/home', { waitUntil: 'networkidle' });
   const before = await page.evaluate(() => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions.length);
   // The rendered apostrophe is a typographic ’ (’), not the ASCII ' this
   // file is written in — match on the unambiguous half of the label instead.
@@ -2019,7 +2019,7 @@ await t("deleting a workout from Home's Today's plan tombstones it and drops the
     return wid;
   });
 
-  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.goto(base + '/home', { waitUntil: 'networkidle' });
   const txtBefore = await page.textContent('body');
   assert(/Home Delete Target/.test(txtBefore), 'seeded second Today\'s plan card not shown on Home');
 
@@ -2060,7 +2060,7 @@ await t("deleting a workout from Home's Today's plan tombstones it and drops the
 const NUTRITION_KEY = 'hybrid-nutrition-v1';
 
 await t("Home shows the nutrition card, empty, with a door to the food log", async () => {
-  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.goto(base + '/home', { waitUntil: 'networkidle' });
   const txt = await page.textContent('body');
   assert(/Fuel today/.test(txt), 'the Fuel today section head is missing from Home');
   assert(/Food log/.test(txt), 'the door to /nutrition is missing from Home');
@@ -2109,7 +2109,7 @@ await t('logging a meal moves the totals, and does not touch the training blob',
 });
 
 await t("Home's nutrition card reads the same day the food log wrote", async () => {
-  await page.goto(base + '/', { waitUntil: 'networkidle' });
+  await page.goto(base + '/home', { waitUntil: 'networkidle' });
   const txt = await page.textContent('body');
   assert(/400/.test(txt), "Home's card did not pick up the logged meal: " + txt.slice(0, 400));
   assert(/30g/.test(txt), 'protein is missing from the Home card');

@@ -165,7 +165,8 @@ const NUTRITION_SEED = (() => {
   };
 })();
 
-const ROUTES = ['/', '/training', '/library', '/nutrition', '/build/w1'];
+// `/home` rather than `/`: on the build this serves, `/` is the coach bench.
+const ROUTES = ['/home', '/training', '/library', '/nutrition', '/build/w1'];
 const SELECTOR = 'button, a, [role="button"], select, label:has(input[type="checkbox"])';
 
 /** Every visible control's height on every gym-path route, under a given

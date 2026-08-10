@@ -44,6 +44,11 @@ import {
 interface SyncCtx {
   enabled: boolean;
   user: User | null;
+  /** False until the stored session has been restored (or ruled out). `user`
+   *  is null both while restoring and when signed out, so anything that gates
+   *  on identity — the coach workspace especially — must wait for this rather
+   *  than treat the first render's null as "signed out". */
+  authReady: boolean;
   busy: boolean;
   error: string;
   syncedAt: number;
@@ -101,6 +106,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const { nutrition, replace: replaceNutrition } = useNutrition();
   const ledger = useProgressionLedger();
   const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [syncedAt, setSyncedAt] = useState(0);
@@ -361,10 +367,22 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   /* ---- auth ---- */
   useEffect(() => {
-    if (!client) return;
+    // Nothing to restore when sync was never configured — say so at once, so
+    // an identity gate is not left waiting on a promise that never runs.
+    if (!client) {
+      setAuthReady(true);
+      return;
+    }
     let alive = true;
     void client.auth.getSession().then(({ data }) => {
-      if (alive) setUser(data.session?.user ?? null);
+      if (!alive) return;
+      // Both branches — session found and no session — end the restore.
+      setUser(data.session?.user ?? null);
+      setAuthReady(true);
+    }).catch(() => {
+      // A restore that fails is a restore that finished: leaving authReady
+      // false forever would hold the coach gate on a blank screen.
+      if (alive) setAuthReady(true);
     });
     const { data: sub } = client.auth.onAuthStateChange((_e, session: AuthSession | null) => {
       setUser(session?.user ?? null);
@@ -411,6 +429,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     () => ({
       enabled: !!client,
       user,
+      authReady,
       busy,
       error,
       syncedAt,
@@ -450,7 +469,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         setPendingAssignments((current) => current.filter((a) => a.id !== assignmentId));
       },
     }),
-    [user, busy, error, syncedAt, reconcile, pendingAssignments],
+    [user, authReady, busy, error, syncedAt, reconcile, pendingAssignments],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

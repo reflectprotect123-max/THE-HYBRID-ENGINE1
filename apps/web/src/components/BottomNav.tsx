@@ -17,8 +17,14 @@ export function navTabs(productId: ProductId, isScopedBuild: boolean) {
   const trainTab = isScopedBuild && productId === 'conditioning'
     ? { to: '/conditioning', label: 'Cond', icon: CondIcon }
     : { to: '/training', label: 'Train', icon: TrainIcon };
+  /* The FIRST tab is scoped too, for the mirror-image reason. `/` is Home on
+     a branded build and the coach bench on the unscoped dashboard, so pointing
+     Home at `/` there would eject the athlete out of their own app. */
+  const homeTab = isScopedBuild
+    ? { to: '/', label: 'Home', icon: HomeIcon }
+    : { to: '/home', label: 'Home', icon: HomeIcon };
   return [
-    { to: '/', label: 'Home', icon: HomeIcon },
+    homeTab,
     trainTab,
     { to: '/library', label: 'Library', icon: LibIcon },
     { to: '/progress', label: 'Progress', icon: ChartIcon },

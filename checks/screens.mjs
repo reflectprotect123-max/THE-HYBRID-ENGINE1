@@ -293,7 +293,10 @@ function buildSeed() {
 
 const SHOTS = [
   // [label, path, waitForText]
-  ['01-home', '/', null],
+  // `/home`, not `/`: the unscoped dashboard build this shoots sends `/` to
+  // the coach bench, and Home's own path is the one address that renders the
+  // athlete Home screen on every build.
+  ['01-home', '/home', null],
   ['02-training', '/training', null],
   ['03-library', '/library', null],
   ['04-conditioning', '/conditioning', null],
