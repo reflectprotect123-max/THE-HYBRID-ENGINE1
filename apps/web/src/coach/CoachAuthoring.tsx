@@ -7,6 +7,7 @@ import {
   type SessionProposal,
 } from '@hybrid/coordinator-adapter';
 import { useDb } from '../store/db';
+import { CoachSection } from './CoachSection';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import type { AthleteWorkoutDraft } from './contracts';
 import { applyProposalInputs, defaultProposalInput, type ProposalInput } from './authoring';
@@ -318,40 +319,30 @@ function SelfCoachAuthoringView() {
         </div>
 
         <aside className="space-y-2 xl:sticky xl:top-[58px] xl:self-start">
-          <section className="overflow-hidden rounded-md border border-line2 bg-panel3" aria-labelledby="resolution-title">
-            <div className="border-b border-line px-2 py-1.5">
-              <p className="text-[10px] uppercase tracking-wider text-gold">Coordinator output</p>
-              <h2 id="resolution-title" className="text-sm font-semibold">Week of {readableDate(plan.weekStart)}</h2>
-              <p className="mt-0.5 text-[11px] text-muted">{plan.entries.length} scheduled · {plan.decisions.filter((decision) => decision.action === 'dropped').length} held back</p>
+          <CoachSection eyebrow="Coordinator output" title="Resolved week" count={plan.entries.length}>
+            <p className="text-[11px] text-muted">{plan.decisions.filter((decision) => decision.action === 'dropped').length} held back</p>
+            <h3 className="mt-2 text-[10px] uppercase tracking-wider text-dim">Resolved sessions</h3>
+            <div className="mt-0.5 space-y-1">
+              {plan.entries.map((entry) => (
+                <article key={entry.id} className="rounded border border-line bg-panel p-1">
+                  <div className="flex items-baseline gap-1"><span className="text-xs font-medium">{entry.title}</span><span className="ml-auto text-[10px] tabular-nums text-muted">{readableDate(entry.date)}</span></div>
+                  <p className="mt-0.5 text-[10px] uppercase tracking-wide text-dim">{entry.domain} · {entry.effort}</p>
+                </article>
+              ))}
+              {plan.entries.length === 0 && <p className="py-2 text-xs text-muted">No session was placed. Review safety, availability and proposal inputs.</p>}
             </div>
-            <div className="p-1.5">
-              <h3 className="text-[10px] uppercase tracking-wider text-dim">Resolved sessions</h3>
-              <div className="mt-0.5 space-y-1">
-                {plan.entries.map((entry) => (
-                  <article key={entry.id} className="rounded border border-line bg-panel p-1">
-                    <div className="flex items-baseline gap-1"><span className="text-xs font-medium">{entry.title}</span><span className="ml-auto text-[10px] tabular-nums text-muted">{readableDate(entry.date)}</span></div>
-                    <p className="mt-0.5 text-[10px] uppercase tracking-wide text-dim">{entry.domain} · {entry.effort}</p>
-                  </article>
-                ))}
-                {plan.entries.length === 0 && <p className="py-2 text-xs text-muted">No session was placed. Review safety, availability and proposal inputs.</p>}
-              </div>
-              <h3 className="mt-1.5 text-[10px] uppercase tracking-wider text-dim">Held proposals</h3>
-              <div className="mt-0.5 space-y-1">
-                {plan.decisions.filter((decision) => decision.action === 'dropped').map((decision) => (
-                  <article key={`${decision.proposalId}:${decision.reasonCode}`} className="rounded border border-line bg-panel p-1">
-                    <div className="flex items-baseline gap-1"><span className="text-xs font-medium">{titleById.get(decision.proposalId) ?? 'Proposal'}</span><span className="ml-auto text-[10px] uppercase tracking-wide text-warn">{decision.reasonCode.replaceAll('_', ' ')}</span></div>
-                    <p className="mt-0.5 text-[11px] text-muted">{decision.explanation}</p>
-                  </article>
-                ))}
-                {!plan.decisions.some((decision) => decision.action === 'dropped') && <p className="py-1 text-xs text-muted">Nothing was held back in this resolution.</p>}
-              </div>
+            <h3 className="mt-1.5 text-[10px] uppercase tracking-wider text-dim">Held proposals</h3>
+            <div className="mt-0.5 space-y-1">
+              {plan.decisions.filter((decision) => decision.action === 'dropped').map((decision) => (
+                <article key={`${decision.proposalId}:${decision.reasonCode}`} className="rounded border border-line bg-panel p-1">
+                  <div className="flex items-baseline gap-1"><span className="text-xs font-medium">{titleById.get(decision.proposalId) ?? 'Proposal'}</span><span className="ml-auto text-[10px] uppercase tracking-wide text-warn">{decision.reasonCode.replaceAll('_', ' ')}</span></div>
+                  <p className="mt-0.5 text-[11px] text-muted">{decision.explanation}</p>
+                </article>
+              ))}
+              {!plan.decisions.some((decision) => decision.action === 'dropped') && <p className="py-1 text-xs text-muted">Nothing was held back in this resolution.</p>}
             </div>
-          </section>
-
-          <section className="rounded-md border border-line2 bg-panel3 p-2">
-            <p className="text-[10px] uppercase tracking-wider text-warn">Persistence status</p>
-            <p className="mt-0.5 text-xs text-muted">Workout structure uses the real synced EngineDB path. Coach proposal inputs are local-only in this phase and are not a published server plan.</p>
-          </section>
+            <p className="mt-2 text-[10px] text-dim">Workout structure uses the real synced EngineDB path. Coach proposal inputs are local-only in this phase and are not a published server plan.</p>
+          </CoachSection>
         </aside>
       </div>
     </main>

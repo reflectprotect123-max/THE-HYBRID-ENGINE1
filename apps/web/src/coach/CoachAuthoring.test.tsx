@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LS_KEY } from '@hybrid/engine';
@@ -168,5 +168,15 @@ describe('CoachAuthoring (self-coach)', () => {
     const dayLabels = container.querySelectorAll('fieldset .grid-cols-7 label');
     expect(dayLabels.length).toBeGreaterThan(0);
     dayLabels.forEach((label) => expect(label).toHaveClass('min-h-11'));
+  });
+
+  it('collapses the Coordinator-output sidebar by default on the self-coach authoring screen', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    await renderAuthoring(repo);
+
+    const summary = screen.getByText('Resolved week');
+    const details = summary.closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(within(details as HTMLElement).getByText('Resolved sessions')).not.toBeVisible();
   });
 });
