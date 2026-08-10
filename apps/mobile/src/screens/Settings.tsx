@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -9,6 +9,7 @@ import {
   ensureSharedCore,
   planConcept2Import,
   restingHr,
+  restoreDb,
   todayRecovery,
   ymd,
   type Concept2ImportCounts,
@@ -248,6 +249,44 @@ function RecoveryCard() {
   const [illness, setIllness] = useState<'clear' | 'suspected' | 'active' | 'returning'>(() => migrated.core?.safety.illness?.status || 'clear');
   const [saved, setSaved] = useState(false);
   const { color } = useTheme();
+
+  /*
+   * Settings is a bottom-tab screen: it stays mounted for the app's whole
+   * lifetime, but the form fields above were only ever seeded from `db.core`
+   * once, at first mount (useState initialisers only run once). Two ways
+   * that goes wrong:
+   *
+   *  - Midnight rollover: `today` is recomputed every render, but the form
+   *    was seeded for whatever day it was at mount. Save() then writes
+   *    yesterday's stale values in as TODAY's check-in.
+   *  - A newer check-in pulled in by cloud sync while this screen sits
+   *    mounted (recorded on web or another phone) never reaches the form;
+   *    Save() then overwrites it with the old blanks (`number('')` is
+   *    `undefined`), silently discarding sleep/pain/illness data — including
+   *    a pain-hold or illness flag mid-hold.
+   *
+   * Re-seed whenever the identity of today's manual entry changes — its
+   * `recordedAt`, or its absence — which covers both cases. This does NOT
+   * run on every render (it depends on the derived values below, not on
+   * `db` itself), so it does not clobber an in-progress edit that hasn't
+   * produced a new manual record yet.
+   *
+   * This does not fully solve the sync race where a pull lands mid-edit —
+   * distinguishing "external update" from "my own edit in this session"
+   * would need real dirty-tracking per field, which is more machinery than
+   * this fix warrants. Follow-up if that proves to matter in practice.
+   */
+  useEffect(() => {
+    setSleep(String(recovery?.sleepHours ?? ''));
+    setEnergy(String(recovery?.energy ?? ''));
+    setSoreness(String(recovery?.soreness ?? ''));
+    setStress(String(life?.stress ?? recovery?.stress ?? ''));
+    setPhysical(String(life?.physicalLoad ?? ''));
+    setMinutes(String(life?.availableMinutes ?? ''));
+    setPain(migrated.core?.safety.painHold?.areas.join(', ') || '');
+    setIllness(migrated.core?.safety.illness?.status || 'clear');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today, recovery?.recordedAt, life?.id]);
   const number = (value: string): number | undefined => {
     const n = Number(value);
     return value.trim() && Number.isFinite(n) ? n : undefined;
@@ -404,9 +443,19 @@ function RestoreSection() {
   const doReplace = () => {
     if (!found || 'error' in found) return;
     update((d) => {
-      d.workouts = found.db.workouts;
-      d.sessions = found.db.sessions;
-      d.settings = found.db.settings;
+      // restoreDb is the SAME function web's Settings screen uses — it
+      // replaces the WHOLE db, not just workouts/sessions/settings. Doing
+      // this by hand here previously silently dropped `core` (recovery
+      // history, life load, the pain-hold/illness safety flags) and
+      // `ecosystem` on every restore, because they were never assigned back
+      // onto the draft. found.db is already sanitizeDB-shaped (from
+      // parseBackup), which restoreDb accepts and re-sanitizes safely.
+      const out = restoreDb(d, found.db, 'replace');
+      d.workouts = out.db.workouts;
+      d.sessions = out.db.sessions;
+      d.settings = out.db.settings;
+      d.core = out.db.core;
+      d.ecosystem = out.db.ecosystem;
     });
     setText('');
     setFound(null);
