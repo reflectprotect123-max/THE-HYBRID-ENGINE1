@@ -3,6 +3,7 @@ import { Linking } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { FN, SITE_ORIGIN, SUPABASE } from '@hybrid/config';
 import { ensureSharedCore, ymd, type WhoopSample } from '@hybrid/engine';
+import type { WhoopDailyRecord } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
 import { useSync } from './sync';
 import { storage } from '../store/storage';
@@ -70,6 +71,27 @@ const accessToken = async (): Promise<string | null> => {
     return null;
   }
 };
+
+/**
+ * Whether two shared-core WHOOP rows say the same thing about a day.
+ *
+ * Field by field, and normalised on the way: the stored row has been through
+ * `sanitizeSharedCore` (which turns a missing score into an explicit `null` and
+ * defaults `source` to `whoop`), while the row built from a fresh sample can
+ * carry `undefined`. Comparing the two with `JSON.stringify` would call those
+ * differences a change on the very first poll after a cold start and defeat the
+ * skip this exists for.
+ */
+const sameWhoopRow = (a: WhoopDailyRecord | undefined, b: WhoopDailyRecord): boolean =>
+  !!a
+  && a.date === b.date
+  && (a.recoveryScore ?? null) === (b.recoveryScore ?? null)
+  && (a.strain ?? null) === (b.strain ?? null)
+  && (a.hrvMs ?? null) === (b.hrvMs ?? null)
+  && (a.restingHr ?? null) === (b.restingHr ?? null)
+  && (a.sleepPerformance ?? null) === (b.sleepPerformance ?? null)
+  && (a.capturedAt || '') === (b.capturedAt || '')
+  && (a.source || 'whoop') === (b.source || 'whoop');
 
 export interface WhoopState {
   loaded: boolean;
@@ -179,6 +201,19 @@ export function WhoopProvider({ children }: { children: ReactNode }) {
           source: sample.source || 'whoop',
         };
         const ci = coreRows.findIndex((x) => x.date === date);
+        /*
+         * A poll that learned nothing must not write.
+         *
+         * `cloudFp` excludes `settings.whoopDaily` — see its comment — but NOT
+         * `core`, and the `updatedAt: Date.now()` below is by itself enough to
+         * change the training fingerprint. So an unconditional write here armed
+         * a FULL training push on every WHOOP poll, including the automatic
+         * background refresh, with nothing about the athlete's training having
+         * changed. Compared field by field rather than by reference: the row is
+         * rebuilt from the sample on every call, so it is never the same object
+         * as the stored one even when it carries the same numbers.
+         */
+        if (ci >= 0 && sameWhoopRow(coreRows[ci], coreRow)) return;
         if (ci >= 0) coreRows[ci] = coreRow;
         else coreRows.push(coreRow);
         coreRows.sort((a, b) => a.date.localeCompare(b.date));
