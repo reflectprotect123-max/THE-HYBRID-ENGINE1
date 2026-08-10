@@ -55,7 +55,6 @@ export function ArcCoachFrame() {
           <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-gold-line/70 bg-gold-wash text-sm font-black text-gold2">A</div>
           <div className="min-w-0"><p className="text-[9px] uppercase tracking-[.2em] text-gold">ARC</p><p className="text-sm font-semibold leading-tight">Coach workspace</p></div>
         </Link>
-        <p className="mt-0.5 pl-[34px] text-[9px] uppercase tracking-wide text-dim">Demo</p>
         <nav
           className="mt-2 flex flex-col gap-0.5 text-xs sm:flex-row sm:overflow-x-auto sm:pb-0.5 lg:mt-5 lg:grid lg:overflow-visible"
           aria-label="ARC primary navigation"
