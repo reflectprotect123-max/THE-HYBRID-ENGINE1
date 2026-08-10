@@ -197,6 +197,12 @@ export function Conditioning() {
   const [elapsed, setElapsed] = useState(RUN.live ? RUN.elapsed : 0);
   const [bpm, setBpm] = useState<number | null>(RUN.live ? RUN.bpm : null);
   const [result, setResult] = useState<CondResult | null>(null);
+  // Strap connection state, surfaced next to the connect control instead of
+  // failing silently — parity with mobile's HrState (capabilities.ts).
+  const [strapState, setStrapState] = useState<{
+    status: 'idle' | 'scanning' | 'connected' | 'error';
+    message?: string;
+  }>({ status: 'idle' });
   // The rating phase between finishing a run and seeing it banked. The built
   // record waits on RUN.pending through TWO questions — how it felt, then
   // whether the prescribed work was mechanically completed — and only the
@@ -299,10 +305,14 @@ export function Conditioning() {
     setElapsed(0);
     setResult(null);
     setLive(true);
-    void connectStrap((n) => {
-      RUN.bpm = n;
-      RUN.onBpm?.(n);
-    });
+    setStrapState({ status: 'idle' });
+    void connectStrap(
+      (n) => {
+        RUN.bpm = n;
+        RUN.onBpm?.(n);
+      },
+      (state, message) => setStrapState({ status: state, message }),
+    );
   }
 
   function finish() {
@@ -509,7 +519,9 @@ export function Conditioning() {
               stroke={10}
             >
               {bpm == null ? (
-                <span className="text-3 text-dim">no strap</span>
+                <span className="text-3 text-dim">
+                  {strapState.status === 'scanning' ? 'searching…' : 'no strap'}
+                </span>
               ) : (
                 <>
                   <span className="num text-9 font-[900]" style={{ color: zoneNeon(zone!.key) }}>
@@ -545,6 +557,9 @@ export function Conditioning() {
           <Button variant="brass" size="lg" className="mt-3 w-full" onClick={finish}>
             Finish
           </Button>
+          {strapState.status === 'error' ? (
+            <p className="mt-1 text-center text-3 text-bad">{strapState.message}</p>
+          ) : null}
           {elapsed < MIN_LOGGABLE_SEC ? (
             <p className="mt-1 text-center text-3 text-dim">
               Runs under {MIN_LOGGABLE_SEC}s are discarded, not logged.
@@ -635,7 +650,10 @@ function zoneNeon(k: 'low' | 'mod' | 'high'): string {
  * Chromium-only, and requires a user gesture, which is why this is called from
  * the Start button rather than on mount.
  */
-async function connectStrap(onBpm: (n: number) => void): Promise<void> {
+async function connectStrap(
+  onBpm: (n: number) => void,
+  onState: (state: 'scanning' | 'connected' | 'error', message?: string) => void,
+): Promise<void> {
   const nav = navigator as Navigator & {
     bluetooth?: {
       requestDevice(o: unknown): Promise<{
@@ -651,11 +669,24 @@ async function connectStrap(onBpm: (n: number) => void): Promise<void> {
       }>;
     };
   };
-  if (!nav.bluetooth) return;
+  if (!nav.bluetooth) {
+    onState('error', 'This browser does not support Bluetooth.');
+    return;
+  }
+  onState('scanning');
+  let dev: Awaited<ReturnType<NonNullable<typeof nav.bluetooth>['requestDevice']>>;
   try {
-    const dev = await nav.bluetooth.requestDevice({ filters: [{ services: [0x180d] }] });
+    dev = await nav.bluetooth.requestDevice({ filters: [{ services: [0x180d] }] });
+  } catch {
+    // Chooser cancelled or no matching device — Web Bluetooth does not
+    // distinguish the two, so this is the branch a refused permission also
+    // falls into.
+    onState('error', 'No heart-rate broadcast found. Make sure HR Broadcast is on in your WHOOP app.');
+    return;
+  }
+  try {
     const server = await dev.gatt?.connect();
-    if (!server) return;
+    if (!server) throw new Error('no gatt server');
     const svc = await server.getPrimaryService(0x180d);
     const ch = await svc.getCharacteristic(0x2a37);
     const target = await ch.startNotifications();
@@ -664,8 +695,10 @@ async function connectStrap(onBpm: (n: number) => void): Promise<void> {
       const flags = dv.getUint8(0);
       onBpm(flags & 1 ? dv.getUint16(1, true) : dv.getUint8(1));
     });
+    onState('connected');
   } catch {
     // Refused, unsupported, or no strap in range. The session still runs on the
     // clock — it just banks no zone time.
+    onState('error', 'Could not connect to that strap.');
   }
 }
