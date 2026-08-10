@@ -193,6 +193,64 @@ describe('ML Kit result to parser lines', () => {
     expect(withJunk).toEqual(clean);
   });
 
+  it('reads a panel whose rows came back with the label and value on one line', () => {
+    /* ML Kit's Line is "words on one baseline", and on a tightly-set panel the
+       label and its per-serving figure ARE one baseline — so the row arrives as
+       "Protein 3.2 g" with the per-100 figure as a separate line beside it.
+       Taking the cell next to the label reads 10.7 g and calls it a serving's
+       protein: three times the truth, off a photo that worked. */
+    const merged: MlkitRecognitionResult = {
+      blocks: [
+        block(
+          line('Per serving', 520, 100, 190),
+          line('Serving size: 30 g', 60, 160, 300),
+          line('Energy 520 kJ', 60, 220, 300),
+          line('Protein 3.2 g', 60, 280, 300),
+          line('Fat, total 2.1 g', 60, 340, 300),
+          line('Carbohydrate 15.6 g', 60, 460, 300),
+        ),
+        block(
+          line('Per 100 g', 760, 100, 180),
+          line('1733 kJ', 760, 222, 140, 30),
+          line('10.7 g', 760, 282, 120, 30),
+          line('7.0 g', 760, 342, 110, 30),
+          line('52.1 g', 760, 462, 120, 30),
+        ),
+      ],
+    };
+    const parsed = parseLabelLines(toOcrLines(merged));
+
+    expect(parsed.calories).toBeCloseTo(KCAL_PER_SERVE, 3);
+    expect(parsed.proteinG).toBe(3.2);
+    expect(parsed.fatG).toBe(2.1);
+    expect(parsed.carbsG).toBe(15.6);
+    expect(parsed.servingQty).toBe(30);
+    expect(parsed.basis).toBe('per_serving');
+    // The per-100 column, which is what sits in the cell beside each label.
+    expect(parsed.proteinG).not.toBe(10.7);
+    expect(parsed.carbsG).not.toBe(52.1);
+  });
+
+  it('reads a merged panel with no second column at all', () => {
+    // A one-column panel photographed close up: every row is a single line.
+    const oneColumn: MlkitRecognitionResult = {
+      blocks: [
+        block(
+          line('Energy 520 kJ', 60, 220, 300),
+          line('Protein 3.2 g', 60, 280, 300),
+          line('Fat, total 2.1 g', 60, 340, 300),
+          line('Carbohydrate 15.6 g', 60, 400, 300),
+        ),
+      ],
+    };
+    const parsed = parseLabelLines(toOcrLines(oneColumn));
+
+    expect(parsed.calories).toBeCloseTo(KCAL_PER_SERVE, 3);
+    expect(parsed.proteinG).toBe(3.2);
+    expect(parsed.fatG).toBe(2.1);
+    expect(parsed.carbsG).toBe(15.6);
+  });
+
   it('ignores a block that carries text but no lines', () => {
     /* A block's `text` is its lines joined by newlines. Fed in as one "line" it
        would become a row holding a label from one line and a number from

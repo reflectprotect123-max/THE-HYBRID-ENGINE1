@@ -324,6 +324,19 @@ describe('Australian panel conventions', () => {
     expect(r.servingUnit).toBe('g');
   });
 
+  it('takes the mass outside the brackets when the bracket holds only a count', () => {
+    // The inverse of the biscuits case, and standard on a drink label. Letting
+    // the bracket win merely for existing threw away the 250 mL beside it and
+    // returned no serving size at all.
+    const r = parseLabelText('Serving size: 250mL (1 cup)');
+    expect(r.servingQty).toBeCloseTo(250, 3);
+    expect(r.servingUnit).toBe('ml');
+  });
+
+  it('leaves the serving size null when neither side of the brackets is a mass', () => {
+    expect(parseLabelText('Serving size: 2 biscuits (1 serve)').servingQty).toBeNull();
+  });
+
   it('does not mistake "Servings per package" for a serving size', () => {
     expect(parseLabelText('Servings per package: 12').servingQty).toBeNull();
   });
@@ -344,6 +357,149 @@ describe('Australian panel conventions', () => {
   it('reads an em-dash sub-row without mistaking it for the total', () => {
     const r = parseLabelText('Fat, total 9.4g\n— saturated 6.1g');
     expect(r.fatG).toBeCloseTo(9.4, 3);
+  });
+});
+
+/*
+ * A row whose label and value arrived on ONE line.
+ *
+ * ML Kit's `Line` is "words on one baseline", and on a tightly-set panel that
+ * is the label AND its per-serving figure together, with the per-100 figure
+ * beside it as its own line. Matching the label and then reading the next cell
+ * takes the per-100 number and files it as a serving's worth: a 3x
+ * overstatement, printed with full confidence, on a panel that photographed
+ * perfectly. It is the exact failure mode this file's header names.
+ */
+describe('a label and its value merged onto one OCR line', () => {
+  const merged = (text: string, top: number, left = 0) => ({ text, left, top, right: left + 180, bottom: top + 20 });
+
+  it('reads the value out of the merged cell, not the per-100 cell beside it', () => {
+    const r = parseLabelLines([
+      merged('Per serving', 100, 200),
+      merged('Per 100 g', 100, 320),
+      merged('Protein 3.2 g', 130),
+      merged('10.7 g', 130, 320),
+      merged('Fat, total 2.1 g', 160),
+      merged('7.0 g', 160, 320),
+    ]);
+    expect(r.proteinG).toBeCloseTo(3.2, 3);
+    expect(r.fatG).toBeCloseTo(2.1, 3);
+    // The per-100 column, which is what the reader used to take.
+    expect(r.proteinG).not.toBe(10.7);
+    expect(r.fatG).not.toBe(7.0);
+    expect(r.basis).toBe('per_serving');
+  });
+
+  it('reads a merged line that has no second cell at all', () => {
+    // The camera path used to skip any row without two cells, so this panel
+    // read as "no macro rows found" while the same text typed by hand parsed.
+    const r = parseLabelLines([
+      merged('Energy 520 kJ', 100),
+      merged('Protein 3.2 g', 130),
+      merged('Fat, total 2.1 g', 160),
+      merged('Carbohydrate 15.6 g', 190),
+    ]);
+    expect(r.calories).toBeCloseTo(124.28, 1);
+    expect(r.proteinG).toBeCloseTo(3.2, 3);
+    expect(r.fatG).toBeCloseTo(2.1, 3);
+    expect(r.carbsG).toBeCloseTo(15.6, 3);
+  });
+
+  it('gives the same answer as the identical panel typed by hand', () => {
+    const viaLines = parseLabelLines([
+      merged('Energy 520 kJ', 100),
+      merged('Protein 3.2 g', 130),
+      merged('Fat, total 2.1 g', 160),
+      merged('Carbohydrate 15.6 g', 190),
+    ]);
+    const viaText = parseLabelText('Energy 520 kJ\nProtein 3.2 g\nFat, total 2.1 g\nCarbohydrate 15.6 g');
+    expect(viaLines.calories).toBeCloseTo(viaText.calories!, 6);
+    expect(viaLines.proteinG).toBeCloseTo(viaText.proteinG!, 6);
+    expect(viaLines.fatG).toBeCloseTo(viaText.fatG!, 6);
+    expect(viaLines.carbsG).toBeCloseTo(viaText.carbsG!, 6);
+  });
+
+  it('does not mistake a merged sub-row for its total', () => {
+    const r = parseLabelLines([
+      merged('Fat, total 9.4 g', 100),
+      merged('- saturated 6.1 g', 130),
+      merged('Carbohydrate 22.0 g', 160),
+      merged('- sugars 18.5 g', 190),
+    ]);
+    expect(r.fatG).toBeCloseTo(9.4, 3);
+    expect(r.carbsG).toBeCloseTo(22.0, 3);
+  });
+
+  it('still leaves fat null when a merged total row has no readable figure', () => {
+    const r = parseLabelLines([merged('Fat, total ??', 100), merged('Fat, saturated 6.1 g', 130)]);
+    expect(r.fatG).toBeNull();
+  });
+});
+
+/*
+ * Which COLUMN the surviving value came from.
+ *
+ * The reader takes the leftmost value cell. That is the per-serving figure
+ * only when the per-serving cell was actually captured — one faint or clipped
+ * cell leaves the per-100 figure as the only survivor and it gets promoted
+ * into a "per serving" reading with nothing checking where it sat.
+ */
+describe('column position on a two-column panel', () => {
+  const at = (text: string, left: number, top: number) => ({ text, left, top, right: left + 100, bottom: top + 20 });
+
+  it('refuses a lone value when the panel prints two columns', () => {
+    // The per-serving cell did not OCR. 10.7 is the per-100 figure, and
+    // storing it as one serving's protein is wrong by the whole serving size.
+    const r = parseLabelLines([at('Per serving', 200, 100), at('Per 100 g', 320, 100), at('Protein', 0, 130), at('10.7 g', 320, 130)]);
+    expect(r.proteinG).toBeNull();
+    expect(r.basis).toBe('per_serving');
+  });
+
+  it('accepts the leftmost value when the row covers both columns', () => {
+    const r = parseLabelLines([
+      at('Per serving', 200, 100),
+      at('Per 100 g', 320, 100),
+      at('Protein', 0, 130),
+      at('3.2 g', 200, 130),
+      at('10.7 g', 320, 130),
+    ]);
+    expect(r.proteinG).toBeCloseTo(3.2, 3);
+  });
+
+  it('accepts a lone value on a panel that only heads one column', () => {
+    const r = parseLabelLines([at('Per 100 g', 200, 100), at('Protein', 0, 130), at('10.7 g', 200, 130)]);
+    expect(r.proteinG).toBeCloseTo(10.7, 3);
+    expect(r.basis).toBe('per_100');
+  });
+
+  it('refuses a lone value in the typed path too, when both columns are headed', () => {
+    const r = parseLabelText(['Per serving   Per 100g', 'Protein   10.7g'].join('\n'));
+    expect(r.proteinG).toBeNull();
+  });
+});
+
+/*
+ * Numbers the panel does not actually print.
+ *
+ * A refused match costs a retype. A truncated one gets eaten.
+ */
+describe('malformed numbers are refused, not truncated', () => {
+  it('refuses a three-decimal figure rather than reading its integer part', () => {
+    // The bounded fraction used to backtrack: ".256" failed, the optional
+    // group was dropped, and "3" was returned as the protein figure.
+    expect(parseLabelText('Protein 3.256 g').proteinG).toBeNull();
+    expect(parseLabelText('Protein 3.256 g').proteinG).not.toBe(3);
+  });
+
+  it('still reads the ordinary one- and two-decimal and integer forms', () => {
+    expect(parseLabelText('Protein 3 g').proteinG).toBeCloseTo(3, 6);
+    expect(parseLabelText('Protein 3.2 g').proteinG).toBeCloseTo(3.2, 6);
+    expect(parseLabelText('Protein 3.25 g').proteinG).toBeCloseTo(3.25, 6);
+    expect(parseLabelText('Protein 3,25 g').proteinG).toBeCloseTo(3.25, 6);
+  });
+
+  it('refuses an over-precise serving size instead of finding a number inside it', () => {
+    expect(parseLabelText('Serving size: 250.256g').servingQty).toBeNull();
   });
 });
 
