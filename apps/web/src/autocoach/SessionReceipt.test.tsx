@@ -7,9 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Workout } from '@hybrid/engine';
 import type { AthleteStateSnapshot, StateConstraint } from '@hybrid/whole-athlete-state';
 import { updatePolicy } from './policy';
-import { resetLedgerForTests } from './ledger';
+import { recordConsent } from './consent';
+import { getLedgerEntries, resetLedgerForTests } from './ledger';
 import { decidePending, getPendingProposal, proposePending, resetPendingProposalForTests } from './pendingProposal';
-import { SessionReceipt } from './SessionReceipt';
+import { approvalAllowed, SessionReceipt } from './SessionReceipt';
 import type { AutoCoachResolution } from '@hybrid/auto-coach';
 
 /*
@@ -123,6 +124,9 @@ beforeEach(() => {
     rpeCap: 7,
     minConditioningFraction: 0.5,
   }));
+  // Consent is its own store, so a policy mode alone no longer unlocks
+  // Approve — see the "consent gate" describe block below.
+  recordConsent('proposals', true);
 });
 
 describe('SessionReceipt — propose, approve, decline', () => {
@@ -308,6 +312,87 @@ describe('SessionReceipt — propose, approve, decline', () => {
     await renderReceipt();
 
     expect(getPendingProposal()?.date).toBe(TODAY);
+    expect(getPendingProposal()?.status).toBe('pending');
+  });
+});
+
+/*
+ * The R2 gate proper. Shadow mode and ModeSwitcher both promise "shown, never
+ * applied"; before this, Approve was gated only on the card rendering at all,
+ * so a fresh install — shadow mode, no consent, no comprehension check — could
+ * still write a resolved change into the store.
+ */
+describe('SessionReceipt — the approve gate needs mode AND consent', () => {
+  it('approvalAllowed is false in shadow mode and false without proposals consent', () => {
+    expect(approvalAllowed('shadow', true)).toBe(false);
+    expect(approvalAllowed('shadow', false)).toBe(false);
+    expect(approvalAllowed('assisted', false)).toBe(false);
+    expect(approvalAllowed('auto_daily', false)).toBe(false);
+    expect(approvalAllowed('assisted', true)).toBe(true);
+    expect(approvalAllowed('auto_daily', true)).toBe(true);
+  });
+
+  it('a fresh install — shadow mode, no consent — offers no Approve at all', async () => {
+    updatePolicy((p) => ({ ...p, mode: 'shadow' }));
+    recordConsent('proposals', false);
+
+    await renderReceipt();
+
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Decline' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Shadow mode/)).toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('live mode with consent revoked still offers no Approve', async () => {
+    recordConsent('proposals', false);
+    await renderReceipt();
+
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Approving needs your consent/)).toBeInTheDocument();
+  });
+
+  it('Approve becomes available once mode is live AND consent is recorded', async () => {
+    recordConsent('proposals', false);
+    const first = await renderReceipt();
+    expect(within(first.container).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      recordConsent('proposals', true);
+    });
+    const second = await renderReceipt();
+
+    await act(async () => {
+      fireEvent.click(within(second.container).getByRole('button', { name: 'Approve' }));
+    });
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(getPendingProposal()?.status).toBe('approved');
+  });
+});
+
+describe('SessionReceipt — an aborted store write is not recorded as applied', () => {
+  it('does not record a ledger entry or burn the proposal when the target workout is gone', async () => {
+    // hold_progression off keeps the resolution a single in-place cap, so the
+    // plan is a `mutate` against w-1 specifically.
+    updatePolicy((p) => ({ ...p, permissions: { ...p.permissions, hold_progression: 'off' } }));
+    await renderReceipt();
+    expect(getPendingProposal()?.status).toBe('pending');
+
+    // The workout is deleted (Home's ✕, or a sync tombstone) between the
+    // receipt rendering and the tap: the draft callback finds no target and
+    // returns false, so `update` abandons the whole write.
+    mockWorkouts = [];
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    });
+
+    // Nothing was written, so nothing may be recorded: no "Applied — undo
+    // available" for a change that never happened, and the day's proposal is
+    // still there to retry rather than burned. (The card itself unmounts on
+    // the very next render, since the workout it is about is gone — the
+    // error copy is the fallback for a failure where it survives.)
+    expect(getLedgerEntries()).toHaveLength(0);
     expect(getPendingProposal()?.status).toBe('pending');
   });
 });

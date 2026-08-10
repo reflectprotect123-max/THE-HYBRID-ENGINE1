@@ -79,6 +79,11 @@ export function useConsent(): AutoCoachConsent {
   );
 }
 
+/** Non-hook read, mirrors policy.ts's getPolicy() — needed outside render. */
+export function getConsent(): AutoCoachConsent {
+  return consent;
+}
+
 /** Revocation keeps the record — only `accepted` flips, with a fresh
  * timestamp — so consent history is never deleted, only superseded. */
 export function recordConsent(kind: 'proposals' | 'autoApply', accepted: boolean): void {

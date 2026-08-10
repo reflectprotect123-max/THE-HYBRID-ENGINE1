@@ -1,13 +1,20 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { resolveSession } from '@hybrid/auto-coach';
 import { tombstone, uid, ymd, type Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Card, Kicker, T, Tap } from '../ui';
 import { canApply, ledgerEntryFromApply, planApply, planUndo } from './applyResolution';
+import { getConsent, useConsent } from './consent';
 import { canUndo, recordApply, recordUndo, useLedger } from './ledger';
-import { decidePending, proposePending, usePendingProposal, withdrawPending } from './pendingProposal';
-import { updatePolicy, usePolicy } from './policy';
+import {
+  decidePending,
+  pendingKey,
+  proposePending,
+  usePendingProposals,
+  withdrawPending,
+} from './pendingProposal';
+import { getPolicy, updatePolicy, usePolicy } from './policy';
 
 /**
  * The Auto-Coached receipt for today's session, ported from
@@ -17,7 +24,26 @@ import { updatePolicy, usePolicy } from './policy';
  * athlete taps Approve; Decline is always safe. "Today" here uses mobile's
  * local-time convention (ymd/getDay), matching Home.tsx/Training.tsx — not
  * web's UTC convention. See applyResolution.ts and pendingProposal.ts.
+ *
+ * Approve is not merely a button: it is the consent gate. Shadow mode's own
+ * copy — here and in ModeSwitcher — promises "shown, never applied", so
+ * Approve must not exist while the athlete is in shadow, and must not exist
+ * before proposals consent has actually been recorded (consent.ts). Both
+ * conditions are checked twice: once for what is rendered, and again inside
+ * the handler, because a purely visual gate is one UI bug away from being
+ * no gate at all.
  */
+
+/** Whether the athlete has actually authorised applying a change: out of
+ *  shadow AND proposals consent on record. `mode` alone is not enough —
+ *  policy and consent are separate stores and either could be restored,
+ *  migrated or edited independently of the other. */
+export function approvalAllowed(
+  mode: 'shadow' | 'assisted' | 'auto_daily',
+  proposalsAccepted: boolean,
+): boolean {
+  return mode !== 'shadow' && proposalsAccepted;
+}
 
 function todaysWorkout(workouts: Workout[], today: string, dow: number): Workout | null {
   return (
@@ -48,8 +74,10 @@ function StatePill({ state, confidence }: { state: string; confidence: string })
 export function SessionReceipt({ compact }: { compact?: boolean }) {
   const { workouts, update, athleteState } = useDb();
   const policy = usePolicy();
+  const consent = useConsent();
   const ledger = useLedger();
-  const pendingRaw = usePendingProposal();
+  const proposals = usePendingProposals();
+  const [applyError, setApplyError] = useState<string | null>(null);
   const today = ymd(new Date());
   const dow = new Date().getDay();
   const workout = useMemo(() => todaysWorkout(workouts, today, dow), [workouts, today, dow]);
@@ -59,13 +87,28 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
     [workout, policy, athleteState],
   );
 
-  const pending = pendingRaw?.date === today ? pendingRaw : null;
+  // One decision per session, not per day: the merged app can show a Strength
+  // and a Conditioning receipt on the same date, each scoped to its own world
+  // by useDb(). Keying on the date alone let one world's Approve/Decline
+  // consume the other's proposal. See pendingProposal.ts.
+  const key = workout ? pendingKey(today, workout.id) : null;
+  const pending = key ? (proposals[key] ?? null) : null;
 
-  const latestToday = ledger.find((e) => e.date === today) ?? null;
+  // The most recent apply/undo recorded for today's session — matched on the
+  // workout as well as the date, for the same cross-world reason. A fork
+  // changes today's resolved workout's id, so the fork's own id counts as a
+  // match too, or the "Applied — undo available" state would vanish the
+  // moment the fork it created becomes today's workout.
+  const latestToday = workout
+    ? (ledger.find(
+        (e) =>
+          e.date === today && (e.workoutId === workout.id || e.forkedWorkoutId === workout.id),
+      ) ?? null)
+    : null;
   const appliedEntry = latestToday?.action === 'applied' ? latestToday : null;
 
   useEffect(() => {
-    if (!workout || !r || appliedEntry) return;
+    if (!workout || !r || appliedEntry || !key) return;
     if (pending) {
       if (
         pending.status === 'pending' &&
@@ -74,7 +117,7 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
           pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0) ||
           policy.status !== 'active')
       ) {
-        withdrawPending();
+        withdrawPending(key);
       }
       return;
     }
@@ -86,30 +129,47 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         resolution: r,
       });
     }
-  }, [workout, r, pending, appliedEntry, today]);
+  }, [workout, r, pending, appliedEntry, today, key]);
 
-  if (!workout || policy.status === 'revoked' || !r) return null;
+  if (!workout || policy.status === 'revoked' || !r || !key) return null;
 
   const displayResolution = pending?.status === 'pending' ? pending.resolution : r;
 
   const changed = displayResolution.operations.some((o) => o.type !== 'keep_as_planned');
   if (compact && !changed) return null;
 
-  const showDecide = pending?.status === 'pending';
+  // Shadow mode shows what Auto-Coached WOULD do and applies nothing; a
+  // proposal with no consent behind it is the same. Either way there is
+  // nothing to decide, so neither Approve nor Decline is offered — only the
+  // explanation of how to turn it on.
+  const canDecide = approvalAllowed(policy.mode, consent.proposalsConsent?.accepted === true);
+  const showDecide = pending?.status === 'pending' && canDecide;
   const showUndo = appliedEntry !== null && canUndo(appliedEntry);
 
   const handleApprove = () => {
     if (!pending || pending.status !== 'pending') return;
+    // The consent gate again, read live rather than from this render's
+    // closure. Rendering already withholds the button, but a visual gate is
+    // not a safety gate: nothing may reach the store without both an
+    // out-of-shadow mode and recorded consent.
+    if (!approvalAllowed(getPolicy().mode, getConsent().proposalsConsent?.accepted === true)) return;
     if (
       r.state === 'safety_stop' ||
       pending.sourceWorkoutId !== workout.id ||
       pending.sourceWorkoutUpdatedAt !== (workout.updatedAt ?? 0) ||
       policy.status !== 'active'
     ) {
-      withdrawPending();
+      withdrawPending(key);
       return;
     }
     const plan = planApply(workout, pending.resolution, today, uid);
+    // `update` returns void and abandons the whole write when the callback
+    // returns false, so success is captured from inside it. The target can
+    // genuinely be gone — deleted from Home, or tombstoned by a sync — in
+    // which case nothing was written and neither the ledger nor the decision
+    // may claim otherwise, or the card would offer Undo for a change that
+    // never happened and the day's proposal would be spent.
+    let wrote = false;
     update((draft) => {
       if (plan.kind === 'mutate') {
         const target = draft.workouts.find((x) => x.id === plan.workoutId);
@@ -126,14 +186,20 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
           updatedAt: Date.now(),
         });
       }
+      wrote = true;
     });
+    if (!wrote) {
+      setApplyError('Nothing was changed — today’s session is no longer there.');
+      return;
+    }
+    setApplyError(null);
     recordApply(ledgerEntryFromApply(plan, pending.resolution, today));
-    decidePending('approved');
+    decidePending(key, 'approved');
   };
 
   const handleDecline = () => {
     if (!pending || pending.status !== 'pending') return;
-    decidePending('declined');
+    decidePending(key, 'declined');
   };
 
   const handleUndo = () => {
@@ -192,11 +258,15 @@ export function SessionReceipt({ compact }: { compact?: boolean }) {
         </T>
       )}
 
+      {applyError && <T className="mt-1 text-3 text-bad">{applyError}</T>}
+
       <View className="mt-1 flex-row items-center gap-1">
         <T className="flex-1 text-2 text-dim">
           {policy.mode === 'shadow'
-            ? 'Shadow mode — shown, never applied. The plan itself is unchanged.'
-            : 'Nothing applies without your confirmation.'}
+            ? 'Shadow mode — shown, never applied. The plan itself is unchanged. Turn on Assisted in Settings to approve changes.'
+            : !canDecide
+              ? 'Approving needs your consent — turn on Assisted in Settings.'
+              : 'Nothing applies without your confirmation.'}
         </T>
         <Tap
           onPress={() =>

@@ -36,6 +36,12 @@ export function usePolicy(): AutonomyPolicy {
   );
 }
 
+/** Non-hook read, for code outside a component render — a click handler that
+ *  must re-check the live policy rather than the one its closure captured. */
+export function getPolicy(): AutonomyPolicy {
+  return policy;
+}
+
 export function updatePolicy(fn: (p: AutonomyPolicy) => AutonomyPolicy): void {
   policy = { ...fn(policy), version: policy.version + 1 };
   try {
