@@ -42,6 +42,7 @@ function RosterAuthoringView({ clientId, clientName }: { clientId: string; clien
 
   async function buildSession(kind: 'strength' | 'conditioning') {
     if (!repository.saveWorkoutDraft) return;
+    setError('');
     setBusy(true);
     try {
       const workoutId = uid();
@@ -56,6 +57,11 @@ function RosterAuthoringView({ clientId, clientName }: { clientId: string; clien
 
   async function publish(draft: AthleteWorkoutDraft) {
     if (!repository.publishWorkoutDraft) return;
+    setError('');
+    if (draft.body.blocks.length === 0) {
+      setError('Add at least one block before publishing.');
+      return;
+    }
     const weekdays = publishWeekdays[draft.workoutId] ?? [];
     if (weekdays.length === 0) {
       setError('Choose at least one preferred weekday before publishing.');
@@ -69,6 +75,7 @@ function RosterAuthoringView({ clientId, clientName }: { clientId: string; clien
       load();
     } catch {
       setError('The draft could not be published.');
+      load();
     } finally {
       setBusy(false);
     }

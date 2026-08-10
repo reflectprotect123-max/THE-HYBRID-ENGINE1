@@ -60,7 +60,13 @@ function draftFixture(over: Partial<AthleteWorkoutDraft> = {}): AthleteWorkoutDr
   return {
     workoutId: 'w1',
     kind: 'strength',
-    body: { id: 'w1', kind: 'strength', name: 'Upper Body A', blocks: [], updatedAt: Date.now() },
+    body: {
+      id: 'w1',
+      kind: 'strength',
+      name: 'Upper Body A',
+      blocks: [{ id: 'b1', kind: 'text', heading: 'Warm-up' }],
+      updatedAt: Date.now(),
+    },
     baseVersion: 3,
     updatedAt: new Date().toISOString(),
     ...over,
@@ -144,6 +150,50 @@ describe('CoachAuthoring (roster)', () => {
     });
 
     expect(screen.getByText('Choose at least one preferred weekday before publishing.')).toBeInTheDocument();
+    expect(repo.publishedDrafts).toHaveLength(0);
+  });
+
+  it('clears a stale error banner once a retried publish succeeds', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [CLIENT];
+    repo.workoutDrafts = [draftFixture()];
+    await renderAuthoring(repo);
+
+    const publishButton = screen.getByRole('button', { name: 'Publish and assign' });
+    await act(async () => {
+      fireEvent.click(publishButton);
+    });
+    expect(screen.getByText('Choose at least one preferred weekday before publishing.')).toBeInTheDocument();
+
+    const mondayCheckbox = screen.getByRole('checkbox', { name: 'Monday' });
+    await act(async () => {
+      fireEvent.click(mondayCheckbox);
+    });
+    await act(async () => {
+      fireEvent.click(publishButton);
+    });
+
+    expect(repo.publishedDrafts).toHaveLength(1);
+    expect(screen.queryByText('Choose at least one preferred weekday before publishing.')).not.toBeInTheDocument();
+  });
+
+  it('blocks publishing a zero-block draft and never calls publishWorkoutDraft', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [CLIENT];
+    repo.workoutDrafts = [draftFixture({ body: { id: 'w1', kind: 'strength', name: 'Upper Body A', blocks: [], updatedAt: Date.now() } })];
+    await renderAuthoring(repo);
+
+    const mondayCheckbox = screen.getByRole('checkbox', { name: 'Monday' });
+    await act(async () => {
+      fireEvent.click(mondayCheckbox);
+    });
+
+    const publishButton = screen.getByRole('button', { name: 'Publish and assign' });
+    await act(async () => {
+      fireEvent.click(publishButton);
+    });
+
+    expect(screen.getByText('Add at least one block before publishing.')).toBeInTheDocument();
     expect(repo.publishedDrafts).toHaveLength(0);
   });
 

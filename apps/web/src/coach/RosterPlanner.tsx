@@ -41,7 +41,10 @@ export function RosterPlanner() {
   const kindRef = useRef<'strength' | 'conditioning'>('strength');
   const baseVersionRef = useRef<number | null>(null);
 
-  const back = () => nav('/coach/author');
+  const back = () => {
+    coalescer.flushNow();
+    nav('/coach/author');
+  };
 
   const coalescer = useMemo(
     () =>
@@ -58,6 +61,12 @@ export function RosterPlanner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [clientId, workoutId, repository],
   );
+
+  useEffect(() => {
+    // Flush any pending debounced save immediately on unmount, so navigating
+    // away within the debounce window does not lose the latest edit.
+    return () => coalescer.flushNow();
+  }, [coalescer]);
 
   useEffect(() => {
     if (!clientId || !workoutId || !repository.listWorkoutDrafts) return;
