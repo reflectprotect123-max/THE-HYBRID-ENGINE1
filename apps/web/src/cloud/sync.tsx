@@ -203,7 +203,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (e) throw e;
       if (ECOSYSTEM_SYNC_ENABLED) {
         const carryNutrition = nfp !== EMPTY_NUTRITION_FP || !!remoteNamespace.current?.partitions.nutrition;
-        const { namespace: pushed, stale } = await pushEcosystem(
+        const { namespace: pushed, stale, nutrition: pushedNutrition } = await pushEcosystem(
           client,
           source,
           ECOSYSTEM_WRITER,
@@ -215,6 +215,26 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           draft.core = pushed.core;
           draft.ecosystem = pushed;
         });
+        /*
+         * Advance the locally-tracked nutrition base to what was just WRITTEN.
+         *
+         * The training partitions get this for free: they live in
+         * `EngineDB.ecosystem`, which the `update` above refreshes from the
+         * push's own namespace. Nutrition deliberately does not live there, and
+         * `remoteNamespace` — its only carrier — used to be written in exactly
+         * one place, the pull. So the base stayed at the last PULLED revision
+         * for the whole session and every further meal was pushed on a revision
+         * the server already held. Recorded on the ref only, never into the
+         * EngineDB; skipped when the server refused this very partition,
+         * because a write that did not happen advances nothing.
+         */
+        if (pushedNutrition && !stale.includes('nutrition')) {
+          const base = remoteNamespace.current ?? pushed;
+          remoteNamespace.current = {
+            ...base,
+            partitions: { ...base.partitions, nutrition: pushedNutrition },
+          };
+        }
         if (stale.length) {
           // The server refused a snapshot on its revision guard. Leaving the
           // fingerprints unrecorded is what makes the next push retry with a

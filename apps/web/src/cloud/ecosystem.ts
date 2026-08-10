@@ -12,6 +12,7 @@ import {
   sanitizeEcosystemNamespace,
   sanitizeSharedCore,
   type EcosystemSyncNamespace,
+  type VersionedSnapshot,
 } from '@hybrid/shared-core';
 import { PRODUCT_ID } from '../product';
 
@@ -145,6 +146,19 @@ export interface NutritionPush {
 export interface EcosystemPushResult {
   namespace: EcosystemSyncNamespace;
   stale: string[];
+  /**
+   * The nutrition snapshot this push actually put on the wire, when one was
+   * pushed at all.
+   *
+   * Deliberately NOT part of `namespace`: that is what the caller stores in
+   * `EngineDB.ecosystem`, which `cloudFp` hashes, so a food log in there would
+   * push the whole training blob on every meal. The caller still has to LEARN
+   * the revision it just wrote, because the server's revision guard compares
+   * against it and the only other carrier of that number is the next pull —
+   * so without this the local base stayed at the last PULLED revision for the
+   * whole session. Meaningful only when `stale` does not name `nutrition`.
+   */
+  nutrition?: VersionedSnapshot<unknown>;
 }
 
 export async function pushEcosystem(
@@ -223,7 +237,7 @@ export async function pushEcosystem(
     });
     if (error) throw error;
   }));
-  return { namespace, stale };
+  return { namespace, stale, nutrition: nutrition ? outbound.partitions.nutrition : undefined };
 }
 
 export { applyProductSyncNamespace, readNutritionPartition };

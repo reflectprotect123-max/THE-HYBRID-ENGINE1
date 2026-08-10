@@ -12,6 +12,7 @@ import {
   sanitizeEcosystemNamespace,
   sanitizeSharedCore,
   type EcosystemSyncNamespace,
+  type VersionedSnapshot,
 } from '@hybrid/shared-core';
 
 /** Enable only after the ecosystem SQL migration has been applied in staging. */
@@ -82,6 +83,25 @@ export async function pullEcosystem(client: SupabaseClient, userId: string): Pro
 export interface EcosystemPushResult {
   namespace: EcosystemSyncNamespace;
   stale: string[];
+  /**
+   * The nutrition snapshot this push actually put on the wire, when one was
+   * pushed at all.
+   *
+   * It is NOT part of `namespace` and must never become part of it: `namespace`
+   * is what the caller stores in `EngineDB.ecosystem`, which `cloudFp` hashes,
+   * so a food log in there pushes the whole training blob on every meal. But
+   * the caller still has to LEARN the revision it just wrote — the server's
+   * revision guard compares against it, and the only other carrier of that
+   * number is the next pull. Without this the local base stayed at the last
+   * PULLED revision for the whole foreground session, so every further
+   * nutrition write in that session re-used a revision the server already held
+   * and depended on the equal-revision timestamp tiebreak to land at all.
+   *
+   * Reported separately so it can be recorded in the pull-side base (a ref, not
+   * the EngineDB) and nowhere else. Only meaningful when `stale` does not name
+   * `nutrition`: a refused write did not happen and must not advance anything.
+   */
+  nutrition?: VersionedSnapshot<unknown>;
 }
 
 export async function pushEcosystem(
@@ -144,7 +164,7 @@ export async function pushEcosystem(
     const { error } = await client.rpc('record_athlete_event', { p_idempotency_key: event.idempotencyKey, p_event_type: event.type, p_source_domain: event.sourceDomain, p_occurred_at: event.occurredAt, p_payload: event.payload });
     if (error) throw error;
   }));
-  return { namespace, stale };
+  return { namespace, stale, nutrition: nutrition ? outbound.partitions.nutrition : undefined };
 }
 
 export { applyProductSyncNamespace, readNutritionPartition };
