@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
-import type { ExperienceLevel, ProgramTemplate, TrainingDomain } from './contracts';
+import type { AthleteWeekSummary, ExperienceLevel, ProgramTemplate, TrainingDomain } from './contracts';
 
 const WEEKDAYS = [
   { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
@@ -9,6 +9,12 @@ const WEEKDAYS = [
 ];
 
 function today(): string { return new Date().toISOString().slice(0, 10); }
+
+function mondayOf(d: Date): string {
+  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
+  return copy.toISOString().slice(0, 10);
+}
 
 export function CoachLibrary() {
   const { clients, selectedClient, selectClient, repository } = useCoachWorkspace();
@@ -22,6 +28,7 @@ export function CoachLibrary() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'templates' | 'calendar'>('templates');
 
   useEffect(() => {
     let active = true;
@@ -67,6 +74,22 @@ export function CoachLibrary() {
         <p className="mt-1 max-w-[68ch] text-xs text-muted">Choose a real engine progression model, then prepare athlete and schedule inputs for the Coordinator.</p>
       </header>
 
+      <div role="tablist" aria-label="Library view" className="flex gap-4 border-b border-line2 px-3 sm:px-4">
+        {(['templates', 'calendar'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            onClick={() => setTab(value)}
+            className={`min-h-11 -mb-px border-b-2 px-0.5 text-sm font-semibold capitalize transition-colors ${tab === value ? 'border-gold text-text' : 'border-transparent text-muted hover:text-text'}`}
+          >
+            {value}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'templates' && (
       <div className="grid gap-5 p-3 sm:p-4 xl:grid-cols-[350px_minmax(0,1fr)]">
         <aside className="xl:sticky xl:top-4 xl:self-start" aria-labelledby="guide-title">
           <div className="flex items-baseline"><div><p className="text-[9px] uppercase tracking-wider text-gold">Quick start</p><h2 id="guide-title" className="text-base font-semibold">Prepare an assignment</h2></div><span className="ml-auto text-[10px] text-dim">Coordinator input</span></div>
@@ -120,7 +143,93 @@ export function CoachLibrary() {
           {selected && <section className="grid gap-3 rounded-lg border border-line2 bg-panel3 p-3 lg:grid-cols-[1fr_auto]"><div><p className="text-[9px] uppercase tracking-wider text-dim">{selected.source === 'engine-derived' ? 'Engine-derived progression' : 'Coach template progression'}</p><h2 className="mt-0.5 text-base font-semibold">{selected.name}</h2><ol className="mt-2 flex flex-wrap gap-1 text-xs">{selected.progression.stages.map((stage, index) => <li key={stage} className="rounded border border-line2 bg-well px-2 py-1"><span className="mr-1 text-gold2">{index + 1}</span>{stage}</li>)}</ol><p className="mt-2 text-[11px] text-dim">All increases remain coach-approval proposals. Pain, illness or contradictory data routes to hold or review.</p></div><div className="flex items-end gap-1"><Link to="/coach/author" className="rounded-md border border-line2 bg-panel px-2 py-1.5 text-xs text-muted hover:text-text">Open session builder</Link><button type="button" onClick={prepareAssignment} className="rounded-md border border-gold-line bg-gold-wash px-2 py-1.5 text-xs font-semibold text-gold2">Prepare assignment</button></div></section>}
         </div>
       </div>
+      )}
+      {tab === 'calendar' && <CalendarTab clientId={selectedClient?.id ?? null} clientName={selectedClient?.name ?? null} repository={repository} />}
     </main>
+  );
+}
+
+function CalendarTab({ clientId, clientName, repository }: { clientId: string | null; clientName: string | null; repository: ReturnType<typeof useCoachWorkspace>['repository'] }) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const weekStarts = useMemo(() => {
+    const last = new Date(year, month + 1, 0);
+    const starts: string[] = [];
+    const cursor = new Date(year, month, 1);
+    cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7));
+    while (cursor <= last) {
+      starts.push(mondayOf(cursor));
+      cursor.setDate(cursor.getDate() + 7);
+    }
+    return starts;
+  }, [year, month]);
+  const [sessionsByDate, setSessionsByDate] = useState<Map<string, AthleteWeekSummary['sessions']> | undefined>(undefined);
+
+  useEffect(() => {
+    if (!clientId) return;
+    let active = true;
+    setSessionsByDate(undefined);
+    Promise.all(weekStarts.map((weekStart) =>
+      (repository.getAthleteWeekSummary?.(clientId, weekStart) ?? Promise.resolve(null)).catch(() => null),
+    )).then((summaries) => {
+      if (!active) return;
+      const merged = new Map<string, AthleteWeekSummary['sessions']>();
+      for (const summary of summaries) {
+        for (const session of summary?.sessions ?? []) {
+          const existing = merged.get(session.date) ?? [];
+          if (existing.some((item) => item.id === session.id)) continue;
+          merged.set(session.date, [...existing, session]);
+        }
+      }
+      setSessionsByDate(merged);
+    });
+    return () => { active = false; };
+  }, [repository, clientId, weekStarts]);
+
+  if (!clientId) {
+    return <p className="p-3 text-xs text-dim sm:p-4">Choose a client from Prepare an assignment to see their calendar.</p>;
+  }
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leadingBlanks = (new Date(year, month, 1).getDay() + 6) % 7;
+  const trailingBlanks = (7 - ((leadingBlanks + daysInMonth) % 7)) % 7;
+  const isoOf = (day: number) => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  return (
+    <section className="p-3 sm:p-4" aria-label={`${clientName ?? 'Client'} calendar`}>
+      <div className="flex items-baseline">
+        <h2 className="text-base font-semibold">{clientName}&rsquo;s {monthLabel}</h2>
+        <span className="ml-auto text-[10px] text-dim">Scheduled sessions</span>
+      </div>
+      {sessionsByDate === undefined && <p className="mt-2 text-xs text-muted">Loading…</p>}
+      {sessionsByDate !== undefined && (
+        <div className="mt-2 grid grid-cols-7 gap-1">
+          {WEEKDAYS.map((day) => <div key={day.value} className="px-1 text-[10px] uppercase tracking-wide text-dim">{day.label}</div>)}
+          {Array.from({ length: leadingBlanks }, (_, index) => <div key={`lead-${index}`} className="rounded-md border border-line2/40" aria-hidden="true" />)}
+          {Array.from({ length: daysInMonth }, (_, index) => {
+            const day = index + 1;
+            const sessions = sessionsByDate.get(isoOf(day)) ?? [];
+            return (
+              <div key={day} className="min-h-16 rounded-md border border-line2 bg-panel3 p-1">
+                <p className="text-xs tabular-nums text-muted">{day}</p>
+                {sessions.map((session) => (
+                  <p key={session.id} className="mt-0.5 text-[10px] leading-tight text-dim">
+                    <span className={session.name ? 'text-text' : 'capitalize text-text'}>{session.name ?? session.kind}</span> · {session.status}
+                  </p>
+                ))}
+              </div>
+            );
+          })}
+          {Array.from({ length: trailingBlanks }, (_, index) => <div key={`trail-${index}`} className="rounded-md border border-line2/40" aria-hidden="true" />)}
+        </div>
+      )}
+      <p className="mt-2 text-[11px] text-dim">
+        This shows what&rsquo;s scheduled — the Coordinator places sessions from weekday preferences, not from clicking a specific date.{' '}
+        <Link to="/coach/author" className="text-gold2 hover:text-text">Open the session builder</Link>
+      </p>
+    </section>
   );
 }
 

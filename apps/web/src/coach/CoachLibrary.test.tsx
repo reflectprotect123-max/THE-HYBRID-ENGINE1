@@ -107,4 +107,37 @@ describe('CoachLibrary', () => {
     expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
     expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
   });
+
+  it('renders a scheduled session name on the calendar tab for the selected client', async () => {
+    const now = new Date();
+    const midMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-15`;
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ id: 'roster-1', name: 'Riley Roster' })];
+    repo.weekSummary = {
+      entries: [],
+      decisions: [],
+      sessions: [{ id: 'session-1', kind: 'strength', date: midMonth, status: 'planned', name: 'Heavy Squat A' }],
+    };
+    await renderLibrary(repo);
+
+    const viewTabs = within(screen.getByRole('tablist', { name: 'Library view' })).getAllByRole('tab');
+    await act(async () => {
+      fireEvent.click(viewTabs[1]);
+    });
+
+    expect(screen.getAllByText('Heavy Squat A').length).toBeGreaterThan(0);
+  });
+
+  it('asks the coach to choose a client on the calendar tab when no client is selected', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [];
+    await renderLibrary(repo);
+
+    const viewTabs = within(screen.getByRole('tablist', { name: 'Library view' })).getAllByRole('tab');
+    await act(async () => {
+      fireEvent.click(viewTabs[1]);
+    });
+
+    expect(screen.getByText(/choose a client from prepare an assignment/i)).toBeInTheDocument();
+  });
 });
