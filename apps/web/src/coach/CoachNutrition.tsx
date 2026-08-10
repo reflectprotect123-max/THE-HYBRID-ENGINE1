@@ -43,6 +43,15 @@ function RosterNutritionView({ clientId, clientName }: { clientId: string; clien
     return () => { active = false; };
   }, [repository, clientId, weekStart]);
 
+  const unloggedCount = window_?.dailyStatus.filter((day) => day.status === 'unlogged').length ?? 0;
+  const macroTarget = window_ && window_.macroTargets.length > 0
+    ? window_.macroTargets.find((t) => t.date === today()) ??
+      window_.macroTargets.reduce((a, b) => (b.date > a.date ? b : a))
+    : null;
+  const weights = window_ ? [...window_.weightEntries].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt)) : [];
+  const latestWeight = weights.length > 0 ? weights[weights.length - 1] : null;
+  const weightDelta = latestWeight && weights.length >= 2 ? latestWeight.weightKg - weights[0].weightKg : null;
+
   return (
     <main className="min-h-screen bg-bg text-text">
       <header className="border-b border-line2 px-3 py-3 sm:px-4">
@@ -83,6 +92,21 @@ function RosterNutritionView({ clientId, clientName }: { clientId: string; clien
                   {window_.dailyStatus.map((day) => <li key={day.date} className="flex gap-1"><span className="tabular-nums">{day.date}</span><span className="ml-auto capitalize text-muted">{day.status}</span></li>)}
                   {window_.dailyStatus.length === 0 && <li className="text-muted">No logged days this week.</li>}
                 </ul>
+              </div>
+              {unloggedCount > 0 && (
+                <p className="text-muted">{unloggedCount} day{unloggedCount === 1 ? '' : 's'} unlogged this week.</p>
+              )}
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-dim">Today&rsquo;s macro targets</p>
+                {macroTarget
+                  ? <p className="mt-0.5 tabular-nums">{Math.round(macroTarget.calories)} kcal · {Math.round(macroTarget.proteinG)}g protein · {Math.round(macroTarget.carbsG)}g carbs · {Math.round(macroTarget.fatG)}g fat</p>
+                  : <p className="mt-0.5 text-muted">No targets set.</p>}
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-dim">Weight trend</p>
+                {latestWeight
+                  ? <p className="mt-0.5 tabular-nums">{latestWeight.weightKg.toFixed(1)}kg latest{weightDelta != null ? ` · ${weightDelta >= 0 ? '+' : ''}${weightDelta.toFixed(1)}kg this week` : ''}</p>
+                  : <p className="mt-0.5 text-muted">No weigh-ins this week.</p>}
               </div>
               {window_.latestCheckIn && (
                 <div>

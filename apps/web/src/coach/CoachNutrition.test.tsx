@@ -129,6 +129,9 @@ describe('CoachNutrition (roster)', () => {
     expect(screen.queryByText('DISTINCT_CHECKIN_EXPLANATION_TOKEN')).not.toBeInTheDocument();
     expect(screen.queryByText('holding')).not.toBeInTheDocument();
     expect(screen.queryByText('123.4')).not.toBeInTheDocument();
+    expect(screen.queryByText(/unlogged this week/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/kg latest/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/g protein/)).not.toBeInTheDocument();
     expect(screen.queryByText(/logged to Riley Roster/)).not.toBeInTheDocument();
   });
 
@@ -145,6 +148,46 @@ describe('CoachNutrition (roster)', () => {
     expect(screen.getByText('DISTINCT_CHECKIN_EXPLANATION_TOKEN')).toBeInTheDocument();
     expect(screen.getByText('holding')).toBeInTheDocument();
     expect(screen.getByText(/logged to Riley Roster.s receipt trail/)).toBeInTheDocument();
+  });
+
+  it('renders the unlogged callout, latest macro targets and weight trend inside the granted window', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ name: 'Riley Roster' })];
+    repo.nutritionGrant = true;
+    repo.nutritionWindow = nutritionWindowFixture({
+      dailyStatus: [
+        { date: '2026-08-03', status: 'complete', note: null },
+        { date: '2026-08-04', status: 'unlogged', note: null },
+        { date: '2026-08-05', status: 'unlogged', note: null },
+      ],
+      weightEntries: [
+        { measuredAt: '2026-08-03', weightKg: 78.7 },
+        { measuredAt: '2026-08-08', weightKg: 78.4 },
+      ],
+      macroTargets: [
+        { date: '2026-08-03', calories: 2400, proteinG: 180, carbsG: 260, fatG: 70 },
+        { date: '2026-08-05', calories: 2500, proteinG: 190, carbsG: 270, fatG: 75 },
+      ],
+    });
+    await renderNutrition(repo);
+
+    expect(screen.getByText('2 days unlogged this week.')).toBeInTheDocument();
+    // No date matches today, so the LATEST target by date is shown — targets
+    // only, never an actual-vs-target bar (no actuals exist at this tier).
+    expect(screen.getByText('2500 kcal · 190g protein · 270g carbs · 75g fat')).toBeInTheDocument();
+    expect(screen.getByText('78.4kg latest · -0.3kg this week')).toBeInTheDocument();
+  });
+
+  it('renders muted empty states when the granted window has no targets and no weigh-ins', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient()];
+    repo.nutritionGrant = true;
+    repo.nutritionWindow = nutritionWindowFixture({ weightEntries: [], macroTargets: [] });
+    await renderNutrition(repo);
+
+    expect(screen.getByText('No targets set.')).toBeInTheDocument();
+    expect(screen.getByText('No weigh-ins this week.')).toBeInTheDocument();
+    expect(screen.queryByText(/unlogged this week/)).not.toBeInTheDocument();
   });
 });
 
