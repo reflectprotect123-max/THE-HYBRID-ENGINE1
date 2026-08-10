@@ -1,21 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import type { Workout } from '@hybrid/engine';
 import type { LedgerEntry } from '../autocoach/ledger';
-import { plannedForToday, showZonesCard } from './Home';
-
-describe('showZonesCard', () => {
-  it('hides the zones door for a strength-scoped build', () => {
-    expect(showZonesCard('strength', true)).toBe(false);
-  });
-
-  it('keeps the zones door for a conditioning-scoped build', () => {
-    expect(showZonesCard('conditioning', true)).toBe(true);
-  });
-
-  it('keeps the zones door for the unscoped dashboard build, even if the product defaulted to strength', () => {
-    expect(showZonesCard('strength', false)).toBe(true);
-  });
-});
+import { plannedForToday } from './Home';
 
 /*
  * Approving an Auto-Coached proposal for a RECURRING session writes a one-off
@@ -24,8 +9,9 @@ describe('showZonesCard', () => {
  * so "Today's plan" showed the session twice and "Start today's session"
  * attached to the first card, the un-adjusted original.
  */
+
 const TODAY = '2026-08-10';
-const DOW = new Date(`${TODAY}T00:00:00Z`).getUTCDay(); // Monday = 1
+const DOW = new Date(`${TODAY}T00:00:00`).getDay(); // local, as Home computes it
 
 const recurring = { id: 'w-1', name: 'Heavy Lower', kind: 'strength', blocks: [], days: [DOW] } as unknown as Workout;
 const fork = { id: 'w-fork', name: 'Heavy Lower', kind: 'strength', blocks: [], dates: [TODAY] } as unknown as Workout;

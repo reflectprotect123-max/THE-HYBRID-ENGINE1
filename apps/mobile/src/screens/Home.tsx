@@ -23,6 +23,7 @@ import { useDb } from '../store/db';
 import { ForeignSessionNotice } from './ForeignSession';
 import { resolveDayTarget, sessionFrom } from '../store/session';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
+import { useLedger, type LedgerEntry } from '../autocoach/ledger';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
 import type { RootStackParams } from '../App';
 
@@ -48,6 +49,51 @@ import type { RootStackParams } from '../App';
  * forgot they were in. One tap moves to that world, where the normal
  * "In progress" card takes over.
  */
+/**
+ * What is planned for today, with an Auto-Coached fork REPLACING the session
+ * it was forked from rather than sitting next to it. Same helper, same
+ * reasoning as apps/web/src/screens/Home.tsx's plannedForToday.
+ *
+ * A recurring template matches today through `days`; approving a receipt for
+ * it writes a one-off copy dated today (applyResolution.ts's ForkPlan) rather
+ * than mutating the template, so a plain date-or-weekday filter matched both
+ * and showed two cards for one session — with "Start today's session"
+ * attached to whichever came first, usually the UN-adjusted original. That
+ * silently undoes the approval the athlete just gave.
+ *
+ * A fork carries no back-pointer to its source (a forked Workout is an
+ * ordinary dated workout), so the link is the ledger entry that created it:
+ * `workoutId` is the source, `forkedWorkoutId` the copy. The ledger is
+ * newest-first, so the first entry naming a source is that source's current
+ * state — an `undone` entry means the fork was reversed and the original is
+ * today's session again.
+ */
+export function plannedForToday(
+  workouts: Workout[],
+  ledger: Pick<LedgerEntry, 'date' | 'action' | 'workoutId' | 'wasForked' | 'forkedWorkoutId'>[],
+  today: string,
+  dow: number,
+): Workout[] {
+  const superseded = new Set<string>();
+  const seen = new Set<string>();
+  for (const e of ledger) {
+    if (e.date !== today || seen.has(e.workoutId)) continue;
+    seen.add(e.workoutId);
+    if (
+      e.action === 'applied' &&
+      e.wasForked &&
+      e.forkedWorkoutId &&
+      workouts.some((w) => w.id === e.forkedWorkoutId)
+    ) {
+      superseded.add(e.workoutId);
+    }
+  }
+  return workouts.filter(
+    (w) =>
+      ((w.dates || []).includes(today) || (w.days || []).includes(dow)) && !superseded.has(w.id),
+  );
+}
+
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { hr, whoop, activeSession, update, athleteState, weeklyPlan, workouts, sessions } = useDb();
@@ -64,9 +110,10 @@ export function HomeScreen() {
   const gap = useMemo(() => rpeGapInfo(sessions), [sessions]);
 
   const dow = new Date().getDay();
+  const ledger = useLedger();
   const planned = useMemo(
-    () => workouts.filter((w) => (w.dates || []).includes(today) || (w.days || []).includes(dow)),
-    [workouts, today, dow],
+    () => plannedForToday(workouts, ledger, today, dow),
+    [workouts, ledger, today, dow],
   );
   // The live session already has its own card — repeating its workout under
   // "Today's plan" would offer Start for work that is mid-flight.
@@ -382,7 +429,12 @@ function WeekStrip({
         label: d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
       };
     });
-  }, [workouts, sessions]);
+    // `today` is not read inside, but `start` and every key come from
+    // `new Date()` — without it the strip keeps last week's seven days when
+    // the app is left open across a week boundary, until some unrelated
+    // store write happens to invalidate the memo. Same dependency the
+    // `planned` memo above already carries.
+  }, [workouts, sessions, today]);
 
   return (
     <View className="flex-row gap-0.5">
