@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { CoachSection } from './CoachSection';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import { useDb } from '../store/db';
 import type { AthleteAutocoachReceipt, AthleteProgressionProposal } from './contracts';
@@ -168,17 +169,13 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
         )}
 
         {receipts && receipts.length > 0 && (
-          <section className="mt-2 rounded-md border border-line2 bg-panel3">
-            <div className="border-b border-line px-2 py-1.5">
-              <p className="text-[10px] uppercase tracking-wider text-dim">Autonomy · read-only</p>
-              <h2 className="text-sm font-semibold">What the system adjusted for {clientName}</h2>
-              <p className="mt-0.5 text-[11px] text-muted">
-                Auto-Coach changed a session automatically, before {clientName} started it, using
-                whole-athlete-state's constraints as its input. Nothing here is editable — it is a record of
-                what already happened locally on their device.
-              </p>
-            </div>
-            <div className="space-y-1 p-2">
+          <CoachSection eyebrow="Autonomy · read-only" title={`What the system adjusted for ${clientName}`} count={receipts.length}>
+            <p className="text-[11px] text-muted">
+              Auto-Coach changed a session automatically, before {clientName} started it, using
+              whole-athlete-state's constraints as its input. Nothing here is editable — it is a record of
+              what already happened locally on their device.
+            </p>
+            <div className="mt-1 space-y-1">
               {receipts.map((receipt) => (
                 <article key={receipt.clientEntryId} className="rounded border border-line bg-panel p-1.5 text-xs">
                   <div className="flex flex-wrap items-baseline gap-1">
@@ -198,7 +195,7 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
                 </article>
               ))}
             </div>
-          </section>
+          </CoachSection>
         )}
       </div>
       <div className="sr-only" aria-live="polite">{message}</div>
@@ -343,8 +340,23 @@ function SelfCoachProgressionView() {
         </div>
 
         <aside className="space-y-2 xl:sticky xl:top-[58px] xl:self-start">
-          <section className="rounded-md border border-line2 bg-panel3 p-2" aria-labelledby="history-title"><div className="flex items-baseline"><h2 id="history-title" className="text-sm font-semibold">Decision history</h2><span className="ml-auto text-xs tabular-nums text-muted">{ledger.decisions.length}</span></div><div className="mt-1 space-y-1">{ledger.decisions.slice(0, 12).map((event) => { const proposal = ledger.proposals.find((item) => item.id === event.proposalId); return <article key={event.id} className="rounded border border-line bg-panel p-1"><div className="flex items-baseline gap-1"><strong className="text-xs">{proposal?.subject ?? 'Proposal'}</strong><span className="ml-auto text-[10px] uppercase tracking-wide text-muted">{event.decision}</span></div><p className="mt-0.5 text-[11px] text-muted">{event.rationale}</p><p className="mt-0.5 text-[10px] text-dim">{dateTime(event.decidedAt)} · {event.applied ? 'prescription updated' : 'no prescription change'}</p>{event.note && <p className="mt-0.5 text-[10px] text-warn">{event.note}</p>}</article>; })}{ledger.decisions.length === 0 && <p className="text-xs text-muted">No coach decision has been recorded yet.</p>}</div></section>
-          <section className="rounded-md border border-line2 bg-panel3 p-2"><p className="text-[10px] uppercase tracking-wider text-dim">Implemented boundary</p><p className="mt-0.5 text-xs text-muted">This is real front-end decision logic and local demo persistence. It is not server authorization, a durable audit trail, or multi-device sync.</p></section>
+          <CoachSection eyebrow="History" title="Decision history" count={ledger.decisions.length}>
+            <div className="space-y-1">
+              {ledger.decisions.slice(0, 12).map((event) => {
+                const proposal = ledger.proposals.find((item) => item.id === event.proposalId);
+                return (
+                  <article key={event.id} className="rounded border border-line bg-panel p-1">
+                    <div className="flex items-baseline gap-1"><strong className="text-xs">{proposal?.subject ?? 'Proposal'}</strong><span className="ml-auto text-[10px] uppercase tracking-wide text-muted">{event.decision}</span></div>
+                    <p className="mt-0.5 text-[11px] text-muted">{event.rationale}</p>
+                    <p className="mt-0.5 text-[10px] text-dim">{dateTime(event.decidedAt)} · {event.applied ? 'prescription updated' : 'no prescription change'}</p>
+                    {event.note && <p className="mt-0.5 text-[10px] text-warn">{event.note}</p>}
+                  </article>
+                );
+              })}
+              {ledger.decisions.length === 0 && <p className="text-xs text-muted">No coach decision has been recorded yet.</p>}
+            </div>
+            <p className="mt-2 text-[11px] text-dim">This is real front-end decision logic and local demo persistence. It is not server authorization, a durable audit trail, or multi-device sync.</p>
+          </CoachSection>
         </aside>
       </div>
       <div className="sr-only" aria-live="polite">{message}</div>
