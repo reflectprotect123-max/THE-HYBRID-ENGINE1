@@ -8,6 +8,7 @@ import { NutritionProvider } from '../store/nutrition';
 import { CoachCommandCenter } from './CoachCommandCenter';
 import { resetProgressionLedgerForTests } from './progression-store';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
+import type { AthleteProgressionProposal } from './contracts';
 
 /*
  * docs/RISK_REGISTER.md R8. CoachCommandCenter is the one coach-bench screen
@@ -59,6 +60,22 @@ const ROSTER_CLIENT = rosterClient({
     checkInDays: 4,
   },
 });
+
+function rosterProposal(over: Partial<AthleteProgressionProposal> = {}): AthleteProgressionProposal {
+  return {
+    id: 'prop-1',
+    domain: 'strength',
+    subject: 'Back squat',
+    clientKey: 'back_squat',
+    before: { kg: 100, reps: 5 },
+    after: { kg: 102.5, reps: 5 },
+    confidence: 'high',
+    hard: false,
+    direction: 'increase',
+    createdAt: '2026-08-01T00:00:00.000Z',
+    ...over,
+  };
+}
 
 /**
  * `CoachWorkspaceProvider` resolves `clients`/`selectedClient` via an async
@@ -156,6 +173,28 @@ describe('CoachCommandCenter', () => {
 
     expect(screen.getByText(/Riley Roster.s resolved week is not readable here yet/)).toBeInTheDocument();
     expect(screen.getByText(/Riley Roster.s readiness and capacity are not readable here yet/)).toBeInTheDocument();
+  });
+
+  it('shows live pending counts and the nutrition summary for a roster client, linked to the real screens', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [ROSTER_CLIENT];
+    repo.progressionProposals = [
+      rosterProposal({ id: 'prop-1', domain: 'strength' }),
+      rosterProposal({ id: 'prop-2', domain: 'strength', clientKey: 'bench_press', subject: 'Bench press' }),
+      rosterProposal({ id: 'prop-3', domain: 'conditioning', clientKey: 'row_erg', subject: 'Row erg' }),
+    ];
+    repo.nutritionSummary = { loggedDays: 4, windowDays: 7, trendDirection: 'stable', estimateConfidence: 'medium' };
+    await renderCommandCenter(repo);
+
+    const strengthRow = screen.getByText('2 pending').closest('a');
+    expect(strengthRow).toHaveAttribute('href', '/coach/progression');
+    const conditioningRow = screen.getByText('1 pending').closest('a');
+    expect(conditioningRow).toHaveAttribute('href', '/coach/progression');
+    const nutritionRow = screen.getByText('4/7 days logged').closest('a');
+    expect(nutritionRow).toHaveAttribute('href', '/coach/nutrition');
+
+    // The stale static-snapshot phrasing is gone for roster clients.
+    expect(screen.queryByText(/completed in the current week/)).not.toBeInTheDocument();
   });
 
   it('renders the decision queue first in DOM order, ahead of the collapsed reference sections', async () => {

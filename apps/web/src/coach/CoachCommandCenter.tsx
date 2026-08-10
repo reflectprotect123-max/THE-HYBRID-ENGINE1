@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLedger } from '../autocoach/ledger';
 import { useDb } from '../store/db';
@@ -9,7 +9,7 @@ import { useProgressionLedger } from './progression-store';
 import { buildWeekReview } from './week-review';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import { CoachSection } from './CoachSection';
-import type { ClientSummary } from './contracts';
+import type { AthleteNutritionSummary, AthleteProgressionProposal, ClientSummary } from './contracts';
 
 interface PriorityItem {
   id: string;
@@ -68,6 +68,12 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function mondayOf(d: Date): string {
+  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
+  return copy.toISOString().slice(0, 10);
+}
+
 function shortDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', timeZone: 'UTC' })
     .format(new Date(`${value}T00:00:00Z`));
@@ -75,7 +81,7 @@ function shortDate(value: string): string {
 
 export function CoachCommandCenter() {
   const [showAllClients, setShowAllClients] = useState(false);
-  const { clients: clientContracts, selectedClient: selectedContract, selectClient, loading: clientsLoading, error: clientsError } = useCoachWorkspace();
+  const { clients: clientContracts, selectedClient: selectedContract, selectClient, loading: clientsLoading, error: clientsError, repository } = useCoachWorkspace();
   const clients = useMemo(() => clientContracts.map(toSnapshot), [clientContracts]);
   const selectedClient = selectedContract ? toSnapshot(selectedContract) : null;
   const { db, sessions, weeklyPlan, athleteState } = useDb();
@@ -87,6 +93,27 @@ export function CoachCommandCenter() {
     [interventionLedger, sessions, weeklyPlan],
   );
   const nutritionReview = useMemo(() => buildCoachNutritionReview(nutrition, today()), [nutrition]);
+  const weekStart = useMemo(() => mondayOf(new Date()), []);
+  const [rosterProposals, setRosterProposals] = useState<readonly AthleteProgressionProposal[]>([]);
+  const [rosterNutritionSummary, setRosterNutritionSummary] = useState<AthleteNutritionSummary | null>(null);
+  const rosterClientId = selectedContract && selectedContract.source !== 'engine-local' ? selectedContract.id : null;
+  useEffect(() => {
+    let active = true;
+    setRosterProposals([]);
+    setRosterNutritionSummary(null);
+    if (!rosterClientId) return;
+    /* `?.()` alone short-circuits to `undefined` when unimplemented (an
+       older build, or the mock repository) — chaining `.then` on that
+       throws rather than degrading. `?? Promise.resolve(...)` substitutes
+       the same "not available" fallback every other branch already renders. */
+    (repository.listProgressionProposals?.(rosterClientId) ?? Promise.resolve([] as readonly AthleteProgressionProposal[]))
+      .then((v) => { if (active) setRosterProposals(v); }).catch(() => { if (active) setRosterProposals([]); });
+    (repository.getNutritionSummary?.(rosterClientId, weekStart) ?? Promise.resolve(null))
+      .then((v) => { if (active) setRosterNutritionSummary(v); }).catch(() => { if (active) setRosterNutritionSummary(null); });
+    return () => { active = false; };
+  }, [repository, rosterClientId, weekStart]);
+  const rosterStrengthPending = rosterProposals.filter((proposal) => proposal.domain === 'strength').length;
+  const rosterConditioningPending = rosterProposals.filter((proposal) => proposal.domain === 'conditioning').length;
   const decided = useMemo(
     () => new Set(progressionLedger.decisions.map((decision) => decision.proposalId)),
     [progressionLedger.decisions],
@@ -224,9 +251,9 @@ export function CoachCommandCenter() {
 
           <CoachSection eyebrow="Specialist inputs" title="Three systems">
             <div className="divide-y divide-line">
-              <SystemRow domain="Strength" detail={selectedClient.source === 'engine-local' ? `${strengthWorkouts} authored · ${strengthPending} pending` : `${selectedClient.strength} completed in the current week`} state={selectedClient.source === 'engine-local' ? athleteState.capacity.strength : 'fixture'} to={selectedClient.source === 'engine-local' ? '/coach/author' : '/coach/library'} />
-              <SystemRow domain="Conditioning" detail={selectedClient.source === 'engine-local' ? `${conditioningWorkouts} authored · ${conditioningPending} pending` : `${selectedClient.conditioning} completed in the current week`} state={selectedClient.source === 'engine-local' ? athleteState.capacity.conditioning : 'fixture'} to={selectedClient.source === 'engine-local' ? '/coach/author' : '/coach/library'} />
-              <SystemRow domain="Nutrition" detail={selectedClient.source === 'engine-local' ? `${nutritionReview.days.filter((day) => day.status !== 'unlogged').length} of 7 days declared · ${nutritionReview.exceptions.length} notes` : `${selectedClient.nutrition} logged`} state={selectedClient.source === 'engine-local' ? nutritionReview.summary.estimate.confidence : 'fixture'} to={selectedClient.source === 'engine-local' ? '/coach/nutrition' : '/coach'} />
+              <SystemRow domain="Strength" detail={selectedClient.source === 'engine-local' ? `${strengthWorkouts} authored · ${strengthPending} pending` : `${rosterStrengthPending} pending`} state={selectedClient.source === 'engine-local' ? athleteState.capacity.strength : 'fixture'} to={selectedClient.source === 'engine-local' ? '/coach/author' : '/coach/progression'} />
+              <SystemRow domain="Conditioning" detail={selectedClient.source === 'engine-local' ? `${conditioningWorkouts} authored · ${conditioningPending} pending` : `${rosterConditioningPending} pending`} state={selectedClient.source === 'engine-local' ? athleteState.capacity.conditioning : 'fixture'} to={selectedClient.source === 'engine-local' ? '/coach/author' : '/coach/progression'} />
+              <SystemRow domain="Nutrition" detail={selectedClient.source === 'engine-local' ? `${nutritionReview.days.filter((day) => day.status !== 'unlogged').length} of 7 days declared · ${nutritionReview.exceptions.length} notes` : rosterNutritionSummary ? `${rosterNutritionSummary.loggedDays}/${rosterNutritionSummary.windowDays} days logged` : 'Not available'} state={selectedClient.source === 'engine-local' ? nutritionReview.summary.estimate.confidence : 'fixture'} to="/coach/nutrition" />
             </div>
           </CoachSection>
 
