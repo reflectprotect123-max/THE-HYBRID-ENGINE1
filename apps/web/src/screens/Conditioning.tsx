@@ -25,7 +25,6 @@ import {
 import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
 import { connectEchoV3, type EchoV3Connection, type EchoV3Event } from '../native/echoV3';
-import { createGeoTracker, type GeoPoint } from '../native/geoTracker';
 import { requestWakeLock, releaseWakeLock } from '../native/wakeLock';
 import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
 import { conditioningProgressionProposal } from '../coach/progression';
@@ -90,10 +89,6 @@ const RUN: {
   /** The open Echo V3 link, held at module scope like the run itself so a
    *  mid-run hop to Home doesn't drop the bike. Null when not connected. */
   echo: EchoV3Connection | null;
-  /** Foreground-only GPS tracker for web PWA, started on run-start and stopped
-   *  on run-finish. Points collected during the run for potential route tracking. */
-  geoTracker: ReturnType<typeof createGeoTracker> | null;
-  geoPoints: GeoPoint[];
   timer: number | null;
   /** The mounted screen, when there is one, so beats reach the ring. */
   onBpm: ((n: number) => void) | null;
@@ -127,8 +122,6 @@ const RUN: {
   powerSamples: [],
   cadenceSamples: [],
   echo: null,
-  geoTracker: null,
-  geoPoints: [],
   timer: null,
   onBpm: null,
   onFtms: null,
@@ -316,7 +309,6 @@ export function Conditioning() {
     RUN.samples = [];
     RUN.powerSamples = [];
     RUN.cadenceSamples = [];
-    RUN.geoPoints = [];
     RUN.bpm = null;
     RUN.power_w = null;
     RUN.cadence_rpm = null;
@@ -342,21 +334,12 @@ export function Conditioning() {
       },
       (state, message) => setStrapState({ status: state, message }),
     );
-    // Start foreground GPS tracking (web PWA only, no background capability)
-    if (!RUN.geoTracker) {
-      RUN.geoTracker = createGeoTracker();
-    }
-    RUN.geoTracker.start(
-      (point) => RUN.geoPoints.push(point),
-      (error) => console.warn('GPS tracking error:', error),
-    );
   }
 
   function finish() {
     if (RUN.timer) window.clearInterval(RUN.timer);
     RUN.timer = null;
     RUN.live = false;
-    RUN.geoTracker?.stop();
     setLive(false);
     // A run too short to be training is discarded, not banked — a Start→Finish
     // mis-tap used to write a 1-second run, which conAdapt then treated as a
@@ -365,7 +348,6 @@ export function Conditioning() {
       RUN.samples = [];
       RUN.powerSamples = [];
       RUN.cadenceSamples = [];
-      RUN.geoPoints = [];
       RUN.elapsed = 0;
       setElapsed(0);
       setResult(null);
@@ -426,7 +408,6 @@ export function Conditioning() {
     rec.mechanicalCompletion = m;
     rec.cardioCompletion = cardioCompletionFor(rec.fmt ?? fmt, rec.zsec, rec.dur ?? 0);
     RUN.pending = null;
-    RUN.geoPoints = [];
     setResult(rec);
     setRating(false);
 
