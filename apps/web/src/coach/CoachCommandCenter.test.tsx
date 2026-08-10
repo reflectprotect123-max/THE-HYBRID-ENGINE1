@@ -168,11 +168,17 @@ describe('CoachCommandCenter', () => {
     expect(
       screen.queryByText('No sessions resolved. Inspect safety, schedule and proposal inputs; do not invent a plan.'),
     ).not.toBeInTheDocument();
+    // No band figures for a roster client — there is no repository method
+    // that returns a derived readiness/capacity band for one.
     expect(screen.queryByText('Readiness')).not.toBeInTheDocument();
-    expect(screen.queryByText('MOCKED_ATHLETE_STATUS')).not.toBeInTheDocument();
+    // AthleteStatus itself IS rendered for a roster client now, in its
+    // consent-gated roster form (clientId passed through) — this is the
+    // intentional Stage 5 change, not a regression of the old "never shown"
+    // behavior this test used to assert.
+    expect(screen.getByText('MOCKED_ATHLETE_STATUS')).toBeInTheDocument();
 
     expect(screen.getByText(/Riley Roster.s resolved week is not readable here yet/)).toBeInTheDocument();
-    expect(screen.getByText(/Riley Roster.s readiness and capacity are not readable here yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Riley Roster.s readiness band is not readable here yet/)).toBeInTheDocument();
   });
 
   it('shows live pending counts and the nutrition summary for a roster client, linked to the real screens', async () => {

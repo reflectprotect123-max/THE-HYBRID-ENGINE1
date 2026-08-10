@@ -87,6 +87,7 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   nutritionSummary: AthleteNutritionSummary | null = null;
   nutritionWindow: AthleteNutritionWindow | null = null;
   nutritionGrant = false;
+  readinessGrant = false;
   workoutDrafts: readonly AthleteWorkoutDraft[] = [];
   savedDrafts: { clientId: string; workoutId: string; kind: TrainingDomain; body: unknown; baseVersion: number | null }[] = [];
   publishedDrafts: { clientId: string; workoutId: string; baseVersion: number; preferredStartDate: string; preferredWeekdays: number[] }[] = [];
@@ -144,6 +145,10 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
 
   async hasNutritionGrant(): Promise<boolean> {
     return this.nutritionGrant;
+  }
+
+  async hasReadinessGrant(): Promise<boolean> {
+    return this.readinessGrant;
   }
 
   async listWorkoutDrafts(): Promise<readonly AthleteWorkoutDraft[]> {

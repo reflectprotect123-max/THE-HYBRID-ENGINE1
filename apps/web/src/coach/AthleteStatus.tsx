@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDb } from '../store/db';
 import { useConcept2 } from '../cloud/concept2';
 import { useSync, supabaseClient } from '../cloud/sync';
-import { getMyArcOrgId, pushTrendSnapshots } from '../cloud/arc-athlete-sync';
+import { getMyArcOrgId, pushTrendSnapshots, pushReadinessTrendSnapshot } from '../cloud/arc-athlete-sync';
 import { cx } from '../ui';
+import { useCoachWorkspace } from './CoachWorkspaceContext';
+import type { AthleteTrendSnapshot } from './contracts';
 import { ergTrend, liftTrends, weeklyHardBudget, type TrendSeries } from './trends';
 
 /*
@@ -109,7 +111,82 @@ function TrendRow({
   );
 }
 
-export function AthleteStatus() {
+interface ReadinessPoint {
+  date: string;
+  recovery: number | null;
+  strain: number | null;
+  hrvMs?: number | null;
+  restingHr?: number | null;
+  sleepPerformance?: number | null;
+}
+
+function readinessLine(p: ReadinessPoint): string {
+  const parts: string[] = [];
+  if (p.hrvMs != null) parts.push(`${p.hrvMs}ms HRV`);
+  if (p.restingHr != null) parts.push(`${p.restingHr}bpm RHR`);
+  if (p.sleepPerformance != null) parts.push(`${p.sleepPerformance}% sleep`);
+  if (p.strain != null) parts.push(`${p.strain} strain`);
+  if (p.recovery != null) parts.push(`${p.recovery}% recovery`);
+  return parts.join(' · ');
+}
+
+function RosterReadinessView({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const { repository } = useCoachWorkspace();
+  const [granted, setGranted] = useState<boolean | null>(null);
+  const [snapshot, setSnapshot] = useState<AthleteTrendSnapshot | null | undefined>(undefined);
+
+  useEffect(() => {
+    let active = true;
+    /* `?.()` alone short-circuits to `undefined` when unimplemented (an
+       older build, or the mock repository) — chaining `.then` on that
+       throws rather than degrading. `?? Promise.resolve(...)` substitutes
+       the same "not available" fallback every other branch already renders. */
+    (repository.hasReadinessGrant?.(clientId) ?? Promise.resolve(false))
+      .then((v) => { if (active) setGranted(v); }).catch(() => { if (active) setGranted(false); });
+    (repository.getTrendSnapshot?.(clientId, 'readiness_trend') ?? Promise.resolve(null))
+      .then((v) => { if (active) setSnapshot(v); }).catch(() => { if (active) setSnapshot(null); });
+    return () => { active = false; };
+  }, [repository, clientId]);
+
+  const points = useMemo(() => {
+    const raw = (snapshot?.points ?? []) as unknown as ReadinessPoint[];
+    return [...raw].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7);
+  }, [snapshot]);
+
+  return (
+    <section className="mt-1 rounded border border-line bg-panel3 p-1">
+      <h3 className="text-[10px] uppercase tracking-wider text-dim">Readiness — needs {clientName}&rsquo;s consent</h3>
+      {granted === false && (
+        <p className="mt-0.5 text-[11px] text-muted">
+          {clientName} has not granted raw readiness access to your account. Ask them to grant it from their own device — it can be revoked at any time and every read is logged to their receipt trail.
+        </p>
+      )}
+      {granted && snapshot === undefined && <p className="mt-0.5 text-[11px] text-muted">Loading…</p>}
+      {granted && snapshot === null && <p className="mt-0.5 text-[11px] text-muted">Not available.</p>}
+      {granted && snapshot && points.length === 0 && (
+        <p className="mt-0.5 text-[11px] text-muted">No readiness history yet.</p>
+      )}
+      {granted && snapshot && points.length > 0 && (
+        <>
+          {points.map((p) => (
+            <div key={p.date} className="mt-0.5 flex items-center gap-1">
+              <span className="text-[10px] tabular-nums text-dim">{p.date}</span>
+              <span className="ml-auto text-[10px] tabular-nums text-muted">{readinessLine(p)}</span>
+            </div>
+          ))}
+          <p className="mt-0.5 text-[10px] text-dim">This read was logged to {clientName}&rsquo;s receipt trail.</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function AthleteStatus({ clientId, clientName }: { clientId?: string; clientName?: string } = {}) {
+  if (clientId) return <RosterReadinessView clientId={clientId} clientName={clientName ?? 'This athlete'} />;
+  return <SelfAthleteStatus />;
+}
+
+function SelfAthleteStatus() {
   const { db, workouts, sessions, athleteState } = useDb();
   const c2 = useConcept2();
   const today = new Date().toISOString().slice(0, 10);
@@ -140,6 +217,7 @@ export function AthleteStatus() {
       const orgId = await getMyArcOrgId(supabaseClient, user.id);
       if (!orgId) return;
       await pushTrendSnapshots(supabaseClient, orgId, lifts, erg, hard);
+      await pushReadinessTrendSnapshot(supabaseClient, orgId, (db.settings.whoopDaily ?? []) as { date: string; recovery: number | null; strain: number | null; hrvMs?: number | null; restingHr?: number | null; sleepPerformance?: number | null }[]);
     })();
     // `hard` and `erg` are plain objects recomputed by useMemo above and
     // compared by reference here, which is intentional — pushing only when

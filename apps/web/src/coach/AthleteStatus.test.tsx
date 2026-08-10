@@ -5,6 +5,8 @@ import { act, render, screen } from '@testing-library/react';
 import { DbProvider } from '../store/db';
 import { LS_KEY } from '@hybrid/engine';
 import { AthleteStatus } from './AthleteStatus';
+import { FakeCoachWorkspaceRepository, renderCoachScreen } from './coach-test-harness';
+import type { AthleteTrendSnapshot } from './contracts';
 
 /*
  * docs/RISK_REGISTER.md R8. AthleteStatus is the self-coach "Where they're
@@ -125,5 +127,85 @@ describe('AthleteStatus', () => {
     const conditioning = screen.getByText('cond high');
     expect(conditioning).toHaveClass('text-ok');
     expect(conditioning).not.toHaveClass('text-bad');
+  });
+});
+
+/*
+ * Roster branch (`RosterReadinessView`) — the same two-tier consent boundary
+ * `CoachNutrition.test.tsx` proves for nutrition. `getTrendSnapshot` and
+ * `hasReadinessGrant` are two independent repository calls; only the screen's
+ * own `granted &&` gate keeps a returned snapshot out of the document when
+ * the athlete never granted the raw-readiness read.
+ */
+
+function readinessSnapshot(points: Record<string, unknown>[]): AthleteTrendSnapshot {
+  return { kind: 'readiness_trend', points, generatedAt: '2026-08-10T00:00:00Z' };
+}
+
+async function renderRoster(repo: FakeCoachWorkspaceRepository) {
+  const result = renderCoachScreen(
+    <AthleteStatus clientId="roster-1" clientName="Riley Roster" />,
+    { repository: repo },
+  );
+  await act(async () => {});
+  return result;
+}
+
+describe('AthleteStatus (roster)', () => {
+  it('shows the consent-refusal message and never renders readiness rows when hasReadinessGrant resolves false', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.readinessGrant = false;
+    // The repository does NOT enforce consent — it hands back whatever is
+    // set here. Only the screen's own `granted &&` gate may keep it out.
+    repo.trendSnapshots['readiness_trend'] = readinessSnapshot([
+      { date: '2026-08-09', recovery: 72, strain: 14.2, hrvMs: 62, restingHr: 48, sleepPerformance: 91 },
+    ]);
+    await renderRoster(repo);
+
+    expect(
+      screen.getByText(/Riley Roster has not granted raw readiness access to your account/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('2026-08-09')).not.toBeInTheDocument();
+    expect(screen.queryByText(/ms HRV/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/logged to Riley Roster/)).not.toBeInTheDocument();
+  });
+
+  it('renders newest-first readiness rows, skipping null fields, capped at seven, once granted', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.readinessGrant = true;
+    repo.trendSnapshots['readiness_trend'] = readinessSnapshot([
+      // Deliberately oldest-first with one extra point beyond the 7-row cap,
+      // so the assertions below prove the sort AND the cap.
+      { date: '2026-08-02', recovery: 50, strain: 10.1, hrvMs: 55, restingHr: 50, sleepPerformance: 80 },
+      { date: '2026-08-03', recovery: 55, strain: 11.0, hrvMs: 56, restingHr: 50, sleepPerformance: 82 },
+      { date: '2026-08-04', recovery: 60, strain: 12.0, hrvMs: 57, restingHr: 49, sleepPerformance: 84 },
+      { date: '2026-08-05', recovery: 61, strain: 12.5, hrvMs: 58, restingHr: 49, sleepPerformance: 85 },
+      { date: '2026-08-06', recovery: 63, strain: 13.0, hrvMs: 59, restingHr: 49, sleepPerformance: 86 },
+      { date: '2026-08-07', recovery: 65, strain: 13.5, hrvMs: 60, restingHr: 48, sleepPerformance: 88 },
+      { date: '2026-08-08', recovery: 70, strain: null, hrvMs: null, restingHr: null, sleepPerformance: null },
+      { date: '2026-08-09', recovery: 72, strain: 14.2, hrvMs: 62, restingHr: 48, sleepPerformance: 91 },
+    ]);
+    await renderRoster(repo);
+
+    expect(screen.queryByText(/has not granted raw readiness access/)).not.toBeInTheDocument();
+    // Fully populated newest point, every field labelled in order.
+    expect(screen.getByText('62ms HRV · 48bpm RHR · 91% sleep · 14.2 strain · 72% recovery')).toBeInTheDocument();
+    // Null fields are skipped, not printed as "null".
+    expect(screen.getByText('70% recovery')).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).not.toBeInTheDocument();
+    // Capped at the most recent 7 — the oldest (8th) point falls off.
+    expect(screen.getByText('2026-08-03')).toBeInTheDocument();
+    expect(screen.queryByText('2026-08-02')).not.toBeInTheDocument();
+    expect(screen.getByText(/logged to Riley Roster.s receipt trail/)).toBeInTheDocument();
+  });
+
+  it('renders the muted empty state when granted but no readiness history exists', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.readinessGrant = true;
+    repo.trendSnapshots['readiness_trend'] = readinessSnapshot([]);
+    await renderRoster(repo);
+
+    expect(screen.getByText('No readiness history yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/logged to Riley Roster/)).not.toBeInTheDocument();
   });
 });

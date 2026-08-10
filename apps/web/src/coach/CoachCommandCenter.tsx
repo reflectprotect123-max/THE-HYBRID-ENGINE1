@@ -286,13 +286,19 @@ export function CoachCommandCenter() {
                 <div className="mt-2"><AthleteStatus /></div>
               </>
             ) : (
-              <p className="rounded border border-line2 bg-panel3 p-2 text-[11px] text-muted">
-                {/* Not a banner disclosure — this replaces the readiness/capacity
-                    figures entirely, so nothing of the signed-in coach's own
-                    state is on screen while {selectedClient.name} is selected. */}
-                {selectedClient.name}&rsquo;s readiness and capacity are not readable here yet.
-                Only the counts and safety flag above are authorised today.
-              </p>
+              <>
+                {/* No band figures here — there is no repository method that
+                    returns a roster client's derived readiness/capacity band,
+                    only the raw readiness_trend points AthleteStatus reads
+                    itself (consent-gated). Not a banner disclosure: it
+                    replaces the band row entirely, so nothing of the
+                    signed-in coach's own state is on screen while
+                    {selectedClient.name} is selected. */}
+                <p className="mb-2 text-[11px] text-dim">
+                  {selectedClient.name}&rsquo;s readiness band is not readable here yet — only their raw history below, if they&rsquo;ve granted it.
+                </p>
+                <AthleteStatus clientId={selectedClient.id} clientName={selectedClient.name} />
+              </>
             )}
             <details className="mt-3 border-t border-line2 pt-2 text-xs">
               <summary className="cursor-pointer select-none font-medium text-muted hover:text-text">Truth layers and authority</summary>
