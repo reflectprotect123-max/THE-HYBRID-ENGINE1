@@ -36,6 +36,7 @@ import {
 import { useDb } from '../store/db';
 import { useRest } from '../store/rest';
 import { useSetTimer } from '../store/setTimer';
+import { requestWakeLock, releaseWakeLock } from '../native/wakeLock';
 import { RestChip } from '../components/RestChip';
 import { Button, Card, Kicker, LetterChip, Meter, cx } from '../ui';
 
@@ -137,6 +138,18 @@ export function Logger() {
   useEffect(() => {
     if (phase === 'rest' && !rest.running) setPhase('input');
   }, [phase, rest.running]);
+
+  // Keep the screen awake for as long as there's a live session on the
+  // stage — not for the "No live session" placeholder below, which the
+  // athlete may leave sitting on their lock screen indefinitely.
+  useEffect(() => {
+    if (!s) return;
+    let lock: WakeLockSentinel | null = null;
+    requestWakeLock().then((l) => {
+      lock = l;
+    });
+    return () => releaseWakeLock(lock);
+  }, [!!s]);
 
   const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);
   const letters = useMemo(() => (s ? sessionLetters(s) : {}), [s]);

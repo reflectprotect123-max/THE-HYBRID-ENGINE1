@@ -25,6 +25,7 @@ import {
 import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
 import { connectEchoV3, type EchoV3Connection, type EchoV3Event } from '../native/echoV3';
+import { requestWakeLock, releaseWakeLock } from '../native/wakeLock';
 import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
 import { conditioningProgressionProposal } from '../coach/progression';
 import { recordProgressionProposals } from '../coach/progression-store';
@@ -262,6 +263,18 @@ export function Conditioning() {
     if (!live) return;
     const iv = window.setInterval(() => setElapsed(RUN.elapsed), 500);
     return () => window.clearInterval(iv);
+  }, [live]);
+
+  // Keep the screen awake for the run itself, not the setup or results
+  // screens either side of it — mirrors mobile's keep-awake window
+  // (Conditioning.tsx:249-364, start() through finish()).
+  useEffect(() => {
+    if (!live) return;
+    let lock: WakeLockSentinel | null = null;
+    requestWakeLock().then((l) => {
+      lock = l;
+    });
+    return () => releaseWakeLock(lock);
   }, [live]);
 
   const zone = bpm == null ? null : conZoneOf(bpm, zones);
