@@ -1,5 +1,162 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 11 August 2026: the ATHLETE side. The whole
+> athlete app now ships as one self-contained working HTML artifact; the
+> hybrid build finally has BOTH training tabs; a live bug that ejected the
+> athlete into the coach workspace is fixed; Home leads with today's session;
+> the weight-suggestion chain agrees with itself end to end; and the logger's
+> sets table is MOUNTED but `checks/react-smoke.mjs` is knowingly RED against
+> it, with a child session already working that.**
+>
+> Supersedes every checkpoint below, including 9 August. They stay as history
+> and remain accurate about their own scope; where one contradicts this, this
+> wins.
+
+## Where the work is
+
+Branch `claude/athlete-hybrid-engine-7xs5em`, pushed. No PR open — none was
+asked for. Six commits, oldest first:
+
+| Commit | What |
+|---|---|
+| `7780ac8` | Athlete app as a self-contained HTML artifact (build + smoke harness) |
+| `cc5a6cb` | Both halves of the hybrid in one app; stop ejecting to the coach bench |
+| `35c7dd8` | Home leads with today's session |
+| `283c772` | Engine side of the logger's "last time" reference |
+| `b68a68f` | The logger's sets table and session bar (not yet mounted) |
+| `09ee281` | Set-to-set weight suggestion agrees with the one it prints |
+| `200a917` | Sets table MOUNTED, with the flow wiring — **smoke knowingly red** |
+
+## Live artifacts
+
+Made this session:
+
+- **Athlete app (hybrid) — the one to use:**
+  <https://claude.ai/code/artifact/19c907c0-a413-465a-bbf5-99867a2d413f>
+  One 1.06 MB self-contained document. All 11 athlete routes, plus the sealed
+  nutrition world. Seeded with eight weeks of training so it opens populated.
+  No network at all. Rebuild: `pnpm run build:artifact`.
+- **Conditioning product (superseded):**
+  <https://claude.ai/code/artifact/a059b5d4-8cba-47e0-bcd2-7e47937deb74>
+  Built before the nav fix, when conditioning had no tab in the hybrid build.
+  The hybrid artifact above now covers it. Kept only as the branded-build view.
+
+Referenced, pre-existing, and load-bearing for the logger work:
+
+- **Back Squat — Workout Logger** (25 Jul), the concept the shipped logger was
+  built from: <https://claude.ai/code/artifact/5e5670cb-d9e5-4807-b3bf-9c11c5038800>
+  One-set-at-a-time, and it specifies a per-set `renderLastTime()` the app never
+  shipped. This is the source for the "last time" reference.
+- **Logger — concept** (23 Jul):
+  <https://claude.ai/code/artifact/adfb98ed-1c4b-480d-b599-615897179758>
+- **Command Center — Coach Workspace Redesign** (10 Aug):
+  <https://claude.ai/code/artifact/d7069c12-1ed1-4402-bec9-5efbcd2ede46>
+  The NEW BUILDER lives here. Its `COLUMN_TYPES` are reps, reps_range,
+  weight_kg, weight_pct, seconds, meters — **there is no RPE column**, which
+  matters (see Open decisions).
+
+## What changed, and why it mattered
+
+**The hybrid had no conditioning tab.** `navTabs` (`BottomNav.tsx`) SWAPPED
+Train for Cond rather than adding it. Correct for a branded single-purpose
+build; wrong for the unscoped hybrid, which owns both disciplines and was the
+one build where conditioning was reachable only through a text link on Home.
+Now 6 tabs unscoped, 5 scoped, with tests guarding the branded boundary in both
+directions.
+
+**Leaving the nutrition world dumped you on the COACH BENCH.** The two route
+trees share no paths, so switching worlds stranded you on an address the
+training tree lacks; it fell to the catch-all, which pointed at `/`, which on
+the unscoped build redirects to `/coach`. Fixed at the root: the catch-all now
+goes to the athlete's own Home. The coach-first root itself is unchanged and
+deliberate — `/` still redirects. `athleteHomePath()` in `product.ts` is now the
+single source of truth for "send the athlete home" (Home tab, catch-all, world
+switch); three callers derived it separately and the two that got it wrong both
+ejected the athlete.
+
+**Home buried its own answer.** The file's header comment described "the one
+dominant tap first", but the week strip and Coordinator plan had drifted above
+the session card. Order restored; one brass button ever (a non-primary row is a
+ghost); reference sections collapse via a new `Disclosure` in `ui/`.
+`Home.layout.test.tsx` asserts both rules — a layout rule that lives only in a
+comment is one that drifts, which is exactly how this happened.
+
+**The weight suggestion disagreed with itself.** The logger printed "+2.5 kg for
+Set 3 (132.5 kg)" and then prefilled 130. `computeSetAdjustment`'s answer went
+into a hint string and nowhere else; between SESSIONS the same formula WAS
+honoured via `liftMoves`/`liftProgress`. `prefillPrimary` now autoregulates from
+a RATED previous set, falling through to repeating when unrated — which is what
+kept the parity suite intact, since its fixture's previous set was never rated.
+
+## In flight
+
+Child session **`session_01AmhxwPeuy5wHuDu9K9sDct`** — "Fix react-smoke for the
+mounted sets table". Check it before redoing this work.
+
+`200a917` is knowingly RED on `checks/react-smoke.mjs`: 11 checks fail because
+the suite drives the one-set stage (weight stepper, "Finish Set", "Skip rest")
+that the table replaced for lift modes. **All 11 share that one cause** — the
+app is not broken. Verified: the rest-timer failure among them is a CASCADE
+(its first assertion is a pre-condition a previous failed check was meant to
+satisfy; `store/rest.tsx:106` persists correctly and is untouched).
+
+Scope: re-point roughly lines 173–222, 281–284, 317–320, 404–407. **Leave every
+`input[aria-label="Secs"]` check alone** — seconds mode still uses the one-set
+stage, and roughly half the file is already correct.
+
+Two need a DECISION, not a port:
+
+1. `"autoregulation PROPOSES the next one without applying it"` is now **wrong
+   on purpose** — `09ee281` makes the app apply it. Invert the assertion.
+2. `"a warm-up confirms in one tap"` stops being special once every set is one
+   tap. What must survive: a warm-up never moves the working weight.
+
+## Open decisions — not bugs, real calls to make
+
+**Rating vs the one-tap tick.** The table logs a set WITHOUT a rating. The
+engine reads a missing rating as "no evidence", never "as prescribed", so an
+unrated set holds its weight (`liftMoves` bails on a non-finite `felt`;
+`prefillPrimary` falls through to repeating). Autoregulation is therefore
+opt-in as things stand. The designed fix, not yet built: tap the tick = done as
+prescribed; two 44px `↑ / ↓` targets appear after ticking for "easier / harder
+than asked" → centre ∓1 RPE → ∓2.5%. One tap common case, two to autoregulate,
+no slider.
+
+**Pre-set RPE in the builder.** Authoring RPE per exercise already half exists
+(`GuidedBuilder.tsx:240` stamps one RPE across every set; `rpeCenterOf` judges
+against it). The NEW builder has no RPE column at all, while `PlannedSet` is
+exactly `{t, rpe}` — the redesign dropped the one field autoregulation runs on.
+Recommended: add it per-EXERCISE, not as a 7th per-set column (the set row is
+`24px 1fr 1fr`; a third input crowds a phone). **Trap to avoid:** never use the
+planned RPE as the measurement. `eff === center` makes the multiplier exactly 1
+and the weight freezes permanently — `lift.ts:96` documents this.
+
+**`weight_pct` (% of e1RM).** The new builder has it; the engine has no %1RM
+authoring and works in absolute kg off `liftProgress`. That is a second source
+of truth for load and will disagree the same way the hint and the box did,
+unless given an explicit precedence rule. Nothing depends on it yet — settle it
+before either gets built.
+
+## Also worth knowing
+
+- **Live production bug, unfixed, out of scope:** `apps/web/index.html:15-21`
+  preloads `/fonts/inter-var.woff2`, but **nothing anywhere declares an
+  `@font-face` for it**. The deployed app downloads 71 KB every load and renders
+  in the system font regardless. Either wire Inter up or drop the preload.
+- **Still unaddressed from the athlete audit:** Progress is ~3,000 px — seven
+  near-identical paragraph cards under "What has changed" before you reach a
+  single chart.
+- `checks/_seed.mjs` is now the ONE seeded athlete, shared by `screens.mjs` and
+  the artifact build, so they cannot drift.
+- `checks/artifact-smoke.mjs` drives the artifact the way the host does (wrapped
+  in a doctype skeleton, served over http because `file://` is an opaque origin
+  where localStorage throws), walks all 11 routes plus the
+  training→nutrition→back round trip, and fails on any console error or any
+  request leaving the document. It caught a document that compiled perfectly and
+  booted blank.
+
+---
+
 > **AUTHORITATIVE CHECKPOINT — 9 August 2026: the seven ARC migrations from
 > the 8 August checkpoint are now APPLIED to the real production Supabase
 > project, mobile has full parity on the self-coach approval gate (R2), a
