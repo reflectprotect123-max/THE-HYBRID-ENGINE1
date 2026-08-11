@@ -3,7 +3,6 @@ import { Kicker, ScreenTitle, Tabs } from '../../ui';
 import { FoodSearch } from './FoodSearch';
 import { QuickAdd } from './QuickAdd';
 import { CustomFood } from './CustomFood';
-// TODO: Task 2.8 builds this screen.
 import { RecipeBuilder } from './RecipeBuilder';
 // TODO: Task 2.11 builds this screen.
 import { BarcodeScanner } from './BarcodeScanner';
@@ -23,9 +22,10 @@ import { LabelReader } from './LabelReader';
  * mechanism used here — the set of panes is what has to match mobile, not
  * the exact control that switches between them.
  *
- * Quick add (Task 2.4b), Search (Task 2.6) and Custom food (Task 2.7) are
- * real; the other two panes are still placeholders. Each remaining TODO above
- * names the task that replaces its placeholder with the real screen.
+ * Quick add (Task 2.4b), Search (Task 2.6), Custom food (Task 2.7) and Recipe
+ * (Task 2.8) are real; the remaining two panes are still placeholders. Each
+ * remaining TODO above names the task that replaces its placeholder with the
+ * real screen.
  */
 
 type Pane = 'search' | 'quickAdd' | 'customFood' | 'recipe' | 'scan' | 'label';
