@@ -12,19 +12,23 @@ import { appendProgressionDecision } from './progression-store';
 
 /*
  * The app's only two approve/decline implementations, moved here unchanged
- * from `CoachProgression.tsx` (Task 6b). Task 7 deletes that screen; this
- * file is what survives it. `CoachProgression.tsx` now imports both
- * components below instead of keeping its own copy, and both pillar queues
- * (`pillars/Strength.tsx`, `pillars/Conditioning.tsx`) mount
- * `ProgressionActions` — the self-coach path, the only one they have a
- * proposal shape and context for. See this file's header comment on
- * `ProgressionActions` for why: the pillars read `useProgressionLedger()`
- * (`ProgressionProposal`, self-coach), never
+ * from `CoachProgression.tsx` (Task 6b). Task 7 (amended) narrows that
+ * screen to roster-only instead of deleting it — its self-coach branch is
+ * gone, replaced there by a redirect to `/coach/strength` — so
+ * `CoachProgression.tsx` now imports both components below instead of
+ * keeping its own copy. Both pillar queues (`pillars/Strength.tsx`,
+ * `pillars/Conditioning.tsx`) mount `ProgressionActions` — the self-coach
+ * path, the only one they have a proposal shape and context for. See this
+ * file's header comment on `ProgressionActions` for why: the pillars read
+ * `useProgressionLedger()` (`ProgressionProposal`, self-coach), never
  * `useCoachWorkspace().repository.listProgressionProposals` (roster,
  * `AthleteProgressionProposal`) — so `RosterProgressionActions` has no
- * pillar to mount in today. It still moves out of `CoachProgression.tsx`
- * because Task 7 deletes that file regardless of which proposal shape a
- * screen happens to use.
+ * pillar to mount in today. It still moved out of `CoachProgression.tsx`
+ * alongside `ProgressionActions`, because that screen lost its self-coach
+ * half regardless of which proposal shape a decision path uses;
+ * `RosterProgressionActions` remains mounted only at
+ * `CoachProgression.tsx`'s `RosterProgressionView` — the roster half that
+ * survives.
  *
  * Every guard below is copied, not re-derived: same conditions, same
  * disabled expressions, same messages. This is a move, not a rewrite.

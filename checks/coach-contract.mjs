@@ -263,11 +263,12 @@ console.log('Coach surface contract\n');
  *
  * `useDb()` / `useNutrition()` / the progression and authoring ledgers are the
  * signed-in account's own local stores — correct only while `engine-local` is
- * selected. Every route that reads them behind `/coach/author`, `/nutrition`,
- * `/progression`, `/review/:weekStart`, `/legacy`, `/build/:id` and
- * `/planner/:id` must be wrapped in `ClientDetailGate`, which blocks instead
- * of merely disclosing (see ClientDetailGate.tsx's own header comment for
- * why a disclosure banner a coach can act past is not a guard).
+ * selected. Every route that reads them behind `/coach/author`,
+ * `/readiness`, `/strength`, `/conditioning`, `/nutrition`, `/progression`,
+ * `/review/:weekStart`, `/legacy`, `/build/:id` and `/planner/:id` must be
+ * wrapped in `ClientDetailGate`, which blocks instead of merely disclosing
+ * (see ClientDetailGate.tsx's own header comment for why a disclosure
+ * banner a coach can act past is not a guard).
  *
  * CoachCommandCenter is the one screen that is NOT fully behind that gate —
  * its client-overview tiles are meant to render for every client — so the
@@ -280,8 +281,9 @@ console.log('Coach surface contract\n');
  * a full dashboard into a four-tile launcher. The resolved-week list and the
  * `<AthleteStatus>` operating-context section it used to render moved out of
  * this file entirely — into the Readiness/Strength/Conditioning/Nutrition
- * pillar screens, which sit behind `ClientDetailGate` (see the `gatedPaths`
- * check above once Task 7 registers them), a stronger guarantee than this
+ * pillar screens, which sit behind `ClientDetailGate` (`readiness`,
+ * `strength` and `conditioning` joined `nutrition` in the `gatedPaths` list
+ * below once Task 7 registered them), a stronger guarantee than this
  * heuristic. `<AthleteStatus` and `weeklyPlan.entries.map` are gone from this
  * file rather than renamed, so they are gone from the marker list too. What
  * remains here — and is still checked — are the two local-only reads the
@@ -292,7 +294,7 @@ console.log('Coach surface contract\n');
 {
   const routerFile = 'apps/web/src/coach/index.tsx';
   const router = code(resolve(ROOT, routerFile));
-  const gatedPaths = ['author', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'build/:id', 'planner/:id'];
+  const gatedPaths = ['author', 'readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'build/:id', 'planner/:id'];
   const ungatedRoutes = gatedPaths.filter((path) => {
     // The route line itself, e.g. `<Route path="author" element={<ClientDetailGate ...`
     const line = new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*element=\\{<ClientDetailGate\\b`);
