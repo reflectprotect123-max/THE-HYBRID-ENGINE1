@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { CoachSection } from './CoachSection';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
-import { useDb } from '../store/db';
 import type { AthleteAutocoachReceipt, AthleteProgressionProposal } from './contracts';
-import { ProgressionActions, RosterProgressionActions } from './progression-actions';
-import { proposalIsStale, type ProgressionProposal } from './progression';
-import { useProgressionLedger } from './progression-store';
+import { RosterProgressionActions } from './progression-actions';
 
 const ROSTER_DIRECTION_STYLE: Record<AthleteProgressionProposal['direction'], string> = {
   increase: 'border-gold-line bg-gold-wash text-gold2',
@@ -161,133 +159,29 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
   );
 }
 
-const DIRECTION_STYLE: Record<ProgressionProposal['direction'], string> = {
-  increase: 'border-gold-line bg-gold-wash text-gold2',
-  hold: 'border-line2 bg-panel2 text-muted',
-  decrease: 'border-warn bg-panel2 text-warn',
-  review: 'border-bad bg-panel2 text-bad',
-};
-
-function dateTime(at: number): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(at));
-}
-
-function prescription(proposal: ProgressionProposal, side: 'before' | 'after'): string {
-  if (proposal.domain === 'strength') {
-    const value = proposal[side];
-    if (!value || !('kg' in value)) return side === 'before' ? 'No accepted working weight' : 'Unknown';
-    return `${value.kg} kg${value.reps ? ` × ${value.reps}` : ''}`;
-  }
-  const value = proposal[side];
-  return `Level ${value.level} · ${value.miss} ${value.miss === 1 ? 'miss' : 'misses'} carried`;
-}
-
+/**
+ * Stage-1 coach redesign (11 August 2026, Task 7): narrowed to the ONE job
+ * the pillar screens cannot do. The self-coach ledger view this used to
+ * render (`SelfCoachProgressionView`, approving via `ProgressionActions`) is
+ * gone from this file, not merely hidden — it is what the Strength and
+ * Conditioning pillar queues now render, reading the same
+ * `useProgressionLedger()` and mounting the same `ProgressionActions` from
+ * `progression-actions.tsx`. That is a move, not a duplication: this screen
+ * and the pillars must never both own a live copy of the self-coach decision
+ * path.
+ *
+ * A signed-in coach (`isLocalClient`) hitting `/coach/progression` directly —
+ * an old bookmark, a stale link — is redirected to the pillar that now owns
+ * their view. A roster client stays here: `RosterProgressionView` is the
+ * only place in the app RosterProgressionActions is mounted, because the
+ * pillars are gated WITHOUT `layer3Ready` and refuse a roster client by
+ * design (they read the signed-in athlete's own local stores). See the
+ * amendment in the Task 7 brief for why this route survives instead of
+ * retiring.
+ */
 export function CoachProgression() {
   const { selectedClient } = useCoachWorkspace();
-  return selectedClient && selectedClient.source === 'roster-summary'
-    ? <RosterProgressionView clientId={selectedClient.id} clientName={selectedClient.name} />
-    : <SelfCoachProgressionView />;
-}
-
-function SelfCoachProgressionView() {
-  const { settings, athleteState } = useDb();
-  const ledger = useProgressionLedger();
-  const [domain, setDomain] = useState<'all' | ProgressionProposal['domain']>('all');
-  const decided = useMemo(() => new Set(ledger.decisions.map((event) => event.proposalId)), [ledger.decisions]);
-  const pending = ledger.proposals.filter((proposal) => !decided.has(proposal.id));
-  const visible = pending.filter((proposal) => domain === 'all' || proposal.domain === domain);
-  const hardSafety = athleteState.constraints.filter((constraint) => constraint.hard);
-
-  return (
-    <main className="min-h-screen bg-bg text-text">
-      <header className="border-b border-line2 px-3 py-3 sm:px-4">
-        <div className="mx-auto max-w-[1240px]">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-gold">ARC · decisions</p>
-            <h1 className="mt-0.5 text-xl font-semibold">Strength and Conditioning decisions</h1>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-[1240px] gap-2 p-2 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-2">
-          <details className="border-y border-line2 py-2 text-xs text-muted">
-            <summary className="cursor-pointer select-none font-medium text-text">Performance can propose. Only the coach can approve.</summary>
-            <p className="mt-1 max-w-[82ch]">Completed work is never rewritten. Every increase, decrease or hold below is a separate local demonstration record with its own evidence, decision and rationale.</p>
-          </details>
-
-          {hardSafety.length > 0 && (
-            <section className="rounded-md border border-bad bg-panel3 p-2" role="alert">
-              <p className="text-[10px] uppercase tracking-wider text-bad">Safety takes priority</p>
-              <h2 className="mt-0.5 text-sm font-semibold">Progression approval is not appropriate while a hard constraint is active.</h2>
-              <ul className="mt-1 list-disc space-y-0.5 pl-2 text-xs text-muted">{hardSafety.map((constraint) => <li key={constraint.code}>{constraint.reason}</li>)}</ul>
-            </section>
-          )}
-
-          <div className="flex flex-wrap gap-1" role="group" aria-label="Filter progression proposals">
-            {(['all', 'strength', 'conditioning'] as const).map((value) => (
-              <button key={value} type="button" aria-pressed={domain === value} onClick={() => setDomain(value)} className={`rounded border px-1.5 py-0.5 text-xs capitalize ${domain === value ? 'border-gold-line bg-gold-wash text-gold2' : 'border-line2 bg-panel text-muted'}`}>{value}</button>
-            ))}
-          </div>
-
-          <section aria-labelledby="pending-title">
-            <div className="mb-1 flex items-baseline"><h2 id="pending-title" className="text-sm font-semibold">Pending review</h2><span className="ml-auto text-xs tabular-nums text-muted">{visible.length}</span></div>
-            <div className="space-y-1.5">
-              {visible.map((proposal) => (
-                <article key={proposal.id} className="rounded-md border border-line2 bg-panel3">
-                  <div className="flex flex-wrap items-start gap-1 border-b border-line px-2 py-1.5">
-                    <div><p className="text-[10px] uppercase tracking-wider text-dim">{proposal.domain} · {dateTime(proposal.sourceAt)}</p><h3 className="text-sm font-semibold">{proposal.subject}</h3></div>
-                    <span className={`ml-auto rounded-full border px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${DIRECTION_STYLE[proposal.direction]}`}>{proposal.direction === 'increase' ? 'approval required' : proposal.direction}</span>
-                  </div>
-                  <div className="grid gap-2 p-2 lg:grid-cols-[minmax(0,1fr)_300px]">
-                    <div className="space-y-1.5 text-xs">
-                      <Fact label="Status" value={proposalIsStale(proposal, settings) ? 'Stale — prescription changed' : 'Pending coach decision'} />
-                      <Fact label="Intent" value={proposal.intent} />
-                      <div><p className="text-[10px] uppercase tracking-wide text-dim">Change</p><div className="mt-0.5 grid grid-cols-[1fr_auto_1fr] items-center gap-1 rounded border border-line bg-panel p-1"><span>{prescription(proposal, 'before')}</span><span aria-hidden="true" className="text-gold">→</span><strong>{prescription(proposal, 'after')}</strong></div></div>
-                      <Fact label="Reason" value={proposal.reason} />
-                      <div><p className="text-[10px] uppercase tracking-wide text-dim">Evidence</p><ul className="mt-0.5 list-disc space-y-0.5 pl-2 text-muted">{proposal.evidence.map((item) => <li key={item}>{item}</li>)}</ul></div>
-                      {proposal.dataLimitations.length > 0 && <Fact label="Limitations" value={proposal.dataLimitations.join(' ')} />}
-                    </div>
-                    <div className="rounded border border-line bg-panel p-1.5">
-                      <p className="text-[10px] text-dim">Next: approve, reject, or hold. This demo ledger stays on this device.</p>
-                      <ProgressionActions proposal={proposal} />
-                    </div>
-                  </div>
-                  <footer className="border-t border-line px-2 py-1 text-[10px] text-dim">Authority: coach approval required · Rule: {proposal.ruleVersion} · Confidence: {proposal.confidence}</footer>
-                </article>
-              ))}
-              {visible.length === 0 && <div className="rounded-md border border-dashed border-line2 bg-panel3 p-3 text-center"><h3 className="text-sm font-semibold">No pending {domain === 'all' ? '' : `${domain} `}proposals</h3><p className="mt-0.5 text-xs text-muted">Complete a session to create a reviewable proposal. Existing accepted prescriptions remain unchanged.</p></div>}
-            </div>
-          </section>
-        </div>
-
-        <aside className="space-y-2 xl:sticky xl:top-[58px] xl:self-start">
-          <CoachSection eyebrow="History" title="Decision history" count={ledger.decisions.length}>
-            <div className="space-y-1">
-              {ledger.decisions.slice(0, 12).map((event) => {
-                const proposal = ledger.proposals.find((item) => item.id === event.proposalId);
-                return (
-                  <article key={event.id} className="rounded border border-line bg-panel p-1">
-                    <div className="flex items-baseline gap-1"><strong className="text-xs">{proposal?.subject ?? 'Proposal'}</strong><span className="ml-auto text-[10px] uppercase tracking-wide text-muted">{event.decision}</span></div>
-                    <p className="mt-0.5 text-[11px] text-muted">{event.rationale}</p>
-                    <p className="mt-0.5 text-[10px] text-dim">{dateTime(event.decidedAt)} · {event.applied ? 'prescription updated' : 'no prescription change'}</p>
-                    {event.note && <p className="mt-0.5 text-[10px] text-warn">{event.note}</p>}
-                  </article>
-                );
-              })}
-              {ledger.decisions.length === 0 && <p className="text-xs text-muted">No coach decision has been recorded yet.</p>}
-            </div>
-          </CoachSection>
-
-          <CoachSection eyebrow="Implemented boundary" title="What this screen does and does not do">
-            <p className="text-[11px] text-dim">This is real front-end decision logic and local demo persistence. It is not server authorization, a durable audit trail, or multi-device sync.</p>
-          </CoachSection>
-        </aside>
-      </div>
-    </main>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-[10px] uppercase tracking-wide text-dim">{label}</p><p className="mt-0.5 text-muted">{value}</p></div>;
+  const isLocalClient = !selectedClient || selectedClient.source === 'engine-local';
+  if (isLocalClient) return <Navigate to="/coach/strength" replace />;
+  return <RosterProgressionView clientId={selectedClient.id} clientName={selectedClient.name} />;
 }

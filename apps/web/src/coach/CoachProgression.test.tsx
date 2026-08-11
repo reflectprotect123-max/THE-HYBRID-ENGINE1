@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { act, fireEvent, screen } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DbProvider } from '../store/db';
 import { CoachProgression } from './CoachProgression';
@@ -60,15 +61,18 @@ function rosterReceipt(over: Partial<AthleteAutocoachReceipt> = {}): AthleteAuto
  * `RosterProgressionView` (only mounted once `selectedClient` is the roster
  * client) fires two MORE async effects of its own — `listProgressionProposals`
  * and `listAutocoachReceipts`. Before any of that settles, `CoachProgression`
- * transiently renders `SelfCoachProgressionView` instead (selectedClient is
- * still null), which reads `useDb()` — hence wrapping in `DbProvider` even
- * though the roster view itself never touches it. `act(async () => {})`
- * flushes the whole cascade before any assertion runs.
+ * transiently renders a `<Navigate>` (selectedClient is still null, which
+ * counts as local) — hence wrapping in `MemoryRouter` even for the roster
+ * tests, and `DbProvider` for parity with how the route is actually mounted
+ * in `index.tsx`. `act(async () => {})` flushes the whole cascade before any
+ * assertion runs, landing on the roster view once `selectedClient` resolves.
  */
 async function renderProgression(repository: FakeCoachWorkspaceRepository) {
   const result = renderCoachScreen(
     <DbProvider>
-      <CoachProgression />
+      <MemoryRouter initialEntries={['/coach/progression']}>
+        <CoachProgression />
+      </MemoryRouter>
     </DbProvider>,
     { repository },
   );
@@ -187,13 +191,33 @@ describe('CoachProgression (roster)', () => {
   });
 });
 
+/*
+ * Task 7 (11 August 2026, amended): the self-coach ledger view this screen
+ * used to render moved to the Strength/Conditioning pillar queues, which
+ * mount the same `ProgressionActions` from `progression-actions.tsx` (see
+ * their own colocated tests). What is left to prove here is that a
+ * signed-in coach hitting `/coach/progression` — an old bookmark, the tile
+ * that used to point here — lands on the pillar that now owns their view,
+ * instead of a page rendering nothing behind a gate that already let them
+ * through.
+ */
 describe('CoachProgression (self-coach)', () => {
-  it('collapses the decision-history sidebar by default on the self-coach progression screen', async () => {
+  it('redirects a local (self-coach) client to /coach/strength instead of rendering a ledger here', async () => {
     const repo = new FakeCoachWorkspaceRepository();
-    await renderProgression(repo);
+    renderCoachScreen(
+      <DbProvider>
+        <MemoryRouter initialEntries={['/coach/progression']}>
+          <Routes>
+            <Route path="/coach/progression" element={<CoachProgression />} />
+            <Route path="/coach/strength" element={<p>Strength pillar landed</p>} />
+          </Routes>
+        </MemoryRouter>
+      </DbProvider>,
+      { repository: repo },
+    );
+    await act(async () => {});
 
-    const summary = screen.getByText('Decision history');
-    const details = summary.closest('details');
-    expect(details).not.toHaveAttribute('open');
+    expect(screen.getByText('Strength pillar landed')).toBeInTheDocument();
+    expect(screen.queryByText('Decision history')).not.toBeInTheDocument();
   });
 });
