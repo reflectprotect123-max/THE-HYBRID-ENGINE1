@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../store/db';
 import { ProgressionActions, RosterProgressionActions } from './progression-actions';
-import { resetProgressionLedgerForTests } from './progression-store';
-import type { ConditioningProgressionProposal, StrengthProgressionProposal } from './progression';
+import { resetProgressionLedgerForTests } from '../store/progression';
+import type { ConditioningProgressionProposal, StrengthProgressionProposal } from '../lib/progression';
 import type { AthleteProgressionProposal } from './contracts';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
 

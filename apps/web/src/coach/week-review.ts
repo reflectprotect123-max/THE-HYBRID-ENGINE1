@@ -1,6 +1,6 @@
 import type { Session } from '@hybrid/engine';
 import type { WeeklyPlan } from '@hybrid/coordinator-adapter';
-import type { LedgerEntry } from '../autocoach/ledger';
+import type { LedgerEntry } from '../store/ledger';
 
 export type ReviewStatus = 'completed' | 'partial' | 'planned-not-logged' | 'unplanned';
 

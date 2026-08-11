@@ -4,7 +4,7 @@ import type { ReadinessBand } from '@hybrid/whole-athlete-state';
 import { useDb } from '../store/db';
 import { useNutrition } from '../store/nutrition';
 import { buildCoachNutritionReview } from './nutrition-review';
-import { useProgressionLedger } from './progression-store';
+import { useProgressionLedger } from '../store/progression';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import type { AthleteNutritionSummary, AthleteProgressionProposal, ClientSummary } from './contracts';
 import './coach-redesign.css';

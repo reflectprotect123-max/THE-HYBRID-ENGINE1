@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { resolveSession, type AutoCoachResolution } from '@hybrid/auto-coach';
-import { usePolicy } from '../autocoach/policy';
+import { usePolicy } from '../store/policy';
 import { cx } from '../ui';
 import {
   buildFixtureSnapshot,

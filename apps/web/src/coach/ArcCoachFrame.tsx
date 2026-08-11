@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useDb } from '../store/db';
-import { useProgressionLedger } from './progression-store';
+import { useProgressionLedger } from '../store/progression';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 
 export function ArcCoachFrame() {

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { DbProvider } from '../store/db';
 import { ArcCoachFrame } from './ArcCoachFrame';
-import { resetProgressionLedgerForTests } from './progression-store';
+import { resetProgressionLedgerForTests } from '../store/progression';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
 
 /*

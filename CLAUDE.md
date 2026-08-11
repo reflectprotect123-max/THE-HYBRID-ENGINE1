@@ -158,10 +158,17 @@ a fixed crossing must be deleted from the list rather than leaving budget
 behind. The list only shrinks. When it empties the rule becomes absolute and
 the list goes with it.
 
-Three of those entries are the same shape and worth knowing: `autocoach/policy.ts`,
-`autocoach/ledger.ts` and `coach/progression.ts` are shared logic wearing a
-lane's directory name. They are not violations, they are misfilings, and moving
-them is what closes most of the list.
+The list started at fourteen crossings and is down to two. Eleven of them were
+one shape: `autocoach/policy.ts`, `autocoach/ledger.ts`, `coach/progression.ts`
+and `coach/progression-store.ts` were shared code wearing a lane's directory
+name — not violations, misfilings. They now sit where they belong (`store/` for
+the three stores, `lib/progression.ts` for the pure proposal logic) and the
+crossings went with them.
+
+What is left is the genuine case: the bench renders the athlete's `Planner` and
+`GuidedBuilder`. That is real shared UI, permitted by coach-contract rule 8, and
+it retires by promoting those screens into a shared authoring package — a
+package extraction, not a file move.
 
 ## Where a test goes
 

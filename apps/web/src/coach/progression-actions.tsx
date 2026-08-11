@@ -7,8 +7,8 @@ import {
   proposalIsStale,
   type ProgressionDecision,
   type ProgressionProposal,
-} from './progression';
-import { appendProgressionDecision } from './progression-store';
+} from '../lib/progression';
+import { appendProgressionDecision } from '../store/progression';
 
 /*
  * The app's only two approve/decline implementations, moved here unchanged

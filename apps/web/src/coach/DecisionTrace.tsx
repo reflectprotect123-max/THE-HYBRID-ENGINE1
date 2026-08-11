@@ -1,7 +1,7 @@
 import { resolveSession } from '@hybrid/auto-coach';
 import type { Workout } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { usePolicy } from '../autocoach/policy';
+import { usePolicy } from '../store/policy';
 import { cx } from '../ui';
 import {
   buildDecisionTrace,

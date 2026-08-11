@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Workout } from '@hybrid/engine';
-import type { LedgerEntry } from '../autocoach/ledger';
+import type { LedgerEntry } from '../store/ledger';
 import { plannedForToday, showZonesCard } from './Home';
 
 describe('showZonesCard', () => {

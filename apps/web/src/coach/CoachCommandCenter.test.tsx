@@ -7,7 +7,7 @@ import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../store/db';
 import { NutritionProvider } from '../store/nutrition';
 import { CoachCommandCenter } from './CoachCommandCenter';
-import { resetProgressionLedgerForTests } from './progression-store';
+import { resetProgressionLedgerForTests } from '../store/progression';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
 import type { AthleteProgressionProposal } from './contracts';
 

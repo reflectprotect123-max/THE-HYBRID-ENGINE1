@@ -1,6 +1,6 @@
 import { resolveSession } from '@hybrid/auto-coach';
 import { useDb } from '../store/db';
-import { usePolicy } from '../autocoach/policy';
+import { usePolicy } from '../store/policy';
 import { cx } from '../ui';
 
 const STATE_TONE: Record<string, string> = {

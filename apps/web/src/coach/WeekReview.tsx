@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { nutritionSummary } from '@hybrid/nutrition-adapter';
-import { useLedger } from '../autocoach/ledger';
+import { useLedger } from '../store/ledger';
 import { useDb } from '../store/db';
 import { useNutrition } from '../store/nutrition';
 import { CoachSection } from './CoachSection';

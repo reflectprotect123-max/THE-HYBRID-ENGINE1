@@ -1,5 +1,5 @@
 import { cx } from '../ui';
-import { updatePolicy, usePolicy } from '../autocoach/policy';
+import { updatePolicy, usePolicy } from '../store/policy';
 import { ExceptionHistorySection } from './ExceptionHistory';
 
 /**

@@ -25,8 +25,8 @@ import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { sessionFrom } from '../lib/session';
 import { useDb } from '../store/db';
 import { Button, Card, Empty, Kicker, LetterChip, Meter, ScreenTitle, SectionHead, cx } from '../ui';
-import { strengthProgressionProposals, type StrengthProgressionProposal } from '../coach/progression';
-import { recordProgressionProposals } from '../coach/progression-store';
+import { strengthProgressionProposals, type StrengthProgressionProposal } from '../lib/progression';
+import { recordProgressionProposals } from '../store/progression';
 
 /*
  * Training is the session list: what today's work is, block by block, with each

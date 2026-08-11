@@ -1,6 +1,6 @@
 import type { Block, Workout } from '@hybrid/engine';
 import type { AutoCoachResolution } from '@hybrid/auto-coach';
-import type { LedgerEntry } from './ledger';
+import type { LedgerEntry } from '../store/ledger';
 
 /**
  * Fork-vs-mutate for Applying a resolution, and the reverse for Undo.

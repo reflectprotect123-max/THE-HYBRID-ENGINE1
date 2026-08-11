@@ -20,7 +20,7 @@ import { ArcAssignmentCard } from '../autocoach/ArcAssignmentCard';
 import { CheckInCard } from '../autocoach/CheckInCard';
 import { ModeSwitcher } from '../autocoach/ModeSwitcher';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
-import { useLedger, type LedgerEntry } from '../autocoach/ledger';
+import { useLedger, type LedgerEntry } from '../store/ledger';
 import { NutritionCard } from './nutrition/NutritionCard';
 import { resolveDayTarget, sessionFrom } from '../lib/session';
 import { Button, Card, Disclosure, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx } from '../ui';

@@ -12,7 +12,7 @@ import { Concept2Provider } from '../cloud/concept2';
 import { ArcCoachFrame } from './ArcCoachFrame';
 import { ClientDetailGate } from './ClientDetailGate';
 import { CoachProgression } from './CoachProgression';
-import { resetProgressionLedgerForTests } from './progression-store';
+import { resetProgressionLedgerForTests } from '../store/progression';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
 import type { AthleteProgressionProposal } from './contracts';
 

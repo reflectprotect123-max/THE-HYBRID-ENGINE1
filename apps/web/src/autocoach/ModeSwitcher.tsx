@@ -10,7 +10,7 @@ import {
   recordConsent,
   useConsent,
 } from './consent';
-import { updatePolicy, usePolicy } from './policy';
+import { updatePolicy, usePolicy } from '../store/policy';
 
 /**
  * Where the athlete actually changes Auto-Coached mode. Forward movement

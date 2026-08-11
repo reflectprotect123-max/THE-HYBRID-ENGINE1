@@ -15,8 +15,8 @@ import {
   readNutritionPartition,
 } from './ecosystem';
 import { PRODUCT_ID } from '../product';
-import { useProgressionLedger } from '../coach/progression-store';
-import { getLedgerEntries } from '../autocoach/ledger';
+import { useProgressionLedger } from '../store/progression';
+import { getLedgerEntries } from '../store/ledger';
 import {
   acceptAssignment as acceptAssignmentRpc,
   applyPendingArcDecisions,

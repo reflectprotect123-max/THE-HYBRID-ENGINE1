@@ -5,7 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DbProvider } from '../store/db';
 import { CoachProgression } from './CoachProgression';
-import { resetProgressionLedgerForTests } from './progression-store';
+import { resetProgressionLedgerForTests } from '../store/progression';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
 import type { AthleteAutocoachReceipt, AthleteProgressionProposal } from './contracts';
 

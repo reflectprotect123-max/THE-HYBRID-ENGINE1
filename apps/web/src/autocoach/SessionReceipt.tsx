@@ -7,9 +7,9 @@ import { useDb } from '../store/db';
 import { Card, Kicker, cx } from '../ui';
 import { canApply, ledgerEntryFromApply, planApply, planUndo } from './applyResolution';
 import { getConsent, useConsent } from './consent';
-import { canUndo, recordApply, recordUndo, useLedger } from './ledger';
+import { canUndo, recordApply, recordUndo, useLedger } from '../store/ledger';
 import { decidePending, proposePending, usePendingProposal, withdrawPending } from './pendingProposal';
-import { getPolicy, updatePolicy, usePolicy } from './policy';
+import { getPolicy, updatePolicy, usePolicy } from '../store/policy';
 
 /**
  * The Auto-Coached receipt for today's session — signal, inference, action,

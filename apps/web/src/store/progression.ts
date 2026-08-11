@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { ProgressionDecision, ProgressionDecisionEvent, ProgressionProposal } from './progression';
+import type { ProgressionDecision, ProgressionDecisionEvent, ProgressionProposal } from '../lib/progression';
 
 const KEY = 'hybrid-coach-progression-v1';
 

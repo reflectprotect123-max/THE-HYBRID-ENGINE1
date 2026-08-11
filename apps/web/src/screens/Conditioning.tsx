@@ -27,8 +27,8 @@ import { useDb } from '../store/db';
 import { connectEchoV3, type EchoV3Connection, type EchoV3Event } from '../native/echoV3';
 import { requestWakeLock, releaseWakeLock } from '../native/wakeLock';
 import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
-import { conditioningProgressionProposal } from '../coach/progression';
-import { recordProgressionProposals } from '../coach/progression-store';
+import { conditioningProgressionProposal } from '../lib/progression';
+import { recordProgressionProposals } from '../store/progression';
 
 /*
  * Conditioning: pick a format, run it against live heart rate, bank the time.

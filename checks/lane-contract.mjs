@@ -68,36 +68,16 @@ const LANES = [
  */
 const ALLOWED = [
   {
-    from: 'coach', to: 'athlete', target: 'apps/web/src/autocoach/policy.ts', count: 5,
-    why: 'The autonomy policy is a useSyncExternalStore over its own localStorage key, '
-       + 'wrapping @hybrid/auto-coach — a shared store, not athlete UI, and the bench '
-       + 'legitimately needs to know what the athlete has authorised. It is only in an '
-       + 'athlete-named folder by history. Retired by moving it to store/.',
-  },
-  {
-    from: 'coach', to: 'athlete', target: 'apps/web/src/autocoach/ledger.ts', count: 2,
-    why: 'Apply/undo history, same shape and same misfiling as policy.ts. '
-       + 'Retired by moving it to store/ alongside it.',
-  },
-  {
     from: 'coach', to: 'athlete', target: 'apps/web/src/screens/Planner.tsx', count: 2,
     why: 'The bench reuses the athlete plan editor rather than forking it, which '
-       + 'coach-contract rule 8 explicitly permits. Retired by promoting Planner into '
-       + 'a shared authoring package.',
+       + 'coach-contract rule 8 explicitly permits. Unlike the entries this list '
+       + 'started with, this is not a misfiling — Planner is genuinely an athlete '
+       + 'screen that the coach also renders. Retired by promoting it into a shared '
+       + 'authoring package, which is a package extraction and not a file move.',
   },
   {
     from: 'coach', to: 'athlete', target: 'apps/web/src/screens/guided/GuidedBuilder.tsx', count: 1,
     why: 'Same reuse, same permission, same retirement as Planner.',
-  },
-  {
-    from: 'athlete', to: 'coach', target: 'apps/web/src/coach/progression.ts', count: 2,
-    why: 'Engine-derived progression proposals built on @hybrid/engine, which the '
-       + 'athlete Conditioning and Training screens legitimately read. Misfiled under '
-       + 'coach/. Retired by moving it to neutral ground.',
-  },
-  {
-    from: 'athlete', to: 'coach', target: 'apps/web/src/coach/progression-store.ts', count: 2,
-    why: 'The store behind those proposals. Moves with progression.ts.',
   },
 ];
 

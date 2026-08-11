@@ -13,7 +13,7 @@ import {
   useBench,
 } from './bench-store';
 import { resolveSession } from '@hybrid/auto-coach';
-import { usePolicy } from '../autocoach/policy';
+import { usePolicy } from '../store/policy';
 import { AthleteStatus } from './AthleteStatus';
 import { diffPlans } from './diff';
 

@@ -8,7 +8,7 @@ import {
   planApply,
   planUndo,
 } from './applyResolution';
-import type { LedgerEntry } from './ledger';
+import type { LedgerEntry } from '../store/ledger';
 
 const TODAY = '2026-08-06';
 

@@ -55,7 +55,7 @@ promising otherwise:**
 - Progression is **banked automatically at session end** with no approval step
   (`apps/web/src/screens/Training.tsx:86`).
 - The automation receipt ledger is **device-local** and never syncs
-  (`apps/web/src/autocoach/ledger.ts:27`).
+  (`apps/web/src/store/ledger.ts:27`).
 
 ## What should the finished product feel like?
 
