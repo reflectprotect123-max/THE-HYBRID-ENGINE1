@@ -1,5 +1,6 @@
-import { isWarmup, repTopOf } from './autoreg';
+import { computeSetAdjustment, isWarmup, repFloorOf, repTopOf, rpeCenterOf } from './autoreg';
 import { nextWorkingWeight } from './lift';
+import { saneKg } from './num';
 import { blockExercises, isCond, isLiftMode, isText } from './session';
 import type { AnySet, Block, Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
 
@@ -184,7 +185,44 @@ export function prefillPrimary(
 
   for (let i = si - 1; i >= 0; i--) {
     const p = ex.sets[i];
-    if (p.aVal && same(p)) return p.aVal;
+    if (!p.aVal || !same(p)) continue;
+
+    /*
+     * A RATED previous set moves the bar; an unrated one just repeats.
+     *
+     * This is where the app stopped agreeing with itself. The logger prints
+     * "that set was easy — +2.5 kg for Set 3 (132.5 kg)" and then handed the
+     * next set 130, because the only rule that applied here was "repeat what is
+     * on the bar". The recommendation was a sentence, never a number anyone
+     * used: `computeSetAdjustment`'s answer was formatted into the hint and
+     * dropped. Between SESSIONS the same formula was honoured (liftMoves), so
+     * the weight moved once a week and never within a session — while the
+     * screen claimed otherwise both times.
+     *
+     * Reading it here rather than writing the adjusted weight onto the next set
+     * keeps `aVal` meaning one thing: what was actually entered. A suggestion
+     * written into `aVal` would be indistinguishable from a logged value, and
+     * the rule above it — something already typed is never overwritten — would
+     * then be defending the app's own guess.
+     *
+     * `felt` (what it was rated) and not `rpe` (what was asked for): judging a
+     * set against its own target scores everything perfect and the weight never
+     * moves, the same trap `liftMoves` documents. So an unrated set falls
+     * through to repeating, which is exactly today's behaviour — and is why the
+     * parity suite's "yields to an earlier set of the SAME exercise" still
+     * holds, since that fixture's previous set was never rated.
+     */
+    if (isLiftMode(ex.mode) && !warm && p.done) {
+      const felt = parseFloat(String(p.felt));
+      const weight = saneKg(p.aVal);
+      const reps = parseInt(String(p.aVal2), 10) || 0;
+      if (Number.isFinite(felt) && weight > 0 && reps > 0) {
+        return String(
+          computeSetAdjustment(reps, felt, repFloorOf(p.t), weight, rpeCenterOf(p)).newWeight,
+        );
+      }
+    }
+    return p.aVal;
   }
 
   if (isLiftMode(ex.mode)) {

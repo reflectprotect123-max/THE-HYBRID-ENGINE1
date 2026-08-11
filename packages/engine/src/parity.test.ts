@@ -371,3 +371,59 @@ describe('merge does not admit holes', () => {
     expect(mergeEngines(local, remote).workouts[0].dates).toEqual(['2026-01-01']);
   });
 });
+
+/*
+ * The set-to-set adjustment reaches the box.
+ *
+ * The logger printed "+2.5 kg for Set 3 (132.5 kg)" and then prefilled 130:
+ * `computeSetAdjustment`'s answer went into a sentence and nowhere else, while
+ * prefill only knew "repeat what is on the bar". Between sessions the same
+ * formula WAS honoured, so load moved weekly and never within a session — with
+ * the screen claiming otherwise both times.
+ */
+describe('prefill autoregulates from a rated previous set', () => {
+  const rated = (over: Partial<LoggedSet>): LoggedSet =>
+    ({ t: '5', rpe: '8', done: true, aVal: '100', aVal2: '5', ...over }) as LoggedSet;
+
+  it('adds load after a set rated easier than its target', () => {
+    // Target centre 8, rated 7 → one point under → +2.5% of 100 → 102.5.
+    const ex2 = ex('Back squat', [rated({ felt: '7' }), { t: '5', rpe: '8' }]);
+    expect(prefillPrimary(ex2, 1, [])).toBe('102.5');
+  });
+
+  it('takes load off after a set rated harder than its target', () => {
+    const ex2 = ex('Back squat', [rated({ felt: '9' }), { t: '5', rpe: '8' }]);
+    expect(prefillPrimary(ex2, 1, [])).toBe('97.5');
+  });
+
+  it('holds when the set landed on its target', () => {
+    const ex2 = ex('Back squat', [rated({ felt: '8' }), { t: '5', rpe: '8' }]);
+    expect(prefillPrimary(ex2, 1, [])).toBe('100');
+  });
+
+  it('comes down after a missed rep floor, however modestly it was rated', () => {
+    // 3 reps against a floor of 5 — scored harder than a 10, so it must fall.
+    const ex2 = ex('Back squat', [rated({ felt: '7', aVal2: '3' }), { t: '5', rpe: '8' }]);
+    expect(Number(prefillPrimary(ex2, 1, []))).toBeLessThan(100);
+  });
+
+  it('repeats, and never adjusts, when the previous set was not rated', () => {
+    // The parity rule this had to preserve: an unrated set is today's behaviour.
+    const ex2 = ex('Back squat', [rated({ felt: '' }), { t: '5', rpe: '8' }]);
+    expect(prefillPrimary(ex2, 1, [])).toBe('100');
+  });
+
+  it('never adjusts a warm-up from a working set, or vice versa', () => {
+    const ex2 = ex('Back squat', [
+      { t: 'W10', done: true, aVal: '40', aVal2: '10', felt: '4' } as LoggedSet,
+      { t: 'W10' } as LoggedSet,
+    ]);
+    // Warm-ups are not autoregulated: a 40kg bar rated 4 must not become 45.
+    expect(prefillPrimary(ex2, 1, [])).toBe('40');
+  });
+
+  it('still lets a number already typed win', () => {
+    const ex2 = ex('Back squat', [rated({ felt: '7' }), { t: '5', rpe: '8', aVal: '95' } as LoggedSet]);
+    expect(prefillPrimary(ex2, 1, [])).toBe('95');
+  });
+});
