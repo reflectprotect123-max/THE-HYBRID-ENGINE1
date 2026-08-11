@@ -30,7 +30,6 @@ import { Settings } from './screens/Settings';
 import { FoodLog } from './screens/nutrition/FoodLog';
 // TODO: Task 2.5 replaces this with FoodLog ported to /nutrition/log.
 import { Log as NutritionLog } from './screens/nutrition/Log';
-// TODO: Task 2.4 builds this screen.
 import { Food as NutritionFood } from './screens/nutrition/Food';
 // TODO: Task 2.9 builds this screen.
 import { Weight as NutritionWeight } from './screens/nutrition/Weight';
