@@ -1,0 +1,122 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import type { CatalogueEntry } from '@hybrid/engine';
+import { ExercisePicker } from './ExercisePicker';
+
+/*
+ * Two empty states, deliberately distinct. "No exercises match those filters."
+ * is the mockup's own copy for a filter that excluded everything. An athlete
+ * whose library is genuinely empty has not made a bad search, and telling them
+ * they have would send them hunting for a typo that is not there.
+ */
+const entries: CatalogueEntry[] = [
+  { name: 'Back Squat', tags: ['Barbell'], uses: 3 },
+  { name: 'Pull-Up', tags: ['Bodyweight', 'Band'], uses: 1 },
+  { name: 'Row Erg', tags: ['Conditioning'], uses: 0 },
+];
+
+function renderPicker(over: Partial<Parameters<typeof ExercisePicker>[0]> = {}) {
+  const props = {
+    entries,
+    onPick: vi.fn(),
+    onNewExercise: vi.fn(),
+    onDone: vi.fn(),
+    ...over,
+  };
+  render(<ExercisePicker {...props} />);
+  return props;
+}
+
+describe('ExercisePicker', () => {
+  it('lists every movement and says how many are shown', () => {
+    renderPicker();
+    expect(screen.getByText('Back Squat')).toBeInTheDocument();
+    expect(screen.getByText('Pull-Up')).toBeInTheDocument();
+    expect(screen.getByText('Row Erg')).toBeInTheDocument();
+    expect(screen.getByTestId('picker-shown-count')).toHaveTextContent('3');
+  });
+
+  it('narrows the list as you search, and updates the count', () => {
+    renderPicker();
+    fireEvent.change(screen.getByPlaceholderText('Search the exercise library'), {
+      target: { value: 'squat' },
+    });
+    expect(screen.getByText('Back Squat')).toBeInTheDocument();
+    expect(screen.queryByText('Row Erg')).not.toBeInTheDocument();
+    expect(screen.getByTestId('picker-shown-count')).toHaveTextContent('1');
+  });
+
+  it('filters by tag', () => {
+    renderPicker();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Bodyweight/i }));
+    expect(screen.getByText('Pull-Up')).toBeInTheDocument();
+    expect(screen.queryByText('Back Squat')).not.toBeInTheDocument();
+  });
+
+  it('shows every offered tag with its real count, including zero', () => {
+    renderPicker();
+    // Warm-up is offered by the picker but carried by nothing in this fixture.
+    expect(screen.getByRole('checkbox', { name: /Warm-up/i })).toBeInTheDocument();
+    expect(screen.getByTestId('tag-count-Warm-up')).toHaveTextContent('0');
+    expect(screen.getByTestId('tag-count-Barbell')).toHaveTextContent('1');
+  });
+
+  it('clears search and tags back to the whole list', () => {
+    renderPicker();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Bodyweight/i }));
+    fireEvent.change(screen.getByPlaceholderText('Search the exercise library'), {
+      target: { value: 'zzz' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
+    expect(screen.getByText('Back Squat')).toBeInTheDocument();
+    expect(screen.getByText('Row Erg')).toBeInTheDocument();
+  });
+
+  it('reports the movement you pick', () => {
+    const props = renderPicker();
+    fireEvent.click(screen.getByRole('button', { name: /Back Squat/i }));
+    expect(props.onPick).toHaveBeenCalledWith('Back Squat');
+  });
+
+  it('says so when a search matches nothing, in the mockup wording', () => {
+    renderPicker();
+    fireEvent.change(screen.getByPlaceholderText('Search the exercise library'), {
+      target: { value: 'zzzz' },
+    });
+    expect(screen.getByText('No exercises match those filters.')).toBeInTheDocument();
+  });
+
+  it('tells an athlete with no movements yet why the list is empty, differently', () => {
+    renderPicker({ entries: [] });
+    expect(screen.getByText(/no movements in your library yet/i)).toBeInTheDocument();
+    expect(screen.queryByText('No exercises match those filters.')).not.toBeInTheDocument();
+  });
+
+  it('offers New exercise, and reports the name typed', () => {
+    const props = renderPicker();
+    fireEvent.change(screen.getByPlaceholderText('Search the exercise library'), {
+      target: { value: 'Zercher Squat' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /new exercise/i }));
+    expect(props.onNewExercise).toHaveBeenCalledWith('Zercher Squat');
+  });
+
+  /*
+   * Circuit has a tab in the mockup and no definition anywhere in this system
+   * (see 2026-08-11-stage3c-sessions-exercises-design.md). Rendering the button
+   * live would be a dead end; omitting it silently would lose the mockup's
+   * intent. It renders, disabled, saying why.
+   */
+  it('offers New circuit but disables it, because circuits are not defined yet', () => {
+    renderPicker();
+    expect(screen.getByRole('button', { name: /new circuit/i })).toBeDisabled();
+  });
+
+  it('closes when done', () => {
+    const props = renderPicker();
+    fireEvent.click(screen.getByRole('button', { name: /^done$/i }));
+    expect(props.onDone).toHaveBeenCalled();
+  });
+});
