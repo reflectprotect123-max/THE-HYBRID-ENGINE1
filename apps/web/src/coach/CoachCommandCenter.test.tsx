@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../store/db';
 import { NutritionProvider } from '../store/nutrition';
 import { CoachCommandCenter } from './CoachCommandCenter';
@@ -57,6 +58,40 @@ const ROSTER_CLIENT = rosterClient({
     checkInDays: 4,
   },
 });
+
+const TODAY = new Date().toISOString().slice(0, 10);
+
+/**
+ * Seeds the exact localStorage blob `DbProvider` boots from (`loadDB` reads
+ * `LS_KEY` directly — apps/web/src/store/db.tsx) with one manual recovery
+ * observation dated today, strong enough that `deriveAthleteState`'s
+ * readiness score clears the 'high' band threshold (score >= 70 — see
+ * `band()` in packages/whole-athlete-state/src/state.ts). Same five fields,
+ * same 'high' outcome, as `AthleteStatus.test.tsx`'s `seedRecoveryToday`.
+ *
+ * Finding 2 (fix-round 1): a FRESH, unseeded DB's real readiness band is
+ * already 'unknown' — textually IDENTICAL to the roster fallback string this
+ * file hardcodes for a non-local client (`isLocalClient ? … : 'unknown'`).
+ * A test built on an unseeded DB cannot distinguish "the gate held" from
+ * "the gate was removed and both branches happen to read the same word" —
+ * that was exactly the blind spot the reviewer's adversarial edit exposed:
+ * vitest stayed green with the gate deleted. Seeding a real, non-'unknown'
+ * band makes the two cases textually different, so a removed gate now shows
+ * up as a real assertion failure below, not a coincidence.
+ */
+function seedHighReadinessToday() {
+  const db = {
+    workouts: [],
+    sessions: [],
+    settings: {},
+    core: {
+      recovery: [
+        { id: 'r-today', date: TODAY, recordedAt: Date.now(), sleepHours: 8, sleepQuality: 9, energy: 9, soreness: 1, stress: 1 },
+      ],
+    },
+  };
+  localStorage.setItem(LS_KEY, JSON.stringify(db));
+}
 
 function rosterProposal(over: Partial<AthleteProgressionProposal> = {}): AthleteProgressionProposal {
   return {
@@ -173,6 +208,37 @@ describe('CoachCommandCenter', () => {
     // The readiness tile must not claim a band for a client this file has no
     // authorised way to read a band for.
     const readinessTile = screen.getByRole('link', { name: /Readiness/ });
+    expect(readinessTile).toHaveTextContent('unknown');
+  });
+
+  /*
+   * Finding 2 (fix-round 1): the earlier readiness tests only ever exercised
+   * an unseeded DB, whose real band ('unknown') is textually identical to
+   * the roster fallback — so they could not have caught a leak. This test
+   * seeds a real, non-'unknown' band for the signed-in athlete, confirms the
+   * seed actually took effect on their own tile, then switches to a roster
+   * client and asserts that value is nowhere on screen. Deleting the
+   * `isLocalClient` guard on `readinessBand` (CoachCommandCenter.tsx:115)
+   * makes this test fail — adversarially verified, see task-2-report.md.
+   */
+  it('never shows a roster client the signed-in athlete\'s real (non-placeholder) readiness band', async () => {
+    seedHighReadinessToday();
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [ENGINE_LOCAL_CLIENT, ROSTER_CLIENT];
+    await renderCommandCenter(repo);
+
+    // Confirms the seed worked: the signed-in athlete's own tile carries the
+    // real, seeded band, not a fixture default that never leaves 'unknown'.
+    expect(screen.getByRole('link', { name: /Readiness/ })).toHaveTextContent('high');
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /client/i }), {
+        target: { value: ROSTER_CLIENT.id },
+      });
+    });
+
+    const readinessTile = screen.getByRole('link', { name: /Readiness/ });
+    expect(readinessTile).not.toHaveTextContent('high');
     expect(readinessTile).toHaveTextContent('unknown');
   });
 });

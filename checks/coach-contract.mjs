@@ -309,16 +309,30 @@ console.log('Coach surface contract\n');
   const cc = code(resolve(ROOT, ccFile));
   const GUARD = 'isLocalClient';
   const riskyMarkers = ['athleteState.readiness.band', 'nutritionReview.exceptions'];
-  const unguarded = riskyMarkers.filter((marker) => {
-    const at = cc.indexOf(marker);
-    if (at === -1) return true; // moved or renamed — fail closed, do not silently pass
-    const before = cc.slice(Math.max(0, at - 500), at);
-    return !before.includes(GUARD);
-  });
+  /*
+   * A PROXIMITY check ("the guard token appears somewhere within N characters
+   * before the risky read") is not a guard check — `const isLocalClient = …`
+   * sits near everything below it by construction, so it stays in-window even
+   * once the read is unconditional. Confirmed by adversarial test: changing
+   * `isLocalClient ? athleteState.readiness.band : 'unknown'` to an
+   * unconditional `athleteState.readiness.band` — a real leak — left the old
+   * 500-character lookback version of this check GREEN.
+   *
+   * What actually proves the read is gated is STRUCTURE: the marker must sit
+   * inside the TRUE branch of an `isLocalClient ? … : …` ternary, or inside
+   * an `isLocalClient && …` expression, not merely somewhere after the guard
+   * declaration. `[^:]*?` / `[^;]*?` bound the search to that branch —
+   * crossing the ternary's `:` or a statement's `;` means the marker fell
+   * into the FALSE branch or a later, unrelated statement, which is exactly
+   * the unconditional-leak shape the adversarial test produced.
+   */
+  const guardedByTernary = (marker) => new RegExp(`${GUARD}\\s*\\?\\s*[^:]*?${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(cc);
+  const guardedByAnd = (marker) => new RegExp(`${GUARD}\\s*&&\\s*[^;]*?${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(cc);
+  const unguarded = riskyMarkers.filter((marker) => !guardedByTernary(marker) && !guardedByAnd(marker));
   if (unguarded.length) {
     fail(
       'CoachCommandCenter never renders local athlete state unguarded',
-      `${ccFile} has ${unguarded.join(', ')} not preceded by an '${GUARD}' guard within 500 characters.`,
+      `${ccFile} has ${unguarded.join(', ')} not inside an '${GUARD} ? … :' or '${GUARD} && …' guarded expression.`,
     );
   } else pass("CoachCommandCenter's local-only sections stay behind isLocalClient");
 }
