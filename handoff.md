@@ -12,7 +12,9 @@
 > history and remain accurate about their own scope; where one contradicts
 > this, this wins.
 >
-> `main` is at `acbd5c0`. Everything described here is pushed.
+> All the work described here is on `main` and pushed, ending at `acbd5c0`
+> (this checkpoint's own commit sits on top of it). Nothing is left on a
+> branch, and no worktree holds unmerged work.
 
 ## Stage 1 of the coach redesign — merged and live
 
