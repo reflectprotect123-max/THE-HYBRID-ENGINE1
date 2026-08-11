@@ -418,9 +418,11 @@ t('the query extractor actually found queries in every source', () => {
   });
   // Floor lowered from 20 to 10 when the coach system's assignments/
   // athlete_feed/coach_athletes queries were removed (approved removal, not a
-  // regression) — app code now only queries app_state. Still high enough to
-  // catch the extractor itself silently breaking.
-  assert(refs.length > 10, 'suspiciously few column references extracted: ' + refs.length);
+  // regression) — app code now only queries app_state. Lowered again, 10 to
+  // 5, when apps/mobile was deleted and its sync.tsx dropped out of SOURCES —
+  // web alone now extracts 7. Still high enough to catch the extractor
+  // itself silently breaking.
+  assert(refs.length > 5, 'suspiciously few column references extracted: ' + refs.length);
 });
 
 t('every table named by a client query exists in the schema', () => {
@@ -467,8 +469,10 @@ t('every upsert onConflict target is backed by a unique constraint', () => {
   });
   // Floor lowered from 3 to 2 when the coach system's athlete_feed digest
   // upsert was removed (approved removal, not a regression) — web and mobile
-  // each still upsert app_state, which this floor now reflects exactly.
-  assert(seen >= 2, 'expected at least 2 upserts across the sources, found ' + seen);
+  // each still upserted app_state, which that floor reflected exactly.
+  // Lowered again, 2 to 1, when apps/mobile was deleted and its sync.tsx
+  // dropped out of SOURCES — only web's own app_state upsert remains.
+  assert(seen >= 1, 'expected at least 1 upsert across the sources, found ' + seen);
   assert(!bad.length, 'bad onConflict arbiter(s):\n    ' + bad.join('\n    '));
 });
 

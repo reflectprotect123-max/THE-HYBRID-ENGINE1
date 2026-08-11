@@ -239,9 +239,18 @@ console.log('Coach surface contract\n');
   if (!coachRouter.includes('path="planner/:id"') || !coachRouter.includes('path="build/:id"')) offenders.push('apps/web/src/coach/index.tsx');
   if (!generator.includes("location.hash.startsWith('#/coach')")) offenders.push('tooling/build-single-html.mjs');
   const athleteRoutes = /[`'"]\/(?:training|library|conditioning|history|progress|exercise|calendar|day|recap|nutrition|settings|log)(?:\/|[`'"])/;
+  /*
+   * CoachNotAuthorized.tsx is the one deliberate exception, not a leak: it
+   * renders OUTSIDE the coach Shell for a signed-in-but-unauthorised account,
+   * and its whole job is to hand that account back to the athlete app —
+   * `navigate('/training')` there is the correct exit, not an accidental one.
+   */
+  const exempt = new Set(['apps/web/src/coach/CoachNotAuthorized.tsx']);
   for (const file of sourceFiles('apps/web/src/coach')) {
+    const rel = relative(ROOT, file);
+    if (exempt.has(rel)) continue;
     const navigationCode = code(file).replace(/\.includes\(\s*['"][^'"]+['"]\s*\)/g, '');
-    if (athleteRoutes.test(navigationCode)) offenders.push(relative(ROOT, file));
+    if (athleteRoutes.test(navigationCode)) offenders.push(rel);
   }
   if (offenders.length) {
     fail('the standalone coach workspace stays on coach routes', `Route leak or missing guard: ${offenders.join(', ')}.`);
