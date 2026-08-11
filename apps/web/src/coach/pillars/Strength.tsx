@@ -5,7 +5,7 @@ import { PillarBack } from './PillarBack';
 import { useProgressionLedger } from '../progression-store';
 import type { ProgressionDirection, StrengthProgressionProposal } from '../progression';
 import { ProgressionActions } from '../progression-actions';
-import { liftTrends, weeklyHardBudget, type TrendSeries } from '../trends';
+import { liftTrends, liftTrendSummary, weeklyHardBudget, type TrendSeries } from '../trends';
 import '../coach-redesign.css';
 
 /*
@@ -230,7 +230,18 @@ export function Strength() {
     [ledger.proposals, decided],
   );
 
-  const lifts = useMemo(() => liftTrends(sessions, today), [sessions, today]);
+  /*
+   * EVERY lift with enough exposure to chart, not `liftTrends`' default
+   * `topK` of 2 (Stage-1 final review). The mockup shows four cards; an
+   * athlete tracking six saw two, silently. There is no cap here now, so
+   * there is no arbitrary number to justify — the only filter left is the
+   * engine's real one, three weeks of exposure, and `belowThreshold` names
+   * the lifts it holds back so that filter stops being silent too.
+   */
+  const { series: lifts, belowThreshold } = useMemo(
+    () => liftTrendSummary(sessions, today),
+    [sessions, today],
+  );
   const historyWeeks = useMemo(() => weeksOfHistory(sessions, today), [sessions, today]);
 
   // Same budget source as `AthleteStatus.tsx`'s self-coach panel: the
@@ -284,13 +295,22 @@ export function Strength() {
       {lifts.length === 0 ? (
         <p className="rd-panel-note">
           Trends appear after three weeks of logged lifting on the same lift — not enough history yet.
+          {belowThreshold.length > 0 && ` ${belowThreshold.length} lift${belowThreshold.length === 1 ? ' was' : 's were'} logged in this window but not on three separate weeks: ${belowThreshold.join(', ')}.`}
         </p>
       ) : (
-        <div className="rd-cards">
-          {lifts.map((series) => (
-            <LiftCard key={series.label} series={series} sessions={sessions} today={today} historyWeeks={historyWeeks} />
-          ))}
-        </div>
+        <>
+          <div className="rd-cards">
+            {lifts.map((series) => (
+              <LiftCard key={series.label} series={series} sessions={sessions} today={today} historyWeeks={historyWeeks} />
+            ))}
+          </div>
+          {belowThreshold.length > 0 && (
+            <p className="rd-panel-note">
+              Not charted: {belowThreshold.join(', ')} — logged in this window, but not on three separate weeks, so
+              there is no honest line to draw yet.
+            </p>
+          )}
+        </>
       )}
 
       <p className="rd-section-label">Weekly hard-session budget</p>

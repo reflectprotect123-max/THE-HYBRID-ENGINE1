@@ -3,6 +3,7 @@ import {
   condEfforts,
   conMaxHr,
   hrMaxBandSeconds,
+  type Concept2Result,
   type Downsampled,
   type HrMaxBand,
   type ProgressState,
@@ -114,15 +115,57 @@ function ergSparkPath(points: number[], w: number, h: number, pad: number) {
   return { line, area, lastX: x(last), lastY: y(points[last]!) };
 }
 
+/*
+ * The erg card's chart range, added 11 August 2026 by the Stage-1 final
+ * review. `ErgCard` had no toggle at all: it rendered `ergSparkPath` in the
+ * expanded view from the identical `points` array as the collapsed
+ * sparkline, so expanding a card enlarged the same eight points and added
+ * nothing — while the mockup's `renderCards()` emits `.rd-range-toggle` for
+ * every card it draws, `#conditioning-cards` included.
+ *
+ * It was left out on the same false premise the branch already corrected
+ * twice (Task 3's `whoopDaily`, Task 4's `liftTrends`): `ergTrend(results,
+ * maxPoints = 8)`'s default was read as a limit on the data. It is not.
+ * `netlify/functions/concept2-sync.mjs` stores up to `MAX_STORED_RESULTS =
+ * 500` results, accumulated incrementally (it trims by COUNT, never by
+ * date), with a 90-day backfill on first connect. The history behind an erg
+ * card is routinely far longer than eight tests.
+ *
+ * The ranges are counts of TESTS, not days or weeks, and that is a
+ * deliberate departure from Readiness's 7/30/90d — the same licence
+ * Strength took for its justified 8w/13w. An erg series is indexed by test,
+ * not by calendar: `ergTrend` charts one (modality, distance) group, so a
+ * 30-day window on an athlete who tested twice that month would draw a
+ * two-point line and call it a trend. `All` is bounded by the store's own
+ * 500-result cap.
+ *
+ * Card identity is stable across the toggle by construction, not by luck:
+ * `ergTrend` picks the largest group BEFORE `maxPoints` is applied, so
+ * widening the range can never swap which test a card is showing.
+ */
+const ERG_RANGES = [8, 20, Number.MAX_SAFE_INTEGER] as const;
+const DEFAULT_ERG_RANGE = ERG_RANGES[0];
+
+function ergRangeLabel(range: number): string {
+  return range === Number.MAX_SAFE_INTEGER ? 'All' : String(range);
+}
+
 /** Pace/500m is "lower is faster" — the opposite good-direction of a lift's
  *  e1RM — so the delta's good/bad coloring is inverted from `LiftCard`'s. */
-function ErgCard({ series }: { series: TrendSeries }) {
+function ErgCard({ series, results }: { series: TrendSeries; results: Concept2Result[] }) {
   const [open, setOpen] = useState(false);
+  const [range, setRange] = useState<number>(DEFAULT_ERG_RANGE);
   const cls = series.delta == null ? 'neutral' : series.delta <= 0 ? 'good' : 'bad';
   const color = cls === 'good' ? 'var(--color-ok)' : cls === 'bad' ? 'var(--color-bad)' : 'var(--color-muted)';
   const points = series.points.filter((p): p is number => p != null);
   const spark = ergSparkPath(points, 180, 38, 3);
-  const big = ergSparkPath(points, 500, 60, 4);
+
+  /* Re-derived at the selected window from the same results the collapsed
+     sparkline came from — never padded or interpolated up to the range. */
+  const expanded = useMemo(() => ergTrend(results, range), [results, range]);
+  const expandedPoints = (expanded?.points ?? []).filter((p): p is number => p != null);
+  const big = ergSparkPath(expandedPoints, 500, 60, 4);
+  const short = range !== Number.MAX_SAFE_INTEGER && expandedPoints.length < range;
 
   return (
     <div className={`rd-card${open ? ' open' : ''}`}>
@@ -155,13 +198,40 @@ function ErgCard({ series }: { series: TrendSeries }) {
           <circle cx={spark.lastX} cy={spark.lastY} r={3} fill={color} />
         </svg>
       )}
-      {open && big && (
+      {open && (
         <div className="rd-card-expand">
           <div className="rd-card-expand-inner">
-            <svg className="rd-big-chart" viewBox="0 0 500 60">
-              <polygon points={big.area} fill={color} opacity={0.14} />
-              <polyline points={big.line} fill="none" stroke={color} strokeWidth={2} />
-            </svg>
+            <div className="rd-range-toggle" role="group" aria-label={`${series.label} chart range, in tests`}>
+              {ERG_RANGES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={r === range ? 'active' : undefined}
+                  aria-pressed={r === range}
+                  onClick={() => setRange(r)}
+                >
+                  {ergRangeLabel(r)}
+                </button>
+              ))}
+            </div>
+            {big ? (
+              <>
+                {short && (
+                  <p className="rd-stale-note" style={{ textAlign: 'left', marginBottom: 6 }}>
+                    Only {expandedPoints.length} test{expandedPoints.length === 1 ? '' : 's'} on record for this
+                    format — showing all of them, not a full {range}-test window.
+                  </p>
+                )}
+                <svg className="rd-big-chart" viewBox="0 0 500 60">
+                  <polygon points={big.area} fill={color} opacity={0.14} />
+                  <polyline points={big.line} fill="none" stroke={color} strokeWidth={2} />
+                </svg>
+              </>
+            ) : (
+              <p className="rd-stale-note" style={{ textAlign: 'left' }}>
+                Not enough {series.label} history yet for a chart.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -401,7 +471,7 @@ export function Conditioning() {
       <p className="rd-section-label">Erg trends</p>
       {erg ? (
         <div className="rd-cards">
-          <ErgCard series={erg} />
+          <ErgCard series={erg} results={c2.results} />
         </div>
       ) : (
         <p className="rd-panel-note">

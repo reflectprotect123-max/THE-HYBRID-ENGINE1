@@ -74,6 +74,62 @@ describe('Strength pillar', () => {
   });
 });
 
+/*
+ * How MANY lift cards. Added 11 August 2026 by the Stage-1 final review:
+ * `Strength.tsx` called `liftTrends(sessions, today)` and `topK` defaults to
+ * 2, so an athlete tracking six lifts saw two, against a mockup showing
+ * four, with nothing on screen saying four had been dropped — while the same
+ * file already passed `topK: 20` deliberately for the expanded-range lookup.
+ */
+function seedManyLifts(names: string[], weeks: number) {
+  const sessions = names.flatMap((name, liftIndex) =>
+    Array.from({ length: weeks }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (weeks - 1 - i) * 7);
+      return liftSession(d.toISOString().slice(0, 10), name, 100 + liftIndex * 10 + i, 5);
+    }),
+  );
+  localStorage.setItem(LS_KEY, JSON.stringify({ workouts: [], sessions, settings: {}, core: {} }));
+}
+
+describe('lift trend card count', () => {
+  it('charts every lift with enough exposure, not the first two', () => {
+    const names = ['Back Squat', 'Bench Press', 'Deadlift', 'Overhead Press', 'Barbell Row', 'Front Squat'];
+    seedManyLifts(names, 6);
+    renderPillar();
+
+    for (const name of names) {
+      expect(screen.getByRole('button', { name: `Expand ${name} chart` })).toBeInTheDocument();
+    }
+    expect(document.querySelectorAll('.rd-cards .rd-card')).toHaveLength(names.length);
+    // Nothing was held back, so nothing is claimed to have been.
+    expect(screen.queryByText(/Not charted:/)).not.toBeInTheDocument();
+  });
+
+  it('names the lifts it is NOT charting, rather than dropping them silently', () => {
+    // Three weeks of exposure is the engine's real threshold. A lift trained
+    // twice cannot honestly be given a line — but it must still be named.
+    const sessions = [
+      ...Array.from({ length: 5 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (4 - i) * 7);
+        return liftSession(d.toISOString().slice(0, 10), 'Back Squat', 100 + i, 5);
+      }),
+      ...Array.from({ length: 2 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (1 - i) * 7);
+        return liftSession(d.toISOString().slice(0, 10), 'Snatch', 60 + i, 3);
+      }),
+    ];
+    localStorage.setItem(LS_KEY, JSON.stringify({ workouts: [], sessions, settings: {}, core: {} }));
+    renderPillar();
+
+    expect(screen.getByRole('button', { name: 'Expand Back Squat chart' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Expand Snatch chart' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Not charted: Snatch —/)).toBeInTheDocument();
+  });
+});
+
 describe('lift trend card range toggle', () => {
   it('renders genuinely more points for a longer real range than a shorter one', () => {
     seedLiftHistory(13);

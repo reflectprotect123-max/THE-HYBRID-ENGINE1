@@ -199,11 +199,22 @@ describe('Nutrition pillar', () => {
     expect(latest).not.toBeNull();
     expect(screen.getByText(byFullText(`${latest!.weightKg.toFixed(1)} kg latest`))).toBeInTheDocument();
 
+    /* UNWRAPPED 11 August 2026 (Stage-1 final review). This assertion used to
+       sit inside `if (trend.slopeKgPerWeek != null)`, so it could stop
+       asserting anything at all — silently — the moment the fixture, the
+       adapter or the engine stopped producing a slope, which is exactly the
+       regression it exists to catch. The fixture guarantees one: three
+       weigh-ins inside the window give `linearSlope` the two trend points it
+       needs, and the descent 79.5 -> 78.4 kg is far outside the engine's
+       steady dead band, so the direction is a real 'falling', not a
+       coin-flip on rounding. The null case is asserted against directly. */
     const trend = weightTrendSummary(estimate);
-    if (trend.slopeKgPerWeek != null) {
-      const sign = trend.slopeKgPerWeek > 0 ? '\\+' : '';
-      expect(screen.getByText(new RegExp(`${sign}${trend.slopeKgPerWeek.toFixed(1)} kg/week · ${trend.direction}`))).toBeInTheDocument();
-    }
+    expect(trend.slopeKgPerWeek).not.toBeNull();
+    expect(trend.direction).toBe('falling');
+    const sign = trend.slopeKgPerWeek! > 0 ? '\\+' : '';
+    expect(
+      screen.getByText(new RegExp(`${sign}${trend.slopeKgPerWeek!.toFixed(1)} kg/week · ${trend.direction}`)),
+    ).toBeInTheDocument();
   });
 
   it('renders a real exception that is not about unlogged days, badging what CoachCommandCenter counts', async () => {
