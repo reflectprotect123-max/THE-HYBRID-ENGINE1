@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Kicker, ScreenTitle, Tabs } from '../../ui';
-// TODO: Task 2.6 builds this screen.
 import { FoodSearch } from './FoodSearch';
 import { QuickAdd } from './QuickAdd';
 // TODO: Task 2.7 builds this screen.
@@ -25,9 +24,9 @@ import { LabelReader } from './LabelReader';
  * mechanism used here — the set of panes is what has to match mobile, not
  * the exact control that switches between them.
  *
- * Quick add (Task 2.4b) is real; the other four panes are still placeholders.
- * Each remaining TODO above names the task that replaces its placeholder with
- * the real screen.
+ * Quick add (Task 2.4b) and Search (Task 2.6) are real; the other three panes
+ * are still placeholders. Each remaining TODO above names the task that
+ * replaces its placeholder with the real screen.
  */
 
 type Pane = 'search' | 'quickAdd' | 'customFood' | 'recipe' | 'scan' | 'label';
