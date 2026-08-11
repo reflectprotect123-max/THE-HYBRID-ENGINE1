@@ -829,8 +829,12 @@ describe('coach pillar routes', () => {
     },
   );
 
-  it('keeps /coach/progression reachable as a redirect rather than a dead link', () => {
-    expect(src).toMatch(/path="progression"[^>]*element=\{<Navigate to="\/coach\/strength"/);
+  /* AMENDED 11 August 2026 — see "Task 7 amendment" below. The route is NOT a
+     redirect: it survives as the roster decision surface, so it must still be
+     gated with `layer3Ready` exactly as it is today. */
+  it('keeps /coach/progression as a layer3Ready roster route, not a redirect', () => {
+    expect(src).toMatch(/path="progression"[^>]*element=\{<ClientDetailGate tool="Decisions" layer3Ready>/);
+    expect(src).not.toMatch(/path="progression"[^>]*<Navigate/);
   });
 });
 ```
@@ -853,28 +857,68 @@ In `apps/web/src/coach/index.tsx`, inside the existing `<Route element={<ArcCoac
 
 Note these use `ClientDetailGate` **without** `layer3Ready`: they read local `useDb()` stores, so a roster client must be blocked, not merely warned — the same reasoning the file's existing comment gives for `legacy` / `build` / `planner`. Read that comment before deciding otherwise.
 
-Replace the old `progression` route with a redirect, and delete its import:
+Leave the `progression` route exactly as it is. Do not replace it with a
+redirect. See the amendment below for why.
+
+## Task 7 amendment (11 August 2026, after Task 6b's review)
+
+**The original Step 4 said to delete `CoachProgression.tsx` and redirect
+`/coach/progression` to `/coach/strength`. Do not do that.** It would delete a
+capability, for the second time in this plan.
+
+Task 6b was itself inserted because Task 7 would have deleted the app's only
+approve/decline path. Its review found the same defect one level down. The
+extraction produced **two** components, not one:
+
+- `ProgressionActions` (self-coach) — mounted by `Strength.tsx`,
+  `Conditioning.tsx` and `CoachProgression.tsx`. Survives a deletion.
+- `RosterProgressionActions` (roster) — mounted **only** at
+  `CoachProgression.tsx:120`. Deleting that file orphans it: an exported
+  component with zero callers, and no way for a coach to approve or decline a
+  roster athlete's proposal anywhere in the app.
+
+This is not an implementer error. It is a gap in the spec, which says
+`/coach/progression`'s "strength proposals move to the Strength pillar's queue
+and its conditioning proposals to the Conditioning pillar's" — assuming every
+proposal has a pillar to move to. Roster proposals do not. The pillars read the
+signed-in athlete's own stores, so they are gated **without** `layer3Ready` and
+refuse roster clients by design. The gate that protects athlete privacy is the
+same gate that keeps roster proposals out of the pillars.
+
+So `/coach/progression` survives, narrowed to the job the pillars cannot do.
+
+- [ ] **Step 4: Narrow the old screen to roster-only**
+
+`CoachProgression.tsx` is NOT deleted. Its roster view is now its only reason
+to exist: the pillars duplicate its self-coach view, and two live copies of a
+decision path means two places a guard can be fixed in only one of.
+
+Remove the self-coach branch from `CoachProgression.tsx` and send that case to
+the pillar instead:
 
 ```tsx
-<Route path="progression" element={<Navigate to="/coach/strength" replace />} />
+if (isLocalClient) return <Navigate to="/coach/strength" replace />;
 ```
 
-- [ ] **Step 4: Delete the retired screen**
+Read the file before cutting: confirm which branch is the self-coach one (it
+mounts `ProgressionActions` around line 253) and which is the roster one (it
+mounts `RosterProgressionActions` around line 120), and confirm `isLocalClient`
+is the condition that actually separates them rather than assuming it.
 
-**Do not start this step until Task 6b has landed.** `CoachProgression.tsx`
-holds the app's only approve/decline implementation; Task 6b extracts it into
-`progression-actions.tsx` and mounts it in both pillar queues. Deleting this
-file first removes a capability, not just a screen.
-
-Confirm the extraction is in place before deleting — `apps/web/src/coach/progression-actions.tsx`
-must exist and be imported by both pillars:
+Then verify BOTH decision paths are still reachable — this is the check the
+plan was missing:
 
 ```bash
-test -f apps/web/src/coach/progression-actions.tsx && grep -l ProgressionActions apps/web/src/coach/pillars/*.tsx
-git rm apps/web/src/coach/CoachProgression.tsx
+grep -rn "RosterProgressionActions" apps/web/src --include=*.tsx | grep -v "progression-actions"
+grep -rln "ProgressionActions" apps/web/src/coach/pillars/
 ```
 
-Then confirm nothing still imports the deleted screen: `grep -rn "CoachProgression" apps/web/src` should return nothing.
+The first must return a mount inside `CoachProgression.tsx`. The second must
+name both `Strength.tsx` and `Conditioning.tsx`. If either comes back empty, a
+decision path is unreachable — stop and report it rather than committing.
+
+The self-coach ledger view that `CoachProgression` rendered is not lost: it is
+what the Strength and Conditioning pillar queues now show.
 
 - [ ] **Step 5: Run the full suite and the contract checks**
 
@@ -888,13 +932,19 @@ Expected: all clean. If `coach-contract.mjs` flags a route-leak on the new files
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/web/src/coach/index.tsx apps/web/src/coach/coach-routes.test.tsx
-git commit -m "Route the four pillar screens and retire /coach/progression
+git add apps/web/src/coach/index.tsx apps/web/src/coach/coach-routes.test.tsx apps/web/src/coach/CoachProgression.tsx
+git commit -m "Route the four pillar screens, narrow /coach/progression to roster
 
 Each pillar reads the signed-in athlete's own stores, so each sits
-behind ClientDetailGate like legacy/build/planner. /coach/progression
-redirects to Strength rather than 404ing; its conditioning half now
-lives on the Conditioning pillar."
+behind ClientDetailGate like legacy/build/planner — without
+layer3Ready, so a roster client is refused rather than shown the
+coach's own records.
+
+That gate is why /coach/progression survives instead of retiring as
+originally planned: roster proposals cannot move into a pillar that
+refuses roster clients, and CoachProgression holds the only mount of
+RosterProgressionActions. It keeps its layer3Ready route and drops its
+self-coach half, which the pillar queues now render."
 ```
 
 ---
@@ -982,7 +1032,7 @@ Do not begin Stage 2 before this confirmation.
 | Nutrition stays context-only | 6 |
 | Coordinator remains sole plan writer | 4 |
 | `/coach/nutrition` replaced in place | 6, 7 |
-| `/coach/progression` redirects to Strength | 7 |
+| `/coach/progression` survives as the roster-only decision surface (amended) | 7 |
 | Phone supported and checked | 8 |
 | `CLAUDE.md` boundary rewritten | 8 |
 | Colocated tests | every task |
