@@ -71,6 +71,17 @@ export function GuidedBuilder() {
   const location = useLocation();
   const requestedReturn = search.get('returnTo');
   const returnTo = requestedReturn?.startsWith('/coach') ? requestedReturn : '/library';
+  /*
+   * Where the flow HANDS OFF once a session's first pass is authored.
+   *
+   * Stage 3a INTENDED to point the coach side at the new day builder — the
+   * 2026-07-29 design asks for "coach instructions and Deliver/publish" as the
+   * flow's final full-screen step. It does not yet, and deliberately: the day
+   * builder opens EMPTY. It has no load path for an existing workout and no
+   * save path back, so handing off to it would drop every block this wizard
+   * just authored. Rewire this the moment DayBuilder loads and saves a real
+   * session, and not before.
+   */
   const plannerPath = `${location.pathname.startsWith('/coach/') ? '/coach/planner' : '/planner'}/${id}?returnTo=${encodeURIComponent(returnTo)}`;
   const navType = useNavigationType();
   const known = useMemo(() => knownMovements(db.workouts, db.sessions), [db.workouts, db.sessions]);
