@@ -99,7 +99,37 @@ function toOcrLines(blocks: TesseractBlock[] | null | undefined): OcrLine[] {
  * cross-call worker state a test would otherwise have to reset.
  */
 export async function recognizeLabel(imageSource: Blob | ImageBitmap): Promise<OcrLine[]> {
-  const worker = await createWorker('eng');
+  /*
+   * Explicit `workerPath`/`corePath`: with neither set, tesseract.js v7
+   * defaults to fetching its worker script and WASM core from a CDN
+   * (jsdelivr) the first time OCR runs — invisible in dev, and a hard
+   * dependency on third-party network access for a PWA meant to work
+   * installed/offline. Both files are small enough to self-host, so they are
+   * copied verbatim into `apps/web/public/tesseract/` (see that directory)
+   * and served same-origin, same as every other static asset here.
+   *
+   * `corePath` points at `tesseract-core-simd-lstm.wasm.js` specifically,
+   * not a directory: it is the exact file tesseract.js's own CDN-directory
+   * resolution (`getCore.js`) would pick for the default `oem` (LSTM-only)
+   * on any SIMD-capable browser — and it is genuinely self-contained (the
+   * WASM binary is inlined as base64, confirmed by reading the file), so no
+   * second `.wasm` fetch happens. Naming the file directly also skips
+   * tesseract.js's own runtime feature-detection, making the asset choice
+   * deterministic rather than device-dependent.
+   *
+   * `eng.traineddata` (10+ MB, not shipped by tesseract.js at all) is left
+   * on its CDN default by design — self-hosting the language data was
+   * explicitly out of scope for this fix. The CSP's `connect-src` allows
+   * that one CDN host (see `_headers`) so the fetch is not silently blocked;
+   * the browser's ordinary HTTP cache keeps it available after the first
+   * successful OCR run (this PWA's service worker does not runtime-cache it
+   * — see `vite.config.ts` — so a cleared HTTP cache means one more CDN
+   * round trip, not a broken feature).
+   */
+  const worker = await createWorker('eng', undefined, {
+    workerPath: '/tesseract/worker.min.js',
+    corePath: '/tesseract/tesseract-core-simd-lstm.wasm.js',
+  });
   try {
     const result = await worker.recognize(imageSource as never, {}, { blocks: true });
     const blocks = (result.data as { blocks?: TesseractBlock[] | null }).blocks;

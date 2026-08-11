@@ -52,6 +52,21 @@ describe('recognizeLabel', () => {
     expect(lines).toEqual([{ text: 'Protein 20g', left: 0, top: 10, right: 100, bottom: 20 }]);
   });
 
+  it('points createWorker at the self-hosted worker script and WASM core, not the CDN default', async () => {
+    recognizeMock.mockResolvedValue(page(null));
+
+    await recognizeLabel(new Blob());
+
+    expect(createWorkerMock).toHaveBeenCalledWith(
+      'eng',
+      undefined,
+      expect.objectContaining({
+        workerPath: '/tesseract/worker.min.js',
+        corePath: '/tesseract/tesseract-core-simd-lstm.wasm.js',
+      }),
+    );
+  });
+
   it('returns nothing when the page has no blocks', async () => {
     recognizeMock.mockResolvedValue(page(null));
 

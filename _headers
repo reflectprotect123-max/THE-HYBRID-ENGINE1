@@ -1,10 +1,16 @@
+# connect-src carries one narrow addition beyond 'self'/Supabase:
+# https://cdn.jsdelivr.net, for the one piece of Task 2.11's OCR feature that
+# stays CDN-hosted by design — tesseract.js's `eng.traineddata` (10+ MB,
+# never shipped in node_modules). The worker script and WASM core are
+# self-hosted (apps/web/public/tesseract/, see labelOcr.ts) precisely so they
+# do NOT need a connect-src exception; only the language data does.
 /*
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.supabase.co; worker-src 'self'; manifest-src 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net; worker-src 'self'; manifest-src 'self'; form-action 'self'
   Cache-Control: no-cache, no-store, must-revalidate
 
 # The `/*` block above sets `no-store` on everything, which is right for the
@@ -32,6 +38,13 @@
   Cache-Control: public, max-age=604800
 
 /icons/*
+  Cache-Control: public, max-age=604800
+
+# NOT hashed — tesseract.js's worker script and self-hosted WASM core (see
+# labelOcr.ts). The core file is excluded from the service worker's precache
+# (see vite.config.ts) specifically so it relies on this ordinary HTTP cache
+# instead of bloating every install.
+/tesseract/*
   Cache-Control: public, max-age=604800
 
 # Everything below must never be cached. The two workers decide what every

@@ -67,6 +67,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg}'],
+        /* tesseract.js's WASM core (self-hosted, see labelOcr.ts) is a 3.9 MB
+           single file — its base64-inlined WASM binary makes it far bigger
+           than Workbox's 2 MiB default precache limit, and bumping that
+           limit would put 3.9 MB into EVERY install's initial precache for a
+           screen most athletes never open. It stays a normal same-origin
+           static asset instead: fetched (and cached by the browser's HTTP
+           cache, see `_headers`) only the first time OCR actually runs. */
+        globIgnores: ['tesseract/tesseract-core-simd-lstm.wasm.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [
           // Serverless functions are never a navigation.
