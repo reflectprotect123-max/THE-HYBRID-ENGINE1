@@ -73,11 +73,28 @@ day. It ships as a single component with two modes:
 One screen rather than two, so the blocks-and-notes half is built and fixed
 once.
 
-**Block and set editing reuses the existing shared editor.** `Planner.tsx`
-already isolates every mutation behind one `edit(fn)` closure, which is exactly
-how `RosterPlanner` reuses it today with different save behaviour. The day
-builder does the same. It does not reimplement block editing — a third copy is
-how three screens start disagreeing about what a superset is.
+**Block and set editing follows the mockup** (amended 11 August 2026, after
+reading the mockup's script rather than only its markup — see "Amendment"
+below). The day builder gets its own block editor as drawn:
+
+- A block row with a collapse toggle, a category `<select>`, and a remove
+  action.
+- **"+ Add exercise from library"** revealing a picker: a search box, filter
+  chips carrying live counts, a results list, and `+ New circuit` /
+  `+ New exercise` / `Done` actions.
+- A separate conditioning body for conditioning blocks.
+- Set rows where **each of two columns chooses what it measures** — reps, a
+  rep range, kg, %e1RM, seconds, meters. The second column locks when it would
+  duplicate the first, because, in the mockup's own words, "picking the same
+  thing for both would be a real logging mistake". Sets default to 3 rows,
+  matching the app's existing default.
+
+The engine already supports the two-measure model: `LoggedSet` carries `aVal`
+("primary recorded value — kg for reps_kg, seconds for seconds") and `aVal2`
+("secondary recorded value — reps, when the mode has two"). This is a UI for a
+data model that exists, not a new one.
+
+`Planner` remains the athlete app's editor and is not deleted.
 
 ## What "Publish" means, and the honesty rule it must obey
 
@@ -132,6 +149,33 @@ mockup's month Calendar occupies its role, and the empty-cell actions the grid
 was going to carry ("Create a session" / "Add from library") are exactly the
 Calendar's empty-day actions. The grid is not built, and the carry-over item is
 closed rather than carried.
+
+## Amendment, 11 August 2026: scope, and the exercise catalogue moves here
+
+The first version of this spec said the day builder "reuses the existing
+shared editor" and warned against a third copy of block editing. That was
+written from the mockup's MARKUP, where `#cb-blocks` is an empty div. The
+mockup's SCRIPT fills it with a complete block, picker and set editor. Spec and
+drawing disagreed, and the owner chose to follow the drawing.
+
+Consequences, all of them real:
+
+- **The picker is the tagged exercise catalogue.** It needs a searchable
+  movement list and filter tags carrying counts — `EXERCISES` and
+  `FILTER_TAGS` in the mockup. That was scoped to 3c and to the long-deferred
+  "tagged exercise catalogue" item. It moves into 3a, because 3a's day builder
+  cannot be built without it.
+- **The catalogue is derived, not seeded.** `knownMovements(db.workouts,
+  db.sessions)` already produces the movement list from authored workouts and
+  logged sessions. The catalogue extends that with tags and counts; it does not
+  introduce a second source of movements that could disagree with the athlete
+  Library's.
+- **3c keeps the Exercises TAB but loses its data work**, which lands here.
+  `2026-08-11-stage3c-sessions-exercises-design.md` is amended to match.
+- **The build order changes.** It is no longer 3a → 3b → 3c. Within 3a the
+  catalogue is built first, because the picker consumes it.
+- **3a roughly doubles.** This was stated plainly before the choice was made
+  and is accepted.
 
 ## Rules that do not move
 

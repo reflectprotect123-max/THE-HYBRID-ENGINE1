@@ -57,12 +57,20 @@ db.sessions)` already derives exactly this in the athlete Library, from
 authored workouts and logged sessions. Exercises reuses it rather than
 introducing a parallel catalogue that could disagree with it.
 
-**This absorbs the deferred tagged exercise catalogue** rather than duplicating
-it. That item has been parked since Stage 2b; a second catalogue built here
-would make it permanently stale. Tagging is what turns a flat movement list
-into something searchable by pattern — hinge, squat, press, pull — and it is
-the reason this tab is worth building at all rather than being a list you
-scroll.
+**Amended 11 August 2026: the catalogue itself moves to 3a.** This section
+originally absorbed the deferred tagged exercise catalogue. After the owner
+chose to build the day builder as the mockup draws it, that builder's
+"+ Add exercise from library" picker needs the tagged catalogue to exist, so
+the catalogue — the derivation, the tags, the counts — is built in 3a.
+
+What remains here is the **tab**: a browsable view of the catalogue 3a
+produces, with search and tag filtering. It consumes; it does not define. A
+second catalogue built here would be exactly the duplicate this section was
+written to prevent.
+
+Tagging is still what makes this worth a tab rather than a scrolling list —
+finding by pattern, hinge or squat or press or pull, rather than by
+remembering a name.
 
 **Scope discipline.** The tab lists movements, shows where each is used, and
 supports search and tag filtering. It does not become an exercise database
