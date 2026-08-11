@@ -88,6 +88,13 @@ export function RestProvider({ children }: { children: ReactNode }) {
       } catch {
         /* no vibration on this device */
       }
+      try {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification('Rest complete', { body: 'Time for your next set.' });
+        }
+      } catch {
+        /* notification unsupported or blocked on this device */
+      }
     }
     setEnds(0);
     setTotal(0);
