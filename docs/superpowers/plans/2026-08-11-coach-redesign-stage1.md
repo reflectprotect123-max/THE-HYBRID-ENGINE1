@@ -694,6 +694,102 @@ than being averaged in as zero."
 
 ---
 
+### Task 6b: Extract the progression decision actions before anything deletes them
+
+**Added 11 August 2026, after Task 4's review.** This task did not exist in the
+original plan, and its absence was a defect: Task 7 deletes
+`CoachProgression.tsx`, which holds the **only** approve/decline implementation
+in the app, while Tasks 4 and 5 built their queues read-only. Executing Task 7
+as originally written would leave a coach able to see progression proposals and
+unable to action any of them — removing the decision workflow the bench exists
+for. Verified by grep: `decideProgressionProposal`, `appendProgressionDecision`
+and `applyApprovedProposal` are called from no other UI file.
+
+**Files:**
+- Create: `apps/web/src/coach/progression-actions.tsx`
+- Test: `apps/web/src/coach/progression-actions.test.tsx`
+- Modify: `apps/web/src/coach/pillars/Strength.tsx`, `apps/web/src/coach/pillars/Conditioning.tsx`
+- Read (do not yet delete): `apps/web/src/coach/CoachProgression.tsx`
+
+**Interfaces:**
+- Consumes: the existing decision paths in `CoachProgression.tsx` — `RosterProgressionView.decide()` (line ~80, via `repository.decideProgressionProposal`) and `SelfCoachProgressionView.decide()` (line ~245, via `applyApprovedProposal` + `appendProgressionDecision`).
+- Produces: `export function ProgressionActions({ proposal }: { proposal: AthleteProgressionProposal }): JSX.Element` — mounted by both pillar queues. Task 7 depends on this existing before it deletes anything.
+
+- [ ] **Step 1: Read both existing decision paths in full**
+
+`CoachProgression.tsx` has two, not one: a roster path and a self-coach path.
+They differ in what they call and in their guards. List every guard before you
+extract anything — each exists for a reason:
+
+- `review` direction blocks Approve
+- an active hard safety constraint blocks Approve
+- a stale proposal blocks Approve
+- the self-coach path requires a rationale before recording a decision
+
+- [ ] **Step 2: Write the failing test**
+
+```tsx
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { ProgressionActions } from './progression-actions';
+
+describe('ProgressionActions', () => {
+  it('refuses to approve a proposal flagged for review', () => {
+    render(<ProgressionActions proposal={{ /* direction: 'review', minimal valid shape */ } as never} />);
+    expect(screen.getByRole('button', { name: /approve/i })).toBeDisabled();
+  });
+});
+```
+
+Expand this to cover every guard you listed in Step 1 — one test per guard.
+A guard that loses its test here is a guard that quietly stops working.
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+Run: `pnpm --filter @hybrid/web exec vitest run src/coach/progression-actions.test.tsx`
+Expected: FAIL — module not found.
+
+- [ ] **Step 4: Extract**
+
+Move both decision paths into `progression-actions.tsx`, preserving every
+guard exactly. This is a move, not a rewrite: the behaviour a coach sees must
+not change. `CoachProgression.tsx` then imports and uses the extracted
+component rather than keeping its own copy — so the two cannot drift while
+both exist.
+
+- [ ] **Step 5: Mount in both pillars**
+
+Render `<ProgressionActions proposal={p} />` inside each `.rd-queue-item` in
+`Strength.tsx` and `Conditioning.tsx`. The Coordinator remains the only writer
+of a weekly plan: these actions route through the same calls they always did.
+
+- [ ] **Step 6: Verify**
+
+```bash
+pnpm --filter @hybrid/web exec tsc --noEmit -p .
+pnpm --filter @hybrid/web exec vitest run
+node checks/coach-contract.mjs
+```
+
+`CoachProgression.test.tsx` must still pass — if the extraction changed
+behaviour, it will say so.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/web/src/coach/progression-actions.tsx apps/web/src/coach/progression-actions.test.tsx apps/web/src/coach/CoachProgression.tsx apps/web/src/coach/pillars/Strength.tsx apps/web/src/coach/pillars/Conditioning.tsx
+git commit -m "Extract the progression decision actions into a shared component
+
+Task 7 deletes CoachProgression, which held the only approve/decline
+path in the app. Both pillar queues now mount the same actions, with
+every guard preserved, so the deletion removes a screen rather than a
+capability."
+```
+
+---
+
 ### Task 7: Route the pillars and retire /coach/progression
 
 **Files:**
@@ -765,11 +861,20 @@ Replace the old `progression` route with a redirect, and delete its import:
 
 - [ ] **Step 4: Delete the retired screen**
 
+**Do not start this step until Task 6b has landed.** `CoachProgression.tsx`
+holds the app's only approve/decline implementation; Task 6b extracts it into
+`progression-actions.tsx` and mounts it in both pillar queues. Deleting this
+file first removes a capability, not just a screen.
+
+Confirm the extraction is in place before deleting — `apps/web/src/coach/progression-actions.tsx`
+must exist and be imported by both pillars:
+
 ```bash
+test -f apps/web/src/coach/progression-actions.tsx && grep -l ProgressionActions apps/web/src/coach/pillars/*.tsx
 git rm apps/web/src/coach/CoachProgression.tsx
 ```
 
-Confirm nothing still imports it: `grep -rn "CoachProgression" apps/web/src` should return nothing.
+Then confirm nothing still imports the deleted screen: `grep -rn "CoachProgression" apps/web/src` should return nothing.
 
 - [ ] **Step 5: Run the full suite and the contract checks**
 
