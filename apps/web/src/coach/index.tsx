@@ -5,6 +5,7 @@ import { Readiness } from './pillars/Readiness';
 import { Strength } from './pillars/Strength';
 import { Conditioning } from './pillars/Conditioning';
 import { Nutrition } from './pillars/Nutrition';
+import { DayBuilderRoute } from './library/DayBuilderRoute';
 import { WeekReview } from './WeekReview';
 import { CoachProgression } from './CoachProgression';
 import { CoachCommandCenter } from './CoachCommandCenter';
@@ -70,6 +71,13 @@ export default function Coach() {
             <Route path="strength" element={<ClientDetailGate tool="Strength"><Strength /></ClientDetailGate>} />
             <Route path="conditioning" element={<ClientDetailGate tool="Conditioning"><Conditioning /></ClientDetailGate>} />
             <Route path="nutrition" element={<ClientDetailGate tool="Nutrition"><Nutrition /></ClientDetailGate>} />
+            {/*
+              The day builder reads the signed-in athlete's own stores to build
+              its exercise catalogue, so it is gated WITHOUT layer3Ready, like
+              the pillars above and for the same reason.
+            */}
+            <Route path="day" element={<ClientDetailGate tool="Session builder"><DayBuilderRoute mode="library" /></ClientDetailGate>} />
+            <Route path="day/:date" element={<ClientDetailGate tool="Session builder"><DayBuilderRoute mode="dated" /></ClientDetailGate>} />
             {/*
               /coach/progression survives Stage 1 rather than retiring: it is
               the roster-only decision surface. The pillars above are gated
