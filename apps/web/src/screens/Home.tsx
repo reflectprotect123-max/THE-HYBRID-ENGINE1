@@ -23,7 +23,7 @@ import { SessionReceipt } from '../autocoach/SessionReceipt';
 import { useLedger, type LedgerEntry } from '../autocoach/ledger';
 import { NutritionCard } from './nutrition/NutritionCard';
 import { resolveDayTarget, sessionFrom } from '../lib/session';
-import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx } from '../ui';
+import { Button, Card, Disclosure, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx } from '../ui';
 
 /*
  * Home answers one question: what should I do today, given how I've recovered?
@@ -33,6 +33,24 @@ import { Button, Card, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx }
  * changes the answer — and the week's honest totals last. Weekly volume and
  * the full zone model live on Progress and Conditioning respectively, which
  * own that content more fully; Home keeps only a door into each.
+ *
+ * That paragraph described an order the screen had stopped having. The week
+ * strip and the Coordinator's plan had drifted ABOVE the session card, so the
+ * first thing on the screen that answers "what should I do today" was the
+ * third thing you saw, about a screen's worth of scroll down on a phone. The
+ * order above is now the order below.
+ *
+ * Two rules hold the rest of it together, and both are asserted in
+ * Home.test.tsx because neither survives being merely intended:
+ *
+ *   ONE dominant tap. Exactly one brass button — Resume, or Start on today's
+ *   first session, or Open Library when there is nothing. Everything else that
+ *   starts something is a ghost. Two brass buttons is two answers.
+ *
+ *   Secondary sections COLLAPSE. Reference material (the Coordinator's week,
+ *   the auto-coached mode control) uses `Disclosure` rather than a full card,
+ *   so it stays reachable without spending a phone screen to say what it
+ *   already said above.
  *
  * The routes that have no tab of their own are reached from here by meaningful
  * doors rather than a pill row: the week strip's "Calendar ›" header opens
@@ -173,33 +191,6 @@ export function Home() {
         {dateLine} · {subLine}
       </p>
 
-      <div className="mt-2 mb-1 flex items-baseline justify-between gap-1">
-        <span className="text-1 font-[750] uppercase tracking-[.14em] text-dim">This week</span>
-        <button onClick={() => nav('/calendar')} className="rounded-sm text-3 font-[650] text-gold2">
-          Calendar ›
-        </button>
-      </div>
-      <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpenDay={openDay} />
-
-      <SectionHead title="Coordinated week" />
-      <Card>
-        <p className="text-3 text-dim">
-          Coordinator plan · {weeklyPlan.entries.length} scheduled
-          {weeklyPlan.decisions.filter((d) => d.action === 'dropped').length
-            ? ` · ${weeklyPlan.decisions.filter((d) => d.action === 'dropped').length} held back`
-            : ''}
-        </p>
-        <ul className="mt-1 flex flex-col gap-0.5">
-          {weeklyPlan.entries.slice(0, 4).map((entry) => (
-            <li key={entry.id} className="flex items-center justify-between gap-1 text-3">
-              <span className="truncate text-muted">{entry.title}</span>
-              <span className="num shrink-0 text-dim">{entry.date}</span>
-            </li>
-          ))}
-        </ul>
-        {!weeklyPlan.entries.length ? <p className="mt-1 text-3 text-muted">No automatic session was placed for this week.</p> : null}
-      </Card>
-
       {activeSession ? (
         <SessionCard tone="raised" className="mt-2">
           <Kicker className="text-1">In progress</Kicker>
@@ -267,14 +258,68 @@ export function Home() {
           have no coaching relationship at all — see ArcAssignmentCard.tsx. */}
       <ArcAssignmentCard />
 
+      {/* The week at a glance, BELOW today's answer. The strip and the
+          Coordinator's plan are the same subject at two resolutions, so they
+          sit together rather than with a section between them. */}
+      <div className="mt-2 mb-1 flex items-baseline justify-between gap-1">
+        <span className="text-1 font-[750] uppercase tracking-[.14em] text-dim">This week</span>
+        <button onClick={() => nav('/calendar')} className="rounded-sm text-3 font-[650] text-gold2">
+          Calendar ›
+        </button>
+      </div>
+      <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpenDay={openDay} />
+
+      {/* Reference, not an instruction — and on most days it restates the
+          strip above and today's card, so it opens closed. The count in the
+          summary is the part worth seeing without tapping. */}
+      <Disclosure
+        className="mt-1"
+        summary="Coordinated week"
+        meta={
+          <>
+            {weeklyPlan.entries.length} scheduled
+            {weeklyPlan.decisions.filter((d) => d.action === 'dropped').length
+              ? ` · ${weeklyPlan.decisions.filter((d) => d.action === 'dropped').length} held back`
+              : ''}
+          </>
+        }
+      >
+        <ul className="flex flex-col gap-0.5">
+          {weeklyPlan.entries.slice(0, 4).map((entry) => (
+            <li key={entry.id} className="flex items-center justify-between gap-1 text-3">
+              <span className="truncate text-muted">{entry.title}</span>
+              <span className="num shrink-0 text-dim">{entry.date}</span>
+            </li>
+          ))}
+        </ul>
+        {!weeklyPlan.entries.length ? (
+          <p className="text-3 text-muted">No automatic session was placed for this week.</p>
+        ) : null}
+      </Disclosure>
+
       {/* Cause, then consequence, then the setting that governs future
           consequences — CheckInCard is the input, SessionReceipt is what the
           system read from it today, ModeSwitcher is how much say it gets.
-          Reordered from a flat stack so the narrative reads top to bottom. */}
+          Reordered from a flat stack so the narrative reads top to bottom.
+
+          The third one is now behind a disclosure. All three were open at
+          once, and the mode was stated TWICE on the way down: the receipt
+          leads with an "Auto-coached · Shadow" chip and explains what shadow
+          means, then ModeSwitcher restated the same mode and the same sentence
+          under its own heading. Between them they took more of the screen than
+          today's training did.
+
+          Collapsed, not moved: this is still the only place in the app the
+          mode can be changed, so it has to stay reachable from the screen that
+          explains why you would want to. The receipt above already answers
+          "which mode am I in" — this answers "change it", which is a different
+          and much rarer question. */}
       <SectionHead title="Check-in" />
       <CheckInCard />
       <SessionReceipt />
-      <ModeSwitcher />
+      <Disclosure summary="Change auto-coached mode">
+        <ModeSwitcher />
+      </Disclosure>
 
       <SectionHead title="Readiness" />
       <Card>
@@ -355,11 +400,13 @@ export function Home() {
               </button>
             }
           />
-          <Card tone="quiet">
-            <p className="text-3 text-dim">
-              Heart-rate zones for today's session, re-zoned for how you've recovered — full breakdown on Conditioning.
-            </p>
-          </Card>
+          {/* A line, not a card. Its entire content is one sentence about a
+              DIFFERENT screen, so giving it the same bordered surface as
+              Readiness or Fuel — both of which carry real numbers — spent a
+              card's worth of height and attention on a signpost. */}
+          <p className="text-3 text-dim">
+            Heart-rate zones for today's session, re-zoned for how you've recovered — full breakdown on Conditioning.
+          </p>
         </>
       ) : null}
 
@@ -565,8 +612,13 @@ function PlanRow({
             <h3 className="truncate text-7 font-[800]">{w.name || 'Session'}</h3>
             {meta ? <p className="mt-0.5 text-3 text-muted">{meta}</p> : null}
           </div>
+          {/* Ghost, not brass. Brass is the screen's one dominant tap, and a
+              non-primary row is by definition not it — either a session is
+              already live (Resume owns it) or another session is today's
+              first. Two brass buttons on one screen is two answers to a
+              question that has one. */}
           {!primary ? (
-            <Button variant="brass" onClick={onStart}>
+            <Button variant="ghost" onClick={onStart}>
               Start
             </Button>
           ) : null}

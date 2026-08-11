@@ -136,6 +136,62 @@ export function SectionHead({ title, right }: { title: string; right?: ReactNode
   );
 }
 
+/*
+ * A section that is worth keeping but not worth its full height every time.
+ *
+ * The athlete side had no way to say "secondary" — every section got a
+ * SectionHead and a full card, so reference material and the one thing you
+ * came to do were rendered at exactly the same volume. Home was the worst
+ * case: nine of these stacked into roughly two and a half screens of scroll,
+ * with the auto-coached mode stated twice on the way down.
+ *
+ * Same reasoning and the same mechanism as the coach bench's `CoachSection`
+ * (coach/CoachSection.tsx), kept separate because the two surfaces do not
+ * share a type scale: this one is built from `SectionHead`'s gold micro-line
+ * so a collapsed section still reads as a section here.
+ *
+ * Native <details>/<summary>: no JS state, keyboard and screen-reader support
+ * for free, and it cannot collapse itself under a controlled input mid-edit
+ * the way a carelessly wired useState could.
+ */
+export function Disclosure({
+  summary,
+  meta,
+  defaultOpen = false,
+  className,
+  children,
+}: {
+  summary: string;
+  /* The one fact worth seeing without tapping — a count, a state. Its own slot
+     rather than part of `summary` because the heading is uppercase and widely
+     tracked: folded in, a short count like "2 scheduled · 1 held back" inherits
+     that treatment, doubles in width and wraps the row onto a second line. */
+  meta?: ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className={cx('group mt-3', className)} open={defaultOpen || undefined}>
+      {/* min-h-5.5 keeps the row a real touch target once it is the only
+          thing standing between a thumb and the section (checks/web-touch). */}
+      <summary className="flex min-h-5.5 cursor-pointer list-none items-center gap-1 marker:hidden [&::-webkit-details-marker]:hidden">
+        <span
+          aria-hidden
+          className="text-3 text-dim transition-transform duration-150 group-open:rotate-90"
+        >
+          ›
+        </span>
+        <h2 className="shrink-0 text-2 font-[750] uppercase tracking-[.16em] text-gold2/80 [overflow-wrap:anywhere]">
+          {summary}
+        </h2>
+        {meta ? <span className="min-w-0 flex-1 truncate text-3 text-dim">{meta}</span> : null}
+      </summary>
+      <div className="mt-1">{children}</div>
+    </details>
+  );
+}
+
 export function Empty({ title, body, action }: { title: string; body?: string; action?: ReactNode }) {
   return (
     <Card className="flex flex-col items-center gap-1 py-4 text-center">
