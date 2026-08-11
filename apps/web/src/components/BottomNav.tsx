@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import type { NavLinkRenderProps } from 'react-router-dom';
 import type { ProductId } from '@hybrid/product-scope';
 import { IS_SCOPED_BUILD, PRODUCT_ID } from '../product';
 import { cx } from '../ui';
@@ -46,7 +47,7 @@ export function BottomNav() {
             <NavLink
               to={to}
               end={to === '/'}
-              className={({ isActive }) =>
+              className={({ isActive }: NavLinkRenderProps) =>
                 cx(
                   // Active tab per 04-athlete-03: a gold wash falling away below
                   // a centred hairline of light, not just a text tint.
@@ -57,7 +58,7 @@ export function BottomNav() {
                 )
               }
             >
-              {({ isActive }) => (
+              {({ isActive }: NavLinkRenderProps) => (
                 <>
                   <Icon lit={isActive} />
                   {label}

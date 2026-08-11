@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import type { NavLinkRenderProps } from 'react-router-dom';
 import { cx } from '../ui';
 
 /*
@@ -27,7 +28,7 @@ export function NutritionBottomNav() {
           <li key={to}>
             <NavLink
               to={to}
-              className={({ isActive }) =>
+              className={({ isActive }: NavLinkRenderProps) =>
                 cx(
                   // Active tab per 04-athlete-03: a gold wash falling away below
                   // a centred hairline of light, not just a text tint.
@@ -38,7 +39,7 @@ export function NutritionBottomNav() {
                 )
               }
             >
-              {({ isActive }) => (
+              {({ isActive }: NavLinkRenderProps) => (
                 <>
                   <Icon lit={isActive} />
                   {label}
