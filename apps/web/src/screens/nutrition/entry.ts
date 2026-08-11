@@ -34,9 +34,12 @@ import { macro } from '@hybrid/nutrition-adapter';
  * shared parse. This module only turns strings from inputs into its arguments.
  * `apps/web/test/nutrition-log.test.ts` pins the equality.
  *
- * WEB HAS NO CAMERA. Barcode and nutrition-label entry stay mobile-only. The
- * FoodLog screen itself still only drives `entryFromDraft` — quick add is the
- * only kind its form can produce. `entryFromFood`/`entryFromCustomFood`/
+ * BARCODE AND LABEL ENTRY ARE NOT MOBILE-ONLY ANY MORE — `LabelReader.tsx`
+ * (Task 2.11) and `BarcodeScanner.tsx` (Task 2.12) drive the same PWA camera
+ * on Chrome/Android. Both still write through this module's pass-throughs
+ * (`entryFromFood`/`cacheFood`), never a literal. The FoodLog screen itself
+ * still only drives `entryFromDraft` — quick add is the only kind its form
+ * can produce. `entryFromFood`/`entryFromCustomFood`/
  * `entryFromRecipe`/`cacheFood` below are the same pass-through-to-core write
  * paths a future catalogue/custom-food/recipe screen needs, kept here so that
  * screen calls one file for every entry kind instead of reaching into

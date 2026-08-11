@@ -4,7 +4,6 @@ import { FoodSearch } from './FoodSearch';
 import { QuickAdd } from './QuickAdd';
 import { CustomFood } from './CustomFood';
 import { RecipeBuilder } from './RecipeBuilder';
-// TODO: Task 2.12 builds this screen.
 import { BarcodeScanner } from './BarcodeScanner';
 import { LabelReader } from './LabelReader';
 
@@ -22,9 +21,7 @@ import { LabelReader } from './LabelReader';
  * the exact control that switches between them.
  *
  * Quick add (Task 2.4b), Search (Task 2.6), Custom food (Task 2.7), Recipe
- * (Task 2.8) and Read label (Task 2.11) are real; Scan barcode is still a
- * placeholder — the TODO above names the task (2.12) that replaces it with
- * the real screen.
+ * (Task 2.8), Read label (Task 2.11) and Scan barcode (Task 2.12) are all real.
  */
 
 type Pane = 'search' | 'quickAdd' | 'customFood' | 'recipe' | 'scan' | 'label';
