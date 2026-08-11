@@ -282,7 +282,7 @@ a field the picker then filters on."
   ```ts
   export interface MonthCell { date: string; inMonth: boolean; dayOfMonth: number }
   export function monthGrid(year: number, month1to12: number): MonthCell[];
-  export function monthLabel(year: number, month1to12: number): string;
+  export function calendarMonthLabel(year: number, month1to12: number): string;
   export function shiftMonth(year: number, month1to12: number, delta: number): { year: number; month: number };
   ```
   Task 5 consumes all three.
@@ -390,7 +390,7 @@ export function monthGrid(year: number, month1to12: number): MonthCell[] {
   return cells;
 }
 
-export function monthLabel(year: number, month1to12: number): string {
+export function calendarMonthLabel(year: number, month1to12: number): string {
   return `${MONTHS[month1to12 - 1]} ${year}`;
 }
 
@@ -706,7 +706,7 @@ message for both tells a new athlete their search was wrong."
 - Test: `apps/web/src/coach/library/CalendarMonth.test.tsx`
 
 **Interfaces:**
-- Consumes: `monthGrid`, `monthLabel`, `shiftMonth`, `MonthCell` from `@hybrid/engine` (Task 2).
+- Consumes: `monthGrid`, `calendarMonthLabel`, `shiftMonth`, `MonthCell` from `@hybrid/engine` (Task 2).
 - Produces:
   ```tsx
   export interface CalendarDay { date: string; title: string; published: boolean }
