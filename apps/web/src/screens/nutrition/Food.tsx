@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Kicker, ScreenTitle, Tabs } from '../../ui';
 // TODO: Task 2.6 builds this screen.
 import { FoodSearch } from './FoodSearch';
-// TODO: Task 2.5 builds this screen.
 import { QuickAdd } from './QuickAdd';
 // TODO: Task 2.7 builds this screen.
 import { CustomFood } from './CustomFood';
@@ -26,9 +25,9 @@ import { LabelReader } from './LabelReader';
  * mechanism used here — the set of panes is what has to match mobile, not
  * the exact control that switches between them.
  *
- * Every pane below is a placeholder: none of the five sub-screens exist yet.
- * This task only builds the composer shell; each TODO above names the task
- * that replaces its placeholder with the real screen.
+ * Quick add (Task 2.4b) is real; the other four panes are still placeholders.
+ * Each remaining TODO above names the task that replaces its placeholder with
+ * the real screen.
  */
 
 type Pane = 'search' | 'quickAdd' | 'customFood' | 'recipe' | 'scan' | 'label';
@@ -54,7 +53,7 @@ export function Food() {
 
       <div role="tabpanel" className="mt-2">
         {pane === 'search' ? <FoodSearch /> : null}
-        {pane === 'quickAdd' ? <QuickAdd /> : null}
+        {pane === 'quickAdd' ? <QuickAdd onDone={() => setPane('search')} onCancel={() => setPane('search')} /> : null}
         {pane === 'customFood' ? <CustomFood /> : null}
         {pane === 'recipe' ? <RecipeBuilder /> : null}
         {pane === 'scan' ? <BarcodeScanner /> : null}
