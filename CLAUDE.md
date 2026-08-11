@@ -93,18 +93,25 @@ once, can catch its regression.
   `coach-redesign.css` covered every pillar; the one repair this stage needed
   was in `ArcCoachFrame.tsx` itself (a CSS Grid row-stretch bug inflating the
   mobile hamburger bar into ~200px of dead space), not the mockup.
-  `/coach/library` and `/coach/settings` are NOT yet covered — they are
-  Stage 2 and Stage 3 work, not built as this redesign's pillars, and join
-  `checks/screens.mjs` when their own stage lands and is verified the same
+  Stage 3a (11 August 2026) adds a sixth: `/coach/library`, which holds at
+  420px with its Programs and Calendar tabs. The Calendar needed one repair
+  the mockup could not have shown — it reveals an empty day's actions on
+  `:hover` only, which does not exist on a phone, so the day carries a real
+  tap target and an opened panel is shown regardless of pointer
+  (`.cal-cell-tap` and `.cal-cell.empty .cal-hover.open` in
+  `coach-redesign.css`, the only two rules in that file not ported from the
+  mockup). `/coach/settings` is NOT yet covered — it is its own stage and
+  joins `checks/screens.mjs` when that stage lands and is verified the same
   way.
 - Nothing under `/coach` is named desktop-only yet, because nothing has
-  failed a phone check. `/coach/review/:weekStart` (WeekReview's ledger) and
-  the Library calendar tab are the anticipated candidates — both are dense,
-  wide tables — but neither is a stage-1 pillar, neither has been screenshot-
-  checked at 420px, and this section does not get to guess their outcome.
-  When Library and WeekReview are verified, if either genuinely cannot work
-  at phone width, it is named here explicitly with the reason, exactly as
-  this rule already requires — not left implied, and not assumed now.
+  failed a phone check. The Library calendar tab was one of the two
+  anticipated candidates and it PASSED — Stage 3a shot it at 420px with no
+  overflow, so the guess that a month grid could not work on a phone was
+  wrong and is retired here rather than left standing. `/coach/review/
+  :weekStart` (WeekReview's ledger) remains untested and remains a
+  candidate; this section still does not get to guess its outcome. When it
+  is verified, if it genuinely cannot work at phone width, it is named here
+  explicitly with the reason, exactly as this rule already requires.
 - Phone support here means the responsive WEB bench — `apps/web`'s own
   `/coach` routes rendering usably down to a phone-width viewport. There is
   no native mobile app in this repository to port into (`apps/mobile` was

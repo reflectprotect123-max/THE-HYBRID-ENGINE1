@@ -442,6 +442,18 @@
   .cal-cell.empty { cursor: default; }
   .cal-hover { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 5px; padding: 9px; opacity: 0; pointer-events: none; background: linear-gradient(180deg, var(--color-gold-wash), var(--color-panel3)); transition: opacity .15s var(--ease-standard); }
   .cal-cell.empty:hover .cal-hover { opacity: 1; pointer-events: auto; }
+  /*
+   * Added in Stage 3a, not ported from the mockup — the mockup reveals an
+   * empty day's actions on :hover only, and a phone has no hover. `/coach`
+   * became a supported phone surface in Stage 1, so the day carries a real
+   * tap target and an opened panel is shown regardless of pointer.
+   *
+   * Without the `.open` rule the panel renders at opacity 0 with pointer
+   * events off: present in the DOM, invisible and dead to touch. jsdom
+   * ignores CSS, so every unit test passes over that.
+   */
+  .cal-cell-tap { position: absolute; inset: 0; width: 100%; height: 100%; display: block; text-align: left; padding: 8px; font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+  .cal-cell.empty .cal-hover.open { opacity: 1; pointer-events: auto; }
   .cal-hover-link { font: inherit; font-size: 10px; font-weight: 700; color: var(--color-gold2); background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
   .cal-hover-link:hover { text-decoration: underline; }
 

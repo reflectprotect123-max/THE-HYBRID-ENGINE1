@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import type { AthleteWeekSummary, ExperienceLevel, ProgramTemplate, TrainingDomain } from './contracts';
+import { CalendarMonth, type CalendarDay } from './library/CalendarMonth';
 
 const WEEKDAYS = [
   { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
@@ -28,7 +29,7 @@ export function CoachLibrary() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'templates' | 'calendar'>('templates');
+  const [tab, setTab] = useState<'programs' | 'calendar'>('programs');
 
   useEffect(() => {
     let active = true;
@@ -75,7 +76,7 @@ export function CoachLibrary() {
       </header>
 
       <div role="tablist" aria-label="Library view" className="flex gap-4 border-b border-line2 px-3 sm:px-4">
-        {(['templates', 'calendar'] as const).map((value) => (
+        {(['programs', 'calendar'] as const).map((value) => (
           <button
             key={value}
             type="button"
@@ -89,7 +90,7 @@ export function CoachLibrary() {
         ))}
       </div>
 
-      {tab === 'templates' && (
+      {tab === 'programs' && (
       <div className="grid gap-5 p-3 sm:p-4 xl:grid-cols-[350px_minmax(0,1fr)]">
         <aside className="xl:sticky xl:top-4 xl:self-start" aria-labelledby="guide-title">
           <div className="flex items-baseline"><div><p className="text-[9px] uppercase tracking-wider text-gold">Quick start</p><h2 id="guide-title" className="text-base font-semibold">Prepare an assignment</h2></div><span className="ml-auto text-[10px] text-dim">Coordinator input</span></div>
@@ -144,26 +145,28 @@ export function CoachLibrary() {
         </div>
       </div>
       )}
-      {tab === 'calendar' && <CalendarTab clientId={selectedClient?.id ?? null} clientName={selectedClient?.name ?? null} repository={repository} />}
+      {tab === 'calendar' && <CalendarTab clientId={selectedClient?.id ?? null} repository={repository} />}
     </main>
   );
 }
 
-function CalendarTab({ clientId, clientName, repository }: { clientId: string | null; clientName: string | null; repository: ReturnType<typeof useCoachWorkspace>['repository'] }) {
+function CalendarTab({ clientId, repository }: { clientId: string | null; repository: ReturnType<typeof useCoachWorkspace>['repository'] }) {
+  const navigate = useNavigate();
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const [view, setView] = useState({ year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 });
+
   const weekStarts = useMemo(() => {
-    const last = new Date(year, month + 1, 0);
+    const last = new Date(Date.UTC(view.year, view.month, 0));
     const starts: string[] = [];
-    const cursor = new Date(year, month, 1);
-    cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7));
+    const cursor = new Date(Date.UTC(view.year, view.month - 1, 1));
+    cursor.setUTCDate(cursor.getUTCDate() - ((cursor.getUTCDay() + 6) % 7));
     while (cursor <= last) {
       starts.push(mondayOf(cursor));
-      cursor.setDate(cursor.getDate() + 7);
+      cursor.setUTCDate(cursor.getUTCDate() + 7);
     }
     return starts;
-  }, [year, month]);
+  }, [view]);
+
   const [sessionsByDate, setSessionsByDate] = useState<Map<string, AthleteWeekSummary['sessions']> | undefined>(undefined);
 
   useEffect(() => {
@@ -187,49 +190,45 @@ function CalendarTab({ clientId, clientName, repository }: { clientId: string | 
     return () => { active = false; };
   }, [repository, clientId, weekStarts]);
 
+  /*
+   * One CalendarDay per date that actually has sessions. A day with nothing on
+   * it is simply absent, and CalendarMonth renders it as an empty day offering
+   * Create session / Add from library — the mockup's own two actions.
+   */
+  const days: CalendarDay[] = useMemo(() => {
+    if (!sessionsByDate) return [];
+    return Array.from(sessionsByDate.entries()).map(([date, sessions]) => ({
+      date,
+      // `name` is nullable in AthleteWeekSummary; an unnamed session is still a
+      // real session, so it is labelled rather than dropped.
+      title: sessions[0]?.name || 'Session',
+      // Published is read from the session's own status, never assumed. Saying
+      // a day is published when it is not is the kind of claim this workspace
+      // is careful never to make.
+      published: sessions.every((x) => x.status === 'published'),
+      items: sessions.length,
+    }));
+  }, [sessionsByDate]);
+
   if (!clientId) {
     return <p className="p-3 text-xs text-dim sm:p-4">Choose a client from Prepare an assignment to see their calendar.</p>;
   }
 
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const leadingBlanks = (new Date(year, month, 1).getDay() + 6) % 7;
-  const trailingBlanks = (7 - ((leadingBlanks + daysInMonth) % 7)) % 7;
-  const isoOf = (day: number) => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-
   return (
-    <section className="p-3 sm:p-4" aria-label={`${clientName ?? 'Client'} calendar`}>
-      <div className="flex items-baseline">
-        <h2 className="text-base font-semibold">{clientName}&rsquo;s {monthLabel}</h2>
-        <span className="ml-auto text-[10px] text-dim">Scheduled sessions</span>
-      </div>
-      {sessionsByDate === undefined && <p className="mt-2 text-xs text-muted">Loading…</p>}
-      {sessionsByDate !== undefined && (
-        <div className="mt-2 grid grid-cols-7 gap-1">
-          {WEEKDAYS.map((day) => <div key={day.value} className="px-1 text-[10px] uppercase tracking-wide text-dim">{day.label}</div>)}
-          {Array.from({ length: leadingBlanks }, (_, index) => <div key={`lead-${index}`} className="rounded-md border border-line2/40" aria-hidden="true" />)}
-          {Array.from({ length: daysInMonth }, (_, index) => {
-            const day = index + 1;
-            const sessions = sessionsByDate.get(isoOf(day)) ?? [];
-            return (
-              <div key={day} className="min-h-16 rounded-md border border-line2 bg-panel3 p-1">
-                <p className="text-xs tabular-nums text-muted">{day}</p>
-                {sessions.map((session) => (
-                  <p key={session.id} className="mt-0.5 text-[10px] leading-tight text-dim">
-                    <span className={session.name ? 'text-text' : 'capitalize text-text'}>{session.name ?? session.kind}</span> · {session.status}
-                  </p>
-                ))}
-              </div>
-            );
-          })}
-          {Array.from({ length: trailingBlanks }, (_, index) => <div key={`trail-${index}`} className="rounded-md border border-line2/40" aria-hidden="true" />)}
-        </div>
+    <div className="p-3 sm:p-4">
+      {sessionsByDate === undefined && (
+        <p className="mb-2 text-xs text-dim" role="status">Loading this month&rsquo;s sessions…</p>
       )}
-      <p className="mt-2 text-[11px] text-dim">
-        This shows what&rsquo;s scheduled — the Coordinator places sessions from weekday preferences, not from clicking a specific date.{' '}
-        <Link to="/coach/author" className="text-gold2 hover:text-text">Open the session builder</Link>
-      </p>
-    </section>
+      <CalendarMonth
+        days={days}
+        year={view.year}
+        month={view.month}
+        onMonthChange={(year, month) => setView({ year, month })}
+        onCreate={(date) => navigate(`/coach/day/${date}`)}
+        onAddFromLibrary={(date) => navigate(`/coach/day/${date}`)}
+        onOpen={(date) => navigate(`/coach/day/${date}`)}
+      />
+    </div>
   );
 }
 

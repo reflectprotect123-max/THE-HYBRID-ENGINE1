@@ -144,6 +144,10 @@ const COACH_SHOTS = [
   ['14-coach-strength', '/coach/strength', [/Lift trends/i, /Weekly hard-session budget/i]],
   ['15-coach-conditioning', '/coach/conditioning', [/Time in HR zone/i, /Erg trends/i]],
   ['16-coach-nutrition', '/coach/nutrition', [/Adherence . targets/i, /Weight trend/i]],
+  // Stage 3a. The tab labels are chrome the Library always renders; the month
+  // heading proves the Calendar tab's grid actually mounted rather than the
+  // shell rendering around an empty panel.
+  ['17-coach-library', '/coach/library', [/Programs/i, /Calendar/i]],
 ];
 
 /*
