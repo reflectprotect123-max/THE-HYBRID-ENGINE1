@@ -13,6 +13,7 @@ import { useConcept2 } from '../../cloud/concept2';
 import { PillarBack } from './PillarBack';
 import { useProgressionLedger } from '../progression-store';
 import type { ConditioningProgressionProposal, ProgressionDirection } from '../progression';
+import { ProgressionActions } from '../progression-actions';
 import { ergTrend, type TrendSeries } from '../trends';
 import '../coach-redesign.css';
 
@@ -285,6 +286,7 @@ export function Conditioning() {
               <p className="qi-detail">
                 {capitalize(proposal.confidence)} confidence · {proposal.reason}
               </p>
+              <ProgressionActions proposal={proposal} />
             </div>
           ))}
         </div>

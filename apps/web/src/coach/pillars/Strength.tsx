@@ -4,6 +4,7 @@ import { useDb } from '../../store/db';
 import { PillarBack } from './PillarBack';
 import { useProgressionLedger } from '../progression-store';
 import type { ProgressionDirection, StrengthProgressionProposal } from '../progression';
+import { ProgressionActions } from '../progression-actions';
 import { liftTrends, weeklyHardBudget, type TrendSeries } from '../trends';
 import '../coach-redesign.css';
 
@@ -13,12 +14,12 @@ import '../coach-redesign.css';
  * The progression queue reads the exact same local ledger
  * `CoachProgression`'s self-coach view reads today (`useProgressionLedger`,
  * filtered to domain 'strength' and not yet decided) — not a second source
- * of truth. This screen is display-only: it does not add an Approve button
- * of its own, so there is no second decision path for a coach to find.
- * Approving a strength proposal still happens on `/coach/progression`
- * (until Task 7 retires that route in favour of this one) and, either way,
- * only ever updates `settings.liftProgress` — never a weekly plan, which
- * stays the Coordinator's alone to write.
+ * of truth. Each item mounts `ProgressionActions` (Task 6b,
+ * `../progression-actions.tsx`) — the SAME decide/apply/rationale logic
+ * `CoachProgression`'s self-coach view uses, not a second decision path.
+ * Approving here, or on `/coach/progression`, only ever updates
+ * `settings.liftProgress` — never a weekly plan, which stays the
+ * Coordinator's alone to write.
  */
 
 function capitalize(s: string): string {
@@ -273,6 +274,7 @@ export function Strength() {
               <p className="qi-detail">
                 {capitalize(proposal.confidence)} confidence · {proposal.reason}
               </p>
+              <ProgressionActions proposal={proposal} />
             </div>
           ))}
         </div>

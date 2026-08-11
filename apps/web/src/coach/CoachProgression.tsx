@@ -3,13 +3,9 @@ import { CoachSection } from './CoachSection';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import { useDb } from '../store/db';
 import type { AthleteAutocoachReceipt, AthleteProgressionProposal } from './contracts';
-import {
-  applyApprovedProposal,
-  proposalIsStale,
-  type ProgressionDecision,
-  type ProgressionProposal,
-} from './progression';
-import { appendProgressionDecision, useProgressionLedger } from './progression-store';
+import { ProgressionActions, RosterProgressionActions } from './progression-actions';
+import { proposalIsStale, type ProgressionProposal } from './progression';
+import { useProgressionLedger } from './progression-store';
 
 const ROSTER_DIRECTION_STYLE: Record<AthleteProgressionProposal['direction'], string> = {
   increase: 'border-gold-line bg-gold-wash text-gold2',
@@ -49,8 +45,6 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
   const { repository } = useCoachWorkspace();
   const [proposals, setProposals] = useState<readonly AthleteProgressionProposal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
   const [receipts, setReceipts] = useState<readonly AthleteAutocoachReceipt[] | null>(null);
 
   useEffect(() => {
@@ -77,18 +71,8 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
     return () => { active = false; };
   }, [repository, clientId]);
 
-  async function decide(proposal: AthleteProgressionProposal, decision: 'approved' | 'declined') {
-    if (!repository.decideProgressionProposal) return;
-    setBusyId(proposal.id);
-    try {
-      await repository.decideProgressionProposal(clientId, proposal.id, decision);
-      setProposals((current) => (current ?? []).filter((p) => p.id !== proposal.id));
-      setMessage(`${proposal.subject}: ${decision}. ${clientName}'s device will apply this on its next sync.`);
-    } catch {
-      setMessage('The decision could not be recorded. Nothing has changed — try again.');
-    } finally {
-      setBusyId(null);
-    }
+  function onDecided(proposalId: string) {
+    setProposals((current) => (current ?? []).filter((p) => p.id !== proposalId));
   }
 
   return (
@@ -133,32 +117,7 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
               </div>
               <p className="mt-1 text-[10px] uppercase tracking-wide text-dim">Confidence</p>
               <p className="text-muted">{proposal.confidence}</p>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                <button
-                  type="button"
-                  /* `hard` and `direction` are independent fields on
-                     AthleteProgressionProposal -- the backend pairs
-                     hard:true with direction:'review' today, but nothing
-                     HERE enforces that invariant, so `hard` gates Approve
-                     directly too, defence-in-depth. Pain/illness flags
-                     outrank every other signal (CLAUDE.md); Approve must
-                     never be one dropped invariant away from clickable on
-                     a pain/illness-blocked proposal. */
-                  disabled={proposal.direction === 'review' || proposal.hard || busyId === proposal.id}
-                  onClick={() => decide(proposal, 'approved')}
-                  className="rounded border border-gold-line bg-gold-wash px-1.5 py-0.5 text-xs font-semibold text-gold2 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  disabled={busyId === proposal.id}
-                  onClick={() => decide(proposal, 'declined')}
-                  className="rounded border border-line2 bg-panel2 px-1.5 py-0.5 text-xs text-muted"
-                >
-                  Decline
-                </button>
-              </div>
+              <RosterProgressionActions clientId={clientId} clientName={clientName} proposal={proposal} onDecided={onDecided} />
             </div>
           </article>
         ))}
@@ -198,7 +157,6 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
           </CoachSection>
         )}
       </div>
-      <div className="sr-only" aria-live="polite">{message}</div>
     </main>
   );
 }
@@ -232,43 +190,13 @@ export function CoachProgression() {
 }
 
 function SelfCoachProgressionView() {
-  const { settings, update, athleteState } = useDb();
+  const { settings, athleteState } = useDb();
   const ledger = useProgressionLedger();
   const [domain, setDomain] = useState<'all' | ProgressionProposal['domain']>('all');
-  const [rationales, setRationales] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState('');
   const decided = useMemo(() => new Set(ledger.decisions.map((event) => event.proposalId)), [ledger.decisions]);
   const pending = ledger.proposals.filter((proposal) => !decided.has(proposal.id));
   const visible = pending.filter((proposal) => domain === 'all' || proposal.domain === domain);
   const hardSafety = athleteState.constraints.filter((constraint) => constraint.hard);
-
-  function decide(proposal: ProgressionProposal, decision: ProgressionDecision) {
-    const rationale = rationales[proposal.id]?.trim() ?? '';
-    if (!rationale) {
-      setMessage(`Add a rationale before ${decision === 'approved' ? 'approving' : 'closing'} this proposal.`);
-      return;
-    }
-    if (decision === 'approved') {
-      if (proposal.direction === 'review') {
-        setMessage('A safety-review proposal cannot be applied. Hold it and route the athlete for human review.');
-        return;
-      }
-      try {
-        update((draft) => {
-          draft.settings = applyApprovedProposal(proposal, draft.settings);
-          draft.settings.updatedAt = Date.now();
-        });
-        appendProgressionDecision(proposal.id, decision, rationale, true);
-        setMessage(`${proposal.subject}: accepted prescription updated.`);
-      } catch (error) {
-        appendProgressionDecision(proposal.id, 'held', rationale, false, error instanceof Error ? error.message : 'Stale proposal');
-        setMessage('The prescription changed after this proposal was created. It was held for a fresh review.');
-      }
-    } else {
-      appendProgressionDecision(proposal.id, decision, rationale, false);
-      setMessage(`${proposal.subject}: ${decision}. The accepted prescription was not changed.`);
-    }
-  }
 
   return (
     <main className="min-h-screen bg-bg text-text">
@@ -321,14 +249,8 @@ function SelfCoachProgressionView() {
                       {proposal.dataLimitations.length > 0 && <Fact label="Limitations" value={proposal.dataLimitations.join(' ')} />}
                     </div>
                     <div className="rounded border border-line bg-panel p-1.5">
-                      <label className="text-[10px] font-semibold uppercase tracking-wide text-dim" htmlFor={`rationale-${proposal.id}`}>Coach rationale</label>
-                      <textarea id={`rationale-${proposal.id}`} value={rationales[proposal.id] ?? ''} onChange={(event) => setRationales((current) => ({ ...current, [proposal.id]: event.target.value }))} rows={4} className="mt-0.5 w-full resize-y rounded border border-line bg-well p-1 text-xs text-text outline-none focus:border-gold-line" placeholder="Why is this the right next decision?" />
-                      <p className="mt-0.5 text-[10px] text-dim">Next: approve, reject, or hold. This demo ledger stays on this device.</p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        <button type="button" disabled={proposal.direction === 'review' || proposalIsStale(proposal, settings) || hardSafety.length > 0} onClick={() => decide(proposal, 'approved')} className="rounded border border-gold-line bg-gold-wash px-1.5 py-0.5 text-xs font-semibold text-gold2 disabled:cursor-not-allowed disabled:opacity-40">Approve</button>
-                        <button type="button" onClick={() => decide(proposal, 'rejected')} className="rounded border border-line2 bg-panel2 px-1.5 py-0.5 text-xs text-muted">Reject</button>
-                        <button type="button" onClick={() => decide(proposal, 'held')} className="rounded border border-line2 bg-panel2 px-1.5 py-0.5 text-xs text-muted">Hold</button>
-                      </div>
+                      <p className="text-[10px] text-dim">Next: approve, reject, or hold. This demo ledger stays on this device.</p>
+                      <ProgressionActions proposal={proposal} />
                     </div>
                   </div>
                   <footer className="border-t border-line px-2 py-1 text-[10px] text-dim">Authority: coach approval required · Rule: {proposal.ruleVersion} · Confidence: {proposal.confidence}</footer>
@@ -362,7 +284,6 @@ function SelfCoachProgressionView() {
           </CoachSection>
         </aside>
       </div>
-      <div className="sr-only" aria-live="polite">{message}</div>
     </main>
   );
 }
