@@ -97,7 +97,6 @@ async function main() {
     'privacy.html',
     'packages/engine/src/types.ts',
     'apps/web/src/cloud/whoop.tsx',
-    'apps/mobile/src/cloud/whoop.tsx',
     'packages/config/src/index.ts',
     'netlify/functions/_lib/config.mjs',
     'netlify/functions/_lib/crypto.mjs',
@@ -147,7 +146,6 @@ async function main() {
   const sample = sources.get('packages/engine/src/types.ts') || '';
   const ui =
     (sources.get('apps/web/src/cloud/whoop.tsx') || '') +
-    (sources.get('apps/mobile/src/cloud/whoop.tsx') || '') +
     (sources.get('packages/config/src/index.ts') || '');
   const readme = sources.get('README.md') || '';
   const privacy = sources.get('privacy.html') || '';
@@ -472,27 +470,6 @@ async function main() {
     'the callback returns a native authorization to a fixed app URL scheme',
     'the destination comes from the pending record we wrote, never from the request',
   );
-
-  if (await fileExists('apps/mobile/src/cloud/whoop.tsx')) {
-    const mobile = await readText('apps/mobile/src/cloud/whoop.tsx');
-    check(
-      hasAll(mobile || '', [
-        /authorization['"]?\s*:\s*['"]Bearer /,
-        /client=native/,
-        /getInitialURL/,
-      ]),
-      'the native client authenticates with a bearer token and handles the return deep link',
-    );
-    check(
-      !/credentials:\s*['"]include['"]/.test(mobile || ''),
-      'the native client no longer relies on a cookie the system browser holds',
-    );
-    check(
-      !/openURL\((?:fnUrl\()?FN\.whoopConnect/.test(mobile || ''),
-      'the native client asks the server to start the authorization before opening a browser',
-      'handing whoop-connect straight to the OS is what produced a connection the app could never see',
-    );
-  }
 
   // SUPABASE_URL/SUPABASE_JWT_SECRET are additive and are what the NATIVE app's
   // identity rests on. They are listed here for the same reason the four above

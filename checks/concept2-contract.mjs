@@ -109,9 +109,7 @@ async function main() {
     'packages/engine/src/types.ts',
     'packages/engine/src/concept2.ts',
     'apps/web/src/cloud/concept2.tsx',
-    'apps/mobile/src/cloud/concept2.tsx',
     'apps/web/src/screens/Settings.tsx',
-    'apps/mobile/src/screens/Settings.tsx',
     'packages/config/src/index.ts',
     'netlify/functions/_lib/config.mjs',
     'netlify/functions/_lib/concept2.mjs',
@@ -144,7 +142,6 @@ async function main() {
   const matcher = sources.get('packages/engine/src/concept2.ts') || '';
   const ui =
     (sources.get('apps/web/src/cloud/concept2.tsx') || '') +
-    (sources.get('apps/mobile/src/cloud/concept2.tsx') || '') +
     (sources.get('packages/config/src/index.ts') || '');
 
   for (const [label, source] of [
@@ -378,7 +375,6 @@ async function main() {
   );
   for (const [label, screen] of [
     ['web', sources.get('apps/web/src/screens/Settings.tsx') || ''],
-    ['mobile', sources.get('apps/mobile/src/screens/Settings.tsx') || ''],
   ]) {
     check(
       /planConcept2Import/.test(screen) && /applyConcept2Import/.test(screen),

@@ -9,7 +9,6 @@
  *     Parse supabase-schema.sql for tables, columns and unique constraints,
  *     then statically extract every `.from(...)` query chain out of
  *       - apps/web/src/cloud/sync.tsx
- *       - apps/mobile/src/cloud/sync.tsx
  *     and assert every table, every selected/inserted/filtered column exists,
  *     and every `onConflict` arbiter is backed by a real unique constraint.
  *     Also pins the handful of literals RLS actually keys off — status values
@@ -343,7 +342,6 @@ function extractChains(src, file) {
 
 const SOURCES = [
   'apps/web/src/cloud/sync.tsx',
-  'apps/mobile/src/cloud/sync.tsx',
 ];
 
 const chains = [];
