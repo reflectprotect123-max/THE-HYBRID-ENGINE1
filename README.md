@@ -1,6 +1,6 @@
 # THE Hybrid System
 
-A local-first training and nutrition app: an athlete PWA and an Android app,
+A local-first training and nutrition app: one installable PWA (Android/Chrome),
 over one shared engine and one Supabase project. Three worlds — Strength,
 Conditioning and Nutrition — one athlete.
 
@@ -29,9 +29,8 @@ The fastest way into this repo. Find the symptom, go to the file.
 | e1RM looks wrong | `packages/engine/src/num.ts` → `epley`; history in `packages/engine/src/session.ts` → `exLogFor` |
 | No insights appear, or one looks wrong | `packages/engine/src/insights.ts` → `insights`; the sample-size and noise floors are `packages/engine/src/constants.ts` → `INSIGHTS` |
 | Web deploy doesn't reach an installed app | `apps/web/src/UpdateBanner.tsx`; check with `node checks/pwa-update.mjs` |
-| Phone doesn't get an update | `.github/workflows/mobile-ota.yml`. Native changes need a new APK — `mobile-eas.yml` |
 | WHOOP connect or sync fails | `netlify/functions/whoop-*`; check with `node checks/whoop-contract.mjs` |
-| A screen renders blank / title-only | The screen in `apps/*/src/screens/`. See `apps/mobile/src/screens/screens.test.tsx` — that class of bug has bitten before |
+| A screen renders blank / title-only | The screen in `apps/web/src/screens/`. That class of bug has bitten before |
 | Auto-Coached changed nothing despite an active constraint | The coach bench's **Why today** panel, or `apps/web/src/coach/trace.ts` → `buildDecisionTrace` for the outcome rules |
 
 ### Nutrition
@@ -46,8 +45,8 @@ The fastest way into this repo. Find the symptom, go to the file.
 | The engine says "holding" and never updates | `packages/nutrition-engine/src/engine.ts` → `coverageExplanation`. Holding is a normal outcome, not a failure |
 | Home's nutrition card and the coach bench disagree | They must not — both read `packages/nutrition-adapter/src/summary.ts` → `nutritionSummary` |
 | Nutrition changed a training plan | It may not. `packages/whole-athlete-state/src/state.ts` → `deriveAthleteState` takes nutrition as context only, and the Coordinator never sees it |
-| Barcode scanning fails | `apps/mobile/src/screens/nutrition/BarcodeScanner.tsx` — needs a real camera and a native build (`runtimeVersion` 3), so it can never arrive over the air |
-| A nutrition label reads wrong | `packages/nutrition-core/src/label.ts` → `parseLabelText`, `parseLabelLines`. There is no camera behind it yet — see `apps/mobile/src/screens/nutrition/LabelReader.tsx` |
+| Barcode scanning fails | `apps/web/src/screens/nutrition/BarcodeScanner.tsx` (Chrome's `BarcodeDetector` API) → `apps/web/src/native/barcodeScanner.ts`. Android/Chrome only |
+| A nutrition label reads wrong | `packages/nutrition-core/src/label.ts` → `parseLabelText`, `parseLabelLines`. The recognizer is `apps/web/src/native/labelOcr.ts` (`tesseract.js`, on-device WASM) |
 | The food catalogue is empty or a search finds nothing | The catalogue is server-side and relational: [`docs/NUTRITION_CATALOGUE.md`](docs/NUTRITION_CATALOGUE.md). Local matching is `packages/nutrition-core/src/search.ts` → `foodSearch` |
 
 **Rule of thumb:** if it is a decision about *training*, it is in
@@ -80,11 +79,12 @@ packages/nutrition-adapter the only sanctioned bridge between nutrition and
                     surfaces, and nutrition FACTS for whole-athlete-state.
 packages/design     colour, type and spacing tokens on an 8px grid.
 packages/config     Supabase URL/anon key and site origin.
-packages/guided-flow the pure step-sequencing logic shared by the web and
-                    mobile guided session builders.
+packages/guided-flow the pure step-sequencing logic behind the guided session
+                    builder.
 
-apps/web            the athlete PWA. This is the deployed origin.
-apps/mobile         the Android app (Expo/EAS), with BLE heart rate.
+apps/web            the athlete PWA — training and nutrition, BLE heart rate
+                    and FTMS, camera barcode/label scanning. The only app;
+                    this is the deployed origin.
 
 checks/             executable checks. Not unit tests — these drive real
                     browsers, real crypto and the real schema.
@@ -100,11 +100,6 @@ boundary is staged in
 [`supabase/migrations/20260804_fitness_ecosystem_contracts.sql`](supabase/migrations/20260804_fitness_ecosystem_contracts.sql).
 The staging compatibility matrix and rollback procedure are in
 [`docs/MIGRATION_ROLLOUT.md`](docs/MIGRATION_ROLLOUT.md).
-
-The Android build paths and signing rules are in
-[`docs/ANDROID_BUILD.md`](docs/ANDROID_BUILD.md). A local debug APK uses
-`pnpm android:debug`; a signed APK/AAB uses the EAS workflow and the existing
-release keystore.
 
 ### The engine, module by module
 
@@ -130,7 +125,7 @@ release keystore.
 
 ## Screens
 
-Web routes and the mobile stack carry the same names.
+One app, one route table.
 
 | Screen | Route | Does |
 |---|---|---|
@@ -145,28 +140,34 @@ Web routes and the mobile stack carry the same names.
 | History | `/history` | Any past day's logged sets |
 | Calendar | `/calendar` | Month grid: planned vs trained |
 | Recap | `/recap/:id` | What just happened, and what it earned |
-| Nutrition | `/nutrition` | One day of food: totals against target, add, edit, delete |
-| Settings | `/settings` | Profile, cloud, WHOOP, backup **and restore** |
+| Nutrition | `/nutrition` | Quick day-of-food summary, reachable from Home without leaving the training world |
+| Settings | `/settings` | Profile, cloud, WHOOP, backup **and restore**, and the switch into the nutrition world |
 
 Home carries the nutrition card above the zone card
 (`apps/web/src/screens/nutrition/NutritionCard.tsx`) and the coach bench carries
 a read-only nutrition panel (`apps/web/src/coach/NutritionPanel.tsx`).
 
-### The nutrition world, on the phone
+### The nutrition world
 
-The web has one nutrition screen; the phone has the world. Its own tab layout,
-its own accent, and the flows that need hardware:
+Training and nutrition are two sealed route trees on the one PWA, switched by
+`apps/web/src/discipline.ts`'s `useDiscipline()`/`setDiscipline()` — a control
+in `Settings.tsx` and `NutritionSettings.tsx` (`apps/web/src/components/WorldSwitch.tsx`)
+flips between them. Its own bottom nav
+(`apps/web/src/components/NutritionBottomNav.tsx`: Log / Food / Weight / Coach /
+Settings), its own accent, and — now that everything lives in one browser —
+real camera access for the flows that need hardware:
 
-| Screen | Does |
-|---|---|
-| Daily Log | The day's food, by meal — the screen the world opens on |
-| Food Search / Quick Add | Catalogue, custom foods, recipes, favourites; or four numbers |
-| Custom Food / Recipe Builder | Foods and recipes the athlete owns |
-| Weight | Weigh-ins, and the smoothed trend they feed |
-| Check-in | The weekly proposal: accept, decline, or a held week that says what is missing |
-| Coach | The macro program, the expenditure estimate, and the engine's own explanation |
-| Barcode scanner | `expo-camera` + ML Kit. Native — never ships over the air |
-| Label reader | The parse, without the camera. See the file header for the kill and what would revive it |
+| Screen | Route | Does |
+|---|---|---|
+| Daily Log | /nutrition/log | The day's food, by meal — the world opens here |
+| Food | /nutrition/food | Router over search, quick add, custom food, recipe builder, barcode scanner, label reader |
+| Food Search / Quick Add | (within Food) | Catalogue, custom foods, recipes, favourites; or four numbers |
+| Custom Food / Recipe Builder | (within Food) | Foods and recipes the athlete owns |
+| Barcode scanner | (within Food) | `apps/web/src/native/barcodeScanner.ts` — Chrome's `BarcodeDetector` API |
+| Label reader | (within Food) | `apps/web/src/native/labelOcr.ts` — `tesseract.js`, on-device WASM OCR |
+| Weight | /nutrition/weight | Weigh-ins, and the smoothed trend they feed |
+| Coach | /nutrition/coach | The macro program, the expenditure estimate, the engine's own explanation, and the embedded weekly Check-in (accept, decline, or a held week that says what is missing) |
+| Settings | /nutrition/settings | Nutrition-scoped settings, and the switch back to training |
 
 ---
 
@@ -175,7 +176,6 @@ its own accent, and the flows that need hardware:
 ```bash
 pnpm install
 pnpm run dev:web           # athlete PWA
-pnpm --filter @hybrid/mobile start   # phone
 ```
 
 Service workers and PWA install need `localhost` or HTTPS — not `file://`.
@@ -199,7 +199,6 @@ node checks/react-smoke.mjs          # the athlete app, the food log and the
                                      # real browser
 node checks/contrast.mjs             # text meets contrast on all three palettes
 node checks/web-touch.mjs            # touch targets on coarse pointers
-node checks/mobile-touch.mjs         # ditto, React Native
 node checks/migrations-apply.mjs     # every migration against a real Postgres,
                                      # RLS and owner-reference policies proven
 node checks/docs.mjs                 # this file's paths and symbols still exist
@@ -231,20 +230,14 @@ The web app is `registerType: 'prompt'`: a new version installs and waits, and
 is deliberate — the app is used mid-set with a live rest timer, and reloading
 underneath a working set is worse than waiting.
 
-The phone takes JS/asset changes over EAS Update automatically on push. Any
-**native** change — a new native module, a permission, an icon, an SDK bump —
-cannot ship that way and needs a fresh APK from `mobile-eas.yml`.
-
 ### WHOOP
 
 - `APP_BASE_URL` — the exact HTTPS site URL (prod: `https://thehybridengine1.netlify.app`).
 - `APP_SESSION_SECRET` — a fresh random secret, server-only.
 - `WHOOP_CLIENT_ID` / `WHOOP_CLIENT_SECRET` — Netlify environment variables.
 - `SUPABASE_URL` — pins the expected token issuer and fetches published signing
-  keys. **Required for the phone**, unused by the browser: the phone hands
-  consent to the system browser, which has its own cookie jar, so a session
-  cookie can never identify it — it authenticates with its Supabase access
-  token instead.
+  keys. Optional for the browser, which identifies itself with the signed
+  session cookie and never needs it — see `netlify/functions/_lib/config.mjs`.
 - `SUPABASE_JWT_SECRET` is deliberately unset. This project's current signing
   key is ECC P-256 (ES256), which publishes its public half at
   `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`. Set it only if Settings → JWT
@@ -258,10 +251,6 @@ https://thehybridengine1.netlify.app/.netlify/functions/whoop-webhook
 ```
 
 Privacy policy: `https://thehybridengine1.netlify.app/privacy.html`
-
-Once the callback holds tokens it bounces the system browser to
-`hybridengine://whoop` (`apps/mobile/app.json` → `expo.scheme`), which returns
-the athlete to the app. Nothing extra is registered with WHOOP for the phone.
 
 Rotate any WHOOP secret ever pasted into chat, source, or a ZIP.
 
@@ -293,11 +282,12 @@ chat, source, or a ZIP.
 
 - **Training decisions live in the engine, not in screens.** If you find
   yourself computing a weight, a zone or a progression inside a component,
-  it belongs in `packages/engine` where both apps and the tests can see it.
-- **Spacing resolves through an 8px scale** in both apps (`p-2` is 16px). The
-  rare 4px optical nudge is written `-0.5` and is meant to stand out.
+  it belongs in `packages/engine` where the tests can see it.
+- **Spacing resolves through an 8px scale** (`p-2` is 16px). The rare 4px
+  optical nudge is written `-0.5` and is meant to stand out.
 - **A screen must always render something.** Empty states are a feature; a
-  title over a void is the bug `apps/mobile/src/screens/screens.test.tsx` exists for.
+  title over a void is a real bug — a route that renders `null` reads as
+  "loading" forever, not "nothing here yet."
 - **Never invent training.** A prescription is not a performance, and a day
   with no record is a gap, not a rest day. Several tests exist only to hold
   this line.

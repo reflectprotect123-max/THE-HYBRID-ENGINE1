@@ -28,14 +28,9 @@ import { Day } from './screens/Day';
 import { Recap } from './screens/Recap';
 import { Settings } from './screens/Settings';
 import { FoodLog } from './screens/nutrition/FoodLog';
-// TODO: Task 2.5 replaces this with FoodLog ported to /nutrition/log.
-import { Log as NutritionLog } from './screens/nutrition/Log';
 import { Food as NutritionFood } from './screens/nutrition/Food';
-// TODO: Task 2.9 builds this screen.
 import { Weight as NutritionWeight } from './screens/nutrition/Weight';
-// TODO: Task 2.13 builds this screen.
 import { Coach as NutritionCoach } from './screens/nutrition/Coach';
-// TODO: Task 2.10 builds this screen.
 import { NutritionSettings } from './screens/nutrition/NutritionSettings';
 import { IS_SCOPED_BUILD, PRODUCT, PRODUCT_ID } from './product';
 
@@ -117,7 +112,7 @@ export function App() {
               {world === 'nutrition' && (
                 <Routes>
                   <Route element={<Shell />}>
-                    <Route path="/nutrition/log" element={<NutritionLog />} />
+                    <Route path="/nutrition/log" element={<FoodLog />} />
                     <Route path="/nutrition/food" element={<NutritionFood />} />
                     <Route path="/nutrition/weight" element={<NutritionWeight />} />
                     <Route path="/nutrition/coach" element={<NutritionCoach />} />
