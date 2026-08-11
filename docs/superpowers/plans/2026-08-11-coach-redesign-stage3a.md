@@ -70,7 +70,9 @@ Nine tasks. The three `packages/engine` modules come first because every screen 
 - Test: `packages/engine/src/catalogue.test.ts`
 
 **Interfaces:**
-- Consumes: `knownMovements(workouts: Workout[], sessions: Session[]): string[]` — already exported from `packages/engine`. Read it before writing; do not reimplement its derivation.
+- Consumes: `blockExercises(b)` from `packages/engine/src/session.ts`.
+
+**CORRECTED during execution.** The plan first said to build on `knownMovements`. Do not. It lives in `./session` (not `./movements`) and it filters to `isLiftMode(e.mode)` — `reps_kg` and `amrap` only — because its job is to stop one LIFT being spelled two ways, where `exLogFor`, `detectPRs` and `bestE1rmByLift` all key on the name. The picker must offer conditioning movements too; the mockup's own seed tags "Row Erg" as Conditioning. So `knownMovements` keeps its lift-only contract untouched, and the catalogue derives beside it — copying only its de-duplication rule (case-insensitive, freshest spelling wins), because two lists disagreeing about "Back Squat" versus "back squat" is worse than either alone.
 - Produces:
   ```ts
   export interface CatalogueEntry { name: string; tags: string[]; uses: number }
@@ -244,7 +246,7 @@ export function filterCatalogue(entries: CatalogueEntry[], query: string, active
 }
 ```
 
-If `knownMovements` does not live in `./movements`, grep for its export and import from wherever it actually is. Do not copy its body.
+Traverse via `blockExercises(b)` — a block's exercises are not always on `.exercises`, and that helper is the one the rest of the engine uses.
 
 - [ ] **Step 4: Run test to verify it passes**
 

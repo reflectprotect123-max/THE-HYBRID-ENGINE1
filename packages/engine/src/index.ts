@@ -18,6 +18,7 @@ export * from './geo';
 export * from './conditioning';
 export * from './concept2';
 export * from './session';
+export * from './catalogue';
 export * from './lift';
 export * from './balance';
 export * from './insights';
