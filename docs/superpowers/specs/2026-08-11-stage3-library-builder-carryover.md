@@ -53,6 +53,13 @@ embedded in JSX, as the design demanded; an end-to-end scenario in
    No publish or deliver step exists in `GuidedBuilder.tsx`. The design
    wanted this to stop being a permanently-visible side panel.
 
+   **Corrected 11 August 2026:** this is a CODE gap, not a design gap. The
+   Stage 1 mockup already draws it — `#cal-session-builder`'s `cb-instructions`
+   textarea ("Use this area to help the athlete understand goals for today's
+   session") and its `cb-publish` "Publish session" CTA, alongside a
+   duplicate action and an Unpublished/published status dot. Stage 3 should
+   build that, not redesign it.
+
 ## Built but drifted — decide in Stage 3
 
 5. **The persistent header.** Designed `Day 1 · Session · 2 of 4 exercises`;
@@ -64,8 +71,34 @@ embedded in JSX, as the design demanded; an end-to-end scenario in
 
 ## Sequencing note
 
-Items 1 and 2 are Library surface, and the approved Stage 1 mockup left its
-Library view blank and marked "awaiting redesign" — so the week grid should
-be designed as part of Stage 3's Library rather than bolted onto the current
-authoring screen. Items 3-6 are inside the flow and independent of it; they
-could ship earlier if the grid slips.
+**Corrected 11 August 2026.** This section first said the mockup "left its
+Library view blank and marked awaiting redesign". That is false — a stale
+comment inside the mockup says it, but `#view-library` carries ~212 lines of
+real design. What it actually contains:
+
+- a Library header and FIVE tabs — Programs, Sessions, Exercises, Circuit,
+  Calendar — with a note that panels are "built one tab at a time";
+- the **Calendar** month view in full (`cal-*`): toolbar, month nav, grid,
+  day cells with hover links — the only tab panel drawn;
+- a **session builder** (`cb-*`), described as "the coach's real authoring
+  screen for one day", explicitly replacing an athlete-facing set logger
+  because "that screen is for LOGGING a workout, not authoring one";
+- a **mobile-only Sessions view** (`th-*`), a deliberate literal clone of a
+  reference app with its own accent colour and nav break pattern.
+
+So Programs, Sessions (desktop), Exercises and Circuit are the genuinely
+undesigned panels. Items 1 and 2 above — the week grid and its cell
+affordances — have no counterpart in the mockup either, and the mockup's
+Calendar occupies the space the grid was meant to fill. Whether the grid
+survives at all is a Stage 3 decision, not a foregone one.
+
+Items 3, 5 and 6 sit inside the guided flow and are independent of the
+Library; they could ship earlier if Library work slips.
+
+## The question Stage 3 has to answer first
+
+There would be THREE authoring surfaces if the mockup's builder is built as
+drawn: `GuidedBuilder` (the guided first-pass flow), `Planner` (the dense
+editor it hands off to), and the mockup's `cb-*` day builder. That is one
+more than any coach needs, and deciding which survives — or how they
+compose — comes before any of the tab panels.
