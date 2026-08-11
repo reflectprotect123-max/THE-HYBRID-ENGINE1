@@ -252,8 +252,13 @@ Replace the body of `apps/web/src/coach/CoachCommandCenter.test.tsx`, keeping it
     ];
     await renderCommandCenter(repo);
 
+    // The mockup replaces the old chip strip with a <select>, so selection
+    // is driven by changing it — not by clicking a chip that no longer
+    // exists. Same behaviour asserted, new control.
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Riley Roster/ }));
+      fireEvent.change(screen.getByRole('combobox', { name: /client/i }), {
+        target: { value: ROSTER_CLIENT.id },
+      });
     });
 
     expect(screen.getByRole('link', { name: /Strength/ })).toHaveTextContent('1');
@@ -272,7 +277,7 @@ Expected: FAIL — no tile links exist yet.
 
 Read the mockup's `<section id="view-command">` and `.rd-tile` CSS first. Then rewrite `CoachCommandCenter.tsx` to render, inside the existing providers and `isLocalClient` discipline:
 
-1. The client selector (`.rd-client-row` / `.rd-select`) driving the **existing** `useCoachWorkspace()` selection state. Keep the existing roster-strip buttons as well if removing them breaks the existing client-switching test — the mockup's `<select>` is the visual target, but selection behaviour must not regress.
+1. The client selector (`.rd-client-row` / `.rd-select`) driving the **existing** `useCoachWorkspace()` selection state. It **replaces** the old roster chip strip — the mockup has one control, not two, so do not keep both. Selection behaviour must not regress: the existing client-switching test is updated to drive the `<select>` (see the test above), not deleted. Give the `<select>` an accessible name (`aria-label="Select client"`, as the mockup does) so it is reachable by role.
 2. The identity row (`.rd-identity`): client name, program name, `Week N of M`.
 3. The `.rd-tiles` grid of four `.rd-tile` elements. Each is a react-router `<Link>`, not a `<button>` — they navigate. Copy each tile's inline SVG icon verbatim from the mockup.
 
@@ -532,11 +537,21 @@ describe('Conditioning pillar', () => {
     expect(screen.getByRole('link', { name: /Command Center/ })).toHaveAttribute('href', '/coach');
   });
 
-  it('states the HR donut covers only sessions that recorded heart rate', () => {
-    // The five-zone breakdown is computed from stored HR traces. Sessions
-    // without one are unknown, not zero — the screen has to say so.
+  it('shows no zone minutes at all when nothing has been logged', () => {
+    // A fresh DB has no sessions. The mockup's 62m/40m/18m split is
+    // furniture; rendering it would invent training that never happened.
     renderPillar();
-    expect(screen.getByText(/heart rate|HR/i)).toBeInTheDocument();
+    expect(screen.queryByText('62m')).not.toBeInTheDocument();
+    expect(screen.queryByText('40m')).not.toBeInTheDocument();
+    expect(screen.queryByText('18m')).not.toBeInTheDocument();
+  });
+
+  it('names how many sessions the HR donut had to exclude', () => {
+    // The five-zone breakdown only covers sessions that stored a trace.
+    // A session without one is unknown, not zero, and the screen must say
+    // so rather than quietly charting a smaller week.
+    renderPillar();
+    expect(screen.getByText(/recorded heart rate|no heart-rate|excluded/i)).toBeInTheDocument();
   });
 });
 ```
@@ -645,6 +660,14 @@ Read the mockup's `<section id="view-nutrition">` and its `.rd-panel-grid`, `.rd
 4. `.rd-panel` — the weight trend: latest weight, weekly rate, and the sparkline.
 
 This screen is read-only. Nutrition is context here and never writes to training.
+
+**Accepted regression, decided 11 August 2026.** `CoachNutrition` served roster
+clients through a real layer-3 backend (`getNutritionSummary`). The pillar
+reads local stores only, so roster clients are blocked by `ClientDetailGate`
+rather than shown a summary. This is a deliberate, owner-approved capability
+loss taken to ship Stage 1, not an oversight — restoring roster nutrition is
+future work. Do not silently re-add the roster branch, and do not "fix" the
+block: it is the agreed behaviour. Note it in your report.
 
 - [ ] **Step 5: Delete the screen it replaces**
 
