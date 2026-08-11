@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { Session } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { PillarBack } from './PillarBack';
 import { useProgressionLedger } from '../progression-store';
@@ -82,21 +83,65 @@ function LiftIcon() {
 }
 
 /*
- * The mockup's lift cards expand into a 7/30/90-day range toggle, but that
- * toggle is wired to fabricated data (`series.concat(series.map(v => v *
- * (0.92 + Math.random() * 0.16)))` in the source artifact) — there is no
- * honest day-level e1RM series to switch between, only the one real weekly
- * window `liftTrends` computes. Padding or jittering one to fill a fake
- * range is exactly what "absent data is stated, never faked" forbids, so
- * this card expands into a bigger view of the SAME real weekly series
- * instead of a range toggle with nothing genuine behind two of its buttons.
+ * e1RM is sparse and weekly, unlike WHOOP's continuous daily series — but
+ * `liftTrends`'s `weeks` parameter is real windowing, not a fixed ceiling
+ * (trends.ts:37-40), and `sessions` genuinely carries history well past its
+ * 8-week default (Progress.tsx windows the same array 16 weeks deep). So the
+ * range toggle here is real: 8 weeks (this card's existing default) and 13
+ * weeks (~90 days, the longest honest window before weekly e1RM exposure
+ * gets too sparse to read as a line). No day-level granularity is invented —
+ * the unit stays "week", because that is the true grain of this metric.
  */
-function LiftCard({ series }: { series: TrendSeries }) {
+const WEEK_RANGES = [8, 13] as const;
+type WeekRange = (typeof WEEK_RANGES)[number];
+const DEFAULT_WEEK_RANGE: WeekRange = 8;
+
+/** Calendar weeks since the athlete's EARLIEST logged session of any kind —
+ *  the true boundary of "there could be data at all", exactly as
+ *  `whoopDaily`'s retained length is that boundary for the Readiness cards.
+ *  A null slot inside that boundary is a genuine no-exposure week; a null
+ *  slot before it is "history hadn't started yet", and the two must not
+ *  read the same on screen. */
+function weeksOfHistory(sessions: Session[], today: string): number {
+  const dates = sessions.map((s) => s.date).filter(Boolean);
+  if (!dates.length) return 0;
+  const earliest = dates.reduce((a, b) => (a < b ? a : b));
+  const days = Math.max(
+    0,
+    Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${earliest}T00:00:00Z`)) / 864e5),
+  );
+  return Math.floor(days / 7) + 1;
+}
+
+function LiftCard({
+  series,
+  sessions,
+  today,
+  historyWeeks,
+}: {
+  series: TrendSeries;
+  sessions: Session[];
+  today: string;
+  historyWeeks: number;
+}) {
   const [open, setOpen] = useState(false);
+  const [range, setRange] = useState<WeekRange>(DEFAULT_WEEK_RANGE);
   const cls = series.delta == null ? 'neutral' : series.delta >= 0 ? 'good' : 'bad';
   const color = cls === 'good' ? 'var(--color-ok)' : cls === 'bad' ? 'var(--color-bad)' : 'var(--color-muted)';
   const spark = liftSparkPath(series.points, 180, 38, 3);
-  const big = liftSparkPath(series.points, 500, 60, 4);
+
+  /* Re-derives THIS lift's real series at the selected window. A large topK
+   * only guards against the sort dropping the lift already shown as a card —
+   * `.find` by name picks it out, so the range toggle can never silently
+   * swap which lift a card is showing. `null` means genuinely fewer than
+   * three real exposures inside that particular window, not "no data to
+   * ask for". */
+  const expanded = useMemo(
+    () => liftTrends(sessions, today, range, 20).find((s) => s.label === series.label) ?? null,
+    [sessions, today, range, series.label],
+  );
+  const big = expanded ? liftSparkPath(expanded.points, 500, 60, 4) : null;
+  const short = historyWeeks < range;
 
   return (
     <div className={`rd-card${open ? ' open' : ''}`}>
@@ -132,13 +177,36 @@ function LiftCard({ series }: { series: TrendSeries }) {
       {open && (
         <div className="rd-card-expand">
           <div className="rd-card-expand-inner">
+            <div className="rd-range-toggle" role="group" aria-label={`${series.label} chart range`}>
+              {WEEK_RANGES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={r === range ? 'active' : undefined}
+                  aria-pressed={r === range}
+                  onClick={() => setRange(r)}
+                >
+                  {r}w
+                </button>
+              ))}
+            </div>
             {big ? (
-              <svg className="rd-big-chart" viewBox="0 0 500 60">
-                <polygon points={big.area} fill={color} opacity={0.14} />
-                <polyline points={big.line} fill="none" stroke={color} strokeWidth={2} />
-              </svg>
+              <>
+                {short && (
+                  <p className="rd-stale-note" style={{ textAlign: 'left', marginBottom: 6 }}>
+                    Only {historyWeeks} week{historyWeeks === 1 ? '' : 's'} of session history on record — showing
+                    all of it, not a full {range}-week window.
+                  </p>
+                )}
+                <svg className="rd-big-chart" viewBox="0 0 500 60">
+                  <polygon points={big.area} fill={color} opacity={0.14} />
+                  <polyline points={big.line} fill="none" stroke={color} strokeWidth={2} />
+                </svg>
+              </>
             ) : (
-              <p className="rd-stale-note" style={{ textAlign: 'left' }}>Not enough history yet for a bigger view.</p>
+              <p className="rd-stale-note" style={{ textAlign: 'left' }}>
+                Not enough {series.label} history yet for a {range}-week view.
+              </p>
             )}
           </div>
         </div>
@@ -162,6 +230,7 @@ export function Strength() {
   );
 
   const lifts = useMemo(() => liftTrends(sessions, today), [sessions, today]);
+  const historyWeeks = useMemo(() => weeksOfHistory(sessions, today), [sessions, today]);
 
   // Same budget source as `AthleteStatus.tsx`'s self-coach panel: the
   // athlete's own scheduled strength + conditioning sessions/week, not a
@@ -217,7 +286,7 @@ export function Strength() {
       ) : (
         <div className="rd-cards">
           {lifts.map((series) => (
-            <LiftCard key={series.label} series={series} />
+            <LiftCard key={series.label} series={series} sessions={sessions} today={today} historyWeeks={historyWeeks} />
           ))}
         </div>
       )}
