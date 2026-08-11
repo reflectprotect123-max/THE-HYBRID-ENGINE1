@@ -26,8 +26,21 @@ export function ArcCoachFrame() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [drawerOpen]);
 
+  /*
+   * `max-sm:auto-rows-min` (found while verifying phone width, task 8): below
+   * `sm` this grid has exactly two IN-FLOW rows — the hamburger bar and the
+   * `<Outlet/>` wrapper, since `<aside>` is `fixed`/off-canvas there rather
+   * than a grid item. CSS Grid's default `align-content` is `stretch`, so
+   * with no rows shorter than `min-h-screen`'s 100vh, the two `auto` row
+   * tracks were splitting the leftover viewport height between them —
+   * inflating the ~72px hamburger bar into ~300px of mostly dead space
+   * above every pillar's content. `auto-rows-min` caps both rows at their
+   * own content height instead, and only below `sm`: at `sm` and up the
+   * `<aside>` is a real grid item again and DOES want to stretch to the
+   * viewport's full height, which this must not touch.
+   */
   return (
-    <div className="mx-auto grid min-h-screen max-w-[1440px] bg-bg text-text lg:grid-cols-[208px_minmax(0,1fr)]">
+    <div className="mx-auto grid min-h-screen max-w-[1440px] bg-bg text-text max-sm:auto-rows-min lg:grid-cols-[208px_minmax(0,1fr)]">
       <div className="flex items-center gap-2 border-b border-line2 bg-panel3 px-2 py-2 sm:hidden">
         <button
           type="button"
