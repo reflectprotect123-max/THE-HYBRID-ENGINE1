@@ -1,31 +1,49 @@
 import { NavLink } from 'react-router-dom';
 import type { ProductId } from '@hybrid/product-scope';
-import { IS_SCOPED_BUILD, PRODUCT_ID } from '../product';
+import { athleteHomePath, IS_SCOPED_BUILD, PRODUCT_ID } from '../product';
 import { cx } from '../ui';
 
 /*
- * Five tabs, matching the nav the app settled on. Settings sits in the bar
- * rather than behind a gear in a header because on a phone in a gym the
- * header is the one place a thumb cannot reach.
+ * Settings sits in the bar rather than behind a gear in a header because on a
+ * phone in a gym the header is the one place a thumb cannot reach.
  *
- * The second tab is the one product-scoped slot: a conditioning build has no
- * lifting to train, so it points at /conditioning instead of /training. The
- * unscoped dashboard build (no VITE_HYBRID_PRODUCT set) keeps /training —
- * IS_SCOPED_BUILD is false there, so this never narrows the live dashboard.
+ * The training slot is where the three builds diverge, and they diverge in two
+ * different ways:
+ *
+ * A BRANDED build owns one discipline, so it gets ONE training tab — /training
+ * on strength, /conditioning on conditioning. That is a swap, and it is correct
+ * for a single-purpose product: a conditioning build has no lifting to train.
+ *
+ * The UNSCOPED build is the hybrid, and it gets BOTH. This used to take the
+ * strength arm of that same swap, which meant the one build that owns both
+ * disciplines was the one build where conditioning had no tab — reachable only
+ * through Home's zones card, a single text link inside one card. An app whose
+ * whole claim is that it runs the two halves together cannot hide half of
+ * itself behind a link; the swap is a product decision about a branded build
+ * and was never a statement about the hybrid.
+ *
+ * So this returns 6 tabs unscoped and 5 scoped, and callers must not assume a
+ * fixed length — `BottomNav` reads it off the array rather than hard-coding a
+ * column count.
  */
 export function navTabs(productId: ProductId, isScopedBuild: boolean) {
-  const trainTab = isScopedBuild && productId === 'conditioning'
-    ? { to: '/conditioning', label: 'Cond', icon: CondIcon }
-    : { to: '/training', label: 'Train', icon: TrainIcon };
+  const trainingTabs = !isScopedBuild
+    ? [
+        { to: '/training', label: 'Train', icon: TrainIcon },
+        { to: '/conditioning', label: 'Cond', icon: CondIcon },
+      ]
+    : productId === 'conditioning'
+      ? [{ to: '/conditioning', label: 'Cond', icon: CondIcon }]
+      : [{ to: '/training', label: 'Train', icon: TrainIcon }];
   /* The FIRST tab is scoped too, for the mirror-image reason. `/` is Home on
      a branded build and the coach bench on the unscoped dashboard, so pointing
-     Home at `/` there would eject the athlete out of their own app. */
-  const homeTab = isScopedBuild
-    ? { to: '/', label: 'Home', icon: HomeIcon }
-    : { to: '/home', label: 'Home', icon: HomeIcon };
+     Home at `/` there would eject the athlete out of their own app.
+     `athleteHomePath` is shared with the training tree's catch-all and the way
+     back out of the nutrition world — all three mean the same thing. */
+  const homeTab = { to: athleteHomePath(isScopedBuild), label: 'Home', icon: HomeIcon };
   return [
     homeTab,
-    trainTab,
+    ...trainingTabs,
     { to: '/library', label: 'Library', icon: LibIcon },
     { to: '/progress', label: 'Progress', icon: ChartIcon },
     { to: '/settings', label: 'Settings', icon: CogIcon },
@@ -40,7 +58,10 @@ export function BottomNav() {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[560px] border-t border-line bg-panel3/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
-      <ul className="grid grid-cols-5">
+      {/* Written out rather than composed into `grid-cols-${n}`: Tailwind scans
+          source for literal class names, so an interpolated one is never
+          generated and the bar would silently fall back to a single column. */}
+      <ul className={cx('grid', TABS.length === 6 ? 'grid-cols-6' : 'grid-cols-5')}>
         {TABS.map(({ to, label, icon: Icon }) => (
           <li key={to}>
             <NavLink

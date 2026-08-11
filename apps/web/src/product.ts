@@ -29,3 +29,23 @@ export const PRODUCT = rawProduct === 'strength' || rawProduct === 'conditioning
  * build too, since PRODUCT_ID silently falls back to 'strength'.
  */
 export const IS_SCOPED_BUILD = rawProduct === 'strength' || rawProduct === 'conditioning';
+
+/*
+ * Where the athlete app's Home actually lives on this build.
+ *
+ * `/` is Home on a branded build and the COACH BENCH on the unscoped dashboard
+ * one, so anything that means "send the athlete home" has to ask rather than
+ * assume. Three callers need it and had been deriving it separately — the Home
+ * nav tab, the training route tree's catch-all, and the way back out of the
+ * nutrition world — and the two that got it wrong both ejected the athlete into
+ * the coach workspace, which is the one place the athlete app must never send
+ * them. One function so they cannot disagree again.
+ *
+ * Takes the flag rather than reading the constant so it stays testable against
+ * both builds from a single test run.
+ */
+export function athleteHomePath(isScopedBuild: boolean) {
+  return isScopedBuild ? '/' : '/home';
+}
+
+export const ATHLETE_HOME = athleteHomePath(IS_SCOPED_BUILD);

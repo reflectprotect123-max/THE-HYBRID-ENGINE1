@@ -32,7 +32,7 @@ import { Food as NutritionFood } from './screens/nutrition/Food';
 import { Weight as NutritionWeight } from './screens/nutrition/Weight';
 import { Coach as NutritionCoach } from './screens/nutrition/Coach';
 import { NutritionSettings } from './screens/nutrition/NutritionSettings';
-import { IS_SCOPED_BUILD, PRODUCT, PRODUCT_ID } from './product';
+import { ATHLETE_HOME, IS_SCOPED_BUILD, PRODUCT, PRODUCT_ID } from './product';
 
 /* The coach bench is its own chunk: athletes never download it, and a failure
    inside it can never take down an athlete route. */
@@ -105,7 +105,13 @@ export function App() {
                     <Route path="/recap/:id" element={<Recap />} />
                     <Route path="/nutrition" element={<FoodLog />} />
                     <Route path="/settings" element={<Settings />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
+                    {/* Home, NOT `/`. On the unscoped build `/` is the coach
+                        bench, so sending every unmatched athlete path there
+                        ejected the athlete out of their own app — most visibly
+                        on the way back from the nutrition world, whose
+                        addresses none of these routes match. The coach-first
+                        root itself is unchanged: `/` above still redirects. */}
+                    <Route path="*" element={<Navigate to={ATHLETE_HOME} replace />} />
                   </Route>
                 </Routes>
               )}

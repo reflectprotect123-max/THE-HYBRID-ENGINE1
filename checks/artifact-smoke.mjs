@@ -27,6 +27,9 @@ import { launchChromium } from './_chromium.mjs';
 const root = resolve(process.cwd(), '.');
 const FILE = resolve(root, process.argv[2] || 'apps/web/dist-artifact/athlete.html');
 const OUT = resolve(root, process.argv[3] || '.artifact-screens');
+/* 6 on the hybrid build, which carries both training tabs; 5 on the two
+   branded builds, which each own one discipline. See navTabs (BottomNav.tsx). */
+const EXPECTED_TABS = Number(process.argv[4] || 6);
 
 if (!existsSync(FILE)) {
   console.error('Build first: node scripts/build-artifact.mjs');
@@ -140,9 +143,13 @@ if (!landedText.includes('Train today')) {
   problems.push(`cold open did not land on the athlete Home screen (hash ${landedHash || '(none)'})`);
 }
 
-const tabs = await page.locator('nav[aria-label="Main"] a').allInnerTexts().catch(() => []);
-console.log('\n  nav tabs: ' + (tabs.length ? tabs.map((t) => t.trim()).join(' / ') : '(none found)'));
-if (tabs.length !== 5) problems.push(`expected 5 nav tabs on Home, found ${tabs.length}`);
+const tabs = (await page.locator('nav[aria-label="Main"] a').allInnerTexts().catch(() => [])).map((t) =>
+  t.trim().replace(/\s+/g, ' '),
+);
+console.log('\n  nav tabs: ' + (tabs.length ? tabs.join(' / ') : '(none found)'));
+if (tabs.length !== EXPECTED_TABS) {
+  problems.push(`expected ${EXPECTED_TABS} nav tabs on Home, found ${tabs.length}: ${tabs.join(' / ')}`);
+}
 
 /* The full-screen routes are load-bearing too: a bottom nav appearing over a
    live set would be a regression, so assert the absence rather than assume it. */
@@ -150,6 +157,49 @@ await page.goto(base + '/#/log/0/0', { waitUntil: 'load' });
 await page.waitForTimeout(400);
 if (await page.locator('nav[aria-label="Main"]').count()) {
   problems.push('the Logger is showing the bottom nav — it is meant to be full-screen');
+}
+
+/*
+ * The nutrition world is the third surface in this one document, and it is not
+ * a route under the training nav — it is a hard swap of the whole route tree
+ * and nav bar (App.tsx forks on `world`). "Everything in one file" is only true
+ * if that swap actually works here, so drive it the way an athlete would:
+ * through the switch on Settings, and back again.
+ */
+await page.goto(base + '/#/settings', { waitUntil: 'load' });
+await page.waitForTimeout(400);
+const toNutrition = page.getByRole('button', { name: /Go to Nutrition/i });
+if (!(await toNutrition.count())) {
+  problems.push('Settings has no way into the nutrition world');
+} else {
+  await toNutrition.first().click();
+  await page.waitForTimeout(600);
+  const nutritionText = (await page.locator('#root').innerText().catch(() => '')).trim();
+  const nutritionTabs = await page.locator('nav a').allInnerTexts().catch(() => []);
+  console.log('  nutrition world tabs: ' + nutritionTabs.map((t) => t.trim()).join(' / '));
+  if (nutritionTabs.length !== 5) {
+    problems.push(`nutrition world should have 5 tabs, found ${nutritionTabs.length}`);
+  }
+  if (nutritionText.length < 20) problems.push('the nutrition world mounted empty');
+  await page.screenshot({ path: join(OUT, 'nutrition-world.png'), fullPage: true });
+
+  /* Back out again. A one-way door would strand the athlete in a world with no
+     training in it, which is worse than not having the door. */
+  await page.goto(base + '/#/nutrition/settings', { waitUntil: 'load' });
+  await page.waitForTimeout(400);
+  /* "← Back to training", not "Go to training": one shared WorldSwitch renders
+     in both directions and labels itself by destination (WorldSwitch.tsx). */
+  const toTraining = page.getByRole('button', { name: /Back to training/i });
+  if (!(await toTraining.count())) {
+    problems.push('the nutrition world has no way back to training');
+  } else {
+    await toTraining.first().click();
+    await page.waitForTimeout(600);
+    const backText = (await page.locator('#root').innerText().catch(() => '')).trim();
+    if (!backText.includes('Train today') && !(await page.locator('nav[aria-label="Main"]').count())) {
+      problems.push('switching back from nutrition did not return to the training world');
+    }
+  }
 }
 
 /* The coach bench is reachable at #/coach on this build, so it is part of the

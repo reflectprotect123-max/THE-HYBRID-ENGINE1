@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { __resetDisciplineForTest, setDiscipline } from '../../discipline';
 import { NutritionProvider } from '../../store/nutrition';
@@ -26,9 +27,13 @@ beforeEach(() => {
 describe('NutritionSettings', () => {
   it('renders the world switch back to training', () => {
     render(
-      <NutritionProvider>
-        <NutritionSettings />
-      </NutritionProvider>,
+      /* Routed: the WorldSwitch on this screen navigates as well as flipping
+         the world, so it needs a router in scope (see WorldSwitch.tsx). */
+      <MemoryRouter initialEntries={['/nutrition/settings']}>
+        <NutritionProvider>
+          <NutritionSettings />
+        </NutritionProvider>
+      </MemoryRouter>,
     );
 
     expect(screen.getByRole('button', { name: /training/i })).toBeInTheDocument();
@@ -53,9 +58,13 @@ describe('NutritionSettings', () => {
     );
 
     render(
-      <NutritionProvider>
-        <NutritionSettings />
-      </NutritionProvider>,
+      /* Routed: the WorldSwitch on this screen navigates as well as flipping
+         the world, so it needs a router in scope (see WorldSwitch.tsx). */
+      <MemoryRouter initialEntries={['/nutrition/settings']}>
+        <NutritionProvider>
+          <NutritionSettings />
+        </NutritionProvider>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText(/2 entries across 1 day/)).toBeInTheDocument();

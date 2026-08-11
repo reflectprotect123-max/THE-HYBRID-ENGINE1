@@ -1,4 +1,6 @@
+import { useNavigate } from 'react-router-dom';
 import { setDiscipline, useDiscipline, type WorldId } from '../discipline';
+import { ATHLETE_HOME } from '../product';
 import { Button } from '../ui';
 
 /*
@@ -28,11 +30,43 @@ const LABEL: Record<WorldId, string> = {
   nutrition: 'Go to Nutrition →',
 };
 
+/*
+ * Where each world is ENTERED. Flipping the world is only half a door: the two
+ * route trees share no paths, so whatever address the athlete was on when they
+ * switched does not exist on the other side and falls to that tree's catch-all.
+ *
+ * Leaving that to the catch-all is what made this a trap. Switching back from
+ * nutrition kept the hash at `/nutrition/settings`, which the training tree
+ * does not have, so it fell to `*` → `/` — and on the unscoped hybrid build `/`
+ * redirects to the COACH BENCH. The one door out of the nutrition world put the
+ * athlete in the coach workspace.
+ *
+ * That catch-all is fixed at the root now (App.tsx), so this navigation is no
+ * longer the only thing standing between the athlete and the coach bench. It
+ * stays because a door should name where it goes: relying on a catch-all to
+ * land somewhere sensible is how the trap happened in the first place.
+ */
+const ENTRY: Record<WorldId, string> = {
+  training: ATHLETE_HOME,
+  nutrition: '/nutrition/log',
+};
+
 export function WorldSwitch() {
   const world = useDiscipline();
+  const navigate = useNavigate();
   const target: WorldId = world === 'training' ? 'nutrition' : 'training';
   return (
-    <Button variant="ghost" className="mt-2" onClick={() => setDiscipline(target)}>
+    <Button
+      variant="ghost"
+      className="mt-2"
+      onClick={() => {
+        setDiscipline(target);
+        /* `replace`, not a push: the address being left belongs to a route tree
+           that is about to be unmounted, so a Back button onto it would land on
+           the other world's catch-all rather than where the athlete came from. */
+        navigate(ENTRY[target], { replace: true });
+      }}
+    >
       {LABEL[target]}
     </Button>
   );

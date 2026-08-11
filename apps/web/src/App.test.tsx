@@ -27,7 +27,21 @@ vi.mock('./cloud/sync', async () => {
     SyncProvider: ({ children }: { children: React.ReactNode }) => children,
     // Nobody signed in, restore already finished — the plain cold load of the
     // dashboard deploy by someone who is not the coach.
-    useSync: () => ({ user: null, authReady: true, signIn: vi.fn(), signOut: vi.fn() }),
+    //
+    // `pendingAssignments` is the empty array a normal account has: only an
+    // account enrolled in a real ARC organisation ever gets one
+    // (ArcAssignmentCard). It has to be present rather than merely falsy — the
+    // card reads `.length` unconditionally, so leaving it off throws the moment
+    // any test here renders the athlete Home rather than the coach bench.
+    useSync: () => ({
+      user: null,
+      authReady: true,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      pendingAssignments: [],
+      acceptAssignment: vi.fn(),
+      declineAssignment: vi.fn(),
+    }),
   };
 });
 
@@ -41,5 +55,31 @@ describe('the unscoped dashboard root', () => {
     // The athlete chrome must NOT be underneath it — the sign-in screen sits
     // outside the Shell on purpose.
     expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
+  });
+});
+
+/*
+ * The other half of the coach-first root, and the half that was wrong: `/` is
+ * the bench BY DESIGN, but the training tree's catch-all also pointed at `/`,
+ * so every unmatched athlete address chained through it into the coach
+ * workspace. The most visible victim was the way back from the nutrition world,
+ * whose addresses no training route matches — the one door out of that world
+ * put the athlete in the coach bench.
+ *
+ * Composition again, for the same reason as above: `athleteHomePath` has its own
+ * assertions and so does the Home tab, and both pass while the catch-all quietly
+ * disagrees with them.
+ */
+describe('an unmatched athlete address on the unscoped build', () => {
+  it('goes to the athlete Home, not the coach bench', async () => {
+    mockAllowed = false;
+    window.history.pushState({}, '', '/nutrition/settings');
+
+    render(<App />);
+
+    expect(await screen.findByText(/Train today/i)).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/home');
+    // The athlete kept their own chrome rather than being handed the bench's.
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
   });
 });

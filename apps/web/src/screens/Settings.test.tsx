@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { LS_KEY, type EngineDB } from '@hybrid/engine';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { DbProvider } from '../store/db';
 import { SyncProvider } from '../cloud/sync';
 import { WhoopProvider } from '../cloud/whoop';
@@ -22,18 +23,23 @@ import { Settings } from './Settings';
 
 function renderSettings() {
   localStorage.setItem(LS_KEY, JSON.stringify({ workouts: [], sessions: [], settings: {} } as EngineDB));
+  /* Routed, because the WorldSwitch on this screen now navigates as well as
+     flipping the world — leaving the athlete on the old world's address sent
+     them to the coach bench (see WorldSwitch.tsx). */
   return render(
-    <DbProvider>
-      <NutritionProvider>
-        <SyncProvider>
-          <WhoopProvider>
-            <Concept2Provider>
-              <Settings />
-            </Concept2Provider>
-          </WhoopProvider>
-        </SyncProvider>
-      </NutritionProvider>
-    </DbProvider>,
+    <MemoryRouter initialEntries={['/settings']}>
+      <DbProvider>
+        <NutritionProvider>
+          <SyncProvider>
+            <WhoopProvider>
+              <Concept2Provider>
+                <Settings />
+              </Concept2Provider>
+            </WhoopProvider>
+          </SyncProvider>
+        </NutritionProvider>
+      </DbProvider>
+    </MemoryRouter>,
   );
 }
 
