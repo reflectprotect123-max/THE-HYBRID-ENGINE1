@@ -223,3 +223,40 @@ export function zoneSeconds(ds: Downsampled, z: Zones): Record<ZoneKey, number> 
   });
   return out;
 }
+
+/** The five %HRmax bands coaches prescribe against. */
+export type HrMaxBand = 'z1' | 'z2' | 'z3' | 'z4' | 'z5';
+
+/**
+ * Seconds banked in each %HRmax band across a trace.
+ *
+ * DISPLAY ONLY, and deliberately separate from `zoneSeconds`. The three-zone
+ * model above is what `conAdapt` divides by and what every prescription is
+ * written in; this is coach-facing context for where a week's load actually
+ * went. Nothing may read it as an instruction.
+ *
+ * Two rules differ from `zoneSeconds`, both on purpose:
+ *
+ *  - A beat under 50% of max is DROPPED, not banked. `zoneSeconds` banks
+ *    sub-floor beats into Recovery because its total is a denominator;
+ *    nothing divides by this one, and folding warm-up and rest drift into Z1
+ *    would report easy time the athlete never spent there.
+ *  - An absent trace returns zeroes rather than throwing. A session with no
+ *    heart-rate recorded is unknown, not zero — the caller states that, and
+ *    excludes such sessions rather than charting them flat.
+ */
+export function hrMaxBandSeconds(
+  ds: Downsampled | null | undefined,
+  maxHr: number,
+): Record<HrMaxBand, number> {
+  const out: Record<HrMaxBand, number> = { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0 };
+  if (!ds || !Array.isArray(ds.pts) || !Number.isFinite(maxHr) || maxHr <= 0) return out;
+  ds.pts.forEach((b) => {
+    if (b == null || !Number.isFinite(b)) return;
+    const pct = (b / maxHr) * 100;
+    if (pct < 50) return;
+    const band: HrMaxBand = pct < 60 ? 'z1' : pct < 70 ? 'z2' : pct < 80 ? 'z3' : pct < 90 ? 'z4' : 'z5';
+    out[band] += ds.every;
+  });
+  return out;
+}

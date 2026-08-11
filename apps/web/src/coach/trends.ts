@@ -33,13 +33,34 @@ function mondayMs(iso: string): number {
   return d.getTime();
 }
 
-/** Weekly best-e1RM series for the athlete's most-trained lifts. */
-export function liftTrends(
+export interface LiftTrendSummary {
+  /** Every lift with enough real exposure to chart, best-exposed first. */
+  series: TrendSeries[];
+  /** Lifts the athlete DID train in this window but which have fewer than
+   *  three weeks of exposure, so no line can honestly be drawn for them yet.
+   *  Named so the screen can say what it is not showing. */
+  belowThreshold: string[];
+  /** Qualifying lifts dropped by `topK`, if a caller asked for a cap. */
+  droppedByCap: string[];
+}
+
+/**
+ * Weekly best-e1RM series per lift, plus what was left out and why.
+ *
+ * Added 11 August 2026 by the Stage-1 final review. `liftTrends` returned
+ * only the series, and its `topK` default of 2 meant an athlete tracking six
+ * lifts saw two, with nothing on screen saying four were dropped. The
+ * three-week exposure filter was silent in the same way: a lift trained
+ * twice simply vanished. Both are legitimate filters and neither should be
+ * invisible — Conditioning states its excluded efforts in full and Nutrition
+ * states every absent-data case in words; this is the same line.
+ */
+export function liftTrendSummary(
   sessions: Session[],
   today: string,
   weeks = 8,
-  topK = 2,
-): TrendSeries[] {
+  topK = Number.MAX_SAFE_INTEGER,
+): LiftTrendSummary {
   const mon0 = mondayMs(today);
   const perLift = new Map<string, { name: string; points: Array<number | null> }>();
 
@@ -56,21 +77,41 @@ export function liftTrends(
     }
   }
 
-  return [...perLift.values()]
-    .map((row) => {
-      const seen = row.points.filter((p): p is number => p != null);
-      return { row, exposures: seen.length, first: seen[0], latest: seen[seen.length - 1] };
-    })
+  const rows = [...perLift.values()].map((row) => {
+    const seen = row.points.filter((p): p is number => p != null);
+    return { row, exposures: seen.length, first: seen[0], latest: seen[seen.length - 1] };
+  });
+
+  const qualifying = rows
     .filter((x) => x.exposures >= 3 && x.latest != null)
-    .sort((a, b) => b.exposures - a.exposures || (b.latest ?? 0) - (a.latest ?? 0))
-    .slice(0, topK)
-    .map(({ row, exposures, first, latest }) => ({
+    .sort((a, b) => b.exposures - a.exposures || (b.latest ?? 0) - (a.latest ?? 0));
+
+  return {
+    series: qualifying.slice(0, topK).map(({ row, exposures, first, latest }) => ({
       label: row.name,
       sub: `best e1RM · ${exposures} of ${weeks} weeks`,
       points: row.points,
       latest: latest!,
       delta: exposures > 1 ? Math.round((latest! - first!) * 10) / 10 : null,
-    }));
+    })),
+    belowThreshold: rows.filter((x) => x.exposures < 3 || x.latest == null).map((x) => x.row.name),
+    droppedByCap: qualifying.slice(topK).map((x) => x.row.name),
+  };
+}
+
+/** Weekly best-e1RM series for the athlete's most-trained lifts.
+ *
+ *  `topK` still defaults to 2 for this thin wrapper because its one caller
+ *  is `LiftCard`'s expanded-range lookup, which passes an explicit 20 and
+ *  `.find`s one label out of the result. Screens that RENDER a card list
+ *  want `liftTrendSummary` above, which reports its own exclusions. */
+export function liftTrends(
+  sessions: Session[],
+  today: string,
+  weeks = 8,
+  topK = 2,
+): TrendSeries[] {
+  return liftTrendSummary(sessions, today, weeks, topK).series;
 }
 
 /** Pace-per-500m trend within the athlete's most repeated erg test. */

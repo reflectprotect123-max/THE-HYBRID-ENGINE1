@@ -38,11 +38,13 @@ import type { ClientSummary } from './contracts';
  * the "allow" branch — the one case that needs no test.
  *
  * `layer3Ready` is per-ROUTE, not global: layer 3's backend covers
- * authoring, progression, nutrition and week review (each screen branches
- * internally on `selectedClient.source` to render its own roster view) but
- * NOT the legacy program bench, the guided workout builder, or the planner
- * — those still only ever read and write the signed-in account's own local
- * `Workout[]`/`EngineDB`, so a roster client must still be blocked there.
+ * authoring, progression, week review and the roster workout draft (each
+ * screen branches internally on `selectedClient.source` to render its own
+ * roster view) but NOT the legacy program bench, the guided workout
+ * builder, the planner, nutrition, or the readiness/strength/conditioning
+ * pillars — those still only ever read and write the signed-in account's
+ * own local `Workout[]`/`EngineDB`/`useNutrition()`, so a roster client
+ * must still be blocked there.
  */
 export function clientDetailGateVerdict(
   selectedClient: ClientSummary | null,
@@ -103,8 +105,11 @@ export function ClientDetailGateView({
 }
 
 /** The wrapper every route in index.tsx actually uses. Pass `layer3Ready` on
- *  the four routes with a real backend (author, nutrition, progression,
- *  review); leave it unset everywhere else. */
+ *  the four routes with a real backend (author, progression, review,
+ *  roster-plan); leave it unset everywhere else — including nutrition, which
+ *  reads local stores only and dropped `layer3Ready` in the Stage-1 coach
+ *  redesign, and the three pillar routes added alongside it (readiness,
+ *  strength, conditioning), which never had one. */
 export function ClientDetailGate({ tool, layer3Ready = false, children }: { tool: string; layer3Ready?: boolean; children: ReactNode }) {
   const { selectedClient, selectClient } = useCoachWorkspace();
   return (
