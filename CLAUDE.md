@@ -130,6 +130,32 @@ it in staging before enabling `VITE_HYBRID_ECOSYSTEM_SYNC=1` or
 Never remove the legacy read path until old mobile builds have aged out and a
 rollback rehearsal proves that no domain can overwrite another domain.
 
+## The athlete and the coach never face each other
+
+They are one repo, one deploy and one bundle, and they are SUPPOSED to share —
+both stand on `packages/*`, on `store/`, on `cloud/`, on the design system.
+What neither may do is depend on the OTHER. Sharing a floor is collaboration;
+importing each other is a knot that cannot be split later without unpicking
+both surfaces at once.
+
+`checks/lane-contract.mjs` (`pnpm run check:lanes`) enforces it, and it is a
+GRAPH check rather than another text scan on purpose: it resolves every
+relative import under `apps/web/src` into an edge and asserts the property
+directly, so it cannot pass while the thing it guards is broken — the failure
+mode that made five earlier guards decorative.
+
+It is a ratchet, not a wall. Real crossings exist today and are listed in
+`ALLOWED` with the reason each one is there and what retires it. A crossing
+that is not on the list fails; so does a list entry that no longer happens, so
+a fixed crossing must be deleted from the list rather than leaving budget
+behind. The list only shrinks. When it empties the rule becomes absolute and
+the list goes with it.
+
+Three of those entries are the same shape and worth knowing: `autocoach/policy.ts`,
+`autocoach/ledger.ts` and `coach/progression.ts` are shared logic wearing a
+lane's directory name. They are not violations, they are misfilings, and moving
+them is what closes most of the list.
+
 ## Where a test goes
 
 Tests are COLOCATED: `src/lift.ts` is tested by `src/lift.test.ts`, in the same
