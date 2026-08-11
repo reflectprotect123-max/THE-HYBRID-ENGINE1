@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
+  condEfforts,
   conMaxHr,
   hrMaxBandSeconds,
-  isCond,
-  type CondResult,
-  type Concept2Result,
   type Downsampled,
   type HrMaxBand,
   type ProgressState,
@@ -16,7 +14,6 @@ import { PillarBack } from './PillarBack';
 import { useProgressionLedger } from '../progression-store';
 import type { ConditioningProgressionProposal, ProgressionDirection } from '../progression';
 import { ergTrend, type TrendSeries } from '../trends';
-import { weekDates } from '../ops';
 import '../coach-redesign.css';
 
 /*
@@ -29,7 +26,19 @@ import '../coach-redesign.css';
  * neither feeds the other. `hrMaxBandSeconds` already refuses to fabricate:
  * an absent trace returns zeroes rather than throwing, so THIS file is the
  * one place responsible for not silently charting an absent trace as a zero
- * — it tracks which sessions had no trace at all and says so.
+ * — it tracks which efforts had no trace at all and says so.
+ *
+ * Every number is drawn from `condEfforts(sessions, settings)`
+ * (packages/engine/src/balance.ts), the same reader `Progress.tsx` already
+ * uses for its own weekly zone total — NOT a hand-rolled walk of
+ * `session.blocks`. A conditioning result lives in one of two places
+ * depending only on how the athlete started the run: tied to a session
+ * block, or (Home's "Start conditioning" with no session context —
+ * `screens/Conditioning.tsx`'s `submitMechanical`) standalone in
+ * `settings.conditioning`. Both are real training; reading only the first
+ * would silently undercount every run started from Home. Because a
+ * standalone effort is not a `Session`, this screen counts and excludes
+ * EFFORTS, not sessions.
  */
 
 function capitalize(s: string): string {
@@ -55,26 +64,11 @@ function condPrescription(value: ProgressState): string {
   return `Level ${value.level} · ${value.miss} miss`;
 }
 
-/** A trace only counts as "recorded" if it actually banked at least one
- *  real beat — an all-null trace (no strap connected during the run) is
+/** An effort only counts as "recorded" if it actually banked at least one
+ *  real beat — an all-null trace (no strap connected during that block) is
  *  the same absence as no trace object at all. */
 function hasUsableTrace(ds: Downsampled | null | undefined): boolean {
   return !!ds && Array.isArray(ds.pts) && ds.pts.some((v) => v != null);
-}
-
-/* `useConcept2` throws outside its provider (see AthleteStatus.test.tsx's
- * note on the same hook) — this screen renders through `DbProvider` alone
- * in its own test, exactly like Strength.tsx and Readiness.tsx do, so it
- * must tolerate the provider being absent rather than crash the page. The
- * hook itself is still called unconditionally, every render, in the same
- * position — only the thrown error is handled, which does not touch hook
- * order. */
-function useConcept2Safe(): { results: Concept2Result[] } {
-  try {
-    return useConcept2();
-  } catch {
-    return { results: [] };
-  }
 }
 
 const HR_BANDS: { key: HrMaxBand; name: string; range: string; color: string }[] = [
@@ -177,7 +171,7 @@ function ErgCard({ series }: { series: TrendSeries }) {
 export function Conditioning() {
   const { db, sessions } = useDb();
   const ledger = useProgressionLedger();
-  const c2 = useConcept2Safe();
+  const c2 = useConcept2();
   const today = new Date().toISOString().slice(0, 10);
 
   const decided = useMemo(() => new Set(ledger.decisions.map((event) => event.proposalId)), [ledger.decisions]);
@@ -190,67 +184,62 @@ export function Conditioning() {
     [ledger.proposals, decided],
   );
 
-  const thisWeek = useMemo(() => weekDates(mondayOf(today)), [today]);
+  // Monday 00:00 UTC through the following Monday — the same calendar-week
+  // boundary `trends.ts`'s `mondayMs`/`weeklyHardBudget` use elsewhere on
+  // this screen's sibling pillars.
+  const monday = useMemo(() => mondayOf(today), [today]);
+  const weekStartMs = useMemo(() => Date.parse(`${monday}T00:00:00Z`), [monday]);
+  const weekEndMs = weekStartMs + 7 * 864e5;
 
-  // Every conditioning block's result from this week's own sessions — never
-  // `settings.conditioning`'s standalone history, which the brief's data
-  // source is explicitly this screen's `session.condResult`.
-  const weekEntries = useMemo(
+  // Both logging paths, one reader: a result tied to a session block and a
+  // standalone Home-started run both land here, exactly like Progress.tsx's
+  // own weekly zone total already reads them. `startedAt` is set on both
+  // paths at completion time (screens/Conditioning.tsx's `finish()`), so
+  // filtering on it — not on any `Session`'s date — is what makes a
+  // standalone effort visible to "this week" at all.
+  const weekEfforts = useMemo(
     () =>
-      sessions
-        .filter((s) => s.kind === 'conditioning' && s.status !== 'active' && thisWeek.includes(s.date))
-        .map((s) => ({
-          sessionId: s.id,
-          results: s.blocks.filter(isCond).map((b) => b.condResult).filter((r): r is CondResult => !!r),
-        }))
-        .filter((entry) => entry.results.length > 0),
-    [sessions, thisWeek],
+      condEfforts(sessions, db.settings).filter((r) => {
+        const at = Number(r.startedAt);
+        return Number.isFinite(at) && at >= weekStartMs && at < weekEndMs;
+      }),
+    [sessions, db.settings, weekStartMs, weekEndMs],
   );
 
-  const totalDurSec = useMemo(
-    () => weekEntries.reduce((sum, e) => sum + e.results.reduce((s, r) => s + (r.dur ?? 0), 0), 0),
-    [weekEntries],
-  );
+  const totalDurSec = useMemo(() => weekEfforts.reduce((sum, r) => sum + (r.dur ?? 0), 0), [weekEfforts]);
   const totalMinutes = Math.round(totalDurSec / 60);
 
   const zoneSec = useMemo(
     () =>
-      weekEntries.reduce(
-        (acc, e) => {
-          e.results.forEach((r) => {
-            acc.low += r.zsec?.low ?? 0;
-            acc.mod += r.zsec?.mod ?? 0;
-            acc.high += r.zsec?.high ?? 0;
-          });
+      weekEfforts.reduce(
+        (acc, r) => {
+          acc.low += r.zsec?.low ?? 0;
+          acc.mod += r.zsec?.mod ?? 0;
+          acc.high += r.zsec?.high ?? 0;
           return acc;
         },
         { low: 0, mod: 0, high: 0 },
       ),
-    [weekEntries],
+    [weekEfforts],
   );
   const zoneTotalSec = zoneSec.low + zoneSec.mod + zoneSec.high;
 
   const maxHr = conMaxHr(db.settings.profile);
-  const { bandSec, sessionsWithResults, sessionsWithTrace } = useMemo(() => {
+  const { bandSec, totalEfforts, tracedEfforts } = useMemo(() => {
     const bands: Record<HrMaxBand, number> = { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0 };
-    let withResults = 0;
-    let withTrace = 0;
-    weekEntries.forEach((e) => {
-      withResults += 1;
-      const traced = e.results.some((r) => hasUsableTrace(r.trace));
-      if (traced) withTrace += 1;
-      e.results.forEach((r) => {
-        if (!hasUsableTrace(r.trace)) return;
-        const b = hrMaxBandSeconds(r.trace, maxHr);
-        (Object.keys(b) as HrMaxBand[]).forEach((k) => {
-          bands[k] += b[k];
-        });
+    let traced = 0;
+    weekEfforts.forEach((r) => {
+      if (!hasUsableTrace(r.trace)) return;
+      traced += 1;
+      const b = hrMaxBandSeconds(r.trace, maxHr);
+      (Object.keys(b) as HrMaxBand[]).forEach((k) => {
+        bands[k] += b[k];
       });
     });
-    return { bandSec: bands, sessionsWithResults: withResults, sessionsWithTrace: withTrace };
-  }, [weekEntries, maxHr]);
+    return { bandSec: bands, totalEfforts: weekEfforts.length, tracedEfforts: traced };
+  }, [weekEfforts, maxHr]);
   const bandTotalSec = HR_BANDS.reduce((sum, b) => sum + bandSec[b.key], 0);
-  const excludedCount = sessionsWithResults - sessionsWithTrace;
+  const excludedCount = totalEfforts - tracedEfforts;
 
   const donutCircumference = 2 * Math.PI * 51.5;
   const donutArcs = useMemo(() => {
@@ -400,10 +389,10 @@ export function Conditioning() {
         <p className="rd-panel-note" style={{ position: 'relative', zIndex: 1 }}>
           Logged minutes by prescribed intensity, and by the standard 5-zone %HRmax model coaches use to prescribe
           them — context on where the week&rsquo;s load actually went, not a readiness score. The five-zone donut
-          only counts sessions with a recorded heart rate; a session that logged no heart-rate trace is excluded
-          rather than charted as zero.
+          only counts conditioning efforts with a recorded heart rate — from a session block or a standalone run —
+          and an effort that logged no heart-rate trace is excluded rather than charted as zero.
           {excludedCount > 0 &&
-            ` ${excludedCount} of ${sessionsWithResults} conditioning session${sessionsWithResults === 1 ? '' : 's'} logged this week had no recorded heart rate and ${excludedCount === 1 ? 'is' : 'are'} excluded from the donut.`}
+            ` ${excludedCount} of ${totalEfforts} conditioning effort${totalEfforts === 1 ? '' : 's'} logged this week had no recorded heart rate and ${excludedCount === 1 ? 'is' : 'are'} excluded from the donut.`}
         </p>
       </section>
 

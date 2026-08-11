@@ -2,10 +2,22 @@
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LS_KEY, type CondResult, type Session } from '@hybrid/engine';
 import { DbProvider } from '../../store/db';
 import { Conditioning } from './Conditioning';
+
+/*
+ * `Conditioning` calls `useConcept2()` unconditionally, matching its real
+ * production wiring — `/coach/*` mounts inside `<Concept2Provider>` in
+ * App.tsx. Mounting the real provider here would open a live status poll
+ * against a real, non-test URL for no reason this suite needs, so the
+ * module is mocked instead, exactly like `AthleteStatus.test.tsx` does for
+ * the same hook.
+ */
+vi.mock('../../cloud/concept2', () => ({
+  useConcept2: () => ({ results: [] }),
+}));
 
 function renderPillar() {
   return render(
@@ -33,8 +45,8 @@ describe('Conditioning pillar', () => {
   });
 
   it('names how many sessions the HR donut had to exclude', () => {
-    // The five-zone breakdown only covers sessions that stored a trace.
-    // A session without one is unknown, not zero, and the screen must say
+    // The five-zone breakdown only covers efforts that stored a trace.
+    // An effort without one is unknown, not zero, and the screen must say
     // so rather than quietly charting a smaller week.
     renderPillar();
     expect(screen.getByText(/recorded heart rate|no heart-rate|excluded/i)).toBeInTheDocument();
@@ -44,9 +56,14 @@ describe('Conditioning pillar', () => {
 /*
  * Additional coverage below, exercising the real-data derivation this
  * screen depends on: the three-band zone bar sums `condResult.zsec`, the
- * five-zone donut sums `hrMaxBandSeconds` over stored traces only, and a
- * session that finished a conditioning block without a heart-rate trace is
- * counted as excluded rather than folded in as zero.
+ * five-zone donut sums `hrMaxBandSeconds` over stored traces only, a
+ * completed effort with no heart-rate trace is counted as excluded rather
+ * than folded in as zero, and — the regression a literal reading of
+ * `session.condResult` alone would silently reintroduce — a STANDALONE
+ * effort (started from Home with no session context, banked into
+ * `settings.conditioning` by `screens/Conditioning.tsx`'s
+ * `submitMechanical`) counts in the weekly total exactly like a
+ * session-block one does, via `condEfforts()`.
  */
 
 function condSession(id: string, date: string, result: CondResult): Session {
@@ -106,7 +123,35 @@ describe('Conditioning pillar — real data derivation', () => {
     expect(screen.getByText('3m')).toBeInTheDocument(); // mod: 200/60 rounds to 3
     expect(screen.getByText('2m')).toBeInTheDocument(); // high: 100/60 rounds to 2
 
-    // Exactly one of the two sessions is excluded from the donut.
-    expect(screen.getByText(/1 of 2 conditioning sessions? logged this week/)).toBeInTheDocument();
+    // Exactly one of the two efforts is excluded from the donut.
+    expect(screen.getByText(/1 of 2 conditioning efforts logged this week/)).toBeInTheDocument();
+  });
+
+  it('counts a standalone conditioning effort (no session, no block) in the weekly total', () => {
+    // Home's "Start conditioning" with no session context banks straight
+    // into `settings.conditioning` — `screens/Conditioning.tsx:441-447`.
+    // No `Session` exists for this effort at all.
+    const monday = mondayOfThisWeek();
+    const standalone: CondResult = {
+      id: 'r-standalone',
+      fmt: 'steady',
+      dur: 480,
+      zsec: { low: 480, mod: 0, high: 0 },
+      startedAt: Date.parse(`${monday}T09:00:00Z`),
+    };
+    const db = {
+      workouts: [],
+      sessions: [],
+      settings: { profile: { age: '30' }, conditioning: [standalone] },
+      core: {},
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(db));
+
+    const { container } = renderPillar();
+
+    // 480s / 60 = 8 minutes — invisible to this screen if only
+    // `session.condResult` were read, since no session exists.
+    expect(container.querySelector('.rd-cond-total .rv')?.textContent).toBe('8min');
+    expect(screen.getByText('8m')).toBeInTheDocument(); // all of it in the Easy bucket
   });
 });
