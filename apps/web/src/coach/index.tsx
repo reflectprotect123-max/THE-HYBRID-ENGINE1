@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { CoachAccess, CoachShell } from './CoachShell';
 import { CoachAuthoring } from './CoachAuthoring';
-import { CoachNutrition } from './CoachNutrition';
+import { Nutrition } from './pillars/Nutrition';
 import { WeekReview } from './WeekReview';
 import { CoachProgression } from './CoachProgression';
 import { CoachCommandCenter } from './CoachCommandCenter';
@@ -32,11 +32,20 @@ export default function Coach() {
             <Route path="library" element={<CoachLibrary />} />
             <Route path="settings" element={<CoachSettings />} />
             {/*
-              author / nutrition / progression / review have a real layer-3
-              backend now (docs/ARC_LAYER3_DESIGN.md) and each screen branches
-              internally on selectedClient.source to render its own roster
-              view — `layer3Ready` lets a roster client through the gate for
-              exactly these four.
+              author / progression / review have a real layer-3 backend now
+              (docs/ARC_LAYER3_DESIGN.md) and each screen branches internally
+              on selectedClient.source to render its own roster view —
+              `layer3Ready` lets a roster client through the gate for exactly
+              these.
+
+              Stage-1 coach redesign (11 August 2026): `nutrition` now points
+              at the Nutrition pillar, which reads local stores only
+              (`useNutrition()`), so it drops `layer3Ready` and joins
+              legacy / build / planner below — a roster client is BLOCKED
+              here rather than shown a summary. Accepted, owner-approved
+              capability loss for Stage 1 (task-6 brief); restoring roster
+              nutrition through the pillar is future work, not a defect to
+              silently fix.
 
               legacy / build / planner still only ever read and write the
               SIGNED-IN account's own local stores (useDb / EngineDB) — there
@@ -45,7 +54,7 @@ export default function Coach() {
               See ClientDetailGate.tsx.
             */}
             <Route path="author" element={<ClientDetailGate tool="Authoring" layer3Ready><CoachAuthoring /></ClientDetailGate>} />
-            <Route path="nutrition" element={<ClientDetailGate tool="Nutrition" layer3Ready><CoachNutrition /></ClientDetailGate>} />
+            <Route path="nutrition" element={<ClientDetailGate tool="Nutrition"><Nutrition /></ClientDetailGate>} />
             <Route path="progression" element={<ClientDetailGate tool="Decisions" layer3Ready><CoachProgression /></ClientDetailGate>} />
             <Route path="review/:weekStart" element={<ClientDetailGate tool="Week review" layer3Ready><WeekReview /></ClientDetailGate>} />
             <Route path="legacy" element={<ClientDetailGate tool="Program bench"><CoachShell /></ClientDetailGate>} />
