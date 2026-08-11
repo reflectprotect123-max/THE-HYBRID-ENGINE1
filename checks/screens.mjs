@@ -7,10 +7,15 @@
  * Mostly this is not a test — a screenshot cannot fail except the harness
  * itself, and it exists so a visual change can be judged by looking at it,
  * before and after, instead of by reading a diff and imagining the result.
- * ONE thing here does fail the run: horizontal overflow at the 420px phone
- * viewport. A coach screen that needs sideways scrolling on a phone is
+ * TWO things here fail the run. Horizontal overflow at the 420px phone
+ * viewport — a coach screen that needs sideways scrolling on a phone is
  * exactly the regression a phone-support claim must not get to make
- * silently — see `overflowWidth` below.
+ * silently (see `overflowWidth` below). And, for the coach shots only, a
+ * missing piece of that screen's own stable chrome — proof the pillar
+ * actually mounted rather than the workspace being stuck on its own
+ * "Loading coach workspace…" fallback, which is narrow enough to pass the
+ * overflow check clean while showing nothing real (see `assertContent`
+ * below).
  *
  * The seed matters as much as the harness. An app screenshotted with an empty
  * store shows nothing but empty states, which is the one thing a design pass must
@@ -326,18 +331,67 @@ const SHOTS = [
   ['11-nutrition', '/nutrition', null],
 ];
 
-// Stage-1 coach redesign (11 August 2026): the four pillar screens plus the
-// Command Center launcher, at the same 420px phone viewport as every athlete
-// shot above. `/coach/library` and `/coach/settings` are NOT here — they
-// join once their own stage lands and CLAUDE.md's boundary is updated again,
-// per that section's own instruction.
+/*
+ * Stage-1 coach redesign (11 August 2026): the four pillar screens plus the
+ * Command Center launcher, at the same 420px phone viewport as every athlete
+ * shot above. `/coach/library` and `/coach/settings` are NOT here — they
+ * join once their own stage lands and CLAUDE.md's boundary is updated again,
+ * per that section's own instruction.
+ *
+ * The third element is a list of patterns that must ALL match the rendered
+ * page's text for the shot to count as real — see `assertContent` below for
+ * why this exists and what it deliberately does not check. Every pattern
+ * here is STABLE CHROME: a section label, a card heading, a tile name — text
+ * that renders unconditionally once the real screen mounts, never a data
+ * value. `hrvPoints`/`sleepPoints`/etc. legitimately read "Not enough
+ * history yet." against this seed and would on a fresh database too; a
+ * pattern that pinned a data value would fail every time the fixture
+ * changes, which is how a check like this gets deleted instead of trusted.
+ */
+/*
+ * Case-insensitive throughout (`i` flag): several of these labels sit under
+ * CSS `text-transform: uppercase` (e.g. `.rd-section-label`), and Playwright
+ * reads `innerText`, which reflects the RENDERED text — the transform, not
+ * the source casing. A case-sensitive pattern against "Resting HR" fails
+ * the instant the browser paints it as "RESTING HR", which is a false
+ * alarm about the check, not a fact about the screen.
+ */
 const COACH_SHOTS = [
-  ['12-coach', '/coach', null],
-  ['13-coach-readiness', '/coach/readiness', null],
-  ['14-coach-strength', '/coach/strength', null],
-  ['15-coach-conditioning', '/coach/conditioning', null],
-  ['16-coach-nutrition', '/coach/nutrition', null],
+  ['12-coach', '/coach', [/Readiness/i, /Strength/i, /Conditioning/i, /Nutrition/i]],
+  ['13-coach-readiness', '/coach/readiness', [/\bHRV\b/i, /Resting HR/i]],
+  ['14-coach-strength', '/coach/strength', [/Lift trends/i, /Weekly hard-session budget/i]],
+  ['15-coach-conditioning', '/coach/conditioning', [/Time in HR zone/i, /Erg trends/i]],
+  ['16-coach-nutrition', '/coach/nutrition', [/Adherence . targets/i, /Weight trend/i]],
 ];
+
+/*
+ * The gap this closes: `CoachCommandCenter` renders `aria-busy="true"
+ * >Loading coach workspace…</main>` inside `ArcCoachFrame`'s `<Outlet/>`
+ * whenever `clientsLoading || !selectedClient` — but the hamburger button
+ * this file already waits on (`button[aria-label="Open coach navigation"]`)
+ * is `<ArcCoachFrame>`'s own sibling of `<Outlet/>`, rendered
+ * unconditionally. So that wait succeeds even when the pillar underneath it
+ * never left its loading state — a short, narrow status line that produces
+ * no horizontal overflow either. If `listClients()` regressed, or
+ * `CoachAccess` failed a different way, this file could report "N/N, 0
+ * overflow" against a permanently-loading workspace, on the strength of
+ * which CLAUDE.md now asserts phone support as repository policy. This
+ * makes that failure visible: every required pattern must match, and the
+ * loading fallback's own text must NOT still be on the page.
+ */
+async function assertContent(page, label, path, patterns) {
+  if (!patterns) return [];
+  const text = await page.evaluate(() => document.body.innerText || document.body.textContent || '');
+  const failures = [];
+  const missing = patterns.filter((p) => !p.test(text));
+  if (missing.length) {
+    failures.push(label + ' (' + path + '): missing ' + missing.map((p) => p.source).join(', '));
+  }
+  if (/Loading coach workspace/.test(text)) {
+    failures.push(label + ' (' + path + '): still showing the Suspense/loading fallback, not the real screen');
+  }
+  return failures;
+}
 
 /*
  * A screen wider than its own viewport is the one thing this file treats as
@@ -533,7 +587,9 @@ await coachPage.addInitScript(
   { uid: COACH_UID, db: seed.db, nutrition: seed.nutrition },
 );
 
-for (const [label, path] of COACH_SHOTS) {
+const contentFailures = [];
+
+for (const [label, path, patterns] of COACH_SHOTS) {
   try {
     await coachPage.goto(coachBase + path, { waitUntil: 'networkidle' });
     // The bench is `React.lazy`-loaded as its own chunk (index.tsx's own
@@ -544,12 +600,16 @@ for (const [label, path] of COACH_SHOTS) {
     // fixed delay. The hamburger trigger, not the nav list it opens: below
     // ArcCoachFrame's `sm` breakpoint the drawer nav is `invisible` until
     // opened (ArcCoachFrame.tsx), by design — waiting on it would wait
-    // forever at 420px.
+    // forever at 420px. NOTE: this element is `<ArcCoachFrame>`'s own,
+    // rendered unconditionally as a sibling of `<Outlet/>` — it existing
+    // proves the FRAME mounted, not that the pillar inside it did. That is
+    // what `assertContent` below is for.
     await coachPage.waitForSelector('button[aria-label="Open coach navigation"]', { timeout: 15000 });
     await coachPage.waitForTimeout(350); // let entrance transitions settle
     await coachPage.screenshot({ path: join(OUT, label + '.png'), fullPage: true });
     const w = await overflowWidth(coachPage);
     if (w) overflows.push(label + ': ' + w + 'px of content in a 420px viewport');
+    contentFailures.push(...(await assertContent(coachPage, label, path, patterns)));
     console.log('  ' + label);
   } catch (e) {
     console.log('  ' + label + ' — FAILED: ' + e.message);
@@ -568,5 +628,11 @@ if (problems.length) {
 if (overflows.length) {
   console.log('\nFAIL — horizontal overflow at 420px:');
   for (const o of overflows) console.log('  ' + o);
+}
+if (contentFailures.length) {
+  console.log('\nFAIL — coach screen did not render its real content:');
+  for (const c of contentFailures) console.log('  ' + c);
+}
+if (overflows.length || contentFailures.length) {
   process.exit(1);
 }

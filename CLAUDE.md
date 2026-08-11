@@ -105,13 +105,14 @@ once, can catch its regression.
   When Library and WeekReview are verified, if either genuinely cannot work
   at phone width, it is named here explicitly with the reason, exactly as
   this rule already requires — not left implied, and not assumed now.
-- Phone support for the WEB workspace is not a native port. Do not port
-  `CoachWorkspace`, `CoachCommandCenter`, `CoachAccess`, `ArcCoachFrame` or
-  any route under `/coach` into `apps/mobile`, and do not wire up a live
-  mobile (React Native) build, without a separate, explicit approval — this
-  amendment covers the responsive web bench only.
-  (`apps/mobile/src/screens/nutrition/Coach.tsx` remains unrelated — the
-  athlete's own nutrition coach, not the coach bench.)
+- Phone support here means the responsive WEB bench — `apps/web`'s own
+  `/coach` routes rendering usably down to a phone-width viewport. There is
+  no native mobile app in this repository to port into (`apps/mobile` was
+  deleted — commit `8628060`, "the PWA now covers everything it did"), so
+  there is no separate directory this approval could leak into today. If a
+  native coach surface is ever proposed again, that is its own product
+  decision requiring its own explicit approval — this amendment does not
+  imply or grant one.
 - When Library and Settings land their own stage, treat it the same as any
   other product decision here: update this section with the real boundary
   again — new routes covered, any confirmed desktop-only exception named —
@@ -140,11 +141,10 @@ EVERY test is colocated — there are no exceptions, including the coach bench
 and the `SB_E2E`-gated live backend round trip, which sits with the sync
 provider it drives.
 
-`test/` still exists in four projects and holds only things that are NOT tests:
-fixtures and golden vectors (`packages/engine/test/golden`,
-`packages/auto-coach/test/fixtures`, `packages/nutrition-engine/test/fixtures`)
-and the mobile Jest setup and stubs. If you find a `*.test.ts` under `test/`,
-it is in the wrong place.
+`test/` still exists in three projects and holds only things that are NOT
+tests: fixtures and golden vectors (`packages/engine/test/golden`,
+`packages/auto-coach/test/fixtures`, `packages/nutrition-engine/test/fixtures`).
+If you find a `*.test.ts` under `test/`, it is in the wrong place.
 
 Both trees are collected — `include`/`testMatch` name `src/**` AND `test/**` in
 every project. Do not "tidy" either half away: a test that stops being collected
@@ -177,5 +177,4 @@ pnpm run test
 pnpm run check:ecosystem
 pnpm --filter @hybrid/web build:strength
 pnpm --filter @hybrid/web build:conditioning
-pnpm --filter @hybrid/mobile typecheck
 ```

@@ -27,20 +27,31 @@ export function ArcCoachFrame() {
   }, [drawerOpen]);
 
   /*
-   * `max-sm:auto-rows-min` (found while verifying phone width, task 8): below
-   * `sm` this grid has exactly two IN-FLOW rows — the hamburger bar and the
-   * `<Outlet/>` wrapper, since `<aside>` is `fixed`/off-canvas there rather
-   * than a grid item. CSS Grid's default `align-content` is `stretch`, so
-   * with no rows shorter than `min-h-screen`'s 100vh, the two `auto` row
-   * tracks were splitting the leftover viewport height between them —
-   * inflating the ~72px hamburger bar into ~300px of mostly dead space
-   * above every pillar's content. `auto-rows-min` caps both rows at their
-   * own content height instead, and only below `sm`: at `sm` and up the
-   * `<aside>` is a real grid item again and DOES want to stretch to the
-   * viewport's full height, which this must not touch.
+   * `max-lg:auto-rows-min` (found while verifying phone width, task 8, then
+   * re-measured after review flagged that the comment claimed a range that
+   * was never actually checked): below `lg` this grid has exactly two
+   * IN-FLOW rows sharing the height `min-h-screen` reserves. Below `sm`
+   * that's the hamburger bar plus the `<Outlet/>` wrapper (`<aside>` is
+   * `fixed`/off-canvas there); from `sm` up to `lg` it's `<aside>` ITSELF,
+   * now `sm:static` and rendered as a horizontal top bar (`sm:border-b`,
+   * not yet `lg:border-r`), plus the same wrapper. Only at `lg` does
+   * `<aside>` become the two-column sidebar via `lg:grid-cols`, collapsing
+   * back to a single row.
+   *
+   * CSS Grid's default `align-content` is `stretch`, so wherever there are
+   * two `auto` row tracks and total content is shorter than the viewport,
+   * the leftover height gets split between them — measured directly (not
+   * assumed): at 420px wide the ~121px hamburger bar inflated to 315.75px,
+   * a ~195px (~200px) growth of dead space above every pillar's content;
+   * the same inflation was confirmed at 768/820/1023px wide, where
+   * `<aside>`-as-top-bar grew to 340-360px instead of its own natural
+   * content height. `auto-rows-min` caps both rows at their own content
+   * height instead, for the whole below-`lg` range where this shape holds.
+   * At `lg` and up there is only one row again, and it DOES want to stretch
+   * to the viewport's full height (the sidebar look) — untouched here.
    */
   return (
-    <div className="mx-auto grid min-h-screen max-w-[1440px] bg-bg text-text max-sm:auto-rows-min lg:grid-cols-[208px_minmax(0,1fr)]">
+    <div className="mx-auto grid min-h-screen max-w-[1440px] bg-bg text-text max-lg:auto-rows-min lg:grid-cols-[208px_minmax(0,1fr)]">
       <div className="flex items-center gap-2 border-b border-line2 bg-panel3 px-2 py-2 sm:hidden">
         <button
           type="button"
