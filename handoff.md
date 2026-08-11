@@ -1,5 +1,151 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 11 August 2026: Stage 1 of the coach
+> workspace redesign is merged, deployed and live. `/coach` is now a
+> four-tile Command Center over four pillar screens, wired to real data and
+> usable at phone width. A production deploy failure that PREDATED this work
+> is fixed. The athlete Library gained a bulk clear because the owner is
+> starting their programme fresh. Stage 3 (the Library) is specced in three
+> parts; none of it is built.**
+>
+> Supersedes every checkpoint below, including 9 August. They stay as
+> history and remain accurate about their own scope; where one contradicts
+> this, this wins.
+>
+> `main` is at `acbd5c0`. Everything described here is pushed.
+
+## Stage 1 of the coach redesign — merged and live
+
+Merge commit `31e1060`, branch range `b9fee7d..9c76db9`, nine tasks executed
+via subagent-driven-development against
+`docs/superpowers/plans/2026-08-11-coach-redesign-stage1.md`.
+
+The Command Center became a launcher over four pillars — Readiness, Strength,
+Conditioning, Nutrition — built from the approved mockup's own stylesheet
+(`apps/web/src/coach/coach-redesign.css`) rather than retranslated into
+Tailwind, so what was approved is what renders. Every number comes from real
+data. One genuinely new engine derivation shipped: `hrMaxBandSeconds` in
+`packages/engine/src/hr.ts`, time in five %HRmax bands from a session's stored
+HR trace. It is additive and display-only — the three-zone model still drives
+every prescription and progression.
+
+`/coach/progression` was NOT retired as the spec originally said. It holds the
+only mount of the roster approve/decline path, and the pillars are gated
+against roster clients by design, so deleting it would have removed that
+capability. It survives, narrowed to roster-only. The reasoning is in the
+plan's "Task 7 amendment".
+
+`CLAUDE.md`'s coach-workspace section was rewritten: phone is now a supported
+viewport, proven per-route by `checks/screens.mjs` at 420px, not claimed.
+
+## The thing worth carrying forward: five guards were decorative
+
+This is the most useful output of the session and the reason the reviews were
+worth their cost. **Five separate checks in this work looked like protection
+and were not** — each passed while the thing it guarded was broken:
+
+1. `checks/coach-contract.mjs` rule 9 — a 500-char proximity scan. A reviewer
+   deleted a real `isLocalClient` gate and it still passed.
+2. `coach-routes.test.tsx` — its regex stopped at the literal
+   `<ClientDetailGate` and never read the attributes, so injecting
+   `layer3Ready` into a pillar route (a privacy boundary) passed unchanged.
+3. `checks/screens.mjs` — exited 0 on a blank, crashed page, because only
+   horizontal overflow was fatal and `problems[]` was printed then ignored.
+4. The plan's own "hard verification gate" for route reachability — two greps
+   that proved a component was MOUNTED while the actual defect was that no
+   human could REACH it. Authored by the controller, not an implementer.
+5. The orphan detector shipped to fix #4 — demonstrated to pass while a route
+   was genuinely unreachable. Disclosed as an approximation; the load is
+   carried by three rendered navigation walks instead.
+
+Four are fixed and were re-verified adversarially — broken on purpose, watched
+to fail, then restored. The fifth is documented rather than fixed.
+
+**The practice that caught them:** never accept that a test passes as evidence
+it works. Break the production code it covers, watch the specific failure,
+restore, confirm the tree is clean. Three tasks in this plan also asserted
+"the data isn't there" from a helper's DEFAULT ARGUMENT rather than from the
+data — each was false, and each cost a fix round. Check the code, not the
+signature.
+
+## A production deploy failure, pre-existing, now fixed
+
+Commit `921a937`. `react-router-dom` is ranged `^7.9.1` and the lockfile
+resolves 7.18.1, where `NavLink`'s `className` and `children` render props
+stopped inferring their argument — four `TS7031` errors in `BottomNav.tsx`
+and `NutritionBottomNav.tsx`, neither touched by the redesign.
+
+This broke the DEPLOY, not just the typecheck: `apps/web`'s build script is
+`tsc --noEmit && vite build`, and Netlify runs it through `build:site`.
+Verified to reproduce on `origin/main` alone with the redesign checked out of
+the way. A stale `node_modules` hides it; a fresh `--frozen-lockfile` install
+is what surfaces it, which is what Netlify does every time.
+
+Fixed by annotating the four sites with `NavLinkRenderProps` rather than
+pinning the range, so it survives whichever 7.x resolves next.
+
+## Library bulk clear
+
+Commit `c191f11`. The owner is starting their programme fresh and deleting a
+whole library one session at a time is not a workflow. The athlete Library
+(`/library`, Sessions tab) gained an armed "Clear all N sessions" control.
+
+It tombstones EVERY id, exactly as `removeWorkout` does for one. A bulk delete
+that skipped that would look right on the device and then refill from the next
+sync. The colocated test asserts the tombstones, not just the empty list —
+removing the tombstone line fails it. Logged sessions (`db.sessions`) are
+untouched; clearing the library is a statement about the programme, not
+history.
+
+**Known trap, stated in the UI:** Settings' restore MERGES by default and
+`mergeEngines` filters through `notTombstoned`, so these tombstones suppress
+every workout in a backup file. Only the wipe/replace path brings them back.
+
+## Stage 3 — specced, not built
+
+Three specs, written this session, none implemented:
+
+- `docs/superpowers/specs/2026-08-11-stage3a-library-spine-design.md` — the
+  tab shell, the Calendar month view, and a two-mode day builder the guided
+  wizard now finishes into. Publish PROPOSES through the existing
+  Coordinator-placement path; the date is a preference and the UI must say so,
+  because `CoachAuthoring` already refuses to blur that ("PREFERRED DAYS ·
+  INPUT, NOT PLACEMENT") and the Calendar cannot contradict its sibling.
+- `.../2026-08-11-stage3b-programs-design.md` — makes a program contain real
+  sessions. Phase 1 needs NO migration: `program_template_versions.body`
+  already holds the engine-shaped body and `listProgramTemplates` already
+  reads it. Phase 2 needs one, and only because `coach_workout_drafts` carries
+  `unique (template_id)` — one editable draft per program, which is why a
+  program cannot have three sessions.
+- `.../2026-08-11-stage3c-sessions-exercises-design.md` — Sessions and
+  Exercises. Circuit does NOT ship: it has a tab and no definition.
+
+Also `.../2026-08-11-stage3-library-builder-carryover.md`, comparing the
+2026-07-29 guided-builder design against what shipped. Note its two CORRECTED
+sections — the first version wrongly said the mockup left Library blank.
+
+## Open, needing the owner
+
+1. **The Stage 1 device pass never completed.** The owner deployed and began
+   checking, then pivoted. Unverified on a real phone: the four tiles, the nav
+   drawer, roster Decisions, and whether Conditioning's Z4 colour is
+   distinguishable from the moderate zone beside it.
+2. **Nutrition lost three cards** — a 7-day ledger table, a program/goal card,
+   and the weekly expenditure check-in. The mockup has no slot for them.
+3. **`/coach/progression` survived** against the spec's original wording.
+4. **3c overrides the mockup once:** the mobile Sessions view is a deliberate
+   literal clone of another app, with a foreign accent colour. It is not
+   adopted, because Stage 1 established one visual language and a per-route
+   phone standard. Reversible and contained if the owner disagrees.
+5. **3b phase 2's migration** is the only database change in Stage 3. Applied
+   in staging first, never against production without approval and a rollback
+   plan.
+
+## Next step
+
+`writing-plans` for Stage 3a, then build 3a → 3b → 3c in sequence.
+
+
 > **AUTHORITATIVE CHECKPOINT — 9 August 2026: the seven ARC migrations from
 > the 8 August checkpoint are now APPLIED to the real production Supabase
 > project, mobile has full parity on the self-coach approval gate (R2), a
