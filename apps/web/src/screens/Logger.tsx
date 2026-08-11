@@ -167,6 +167,12 @@ export function Logger() {
   const letters = useMemo(() => (s ? sessionLetters(s) : {}), [s]);
   const next = useMemo(() => (s ? nextLoggerLocation(s, bi, ei) : null), [s, bi, ei]);
 
+  /* What this lift did last time, per working set. Rendered as a label beside
+     the row, not the input's placeholder: it is data, not a hint, and a
+     placeholder both fails contrast and vanishes exactly when you would
+     compare against it. */
+  const lastSets = useMemo(() => (ex ? lastTimeSets(ex.name, sessions) : []), [ex, sessions]);
+
   /* Where the prefilled weight came from. A number that appears in the box on
      its own is either trusted blindly or ignored; naming its origin — earned
      last session, and whether today's recovery eased it — is what makes it a
@@ -234,6 +240,58 @@ export function Logger() {
       src.ssNext = !src.ssNext;
       ds.updatedAt = Date.now();
     });
+  }
+
+  /* Table edits ANY set, not only the one under cursor, so stage's
+     write-through for `si` generalised by index. Same contract: every keystroke
+     lands on session as typed, never only in component state. */
+  function writeSetVal(idx: number, slot: 1 | 2, val: string) {
+    if (!s) return;
+    updateSession(s.id, (ds) => {
+      const dst = (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei]?.sets?.[idx];
+      if (!dst) return false;
+      if (slot === 1) dst.aVal = val;
+      else dst.aVal2 = val;
+      ds.updatedAt = Date.now();
+    });
+  }
+
+  /*
+   * The tick. One tap logs a set, tapping again takes it back.
+   *
+   * Carries what `confirmSet` carried for the one-set stage, and what the first
+   * attempt at this screen did not: `advanceAfterSet` moves the flow to the next
+   * exercise and is what a superset alternates through. Ticking without it
+   * logged sets perfectly and stranded the athlete on the exercise they had just
+   * finished.
+   *
+   * Deliberately NOT `setPhase('rest')`. The stage swapped itself for a rest
+   * panel because it had one set on screen and nothing else to show; the table
+   * has every set, and hiding them for a countdown removes what rest is for —
+   * seeing what is coming and fixing what you just typed. RestChip floats over
+   * the table instead.
+   *
+   * Un-ticking returns early: a correction, not the end of a set, so no rest and
+   * no advance. `done` is the only field touched, so reps and weight survive.
+   */
+  function toggleSetDone(idx: number) {
+    if (!s || !ex) return;
+    const wasDone = !!ex.sets[idx]?.done;
+    updateSession(s.id, (ds) => {
+      const dst = (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei]?.sets?.[idx];
+      if (!dst) return false;
+      dst.done = !dst.done;
+      ds.updatedAt = Date.now();
+    });
+    if (wasDone) return;
+    // Read the flow decision off the session as it will be after the write —
+    // `s` here is still pre-write, same as confirmSet does.
+    const after = structuredClone(s);
+    const ab = after.blocks[bi] as StrengthBlock<LoggedSet>;
+    ab.exercises[ei].sets[idx].done = true;
+    const { next: dest, restSec } = advanceAfterSet(after, bi, ei);
+    if (restSec > 0) rest.start(restSec);
+    if (dest && (dest.bi !== bi || dest.ei !== ei)) goTo(dest);
   }
 
   function writeVal(slot: 1 | 2, val: string) {
@@ -378,8 +436,10 @@ export function Logger() {
         </div>
       </header>
 
+      {/* Work done and time on clock. Owns the progress meter now — a second
+          one underneath would be two readings of the same thing. */}
       <div className="mt-2">
-        <Meter pct={prog.pct} />
+        <SessionStats s={s} prog={prog} />
         <div className="num mt-0.5 flex justify-between text-2 font-[650] text-dim">
           <span>
             {prog.done} of {prog.total} done
@@ -429,9 +489,16 @@ export function Logger() {
           </p>
         ) : null}
 
-        <Dots ex={ex} si={si} />
+        {/* Table owns lift modes. A seconds hold or an AMRAP has no
+            reps-and-kilos pair for columns, so those keep the one-set stage
+            and the field that counts rather than is typed into. */}
+        {lift ? (
+          <SetsTable ex={ex} lastSets={lastSets} onWrite={writeSetVal} onToggle={toggleSetDone} />
+        ) : (
+          <Dots ex={ex} si={si} />
+        )}
 
-        {si >= 0 && st ? (
+        {!lift && si >= 0 && st ? (
           <>
             <div className="num mt-2 flex items-baseline justify-between text-2 font-[750] uppercase tracking-[.14em] text-dim">
               <span>
@@ -575,14 +642,14 @@ export function Logger() {
               </div>
             ) : null}
           </>
-        ) : (
+        ) : !lift ? (
           <div className="mt-3 grid place-items-center gap-1 rounded-md border border-done-line bg-done-bg p-3 text-center">
             <span className="text-7">✓</span>
             <p className="text-5 font-[750] text-done-ink">
               All {ex.sets.length} set{ex.sets.length === 1 ? '' : 's'} logged
             </p>
           </div>
-        )}
+        ) : null}
 
         {hint ? (
           <p
@@ -597,7 +664,9 @@ export function Logger() {
           </p>
         ) : null}
 
-        <LoggedList ex={ex} />
+        {/* Table lists every set already; a second list of the same sets was
+            the one-set stage's way of showing what the stage itself hid. */}
+        {!lift ? <LoggedList ex={ex} /> : null}
       </Card>
 
       <footer className="mt-auto flex gap-1 pt-2">
@@ -1019,7 +1088,7 @@ function SetsTable({
   const allDone = ex.sets.length > 0 && ex.sets.every((st) => st.done);
   return (
     <div className="mt-2">
-      <div className="grid grid-cols-[28px_1fr_1fr_44px] items-center gap-1 px-0.5 pb-0.5 text-2 font-[750] uppercase tracking-[.1em] text-dim">
+      <div className="grid grid-cols-[40px_1fr_1fr_44px] items-center gap-1 px-0.5 pb-0.5 text-2 font-[750] uppercase tracking-[.1em] text-dim">
         <span>Sets</span>
         <span>Reps</span>
         <span>Kg</span>
@@ -1040,7 +1109,7 @@ function SetsTable({
         {ex.sets.map((st, i) => {
           const last = lastSets[workingSetOrdinal(ex.sets, i)];
           return (
-            <li key={i} className="grid grid-cols-[28px_1fr_1fr_44px] items-center gap-1">
+            <li key={i} className="grid grid-cols-[40px_1fr_1fr_44px] items-center gap-1">
               <span className="num text-5 text-dim">{i + 1}</span>
               <input
                 inputMode="numeric"
