@@ -180,7 +180,19 @@ function RosterProgressionView({ clientId, clientName }: { clientId: string; cli
  * retiring.
  */
 export function CoachProgression() {
-  const { selectedClient } = useCoachWorkspace();
+  const { selectedClient, loading } = useCoachWorkspace();
+  /*
+   * `clients` is empty on the first paint, so `selectedClient` is null and
+   * `isLocalClient` below is TRUE for everyone — including a roster coach.
+   * That never showed while the rail linked here (the click happened after
+   * the fetch), but the owner removed that link on 11 August 2026, so the
+   * only way in is now the address bar, and by address this redirected a
+   * roster coach to /coach/strength before their own client had loaded.
+   * Roster approve/decline — the only one in the app — was unreachable in
+   * practice, not merely unlinked. Wait for the load rather than deciding
+   * from a state that is not yet an answer.
+   */
+  if (loading) return <p className="p-4 text-xs text-dim" role="status">Loading…</p>;
   const isLocalClient = !selectedClient || selectedClient.source === 'engine-local';
   if (isLocalClient) return <Navigate to="/coach/strength" replace />;
   return <RosterProgressionView clientId={selectedClient.id} clientName={selectedClient.name} />;

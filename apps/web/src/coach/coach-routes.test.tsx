@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DbProvider } from '../store/db';
 import { NutritionProvider } from '../store/nutrition';
@@ -243,12 +243,42 @@ describe('coach route reachability', () => {
     expect(outgoing('').length).toBeGreaterThanOrEqual(6);
   });
 
-  it.each(declaredPaths)('/coach/%s is reachable by clicking from /coach', (routePath) => {
+  /*
+   * The three routes the owner deleted from the rail on 11 August 2026, and
+   * which nothing else links to. They are reachable BY ADDRESS only, and that
+   * is the decision, not a regression:
+   *
+   *   progression      — the only mount of RosterProgressionActions, so the
+   *                      only roster approve/decline in the app. The route
+   *                      stays so the capability stays.
+   *   legacy           — the pre-redesign Program bench (CoachShell).
+   *   review/:weekStart — the planned-versus-actual ledger.
+   *
+   * They are listed here rather than exempted silently, so that deleting a
+   * route outright, or quietly re-linking one, both change this file.
+   */
+  const ORPHANED_BY_DECISION = ['progression', 'legacy', 'review/:weekStart'];
+
+  it('still declares every orphaned-by-decision route, so no capability was deleted with its link', () => {
+    expect(declaredPaths).toEqual(expect.arrayContaining(ORPHANED_BY_DECISION));
+  });
+
+  it.each(ORPHANED_BY_DECISION)('/coach/%s is deliberately unlinked — reachable by address, not by clicking', (routePath) => {
     expect(
       reachable.has(routePath),
-      `/coach/${routePath} is declared but no chain of links reaches it from /coach`,
-    ).toBe(true);
+      `/coach/${routePath} has an inbound link again. The owner removed it from the rail; re-adding one is a product decision, not a bug fix.`,
+    ).toBe(false);
   });
+
+  it.each(declaredPaths.filter((p) => !ORPHANED_BY_DECISION.includes(p)))(
+    '/coach/%s is reachable by clicking from /coach',
+    (routePath) => {
+      expect(
+        reachable.has(routePath),
+        `/coach/${routePath} is declared but no chain of links reaches it from /coach`,
+      ).toBe(true);
+    },
+  );
 });
 
 /* The navigation walks. Each one renders the frame plus the REAL gate and the
@@ -268,7 +298,7 @@ function rosterProposal(over: Partial<AthleteProgressionProposal> = {}): Athlete
   } as AthleteProgressionProposal;
 }
 
-async function walkFrom(repository: FakeCoachWorkspaceRepository, routes: React.ReactNode) {
+async function walkFrom(repository: FakeCoachWorkspaceRepository, routes: React.ReactNode, initialEntry = '/coach') {
   const result = renderCoachScreen(
     <DbProvider>
       <NutritionProvider>
@@ -278,7 +308,7 @@ async function walkFrom(repository: FakeCoachWorkspaceRepository, routes: React.
             screen would be the "mounted, not reachable" mistake again. */}
         <WhoopProvider>
         <Concept2Provider>
-        <MemoryRouter initialEntries={['/coach']}>
+        <MemoryRouter initialEntries={[initialEntry]}>
           <Routes>
             <Route element={<ArcCoachFrame />}>
               <Route path="/coach" element={<p>Command center content</p>} />
@@ -298,98 +328,78 @@ async function walkFrom(repository: FakeCoachWorkspaceRepository, routes: React.
   return result;
 }
 
-describe('a coach can walk from the rail to', () => {
+describe('the coach rail', () => {
   beforeEach(() => {
     localStorage.clear();
     resetProgressionLedgerForTests();
   });
 
-  it('the roster decision surface, and act on a proposal there', async () => {
+  /* The rail the owner asked for on 11 August 2026: three entries, no more.
+     Asserted by walking the rendered chrome, not by reading the source — a
+     rail entry that renders is what a coach actually sees. */
+  const RAIL = ['Command', 'Library', 'Settings'];
+
+  it('offers exactly Command, Library and Settings for a local coach', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ id: 'engine-local', name: 'Alex Morgan', source: 'engine-local' })];
+    await walkFrom(repo, <Route path="/coach/legacy" element={<p>bench</p>} />);
+
+    const rail = within(screen.getByRole('navigation', { name: /primary navigation/i }));
+    expect(rail.getAllByRole('link').map((link) => link.textContent?.replace(/\d+$/, '').trim())).toEqual(RAIL);
+  });
+
+  it('offers the same three for a roster client — the rail no longer changes with the client', async () => {
+    // Before the deletion this branched: Decisions for a roster client,
+    // Program bench for a local one. Both are gone, so both clients see one
+    // rail. A reappearing conditional entry fails here.
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ source: 'roster-summary' })];
+    await walkFrom(repo, <Route path="/coach/legacy" element={<p>bench</p>} />);
+
+    const rail = within(screen.getByRole('navigation', { name: /primary navigation/i }));
+    expect(rail.getAllByRole('link').map((link) => link.textContent?.replace(/\d+$/, '').trim())).toEqual(RAIL);
+  });
+
+  it('names none of the three deleted destinations anywhere in the chrome', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ source: 'roster-summary' })];
+    await walkFrom(repo, <Route path="/coach/legacy" element={<p>bench</p>} />);
+
+    expect(screen.queryByRole('link', { name: /program bench/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /decisions/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /week review/i })).not.toBeInTheDocument();
+  });
+
+  it('still reaches roster approve/decline when /coach/progression is opened by address', async () => {
+    // The capability the deletion was allowed to keep. If this ever fails,
+    // the route was deleted along with its link and roster coaching lost its
+    // only approve/decline — which is a different, much larger decision.
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [rosterClient({ name: 'Riley Roster', source: 'roster-summary' })];
     repo.progressionProposals = [rosterProposal()];
-    await walkFrom(
-      repo,
-      <Route
-        path="/coach/progression"
-        element={<ClientDetailGate tool="Decisions" layer3Ready><CoachProgression /></ClientDetailGate>}
-      />,
+    renderCoachScreen(
+      <DbProvider>
+        <NutritionProvider>
+          <MemoryRouter initialEntries={['/coach/progression']}>
+            <Routes>
+              <Route
+                path="/coach/progression"
+                element={<ClientDetailGate tool="Decisions" layer3Ready><CoachProgression /></ClientDetailGate>}
+              />
+            </Routes>
+          </MemoryRouter>
+        </NutritionProvider>
+      </DbProvider>,
+      { repository: repo },
     );
+    await act(async () => {});
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('link', { name: /decisions/i }));
-    });
-
-    // The destination, not the link: the roster proposal list, and the two
-    // buttons that are the ONLY approve/decline path in the app.
-    expect(screen.getByRole('heading', { name: /Riley Roster.{0,3}s pending proposals/i })).toBeInTheDocument();
     expect(screen.getByText('Back squat')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled();
-
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Decline' }));
     });
     expect(repo.decidedProposals).toEqual([
       { clientId: 'roster-1', proposalId: 'prop-1', decision: 'declined' },
     ]);
-  });
-
-  it('the week-review ledger, on the week the app actually holds', async () => {
-    // The link carries `weeklyPlan.weekStart`, the same computation the
-    // pre-redesign Command Center used. `SelfCoachWeekReview` REFUSES any
-    // other week ("Historical plan unavailable on this device"), so a guessed
-    // value — `mondayOf(today)`, say — lands the coach on a refusal page and
-    // fails right here rather than looking fine.
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.clients = [rosterClient({ id: 'engine-local', name: 'Alex Morgan', source: 'engine-local' })];
-    const { WeekReview } = await import('./WeekReview');
-    await walkFrom(
-      repo,
-      <Route
-        path="/coach/review/:weekStart"
-        element={<ClientDetailGate tool="Week review" layer3Ready><WeekReview /></ClientDetailGate>}
-      />,
-    );
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('link', { name: /week review/i }));
-    });
-
-    expect(screen.queryByText(/Historical plan unavailable/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
-  });
-
-  it('the legacy program bench', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.clients = [rosterClient({ id: 'engine-local', name: 'Alex Morgan', source: 'engine-local' })];
-    const { CoachShell } = await import('./CoachShell');
-    await walkFrom(
-      repo,
-      <Route path="/coach/legacy" element={<ClientDetailGate tool="Program bench"><CoachShell /></ClientDetailGate>} />,
-    );
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('link', { name: /program bench/i }));
-    });
-
-    expect(screen.getByRole('heading', { name: 'Program bench' })).toBeInTheDocument();
-  });
-
-  it('hides Decisions for a local coach, because that route redirects them away', async () => {
-    // Not cosmetic: `/coach/progression` `<Navigate>`s a local coach to
-    // `/coach/strength`. A rail entry that bounces is worse than none.
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.clients = [rosterClient({ id: 'engine-local', name: 'Alex Morgan', source: 'engine-local' })];
-    await walkFrom(repo, <Route path="/coach/legacy" element={<p>bench</p>} />);
-    expect(screen.queryByRole('link', { name: /decisions/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /program bench/i })).toBeInTheDocument();
-  });
-
-  it('hides the local-only program bench for a roster client, which the gate refuses', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.clients = [rosterClient({ source: 'roster-summary' })];
-    await walkFrom(repo, <Route path="/coach/legacy" element={<p>bench</p>} />);
-    expect(screen.queryByRole('link', { name: /program bench/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /decisions/i })).toBeInTheDocument();
   });
 });
