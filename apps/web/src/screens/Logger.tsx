@@ -281,6 +281,23 @@ export function Logger() {
       const dst = (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei]?.sets?.[idx];
       if (!dst) return false;
       dst.done = !dst.done;
+      /*
+       * Sanitise on the way IN, exactly as `confirmSet` does — the tick is this
+       * table's confirm, and it was the only commit path in the screen that
+       * did not do it. Write-through keeps what is half-typed verbatim on
+       * purpose (a reload must not cost a keystroke), so "1e309" sits in `aVal`
+       * quite legitimately right up until the tap that turns it into a claim
+       * about what was lifted. Stored verbatim it parses back to Infinity
+       * everywhere it is later read — recap, exercise history, the Progress
+       * chart — and survives every reload.
+       *
+       * Only on the way to done: un-ticking is a correction, and rewriting the
+       * numbers underneath someone who is about to retype them is not.
+       */
+      if (dst.done) {
+        dst.aVal = sanNumStr(dst.aVal);
+        dst.aVal2 = sanNumStr(dst.aVal2);
+      }
       ds.updatedAt = Date.now();
     });
     if (wasDone) return;
@@ -292,6 +309,23 @@ export function Logger() {
     const { next: dest, restSec } = advanceAfterSet(after, bi, ei);
     if (restSec > 0) rest.start(restSec);
     if (dest && (dest.bi !== bi || dest.ei !== ei)) goTo(dest);
+  }
+
+  /*
+   * Take the one opt-in suggestion the engine is offering.
+   *
+   * It writes through `writeVal`, which lands on the set under the cursor —
+   * the same set the table's first unfinished row is showing — so the table
+   * and the one-set stage take it the same way, and neither writes anywhere
+   * near `settings.liftProgress`. Applying it is the athlete's tap, not the
+   * app's decision: coach-contract rule 7 is about what the app does WITHOUT
+   * being asked.
+   */
+  function applySuggestion() {
+    const p = strengthSuggestion?.prescription;
+    if (!p) return;
+    if (p.load != null) writeVal(1, String(p.load));
+    if (p.reps != null) writeVal(2, String(p.reps));
   }
 
   function writeVal(slot: 1 | 2, val: string) {
@@ -417,6 +451,19 @@ export function Logger() {
     .filter(Boolean)
     .join(' · ');
 
+  /*
+   * Where the weight this exercise is asking for came from.
+   *
+   * Hoisted out of `StepperField`'s `note` so the table and the one-set stage
+   * say the same sentence — it is a fact about the exercise and the athlete's
+   * history, not about which of the two is on screen.
+   */
+  const earnedNote =
+    earned && st && !isWarmup(st)
+      ? (earned.dailyAdj < 0 ? `earned ${earned.earned}kg · ${earned.note}` : `earned ${earned.earned}kg last time`) +
+        (earnedExplained?.confidence === 'low' ? ' · no recovery data today' : '')
+      : '';
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-2 pt-2 pb-3">
       <header className="flex items-start gap-1">
@@ -489,7 +536,28 @@ export function Logger() {
           </p>
         ) : null}
 
-        {/* Table owns lift modes. A seconds hold or an AMRAP has no
+        {/*
+          * Provenance, and the one suggestion allowed to beat it.
+          *
+          * Both are computed for lift modes ONLY (`earned`, `strengthSuggestion`
+          * above), and both used to render inside the one-set stage — so
+          * wrapping that stage in `!lift` to make room for the table left them
+          * computed for exactly the modes that could no longer show them, and
+          * took two features off screen without anyone deciding to drop them.
+          * They describe the exercise rather than any single row, so above the
+          * table is where they belong now.
+          */}
+        {lift && earnedNote ? <p className="mt-1 text-2 text-muted">{earnedNote}</p> : null}
+        {lift && strengthSuggestion?.prescription && isFirstWorkingSet ? (
+          <div className="mt-1 flex items-center justify-between gap-1">
+            <span className="text-2 text-muted">{strengthSuggestion.note}</span>
+            <Button variant="ghost" size="sm" onClick={applySuggestion}>
+              Apply
+            </Button>
+          </div>
+        ) : null}
+
+        {/* Table owns lift modes. A seconds hold or a completion has no
             reps-and-kilos pair for columns, so those keep the one-set stage
             and the field that counts rather than is typed into. */}
         {lift ? (
@@ -514,14 +582,7 @@ export function Logger() {
                   <>
                     <StepperField
                       label="Weight"
-                      note={
-                        earned && !isWarmup(st)
-                          ? (earned.dailyAdj < 0
-                              ? `earned ${earned.earned}kg · ${earned.note}`
-                              : `earned ${earned.earned}kg last time`) +
-                            (earnedExplained?.confidence === 'low' ? ' · no recovery data today' : '')
-                          : ''
-                      }
+                      note={earnedNote}
                       unit="kg"
                       value={v1}
                       onChange={(v) => writeVal(1, v)}
@@ -532,18 +593,7 @@ export function Logger() {
                     {strengthSuggestion?.prescription && isFirstWorkingSet ? (
                       <div className="mt-1 flex items-center justify-between gap-1">
                         <span className="text-2 text-muted">{strengthSuggestion.note}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (strengthSuggestion.prescription?.load != null) {
-                              writeVal(1, String(strengthSuggestion.prescription.load));
-                            }
-                            if (strengthSuggestion.prescription?.reps != null) {
-                              writeVal(2, String(strengthSuggestion.prescription.reps));
-                            }
-                          }}
-                        >
+                        <Button variant="ghost" size="sm" onClick={applySuggestion}>
                           Apply
                         </Button>
                       </div>

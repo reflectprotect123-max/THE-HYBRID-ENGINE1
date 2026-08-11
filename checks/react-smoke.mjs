@@ -170,81 +170,141 @@ await t('opening an exercise goes full-screen with no bottom nav', async () => {
   // Wait for the stage to actually commit before asserting what is NOT on
   // screen — the URL changes before React finishes rendering, so checking too
   // early tests the previous screen.
-  await page.waitForSelector('button:has-text("Finish Set")');
+  await page.waitForSelector('button[aria-label="Log set 1"]');
   const nav = await page.$('nav[aria-label="Main"]');
   assert(!nav, 'bottom nav is visible on the logger — the stage is meant to be full-screen');
-  const txt = await page.textContent('body');
-  assert(/Set 1 of 3/.test(txt), 'set tracker missing');
-  assert(/warm-up/.test(txt), 'W10 was not recognised as a warm-up');
+  /*
+   * The table IS the set tracker now. "Set 1 of 3" was the one-set stage's way
+   * of saying what the rows say directly, so how many sets there are is read
+   * off the rows: three, and no fourth.
+   */
+  assert(await page.$('button[aria-label="Log set 3"]'), 'the table is missing a row for set 3');
+  assert(!(await page.$('button[aria-label="Log set 4"]')), 'the table grew a row the session does not have');
+  /*
+   * And W10 is still recognised as a warm-up. The stage said so in words; the
+   * table says it by stripping the W before the target reaches the placeholder
+   * of an input the athlete types reps into (`targetHint`). A placeholder
+   * reading 'W10' is that recognition failing — the same regression the old
+   * `/warm-up/` assertion caught, at the one place the table expresses it.
+   */
+  const warmHint = await page.$eval('input[aria-label="Reps for set 1"]', (n) => n.placeholder);
+  assert(warmHint === '10', "W10 was not recognised as a warm-up, reps placeholder read: '" + warmHint + "'");
 });
 
-await t('a warm-up confirms in one tap, records no felt RPE, and does NOT move the working weight', async () => {
-  await page.fill('input[aria-label="Weight"]', '40');
-  await page.fill('input[aria-label="Reps"]', '10');
-  // A warm-up is never rated: Finish Set confirms directly — no RPE stage,
-  // no Confirm Set. The stored set must carry no `felt` either.
-  await page.click('button:has-text("Finish Set")');
-  // The RPE question must never have rendered for a warm-up — not "flashed
-  // and moved on", never appeared at all.
-  const txtAfterFinish = await page.textContent('body');
-  assert(!/How hard was that/.test(txtAfterFinish), 'the RPE stage appeared for a warm-up set');
+await t('a warm-up logs in one tap, records no felt RPE, and does NOT move the working weight', async () => {
+  /*
+   * One tap USED to be the warm-up's privilege. On the one-set stage every
+   * working set had to pass through an RPE question between finishing and
+   * counting, and a warm-up was the only set that skipped it — which is what
+   * this scenario was built to pin. With the table the tick IS the whole
+   * commit for every set, so "one tap" no longer says anything about warm-ups
+   * in particular.
+   *
+   * It keeps its place for the half that is still warm-up-specific, and still
+   * the thing most worth catching: a warm-up must never move the working
+   * weight. That rests on the `isWarmup` guards in `liftMoves` and
+   * `prefillPrimary`, and 40kg turning up on Set 2 is what losing them looks
+   * like. The other two assertions stay because they are still true and still
+   * cheap — they have simply stopped being about warm-ups.
+   */
+  await page.fill('input[aria-label="Kilograms for set 1"]', '40');
+  await page.fill('input[aria-label="Reps for set 1"]', '10');
+  await page.click('button[aria-label="Log set 1"]');
+  // No rating is asked for, of a warm-up or of anything else: the tick's
+  // ↑/↓ deviation control is not built, so a set logged from the table is
+  // logged unrated by design. Not "flashed and moved on" — never rendered.
+  const txtAfterTick = await page.textContent('body');
+  assert(!/How hard was that/.test(txtAfterTick), 'an RPE stage appeared for a set logged from the table');
   const after = await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
     const sets = db.sessions[0].blocks[0].exercises[0].sets;
     return { felt: sets[0].felt, done: sets[0].done, next: sets[1].aVal };
   });
-  assert(after.done === true, 'the warm-up set should be logged by Finish Set alone');
-  assert(after.felt === undefined, 'a warm-up must not record a felt RPE, got: ' + after.felt);
-  assert(!after.next, 'a warm-up wrote a prescription onto the next set: ' + after.next);
+  assert(after.done === true, 'the warm-up set should be logged by the tick alone');
+  assert(after.felt === undefined, 'a set logged from the table must record no felt RPE, got: ' + after.felt);
+  assert(!after.next, 'the warm-up moved the working set: ' + after.next);
 });
 
-await t('the rest control reads "Skip rest", lowercase r', async () => {
-  // The warm-up had rest 120, so the stage is mid-rest. Playwright's
-  // :has-text() is a case-insensitive substring match, so it would happily
-  // click "Skip Rest" too — read the literal DOM text instead to pin the
-  // casing consistency batch actually landed.
-  await page.waitForSelector('button:has-text("Skip rest")');
+await t('the lift table rests behind the floating chip, and nothing regressed to title-case', async () => {
+  /*
+   * The warm-up had rest 120, so rest is running either way — but what shows
+   * it has changed. The one-set stage swapped itself out for an in-place rest
+   * panel whose control read "Skip rest", and this scenario existed to pin the
+   * lowercase r that a repo-wide casing batch landed on. The table does not
+   * swap itself out for anything (hiding every set for a countdown removes
+   * what rest is for), so RestChip floats over it and the control lift mode
+   * actually offers reads "Skip".
+   *
+   * The panel and its "Skip rest" still ship, for the modes that kept the
+   * one-set stage — but every seconds scenario in this file seeds `rest: 0`,
+   * so nothing here reaches the panel any more and that exact literal is no
+   * longer covered by this suite. Worth knowing rather than assuming.
+   *
+   * The title-case assertion is unchanged and still does its job across the
+   * whole screen: Playwright's :has-text() is a case-insensitive substring
+   * match and would happily click "Skip Rest", so read the literal DOM text.
+   */
+  await page.waitForSelector('button:has-text("Skip")');
+  const chip = await page.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()));
+  assert(chip.includes('Skip'), 'expected the rest chip\'s Skip control, got buttons: ' + JSON.stringify(chip));
+  assert(chip.includes('+15s'), 'expected the rest chip\'s +15s control, got buttons: ' + JSON.stringify(chip));
   const txt = await page.textContent('body');
-  // No word boundary after "rest": the DOM's text nodes butt straight up
-  // against the next element's text with no space, so \b there never matches.
-  assert(txt.includes('Skip rest'), 'expected the literal "Skip rest" control, got: ' + txt.slice(0, 200));
-  assert(!txt.includes('Skip Rest'), 'the rest control regressed to title-case "Skip Rest"');
+  assert(!txt.includes('Skip Rest'), 'a rest control regressed to title-case "Skip Rest"');
 });
 
-await t('a working set is logged and autoregulation PROPOSES the next one without applying it', async () => {
-  const skip = await page.$('button:has-text("Skip rest")');
+await t('a working set is logged from the table unrated, and moves nothing on its own', async () => {
+  /*
+   * This scenario used to rate the set (RPE 6.5 against a target of 8) and
+   * assert two things about the 105kg that falls out of it: that the Logger
+   * SAID it, and that it had not WRITTEN it onto Set 3.
+   *
+   * Neither half is reachable from the table, and not for the reason the
+   * inversion this was scoped for assumed. Commit 09ee281 did change
+   * `prefillPrimary` so a RATED previous set moves the next set's weight
+   * rather than repeating it — but `prefillPrimary` feeds `v1`, and `v1` is
+   * only rendered by the one-set stage. The table binds each row straight to
+   * its own `st.aVal` and prefills nothing; last time's weight is offered as
+   * the ghost placeholder instead. Verified directly: with a previous set
+   * sitting done at 100kg and `felt: '6.5'`, the next row's value AND its
+   * placeholder both come up empty.
+   *
+   * And the rating that would drive it cannot be given here anyway — the ↑/↓
+   * deviation control on the tick is not built, so every set the table logs is
+   * unrated, and an unrated set holds its weight by `prefillPrimary`'s own
+   * rule. So the adjusted weight is not observable through this screen in
+   * either direction until that control ships; the arithmetic itself
+   * (100 → 105, and all 672 golden-vector combinations of it) is pinned in
+   * `packages/engine/src/parity.test.ts` under 'prefill autoregulates from a
+   * rated previous set', which is where it is actually still exercised.
+   *
+   * What is left, and what this now pins, is the table's own contract: the
+   * tick stores what was typed, records no rating, and touches no other set.
+   * The last of those is still `checks/coach-contract.mjs` rule 7 — a
+   * completed set is an actual, and turning an actual straight into the next
+   * prescription collapses actual, proposal and coach decision into one
+   * invisible mutation. The table satisfies it by proposing nothing at all.
+   */
+  const skip = await page.$('button:has-text("Skip")');
   if (skip) await skip.click();
-  await page.waitForSelector('text=Set 2 of 3');
-  await page.fill('input[aria-label="Weight"]', '100');
-  await page.fill('input[aria-label="Reps"]', '5');
-  await page.click('button:has-text("Finish Set")');
-  // Rate it easy (RPE 6.5 against a target of 8) so the weight must go UP.
-  await page.fill('input[aria-label="RPE from 1 to 10"]', '6.5');
-  await page.click('button:has-text("Confirm Set")');
+  await page.fill('input[aria-label="Kilograms for set 2"]', '100');
+  await page.fill('input[aria-label="Reps for set 2"]', '5');
+  await page.click('button[aria-label="Log set 2"]');
 
   const state = await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
     const sets = db.sessions[0].blocks[0].exercises[0].sets;
-    return { logged: sets[1], next: sets[2].aVal, body: document.body.textContent };
+    return { logged: sets[1], next: sets[2].aVal };
   });
   assert(state.logged.done === true, 'set 2 not marked done');
   assert(state.logged.aVal === '100' && state.logged.aVal2 === '5', 'values not stored: ' + JSON.stringify(state.logged));
-  assert(state.logged.felt === '6.5', 'felt RPE not stored: ' + state.logged.felt);
-  /*
-   * 100 × (1 + (8 − 6.5) × 2.5/100) = 103.75, snapped to the 2.5kg increment:
-   * 103.75 / 2.5 = 41.5, and Math.round rounds a half up, so 42 × 2.5 = 105.
-   * This is the shipped app's arithmetic exactly — the golden vectors pin all
-   * 672 combinations of it.
-   *
-   * The number must be SAID and not WRITTEN. `checks/coach-contract.mjs` rule 7
-   * forbids the web Logger from assigning `adj.newWeight` onto a future set:
-   * a completed set is an actual, and turning an actual straight into the next
-   * prescription collapses actual, proposal and coach decision into one
-   * invisible mutation. Increases are approval-only in v1. So this asserts both
-   * halves — the proposal is visible, and the next set is still untouched.
-   */
-  assert(/105 kg/.test(state.body), 'the autoregulation proposal is not shown to the athlete: ' + state.body.slice(0, 400));
-  assert(!state.next, 'the Logger APPLIED progression onto the next set (' + state.next + ') — it may only propose it');
+  assert(state.logged.felt === undefined, 'the table rated a set it has no control to rate with: ' + state.logged.felt);
+  assert(!state.next, 'logging Set 2 wrote onto Set 3 (' + state.next + ') — the table may not move another set');
+  // Nothing on screen either: no value, and no ghost, since Back Squat has no
+  // completed session behind it yet to have left one.
+  const nextShown = await page.inputValue('input[aria-label="Kilograms for set 3"]');
+  const nextGhost = await page.$eval('input[aria-label="Kilograms for set 3"]', (n) => n.placeholder);
+  assert(nextShown === '', 'Set 3 was prefilled with a weight nobody typed: ' + nextShown);
+  assert(nextGhost === '', 'Set 3 showed a ghost with no completed history to draw one from: ' + nextGhost);
 });
 
 await t('the rest timer survives a reload', async () => {
@@ -278,10 +338,9 @@ await t('a working weight shown with no WHOOP data connected names the missing r
     localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
   });
   await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
-  await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
-  const skip = await page.$('button:has-text("Skip rest")');
+  await page.waitForSelector('button[aria-label="Log set 3"]');
+  const skip = await page.$('button:has-text("Skip")');
   if (skip) await skip.click();
-  await page.waitForSelector('input[aria-label="Weight"]');
   const txt = await page.textContent('body');
   assert(/earned 105kg last time · no recovery data today/.test(txt), 'expected the composed earned-weight-plus-reason note, got: ' + txt.slice(0, 400));
 });
@@ -314,10 +373,9 @@ await t('a working weight shown with a connected WHOOP is NOT marked with a reco
   );
   try {
     await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
-    await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
-    const skip = await page.$('button:has-text("Skip rest")');
+    await page.waitForSelector('button[aria-label="Log set 3"]');
+    const skip = await page.$('button:has-text("Skip")');
     if (skip) await skip.click();
-    await page.waitForSelector('input[aria-label="Weight"]');
     const txt = await page.textContent('body');
     assert(/earned 105kg last time/.test(txt), 'expected the earned-weight note with a connected WHOOP, got: ' + txt.slice(0, 400));
     assert(!/no recovery data today/.test(txt), 'a connected WHOOP should never show the no-recovery-data reason, got: ' + txt.slice(0, 400));
@@ -401,22 +459,31 @@ await t('a consistent 2-session on-target streak surfaces an opt-in load suggest
   // depends on that session being 'active' (it never was before this ran).
   try {
     await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
-    await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
-    const skip = await page.$('button:has-text("Skip rest")');
+    await page.waitForSelector('button[aria-label="Log set 1"]');
+    const skip = await page.$('button:has-text("Skip")');
     if (skip) await skip.click();
-    await page.waitForSelector('input[aria-label="Weight"]');
     const txt = await page.textContent('body');
     assert(/On target the last 2 sessions/.test(txt), 'expected the strength suggestion note, got: ' + txt.slice(0, 400));
     assert(/Apply/.test(txt), 'expected an Apply control, got: ' + txt.slice(0, 400));
 
-    // What the fields ALREADY show, before anything is applied — a suggestion is
-    // only honest if it beats these. ('Front squat' rather than the Back Squat an
-    // earlier scenario banked a liftProgress entry for, so this prefill comes from
-    // the seeded history above and nothing else.)
-    const kgBefore = await page.inputValue('input[aria-label="Weight"]');
-    const repsBefore = await page.inputValue('input[aria-label="Reps"]');
-    assert(kgBefore === '100', 'expected the weight field prefilled from the seeded history, got: ' + kgBefore);
-    assert(repsBefore === '10', 'expected the reps field prefilled at the rep-range top, got: ' + repsBefore);
+    /*
+     * What the row ALREADY shows, before anything is applied — a suggestion is
+     * only honest if it beats these. The table states them as ghosts rather
+     * than as prefilled values: last time's weight for this working set in the
+     * kg column, and the planned rep target in the reps column, both left as
+     * placeholders so an empty row still reads as untouched. ('Front squat'
+     * rather than the Back Squat an earlier scenario banked a liftProgress
+     * entry for, so the 100 comes from the seeded history above and nothing
+     * else.)
+     */
+    const kgBefore = await page.$eval('input[aria-label="Kilograms for set 1"]', (n) => n.placeholder);
+    const repsBefore = await page.$eval('input[aria-label="Reps for set 1"]', (n) => n.placeholder);
+    assert(kgBefore === '100', "expected last time's weight as the kg ghost, got: '" + kgBefore + "'");
+    assert(repsBefore === '8-10', "expected the planned rep target as the reps ghost, got: '" + repsBefore + "'");
+    assert(
+      (await page.inputValue('input[aria-label="Kilograms for set 1"]')) === '',
+      'the table prefilled a weight into the row — a ghost is a suggestion, a value is a claim',
+    );
 
     // Confirm Apply never touched settings.liftProgress — the write goes
     // through the same local field the athlete's own typing uses, not a
@@ -428,12 +495,16 @@ await t('a consistent 2-session on-target streak surfaces an opt-in load suggest
     );
 
     await page.click('button:has-text("Apply")');
-    const kg = await page.inputValue('input[aria-label="Weight"]');
-    assert(kg === '102.5', 'expected Apply to write the suggested load into the Weight field, got: ' + kg);
-    // And it moved the number FORWARD — the whole point of the fix. The Reps
-    // field is untouched at the top of the planned range.
-    const reps = await page.inputValue('input[aria-label="Reps"]');
-    assert(reps === '10', 'expected the Reps field left at the planned rep top, got: ' + reps);
+    const kg = await page.inputValue('input[aria-label="Kilograms for set 1"]');
+    assert(kg === '102.5', 'expected Apply to write the suggested load into the kg column, got: ' + kg);
+    // And it moved the number FORWARD past the 100 ghost — the whole point of
+    // the fix. The suggestion is on the load axis only (`progress_load` carries
+    // no `reps`), so the reps column is left exactly as it was: still empty,
+    // still ghosting the planned range.
+    const reps = await page.inputValue('input[aria-label="Reps for set 1"]');
+    const repsGhost = await page.$eval('input[aria-label="Reps for set 1"]', (n) => n.placeholder);
+    assert(reps === '', 'Apply wrote a rep count the suggestion never prescribed: ' + reps);
+    assert(repsGhost === '8-10', 'Apply disturbed the planned rep target, got: ' + repsGhost);
 
     const liftProgressAfter = await page.evaluate(
       () => JSON.stringify(JSON.parse(localStorage.getItem('hybrid-engine-v1')).settings.liftProgress || null),
@@ -871,14 +942,16 @@ await t('a hold that completes off-screen is not clobbered by the previous set c
 
 await t('a weight of 1e309 cannot poison the record', async () => {
   await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
-  await page.waitForSelector('button:has-text("Skip rest"), button:has-text("Finish Set")');
-  const skip = await page.$('button:has-text("Skip rest")');
+  await page.waitForSelector('button[aria-label="Log set 3"]');
+  const skip = await page.$('button:has-text("Skip")');
   if (skip) await skip.click();
-  await page.waitForSelector('input[aria-label="Weight"]');
-  await page.fill('input[aria-label="Weight"]', '1e309');
-  await page.fill('input[aria-label="Reps"]', '3');
-  await page.click('button:has-text("Finish Set")');
-  await page.click('button:has-text("Confirm Set")');
+  await page.fill('input[aria-label="Kilograms for set 3"]', '1e309');
+  await page.fill('input[aria-label="Reps for set 3"]', '3');
+  // The tick is the table's confirm, so the tick is where sanitising has to
+  // happen. Typing it is fine — write-through keeps a half-typed number
+  // verbatim on purpose — but the tap that turns it into a claim about what
+  // was lifted must not let Infinity through to the record.
+  await page.click('button[aria-label="Log set 3"]');
   const stored = await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
     return db.sessions[0].blocks[0].exercises[0].sets[2].aVal;
