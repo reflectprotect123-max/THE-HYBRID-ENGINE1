@@ -108,8 +108,17 @@ say(`inlining ${js[0]} (${Math.round(jsSrc.length / 1024)} KB)`);
 say(`inlining ${css[0]} (${Math.round(cssSrc.length / 1024)} KB)`);
 
 /* Any remaining same-origin URL is a live bug: there is no origin to serve it.
-   Data URIs are already inlined and are not references, so exclude them. */
-const dangling = [...cssSrc.matchAll(/url\((["']?)(?!data:)([^)"']+)\1\)/g)].map((m) => m[2]);
+   Data URIs are already inlined and are not references, so exclude them.
+
+   Fragments are excluded for the same reason, and were not — which failed this
+   build the moment the coach redesign's stylesheet arrived on main. A bare
+   `url(#brassBezel)` is an SVG paint reference resolved INSIDE the document:
+   `.rd-bezel { stroke: url(#brassBezel) }` against the `<linearGradient>` that
+   Readiness.tsx renders. It never becomes a request, so the artifact's
+   no-network CSP has nothing to block. If that were ever wrong,
+   `checks/artifact-smoke.mjs` is what catches it — it fails on anything
+   leaving the document, which is the assertion that actually matters here. */
+const dangling = [...cssSrc.matchAll(/url\((["']?)(?!data:|#)([^)"']+)\1\)/g)].map((m) => m[2]);
 if (dangling.length) {
   throw new Error(
     'CSS still references external assets, which the artifact CSP blocks:\n  ' +
