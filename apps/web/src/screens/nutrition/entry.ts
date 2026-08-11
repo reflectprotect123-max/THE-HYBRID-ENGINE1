@@ -1,4 +1,19 @@
-import { quickAddEntry, type FoodLogEntry, type IsoDate, type IsoTimestamp } from '@hybrid/nutrition-core';
+import {
+  logEntryFromCustomFood,
+  logEntryFromFood,
+  logEntryFromRecipe,
+  quickAddEntry,
+  upsertCachedFood,
+  type CachedFood,
+  type CustomFood,
+  type FoodLogEntry,
+  type IsoDate,
+  type IsoTimestamp,
+  type LogContext,
+  type NutritionDB,
+  type Recipe,
+  type ScaledMacros,
+} from '@hybrid/nutrition-core';
 import { macro } from '@hybrid/nutrition-adapter';
 
 /*
@@ -19,10 +34,16 @@ import { macro } from '@hybrid/nutrition-adapter';
  * shared parse. This module only turns strings from inputs into its arguments.
  * `apps/web/test/nutrition-log.test.ts` pins the equality.
  *
- * WEB HAS NO CAMERA. Barcode and nutrition-label entry stay mobile-only, so the
- * only kind this screen can produce is `quick_add` — the kind that carries no
- * source id and no micronutrient map because there is genuinely no source
- * behind it. A web screen offering "scan" would be a button that cannot work.
+ * WEB HAS NO CAMERA. Barcode and nutrition-label entry stay mobile-only. The
+ * FoodLog screen itself still only drives `entryFromDraft` — quick add is the
+ * only kind its form can produce. `entryFromFood`/`entryFromCustomFood`/
+ * `entryFromRecipe`/`cacheFood` below are the same pass-through-to-core write
+ * paths a future catalogue/custom-food/recipe screen needs, kept here so that
+ * screen calls one file for every entry kind instead of reaching into
+ * `@hybrid/nutrition-core` directly. Each is a thin forward to the matching
+ * `logEntryFrom*`/`upsertCachedFood` builder in nutrition-core — this file
+ * still builds nothing itself, `entryFromDraft`'s `quickAddEntry` call
+ * included; it only turns this screen's inputs into that builder's arguments.
  */
 
 /** What the entry form is holding. Strings, because they come from inputs. */
@@ -94,6 +115,58 @@ export function entryFromDraft(
   const fields = draftFields(draft);
   if (!fields) return null;
   return quickAddEntry({ id: ctx.id, logDate: ctx.logDate, meal: draft.meal, at: ctx.at }, fields);
+}
+
+/**
+ * Log `quantity` `unit` of a catalogue food (`NutritionDB.foodCache`).
+ *
+ * A direct forward to `logEntryFromFood` — see it for the snapshot rule and
+ * for `IncompatibleUnitError`, which this rethrows unchanged rather than
+ * swallowing, exactly as the phone app's `FoodSearch.buildEntry` does.
+ */
+export function entryFromFood(ctx: LogContext, food: CachedFood, quantity: number, unit: string): FoodLogEntry {
+  return logEntryFromFood(ctx, food, quantity, unit);
+}
+
+/**
+ * Log `quantity` `unit` of one of the athlete's own custom foods
+ * (`NutritionDB.customFoods`). See `entryFromFood`.
+ */
+export function entryFromCustomFood(
+  ctx: LogContext,
+  food: CustomFood,
+  quantity: number,
+  unit: string,
+): FoodLogEntry {
+  return logEntryFromCustomFood(ctx, food, quantity, unit);
+}
+
+/**
+ * Log `loggedServings` servings of a recipe (`NutritionDB.recipes`).
+ *
+ * `perServingMacros` is the caller's job to resolve (`resolveRecipePerServing`
+ * against `NutritionDB.foodCache`/`customFoods`) — same division of labour as
+ * `logEntryFromRecipe` itself, so that a missing ingredient throws where the
+ * screen can report it rather than inside this pass-through.
+ */
+export function entryFromRecipe(
+  ctx: LogContext,
+  recipe: Recipe,
+  perServingMacros: ScaledMacros,
+  loggedServings: number,
+): FoodLogEntry {
+  return logEntryFromRecipe(ctx, recipe, perServingMacros, loggedServings);
+}
+
+/**
+ * Copy a catalogue food into the local cache, in place on a draft — the same
+ * mutator the phone app's `FoodSearch` and `RecipeBuilder` screens call from
+ * inside their store's `update`. Re-exported under this file's naming so a
+ * future web catalogue screen calls `cacheFood` next to `entryFromFood`
+ * rather than importing `@hybrid/nutrition-core` a second time.
+ */
+export function cacheFood(draft: NutritionDB, food: CachedFood): void {
+  upsertCachedFood(draft, food);
 }
 
 /**
