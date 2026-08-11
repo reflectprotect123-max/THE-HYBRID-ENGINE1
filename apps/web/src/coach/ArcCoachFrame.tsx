@@ -14,6 +14,49 @@ export function ArcCoachFrame() {
   const weekExceptions = weeklyPlan.decisions.filter((decision) => decision.action === 'dropped').length;
   const commandCount = pending + weekExceptions;
   const inLibrary = location.pathname.includes('/library') || location.pathname.includes('/author') || location.pathname.includes('/build/') || location.pathname.includes('/planner/');
+  const inSettings = location.pathname.includes('/settings');
+  const inReview = location.pathname.includes('/review/');
+  const inProgression = location.pathname.includes('/progression');
+  const inLegacy = location.pathname.includes('/legacy');
+
+  /*
+   * The Stage-1 Command Center is four pillar tiles and nothing else — the
+   * approved mockup's `#view-command` has no slot for anything more, and the
+   * old screen's system-links row went with the rewrite. Three routes lost
+   * their ONLY inbound link with it: `/coach/review/:weekStart`,
+   * `/coach/progression` and `/coach/legacy`. `/coach/progression` is the
+   * worst of the three — with a roster client selected, every pillar tile
+   * correctly badges a pending count and then dead-ends at
+   * `ClientDetailGate`'s refusal (the pillars read local stores, so they are
+   * gated WITHOUT `layer3Ready` by design), and this route is the only place
+   * in the app `RosterProgressionActions` is mounted. Roster approve/decline
+   * was unreachable.
+   *
+   * They live in the rail rather than back in the tile grid: the rail is
+   * outside the mockup's Stage-1 scope, already holds Command / Library /
+   * Settings, and is where a coach looks for a workspace-level destination.
+   * Same `ArcNavLink`, same styling, no new visual language — and because
+   * the rail is the drawer below `sm`, they are reachable at phone width by
+   * construction rather than by a second layout.
+   *
+   * Each entry is gated on where it actually LEADS, not merely on where it
+   * is declared:
+   *  - Week review is `layer3Ready`, so it works for both a local and a
+   *    roster client. Always shown. `weeklyPlan.weekStart` is the same
+   *    computation the pre-redesign Command Center used for this link —
+   *    a real week, not `today` re-derived here.
+   *  - Decisions (`/coach/progression`) REDIRECTS a local coach to
+   *    `/coach/strength`, which now owns the self-coach queue
+   *    (CoachProgression.tsx). A nav entry that bounces you elsewhere is
+   *    worse than no entry, so it appears only when the selected client is
+   *    not local. `!selectedClient` counts as local — the exact condition
+   *    CoachProgression itself branches on, not a re-derived approximation.
+   *  - Program bench (`/coach/legacy`) is gated WITHOUT `layer3Ready` and
+   *    refuses a roster client, so it appears only for a local one. This
+   *    matches what the old system-links row did: it rendered the whole row
+   *    only for `engine-local`.
+   */
+  const isLocalClient = !selectedClient || selectedClient.source === 'engine-local';
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -84,9 +127,12 @@ export function ArcCoachFrame() {
           aria-label="ARC primary navigation"
           onClick={() => setDrawerOpen(false)}
         >
-          <ArcNavLink to="/coach" label="Command" count={commandCount} current={!inLibrary && !location.pathname.includes('/settings')} />
+          <ArcNavLink to="/coach" label="Command" count={commandCount} current={!inLibrary && !inSettings && !inReview && !inProgression && !inLegacy} />
           <ArcNavLink to="/coach/library" label="Library" current={inLibrary} />
-          <ArcNavLink to="/coach/settings" label="Settings" current={location.pathname.includes('/settings')} />
+          <ArcNavLink to={`/coach/review/${weeklyPlan.weekStart}`} label="Week review" current={inReview} />
+          {!isLocalClient && <ArcNavLink to="/coach/progression" label="Decisions" current={inProgression} />}
+          {isLocalClient && <ArcNavLink to="/coach/legacy" label="Program bench" current={inLegacy} />}
+          <ArcNavLink to="/coach/settings" label="Settings" current={inSettings} />
         </nav>
         {/*
          * The bench has no other exit: `/` redirects here on the unscoped
@@ -116,18 +162,31 @@ export function ArcCoachFrame() {
       <div className="min-w-0">
         {/* The warning is keyed on "detail is not this person's", which is true
             of both non-local states — but they are not the same fact, and
-            telling a coach their real athlete is a fixture is its own bug. */}
+            telling a coach their real athlete is a fixture is its own bug.
+
+            Reworded 11 August 2026 (Stage-1 final review): it used to say
+            "Everything below this line is the local athlete's data, not
+            theirs", which was true when every route rendered through and
+            merely disclosed. The four pillar routes are gated WITHOUT
+            `layer3Ready` and now REFUSE outright, so on those routes that
+            sentence sat above a refusal page describing data that is not
+            there. The frame deliberately does not re-derive each route's
+            gate verdict — `layer3Ready` is per-route and owned by
+            index.tsx — so the copy states the RULE, which holds on every
+            route, instead of asserting what a particular one rendered. */}
         {selectedClient && selectedClient.source !== 'engine-local' && !location.pathname.includes('/library') && !location.pathname.includes('/settings') && location.pathname !== '/coach' && (
           <div className="border-b border-warn/40 bg-warn/10 px-3 py-2 text-xs text-muted" role="status">
             {selectedClient.source === 'roster-summary' ? (
               <>
                 <strong className="text-text">{selectedClient.name}&apos;s detailed records are not readable yet.</strong>{' '}
-                Their weekly counts are real and authorised. Everything below this line is the local athlete&apos;s data, not theirs.
+                Their weekly counts are real and authorised. Where a tool cannot read them it refuses to open, rather
+                than showing you the local athlete&apos;s records under {selectedClient.name}&apos;s name.
               </>
             ) : (
               <>
                 <strong className="text-text">{selectedClient.name} is a synthetic handoff fixture.</strong>{' '}
-                Detailed engine records below belong to the local demonstration athlete.
+                There is nothing real behind it. A tool that needs detailed engine records refuses to open, rather than
+                showing you the local demonstration athlete&apos;s under this name.
               </>
             )}
           </div>
