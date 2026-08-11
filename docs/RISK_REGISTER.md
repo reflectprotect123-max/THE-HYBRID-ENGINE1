@@ -304,6 +304,31 @@ adds no volume and caps still apply, so "no make-up debt" holds in the sense
 that matters — but I did not trace the weighting magnitude, so the claim is
 unverified rather than proven.
 
+### R15 · Nutrition consent-gate regression test deleted with `CoachNutrition` — dormant, not live
+`apps/web/src/coach/CoachNutrition.test.tsx` (~217 lines, one of the 8 screens
+R8's 8 August pass mutation-tested) covered the two-tier consent boundary
+`RosterNutritionView` enforced: a no-consent SUMMARY tier (`getNutritionSummary`)
+and a raw-detail tier gated on `granted && window_ &&` — the athlete's own
+revocable `hasNutritionGrant` consent, on top of `getNutritionWindow` returning
+non-null. It caught exactly one bug class: a gate-inversion that renders raw
+macros/weight/check-in whenever the window happens to be non-null, without
+ALSO checking consent — leaking an athlete's raw nutrition data to a coach who
+was never granted it.
+
+Deleted 11 August 2026 alongside `CoachNutrition.tsx` itself, as part of the
+Stage-1 coach redesign's accepted roster-nutrition regression (see
+`docs/superpowers/sdd/2026-08-11-coach-redesign-stage1/task-6-report.md`): the
+Nutrition pillar that replaces it (`apps/web/src/coach/pillars/Nutrition.tsx`)
+reads local stores only and is BLOCKED for a roster client by
+`ClientDetailGate`, so `hasNutritionGrant`/`getNutritionWindow` are composed by
+no UI today — `apps/web/src/cloud/coach-repository.ts` still implements both,
+they are simply unreachable from any screen. *Disposition*: not a live risk —
+there is no reachable render composing the two calls for a gate-inversion bug
+to hide in. It becomes one the moment roster nutrition is restored on the
+pillar: that work must restore gate-inversion coverage (a mutation-proven
+test, same shape `CoachNutrition.test.tsx` used) alongside the feature, not
+ship the feature first and the test later.
+
 ## S1 — cosmetic / hygiene
 
 ### R14 · Two checks not wired into CI

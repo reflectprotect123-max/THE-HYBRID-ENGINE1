@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNutrition } from '../../store/nutrition';
 import { PillarBack } from './PillarBack';
-import { buildCoachNutritionReview } from '../nutrition-review';
+import { buildCoachNutritionReview, type NutritionReviewException } from '../nutrition-review';
 import '../coach-redesign.css';
 
 /*
@@ -29,7 +29,6 @@ import '../coach-redesign.css';
  * reported, not preserved, per the task-6 brief's Step 1: "report anything
  * it shows that the mockup has no place for, rather than dropping it
  * silently"). `CoachNutrition.tsx`'s self-coach view also read and rendered:
- *   - `review.exceptions` — the "Now / N items to understand" panel;
  *   - `review.program` — goal, target rate, `goalLabel()`;
  *   - `review.days` — the full seven-day ledger table (date/status/macros/
  *     entries), as opposed to just today's macro bars below;
@@ -43,27 +42,68 @@ import '../coach-redesign.css';
  *     without a mockup slot, same as the sibling pillars: `useDb()` carries
  *     the identical field and Readiness/Strength/Conditioning do not surface
  *     it either.
- * The mockup's `#view-nutrition` is four elements — back link, an unlogged-
- * days alert, an adherence/macro panel, and a weight-trend panel — and this
- * file builds exactly those four, using its class names and structure.
+ * The mockup's `#view-nutrition` is four elements — back link, an alert, an
+ * adherence/macro panel, and a weight-trend panel — and this file builds
+ * exactly those four, using its class names and structure.
+ *
+ * FIX (task-6 review, 11 August 2026): `review.exceptions` is NOT dropped —
+ * it is what the alert renders. `CoachCommandCenter`'s tile badges this
+ * screen with `review.exceptions.length` across six kinds (`no-program`,
+ * `check-in-pending`, `check-in-held`, `sparse-weigh-ins`,
+ * `logging-coverage`, `macro-overshoot` — see `nutrition-review.ts`), so a
+ * coach clicking "N exceptions" needs to find all N here, not just the days
+ * that are fully unlogged. One `.rd-alert` per exception, `'attention'`
+ * before `'information'`, body carrying both `detail` and the actionable
+ * `next`. There is deliberately no separate hand-rolled unlogged-days path
+ * beside it — `logging-coverage` already covers that ground (and covers it
+ * more correctly: it fires on any partial day too, not only a fully
+ * unlogged one), so a second, narrower path would just be two things a coach
+ * could watch drift apart.
  */
 
 function capitalize(s: string): string {
   return s.length ? s[0]!.toUpperCase() + s.slice(1) : s;
 }
 
-function weekdayLabel(value: string): string {
-  return new Intl.DateTimeFormat(undefined, { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
-}
-
-function joinWithAnd(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? '';
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
-}
-
 function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** `'attention'` outranks `'information'` — same two-tier idea
+ *  `packages/coordinator/src/coordinator.ts`'s own priority-to-rank mapping
+ *  uses (`must` > `preferred` > default), just with two tiers instead of
+ *  three. `Array.prototype.sort` is stable (ES2019+), so exceptions of equal
+ *  priority keep `nutrition-review.ts`'s own emission order. */
+function exceptionRank(exception: NutritionReviewException): number {
+  return exception.priority === 'attention' ? 0 : 1;
+}
+
+/** One `.rd-alert` per `NutritionReviewException` — the mockup's alert is a
+ *  generic collapsible (icon, title, chevron, expandable body), and
+ *  `{title, detail, next}` is exactly that shape. `next` is the actionable
+ *  half of the pair and is never dropped. */
+function ExceptionAlert({ exception, open, onToggle }: { exception: NutritionReviewException; open: boolean; onToggle: () => void }) {
+  return (
+    <div className={`rd-alert${open ? ' open' : ''}`}>
+      <button type="button" className="rd-alert-head" onClick={onToggle} aria-expanded={open}>
+        <span className="a-ic">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17.5a1.7 1.7 0 0 0 1.5 2.5h16a1.7 1.7 0 0 0 1.5-2.5L13.7 3.9a1.7 1.7 0 0 0-3.4 0z" />
+          </svg>
+        </span>
+        <span className="alert-title">{exception.title}</span>
+        <svg className="a-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+      <div className="rd-alert-body">
+        <p>{exception.detail}</p>
+        <p>
+          <strong>Next</strong> · {exception.next}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function Metric({ label, value, unit, numeric = true }: { label: string; value: string; unit?: string; numeric?: boolean }) {
@@ -83,7 +123,8 @@ function Metric({ label, value, unit, numeric = true }: { label: string; value: 
  * ("no program target for this day") and `logged === false` ("today is
  * unlogged, so `actual` is not evidence of anything") are both absent-data
  * states and both say so in words rather than drawing a 0g bar against a
- * real target — the same rule the unlogged-days alert follows.
+ * real target — the same "unlogged means unknown, never zero" discipline the
+ * exceptions above carry.
  */
 function MacroBar({
   label,
@@ -169,11 +210,22 @@ function WeightSpark({ raw, trend }: { raw: (number | null)[]; trend: (number | 
 
 export function Nutrition() {
   const { nutrition } = useNutrition();
-  const [alertOpen, setAlertOpen] = useState(false);
+  const [openExceptions, setOpenExceptions] = useState<ReadonlySet<string>>(new Set());
   const day = today();
   const review = useMemo(() => buildCoachNutritionReview(nutrition, day), [nutrition, day]);
 
-  const unloggedDays = useMemo(() => review.days.filter((d) => d.status === 'unlogged'), [review.days]);
+  const sortedExceptions = useMemo(
+    () => [...review.exceptions].sort((a, b) => exceptionRank(a) - exceptionRank(b)),
+    [review.exceptions],
+  );
+  const toggleException = (id: string) =>
+    setOpenExceptions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const todayReview = review.days.find((d) => d.date === day) ?? null;
   const todayLogged = todayReview != null && todayReview.status !== 'unlogged';
   const target = todayReview?.target ?? null;
@@ -190,36 +242,14 @@ export function Nutrition() {
     <div className="rd-content">
       <PillarBack />
 
-      {unloggedDays.length > 0 && (
-        <div className={`rd-alert${alertOpen ? ' open' : ''}`}>
-          <button
-            type="button"
-            className="rd-alert-head"
-            onClick={() => setAlertOpen((v) => !v)}
-            aria-expanded={alertOpen}
-          >
-            <span className="a-ic">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17.5a1.7 1.7 0 0 0 1.5 2.5h16a1.7 1.7 0 0 0 1.5-2.5L13.7 3.9a1.7 1.7 0 0 0-3.4 0z" />
-              </svg>
-            </span>
-            <span className="alert-title">
-              {unloggedDays.length} day{unloggedDays.length === 1 ? '' : 's'} unlogged this week
-            </span>
-            <svg className="a-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </button>
-          <div className="rd-alert-body">
-            <p>
-              No entries were logged for {joinWithAnd(unloggedDays.map((d) => weekdayLabel(d.date)))}
-              {' — a missing day means unknown, never zero. Averages below exclude '}
-              {unloggedDays.length === 1 ? 'that day' : 'those days'} rather than treating{' '}
-              {unloggedDays.length === 1 ? 'it' : 'them'} as zero-calorie.
-            </p>
-          </div>
-        </div>
-      )}
+      {sortedExceptions.map((exception) => (
+        <ExceptionAlert
+          key={exception.id}
+          exception={exception}
+          open={openExceptions.has(exception.id)}
+          onToggle={() => toggleException(exception.id)}
+        />
+      ))}
 
       <p className="rd-section-label">Adherence &amp; targets</p>
       <section className="rd-panel rd-panel-grid">
