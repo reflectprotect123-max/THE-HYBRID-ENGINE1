@@ -64,6 +64,20 @@ export function ArcCoachFrame() {
           <ArcNavLink to="/coach/library" label="Library" current={inLibrary} />
           <ArcNavLink to="/coach/settings" label="Settings" current={location.pathname.includes('/settings')} />
         </nav>
+        {/*
+         * The bench has no other exit: `/` redirects here on the unscoped
+         * build (App.tsx), so a coach account with no reachable athlete link
+         * is stuck in the bench even though `/home` has always worked as a
+         * direct address on every build. One real link, not a URL a coach
+         * has to already know to type.
+         */}
+        <Link
+          to="/home"
+          className="mt-2 flex w-full shrink-0 items-center rounded-md border border-line2 px-2 py-1.5 text-xs text-muted transition-colors hover:bg-panel hover:text-text lg:mt-3"
+        >
+          <span aria-hidden="true" className="mr-1 h-1 w-1 rounded-full bg-transparent" />
+          <span>Athlete app</span>
+        </Link>
         <details className="mt-5 hidden border-t border-line pt-2 text-[11px] text-muted lg:block">
           <summary className="cursor-pointer select-none text-[9px] uppercase tracking-wider text-dim">How ARC decides</summary>
           <p className="mt-1">Strength and Conditioning propose. The Coordinator resolves. Nutrition remains context.</p>
