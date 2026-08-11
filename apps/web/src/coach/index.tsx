@@ -76,7 +76,6 @@ export default function Coach() {
               its exercise catalogue, so it is gated WITHOUT layer3Ready, like
               the pillars above and for the same reason.
             */}
-            <Route path="day" element={<ClientDetailGate tool="Session builder"><DayBuilderRoute mode="library" /></ClientDetailGate>} />
             <Route path="day/:date" element={<ClientDetailGate tool="Session builder"><DayBuilderRoute mode="dated" /></ClientDetailGate>} />
             {/*
               /coach/progression survives Stage 1 rather than retiring: it is
