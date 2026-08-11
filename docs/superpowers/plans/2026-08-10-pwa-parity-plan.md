@@ -767,6 +767,71 @@ git commit -m "Add Food composer screen switching between nutrition sub-views"
 
 ---
 
+### Task 2.4b: `QuickAdd` screen (plan gap found during Task 2.4's review — no task originally built this)
+
+**Files:**
+- Create/overwrite: `apps/web/src/screens/nutrition/QuickAdd.tsx` (overwrites Task 2.4's placeholder)
+- Test: `apps/web/src/screens/nutrition/QuickAdd.test.tsx`
+
+**Interfaces:**
+- Consumes: Task 2.3's `entryFromDraft`-equivalent quick-add builder in `apps/web/src/screens/nutrition/entry.ts` (the pre-existing pure-builder function `FoodLog.tsx` already calls for its own quick-add flow — reuse it, do not re-derive quick-add entry construction here).
+- Produces: `QuickAdd` — a component taking `onDone: () => void` and `onCancel: () => void` props, matching mobile's `apps/mobile/src/screens/nutrition/QuickAdd.tsx`'s real prop shape (read that file first to confirm — Task 2.4's reviewer found it takes these two callback props when wired from `Food.tsx`'s pane switch).
+
+- [ ] **Step 1: Read mobile's `apps/mobile/src/screens/nutrition/QuickAdd.tsx` in full** for its exact field list (name, meal, macros — per the design doc's "minimal form" description) and its `onDone`/`onCancel` call sites.
+
+- [ ] **Step 2: Read `apps/web/src/screens/nutrition/FoodLog.tsx`'s existing quick-add flow** (the one it already has, per Task 2.5's own note that "`QuickAdd` is already effectively what web's `FoodLog.tsx` add-entry flow does") to find the exact builder function name and store-`update()` pattern to reuse here — do not duplicate FoodLog's quick-add logic, call the same underlying pieces.
+
+- [ ] **Step 3: Write the failing test**
+
+```typescript
+// apps/web/src/screens/nutrition/QuickAdd.test.tsx
+import { describe, it, expect, vi, fireEvent } from 'vitest'; // fireEvent from @testing-library/react in the actual import
+import { render, screen } from '@testing-library/react';
+import { QuickAdd } from './QuickAdd';
+
+describe('QuickAdd', () => {
+  it('calls onDone after submitting a valid entry', () => {
+    const onDone = vi.fn();
+    render(<QuickAdd onDone={onDone} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Protein shake' } });
+    fireEvent.change(screen.getByLabelText(/calories/i), { target: { value: '200' } });
+    fireEvent.click(screen.getByRole('button', { name: /save|add/i }));
+    expect(onDone).toHaveBeenCalled();
+  });
+
+  it('calls onCancel without writing an entry', () => {
+    const onDone = vi.fn();
+    const onCancel = vi.fn();
+    render(<QuickAdd onDone={onDone} onCancel={onCancel} />);
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onCancel).toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+});
+```
+
+(Adjust field labels/roles to match what Step 1 finds mobile actually uses, and what Step 2 finds the real store-write function is named — this plan cannot know the exact label text without those reads.)
+
+- [ ] **Step 4: Run test to verify it fails**
+
+Run: `pnpm --filter @hybrid/web exec vitest run src/screens/nutrition/QuickAdd.test.tsx`
+Expected: FAIL — current file is `return null`.
+
+- [ ] **Step 5: Implement `QuickAdd.tsx`** — a minimal form (name, meal selector, macro fields) per Step 1's field list, calling the reused builder + store-write from Step 2 on submit, then `onDone()`; `onCancel()` on cancel with no write.
+
+- [ ] **Step 6: Run test to verify it passes.**
+
+- [ ] **Step 7: Confirm `Food.tsx` (Task 2.4) already wires `<QuickAdd onDone={...} onCancel={...} />` correctly** — it should, since Task 2.4's pane switch already renders this component; if the prop names don't match what Task 2.4 actually passes, fix `QuickAdd.tsx`'s prop names to match `Food.tsx`'s call site exactly rather than the other way around (Food.tsx's pane-switching logic is already reviewed and correct, this task adapts to it).
+
+- [ ] **Step 8: Run typecheck and the full nutrition test suite, commit.**
+
+```bash
+git add apps/web/src/screens/nutrition/QuickAdd.tsx apps/web/src/screens/nutrition/QuickAdd.test.tsx
+git commit -m "Add QuickAdd screen (plan gap closed — no task originally built this)"
+```
+
+---
+
 ### Task 2.5: `DailyLog`/Log tab — extend existing `FoodLog.tsx`
 
 **Files:**
