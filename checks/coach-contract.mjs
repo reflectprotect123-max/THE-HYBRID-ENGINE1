@@ -263,23 +263,38 @@ console.log('Coach surface contract\n');
  *
  * `useDb()` / `useNutrition()` / the progression and authoring ledgers are the
  * signed-in account's own local stores — correct only while `engine-local` is
- * selected. Every route that reads them behind `/coach/author`, `/nutrition`,
- * `/progression`, `/review/:weekStart`, `/legacy`, `/build/:id` and
- * `/planner/:id` must be wrapped in `ClientDetailGate`, which blocks instead
- * of merely disclosing (see ClientDetailGate.tsx's own header comment for
- * why a disclosure banner a coach can act past is not a guard).
+ * selected. Every route that reads them behind `/coach/author`,
+ * `/readiness`, `/strength`, `/conditioning`, `/nutrition`, `/progression`,
+ * `/review/:weekStart`, `/legacy`, `/build/:id` and `/planner/:id` must be
+ * wrapped in `ClientDetailGate`, which blocks instead of merely disclosing
+ * (see ClientDetailGate.tsx's own header comment for why a disclosure
+ * banner a coach can act past is not a guard).
  *
  * CoachCommandCenter is the one screen that is NOT fully behind that gate —
- * its client-overview sections are meant to render for every client — so its
- * two sections that read local athlete state directly (the resolved week,
- * and readiness/capacity/trends) are checked individually: each risky read
- * must sit close enough after the literal token `isLocalClient` in the source
- * that removing the gate is the only way to make this check pass again.
+ * its client-overview tiles are meant to render for every client — so the
+ * reads it makes directly from local stores are checked individually: each
+ * risky read must sit close enough after the literal token `isLocalClient` in
+ * the source that removing the gate is the only way to make this check pass
+ * again.
+ *
+ * Stage-1 coach redesign (2026-08-11): the Command Center was rewritten from
+ * a full dashboard into a four-tile launcher. The resolved-week list and the
+ * `<AthleteStatus>` operating-context section it used to render moved out of
+ * this file entirely — into the Readiness/Strength/Conditioning/Nutrition
+ * pillar screens, which sit behind `ClientDetailGate` (`readiness`,
+ * `strength` and `conditioning` joined `nutrition` in the `gatedPaths` list
+ * below once Task 7 registered them), a stronger guarantee than this
+ * heuristic. `<AthleteStatus` and `weeklyPlan.entries.map` are gone from this
+ * file rather than renamed, so they are gone from the marker list too. What
+ * remains here — and is still checked — are the two local-only reads the
+ * tiles themselves make: the readiness band, and the nutrition exception
+ * count (`nutritionReview` comes from the signed-in account's own
+ * `useNutrition()`, exactly like `athleteState` does from `useDb()`).
  * ------------------------------------------------------------------------- */
 {
   const routerFile = 'apps/web/src/coach/index.tsx';
   const router = code(resolve(ROOT, routerFile));
-  const gatedPaths = ['author', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'build/:id', 'planner/:id'];
+  const gatedPaths = ['author', 'readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'build/:id', 'planner/:id'];
   const ungatedRoutes = gatedPaths.filter((path) => {
     // The route line itself, e.g. `<Route path="author" element={<ClientDetailGate ...`
     const line = new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*element=\\{<ClientDetailGate\\b`);
@@ -295,17 +310,31 @@ console.log('Coach surface contract\n');
   const ccFile = 'apps/web/src/coach/CoachCommandCenter.tsx';
   const cc = code(resolve(ROOT, ccFile));
   const GUARD = 'isLocalClient';
-  const riskyMarkers = ['<AthleteStatus', 'weeklyPlan.entries.map', 'athleteState.readiness.band'];
-  const unguarded = riskyMarkers.filter((marker) => {
-    const at = cc.indexOf(marker);
-    if (at === -1) return true; // moved or renamed — fail closed, do not silently pass
-    const before = cc.slice(Math.max(0, at - 500), at);
-    return !before.includes(GUARD);
-  });
+  const riskyMarkers = ['athleteState.readiness.band', 'nutritionReview.exceptions'];
+  /*
+   * A PROXIMITY check ("the guard token appears somewhere within N characters
+   * before the risky read") is not a guard check — `const isLocalClient = …`
+   * sits near everything below it by construction, so it stays in-window even
+   * once the read is unconditional. Confirmed by adversarial test: changing
+   * `isLocalClient ? athleteState.readiness.band : 'unknown'` to an
+   * unconditional `athleteState.readiness.band` — a real leak — left the old
+   * 500-character lookback version of this check GREEN.
+   *
+   * What actually proves the read is gated is STRUCTURE: the marker must sit
+   * inside the TRUE branch of an `isLocalClient ? … : …` ternary, or inside
+   * an `isLocalClient && …` expression, not merely somewhere after the guard
+   * declaration. `[^:]*?` / `[^;]*?` bound the search to that branch —
+   * crossing the ternary's `:` or a statement's `;` means the marker fell
+   * into the FALSE branch or a later, unrelated statement, which is exactly
+   * the unconditional-leak shape the adversarial test produced.
+   */
+  const guardedByTernary = (marker) => new RegExp(`${GUARD}\\s*\\?\\s*[^:]*?${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(cc);
+  const guardedByAnd = (marker) => new RegExp(`${GUARD}\\s*&&\\s*[^;]*?${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(cc);
+  const unguarded = riskyMarkers.filter((marker) => !guardedByTernary(marker) && !guardedByAnd(marker));
   if (unguarded.length) {
     fail(
       'CoachCommandCenter never renders local athlete state unguarded',
-      `${ccFile} has ${unguarded.join(', ')} not preceded by an '${GUARD}' guard within 500 characters.`,
+      `${ccFile} has ${unguarded.join(', ')} not inside an '${GUARD} ? … :' or '${GUARD} && …' guarded expression.`,
     );
   } else pass("CoachCommandCenter's local-only sections stay behind isLocalClient");
 }

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../store/db';
 import { NutritionProvider } from '../store/nutrition';
 import { CoachCommandCenter } from './CoachCommandCenter';
@@ -12,24 +13,21 @@ import type { AthleteProgressionProposal } from './contracts';
 
 /*
  * docs/RISK_REGISTER.md R8. CoachCommandCenter is the one coach-bench screen
- * that is NOT fully behind `ClientDetailGate` — its client-overview sections
- * render for every client, so the "resolved week" and "operating context"
- * sections gate themselves individually on `isLocalClient`
- * (checks/coach-contract.mjs's static check "CoachCommandCenter's
- * local-only sections stay behind isLocalClient"). That check only proves
- * the `isLocalClient` token appears near the risky read in source — it
- * cannot prove the branch actually renders correctly for both a real roster
- * client and the signed-in athlete. A gate-inversion bug here is exactly the
- * failure named in the component's own comment: "renders the coach's own
- * records under a client's name."
+ * that is NOT fully behind `ClientDetailGate` — its client-overview reads
+ * (the readiness band, the nutrition exception count) gate themselves
+ * individually on `isLocalClient` (checks/coach-contract.mjs's static check
+ * "CoachCommandCenter's local-only sections stay behind isLocalClient").
+ * That check only proves the `isLocalClient` token appears near the risky
+ * read in source — it cannot prove the branch actually renders correctly for
+ * both a real roster client and the signed-in athlete. A gate-inversion bug
+ * here is exactly the failure named in the component's own comment: "renders
+ * the coach's own records under a client's name."
  *
- * `AthleteStatus` (one of the three risky markers the static check watches)
- * pulls in `useConcept2()`/`useSync()`, which need `Concept2Provider` and
- * `SyncProvider` — real network/Supabase wiring that has nothing to do with
- * CoachCommandCenter's OWN gating logic. It is mocked here to a plain marker
- * so this test exercises exactly what CoachCommandCenter is responsible for:
- * whether that section renders at all for a given client, not what
- * AthleteStatus does internally once it does.
+ * `AthleteStatus` pulls in `useConcept2()`/`useSync()`, which need
+ * `Concept2Provider` and `SyncProvider` — real network/Supabase wiring that
+ * has nothing to do with this screen. It is mocked here to a plain marker so
+ * a future edit that reintroduces it here does not drag that wiring into
+ * this test file's setup.
  */
 vi.mock('./AthleteStatus', () => ({
   AthleteStatus: () => <div>MOCKED_ATHLETE_STATUS</div>,
@@ -61,6 +59,40 @@ const ROSTER_CLIENT = rosterClient({
   },
 });
 
+const TODAY = new Date().toISOString().slice(0, 10);
+
+/**
+ * Seeds the exact localStorage blob `DbProvider` boots from (`loadDB` reads
+ * `LS_KEY` directly — apps/web/src/store/db.tsx) with one manual recovery
+ * observation dated today, strong enough that `deriveAthleteState`'s
+ * readiness score clears the 'high' band threshold (score >= 70 — see
+ * `band()` in packages/whole-athlete-state/src/state.ts). Same five fields,
+ * same 'high' outcome, as `AthleteStatus.test.tsx`'s `seedRecoveryToday`.
+ *
+ * Finding 2 (fix-round 1): a FRESH, unseeded DB's real readiness band is
+ * already 'unknown' — textually IDENTICAL to the roster fallback string this
+ * file hardcodes for a non-local client (`isLocalClient ? … : 'unknown'`).
+ * A test built on an unseeded DB cannot distinguish "the gate held" from
+ * "the gate was removed and both branches happen to read the same word" —
+ * that was exactly the blind spot the reviewer's adversarial edit exposed:
+ * vitest stayed green with the gate deleted. Seeding a real, non-'unknown'
+ * band makes the two cases textually different, so a removed gate now shows
+ * up as a real assertion failure below, not a coincidence.
+ */
+function seedHighReadinessToday() {
+  const db = {
+    workouts: [],
+    sessions: [],
+    settings: {},
+    core: {
+      recovery: [
+        { id: 'r-today', date: TODAY, recordedAt: Date.now(), sleepHours: 8, sleepQuality: 9, energy: 9, soreness: 1, stress: 1 },
+      ],
+    },
+  };
+  localStorage.setItem(LS_KEY, JSON.stringify(db));
+}
+
 function rosterProposal(over: Partial<AthleteProgressionProposal> = {}): AthleteProgressionProposal {
   return {
     id: 'prop-1',
@@ -83,10 +115,10 @@ function rosterProposal(over: Partial<AthleteProgressionProposal> = {}): Athlete
  * ArcCoachFrame.test.tsx's `renderFrame()` for why `act(async () => {})`
  * after `render()` is required before any assertion.
  *
- * `CoachCommandCenter` also reads `useDb()` (resolved week, readiness) and
- * `useNutrition()` (the nutrition system row) directly, for every client —
- * not just `engine-local` — so both providers are always required, not only
- * for the local-athlete branch.
+ * `CoachCommandCenter` also reads `useDb()` (readiness band) and
+ * `useNutrition()` (the nutrition tile) directly, for every client — not
+ * just `engine-local` — so both providers are always required, not only for
+ * the local-athlete branch.
  */
 async function renderCommandCenter(repository: FakeCoachWorkspaceRepository) {
   const result = renderCoachScreen(
@@ -109,131 +141,104 @@ beforeEach(() => {
 });
 
 describe('CoachCommandCenter', () => {
-  it('lists every client from the repository with their own summary counts, and switching clients updates the overview', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.clients = [ENGINE_LOCAL_CLIENT, ROSTER_CLIENT];
-    await renderCommandCenter(repo);
-
-    // Both clients are listed in the roster strip.
-    expect(screen.getByRole('button', { name: /Alex Morgan/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Riley Roster/ })).toBeInTheDocument();
-
-    // Default selection (no prior localStorage pick) is engine-local, and its
-    // own summary counts are the ones on screen.
-    expect(screen.getByRole('heading', { name: 'Alex Morgan' })).toBeInTheDocument();
-    expect(screen.getByText('3 of 4')).toBeInTheDocument();
-    expect(screen.getByText('2 of 3')).toBeInTheDocument();
-    expect(screen.getByText('5 of 7 days')).toBeInTheDocument();
-    expect(screen.getByText('6 of 7')).toBeInTheDocument();
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Riley Roster/ }));
-    });
-
-    // Selecting the other client swaps the overview to THEIR counts, not a
-    // merge or a stale leftover of the first client's numbers.
-    expect(screen.getByRole('heading', { name: 'Riley Roster' })).toBeInTheDocument();
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
-    expect(screen.getByText('0 of 2')).toBeInTheDocument();
-    expect(screen.getByText('3 of 7 days')).toBeInTheDocument();
-    expect(screen.getByText('4 of 7')).toBeInTheDocument();
-    expect(screen.queryByText('3 of 4')).not.toBeInTheDocument();
-    expect(screen.queryByText('5 of 7 days')).not.toBeInTheDocument();
-  });
-
-  it('shows the local-only resolved-week and readiness sections for the signed-in athlete (engine-local)', async () => {
+  it('renders a tile per pillar, each linking to its own screen', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [ENGINE_LOCAL_CLIENT];
     await renderCommandCenter(repo);
 
-    // `weeklyPlan.entries.map` branch: a fresh, empty local DB resolves to no
-    // entries, which is its own distinct empty state — not the roster refusal.
-    expect(
-      screen.getByText('No sessions resolved. Inspect safety, schedule and proposal inputs; do not invent a plan.'),
-    ).toBeInTheDocument();
-    // `athleteState.readiness.band` branch.
-    expect(screen.getByText('Readiness')).toBeInTheDocument();
-    // `<AthleteStatus` branch.
-    expect(screen.getByText('MOCKED_ATHLETE_STATUS')).toBeInTheDocument();
-
-    expect(screen.queryByText(/resolved week is not readable here yet/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/readiness and capacity are not readable here yet/)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Readiness/ })).toHaveAttribute('href', '/coach/readiness');
+    expect(screen.getByRole('link', { name: /Strength/ })).toHaveAttribute('href', '/coach/strength');
+    expect(screen.getByRole('link', { name: /Conditioning/ })).toHaveAttribute('href', '/coach/conditioning');
+    expect(screen.getByRole('link', { name: /Nutrition/ })).toHaveAttribute('href', '/coach/nutrition');
   });
 
-  it('hides the local-only resolved-week and readiness sections for a roster-summary client, showing the refusal copy instead', async () => {
+  it('shows the signed-in athlete a real readiness band, not the mockup placeholder', async () => {
     const repo = new FakeCoachWorkspaceRepository();
-    repo.clients = [ROSTER_CLIENT];
+    repo.clients = [ENGINE_LOCAL_CLIENT];
     await renderCommandCenter(repo);
 
-    expect(
-      screen.queryByText('No sessions resolved. Inspect safety, schedule and proposal inputs; do not invent a plan.'),
-    ).not.toBeInTheDocument();
-    // No band figures for a roster client — there is no repository method
-    // that returns a derived readiness/capacity band for one.
-    expect(screen.queryByText('Readiness')).not.toBeInTheDocument();
-    // AthleteStatus itself IS rendered for a roster client now, in its
-    // consent-gated roster form (clientId passed through) — this is the
-    // intentional Stage 5 change, not a regression of the old "never shown"
-    // behavior this test used to assert.
-    expect(screen.getByText('MOCKED_ATHLETE_STATUS')).toBeInTheDocument();
-
-    expect(screen.getByText(/Riley Roster.s resolved week is not readable here yet/)).toBeInTheDocument();
-    expect(screen.getByText(/Riley Roster.s readiness band is not readable here yet/)).toBeInTheDocument();
+    const tile = screen.getByRole('link', { name: /Readiness/ });
+    // A fresh DB has no WHOOP data, so the band is the engine's own
+    // unknown state — never the mockup's hardcoded "Primed".
+    expect(tile).not.toHaveTextContent('Primed');
   });
 
-  it('shows live pending counts and the nutrition summary for a roster client, linked to the real screens', async () => {
+  it('switching clients swaps the tiles to that client to their own counts', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [ENGINE_LOCAL_CLIENT, ROSTER_CLIENT];
+    repo.progressionProposals = [
+      rosterProposal({ id: 'p1', domain: 'strength' }),
+      rosterProposal({ id: 'p2', domain: 'conditioning', clientKey: 'row_erg', subject: 'Row erg' }),
+    ];
+    await renderCommandCenter(repo);
+
+    // The mockup replaces the old chip strip with a <select>, so selection
+    // is driven by changing it — not by clicking a chip that no longer
+    // exists. Same behaviour asserted, new control.
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /client/i }), {
+        target: { value: ROSTER_CLIENT.id },
+      });
+    });
+
+    expect(screen.getByRole('link', { name: /Strength/ })).toHaveTextContent('1');
+    expect(screen.getByRole('link', { name: /Conditioning/ })).toHaveTextContent('1');
+  });
+
+  /*
+   * Adapted from the pre-redesign suite's "hides the local-only ... sections
+   * for a roster-summary client" test. The old markup had a resolved-week
+   * list and an operating-context section to hide; the new tile launcher has
+   * none of that below the tiles, so the equivalent claim is narrower and
+   * sharper: the Nutrition tile must show ROSTER data (their own days-logged
+   * count from the repository), never the signed-in athlete's own
+   * `nutritionReview.exceptions` count — the one nutrition read this file
+   * still makes directly from local stores.
+   */
+  it('shows a roster client their own nutrition summary, never the local athlete\'s exception count', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [ROSTER_CLIENT];
-    repo.progressionProposals = [
-      rosterProposal({ id: 'prop-1', domain: 'strength' }),
-      rosterProposal({ id: 'prop-2', domain: 'strength', clientKey: 'bench_press', subject: 'Bench press' }),
-      rosterProposal({ id: 'prop-3', domain: 'conditioning', clientKey: 'row_erg', subject: 'Row erg' }),
-    ];
     repo.nutritionSummary = { loggedDays: 4, windowDays: 7, trendDirection: 'stable', estimateConfidence: 'medium' };
     await renderCommandCenter(repo);
 
-    const strengthRow = screen.getByText('2 pending').closest('a');
-    expect(strengthRow).toHaveAttribute('href', '/coach/progression');
-    const conditioningRow = screen.getByText('1 pending').closest('a');
-    expect(conditioningRow).toHaveAttribute('href', '/coach/progression');
-    const nutritionRow = screen.getByText('4/7 days logged').closest('a');
-    expect(nutritionRow).toHaveAttribute('href', '/coach/nutrition');
+    const nutritionTile = screen.getByRole('link', { name: /Nutrition/ });
+    expect(nutritionTile).toHaveTextContent('4/7 days logged');
+    expect(nutritionTile).not.toHaveTextContent('exception');
 
-    // The stale static-snapshot phrasing is gone for roster clients.
-    expect(screen.queryByText(/completed in the current week/)).not.toBeInTheDocument();
+    // The readiness tile must not claim a band for a client this file has no
+    // authorised way to read a band for.
+    const readinessTile = screen.getByRole('link', { name: /Readiness/ });
+    expect(readinessTile).toHaveTextContent('unknown');
   });
 
-  it('renders the decision queue first in DOM order, ahead of the collapsed reference sections', async () => {
+  /*
+   * Finding 2 (fix-round 1): the earlier readiness tests only ever exercised
+   * an unseeded DB, whose real band ('unknown') is textually identical to
+   * the roster fallback — so they could not have caught a leak. This test
+   * seeds a real, non-'unknown' band for the signed-in athlete, confirms the
+   * seed actually took effect on their own tile, then switches to a roster
+   * client and asserts that value is nowhere on screen. Deleting the
+   * `isLocalClient` guard on `readinessBand` (CoachCommandCenter.tsx:115)
+   * makes this test fail — adversarially verified, see task-2-report.md.
+   */
+  it('never shows a roster client the signed-in athlete\'s real (non-placeholder) readiness band', async () => {
+    seedHighReadinessToday();
     const repo = new FakeCoachWorkspaceRepository();
-    repo.clients = [rosterClient({ source: 'engine-local', id: 'engine-local' })];
-    const { container } = await renderCommandCenter(repo);
-    const queueSection = container.querySelector('section[aria-labelledby="priority-title"]');
-    const overviewSection = container.querySelector('summary');
-    expect(queueSection).toBeInTheDocument();
-    expect(overviewSection).toBeInTheDocument();
-    // compareDocumentPosition: DOCUMENT_POSITION_FOLLOWING (4) means `overviewSection`
-    // comes AFTER `queueSection` in the document — true for every reader, not just
-    // a CSS `order` trick that only ever affected sighted, visual-order users.
-    expect(queueSection!.compareDocumentPosition(overviewSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
+    repo.clients = [ENGINE_LOCAL_CLIENT, ROSTER_CLIENT];
+    await renderCommandCenter(repo);
 
-  it('collapses the Overview and Three systems sections by default', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.clients = [rosterClient({ source: 'engine-local', id: 'engine-local' })];
-    const { container } = await renderCommandCenter(repo);
+    // Confirms the seed worked: the signed-in athlete's own tile carries the
+    // real, seeded band, not a fixture default that never leaves 'unknown'.
+    expect(screen.getByRole('link', { name: /Readiness/ })).toHaveTextContent('high');
 
-    const overviewSummary = screen.getByText('Overview');
-    expect(overviewSummary).toBeInTheDocument();
-    const overviewDetails = overviewSummary.closest('details');
-    expect(overviewDetails).not.toHaveAttribute('open');
-    expect(within(overviewDetails as HTMLElement).getByText('Strength')).not.toBeVisible();
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /client/i }), {
+        target: { value: ROSTER_CLIENT.id },
+      });
+    });
 
-    const systemsSummary = screen.getByText('Three systems');
-    const systemsDetails = systemsSummary.closest('details');
-    expect(systemsDetails).not.toHaveAttribute('open');
-
-    // The queue card itself is NOT a <details> — it's always open, unlike
-    // every CoachSection around it.
-    expect(container.querySelector('section[aria-labelledby="priority-title"]')?.tagName).not.toBe('DETAILS');
+    const readinessTile = screen.getByRole('link', { name: /Readiness/ });
+    expect(readinessTile).not.toHaveTextContent('high');
+    expect(readinessTile).toHaveTextContent('unknown');
   });
 });

@@ -62,32 +62,61 @@ Do not move recovery, pain or illness logic into a specialist engine. Do not
 use HRV as a pain, injury or illness gate. Pain and illness are safety flags,
 not ordinary readiness penalties.
 
-## The coach workspace is desktop-first, mobile is open for exploration (amended 9 August 2026)
+## The coach workspace is desktop-first, phone is a supported viewport (amended 11 August 2026)
 
 This rule used to read "WEB ONLY" — never ported, never designed at a phone
-viewport, full stop. That was true because it was never asked; it stops being
-true once a coach without a desktop is a real scenario. The wall moves, the
-principle behind it does not: judge the workspace at desktop width until a
-mobile design is actually approved, and don't let one surface's constraints
-leak into the other's code.
+viewport, full stop — then, on 9 August, loosened to "mobile is open for
+exploration": a phone layout could be designed and reviewed, but nothing
+built on it was approved yet, and `checks/screens.mjs` stayed athlete-only on
+purpose so a still-unapproved surface could not quietly grow a real check.
+The coach-workspace redesign
+(`docs/superpowers/specs/2026-08-11-coach-workspace-redesign-design.md`) is
+that exploration's outcome: the owner approved a phone layout for `/coach` on
+11 August 2026, stage 1 shipped it, and this section itself warned against
+leaving stale wording standing once the thing it described stopped being
+true. So the wall moves again — the principle behind it does not: everything
+under `/coach` is still composed and judged at desktop width first, and a
+phone claim is only real once a check, not a screenshot someone eyeballed
+once, can catch its regression.
 
-- `1440px` is still the build target and the default review width for every
-  route under `/coach`, `CoachWorkspaceRepository` and everything that
-  consumes it. Nothing here changes that.
-- A phone layout for the coach workspace is now in scope to explore — design,
-  mock up, and review at phone width — but it is exploration until a design is
-  explicitly approved for implementation. Do not port `CoachWorkspace`,
-  `CoachCommandCenter`, `CoachAccess`, `ArcCoachFrame` or any route under
-  `/coach` into `apps/mobile`, and do not wire up a live mobile build, without
-  that explicit approval.
-- `checks/screens.mjs` still shoots the athlete app only at 420px; do not add
-  coach routes to it until a mobile coach surface is actually approved and
-  built. (`apps/mobile/src/screens/nutrition/Coach.tsx` remains unrelated — the
-  athlete's own nutrition coach, not the coach bench.)
-- When a mobile design is approved, treat it the same as any other product
-  decision here: update this section with the real boundary (what ships on
-  mobile, what stays desktop-only, e.g. Nutrition's macro table and
-  WeekReview's ledger) rather than leaving the old absolute wording standing.
+- `1440px` remains the width the workspace is composed at and the default
+  review width for every route under `/coach`, `CoachWorkspaceRepository` and
+  everything that consumes it. Phone is a supported second viewport, not the
+  primary one — nothing here reverses that ordering.
+- Phone-width support is per-route, proven by `checks/screens.mjs`, not
+  claimed for the whole bench at once. As of stage 1 (11 August 2026) it
+  shoots five `/coach` routes at 420px and fails on horizontal overflow:
+  `/coach` (the Command Center launcher) and the four pillar screens,
+  `/coach/readiness`, `/coach/strength`, `/coach/conditioning`,
+  `/coach/nutrition`. All five hold at 420px with no overflow and no
+  screen-specific carve-out — the mockup's own responsive rules in
+  `coach-redesign.css` covered every pillar; the one repair this stage needed
+  was in `ArcCoachFrame.tsx` itself (a CSS Grid row-stretch bug inflating the
+  mobile hamburger bar into ~200px of dead space), not the mockup.
+  `/coach/library` and `/coach/settings` are NOT yet covered — they are
+  Stage 2 and Stage 3 work, not built as this redesign's pillars, and join
+  `checks/screens.mjs` when their own stage lands and is verified the same
+  way.
+- Nothing under `/coach` is named desktop-only yet, because nothing has
+  failed a phone check. `/coach/review/:weekStart` (WeekReview's ledger) and
+  the Library calendar tab are the anticipated candidates — both are dense,
+  wide tables — but neither is a stage-1 pillar, neither has been screenshot-
+  checked at 420px, and this section does not get to guess their outcome.
+  When Library and WeekReview are verified, if either genuinely cannot work
+  at phone width, it is named here explicitly with the reason, exactly as
+  this rule already requires — not left implied, and not assumed now.
+- Phone support here means the responsive WEB bench — `apps/web`'s own
+  `/coach` routes rendering usably down to a phone-width viewport. There is
+  no native mobile app in this repository to port into (`apps/mobile` was
+  deleted — commit `8628060`, "the PWA now covers everything it did"), so
+  there is no separate directory this approval could leak into today. If a
+  native coach surface is ever proposed again, that is its own product
+  decision requiring its own explicit approval — this amendment does not
+  imply or grant one.
+- When Library and Settings land their own stage, treat it the same as any
+  other product decision here: update this section with the real boundary
+  again — new routes covered, any confirmed desktop-only exception named —
+  rather than leaving this stage's wording standing once it is stale.
 
 ## Storage and release rules
 
@@ -112,11 +141,10 @@ EVERY test is colocated — there are no exceptions, including the coach bench
 and the `SB_E2E`-gated live backend round trip, which sits with the sync
 provider it drives.
 
-`test/` still exists in four projects and holds only things that are NOT tests:
-fixtures and golden vectors (`packages/engine/test/golden`,
-`packages/auto-coach/test/fixtures`, `packages/nutrition-engine/test/fixtures`)
-and the mobile Jest setup and stubs. If you find a `*.test.ts` under `test/`,
-it is in the wrong place.
+`test/` still exists in three projects and holds only things that are NOT
+tests: fixtures and golden vectors (`packages/engine/test/golden`,
+`packages/auto-coach/test/fixtures`, `packages/nutrition-engine/test/fixtures`).
+If you find a `*.test.ts` under `test/`, it is in the wrong place.
 
 Both trees are collected — `include`/`testMatch` name `src/**` AND `test/**` in
 every project. Do not "tidy" either half away: a test that stops being collected
@@ -149,5 +177,4 @@ pnpm run test
 pnpm run check:ecosystem
 pnpm --filter @hybrid/web build:strength
 pnpm --filter @hybrid/web build:conditioning
-pnpm --filter @hybrid/mobile typecheck
 ```
