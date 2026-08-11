@@ -1,4 +1,4 @@
-import { computeSetAdjustment } from './autoreg';
+import { computeSetAdjustment, deviationFelt, rpeCenterOf } from './autoreg';
 
 describe('computeSetAdjustment — E5 on-target hold', () => {
   it('a set exactly on target holds the weight, even off a non-plate load', () => {
@@ -30,5 +30,38 @@ describe('computeSetAdjustment — a missed set never rounds UP past the failed 
       verdict: 'missed the rep floor',
       cls: 'bad',
     });
+  });
+});
+
+describe('deviationFelt — the sets table\'s two-target rating', () => {
+  it('reads one RPE point either side of what the set was asked for', () => {
+    // Easier than asked reads BELOW the centre, which is what sends load up.
+    expect(deviationFelt({ rpe: '8' }, 'easier')).toBe(7);
+    expect(deviationFelt({ rpe: '8' }, 'harder')).toBe(9);
+  });
+
+  it('reads against a RANGE target by its centre, not by either end', () => {
+    // rpeCenterOf('7-9') is 8, so this must land on the same 7/9 as a flat 8.
+    expect(deviationFelt({ rpe: '7-9' }, 'easier')).toBe(7);
+    expect(deviationFelt({ rpe: '7-9' }, 'harder')).toBe(9);
+  });
+
+  it('falls back to the global centre when the set carries no target', () => {
+    expect(deviationFelt({ rpe: '' }, 'easier')).toBe(7.5);
+    expect(deviationFelt(null, 'harder')).toBe(9.5);
+  });
+
+  it('stays on the 1-10 scale', () => {
+    expect(deviationFelt({ rpe: '10' }, 'harder')).toBe(10);
+    expect(deviationFelt({ rpe: '1' }, 'easier')).toBe(1);
+  });
+
+  it('moves the weight by one point worth of load, and only when asked', () => {
+    // The whole point of the control: 100kg asked for at RPE 8, tapped
+    // "easier", is worth +2.5% — the same arithmetic every other caller gets.
+    const easier = computeSetAdjustment(5, deviationFelt({ rpe: '8' }, 'easier'), 5, 100, rpeCenterOf({ rpe: '8' }));
+    expect(easier.newWeight).toBe(102.5);
+    const harder = computeSetAdjustment(5, deviationFelt({ rpe: '8' }, 'harder'), 5, 100, rpeCenterOf({ rpe: '8' }));
+    expect(harder.newWeight).toBe(97.5);
   });
 });

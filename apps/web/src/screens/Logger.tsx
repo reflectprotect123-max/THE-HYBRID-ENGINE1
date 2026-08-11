@@ -7,6 +7,7 @@ import {
   computeSetAdjustment,
   curSetIndex,
   decideStrengthProgression,
+  deviationFelt,
   explainWorkingWeight,
   fmtRest,
   fmtRpe,
@@ -32,6 +33,7 @@ import {
   workingSetOrdinal,
   targetLine,
   todayRecovery,
+  type Deviation,
   type Exercise,
   type LoggedSet,
   type Session,
@@ -173,6 +175,29 @@ export function Logger() {
      compare against it. */
   const lastSets = useMemo(() => (ex ? lastTimeSets(ex.name, sessions) : []), [ex, sessions]);
 
+  /*
+   * What each row's kg column SUGGESTS — the ghost behind the input.
+   *
+   * This is `prefillPrimary` per row, which is how the table shows an
+   * adjustment without applying one. The one-set stage put that number IN the
+   * box; a table cannot, because a row's value is `aVal` and `aVal` means one
+   * thing only — what was actually entered. A suggestion sitting there would be
+   * indistinguishable from a logged value, which is the whole reason
+   * `prefillPrimary` documents itself as a read and not a write.
+   *
+   * So the suggestion goes where a suggestion belongs: the placeholder. Rate
+   * the set above with ↑/↓ and this is the number that moves, while the box
+   * stays empty until someone types in it. Proposed, never applied.
+   *
+   * Falls back to last time's weight for the same working set, which is what
+   * the ghost was before and is still the right answer when nothing today has
+   * anything to say.
+   */
+  const ghosts = useMemo(
+    () => (ex ? ex.sets.map((_, i) => prefillPrimary(ex, i, sessions, { settings, whoop })) : []),
+    [ex, sessions, settings, whoop],
+  );
+
   /* Where the prefilled weight came from. A number that appears in the box on
      its own is either trusted blindly or ignored; naming its origin — earned
      last session, and whether today's recovery eased it — is what makes it a
@@ -309,6 +334,37 @@ export function Logger() {
     const { next: dest, restSec } = advanceAfterSet(after, bi, ei);
     if (restSec > 0) rest.start(restSec);
     if (dest && (dest.bi !== bi || dest.ei !== ei)) goTo(dest);
+  }
+
+  /*
+   * Say how the set went, after it is already logged.
+   *
+   * The tick commits; this is the second, optional tap — "easier" or "harder
+   * than asked" — and it is the ONLY thing on this screen that writes `felt`.
+   * A set logged and left alone stays unrated on purpose: every engine reader
+   * treats an unwritten `felt` as no evidence, so the weight holds and nothing
+   * is banked. See `deviationFelt` for why filling in a centre instead would be
+   * worse than writing nothing at all.
+   *
+   * Tapping the same direction again clears the rating, because the only way to
+   * correct a mis-tap otherwise would be to un-tick the set and lose the reps
+   * and weight with it.
+   *
+   * Warm-ups are refused outright rather than hidden-and-refused: the engine
+   * ignores warm-up ratings everywhere, so a rating stored on one is a number
+   * that would display as data the athlete gave and change nothing.
+   */
+  function rateSet(idx: number, dir: Deviation) {
+    if (!s || !ex) return;
+    const target = ex.sets[idx];
+    if (!target || !target.done || isWarmup(target)) return;
+    const felt = fmtRpe(deviationFelt(target, dir));
+    updateSession(s.id, (ds) => {
+      const dst = (ds.blocks[bi] as StrengthBlock<LoggedSet>)?.exercises?.[ei]?.sets?.[idx];
+      if (!dst) return false;
+      dst.felt = dst.felt === felt ? undefined : felt;
+      ds.updatedAt = Date.now();
+    });
   }
 
   /*
@@ -561,7 +617,14 @@ export function Logger() {
             reps-and-kilos pair for columns, so those keep the one-set stage
             and the field that counts rather than is typed into. */}
         {lift ? (
-          <SetsTable ex={ex} lastSets={lastSets} onWrite={writeSetVal} onToggle={toggleSetDone} />
+          <SetsTable
+            ex={ex}
+            lastSets={lastSets}
+            ghosts={ghosts}
+            onWrite={writeSetVal}
+            onToggle={toggleSetDone}
+            onRate={rateSet}
+          />
         ) : (
           <Dots ex={ex} si={si} />
         )}
@@ -1112,9 +1175,18 @@ function LoggedList({ ex }: { ex: Exercise<LoggedSet> }) {
  * The tick is the whole commit. It marks the set done and nothing else, which
  * is the one real DEVIATION from what this app did before: the old flow forced
  * an RPE rating between finishing a set and it counting, and autoregulation
- * fed on that rating. Rating is now optional and lives behind the row (see
- * `rowRpe`), so a set can be logged in one tap the way the reference does, and
- * the athlete who wants the weight to move for them can still say how it felt.
+ * fed on that rating.
+ *
+ * Rating is now optional, and it is two targets rather than a slider — ↑ or ↓
+ * against what the set asked for, appearing under the row once it is ticked
+ * (`deviationFelt` is the rule they mean). One tap in the common case, two to
+ * autoregulate. A set left unrated holds its weight, which is not a gap: an
+ * unwritten `felt` is the engine's own way of saying nobody gave evidence, and
+ * inventing some would be worse than having none.
+ *
+ * What moves is the GHOST in the kg column of the sets below, never their
+ * values — the table proposes, and the athlete's typing is the only thing that
+ * ever fills a box.
  */
 function targetHint(st: LoggedSet): string {
   const raw = String(st.t || '').trim();
@@ -1127,13 +1199,17 @@ function targetHint(st: LoggedSet): string {
 function SetsTable({
   ex,
   lastSets,
+  ghosts,
   onWrite,
   onToggle,
+  onRate,
 }: {
   ex: Exercise<LoggedSet>;
   lastSets: { kg: number | null; reps: number }[];
+  ghosts: string[];
   onWrite: (idx: number, slot: 1 | 2, val: string) => void;
   onToggle: (idx: number) => void;
+  onRate: (idx: number, dir: Deviation) => void;
 }) {
   const allDone = ex.sets.length > 0 && ex.sets.every((st) => st.done);
   return (
@@ -1173,10 +1249,11 @@ function SetsTable({
                 inputMode="decimal"
                 value={String(st.aVal ?? '')}
                 onChange={(e) => onWrite(i, 1, e.target.value)}
-                /* Last time's weight for the SAME working set, as the ghost —
-                   the number you are actually chasing, rather than a repeat of
-                   the rep target already shown one column left. */
-                placeholder={last?.kg != null ? String(last.kg) : ''}
+                /* What this row SUGGESTS — the autoregulated number when a set
+                   above was rated, otherwise last time's weight for the same
+                   working set. A ghost rather than a value on purpose: see
+                   `ghosts` in Logger. */
+                placeholder={ghosts[i] || (last?.kg != null ? String(last.kg) : '')}
                 aria-label={`Kilograms for set ${i + 1}`}
                 className="h-6 w-full rounded-md border border-line2 bg-panel3 text-center text-6 font-[650] text-text placeholder:text-2 placeholder:font-[650] placeholder:text-dim"
               />
@@ -1191,6 +1268,44 @@ function SetsTable({
               >
                 ✓
               </button>
+
+              {/*
+                * How it went, asked only once it is already logged.
+                *
+                * A second row rather than two more columns: the row is
+                * `40px 1fr 1fr 44px` on a 420px screen and a fifth and sixth
+                * target would squeeze the two inputs the athlete actually types
+                * into. It appears on the tick, which is the moment the question
+                * makes sense, and never on a warm-up — the engine ignores
+                * warm-up ratings everywhere, so offering one would be offering
+                * a control that does nothing.
+                */}
+              {st.done && !isWarmup(st) ? (
+                <div className="col-span-4 -mt-0.5 flex items-center justify-end gap-1 pb-0.5">
+                  <span className="mr-auto pl-1 text-2 font-[650] text-dim">
+                    {st.felt ? `rated ${st.felt} — vs asked` : 'vs asked?'}
+                  </span>
+                  {(['easier', 'harder'] as const).map((dir) => {
+                    const on = !!st.felt && st.felt === fmtRpe(deviationFelt(st, dir));
+                    return (
+                      <button
+                        key={dir}
+                        onClick={() => onRate(i, dir)}
+                        aria-label={`Set ${i + 1} was ${dir} than asked`}
+                        aria-pressed={on}
+                        className={cx(
+                          'grid h-6 w-6 place-items-center rounded-pill text-6 transition-colors',
+                          on
+                            ? 'border border-gold-line bg-gold-wash text-gold2'
+                            : 'border border-line2 bg-panel2 text-dim',
+                        )}
+                      >
+                        {dir === 'easier' ? '↑' : '↓'}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
             </li>
           );
         })}

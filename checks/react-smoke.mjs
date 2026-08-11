@@ -223,6 +223,15 @@ await t('a warm-up logs in one tap, records no felt RPE, and does NOT move the w
   assert(after.done === true, 'the warm-up set should be logged by the tick alone');
   assert(after.felt === undefined, 'a set logged from the table must record no felt RPE, got: ' + after.felt);
   assert(!after.next, 'the warm-up moved the working set: ' + after.next);
+  // Not on screen either: the ghost in the kg column is `prefillPrimary`, whose
+  // `same` guard refuses to carry a warm-up across to a working set. 40 turning
+  // up there would be the leak arriving by the front door instead.
+  const nextGhost = await page.$eval('input[aria-label="Kilograms for set 2"]', (n) => n.placeholder);
+  assert(nextGhost === '', 'the warm-up was offered as the working set\'s ghost: ' + nextGhost);
+  // And a warm-up is never asked how it went — the engine ignores warm-up
+  // ratings, so the control is not offered rather than offered and discarded.
+  const warmRating = await page.$('button[aria-label="Set 1 was easier than asked"]');
+  assert(!warmRating, 'a warm-up was offered the deviation control');
 });
 
 await t('the lift table rests behind the floating chip, and nothing regressed to title-case', async () => {
@@ -252,37 +261,26 @@ await t('the lift table rests behind the floating chip, and nothing regressed to
   assert(!txt.includes('Skip Rest'), 'a rest control regressed to title-case "Skip Rest"');
 });
 
-await t('a working set is logged from the table unrated, and moves nothing on its own', async () => {
+await t('a working set is logged unrated and holds, and rating it PROPOSES the next weight without applying it', async () => {
   /*
-   * This scenario used to rate the set (RPE 6.5 against a target of 8) and
-   * assert two things about the 105kg that falls out of it: that the Logger
-   * SAID it, and that it had not WRITTEN it onto Set 3.
+   * The table logs in one tap and asks nothing, so a set starts life UNRATED —
+   * and an unrated set is the engine saying nobody gave evidence, not saying
+   * the set was fine. It holds its weight. That is the first half here.
    *
-   * Neither half is reachable from the table, and not for the reason the
-   * inversion this was scoped for assumed. Commit 09ee281 did change
-   * `prefillPrimary` so a RATED previous set moves the next set's weight
-   * rather than repeating it — but `prefillPrimary` feeds `v1`, and `v1` is
-   * only rendered by the one-set stage. The table binds each row straight to
-   * its own `st.aVal` and prefills nothing; last time's weight is offered as
-   * the ghost placeholder instead. Verified directly: with a previous set
-   * sitting done at 100kg and `felt: '6.5'`, the next row's value AND its
-   * placeholder both come up empty.
+   * The second half is the ↑/↓ pair that appears under a ticked row.
+   * "Easier than asked" reads one RPE point under this set's own target
+   * (`deviationFelt`), and 100kg at a target of 8 rated 7 is
+   * 100 × (1 + (8 − 7) × 2.5/100) = 102.5 — the same arithmetic the golden
+   * vectors pin all 672 combinations of.
    *
-   * And the rating that would drive it cannot be given here anyway — the ↑/↓
-   * deviation control on the tick is not built, so every set the table logs is
-   * unrated, and an unrated set holds its weight by `prefillPrimary`'s own
-   * rule. So the adjusted weight is not observable through this screen in
-   * either direction until that control ships; the arithmetic itself
-   * (100 → 105, and all 672 golden-vector combinations of it) is pinned in
-   * `packages/engine/src/parity.test.ts` under 'prefill autoregulates from a
-   * rated previous set', which is where it is actually still exercised.
-   *
-   * What is left, and what this now pins, is the table's own contract: the
-   * tick stores what was typed, records no rating, and touches no other set.
-   * The last of those is still `checks/coach-contract.mjs` rule 7 — a
-   * completed set is an actual, and turning an actual straight into the next
-   * prescription collapses actual, proposal and coach decision into one
-   * invisible mutation. The table satisfies it by proposing nothing at all.
+   * Where that number lands is the point. `checks/coach-contract.mjs` rule 7
+   * forbids turning an athlete actual straight into the next prescription: a
+   * completed set is an actual, and writing its consequence onto a future set
+   * collapses actual, proposal and coach decision into one invisible mutation.
+   * Increases are approval-only in v1. The table honours that by moving the
+   * GHOST and never the value — the suggestion is visible in the placeholder,
+   * and the box stays empty until a human types in it. So this asserts both
+   * halves, exactly as it always did, at the place the table now says it.
    */
   const skip = await page.$('button:has-text("Skip")');
   if (skip) await skip.click();
@@ -297,14 +295,23 @@ await t('a working set is logged from the table unrated, and moves nothing on it
   });
   assert(state.logged.done === true, 'set 2 not marked done');
   assert(state.logged.aVal === '100' && state.logged.aVal2 === '5', 'values not stored: ' + JSON.stringify(state.logged));
-  assert(state.logged.felt === undefined, 'the table rated a set it has no control to rate with: ' + state.logged.felt);
-  assert(!state.next, 'logging Set 2 wrote onto Set 3 (' + state.next + ') — the table may not move another set');
-  // Nothing on screen either: no value, and no ghost, since Back Squat has no
-  // completed session behind it yet to have left one.
-  const nextShown = await page.inputValue('input[aria-label="Kilograms for set 3"]');
-  const nextGhost = await page.$eval('input[aria-label="Kilograms for set 3"]', (n) => n.placeholder);
-  assert(nextShown === '', 'Set 3 was prefilled with a weight nobody typed: ' + nextShown);
-  assert(nextGhost === '', 'Set 3 showed a ghost with no completed history to draw one from: ' + nextGhost);
+  assert(state.logged.felt === undefined, 'the tick rated a set on the athlete\'s behalf: ' + state.logged.felt);
+  assert(!state.next, 'logging Set 2 wrote onto Set 3 (' + state.next + ')');
+  // Unrated: Set 3 is offered the same weight back, as a ghost.
+  const heldGhost = await page.$eval('input[aria-label="Kilograms for set 3"]', (n) => n.placeholder);
+  assert(heldGhost === '100', 'an unrated set should hold its weight for the next one, ghost read: ' + heldGhost);
+
+  // Now say it was easier than asked. Two taps total to autoregulate.
+  await page.click('button[aria-label="Set 2 was easier than asked"]');
+  const rated = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('hybrid-engine-v1')).sessions[0].blocks[0].exercises[0].sets,
+  );
+  assert(rated[1].felt === '7', 'the ↑ target did not record a rating one point under the target, got: ' + rated[1].felt);
+  const movedGhost = await page.$eval('input[aria-label="Kilograms for set 3"]', (n) => n.placeholder);
+  const movedValue = await page.inputValue('input[aria-label="Kilograms for set 3"]');
+  assert(movedGhost === '102.5', 'the autoregulated weight is not proposed to the athlete, ghost read: ' + movedGhost);
+  assert(movedValue === '', 'the Logger APPLIED progression onto Set 3 — it may only propose it');
+  assert(!rated[2].aVal, 'the Logger wrote the adjusted weight onto Set 3: ' + rated[2].aVal);
 });
 
 await t('the rest timer survives a reload', async () => {
