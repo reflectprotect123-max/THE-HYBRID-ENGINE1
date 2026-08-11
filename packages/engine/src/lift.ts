@@ -1,8 +1,8 @@
 import { AUTOREG, RECOVERY_BANDS } from './constants';
-import { computeSetAdjustment, isWarmup, repFloorOf, rpeCenterOf } from './autoreg';
+import { computeSetAdjustment, isWarmup, loadPctOf, repFloorOf, rpeCenterOf } from './autoreg';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
-import { blockExercises, isLiftMode, isWarmupBlock } from './session';
+import { blockExercises, exBest, isLiftMode, isWarmupBlock } from './session';
 import type { AnySet, Block, LiftState, LoggedSet, Session, Settings, WhoopSample } from './types';
 
 /*
@@ -133,6 +133,41 @@ export function liftAdapt(
   });
 
   return { liftProgress: out };
+}
+
+/**
+ * A load target authored as a percentage of e1RM, resolved into kilos.
+ *
+ * THE PRECEDENCE RULE, which is the whole reason this exists. There are two
+ * ways a load can be decided — a percentage somebody wrote for this set, and
+ * the absolute weight the athlete earned in `liftProgress` — and two sources of
+ * truth for one number is exactly how the logger's hint and its box came to
+ * disagree. So:
+ *
+ *   1. What happened TODAY wins. `prefillPrimary` scans back to an earlier set
+ *      of the same exercise first, and that scan is untouched: a percentage is
+ *      a plan, a set you already did is a fact. Autoregulation keeps working
+ *      inside a %-authored exercise exactly as it does anywhere else.
+ *   2. Failing that, an authored percentage beats the earned weight. Somebody
+ *      wrote it for THIS set; `liftProgress` is what the app inferred. It is
+ *      the same precedence the rep target in `t` already has — what you did
+ *      last time never overrides the reps you were asked for, and load is not
+ *      a special case.
+ *   3. Failing that — no percentage, or nothing to resolve one against — the
+ *      earned weight, which is today's behaviour unchanged.
+ *
+ * Resolved through `exBest`, the same e1RM the Progress chart and the PR
+ * detector read, so a percentage cannot mean one thing here and another three
+ * screens away. Returns 0 when there is no e1RM yet: a first session has
+ * nothing to take a percentage OF, and guessing would put a number under a
+ * barbell on no evidence at all.
+ */
+export function prescribedKg(name: string, t: string | undefined, sessions: Session[] = []): number {
+  const pct = loadPctOf(t);
+  if (pct == null) return 0;
+  const best = exBest(name, sessions);
+  if (!best || !(best.e1 > 0)) return 0;
+  return roundToIncrement((best.e1 * pct) / 100, AUTOREG.plateIncrement);
 }
 
 export interface WorkingWeight {

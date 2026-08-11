@@ -122,6 +122,32 @@ export function computeSetAdjustment(
 }
 
 /**
+ * A load written into the target as a percentage of the athlete's e1RM:
+ * "5 @80%" is five reps at eighty percent.
+ *
+ * It rides in `t`, behind an `@`, for the same reason `W` does — a planned
+ * set's shape is contractual and two suites assert it is exactly `{t, rpe}`,
+ * so a third field is not available. The `@` is required rather than optional:
+ * a bare "80%" in a rep target would be read as a rep count by `repFloorOf`,
+ * which takes the first number it finds, and a rep floor of eighty would score
+ * every set as a miss and drive the weight into the floor.
+ *
+ * Reps are still written FIRST for the same reason. "5 @80%" parses as five
+ * reps; "@80%" alone has no rep target and no floor, which is legal and means
+ * exactly what it says.
+ *
+ * Above 200% is refused as a typo rather than honoured — nobody prescribes
+ * three times their one-rep max, and "1000%" from a slipped keypress would
+ * otherwise resolve to a real number and put it in front of someone.
+ */
+export function loadPctOf(t: string | undefined): number | null {
+  const m = String(t || '').match(/@\s*(\d+(?:\.\d+)?)\s*%/);
+  if (!m) return null;
+  const pct = Number(m[1]);
+  return pct > 0 && pct <= 200 ? pct : null;
+}
+
+/**
  * The rep floor a target implies. "5" → 5; "8-10" → 8; "max"/"" → 0 (no floor,
  * so nothing can be "missed").
  *
@@ -130,8 +156,21 @@ export function computeSetAdjustment(
  * a set that missed by two reps as having made it — which adds load.
  */
 export function repFloorOf(t: string | undefined): number {
-  const m = String(t || '').match(/(\d+)/);
+  const m = withoutLoad(t).match(/(\d+)/);
   return m ? +m[1] : 0;
+}
+
+/**
+ * The target with any `@N%` load chunk taken out, so the rep parsers below only
+ * ever see reps.
+ *
+ * Both of them take the FIRST number they find, so "@80%" alone would read as a
+ * rep floor of eighty — scoring every set as a missed one and walking the
+ * weight down. Stripping is safe by construction: `@` never appeared in a rep
+ * target before `loadPctOf` gave it a meaning.
+ */
+function withoutLoad(t: string | undefined): string {
+  return String(t || '').replace(/@\s*\d+(?:\.\d+)?\s*%/g, ' ');
 }
 
 /**
@@ -140,7 +179,7 @@ export function repFloorOf(t: string | undefined): number {
  * "5" → "5"; "max"/"" → "" (nothing to suggest).
  */
 export function repTopOf(t: string | undefined): string {
-  const s = String(t || '');
+  const s = withoutLoad(t);
   const r = s.match(/(\d+)\s*[-–]\s*(\d+)/);
   if (r) return r[2];
   const m = s.match(/(\d+)/);

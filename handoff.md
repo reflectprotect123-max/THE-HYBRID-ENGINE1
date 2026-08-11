@@ -131,11 +131,36 @@ Recommended: add it per-EXERCISE, not as a 7th per-set column (the set row is
 planned RPE as the measurement. `eff === center` makes the multiplier exactly 1
 and the weight freezes permanently — `lift.ts:96` documents this.
 
-**`weight_pct` (% of e1RM).** The new builder has it; the engine has no %1RM
-authoring and works in absolute kg off `liftProgress`. That is a second source
-of truth for load and will disagree the same way the hint and the box did,
-unless given an explicit precedence rule. Nothing depends on it yet — settle it
-before either gets built.
+**`weight_pct` (% of e1RM). SETTLED — `prescribedKg` in `lift.ts` is the rule,
+executable rather than prose.**
+
+1. What happened TODAY wins. `prefillPrimary`'s scan back through this
+   exercise's own earlier sets runs first and is untouched — a percentage is a
+   plan, a set you already did is a fact. Autoregulation keeps working inside a
+   %-authored exercise exactly as it does anywhere else.
+2. Failing that, an authored percentage beats the earned weight in
+   `liftProgress`. Somebody wrote it for THIS set; `liftProgress` is what the
+   app inferred. It is the same precedence the rep target in `t` already has.
+3. Failing that — no percentage, or no e1RM to resolve one against — the earned
+   weight. Today's behaviour, unchanged.
+
+It resolves through `exBest`, the same e1RM the Progress chart and the PR
+detector read, so a percentage cannot mean one thing on the logger and another
+three screens away, and it reaches the athlete as the kg column's GHOST — a
+proposal, never a value.
+
+Authored as `@80%` inside `t` ("5 @80%"), because `PlannedSet` is contractually
+`{t, rpe}` and two suites assert it, so a third field was not available — the
+same reason `W` rides there. The `@` is REQUIRED: `repFloorOf` takes the first
+number it finds, so a bare "80%" would also read as a rep floor of eighty and
+score every set as a miss. Reps are written first, and `repFloorOf`/`repTopOf`
+strip the load chunk before parsing. When the new builder's `weight_pct` column
+lands it should serialise into exactly this rather than invent a parallel
+representation — that parallel is the second source of truth the rule exists to
+prevent.
+
+A coach can author it today in the Planner's free-text target field; there is
+no dedicated control for it yet, and that belongs with the new builder.
 
 ## Also worth knowing
 

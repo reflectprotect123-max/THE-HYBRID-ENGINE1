@@ -1189,7 +1189,11 @@ function LoggedList({ ex }: { ex: Exercise<LoggedSet> }) {
  * ever fills a box.
  */
 function targetHint(st: LoggedSet): string {
-  const raw = String(st.t || '').trim();
+  /* An authored "@80%" is a LOAD, and this is the ghost for the reps column.
+     It reaches the athlete already resolved into kilos, in the kg column's own
+     ghost (`prescribedKg`), so echoing it here would put the same instruction
+     in two places and put it in the wrong one. */
+  const raw = String(st.t || '').replace(/@\s*\d+(?:\.\d+)?\s*%/g, ' ').trim();
   if (!raw) return '';
   /* "W10" is a warm-up marked in the target itself; the W is a flag for the
      engine, not something to echo into an input the athlete types reps into. */

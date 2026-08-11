@@ -1,5 +1,5 @@
 import { computeSetAdjustment, isWarmup, repFloorOf, repTopOf, rpeCenterOf } from './autoreg';
-import { nextWorkingWeight } from './lift';
+import { nextWorkingWeight, prescribedKg } from './lift';
 import { saneKg } from './num';
 import { blockExercises, isCond, isLiftMode, isText } from './session';
 import type { AnySet, Block, Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
@@ -230,6 +230,18 @@ export function prefillPrimary(
     // the exact contamination the `same` guard exists to stop, and it would
     // arrive here through the front door.
     if (!warm) {
+      /*
+       * An authored percentage beats the earned weight, and loses to anything
+       * already done today — the scan above ran first and returned if it found
+       * one. `prescribedKg` documents the whole precedence rule and is the only
+       * place it is decided; this is just where the ladder reads it.
+       *
+       * It returns 0 when there is no e1RM to take a percentage of, which falls
+       * through to the earned weight rather than putting a guess on the bar.
+       */
+      const asked = prescribedKg(ex.name, st.t, sessions);
+      if (asked > 0) return String(asked);
+
       const w = nextWorkingWeight(ex.name, ctx.settings, ctx.whoop);
       if (w) return String(w.kg);
     }
