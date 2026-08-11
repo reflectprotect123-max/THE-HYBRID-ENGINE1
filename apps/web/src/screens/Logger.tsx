@@ -27,10 +27,14 @@ import {
   saneKg,
   sessionLetters,
   sessionProgress,
+  sessionVolume,
+  lastTimeSets,
+  workingSetOrdinal,
   targetLine,
   todayRecovery,
   type Exercise,
   type LoggedSet,
+  type Session,
   type StrengthBlock,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
@@ -620,6 +624,71 @@ export function Logger() {
   );
 }
 
+/*
+ * The session bar: elapsed time, work done so far, and every set in the whole
+ * session as a row of dots.
+ *
+ * Modelled on the reference logger's top bar. It answers "how long have I been
+ * here and how much have I done" without leaving the exercise — questions the
+ * progress percentage alone could not, because a percentage says nothing about
+ * whether the last forty minutes produced two sets or twenty.
+ *
+ * The clock ticks off `startedAt` rather than counting up from mount: the tab
+ * gets reclaimed mid-session on a phone, and a counter that restarts at zero
+ * when the screen comes back is worse than no counter at all.
+ */
+function SessionStats({ s, prog }: { s: Session; prog: { done: number; total: number; pct: number } }) {
+  const startedAt = Number(s.startedAt) || 0;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!startedAt) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+
+  const elapsed = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : null;
+  const hh = elapsed == null ? null : String(Math.floor(elapsed / 3600)).padStart(2, '0');
+  const mm = elapsed == null ? null : String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+  const ss = elapsed == null ? null : String(elapsed % 60).padStart(2, '0');
+
+  /* Reps and volume across the WHOLE session, warm-ups included — this is a
+     "what have I done today" readout, not the training record, and a warm-up
+     set is still work the athlete did. `sessionVolume` is the record's own
+     answer for kg and is reused rather than recomputed. */
+  const reps = useMemo(() => {
+    let n = 0;
+    for (const b of s.blocks) {
+      if (isCond(b) || isText(b)) continue;
+      for (const e of blockExercises(b as StrengthBlock<LoggedSet>)) {
+        for (const st of e.sets) if (st.done) n += parseInt(String(st.aVal2), 10) || 0;
+      }
+    }
+    return n;
+  }, [s]);
+  const kg = useMemo(() => sessionVolume(s), [s]);
+
+  return (
+    <div className="border-b border-line pb-1">
+      <div className="flex items-start gap-1">
+        <div className="num flex flex-1 items-baseline gap-1.5">
+          <span className="text-7 font-[800]">{reps.toLocaleString()}</span>
+          <span className="text-2 font-[750] uppercase tracking-[.1em] text-dim">reps</span>
+          <span className="ml-1 text-7 font-[800]">{kg.toLocaleString()}</span>
+          <span className="text-2 font-[750] uppercase tracking-[.1em] text-dim">kg</span>
+        </div>
+        {elapsed != null ? (
+          <span className="num shrink-0 text-5 font-[750]" style={{ color: "var(--color-neon-strain)" }}>
+            {hh}:{mm}:{ss}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-1">
+        <Meter pct={prog.pct} />
+      </div>
+    </div>
+  );
+}
+
 function Dots({ ex, si }: { ex: Exercise<LoggedSet>; si: number }) {
   return (
     <div className="mt-1.5 flex gap-0.5" aria-hidden>
@@ -903,5 +972,110 @@ function LoggedList({ ex }: { ex: Exercise<LoggedSet> }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/*
+ * Every set of this exercise at once, editable in place — the reference
+ * logger's table.
+ *
+ * This replaces a stage that showed ONE set and hid the rest behind it. The
+ * difference is not cosmetic: mid-exercise you want to see what you have
+ * already put on the bar and what is still coming, and a one-set stage makes
+ * that a memory exercise. Reps sit left of weight because that is the order the
+ * prescription is read in ("3 x 6-8 @ 100"), not the order the old stage
+ * happened to stack them.
+ *
+ * Every keystroke writes straight through to the session, exactly as the single
+ * set stage did — stepping off the screen, the tab being reclaimed between
+ * sets, or a reload must not cost a number already typed.
+ *
+ * The tick is the whole commit. It marks the set done and nothing else, which
+ * is the one real DEVIATION from what this app did before: the old flow forced
+ * an RPE rating between finishing a set and it counting, and autoregulation
+ * fed on that rating. Rating is now optional and lives behind the row (see
+ * `rowRpe`), so a set can be logged in one tap the way the reference does, and
+ * the athlete who wants the weight to move for them can still say how it felt.
+ */
+function targetHint(st: LoggedSet): string {
+  const raw = String(st.t || '').trim();
+  if (!raw) return '';
+  /* "W10" is a warm-up marked in the target itself; the W is a flag for the
+     engine, not something to echo into an input the athlete types reps into. */
+  return isWarmup(st) ? raw.replace(/^W/i, '') : raw;
+}
+
+function SetsTable({
+  ex,
+  lastSets,
+  onWrite,
+  onToggle,
+}: {
+  ex: Exercise<LoggedSet>;
+  lastSets: { kg: number | null; reps: number }[];
+  onWrite: (idx: number, slot: 1 | 2, val: string) => void;
+  onToggle: (idx: number) => void;
+}) {
+  const allDone = ex.sets.length > 0 && ex.sets.every((st) => st.done);
+  return (
+    <div className="mt-2">
+      <div className="grid grid-cols-[28px_1fr_1fr_44px] items-center gap-1 px-0.5 pb-0.5 text-2 font-[750] uppercase tracking-[.1em] text-dim">
+        <span>Sets</span>
+        <span>Reps</span>
+        <span>Kg</span>
+        <button
+          onClick={() => ex.sets.forEach((st, i) => (allDone ? st.done && onToggle(i) : !st.done && onToggle(i)))}
+          aria-label={allDone ? 'Un-tick every set' : 'Tick every set'}
+          aria-pressed={allDone}
+          className={cx(
+            'grid h-4 w-4 place-items-center justify-self-end rounded-pill text-4 transition-colors',
+            allDone ? "border border-done-line bg-done-bg text-done-ink" : "border border-line2 bg-panel2 text-dim",
+          )}
+        >
+          ✓✓
+        </button>
+      </div>
+
+      <ul className="flex flex-col gap-1">
+        {ex.sets.map((st, i) => {
+          const last = lastSets[workingSetOrdinal(ex.sets, i)];
+          return (
+            <li key={i} className="grid grid-cols-[28px_1fr_1fr_44px] items-center gap-1">
+              <span className="num text-5 text-dim">{i + 1}</span>
+              <input
+                inputMode="numeric"
+                value={String(st.aVal2 ?? '')}
+                onChange={(e) => onWrite(i, 2, e.target.value)}
+                placeholder={targetHint(st)}
+                aria-label={`Reps for set ${i + 1}`}
+                className="h-6 w-full rounded-md border border-line2 bg-panel3 text-center text-6 font-[650] text-text placeholder:text-2 placeholder:font-[650] placeholder:text-dim"
+              />
+              <input
+                inputMode="decimal"
+                value={String(st.aVal ?? '')}
+                onChange={(e) => onWrite(i, 1, e.target.value)}
+                /* Last time's weight for the SAME working set, as the ghost —
+                   the number you are actually chasing, rather than a repeat of
+                   the rep target already shown one column left. */
+                placeholder={last?.kg != null ? String(last.kg) : ''}
+                aria-label={`Kilograms for set ${i + 1}`}
+                className="h-6 w-full rounded-md border border-line2 bg-panel3 text-center text-6 font-[650] text-text placeholder:text-2 placeholder:font-[650] placeholder:text-dim"
+              />
+              <button
+                onClick={() => onToggle(i)}
+                aria-label={`${st.done ? 'Un-log' : 'Log'} set ${i + 1}`}
+                aria-pressed={!!st.done}
+                className={cx(
+                  'grid h-6 w-6 place-items-center justify-self-end rounded-pill text-6 transition-colors',
+                  st.done ? 'border border-done-line bg-done-bg text-done-ink' : 'border border-line2 bg-panel2 text-dim',
+                )}
+              >
+                ✓
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
