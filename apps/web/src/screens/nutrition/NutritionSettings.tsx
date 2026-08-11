@@ -8,10 +8,12 @@ import { Card, Kicker, ScreenTitle, SectionHead } from '../../ui';
  * `NutritionSettingsScreen` (`apps/mobile/src/screens/nutrition/NutritionSettings.tsx`).
  *
  * A SEPARATE screen from the training Settings, not the same one re-themed.
- * That screen (`apps/web/src/screens/Settings.tsx`, if/when it exists on web)
- * is training-only controls, and the sealed-worlds rule says a training
- * surface must not be reachable from here. What both worlds genuinely share
- * is the way out, so `WorldSwitch` is the first thing on it.
+ * That screen (`apps/web/src/screens/Settings.tsx`) is training-only
+ * controls, and the sealed-worlds rule says a training surface must not be
+ * reachable from here. What both worlds genuinely share is the way across,
+ * so `WorldSwitch` is the first thing on it — the same shared component also
+ * renders on the training Settings screen, reading `useDiscipline()` to
+ * offer the opposite direction there.
  *
  * Sign-in and cloud sync stay off this screen for the same reason mobile's
  * does: they are account-level, already reachable one tap/click away through

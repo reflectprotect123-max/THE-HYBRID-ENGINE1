@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { __resetDisciplineForTest, setDiscipline } from '../../discipline';
 import { NutritionProvider } from '../../store/nutrition';
 import { NutritionSettings } from './NutritionSettings';
 
@@ -10,10 +11,16 @@ import { NutritionSettings } from './NutritionSettings';
  * (`apps/mobile/src/screens/nutrition/NutritionSettings.tsx`): a SEPARATE
  * screen from the training Settings, with `WorldSwitch` as the way out and a
  * live-entries/days summary of the athlete's own food log.
+ *
+ * `WorldSwitch` targets "the world that isn't current", so these tests set
+ * the discipline to 'nutrition' first, the same way the app itself only ever
+ * reaches this screen once the nutrition world is already active.
  */
 
 beforeEach(() => {
   localStorage.clear();
+  __resetDisciplineForTest();
+  setDiscipline('nutrition');
 });
 
 describe('NutritionSettings', () => {

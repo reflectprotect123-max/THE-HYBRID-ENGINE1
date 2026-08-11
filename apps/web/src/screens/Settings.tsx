@@ -20,6 +20,7 @@ import { useWhoop } from '../cloud/whoop';
 import { useConcept2 } from '../cloud/concept2';
 import { Button, Card, Kicker, ScreenTitle, SectionHead } from '../ui';
 import { humanizeError } from '../errors';
+import { WorldSwitch } from '../components/WorldSwitch';
 
 /*
  * Settings is short on purpose. The only values here are the ones that change
@@ -98,6 +99,8 @@ export function Settings() {
     <>
       <Kicker>Settings</Kicker>
       <ScreenTitle>Your numbers</ScreenTitle>
+
+      <WorldSwitch />
 
       {saveFailed ? (
         <Card className="mt-2 border-bad/40 bg-bad/10">
