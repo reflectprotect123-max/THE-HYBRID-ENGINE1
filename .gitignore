@@ -44,6 +44,9 @@ apps/*/vite.config.js
 # Screenshot output from checks/screens.mjs — regenerated, never committed.
 .screens/
 
+# Screenshot output from checks/artifact-smoke.mjs — same deal.
+.artifact-screens/
+
 # Python bytecode from the vendored skill scripts in .claude/skills/.
 # The scripts are stdlib-only and run in place, so CPython writes __pycache__
 # next to them the first time a skill invokes one. Artefacts, never sources.

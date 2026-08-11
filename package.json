@@ -16,7 +16,10 @@
     "smoke:deploy": "node checks/deploy-smoke.mjs",
     "verify": "pnpm run typecheck && pnpm run test && pnpm run check:ecosystem && pnpm run build:site && pnpm run check:csp && pnpm run smoke && pnpm run smoke:deploy",
     "dev:web": "pnpm --filter @hybrid/web dev",
-    "build:site": "pnpm run build && node scripts/build-site.mjs"
+    "build:site": "pnpm run build && node scripts/build-site.mjs",
+    "build:artifact": "node scripts/build-artifact.mjs hybrid",
+    "build:artifact:conditioning": "node scripts/build-artifact.mjs conditioning",
+    "check:artifact": "node checks/artifact-smoke.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9"
