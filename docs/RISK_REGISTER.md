@@ -317,7 +317,10 @@ was never granted it.
 
 Deleted 11 August 2026 alongside `CoachNutrition.tsx` itself, as part of the
 Stage-1 coach redesign's accepted roster-nutrition regression (see
-`docs/superpowers/sdd/2026-08-11-coach-redesign-stage1/task-6-report.md`): the
+`docs/superpowers/plans/2026-08-11-coach-redesign-stage1.md`, "Task 6:
+Nutrition pillar, replacing CoachNutrition" — the previous citation here
+pointed into `docs/superpowers/sdd/…`, a directory that does not exist and
+never will, since `.superpowers/` is untracked): the
 Nutrition pillar that replaces it (`apps/web/src/coach/pillars/Nutrition.tsx`)
 reads local stores only and is BLOCKED for a roster client by
 `ClientDetailGate`, so `hasNutritionGrant`/`getNutritionWindow` are composed by
