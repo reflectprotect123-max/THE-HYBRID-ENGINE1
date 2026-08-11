@@ -270,11 +270,24 @@ console.log('Coach surface contract\n');
  * why a disclosure banner a coach can act past is not a guard).
  *
  * CoachCommandCenter is the one screen that is NOT fully behind that gate —
- * its client-overview sections are meant to render for every client — so its
- * two sections that read local athlete state directly (the resolved week,
- * and readiness/capacity/trends) are checked individually: each risky read
- * must sit close enough after the literal token `isLocalClient` in the source
- * that removing the gate is the only way to make this check pass again.
+ * its client-overview tiles are meant to render for every client — so the
+ * reads it makes directly from local stores are checked individually: each
+ * risky read must sit close enough after the literal token `isLocalClient` in
+ * the source that removing the gate is the only way to make this check pass
+ * again.
+ *
+ * Stage-1 coach redesign (2026-08-11): the Command Center was rewritten from
+ * a full dashboard into a four-tile launcher. The resolved-week list and the
+ * `<AthleteStatus>` operating-context section it used to render moved out of
+ * this file entirely — into the Readiness/Strength/Conditioning/Nutrition
+ * pillar screens, which sit behind `ClientDetailGate` (see the `gatedPaths`
+ * check above once Task 7 registers them), a stronger guarantee than this
+ * heuristic. `<AthleteStatus` and `weeklyPlan.entries.map` are gone from this
+ * file rather than renamed, so they are gone from the marker list too. What
+ * remains here — and is still checked — are the two local-only reads the
+ * tiles themselves make: the readiness band, and the nutrition exception
+ * count (`nutritionReview` comes from the signed-in account's own
+ * `useNutrition()`, exactly like `athleteState` does from `useDb()`).
  * ------------------------------------------------------------------------- */
 {
   const routerFile = 'apps/web/src/coach/index.tsx';
@@ -295,7 +308,7 @@ console.log('Coach surface contract\n');
   const ccFile = 'apps/web/src/coach/CoachCommandCenter.tsx';
   const cc = code(resolve(ROOT, ccFile));
   const GUARD = 'isLocalClient';
-  const riskyMarkers = ['<AthleteStatus', 'weeklyPlan.entries.map', 'athleteState.readiness.band'];
+  const riskyMarkers = ['athleteState.readiness.band', 'nutritionReview.exceptions'];
   const unguarded = riskyMarkers.filter((marker) => {
     const at = cc.indexOf(marker);
     if (at === -1) return true; // moved or renamed — fail closed, do not silently pass
