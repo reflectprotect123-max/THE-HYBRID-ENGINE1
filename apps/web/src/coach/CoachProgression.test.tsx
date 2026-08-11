@@ -202,9 +202,8 @@ describe('CoachProgression (roster)', () => {
  * through.
  */
 describe('CoachProgression (self-coach)', () => {
-  it('redirects a local (self-coach) client to /coach/strength instead of rendering a ledger here', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    renderCoachScreen(
+  function renderAt(repo: FakeCoachWorkspaceRepository) {
+    return renderCoachScreen(
       <DbProvider>
         <MemoryRouter initialEntries={['/coach/progression']}>
           <Routes>
@@ -215,9 +214,37 @@ describe('CoachProgression (self-coach)', () => {
       </DbProvider>,
       { repository: repo },
     );
+  }
+
+  it('redirects a local (self-coach) client to /coach/strength instead of rendering a ledger here', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ id: 'engine-local', name: 'Alex Morgan', source: 'engine-local' })];
+    renderAt(repo);
     await act(async () => {});
 
     expect(screen.getByText('Strength pillar landed')).toBeInTheDocument();
     expect(screen.queryByText('Decision history')).not.toBeInTheDocument();
+  });
+
+  /*
+   * The redirect must not fire off the EMPTY first paint. `clients` is []
+   * until the fetch settles, which made `selectedClient` null and every
+   * visitor look local — including a roster coach, who would be bounced to
+   * /coach/strength before their own client existed. Harmless while the rail
+   * linked here (the click came after the fetch); fatal once the owner
+   * removed that link on 11 August 2026 and the address bar became the only
+   * way in, because this route is the app's only roster approve/decline.
+   */
+  it('waits for the client list rather than redirecting a roster coach off the empty first paint', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ id: 'roster-1', name: 'Riley Roster', source: 'roster-summary' })];
+    renderAt(repo);
+
+    // Before the fetch settles: no redirect has happened.
+    expect(screen.queryByText('Strength pillar landed')).not.toBeInTheDocument();
+
+    await act(async () => {});
+    expect(screen.queryByText('Strength pillar landed')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Riley Roster.{0,3}s pending proposals/i })).toBeInTheDocument();
   });
 });

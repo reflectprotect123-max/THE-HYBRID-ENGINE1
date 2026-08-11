@@ -144,10 +144,15 @@ const COACH_SHOTS = [
   ['14-coach-strength', '/coach/strength', [/Lift trends/i, /Weekly hard-session budget/i]],
   ['15-coach-conditioning', '/coach/conditioning', [/Time in HR zone/i, /Erg trends/i]],
   ['16-coach-nutrition', '/coach/nutrition', [/Adherence . targets/i, /Weight trend/i]],
-  // Stage 3a. The tab labels are chrome the Library always renders; the month
-  // heading proves the Calendar tab's grid actually mounted rather than the
-  // shell rendering around an empty panel.
-  ['17-coach-library', '/coach/library', [/Programs/i, /Calendar/i]],
+  // Stage 3a, amended 11 August 2026 when the owner deleted the Programs tab:
+  // the Library IS the calendar now, with no tabs to switch between. The
+  // day-of-week row proves the month grid actually mounted rather than the
+  // page shell rendering around an empty panel, and the session-builder link
+  // is the Library's only door to /coach/author — deleting it orphans the
+  // whole builder chain (see coach-routes.test.tsx).
+  // (`.cal-dow` is `text-transform: uppercase`, and `innerText` reflects the
+  // transform — hence the /i, exactly as the note above this table warns.)
+  ['17-coach-library', '/coach/library', [/\bMon\b/i, /\bSun\b/i, /session builder/i]],
 ];
 
 /*
