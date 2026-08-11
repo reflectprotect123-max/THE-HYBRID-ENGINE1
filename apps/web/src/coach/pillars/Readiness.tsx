@@ -99,14 +99,20 @@ interface MetricPoint {
   value: number;
 }
 
+/**
+ * Every real point for this metric, oldest first — NOT sliced to any one
+ * window. `db.settings.whoopDaily` is retained up to 365 days
+ * (`cloud/whoop.tsx`'s `hist.slice(-365)`), so the 7/30/90-day range toggle
+ * below has genuine history to draw from; `TrendCard` is the one that slices
+ * a window off the end of this list, per the range the user picked.
+ */
 function metricPoints(
   rows: WhoopDailyRow[],
   accessor: (r: WhoopDailyRow) => number | null | undefined,
 ): MetricPoint[] {
   return rows
     .map((r) => ({ date: r.date, value: accessor(r) }))
-    .filter((p): p is MetricPoint => typeof p.value === 'number' && Number.isFinite(p.value))
-    .slice(-7);
+    .filter((p): p is MetricPoint => typeof p.value === 'number' && Number.isFinite(p.value));
 }
 
 function sparkPath(points: number[], w: number, h: number, pad: number) {
@@ -132,6 +138,31 @@ const CARD_ICON_PATH: Record<string, string> = {
   strain: 'M13 2 3 14h6l-1 8 11-13h-7l1-7z',
 };
 
+/** The mockup's `ICONS.strain` is a solid bolt (`fill="currentColor"
+ *  stroke="none"`), unlike the other three metrics' stroke-only outlines —
+ *  a deliberate visual distinction, not an inconsistency to normalise away. */
+function CardIcon({ cardKey }: { cardKey: keyof typeof CARD_ICON_PATH }) {
+  if (cardKey === 'strain') {
+    return (
+      <span className="c-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
+          <path d={CARD_ICON_PATH.strain} />
+        </svg>
+      </span>
+    );
+  }
+  return (
+    <span className="c-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d={CARD_ICON_PATH[cardKey]} />
+      </svg>
+    </span>
+  );
+}
+
+const RANGE_OPTIONS = [7, 30, 90] as const;
+type RangeDays = (typeof RANGE_OPTIONS)[number];
+
 function TrendCard({
   cardKey,
   label,
@@ -145,19 +176,20 @@ function TrendCard({
   points: MetricPoint[];
   goodDirection: 'up' | 'down' | null;
 }) {
-  const icon = (
-    <span className="c-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d={CARD_ICON_PATH[cardKey]} />
-      </svg>
-    </span>
-  );
+  const [open, setOpen] = useState(false);
+  const [range, setRange] = useState<RangeDays>(7);
 
-  if (points.length < 2) {
+  // The collapsed card's value/delta/spark always read the most recent 7
+  // readings, independent of whatever range the expanded chart is set to —
+  // matching the mockup, whose top-of-card numbers never move when its
+  // range toggle changes.
+  const previewPoints = points.slice(-7);
+
+  if (previewPoints.length < 2) {
     return (
       <div className="rd-card">
         <div className="rd-card-top">
-          {icon}
+          <CardIcon cardKey={cardKey} />
           <span className="c-label">{label}</span>
         </div>
         <p className="rd-stale-note" style={{ textAlign: 'left', marginTop: 8 }}>Not enough history yet.</p>
@@ -165,20 +197,40 @@ function TrendCard({
     );
   }
 
-  const latest = points[points.length - 1]!;
-  const prev = points[points.length - 2]!;
+  const latest = previewPoints[previewPoints.length - 1]!;
+  const prev = previewPoints[previewPoints.length - 2]!;
   const cls = goodDirection == null ? 'neutral' : (latest.value >= prev.value) === (goodDirection === 'up') ? 'good' : 'bad';
   const color = cls === 'good' ? 'var(--color-ok)' : cls === 'bad' ? 'var(--color-bad)' : 'var(--color-muted)';
   const diff = Math.round((latest.value - prev.value) * 10) / 10;
   const sign = diff >= 0 ? '+' : '';
-  const s = sparkPath(points.map((p) => p.value), 180, 38, 3);
+  const s = sparkPath(previewPoints.map((p) => p.value), 180, 38, 3);
+
+  // The expanded chart slices the SAME real series to whatever window is
+  // selected — never padded, interpolated or jittered to fill it. When the
+  // athlete's actual history is shorter than the selected window, `short`
+  // says so explicitly rather than letting a partial line pass as a full
+  // 30- or 90-day trend.
+  const rangePoints = points.slice(-range);
+  const big = rangePoints.length >= 2 ? sparkPath(rangePoints.map((p) => p.value), 500, 60, 4) : null;
+  const short = rangePoints.length < range;
 
   return (
-    <div className="rd-card">
-      <div className="rd-card-top">
-        {icon}
+    <div className={`rd-card${open ? ' open' : ''}`}>
+      <button
+        type="button"
+        className="rd-card-top"
+        aria-expanded={open}
+        aria-label={`Expand ${label} chart`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <CardIcon cardKey={cardKey} />
         <span className="c-label">{label}</span>
-      </div>
+        <span className="c-chev">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </span>
+      </button>
       <div className="rd-card-value">
         <span className="c-num num">{latest.value}</span>
         <span className="c-unit">{unit}</span>
@@ -193,6 +245,41 @@ function TrendCard({
         <polyline points={s.line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         <circle cx={s.last[0]} cy={s.last[1]} r={3} fill={color} />
       </svg>
+      {open && (
+        <div className="rd-card-expand">
+          <div className="rd-card-expand-inner">
+            <div className="rd-range-toggle" role="group" aria-label={`${label} chart range`}>
+              {RANGE_OPTIONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={r === range ? 'active' : undefined}
+                  aria-pressed={r === range}
+                  onClick={() => setRange(r)}
+                >
+                  {r}d
+                </button>
+              ))}
+            </div>
+            {big ? (
+              <>
+                {short && (
+                  <p className="rd-stale-note" style={{ textAlign: 'left', marginBottom: 6 }}>
+                    Only {rangePoints.length} day{rangePoints.length === 1 ? '' : 's'} of history on record —
+                    showing all of it, not a full {range}-day window.
+                  </p>
+                )}
+                <svg className="rd-big-chart" viewBox="0 0 500 60">
+                  <polygon points={big.area} fill={color} opacity={0.14} />
+                  <polyline points={big.line} fill="none" stroke={color} strokeWidth={2} />
+                </svg>
+              </>
+            ) : (
+              <p className="rd-stale-note" style={{ textAlign: 'left' }}>Not enough history yet for this range.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
