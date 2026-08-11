@@ -101,6 +101,35 @@ describe('ProgressionActions (self-coach)', () => {
     expect(screen.getByRole('button', { name: /approve/i })).toBeDisabled();
   });
 
+  it('guard 2 — NAMES every blocking constraint and its adjustment, not just that one exists', () => {
+    // Promoted from a deferred minor by the Stage-1 final review: this line
+    // is the only acknowledgement of a hard constraint left in the reachable
+    // workspace, and "Blocked while a hard safety constraint is active."
+    // named neither the constraint nor what the engine says to do instead.
+    // Both members of the safety class are seeded, because a `find`-shaped
+    // read of the constraint list would show one and drop the other.
+    localStorage.setItem(
+      LS_KEY,
+      JSON.stringify({
+        workouts: [],
+        sessions: [],
+        settings: {},
+        core: {
+          safety: {
+            painHold: { active: true, areas: ['knee'], updatedAt: Date.now() },
+            illness: { status: 'active', updatedAt: Date.now() },
+          },
+        },
+      }),
+    );
+    renderSelfCoach(strengthProposal({ direction: 'increase', before: null }));
+
+    expect(screen.getByText(/Pain hold: knee\./)).toBeInTheDocument();
+    expect(screen.getByText(/Do not push through the flagged pain/)).toBeInTheDocument();
+    expect(screen.getByText(/A manual or observed illness flag is active\./)).toBeInTheDocument();
+    expect(screen.getByText(/follow the return-to-training process/)).toBeInTheDocument();
+  });
+
   it('guard 3 — refuses to approve a stale proposal whose accepted prescription changed since it was computed', () => {
     // Default DB has no accepted back_squat baseline (current === null). A proposal computed
     // against a non-null baseline is therefore stale relative to what is accepted now.

@@ -133,8 +133,24 @@ export function ProgressionActions({ proposal }: { proposal: ProgressionProposal
       {proposal.direction !== 'review' && stale && (
         <p className="mt-1 text-[10px] text-dim">Stale — the accepted prescription changed since this was proposed.</p>
       )}
+      {/* Named, not counted. This line used to read "Blocked while a hard
+          safety constraint is active." — which tells a coach neither WHICH
+          constraint stopped them nor what the engine says to do instead,
+          while `hardSafety` has carried both all along. It matters more
+          since the Stage-1 redesign than it did before: this is now the only
+          acknowledgement of a hard constraint anywhere in the queue, and
+          pain and illness outrank every other signal (CLAUDE.md). */}
       {proposal.direction !== 'review' && !stale && hardSafety.length > 0 && (
-        <p className="mt-1 text-[10px] text-dim">Blocked while a hard safety constraint is active.</p>
+        <div className="mt-1 text-[10px] text-dim">
+          <p>Approval is blocked while a hard safety constraint is active:</p>
+          <ul className="mt-0.5 list-disc pl-3">
+            {hardSafety.map((constraint) => (
+              <li key={constraint.code}>
+                {constraint.reason} {constraint.adjustment}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       <div className="sr-only" aria-live="polite">{message}</div>
     </div>

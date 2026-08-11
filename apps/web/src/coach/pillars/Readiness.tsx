@@ -1,5 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { FN } from '@hybrid/config';
+import type { StateConstraint } from '@hybrid/whole-athlete-state';
 import { useDb } from '../../store/db';
 import { PillarBack } from './PillarBack';
 import '../coach-redesign.css';
@@ -50,6 +51,73 @@ const TICKS: { x1: number; y1: number; x2: number; y2: number; major: boolean }[
 
 function whoopRows(raw: unknown): WhoopDailyRow[] {
   return Array.isArray(raw) ? (raw as WhoopDailyRow[]) : [];
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * SAFETY FLAGS. Corrected 11 August 2026 by the Stage-1 whole-branch review.
+ *
+ * This screen used to read `constraints.find((c) => c.code ===
+ * 'pain_hold_active')`, which did not relocate the illness flag — it dropped
+ * it. `whole-athlete-state` emits `illness_flag_active` with `hard: true` and
+ * its own `reason`/`adjustment`, structurally identical to
+ * `pain_hold_active`; the pre-redesign Command Center rendered both by name;
+ * and CLAUDE.md treats pain and illness as ONE class of safety flag that
+ * outranks a readiness score. After the redesign the only two components that
+ * still showed illness (`ResolutionPreview`, `AthleteStatus`) mount inside
+ * `CoachShell` at `/coach/legacy`, which was itself orphaned — so the flag
+ * surfaced nowhere a coach could reach.
+ *
+ * The fix is deliberately NOT "find pain, then also find illness". It renders
+ * every constraint the engine marked `hard`, because a hardcoded list of
+ * codes is precisely the thing that lost half this class in the first place,
+ * and the next member added to the engine would be lost the same way. The
+ * spec's "Rules that do not move" names the pain alert only because the
+ * mockup drew one alert — that is a gap in the mockup, not licence to drop
+ * the other flag, so both use the mockup's existing `rd-alert` treatment
+ * rather than a new one.
+ *
+ * Neither is folded into the readiness score or the band bar. They are hard
+ * constraints; a score is a different thing and would launder a safety stop
+ * into a number.
+ * ---------------------------------------------------------------------------
+ */
+const SAFETY_ALERT_TITLE: Record<string, string> = {
+  pain_hold_active: 'Pain flag active',
+  illness_flag_active: 'Illness flag active',
+};
+
+/** One `rd-alert`, per constraint, with its own open state — two flags can be
+ *  active at once and expanding one must not expand the other. */
+function SafetyAlert({ constraint }: { constraint: StateConstraint }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`rd-alert${open ? ' open' : ''}`}>
+      <button
+        type="button"
+        className="rd-alert-head"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className="a-ic">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17.5a1.7 1.7 0 0 0 1.5 2.5h16a1.7 1.7 0 0 0 1.5-2.5L13.7 3.9a1.7 1.7 0 0 0-3.4 0z" />
+          </svg>
+        </span>
+        {/* An unmapped code still renders, titled by the engine's own code
+            rather than silently disappearing behind a `find`. */}
+        <span className="alert-title">{SAFETY_ALERT_TITLE[constraint.code] ?? `Safety constraint active: ${constraint.code}`}</span>
+        <svg className="a-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+      <div className="rd-alert-body">
+        <p>
+          {constraint.reason} {constraint.adjustment}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 /** WHOOP's own three-band recovery colouring (green/yellow/red at
@@ -286,9 +354,14 @@ function TrendCard({
 
 export function Readiness() {
   const { db, athleteState } = useDb();
-  const [alertOpen, setAlertOpen] = useState(false);
 
-  const painConstraint = athleteState.constraints.find((c) => c.code === 'pain_hold_active') ?? null;
+  /* Every hard constraint, in the engine's own order (state.ts pushes pain
+     and illness first, ahead of every soft signal). Not a code list — see
+     the SAFETY FLAGS note above. */
+  const safetyFlags = useMemo(
+    () => athleteState.constraints.filter((c) => c.hard),
+    [athleteState.constraints],
+  );
 
   const rows = useMemo(() => whoopRows(db.settings.whoopDaily), [db.settings.whoopDaily]);
   const byDate = useMemo(() => [...rows].sort((a, b) => a.date.localeCompare(b.date)), [rows]);
@@ -316,31 +389,9 @@ export function Readiness() {
     <div className="rd-content">
       <PillarBack />
 
-      {painConstraint && (
-        <div className={`rd-alert${alertOpen ? ' open' : ''}`}>
-          <button
-            type="button"
-            className="rd-alert-head"
-            onClick={() => setAlertOpen((v) => !v)}
-            aria-expanded={alertOpen}
-          >
-            <span className="a-ic">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17.5a1.7 1.7 0 0 0 1.5 2.5h16a1.7 1.7 0 0 0 1.5-2.5L13.7 3.9a1.7 1.7 0 0 0-3.4 0z" />
-              </svg>
-            </span>
-            <span className="alert-title">Pain flag active</span>
-            <svg className="a-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </button>
-          <div className="rd-alert-body">
-            <p>
-              {painConstraint.reason} {painConstraint.adjustment}
-            </p>
-          </div>
-        </div>
-      )}
+      {safetyFlags.map((constraint) => (
+        <SafetyAlert key={constraint.code} constraint={constraint} />
+      ))}
 
       <div className="rd-hero" style={{ '--glow-color': ringStroke } as CSSProperties}>
         <div className="rd-ring-wrap" style={connected ? undefined : { opacity: 0.35 }}>

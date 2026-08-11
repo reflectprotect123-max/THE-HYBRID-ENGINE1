@@ -53,6 +53,65 @@ describe('Readiness pillar', () => {
     expect(screen.getByRole('link', { name: /Command Center/ })).toHaveAttribute('href', '/coach');
   });
 
+  /*
+   * CLAUDE.md: pain and illness are ONE class of safety flag, and they
+   * outrank a readiness score. This screen previously did
+   * `constraints.find((c) => c.code === 'pain_hold_active')`, which dropped
+   * the illness flag rather than relocating it — and the only two components
+   * that still rendered it live at `/coach/legacy`, which had no inbound
+   * link. Seeding BOTH is the point: a `find`-shaped read passes a
+   * pain-only test.
+   */
+  function seedSafetyFlags({ pain, illness }: { pain: boolean; illness: boolean }) {
+    const safety: Record<string, unknown> = {};
+    if (pain) safety.painHold = { active: true, areas: ['knee'], updatedAt: Date.now() };
+    if (illness) safety.illness = { status: 'active', updatedAt: Date.now() };
+    localStorage.setItem(
+      LS_KEY,
+      JSON.stringify({ workouts: [], sessions: [], settings: {}, core: { safety } }),
+    );
+  }
+
+  it('surfaces the illness flag alongside pain, both as hard constraints', () => {
+    seedSafetyFlags({ pain: true, illness: true });
+    renderPillar();
+
+    expect(screen.getByText('Pain flag active')).toBeInTheDocument();
+    expect(screen.getByText('Illness flag active')).toBeInTheDocument();
+    // The engine's own sentences, not a paraphrase invented on the screen.
+    expect(screen.getByText(/Pain hold: knee\. Do not push through the flagged pain/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/A manual or observed illness flag is active\..*return-to-training process/),
+    ).toBeInTheDocument();
+    // Two alerts, using the mockup's existing treatment — not one merged banner.
+    expect(document.querySelectorAll('.rd-alert')).toHaveLength(2);
+  });
+
+  it('surfaces illness on its own, with no pain flag present', () => {
+    seedSafetyFlags({ pain: false, illness: true });
+    renderPillar();
+
+    expect(screen.queryByText('Pain flag active')).not.toBeInTheDocument();
+    expect(screen.getByText('Illness flag active')).toBeInTheDocument();
+  });
+
+  it('expands each safety alert independently', () => {
+    seedSafetyFlags({ pain: true, illness: true });
+    renderPillar();
+    const heads = screen.getAllByRole('button', { name: /flag active/ });
+    expect(heads).toHaveLength(2);
+    expect(heads[0]).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(heads[0]!);
+    expect(heads[0]).toHaveAttribute('aria-expanded', 'true');
+    expect(heads[1]).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('shows no safety alert when neither flag is set', () => {
+    renderPillar();
+    expect(document.querySelectorAll('.rd-alert')).toHaveLength(0);
+  });
+
   it('asks for a WHOOP connection instead of inventing a recovery score', () => {
     // A fresh DB has no WHOOP data. The mockup shows 87%; showing that
     // number here would be a fabricated vital sign.
