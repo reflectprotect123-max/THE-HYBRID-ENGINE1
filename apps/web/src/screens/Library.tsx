@@ -14,6 +14,7 @@ import {
   uid,
   workoutStats,
   workoutsInFolder,
+  tombstone,
   type Folder,
   type LoggedSet,
   type StrengthBlock,
@@ -45,6 +46,7 @@ export function Library() {
   const { db, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
   const [armDel, setArmDel] = useState<string | null>(null);
+  const [armClearAll, setArmClearAll] = useState(false);
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   // An armed delete disarms itself after 5s untouched.
@@ -53,6 +55,13 @@ export function Library() {
     const t = setTimeout(() => setArmDel(null), 5000);
     return () => clearTimeout(t);
   }, [armDel]);
+  // Clearing the whole library disarms the same way, but slower: there is more
+  // to read before committing to it than on a single session's Delete.
+  useEffect(() => {
+    if (!armClearAll) return;
+    const t = setTimeout(() => setArmClearAll(false), 10000);
+    return () => clearTimeout(t);
+  }, [armClearAll]);
   /*
    * Three slices of one library, not three destinations. Sessions are things
    * you START; exercises and mobility are things you LOOK UP. Mixing them in
@@ -114,6 +123,30 @@ export function Library() {
       // A tombstone, not just a local delete: without one the next sync sees a
       // workout the remote still has and cheerfully restores it.
       draft.settings.deletedIds = { ...(draft.settings.deletedIds || {}), [id]: Date.now() };
+    });
+  }
+
+  /*
+   * Empty the library in one move.
+   *
+   * Tombstones EVERY id, exactly as `removeWorkout` does for one — a bulk
+   * delete that skipped them would look right on this device and then quietly
+   * refill from the next sync, which is the failure mode the single-workout
+   * path already learned the hard way.
+   *
+   * Logged sessions are deliberately untouched: `db.sessions` is training that
+   * happened, and clearing the library is a statement about the PROGRAMME, not
+   * about history. Nothing here writes to `draft.sessions`.
+   *
+   * Worth knowing if you reach for a backup afterwards: Settings' restore
+   * MERGES by default, and `mergeEngines` filters through `notTombstoned`, so
+   * these tombstones suppress every workout in the file. Only the wipe/replace
+   * path brings them back.
+   */
+  function clearAllWorkouts() {
+    update((draft) => {
+      for (const w of draft.workouts) tombstone(draft, w.id);
+      draft.workouts = [];
     });
   }
 
@@ -216,9 +249,35 @@ export function Library() {
       </Button>
 
       <SectionHead title="Yours" />
-      <Button size="sm" className="mb-1" onClick={addFolder}>
-        + New folder
-      </Button>
+      <div className="mb-1 flex flex-wrap items-center gap-1">
+        <Button size="sm" onClick={addFolder}>
+          + New folder
+        </Button>
+        {mine.length > 0 && (
+          <Button
+            size="sm"
+            onClick={() => {
+              if (armClearAll) {
+                clearAllWorkouts();
+                setArmClearAll(false);
+              } else setArmClearAll(true);
+            }}
+            className={armClearAll ? 'border-bad/40 text-bad' : undefined}
+          >
+            {armClearAll
+              ? `Really delete all ${mine.length}?`
+              : `Clear all ${mine.length} session${mine.length === 1 ? '' : 's'}`}
+          </Button>
+        )}
+      </div>
+      {armClearAll && (
+        <p className="mb-1 text-xs text-muted" role="status">
+          Deletes every session in your library on every device. Logged training is not
+          touched — only the programme. Export a backup first if you want one, and restore
+          it with <strong>Replace</strong>, not the default merge, or these deletions will
+          suppress it.
+        </p>
+      )}
       {folders.map((f) => {
         const inFolder = workoutsInFolder(mine, f.id);
         const isOpen = !!openFolders[f.id];
