@@ -7,15 +7,34 @@
  * Mostly this is not a test — a screenshot cannot fail except the harness
  * itself, and it exists so a visual change can be judged by looking at it,
  * before and after, instead of by reading a diff and imagining the result.
- * TWO things here fail the run. Horizontal overflow at the 420px phone
+ * THREE things here fail the run. Horizontal overflow at the 420px phone
  * viewport — a coach screen that needs sideways scrolling on a phone is
  * exactly the regression a phone-support claim must not get to make
- * silently (see `overflowWidth` below). And, for the coach shots only, a
+ * silently (see `overflowWidth` below). For the coach shots only, a
  * missing piece of that screen's own stable chrome — proof the pillar
  * actually mounted rather than the workspace being stuck on its own
  * "Loading coach workspace…" fallback, which is narrow enough to pass the
  * overflow check clean while showing nothing real (see `assertContent`
  * below).
+ *
+ * And ANYTHING in `problems` — added 11 August 2026 by the Stage-1
+ * whole-branch review, which found the commonest regression of all still
+ * exiting 0. There is no error boundary anywhere in this repository
+ * (`grep -rn "ErrorBoundary\|componentDidCatch\|getDerivedStateFromError"
+ * apps/web/src` returns nothing), so one uncaught throw in one component
+ * unmounts the entire React root and the page goes blank. A blank page has
+ * no horizontal overflow, and for a coach shot the per-shot `catch` fired
+ * before `assertContent` ever ran — so the run printed the page error under
+ * a heading that said "these are real, fix them" and then exited 0. That
+ * heading described a list nothing consulted.
+ *
+ * EVERY producer of `problems` is fatal, not just page errors: an uncaught
+ * exception, a console error, and a shot that never completed are all real
+ * defects, and a clean tree produces none of them (verified — the list is
+ * empty on a green run). Splitting it into a fatal half and an advisory
+ * half would rebuild the exact thing being fixed: a bucket that gets
+ * printed and ignored. If genuinely benign console noise ever appears, the
+ * fix is to silence or stub its source, not to reopen this bucket.
  *
  * The seed matters as much as the harness. An app screenshotted with an empty
  * store shows nothing but empty states, which is the one thing a design pass must
@@ -468,12 +487,17 @@ await page.route('**/.netlify/functions/whoop-sync*', (r) =>
 );
 
 const overflows = [];
+/* Counted, not inferred from the arrays' lengths: a shot that threw before
+   `screenshot()` leaves no file behind, and the old summary line reported it
+   as written anyway ("Wrote 16 screens" while writing 15). */
+let written = 0;
 
 for (const [label, path] of SHOTS) {
   try {
     await page.goto(base + path, { waitUntil: 'networkidle' });
     await page.waitForTimeout(350); // let entrance transitions settle
     await page.screenshot({ path: join(OUT, label + '.png'), fullPage: true });
+    written += 1;
     const w = await overflowWidth(page);
     if (w) overflows.push(label + ': ' + w + 'px of content in a 420px viewport');
     console.log('  ' + label);
@@ -607,6 +631,7 @@ for (const [label, path, patterns] of COACH_SHOTS) {
     await coachPage.waitForSelector('button[aria-label="Open coach navigation"]', { timeout: 15000 });
     await coachPage.waitForTimeout(350); // let entrance transitions settle
     await coachPage.screenshot({ path: join(OUT, label + '.png'), fullPage: true });
+    written += 1;
     const w = await overflowWidth(coachPage);
     if (w) overflows.push(label + ': ' + w + 'px of content in a 420px viewport');
     contentFailures.push(...(await assertContent(coachPage, label, path, patterns)));
@@ -620,10 +645,15 @@ for (const [label, path, patterns] of COACH_SHOTS) {
 await browser.close();
 coachServer.close();
 
-console.log('\nWrote ' + (SHOTS.length + COACH_SHOTS.length) + ' screens (' + SHOTS.length + ' athlete, ' + COACH_SHOTS.length + ' coach) to ' + OUT);
-if (problems.length) {
-  console.log('\nProblems observed while capturing (these are real, fix them):');
-  for (const p of [...new Set(problems)]) console.log('  ' + p);
+const expected = SHOTS.length + COACH_SHOTS.length;
+console.log(
+  '\nWrote ' + written + ' of ' + expected + ' screens (' + SHOTS.length + ' athlete, ' +
+  COACH_SHOTS.length + ' coach) to ' + OUT,
+);
+const uniqueProblems = [...new Set(problems)];
+if (uniqueProblems.length) {
+  console.log('\nFAIL — page errors, console errors or shots that never completed:');
+  for (const p of uniqueProblems) console.log('  ' + p);
 }
 if (overflows.length) {
   console.log('\nFAIL — horizontal overflow at 420px:');
@@ -633,6 +663,7 @@ if (contentFailures.length) {
   console.log('\nFAIL — coach screen did not render its real content:');
   for (const c of contentFailures) console.log('  ' + c);
 }
-if (overflows.length || contentFailures.length) {
+if (uniqueProblems.length || overflows.length || contentFailures.length || written !== expected) {
+  if (written !== expected) console.log('\nFAIL — ' + (expected - written) + ' screen(s) were never captured.');
   process.exit(1);
 }
