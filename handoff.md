@@ -4,9 +4,10 @@
 > athlete app now ships as one self-contained working HTML artifact; the
 > hybrid build finally has BOTH training tabs; a live bug that ejected the
 > athlete into the coach workspace is fixed; Home leads with today's session;
-> the weight-suggestion chain agrees with itself end to end; and the logger's
-> sets table is MOUNTED but `checks/react-smoke.mjs` is knowingly RED against
-> it, with a child session already working that.**
+> the weight-suggestion chain agrees with itself end to end; the logger's sets
+> table is MOUNTED and `checks/react-smoke.mjs` is GREEN against it again; the
+> table can now rate a set (↑/↓) and autoregulate; and the `weight_pct`
+> precedence question is settled as a function rather than as prose.**
 >
 > Supersedes every checkpoint below, including 9 August. They stay as history
 > and remain accurate about their own scope; where one contradicts this, this
@@ -15,7 +16,7 @@
 ## Where the work is
 
 Branch `claude/athlete-hybrid-engine-7xs5em`, pushed. No PR open — none was
-asked for. Six commits, oldest first:
+asked for. Ten commits, oldest first:
 
 | Commit | What |
 |---|---|
@@ -25,7 +26,10 @@ asked for. Six commits, oldest first:
 | `283c772` | Engine side of the logger's "last time" reference |
 | `b68a68f` | The logger's sets table and session bar (not yet mounted) |
 | `09ee281` | Set-to-set weight suggestion agrees with the one it prints |
-| `200a917` | Sets table MOUNTED, with the flow wiring — **smoke knowingly red** |
+| `200a917` | Sets table MOUNTED, with the flow wiring — smoke went red here |
+| `a701ae3` | Smoke driven through the table; restores what mounting it dropped |
+| `1b2353d` | The table can rate a set: ↑/↓ deviation, and a ghost that moves |
+| `d9c85f4` | %1RM load targets settled behind one precedence rule |
 
 ## Live artifacts
 
@@ -90,46 +94,65 @@ kept the parity suite intact, since its fixture's previous set was never rated.
 
 ## In flight
 
-Child session **`session_01AmhxwPeuy5wHuDu9K9sDct`** — "Fix react-smoke for the
-mounted sets table". Check it before redoing this work.
+Nothing. The child session that took `checks/react-smoke.mjs` on
+(`session_01AmhxwPeuy5wHuDu9K9sDct`) finished: the suite is green, and the two
+open decisions it was pointed at are resolved below.
 
-`200a917` is knowingly RED on `checks/react-smoke.mjs`: 11 checks fail because
-the suite drives the one-set stage (weight stepper, "Finish Set", "Skip rest")
-that the table replaced for lift modes. **All 11 share that one cause** — the
-app is not broken. Verified: the rest-timer failure among them is a CASCADE
-(its first assertion is a pre-condition a previous failed check was meant to
-satisfy; `store/rest.tsx:106` persists correctly and is untouched).
+Three things that turned up doing it, all fixed, all worth knowing because they
+share one cause — `200a917` wrapped the one-set stage in `!lift` wholesale and
+took the lift-only pieces inside it along:
 
-Scope: re-point roughly lines 173–222, 281–284, 317–320, 404–407. **Leave every
-`input[aria-label="Secs"]` check alone** — seconds mode still uses the one-set
-stage, and roughly half the file is already correct.
-
-Two need a DECISION, not a port:
-
-1. `"autoregulation PROPOSES the next one without applying it"` is now **wrong
-   on purpose** — `09ee281` makes the app apply it. Invert the assertion.
-2. `"a warm-up confirms in one tap"` stops being special once every set is one
-   tap. What must survive: a warm-up never moves the working weight.
+- The earned-weight note and the opt-in `Apply` suggestion were computed for
+  lift modes ONLY and rendered inside the branch that now runs only for
+  non-lift modes. Two features off screen with nobody deciding to drop them.
+  Restored above the table. The fingerprint was a `{lift ? …}` branch nested
+  inside `{!lift && …}` — still there, still dead, harmless, and a good marker
+  if that stage gets reworked.
+- A non-finite weight reached storage. `sanNumStr` only ever ran in
+  `confirmSet`, which lift modes no longer reach, so "1e309" was stored
+  verbatim and parses back to `Infinity` in the recap, the history and the
+  Progress chart. The tick is the table's confirm, so it sanitises there.
+- `prefillPrimary` was not wired to the table at all, so no adjustment could
+  reach the athlete. Each row's kg placeholder is now that row's prefill — the
+  ghost proposes, the value stays whatever a human typed.
 
 ## Open decisions — not bugs, real calls to make
 
-**Rating vs the one-tap tick.** The table logs a set WITHOUT a rating. The
-engine reads a missing rating as "no evidence", never "as prescribed", so an
-unrated set holds its weight (`liftMoves` bails on a non-finite `felt`;
-`prefillPrimary` falls through to repeating). Autoregulation is therefore
-opt-in as things stand. The designed fix, not yet built: tap the tick = done as
-prescribed; two 44px `↑ / ↓` targets appear after ticking for "easier / harder
-than asked" → centre ∓1 RPE → ∓2.5%. One tap common case, two to autoregulate,
-no slider.
+**Rating vs the one-tap tick. BUILT — `deviationFelt` in `autoreg.ts`.** Two
+44px targets appear under a ticked row: ↑ easier than asked, ↓ harder, one RPE
+point either side of what THAT set asked for, which `computeSetAdjustment`
+turns into 2.5% of load. One tap in the common case, two to autoregulate, no
+slider. Tapping the same direction again clears the rating. Warm-ups are not
+offered it — the engine ignores warm-up ratings, so it would be a control that
+does nothing.
 
-**Pre-set RPE in the builder.** Authoring RPE per exercise already half exists
-(`GuidedBuilder.tsx:240` stamps one RPE across every set; `rpeCenterOf` judges
-against it). The NEW builder has no RPE column at all, while `PlannedSet` is
-exactly `{t, rpe}` — the redesign dropped the one field autoregulation runs on.
-Recommended: add it per-EXERCISE, not as a 7th per-set column (the set row is
-`24px 1fr 1fr`; a third input crowds a phone). **Trap to avoid:** never use the
-planned RPE as the measurement. `eff === center` makes the multiplier exactly 1
-and the weight freezes permanently — `lift.ts:96` documents this.
+The designed "tap the tick = done as prescribed" was deliberately NOT built,
+and this is the one place the shipped control departs from the sketch. Filling
+in the centre is not neutral: `verdictForRpe` scores centre-against-centre as
+'right on target', so `strengthExposuresFor` would read every plain tick as an
+on-target exposure and `decideStrengthProgression` would offer load off the
+back of sets nobody rated. That is the same fabrication trap the builder note
+below warns about, reached from the other side. A plain tick still writes no
+`felt`, and an unwritten `felt` stays what it has always been — no evidence,
+so hold and bank nothing.
+
+**Pre-set RPE in the builder. ALREADY BUILT in the in-repo builders — the gap
+is only in the unported one.** Checked before writing anything: `RpeStep`
+stamps one RPE across every set of an exercise in the guided builder, and
+`Planner`'s `onSet` routes both `t` and `rpe` through `fillLinkedSets`, which
+carries an edit forward into every later set still holding the old value. Type
+it once, it fills the rest. That IS per-exercise authoring, in both builders
+that exist here.
+
+What does not exist here is the NEW builder — `COLUMN_TYPES`, `weight_pct` and
+`reps_range` return zero hits across the repo; it lives only in the artifact
+mockup linked above. So there is nothing to build until it is ported, and when
+it is, the recommendation stands: per-EXERCISE, not a seventh per-set column
+(the set row is `24px 1fr 1fr` and a third input crowds a phone). **Trap to
+avoid, unchanged:** never use the planned RPE as the measurement. `eff ===
+center` makes the multiplier exactly 1 and the weight freezes permanently —
+`lift.ts:96` documents this, and see the tick note above for the same trap
+arriving from the athlete's side.
 
 **`weight_pct` (% of e1RM). SETTLED — `prescribedKg` in `lift.ts` is the rule,
 executable rather than prose.**
@@ -164,10 +187,18 @@ no dedicated control for it yet, and that belongs with the new builder.
 
 ## Also worth knowing
 
-- **Live production bug, unfixed, out of scope:** `apps/web/index.html:15-21`
-  preloads `/fonts/inter-var.woff2`, but **nothing anywhere declares an
-  `@font-face` for it**. The deployed app downloads 71 KB every load and renders
-  in the system font regardless. Either wire Inter up or drop the preload.
+- **Font preload: HALF fixed.** `apps/web/index.html` no longer preloads
+  `/fonts/inter-var.woff2`, so the 71 KB every visitor downloaded on every load
+  and could not use is gone. Still true, and still an open design call: nothing
+  anywhere declares an `@font-face` for Inter, so `tokens.css`'s
+  `font-family: Inter, system-ui, …` resolves past it and the app renders in
+  the system stack — which is what every screenshot and contrast check here was
+  calibrated against. The file and its `build-site.mjs` copy step stay, so
+  wiring Inter up is adding an `@font-face` and putting the preload back beside
+  it. Note the constraint: an absolute `/fonts/…` URL is a request leaving the
+  document, which `checks/artifact-smoke.mjs` fails on, so it needs a relative
+  URL Vite can resolve (the artifact build inlines it at
+  `assetsInlineLimit: 10_000_000`).
 - **Still unaddressed from the athlete audit:** Progress is ~3,000 px — seven
   near-identical paragraph cards under "What has changed" before you reach a
   single chart.

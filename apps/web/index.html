@@ -12,13 +12,23 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-    <link
-      rel="preload"
-      href="/fonts/inter-var.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
+    <!--
+      No font preload, deliberately. Nothing in this app declares an @font-face
+      for Inter, so tokens.css's `font-family: Inter, system-ui, …` resolves
+      straight past it to the system stack — which is what every screen here has
+      been designed, screenshotted and contrast-checked against.
+
+      This tag used to preload /fonts/inter-var.woff2 anyway. build-site.mjs
+      really does copy that file into the publish directory, so it was a genuine
+      200: every visitor downloaded 71 KB, on every load, of a typeface nothing
+      could use. A preload is a promise that the file is needed immediately, and
+      it was not needed at all.
+
+      The file and its copy step stay, so wiring Inter up is adding an
+      @font-face and putting this tag back beside it, rather than hunting for a
+      binary. That is a change to how every screen looks — a design call, not a
+      cleanup, which is why it is not made here.
+    -->
     <title>THE Hybrid System</title>
   </head>
   <body>

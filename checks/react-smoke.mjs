@@ -244,10 +244,11 @@ await t('the lift table rests behind the floating chip, and nothing regressed to
    * what rest is for), so RestChip floats over it and the control lift mode
    * actually offers reads "Skip".
    *
-   * The panel and its "Skip rest" still ship, for the modes that kept the
-   * one-set stage — but every seconds scenario in this file seeds `rest: 0`,
-   * so nothing here reaches the panel any more and that exact literal is no
-   * longer covered by this suite. Worth knowing rather than assuming.
+   * The panel and its "Skip rest" still ship for the modes that kept the
+   * one-set stage, and are covered by their own scenario further down ('the
+   * one-set stage's rest panel still reads "Skip rest"') — every seconds
+   * scenario in this file seeds `rest: 0` and never reaches the panel, so that
+   * literal needed somewhere deliberate to live.
    *
    * The title-case assertion is unchanged and still does its job across the
    * whole screen: Playwright's :has-text() is a case-insensitive substring
@@ -532,6 +533,165 @@ await t('a consistent 2-session on-target streak surfaces an opt-in load suggest
       db.workouts = db.workouts.filter((w) => w.id !== 'w-strength-scratch');
       const origSession = db.sessions.find((s) => s.id === origId);
       if (origSession) origSession.status = 'active';
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, { origId: orig.id });
+  }
+});
+
+await t('a load authored as "@80%" resolves against e1RM, outranks the earned weight, and loses to today', async () => {
+  /*
+   * The `weight_pct` precedence rule, driven through the screen rather than
+   * asserted on the function — `prescribedKg` owns the rule and
+   * `packages/engine/src/lift.test.ts` pins it directly, but the rule only
+   * matters at the point a number reaches an athlete, and the path from `t` to
+   * the ghost runs through `prefillPrimary`, `targetHint` and the table.
+   *
+   * 'Hip thrust' rather than a name any other scenario touches: this seeds both
+   * a completed history AND a liftProgress entry for it, and the whole point is
+   * which of the two wins.
+   */
+  const orig = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const origSession = db.sessions.find((s) => s.status === 'active');
+    origSession.status = 'incomplete';
+
+    // 100kg x 5 → epley 100 × (1 + 5/30) = 116.67 e1RM. 80% is 93.33, which
+    // snaps to the 2.5kg plate increment at 92.5.
+    db.sessions.push({
+      id: 'pct-hist-1', date: '2026-01-01', status: 'completed', completedAt: 4000,
+      blocks: [{
+        id: 'pb', heading: 'Main', superset: false,
+        exercises: [{
+          id: 'pe', name: 'Hip thrust', mode: 'reps_kg', rest: 90,
+          sets: [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true }],
+        }],
+      }],
+    });
+
+    // The earned weight the % has to beat. Nothing else reads this key.
+    db.settings.liftProgress = Object.assign({}, db.settings.liftProgress, {
+      'hip thrust': { kg: 140, at: Date.now() - 1000, reps: 5 },
+    });
+
+    const blocks = [{
+      id: 'pcb', heading: 'Main', superset: false,
+      exercises: [{
+        id: 'pce', name: 'Hip thrust', mode: 'reps_kg', rest: 0,
+        sets: [{ t: '5 @80%', rpe: '8' }, { t: '5 @80%', rpe: '8' }],
+      }],
+    }];
+    const d = new Date();
+    const p = (x) => String(x).padStart(2, '0');
+    db.workouts.push({ id: 'w-pct-scratch', name: 'Pct scratch', days: [], updatedAt: Date.now(), blocks });
+    db.sessions.push({
+      id: 'pct-scratch-session', name: 'Pct scratch',
+      date: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()),
+      status: 'active', startedAt: Date.now(), workoutId: 'w-pct-scratch',
+      blocks: JSON.parse(JSON.stringify(blocks)),
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return { id: origSession.id };
+  });
+
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('button[aria-label="Log set 1"]');
+
+    // RULE 2: the authored percentage beats the 140 sitting in liftProgress.
+    const kgGhost = await page.$eval('input[aria-label="Kilograms for set 1"]', (n) => n.placeholder);
+    assert(kgGhost === '92.5', 'expected 80% of the e1RM as the kg ghost, got: ' + kgGhost);
+    // And the load is said ONCE, in the column it is about — the reps ghost
+    // must not echo "@80%" back at an input the athlete types rep counts into.
+    const repsGhost = await page.$eval('input[aria-label="Reps for set 1"]', (n) => n.placeholder);
+    assert(repsGhost === '5', 'the load chunk leaked into the reps ghost, got: ' + repsGhost);
+
+    // RULE 1: a set actually done today outranks the plan. Log 105 — heavier
+    // than the 92.5 prescribed — and the next row must chase 105, not the %.
+    await page.fill('input[aria-label="Kilograms for set 1"]', '105');
+    await page.fill('input[aria-label="Reps for set 1"]', '5');
+    await page.click('button[aria-label="Log set 1"]');
+    const todayGhost = await page.$eval('input[aria-label="Kilograms for set 2"]', (n) => n.placeholder);
+    assert(todayGhost === '105', 'the plan overrode a set already done today, ghost read: ' + todayGhost);
+
+    // And autoregulation still works inside a %-authored exercise: rated easier,
+    // the next row moves off what was LIFTED (105 → 107.5), not off the plan.
+    await page.click('button[aria-label="Set 1 was easier than asked"]');
+    const ratedGhost = await page.$eval('input[aria-label="Kilograms for set 2"]', (n) => n.placeholder);
+    assert(ratedGhost === '107.5', 'autoregulation stopped inside a %-authored exercise, ghost read: ' + ratedGhost);
+  } finally {
+    // Restore, INCLUDING the liftProgress key — an earlier scenario's
+    // 'back squat' entry is deliberately permanent, this one is not.
+    await page.evaluate(({ origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'pct-scratch-session' && s.id !== 'pct-hist-1');
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-pct-scratch');
+      if (db.settings.liftProgress) delete db.settings.liftProgress['hip thrust'];
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    }, { origId: orig.id });
+  }
+});
+
+await t('the one-set stage\'s rest panel still reads "Skip rest", lowercase r', async () => {
+  /*
+   * The casing this pins is a repo-wide batch, and it used to be covered by
+   * driving the main Back Squat session — which now gets the table, whose rest
+   * control is the floating chip's "Skip". The in-place panel and its
+   * "Skip rest" still ship for every mode that kept the one-set stage, but the
+   * seconds scenarios below all seed `rest: 0` and never reach it, so without
+   * this the literal goes uncovered.
+   *
+   * A plain `reps` exercise rather than a seconds one: it is non-lift (so it
+   * keeps the one-set stage) and needs no countdown to get through a set, so
+   * the scenario is Finish Set → Confirm Set → rest panel and nothing else.
+   */
+  const orig = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+    const origSession = db.sessions.find((s) => s.status === 'active');
+    origSession.status = 'incomplete';
+    const blocks = [{
+      id: 'rpb', heading: 'Main', superset: false,
+      // rest 60, and TWO sets — `advanceAfterSet` only rests when the exercise
+      // still has a set left to come back to.
+      exercises: [{
+        id: 'rpe2', name: 'Push-up', mode: 'reps', rest: 60,
+        sets: [{ t: '10', rpe: '8' }, { t: '10', rpe: '8' }],
+      }],
+    }];
+    const d = new Date();
+    const p = (x) => String(x).padStart(2, '0');
+    db.workouts.push({ id: 'w-rest-scratch', name: 'Rest scratch', days: [], updatedAt: Date.now(), blocks });
+    db.sessions.push({
+      id: 'rest-scratch-session', name: 'Rest scratch',
+      date: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()),
+      status: 'active', startedAt: Date.now(), workoutId: 'w-rest-scratch',
+      blocks: JSON.parse(JSON.stringify(blocks)),
+    });
+    localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
+    return { id: origSession.id };
+  });
+
+  try {
+    await page.goto(base + '/log/0/0', { waitUntil: 'networkidle' });
+    await page.waitForSelector('button:has-text("Finish Set")');
+    await page.fill('input[aria-label="Reps"]', '10');
+    await page.click('button:has-text("Finish Set")');
+    await page.click('button:has-text("Confirm Set")');
+    await page.waitForSelector('button:has-text("Skip rest")');
+    const txt = await page.textContent('body');
+    // No word boundary after "rest": the DOM's text nodes butt straight up
+    // against the next element's text with no space, so \b there never matches.
+    assert(txt.includes('Skip rest'), 'expected the literal "Skip rest" control, got: ' + txt.slice(0, 300));
+    assert(!txt.includes('Skip Rest'), 'the rest control regressed to title-case "Skip Rest"');
+  } finally {
+    await page.evaluate(({ origId }) => {
+      const db = JSON.parse(localStorage.getItem('hybrid-engine-v1'));
+      db.sessions = db.sessions.filter((s) => s.id !== 'rest-scratch-session');
+      db.workouts = db.workouts.filter((w) => w.id !== 'w-rest-scratch');
+      const origSession = db.sessions.find((s) => s.id === origId);
+      if (origSession) origSession.status = 'active';
+      localStorage.removeItem('hybrid-engine-v1-rest-ends');
       localStorage.setItem('hybrid-engine-v1', JSON.stringify(db));
     }, { origId: orig.id });
   }
