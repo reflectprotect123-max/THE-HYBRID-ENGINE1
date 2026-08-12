@@ -33,6 +33,7 @@ import { Weight as NutritionWeight } from './screens/nutrition/Weight';
 import { Coach as NutritionCoach } from './screens/nutrition/Coach';
 import { NutritionSettings } from './screens/nutrition/NutritionSettings';
 import { ATHLETE_HOME, IS_SCOPED_BUILD, PRODUCT, PRODUCT_ID } from './product';
+import { ManifestLink } from './manifestLink';
 
 /* The coach bench is its own chunk: athletes never download it, and a failure
    inside it can never take down an athlete route. */
@@ -69,6 +70,10 @@ export function App() {
           <RestProvider>
           <SetTimerProvider>
             <Router>
+              {/* Points the document at the athlete's manifest or the coach's,
+                  by route, so the two can be installed as separate apps from
+                  one origin. Renders nothing. */}
+              <ManifestLink />
               {/* The route tree forks by discipline world, not by product
                   build: `world` is a runtime view preference (`discipline.ts`),
                   so both blocks ship in every build and only one is mounted at

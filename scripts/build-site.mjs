@@ -113,6 +113,19 @@ if (await exists(manifestPath)) {
   const mf = JSON.parse(await readFile(manifestPath, 'utf8'));
   (mf.icons || []).forEach((i) => refs.push(i.src));
 }
+/* The COACH manifest and its icons are referenced only at runtime — the link
+   element's href is swapped by src/manifestLink.tsx when the route enters
+   /coach — so the scan below, which reads index.html, cannot see them. Without
+   this the second installable app would silently stop being installable and the
+   build would stay green. */
+for (const r of ['/coach.webmanifest', '/icons/coach-192.png', '/icons/coach-512.png']) {
+  if (!(await exists(resolve(OUT, r.replace(/^\//, ''))))) {
+    console.error(`\nMissing ${r} — the coach PWA would not be installable.`);
+    process.exit(1);
+  }
+}
+say('coach manifest + icons (the second installable app)');
+
 const missing = [];
 for (const r of new Set(refs)) {
   if (r.startsWith('//') || r.includes('://')) continue;

@@ -20,11 +20,11 @@ const product = process.env.VITE_HYBRID_PRODUCT;
 const productName =
   product === 'conditioning' ? 'THE Conditioning System'
   : product === 'strength' ? 'THE Strength System'
-  : 'THE Hybrid System — Dashboard';
+  : 'THE Hybrid System';
 const productShortName =
   product === 'conditioning' ? 'Conditioning'
   : product === 'strength' ? 'Strength'
-  : 'Dashboard';
+  : 'Hybrid';
 
 /*
  * The deployed CSP (see _headers, asserted by checks/pentest.mjs) is
@@ -58,7 +58,16 @@ export default defineConfig({
         theme_color: '#070706',
         background_color: '#070706',
         display: 'standalone',
-        start_url: '/',
+        /* `/home`, not `/`, so launching the installed app does not spend its
+           first paint on a redirect. `scope` is set EXPLICITLY and stays `/`:
+           it would otherwise be derived from start_url, and a `/home` scope
+           would push /training, /log and /progress out of the installed app
+           and into a browser tab. The coach's own manifest
+           (apps/web/public/coach.webmanifest) nests inside this one at
+           /coach — see src/manifestLink.tsx. */
+        id: '/',
+        start_url: '/home',
+        scope: '/',
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
