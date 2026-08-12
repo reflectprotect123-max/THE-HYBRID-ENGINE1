@@ -12,6 +12,7 @@ export * from './types';
 export * from './constants';
 export * from './num';
 export * from './autoreg';
+export * from './fold';
 export * from './plates';
 export * from './hr';
 export * from './geo';

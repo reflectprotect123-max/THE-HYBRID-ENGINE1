@@ -12,7 +12,9 @@
  * multiplier accumulated from how the session has actually gone.
  */
 
-import { roundToIncrement } from './num';
+import { isWarmup, repFloorOf, rpeCenterOf } from './autoreg';
+import { roundToIncrement, saneKg } from './num';
+import type { Exercise, LoggedSet } from './types';
 
 /** Reps-to-failure cap. Above this the Epley estimate stops meaning anything. */
 export const RTF_CAP = 12;
@@ -236,4 +238,44 @@ export function foldExercise({ targets, logs, opener, increment }: FoldInput): F
   }
 
   return { setIndex, target, kg, message };
+}
+
+/** A planned set's rep target, read out of its free-text `t`. */
+function targetRepsOf(t: string | undefined): number | 'max' {
+  if (/max/i.test(t || '')) return 'max';
+  const floor = repFloorOf(t);
+  return floor > 0 ? floor : 8;
+}
+
+/**
+ * Run the fold over an engine exercise.
+ *
+ * Warm-up sets are dropped before anything else happens — they are real work
+ * the athlete performs, but they must never reach a working weight. That rule
+ * belongs here, once, rather than at each call site.
+ */
+export function foldFromExercise(
+  ex: Exercise<LoggedSet>,
+  increment: number,
+): FoldResult | null {
+  const working = ex.sets.filter((st) => !isWarmup(st));
+  if (!working.length) return null;
+
+  const targets: PlanTarget[] = working.map((st) => ({
+    reps: targetRepsOf(st.t),
+    rpe: rpeCenterOf(st),
+  }));
+
+  const logs: FoldLog[] = [];
+  for (let i = 0; i < working.length; i++) {
+    const st = working[i];
+    if (!st.done) break;
+    const reps = parseInt(String(st.aVal2), 10) || 0;
+    const felt = parseFloat(String(st.felt));
+    if (!(reps > 0) || !Number.isFinite(felt)) break;
+    logs.push({ reps, kg: saneKg(st.aVal), felt, target: targets[i] });
+  }
+
+  const opener = logs.length ? logs[0].kg : saneKg(working[0].aVal);
+  return foldExercise({ targets, logs, opener, increment });
 }

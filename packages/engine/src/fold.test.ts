@@ -224,3 +224,51 @@ describe('foldExercise', () => {
     expect(r.kg % 5).toBe(0);
   });
 });
+
+import { foldFromExercise } from './fold';
+import type { Exercise, LoggedSet } from './types';
+
+const ex = (sets: LoggedSet[]): Exercise<LoggedSet> => ({
+  id: 'e1', name: 'Back Squat', mode: 'reps_kg', sets,
+});
+
+describe('foldFromExercise', () => {
+  it('reads the opener from set 1’s recorded weight once it is done', () => {
+    const r = foldFromExercise(ex([
+      { t: '10', rpe: '7', aVal: '60', aVal2: '10', felt: '7', done: true },
+      { t: '8', rpe: '8' },
+    ]), 2.5)!;
+    expect(r.setIndex).toBe(1);
+    expect(r.kg).toBe(62.5);
+  });
+
+  it('ignores warm-up sets, so an empty bar never teaches the working weight', () => {
+    const r = foldFromExercise(ex([
+      { t: 'W10', rpe: '5', aVal: '20', aVal2: '10', felt: '3', done: true },
+      { t: '10', rpe: '7', aVal: '60', aVal2: '10', felt: '7', done: true },
+      { t: '8', rpe: '8' },
+    ]), 2.5)!;
+    expect(r.kg).toBe(62.5);
+  });
+
+  it('stops at the first unfinished set', () => {
+    const r = foldFromExercise(ex([
+      { t: '10', rpe: '7', aVal: '60', aVal2: '10', felt: '7', done: true },
+      { t: '8', rpe: '8' },
+      { t: '6', rpe: '9' },
+    ]), 2.5)!;
+    expect(r.setIndex).toBe(1);
+  });
+
+  it('reads a max target out of the set text', () => {
+    const r = foldFromExercise(ex([
+      { t: '10', rpe: '7', aVal: '60', aVal2: '10', felt: '7', done: true },
+      { t: 'max', rpe: '10' },
+    ]), 2.5)!;
+    expect(r.target.reps).toBe('max');
+  });
+
+  it('returns null for an exercise with no working sets at all', () => {
+    expect(foldFromExercise(ex([{ t: 'W10', rpe: '5' }]), 2.5)).toBeNull();
+  });
+});
