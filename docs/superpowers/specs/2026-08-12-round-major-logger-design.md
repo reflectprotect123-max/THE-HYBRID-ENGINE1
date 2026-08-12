@@ -58,11 +58,19 @@ useSession(session: Session): {
   hot: { exercise, setIndex, coach } | null,
   rounds: RoundView[],
   rest: { left, total, kind } | null,
-  logSet(draft): void,
-  rotate(blockId): void,
-  // …
+  draft: Draft | null,
+  setDraft(patch: Partial<Draft>): void,
+  logSet(): void,
+  rotate(blockId: string): void,
+  skipSet(): void,
+  addSet(exerciseId: string): void,
+  goToBlock(index: number): void,
+  finish(): void,
 }
 ```
+
+That is the whole surface. Anything an app needs that is not on this list is a
+change to the package, not a local workaround in a screen.
 
 No component, no style, no string of UI copy that is not data.
 
@@ -145,9 +153,16 @@ Each app carries one smoke test proving its screen drives the hook.
 
 ## The greenlight gates
 
-Nothing ships on inspection by eye. Three gates, all of them run against
-**both** surfaces — the athlete app and the coach bench — on **both** web and
-mobile.
+Nothing ships on inspection by eye. Three gates, run against every surface the
+new screens reach. There are three such surfaces, not four: the coach bench is
+web-only and there is no native coach app to test, per the coach-workspace rule
+in `CLAUDE.md`.
+
+| Surface | Where |
+| --- | --- |
+| Athlete app | `apps/web` |
+| Athlete app | `apps/mobile` |
+| Coach bench | `apps/web` only |
 
 1. **Behaviour parity.** One script drives the prototype and the built app
    through an identical sequence of taps and asserts identical results: the
