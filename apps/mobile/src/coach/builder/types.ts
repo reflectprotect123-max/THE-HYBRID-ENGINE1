@@ -88,28 +88,6 @@ export interface BlockValue {
   conditioning?: CondValue;
 }
 
-/** A, B, C … — the mockup letters exercises within a block rather than numbering them. */
-function letterFor(i: number): string {
-  return String.fromCharCode(65 + (i % 26));
-}
-
-export interface BlockExercise {
-  id: string;
-  name: string;
-  /** What each of the two set columns measures — see `@hybrid/engine`'s COLUMN_TYPES. */
-  columnA: string;
-  columnB: string;
-  sets: SetRow[];
-}
-
-export interface BlockValue {
-  id: string;
-  category: string;
-  exercises: BlockExercise[];
-  /** Present only for a conditioning category; see `CONDITIONING_CATEGORIES`. */
-  conditioning?: CondValue;
-}
-
 export interface SetRow {
   id: string;
   /** First column's value, in whatever `columnA` measures. */
