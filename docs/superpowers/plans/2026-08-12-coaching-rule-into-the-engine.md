@@ -507,6 +507,18 @@ describe('foldExercise', () => {
 
   it('holds after one easy set rather than jumping on thin evidence', () => {
     const r = foldExercise(input([log(10, 6, LADDER[0])]))!;
+    // planned 63 → want 63.63 → rounds back to 62.5, which IS the plan. The
+    // wanted rise is smaller than one plate, so the message names the plate.
+    expect(r.kg).toBe(62.5);
+    expect(r.message).toBe('holding — the next jump is 2.5 kg, chase clean reps instead');
+  });
+
+  it('says plainly that one easy set is not evidence when the step is small', () => {
+    // The "next jump is N kg" wording is reserved for inc >= 2, where naming
+    // the plate is useful. Below that it just says why it held.
+    // planned 63, want 63.63, both round to 63 on a 1.5 kg step.
+    const r = foldExercise({ ...input([log(10, 6, LADDER[0])]), increment: 1.5 })!;
+    expect(r.kg).toBe(63);
     expect(r.message).toBe('holding — one easy set is not evidence yet');
   });
 
@@ -1049,11 +1061,11 @@ Create `packages/engine/test/golden/foldExercise.json`. Each entry is an input a
   { "targets": [{"reps":10,"rpe":7},{"reps":8,"rpe":8}],
     "logs": [{"reps":10,"kg":60,"felt":9,"target":{"reps":10,"rpe":7}}],
     "opener": 60, "increment": 2.5,
-    "out": { "setIndex": 1, "kg": 57.5, "message": "backed off — your 10 @ 9 was harder than asked" } },
+    "out": { "setIndex": 1, "kg": 60, "message": "backed off — your 10 @ 9 was harder than asked" } },
   { "targets": [{"reps":10,"rpe":7},{"reps":8,"rpe":8}],
     "logs": [{"reps":4,"kg":60,"felt":7,"target":{"reps":10,"rpe":7}}],
     "opener": 60, "increment": 2.5,
-    "out": { "setIndex": 1, "kg": 55, "message": "backed off — your 4 @ 7 was harder than asked" } },
+    "out": { "setIndex": 1, "kg": 57.5, "message": "backed off — your 4 @ 7 was harder than asked" } },
   { "targets": [{"reps":10,"rpe":7},{"reps":"max","rpe":10}],
     "logs": [{"reps":10,"kg":60,"felt":7,"target":{"reps":10,"rpe":7}}],
     "opener": 60, "increment": 2.5,
