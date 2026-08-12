@@ -138,6 +138,14 @@ jobs:
       - name: Web touch targets (both pointer emulations)
         run: node checks/web-touch.mjs
 
+      # Reachability walks the import graph from each app's entry point. Dead
+      # code with a passing test is the dangerous kind — the suite goes green
+      # and nothing calls it, which is how "Foreground GPS tracking" got marked
+      # done while the app never wired it up. Ratchet, same shape as the lane
+      # contract: an allowlist entry that stops being true fails too.
+      - name: Reachability (no unreachable source files)
+        run: node checks/reachability.mjs
+
       # Suites that need no network and no secrets. emit-contract used to lead
       # this list; it string-pinned the vanilla app.js and round-tripped the
       # vanilla coach emit.js through a browser. Both are deleted, and
