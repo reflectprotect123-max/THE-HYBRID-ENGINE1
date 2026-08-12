@@ -34,6 +34,17 @@ import { Coach as NutritionCoach } from './screens/nutrition/Coach';
 import { NutritionSettings } from './screens/nutrition/NutritionSettings';
 import { ATHLETE_HOME, IS_SCOPED_BUILD, PRODUCT, PRODUCT_ID } from './product';
 import { ManifestLink } from './manifestLink';
+import { startServiceWorker } from './serviceWorker';
+
+/*
+ * Registered at module scope, above every route fork.
+ *
+ * It used to happen inside `UpdateBanner`, which lives in the athlete `Shell`
+ * — so the coach workspace, the logger, the planner and the guided builder ran
+ * with NO service worker. An installable PWA needs one, so the coach bench
+ * could not be installed at all from the surface a coach actually uses.
+ */
+startServiceWorker();
 
 /* The coach bench is its own chunk: athletes never download it, and a failure
    inside it can never take down an athlete route. */
