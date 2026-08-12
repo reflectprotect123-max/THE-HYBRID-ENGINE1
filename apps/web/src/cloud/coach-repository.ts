@@ -15,6 +15,7 @@ import type {
   TrainingDomain,
 } from '../coach/contracts';
 import { validateProgramAssignmentDraft } from '../coach/contracts';
+import { sessionsFromBody } from '../coach/program-body';
 import { COACH_CLIENT_FIXTURES } from '../coach/mock-fixtures';
 import { supabaseClient } from './sync';
 
@@ -233,6 +234,9 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
         sessionsPerWeek: sessions === 2 || sessions === 3 || sessions === 4 ? sessions : 3,
         weeks: Number.isFinite(Number(body.weeks)) ? Number(body.weeks) : 0,
         summary: typeof body.summary === 'string' ? body.summary : '',
+        // The body was already fetched and reduced above; this reads the one
+        // field the contract previously had nowhere to put.
+        sessions: sessionsFromBody(body),
         progression: (body.progression as ProgramTemplate['progression']) ?? {
           kind: 'strength',
           stages: [],

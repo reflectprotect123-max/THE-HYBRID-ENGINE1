@@ -15,48 +15,28 @@ export function ArcCoachFrame() {
   const commandCount = pending + weekExceptions;
   const inLibrary = location.pathname.includes('/library') || location.pathname.includes('/author') || location.pathname.includes('/build/') || location.pathname.includes('/planner/');
   const inSettings = location.pathname.includes('/settings');
-  const inReview = location.pathname.includes('/review/');
-  const inProgression = location.pathname.includes('/progression');
-  const inLegacy = location.pathname.includes('/legacy');
 
   /*
-   * The Stage-1 Command Center is four pillar tiles and nothing else — the
-   * approved mockup's `#view-command` has no slot for anything more, and the
-   * old screen's system-links row went with the rewrite. Three routes lost
-   * their ONLY inbound link with it: `/coach/review/:weekStart`,
-   * `/coach/progression` and `/coach/legacy`. `/coach/progression` is the
-   * worst of the three — with a roster client selected, every pillar tile
-   * correctly badges a pending count and then dead-ends at
-   * `ClientDetailGate`'s refusal (the pillars read local stores, so they are
-   * gated WITHOUT `layer3Ready` by design), and this route is the only place
-   * in the app `RosterProgressionActions` is mounted. Roster approve/decline
-   * was unreachable.
+   * The rail is Command / Library / Settings, and nothing else.
    *
-   * They live in the rail rather than back in the tile grid: the rail is
-   * outside the mockup's Stage-1 scope, already holds Command / Library /
-   * Settings, and is where a coach looks for a workspace-level destination.
-   * Same `ArcNavLink`, same styling, no new visual language — and because
-   * the rail is the drawer below `sm`, they are reachable at phone width by
-   * construction rather than by a second layout.
+   * Stage 1 added three more entries here — Week review
+   * (`/coach/review/:weekStart`), Decisions (`/coach/progression`) and
+   * Program bench (`/coach/legacy`) — because the redesigned Command Center
+   * had dropped the old system-links row and left those routes with no
+   * inbound link at all. Linking them fixed the orphan and, in doing so, put
+   * three pre-redesign screens back in front of the coach as permanent tabs.
+   * The owner deleted all three from the rail on 11 August 2026.
    *
-   * Each entry is gated on where it actually LEADS, not merely on where it
-   * is declared:
-   *  - Week review is `layer3Ready`, so it works for both a local and a
-   *    roster client. Always shown. `weeklyPlan.weekStart` is the same
-   *    computation the pre-redesign Command Center used for this link —
-   *    a real week, not `today` re-derived here.
-   *  - Decisions (`/coach/progression`) REDIRECTS a local coach to
-   *    `/coach/strength`, which now owns the self-coach queue
-   *    (CoachProgression.tsx). A nav entry that bounces you elsewhere is
-   *    worse than no entry, so it appears only when the selected client is
-   *    not local. `!selectedClient` counts as local — the exact condition
-   *    CoachProgression itself branches on, not a re-derived approximation.
-   *  - Program bench (`/coach/legacy`) is gated WITHOUT `layer3Ready` and
-   *    refuses a roster client, so it appears only for a local one. This
-   *    matches what the old system-links row did: it rendered the whole row
-   *    only for `engine-local`.
+   * The ROUTES survive, unlinked and reachable by address. That is
+   * deliberate, not an oversight: `/coach/progression` is still the only
+   * place `RosterProgressionActions` is mounted, so it is the only roster
+   * approve/decline in the app, and deleting the route would delete the
+   * capability. Re-homing those capabilities into the pillar screens is the
+   * work that retires the routes; until then, do NOT "fix" this by re-adding
+   * nav entries — the orphan is the owner's decision, and it is recorded
+   * here so the next reader does not re-derive Stage 1's reasoning and undo
+   * it.
    */
-  const isLocalClient = !selectedClient || selectedClient.source === 'engine-local';
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -127,11 +107,8 @@ export function ArcCoachFrame() {
           aria-label="ARC primary navigation"
           onClick={() => setDrawerOpen(false)}
         >
-          <ArcNavLink to="/coach" label="Command" count={commandCount} current={!inLibrary && !inSettings && !inReview && !inProgression && !inLegacy} />
+          <ArcNavLink to="/coach" label="Command" count={commandCount} current={!inLibrary && !inSettings} />
           <ArcNavLink to="/coach/library" label="Library" current={inLibrary} />
-          <ArcNavLink to={`/coach/review/${weeklyPlan.weekStart}`} label="Week review" current={inReview} />
-          {!isLocalClient && <ArcNavLink to="/coach/progression" label="Decisions" current={inProgression} />}
-          {isLocalClient && <ArcNavLink to="/coach/legacy" label="Program bench" current={inLegacy} />}
           <ArcNavLink to="/coach/settings" label="Settings" current={inSettings} />
         </nav>
         {/*

@@ -1,28 +1,31 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { LS_KEY } from '@hybrid/engine';
 import { CoachLibrary } from './CoachLibrary';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
-import { PROGRAM_TEMPLATE_FIXTURES } from './mock-fixtures';
+import { DbProvider } from '../store/db';
 
 /*
- * Bug: with zero published program templates — the real state for every
- * account today, since nothing has ever published one — both places
- * "Prepare assignment" can render (the sidebar's "ARC recommends" panel and
- * the main list's detail panel) are gated on `selected`, which is undefined
- * whenever `templates` is empty. The screen renders a fully interactive
- * configuration form (training system, experience, sessions, assign-to,
- * dates) that leads nowhere, with no message explaining why. This test
- * covers the fix: an explicit empty state with a way forward.
+ * The Library is the month calendar and nothing else. The "Programs" tab and
+ * its "Prepare an assignment" configurator were deleted by the owner on
+ * 11 August 2026 — see CoachLibrary.tsx's header comment for what that cost.
+ *
+ * The first two tests below are the ones that keep the deletion honest: a
+ * partial revert that left any part of the configurator behind would put a
+ * dead-end form back in front of the coach, which is the exact bug the old
+ * suite existed to cover.
  */
 
 async function renderLibrary(repository: FakeCoachWorkspaceRepository) {
   const result = renderCoachScreen(
-    <MemoryRouter initialEntries={['/coach/library']}>
-      <CoachLibrary />
-    </MemoryRouter>,
+    <DbProvider>
+      <MemoryRouter initialEntries={['/coach/library']}>
+        <CoachLibrary />
+      </MemoryRouter>
+    </DbProvider>,
     { repository },
   );
   await act(async () => {});
@@ -30,85 +33,53 @@ async function renderLibrary(repository: FakeCoachWorkspaceRepository) {
 }
 
 describe('CoachLibrary', () => {
-  it('shows an empty state with a way forward when no templates are published, instead of a dead-end form', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.templates = [];
-    await renderLibrary(repo);
-
-    // The configuration controls are still there...
-    expect(screen.getByText('Training system')).toBeInTheDocument();
-    // ...but no "Prepare assignment" action exists anywhere, because nothing
-    // is selected. Without the fix, this is a silent dead end.
-    expect(screen.queryByRole('button', { name: /prepare/i })).not.toBeInTheDocument();
-
-    // The fix: an explicit message, not silence.
-    expect(screen.getByText(/no.*templates.*published/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /session builder|build/i })).toHaveAttribute('href', '/coach/author');
+  beforeEach(() => {
+    localStorage.clear();
   });
 
-  it('shows a distinct error message, not the empty-catalog message, when the Library fails to load', async () => {
+  it('opens straight onto the calendar, with no view tabs to choose between', async () => {
     const repo = new FakeCoachWorkspaceRepository();
-    repo.templatesError = true;
-    await renderLibrary(repo);
-
-    expect(screen.getAllByText(/could not be loaded/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/no.*templates.*published/i)).not.toBeInTheDocument();
-  });
-
-  it('still shows the empty state for a domain with zero templates, even when the other domain has some', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.templates = PROGRAM_TEMPLATE_FIXTURES.filter((t) => t.domain === 'strength');
-    await renderLibrary(repo);
-
-    // Switch to Conditioning, which this fixture set has none of.
-    await act(async () => {
-      screen.getAllByRole('button', { name: /^conditioning$/i })[0].click();
-    });
-
-    expect(screen.getByText(/no.*templates.*published/i)).toBeInTheDocument();
-  });
-
-  it('renders the normal recommend + prepare flow once a published template exists', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.templates = PROGRAM_TEMPLATE_FIXTURES.filter((t) => t.domain === 'strength' && t.status === 'published');
     repo.clients = [rosterClient({ id: 'roster-1', name: 'Riley Roster' })];
     await renderLibrary(repo);
 
-    expect(screen.getByText('ARC recommends')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /prepare/i }).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/no.*templates.*published/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: 'Library view' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous month' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeInTheDocument();
   });
 
-  it('leaves the domain-filter and weekday-picker buttons at desktop density, relying on the global coarse-pointer rule for touch sizing', async () => {
-    // packages/design/src/tokens.css already floors every <button> at 44px
-    // under `@media (pointer: coarse)`. An unconditional min-h-11 here would
-    // do nothing extra on touch and would inflate desktop density with a
-    // mouse — see the final-review fix wave. These buttons must NOT carry it.
-    const repo = new FakeCoachWorkspaceRepository();
-    const { container } = await renderLibrary(repo);
-    const fieldsetButtons = container.querySelectorAll('fieldset button[aria-pressed]');
-    expect(fieldsetButtons.length).toBeGreaterThan(0);
-    fieldsetButtons.forEach((button) => {
-      expect(button).toHaveClass('min-h-8');
-      expect(button).not.toHaveClass('min-h-11');
-    });
-  });
-
-  it('exposes the training-system filter as a real tablist', async () => {
+  it('carries no assignment configurator any more', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     await renderLibrary(repo);
-    const tablist = screen.getByRole('tablist', { name: 'Filter Library by training system' });
-    const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(2);
-    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
-    await act(async () => {
-      fireEvent.click(tabs[1]);
-    });
-    expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
-    expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
+
+    expect(screen.queryByRole('button', { name: /prepare/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Training system')).not.toBeInTheDocument();
+    expect(screen.queryByText(/preferred training days/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: 'Filter Library by training system' })).not.toBeInTheDocument();
   });
 
-  it('renders a scheduled session name on the calendar tab for the selected client', async () => {
+  it('keeps one link to the session builder, which is the only door to the whole builder chain', async () => {
+    // /coach/author is the only route linking on to /coach/build/:id,
+    // /coach/planner/:id and /coach/roster-plan/:workoutId. Deleting the
+    // Programs tab orphaned all four; this link is what un-orphaned them.
+    const repo = new FakeCoachWorkspaceRepository();
+    await renderLibrary(repo);
+    expect(screen.getByRole('link', { name: /session builder/i })).toHaveAttribute('href', '/coach/author');
+  });
+
+  it('keeps a client picker, because the calendar needs a client to read', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ id: 'roster-1', name: 'Riley Roster' }), rosterClient({ id: 'roster-2', name: 'Sam Second' })];
+    await renderLibrary(repo);
+
+    const picker = screen.getByLabelText('Athlete') as HTMLSelectElement;
+    expect(picker.value).toBe('roster-1');
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: 'roster-2' } });
+    });
+    expect((screen.getByLabelText('Athlete') as HTMLSelectElement).value).toBe('roster-2');
+  });
+
+  it('renders a scheduled session name on the calendar for the selected client', async () => {
     const now = new Date();
     const midMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-15`;
     const repo = new FakeCoachWorkspaceRepository();
@@ -120,24 +91,37 @@ describe('CoachLibrary', () => {
     };
     await renderLibrary(repo);
 
-    const viewTabs = within(screen.getByRole('tablist', { name: 'Library view' })).getAllByRole('tab');
-    await act(async () => {
-      fireEvent.click(viewTabs[1]);
-    });
-
     expect(screen.getAllByText('Heavy Squat A').length).toBeGreaterThan(0);
   });
 
-  it('asks the coach to choose a client on the calendar tab when no client is selected', async () => {
+  it('shows a session the coach built in the day builder, closing the save loop', async () => {
+    // The day builder writes an engine Workout into the local store. If the
+    // calendar only read the repository, a coach would save a session, come
+    // back, and find the day they just filled looking empty — which reads as
+    // the save having failed. Regression guard for exactly that.
+    const now = new Date();
+    const midMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-16`;
+    const before = JSON.parse(localStorage.getItem(LS_KEY) ?? '{}') as { workouts?: unknown[] };
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      ...before,
+      workouts: [{ id: 'coach-day-1', name: 'Heavy Pull', blocks: [], dates: [midMonth] }],
+    }));
+
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [];
     await renderLibrary(repo);
 
-    const viewTabs = within(screen.getByRole('tablist', { name: 'Library view' })).getAllByRole('tab');
-    await act(async () => {
-      fireEvent.click(viewTabs[1]);
-    });
+    expect(screen.getAllByText('Heavy Pull').length).toBeGreaterThan(0);
+  });
 
-    expect(screen.getByText(/choose a client from prepare an assignment/i)).toBeInTheDocument();
+  it('still draws the month with no athlete selected, saying why it is bare', async () => {
+    // A bare sentence instead of a grid made the whole Library a dead page
+    // for an empty roster. The day builder does not need a client.
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [];
+    await renderLibrary(repo);
+
+    expect(screen.getByRole('button', { name: 'Previous month' })).toBeInTheDocument();
+    expect(screen.getByText(/no athlete selected/i)).toBeInTheDocument();
   });
 });
