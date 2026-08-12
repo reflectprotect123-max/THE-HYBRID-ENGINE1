@@ -4,7 +4,7 @@ import { buildCatalogue } from '@hybrid/engine';
 import type { Workout } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { DayBuilder, type DayBuilderValue } from './DayBuilder';
-import { dayBuilderToWorkout, workoutToDayBuilder } from './day-workout';
+import { condSiblingId, dayBuilderToWorkouts, workoutsToDayBuilder } from './day-workout';
 import { SessionPicker } from './SessionPicker';
 
 /**
@@ -95,32 +95,64 @@ function DayBuilderSurface({
    * mid-edit. A day holds one session (the builder's "+ Add new session" is
    * deliberately disabled), so the first match is the match.
    */
-  const [existing] = useState<Workout | undefined>(() =>
-    date ? db.workouts.find((w) => w.dates?.includes(date)) : undefined,
+  /*
+   * A day can hold TWO workouts, not one: `sanitizeDB` splits any workout
+   * carrying both conditioning and non-conditioning blocks, so the builder
+   * writes the strength sibling and the conditioning sibling separately (see
+   * `dayBuilderToWorkouts`). Both are read back here as one day.
+   */
+  const [existing] = useState<Workout[]>(() =>
+    date ? db.workouts.filter((w) => w.dates?.includes(date)) : [],
   );
-  const [workoutId] = useState(() => existing?.id ?? `coach-day-${date ?? 'library'}-${Date.now()}`);
+  const [workoutId] = useState(() => {
+    /* The STRENGTH sibling's id is the day's id — the conditioning one is
+       derived from it — so a day found by its conditioning half alone still
+       resolves to the same pair rather than minting a new one. */
+    const cond = existing.find((w) => w.kind === 'conditioning');
+    const lift = existing.find((w) => w.kind !== 'conditioning');
+    if (lift) return lift.id;
+    if (cond?.id.endsWith('-cond')) return cond.id.slice(0, -'-cond'.length);
+    return `coach-day-${date ?? 'library'}-${Date.now()}`;
+  });
   const [initialValue] = useState<DayBuilderValue | undefined>(() => {
-    if (existing) return workoutToDayBuilder(existing);
+    if (existing.length) return workoutsToDayBuilder(existing);
     /*
      * A COPY, not a link. The chosen session's block and exercise ids come
      * along inside the value, but `persist` writes under THIS day's
      * `workoutId`, so editing here never reaches back into the session the
      * coach picked — which is exactly what the picker promises them in words.
      */
-    const source = copyFromId ? db.workouts.find((w) => w.id === copyFromId) : undefined;
-    return source ? workoutToDayBuilder(source) : undefined;
+    const source = copyFromId
+      ? db.workouts.filter((w) => w.id === copyFromId || w.id === condSiblingId(copyFromId))
+      : [];
+    return source.length ? workoutsToDayBuilder(source) : undefined;
   });
 
   function persist(value: DayBuilderValue, message: string) {
-    const next = dayBuilderToWorkout(value, {
-      id: workoutId,
-      date,
-      name: existing?.name ?? (date ? `Session · ${date}` : 'Session'),
-    });
+    const baseName = existing.find((w) => w.kind !== 'conditioning')?.name
+      ?? (date ? `Session · ${date}` : 'Session');
+    const next = dayBuilderToWorkouts(value, { id: workoutId, date, name: baseName });
+    const nextIds = new Set(next.map((w) => w.id));
+    const ours = new Set([workoutId, condSiblingId(workoutId)]);
     update((d) => {
-      const at = d.workouts.findIndex((w) => w.id === workoutId);
-      if (at === -1) d.workouts = [...d.workouts, next];
-      else d.workouts = d.workouts.map((w) => (w.id === workoutId ? { ...w, ...next } : w));
+      /*
+       * Drop OUR siblings that this save no longer produces — delete every
+       * conditioning block from a day and its conditioning workout must go,
+       * not linger on the calendar as a session the coach cannot see.
+       * Tombstoned so the deletion survives a cloud merge rather than being
+       * resurrected by the copy still on the server.
+       */
+      const stale = d.workouts.filter((w) => ours.has(w.id) && !nextIds.has(w.id));
+      if (stale.length) {
+        d.settings.deletedIds = { ...(d.settings.deletedIds || {}) };
+        for (const w of stale) d.settings.deletedIds[w.id] = Date.now();
+      }
+      const kept = d.workouts.filter((w) => !ours.has(w.id));
+      const merged = next.map((w) => {
+        const prior = d.workouts.find((x) => x.id === w.id);
+        return prior ? { ...prior, ...w } : w;
+      });
+      d.workouts = [...kept, ...merged];
     });
     setNotice(message);
   }
