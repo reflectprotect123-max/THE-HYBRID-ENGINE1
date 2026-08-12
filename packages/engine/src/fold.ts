@@ -85,3 +85,67 @@ export function plannedKg(anchor: number, target: PlanTarget): number {
   if (target.reps === 'max') return anchor;
   return anchor / (1 + repsToFailure(target.reps, target.rpe) / EPLEY_DIV);
 }
+
+/** Effective RPE for a set that fell short of its rep floor. */
+const MISSED_FLOOR_RPE = 10.5;
+
+/** A set as it was actually performed, with the plan it was performed against. */
+export interface FoldLog {
+  reps: number;
+  kg: number;
+  felt: number;
+  target: PlanTarget;
+}
+
+/** What the walk carries forward. */
+export interface WalkState {
+  /** Multiplier applied to the planned weight of the next set. */
+  adj: number;
+  /** Set by an underperformance. Once locked, easy sets no longer raise load. */
+  locked: boolean;
+  /** Consecutive easy sets immediately before now. */
+  easyRun: number;
+  /** The last set walked, or null. */
+  last: FoldLog | null;
+}
+
+/**
+ * Fold every set logged so far into one multiplier.
+ *
+ * Deviation is `asked - felt`: positive means easier than asked, negative means
+ * harder. A missed rep floor is scored as `MISSED_FLOOR_RPE` regardless of what
+ * the athlete rated it, so a modest rating on a failed set still brings the
+ * weight down.
+ */
+export function walkLogs(logs: FoldLog[]): WalkState {
+  const s: WalkState = { adj: 1, locked: false, easyRun: 0, last: null };
+
+  for (const log of logs) {
+    s.last = log;
+    if (log.target.reps === 'max') continue;
+
+    const floor = log.target.reps;
+    const missed = log.reps < floor;
+    const effective = missed ? MISSED_FLOOR_RPE : log.felt;
+    const dev = log.target.rpe - effective;
+    const k = kFor(floor);
+
+    if (dev <= -1) {
+      // Harder than asked. Full correction, and the exercise locks.
+      s.adj *= 1 + clampPct(k * dev) / 100;
+      s.locked = true;
+      s.easyRun = 0;
+    } else if (dev >= 1) {
+      // Easier than asked. Half now; the second consecutive one adds the rest.
+      // Nothing rises after a lock.
+      if (!s.locked) {
+        s.adj *= 1 + clampPct((k * dev) / 2) / 100;
+        s.easyRun += 1;
+      }
+    } else {
+      s.easyRun = 0;
+    }
+  }
+
+  return s;
+}

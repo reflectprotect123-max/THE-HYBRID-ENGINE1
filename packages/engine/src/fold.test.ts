@@ -69,3 +69,77 @@ describe('plannedKg', () => {
     expect(plannedKg(anchor, { reps: 'max', rpe: 10 })).toBeCloseTo(84, 6);
   });
 });
+
+import { walkLogs, type FoldLog } from './fold';
+
+const log = (reps: number, felt: number, target: PlanTarget, kg = 60): FoldLog =>
+  ({ reps, kg, felt, target });
+
+describe('walkLogs', () => {
+  it('holds at 1 when every set landed on target', () => {
+    const s = walkLogs([log(8, 8, { reps: 8, rpe: 8 })]);
+    expect(s.adj).toBe(1);
+    expect(s.locked).toBe(false);
+    expect(s.easyRun).toBe(0);
+  });
+
+  it('locks and drops on a set harder than asked', () => {
+    const s = walkLogs([log(8, 9, { reps: 8, rpe: 8 })]);
+    // dev = 8 - 9 = -1, k = 2 → -2%
+    expect(s.adj).toBeCloseTo(0.98, 6);
+    expect(s.locked).toBe(true);
+  });
+
+  it('treats a missed rep floor as harder than a 10, however it was rated', () => {
+    const s = walkLogs([log(5, 7, { reps: 8, rpe: 8 })]);
+    // missed → eff 10.5, dev = 8 - 10.5 = -2.5, k = 2 → -5%
+    expect(s.adj).toBeCloseTo(0.95, 6);
+    expect(s.locked).toBe(true);
+  });
+
+  it('gives one easy set only half its correction', () => {
+    const s = walkLogs([log(8, 7, { reps: 8, rpe: 8 })]);
+    // dev = +1, k = 2 → (2 * 1) / 2 = +1%
+    expect(s.adj).toBeCloseTo(1.01, 6);
+    expect(s.easyRun).toBe(1);
+  });
+
+  it('gives a second consecutive easy set the rest of it', () => {
+    const s = walkLogs([
+      log(8, 7, { reps: 8, rpe: 8 }),
+      log(8, 7, { reps: 8, rpe: 8 }),
+    ]);
+    expect(s.adj).toBeCloseTo(1.0201, 6);
+    expect(s.easyRun).toBe(2);
+  });
+
+  it('refuses to climb again once locked', () => {
+    const s = walkLogs([
+      log(8, 9, { reps: 8, rpe: 8 }),   // hard: locks at 0.98
+      log(8, 7, { reps: 8, rpe: 8 }),   // easy: ignored
+    ]);
+    expect(s.adj).toBeCloseTo(0.98, 6);
+    expect(s.locked).toBe(true);
+  });
+
+  it('resets the easy run when a set lands on target', () => {
+    const s = walkLogs([
+      log(8, 7, { reps: 8, rpe: 8 }),
+      log(8, 8, { reps: 8, rpe: 8 }),
+    ]);
+    expect(s.easyRun).toBe(0);
+  });
+
+  it('skips a max set entirely — no floor to miss, no target to deviate from', () => {
+    const s = walkLogs([log(3, 10, { reps: 'max', rpe: 10 })]);
+    expect(s.adj).toBe(1);
+    expect(s.locked).toBe(false);
+    expect(s.last?.target.reps).toBe('max');
+  });
+
+  it('clamps a wild rating to the step ceiling', () => {
+    const s = walkLogs([log(3, 1, { reps: 3, rpe: 9 })]);
+    // dev = +8, k = 3 → (3 * 8) / 2 = 12% → clamped to 7.5%
+    expect(s.adj).toBeCloseTo(1.075, 6);
+  });
+});
