@@ -1,57 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { activateWaiting, onWaitingWorker } from './serviceWorker';
 
 /*
  * "A new version is ready."
  *
  * The PWA is configured `registerType: 'prompt'`, which downloads a new service
- * worker and then WAITS for the app to activate it — and nothing ever imported
- * the register helper, so nothing ever did. Every deploy landed on the site and
- * never reached an installed app: the browser held a fully downloaded new
- * version behind a worker that was never told to take over. Silent, permanent,
- * and invisible from the deploy side, which is the worst combination.
+ * worker and then WAITS for the app to activate it. This is the half that tells
+ * the athlete, and lets them choose when — the app is used mid-session on a gym
+ * floor with a live logger and a running rest timer, and reloading underneath a
+ * working set to pick up a copy change is a worse failure than waiting.
  *
- * 'prompt' is still the right mode and this is the missing half of it, not a
- * switch to autoUpdate. Auto-activation swaps the running code on the next
- * navigation, and this app is used mid-session on a gym floor with a live
- * logger and a running rest timer. Reloading underneath a working set to pick
- * up a copy change is a worse failure than waiting.
- *
- * Registered by hand rather than through `virtual:pwa-register`, which pulls in
- * workbox-window purely to send one message. The generated worker's protocol is
- * one string — it listens for SKIP_WAITING and calls skipWaiting() — so the
- * dependency buys nothing this file cannot do in twenty lines.
+ * REGISTRATION IS NOT HERE ANY MORE (12 August 2026). It used to be, and
+ * because this component is mounted inside `Shell` — the athlete chrome —
+ * every route outside Shell had no service worker at all. The coach workspace
+ * is one of them, so `/coach` could not be installed as an app: an installable
+ * PWA needs a worker with a fetch handler, and there was none. Registration
+ * now happens in `serviceWorker.ts`, called from `App` above every route fork;
+ * this file subscribes to it.
  */
 export function UpdateBanner() {
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [hidden, setHidden] = useState(false);
-  /* controllerchange also fires on the FIRST install, when there was no
-     previous version and nothing to tell anyone about. Only a reload the
-     athlete asked for should reload. */
-  const asked = useRef(false);
 
-  useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
-
-    navigator.serviceWorker.register('/sw.js').then((reg) => {
-      // Already waiting from an earlier visit: the update downloaded, the tab
-      // was closed before anyone tapped, and it has been sitting there since.
-      if (reg.waiting) setWaiting(reg.waiting);
-
-      reg.addEventListener('updatefound', () => {
-        const next = reg.installing;
-        if (!next) return;
-        next.addEventListener('statechange', () => {
-          // `controller` is null on a first-ever install — that is not an
-          // update and must not raise a banner.
-          if (next.state === 'installed' && navigator.serviceWorker.controller) setWaiting(next);
-        });
-      });
-    });
-
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (asked.current) window.location.reload();
-    });
-  }, []);
+  useEffect(() => onWaitingWorker(setWaiting), []);
 
   if (!waiting || hidden) return null;
 
@@ -63,10 +34,7 @@ export function UpdateBanner() {
           <span className="block text-2 text-dim">Finish your set — nothing reloads until you tap.</span>
         </p>
         <button
-          onClick={() => {
-            asked.current = true;
-            waiting.postMessage({ type: 'SKIP_WAITING' });
-          }}
+          onClick={() => activateWaiting(waiting)}
           className="h-5 shrink-0 rounded-md px-1.5 text-3 font-[750] text-on-accent [background:var(--brass)]"
         >
           Reload

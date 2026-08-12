@@ -220,7 +220,18 @@ const seed = buildSeed();
 
 /* Phone-sized, because that is where this app is actually used. deviceScaleFactor
    2 so hairlines and the brass edge survive being looked at. */
-const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 2 });
+const ctx = await browser.newContext({
+  viewport: { width: 420, height: 900 },
+  deviceScaleFactor: 2,
+  /* No service worker in the harness (12 August 2026). The app now registers
+     one above every route fork — it has to, or the coach bench cannot be
+     installed as an app — and inside this harness that worker begins
+     precaching the whole bundle while the shot navigates away, which surfaces
+     as `net::ERR_FAILED` on a cancelled request and fails the run. It would
+     also carry a cache between shots, which is the last thing a screenshot
+     comparison wants. This checks LAYOUT; installability is not its job. */
+  serviceWorkers: 'block',
+});
 const page = await ctx.newPage();
 const problems = [];
 page.on('pageerror', (e) => problems.push('pageerror: ' + e));
@@ -313,7 +324,18 @@ execFileSync(
 
 const coachServer = await serve(COACH_PORT, COACH_DIR);
 const coachBase = 'http://127.0.0.1:' + COACH_PORT;
-const coachCtx = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 2 });
+const coachCtx = await browser.newContext({
+  viewport: { width: 420, height: 900 },
+  deviceScaleFactor: 2,
+  /* No service worker in the harness (12 August 2026). The app now registers
+     one above every route fork — it has to, or the coach bench cannot be
+     installed as an app — and inside this harness that worker begins
+     precaching the whole bundle while the shot navigates away, which surfaces
+     as `net::ERR_FAILED` on a cancelled request and fails the run. It would
+     also carry a cache between shots, which is the last thing a screenshot
+     comparison wants. This checks LAYOUT; installability is not its job. */
+  serviceWorkers: 'block',
+});
 const coachPage = await coachCtx.newPage();
 coachPage.on('pageerror', (e) => problems.push('coach pageerror: ' + e));
 coachPage.on('console', (m) => {
