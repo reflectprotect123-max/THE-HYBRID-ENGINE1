@@ -88,10 +88,22 @@ export function App() {
                   <Route path="/planner/:id" element={<Planner />} />
                   <Route path="/build/:id" element={<GuidedBuilder />} />
                   <Route element={<Shell />}>
-                    <Route path="/" element={IS_SCOPED_BUILD ? <Home /> : <Navigate to="/coach" replace />} />
-                    {/* Home's own path, identical on all three builds. `/` is
-                        the bench on the unscoped dashboard, so without this the
-                        athlete Home screen would have no address there at all. */}
+                    {/* The bare address is the ATHLETE's. It used to redirect
+                        to the coach bench, which made the front page of the
+                        product the surface most of its users never open — and
+                        meant an athlete typing the domain landed in someone
+                        else's workspace.
+
+                        A redirect to `ATHLETE_HOME` rather than rendering Home
+                        here, so the athlete app keeps ONE canonical address and
+                        the Home tab highlights when you arrive. It cannot loop:
+                        this branch only runs on the unscoped build, where
+                        `ATHLETE_HOME` is `/home`; the scoped builds render Home
+                        at `/` directly, exactly as before. The coach keeps
+                        `/coach` and every address under it. */}
+                    <Route path="/" element={IS_SCOPED_BUILD ? <Home /> : <Navigate to={ATHLETE_HOME} replace />} />
+                    {/* Home's own path, identical on all three builds, and now
+                        also where `/` lands on the unscoped one. */}
                     <Route path="/home" element={<Home />} />
                     <Route path="/training" element={<Training />} />
                     <Route path="/library" element={<Library />} />
@@ -105,12 +117,14 @@ export function App() {
                     <Route path="/recap/:id" element={<Recap />} />
                     <Route path="/nutrition" element={<FoodLog />} />
                     <Route path="/settings" element={<Settings />} />
-                    {/* Home, NOT `/`. On the unscoped build `/` is the coach
-                        bench, so sending every unmatched athlete path there
-                        ejected the athlete out of their own app — most visibly
-                        on the way back from the nutrition world, whose
-                        addresses none of these routes match. The coach-first
-                        root itself is unchanged: `/` above still redirects. */}
+                    {/* Home, NOT `/`. This mattered enormously when `/` was the
+                        bench — every unmatched athlete path chained through it
+                        and ejected the athlete into the coach workspace, most
+                        visibly on the way back from the nutrition world. `/` is
+                        the athlete's now, so the two agree, but naming
+                        `ATHLETE_HOME` directly is still right: it is the single
+                        source of truth for "send the athlete home" and does not
+                        depend on what `/` happens to mean on this build. */}
                     <Route path="*" element={<Navigate to={ATHLETE_HOME} replace />} />
                   </Route>
                 </Routes>
