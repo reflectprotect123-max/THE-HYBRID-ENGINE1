@@ -11,7 +11,10 @@ export function createGeoTracker() {
 
   return {
     start(onPoint: (point: GeoPoint) => void, onError: (message: string) => void): void {
-      if (!('geolocation' in navigator)) {
+      /* Truthiness, not `in`: a `geolocation` key that exists but holds
+         undefined passed the old check and then threw on `.watchPosition`,
+         taking the whole run down instead of degrading to "no tracking". */
+      if (!navigator.geolocation) {
         onError('This browser does not support location tracking.');
         return;
       }
@@ -22,7 +25,11 @@ export function createGeoTracker() {
       );
     },
     stop(): void {
-      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      /* Guarded for the same reason start() is, and it matters more here:
+         stop() runs from finish(), so a throw would take down the banking of a
+         real session over a watch that was already gone. Clearing a watch that
+         no longer exists is a no-op worth having, not an error worth raising. */
+      if (watchId != null) navigator.geolocation?.clearWatch(watchId);
       watchId = null;
     },
   };

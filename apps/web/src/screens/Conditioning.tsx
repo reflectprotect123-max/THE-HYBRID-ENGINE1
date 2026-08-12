@@ -10,15 +10,19 @@ import {
   conZones,
   fmtClock,
   ensureSharedCore,
+  geoDownsample,
   isCond,
+  paceSecPerKm,
   painHoldFor,
   paramsFor,
   progressionKey,
   pushCondHistory,
+  totalDistanceM,
   uid,
   zoneSeconds,
   type CondFmtKey,
   type CondResult,
+  type GeoSample,
   type HrSample,
   type Phase,
 } from '@hybrid/engine';
@@ -26,6 +30,7 @@ import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
 import { connectEchoV3, type EchoV3Connection, type EchoV3Event } from '../native/echoV3';
 import { requestWakeLock, releaseWakeLock } from '../native/wakeLock';
+import { createGeoTracker } from '../native/geoTracker';
 import { Button, Card, Chip, Kicker, Ring, ScreenTitle, SectionHead, cx } from '../ui';
 import { conditioningProgressionProposal } from '../lib/progression';
 import { recordProgressionProposals } from '../store/progression';
@@ -89,6 +94,16 @@ const RUN: {
   /** The open Echo V3 link, held at module scope like the run itself so a
    *  mid-run hop to Home doesn't drop the bike. Null when not connected. */
   echo: EchoV3Connection | null;
+  /** Raw GPS fixes for this run, `t` seconds from startedAt — the same shape
+   *  mobile collects, so `totalDistanceM`/`geoDownsample` treat both apps'
+   *  runs identically. Held here rather than in component state for the reason
+   *  the HR samples are: a mid-run hop to Home must not throw the route away. */
+  geo: GeoSample[];
+  /** The live watch, module-scoped like `echo` and for the same reason. */
+  geoTracker: ReturnType<typeof createGeoTracker> | null;
+  /** What to tell the athlete when the fix cannot be had — permission refused,
+   *  or a browser with no geolocation at all. Null while tracking is fine. */
+  geoMsg: string | null;
   timer: number | null;
   /** The mounted screen, when there is one, so beats reach the ring. */
   onBpm: ((n: number) => void) | null;
@@ -122,6 +137,9 @@ const RUN: {
   powerSamples: [],
   cadenceSamples: [],
   echo: null,
+  geo: [],
+  geoTracker: null,
+  geoMsg: null,
   timer: null,
   onBpm: null,
   onFtms: null,
@@ -287,6 +305,25 @@ export function Conditioning() {
 
   const zone = bpm == null ? null : conZoneOf(bpm, zones);
 
+  /*
+   * Live GPS distance, recomputed from the raw fixes on each redraw rather
+   * than accumulated as they arrive — `totalDistanceM` is what decides which
+   * hops are drift, and running it over the whole array is the only way the
+   * number on screen matches the number that gets banked. Null until the
+   * filter accepts real movement, so a stationary fix shows nothing at all
+   * instead of a twitching 0.0km.
+   *
+   * Computed on every render rather than memoised on the clock: fixes arrive
+   * whenever the GPS feels like it and poke `onFtms`, the same redraw the bike
+   * telemetry uses. Keying a memo to `elapsed` would lag the fixes by up to a
+   * second for no gain; the sum is over a few hundred points at most.
+   */
+  const gpsKm = (() => {
+    if (!live || RUN.geo.length < 2) return null;
+    const m = totalDistanceM(RUN.geo);
+    return m > 0 ? (m / 1000).toFixed(2) : null;
+  })();
+
   // Clears the hold for THIS format's bare bucket only — an ack keyed to
   // running says nothing about the rower. Recomputing `hold` off the fresh
   // settings is what makes the banner disappear and Start reappear on the
@@ -322,6 +359,35 @@ export function Conditioning() {
     RUN.sinkBid = sinkBid;
     RUN.sinkBi = sinkBi;
     RUN.timer = window.setInterval(runTick, 1000);
+
+    /*
+     * GPS, on the same window as the wake lock and dependent on it.
+     *
+     * `watchPosition` is foreground-only: Android stops feeding a backgrounded
+     * tab, so a phone in a pocket records nothing. The wake lock above is what
+     * makes this usable at all — screen on, fixes keep arriving — and that
+     * pairing is the whole reason this is wired now rather than shipped as the
+     * unreachable module it was. The banner below says so plainly instead of
+     * letting a short route look like a full one.
+     *
+     * Started for every format, like mobile does. A treadmill run simply
+     * produces fixes that never move, `totalDistanceM`'s jitter filter throws
+     * them away, and the run banks no distance — which is the correct answer,
+     * not a special case worth branching on.
+     */
+    RUN.geo = [];
+    RUN.geoMsg = null;
+    RUN.geoTracker = createGeoTracker();
+    RUN.geoTracker.start(
+      (p) => {
+        RUN.geo.push({ t: Math.max(0, Math.round((p.at - RUN.startedAt) / 1000)), lat: p.lat, lon: p.lon });
+        RUN.onFtms?.();
+      },
+      (message) => {
+        RUN.geoMsg = message;
+        RUN.onFtms?.();
+      },
+    );
     setBpm(null);
     setElapsed(0);
     setResult(null);
@@ -340,6 +406,11 @@ export function Conditioning() {
     if (RUN.timer) window.clearInterval(RUN.timer);
     RUN.timer = null;
     RUN.live = false;
+    // The watch outlives the screen, so stopping it belongs here with the
+    // clock rather than in an unmount cleanup — leaving it running would keep
+    // the GPS radio alive for the rest of the app's life.
+    RUN.geoTracker?.stop();
+    RUN.geoTracker = null;
     setLive(false);
     // A run too short to be training is discarded, not banked — a Start→Finish
     // mis-tap used to write a 1-second run, which conAdapt then treated as a
@@ -348,6 +419,8 @@ export function Conditioning() {
       RUN.samples = [];
       RUN.powerSamples = [];
       RUN.cadenceSamples = [];
+      RUN.geo = [];
+      RUN.geoMsg = null;
       RUN.elapsed = 0;
       setElapsed(0);
       setResult(null);
@@ -356,6 +429,18 @@ export function Conditioning() {
     const dur = Math.max(1, RUN.elapsed);
     const trace = conDownsample(RUN.samples, dur);
     const zsec = zoneSeconds(trace, zones);
+    /*
+     * `distanceM`'s invariant is GPS-only — "absent means not GPS-tracked" —
+     * and it gates the distance trend in Progress and the route affordances in
+     * History and Recap. So it is written only when fixes actually produced
+     * movement: a treadmill run, a refused permission, or a screen that slept
+     * all leave it absent, which is the honest answer. An erg's own odometer
+     * still never lands here (that is `deviceDistanceM`, display-only).
+     *
+     * Spelled exactly as mobile spells it in its own finish(), so one run
+     * banked on the phone and one in the browser are the same record.
+     */
+    const distanceM = totalDistanceM(RUN.geo);
     const rec: CondResult = {
       id: uid(),
       fmt,
@@ -368,6 +453,13 @@ export function Conditioning() {
       startedAt: RUN.startedAt,
       hrr: conHrr(trace).hrr,
       trace,
+      ...(distanceM > 0
+        ? {
+            distanceM,
+            avgPaceSecPerKm: paceSecPerKm(distanceM, dur) ?? undefined,
+            route: geoDownsample(RUN.geo, dur),
+          }
+        : {}),
     };
     // A run with Echo V3 telemetry is an air-bike session and says so. The
     // modality tag is what routes it into the per-format-per-modality
@@ -561,11 +653,15 @@ export function Conditioning() {
                   {phaseNow.p.name} · {fmtClock(phaseNow.p.dur - phaseNow.into)} left
                 </p>
               ) : null}
-              {RUN.power_w != null || RUN.cadence_rpm != null || RUN.distance_m != null ? (
+              {RUN.power_w != null || RUN.cadence_rpm != null || RUN.distance_m != null || gpsKm != null ? (
                 <p className="num mt-1 text-4 text-muted">
                   {[
                     RUN.power_w != null ? `${Math.round(RUN.power_w)}W` : null,
                     RUN.cadence_rpm != null ? `${Math.round(RUN.cadence_rpm)}rpm` : null,
+                    /* Labelled `gps` where the console's own figure is not,
+                       because they are different claims: this one is the field
+                       Progress trends, the console's is display-only. */
+                    gpsKm != null ? `${gpsKm}km gps` : null,
                     RUN.distance_m != null ? `${(RUN.distance_m / 1000).toFixed(1)}km` : null,
                   ]
                     .filter(Boolean)
@@ -580,6 +676,16 @@ export function Conditioning() {
           </Button>
           {strapState.status === 'error' ? (
             <p className="mt-1 text-center text-3 text-bad">{strapState.message}</p>
+          ) : null}
+          {/* Said once, while it matters. A browser cannot track GPS with the
+              screen off, so the athlete is told what keeps it working rather
+              than left to discover a short route afterwards. */}
+          {RUN.geoMsg ? (
+            <p className="mt-1 text-center text-3 text-bad">{RUN.geoMsg}</p>
+          ) : gpsKm != null ? (
+            <p className="mt-1 text-center text-3 text-dim">
+              Tracking your route — keep the screen on, GPS stops when it sleeps.
+            </p>
           ) : null}
           {elapsed < MIN_LOGGABLE_SEC ? (
             <p className="mt-1 text-center text-3 text-dim">

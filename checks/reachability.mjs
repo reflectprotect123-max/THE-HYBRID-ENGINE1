@@ -2,9 +2,11 @@
  * Every source file is reachable from its app's entry point.
  *
  * Dead code that carries a passing test is the dangerous kind: the suite goes
- * green, a task gets marked done, and nothing calls it. `geoTracker.ts` below
- * is exactly that — "Foreground GPS tracking", built, tested, wired to
- * nothing, and invisible for as long as nobody walked the import graph.
+ * green, a task gets marked done, and nothing calls it. This check was written
+ * because `native/geoTracker.ts` was exactly that — "Foreground GPS tracking",
+ * built, tested, called by nobody, and invisible until something walked the
+ * import graph. It is wired into Conditioning now, and its entry is gone from
+ * the list below, which is what the ratchet is for.
  *
  * So this walks it. Entry point in, resolve every relative import (including
  * bare side-effect imports like `import './product'` — missing those made an
@@ -36,14 +38,6 @@ const ALLOWED = [
     why: 'Test infrastructure. Unreachable from main.tsx is CORRECT — it exists '
        + 'for the coach suites and must never ship in the entry graph. Retires '
        + 'only if the harness moves under a test/ directory the walk skips.',
-  },
-  {
-    file: 'apps/web/src/native/geoTracker.ts',
-    why: 'Foreground GPS tracking (PWA parity task 1.3). Built and tested, but '
-       + 'nothing in the app calls createGeoTracker — the feature does not run. '
-       + 'Listed rather than deleted because the fix is to WIRE it (the '
-       + 'Conditioning screen is where outdoor work is logged), not to bin the '
-       + 'work. Retires the day it has a real importer.',
   },
 ];
 
