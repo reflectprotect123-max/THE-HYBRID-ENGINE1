@@ -26,6 +26,7 @@ import { useConcept2 } from '../cloud/concept2';
 import { isPersistent } from '../store/storage';
 import { SCAN_CORPUS_CAP, clearScanCorpus, exportScanCorpus, scanCorpusStats } from '../store/scanCorpus';
 import { parseBackup } from '../store/restore';
+import { startFresh, startFreshCounts } from '../store/startFresh';
 import { Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
 import { humanizeError } from '../errors';
 
@@ -133,6 +134,9 @@ export function SettingsScreen() {
       </Card>
 
       <BackupCard db={db} />
+      {/* After the backup card on purpose: "export a backup first" is only
+          useful advice if the export is the thing you just scrolled past. */}
+      <StartFreshCard />
       <LabelScanCard />
 
       <SectionHead title="Auto-Coached" />
@@ -150,6 +154,83 @@ export function SettingsScreen() {
  * sheet to get it off. The reader's own screen says "nothing uploaded"; that
  * line stays true only while there is somewhere plain that says what IS kept.
  */
+/**
+ * Clear the training content and start over.
+ *
+ * The web app's `StartFreshCard`, as a native card. Same rules, same wording,
+ * because both apps write the same `EngineDB` to the same backend and a phone
+ * that cleared less than the web did would hand the difference straight back
+ * on the next sync.
+ *
+ * `Alert` rather than an inline two-step, unlike the web: on Android a system
+ * dialog is the platform's own destructive-confirm, it cannot be dismissed by
+ * a stray scroll, and this screen already uses it for the label scans. The
+ * counts go IN the dialog, so the number is in front of you at the moment you
+ * decide rather than behind it.
+ */
+function StartFreshCard() {
+  const { db, update } = useDb();
+  const [done, setDone] = useState('');
+  const counts = startFreshCounts(db);
+  const empty = counts.workouts === 0 && counts.sessions === 0;
+
+  const clear = () =>
+    Alert.alert(
+      'Delete every session?',
+      `This deletes ${counts.workouts} in your library and ${counts.sessions} logged, on this phone and in the cloud. It cannot be undone. Your settings, connected devices and food log are not touched.`,
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const removed = startFreshCounts(db);
+            update((draft) => {
+              const next = startFresh(draft, Date.now());
+              draft.workouts = next.workouts;
+              draft.sessions = next.sessions;
+              draft.settings = next.settings;
+            });
+            setDone(`Cleared ${removed.workouts} in the library and ${removed.sessions} logged.`);
+          },
+        },
+      ],
+    );
+
+  return (
+    <View>
+      <SectionHead title="Start fresh" />
+      <Card>
+        <T className="text-3 text-muted">
+          Deletes every session in your library and every logged session, and stops them coming back from the cloud.
+          Your settings, connected devices and food log are not touched.
+        </T>
+        {done ? (
+          <T className="mt-1.5 text-4 text-ok">{done}</T>
+        ) : empty ? (
+          <T num className="mt-1.5 text-4 text-muted">Nothing to clear — there are no sessions stored.</T>
+        ) : (
+          <>
+            <T num className="mt-1.5 text-4 text-muted">
+              {counts.workouts} in the library · {counts.sessions} logged
+            </T>
+            <Tap box={{ h: 42 }}
+              onPress={clear}
+              label="delete every session"
+              className="mt-1.5 items-center rounded-md border border-line2 bg-panel2 py-1.5"
+            >
+              <T w="med" className="text-4 text-text">Clear all sessions…</T>
+            </Tap>
+            <T className="mt-1 text-3 text-dim">
+              Export a backup above first if you might want any of it back.
+            </T>
+          </>
+        )}
+      </Card>
+    </View>
+  );
+}
+
 function LabelScanCard() {
   /* Read on mount and after each action, never during render. Settings is a
      TAB and stays mounted under the logger, so parsing the corpus on every
