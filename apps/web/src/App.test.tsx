@@ -5,14 +5,17 @@ import { render, screen } from '@testing-library/react';
 import { App } from './App';
 
 /*
- * The COMPOSITION test. Each half of the coach-first root has its own unit
- * test — App's `/` element, CoachAccess's gate — and both pass in isolation
- * even if the two never meet: `/` redirecting into a chunk whose gate then
- * redirects back to `/` is a loop that neither test can see. This mounts the
- * real router and follows the whole path.
+ * The COMPOSITION test. Each half of the root has its own unit test — App's
+ * `/` element, the training tree's catch-all — and both pass in isolation even
+ * if the two never meet: `/` redirecting somewhere that redirects back to `/`
+ * is a loop that neither test can see. This mounts the real router and follows
+ * the whole path.
  *
- * jsdom's document starts at `/`, which is the entry this exercises; the
- * BrowserRouter App builds for itself reads it directly.
+ * Every case below sets its own starting address explicitly. jsdom's document
+ * starts at `/`, which used to be left implicit here — but `window.history` is
+ * shared across the cases in this file, so the first one only saw `/` by virtue
+ * of running first. That is an ordering dependency, and it showed up as a flake
+ * the moment a second case was added above it.
  */
 
 /* Vitest runs with DEV true, and the guard lets every account through in dev —
@@ -46,18 +49,44 @@ vi.mock('./cloud/sync', async () => {
 });
 
 describe('the unscoped dashboard root', () => {
-  it('lands on the coach sign-in screen from `/`, without a navigation loop', async () => {
+  /*
+   * `/` is the ATHLETE's. It used to redirect to the coach bench, so someone
+   * typing the bare domain landed in a workspace they had no account for and
+   * met a sign-in screen. The bench is still one tap away at `/coach`; it is
+   * just no longer what the product opens on.
+   */
+  it('lands on the athlete Home from `/`, without a navigation loop', async () => {
     mockAllowed = false;
+    window.history.pushState({}, '', '/');
+
     render(<App />);
+    expect(await screen.findByText(/Train today/i)).toBeInTheDocument();
+    // Redirected to the athlete's one canonical address, and stayed there.
+    expect(window.location.pathname).toBe('/home');
+    // And arrived inside the athlete's own chrome, not the bench's.
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+  });
+
+  it('still lets the coach bench be reached directly, and does not gate it behind the athlete', async () => {
+    mockAllowed = false;
+    window.history.pushState({}, '', '/coach');
+
+    render(<App />);
+
     /* 5s, not the 1s default: `/coach` is a `React.lazy` chunk (App.tsx), so
-       this waits on a real dynamic import. Alone it resolves in well under a
-       second; in the full parallel suite it intermittently did not, and the
-       test failed on machine load rather than on anything about the app. */
-    expect(await screen.findByRole('button', { name: /sign in/i }, { timeout: 5000 })).toBeInTheDocument();
-    // Arrived at the bench's address, and stayed there.
+       this waits on a real dynamic import — it pays for pulling and evaluating
+       the whole coach bundle before the gate can render. Alone it resolves in
+       well under a second; cold it lands around 950ms, and in the full parallel
+       suite it intermittently did not, failing on machine load rather than on
+       anything about the app. Two sessions found this independently and landed
+       the same number. The wait is legitimate, so the budget says so rather
+       than the assertion being lucky. */
+    expect(
+      await screen.findByRole('button', { name: /sign in/i }, { timeout: 5000 }),
+    ).toBeInTheDocument();
+
     expect(window.location.pathname).toBe('/coach');
-    // The athlete chrome must NOT be underneath it — the sign-in screen sits
-    // outside the Shell on purpose.
+    // The sign-in screen sits outside the Shell on purpose.
     expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
   });
 });
