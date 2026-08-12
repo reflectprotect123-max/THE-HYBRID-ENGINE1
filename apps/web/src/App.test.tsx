@@ -60,7 +60,6 @@ describe('the unscoped dashboard root', () => {
     window.history.pushState({}, '', '/');
 
     render(<App />);
-
     expect(await screen.findByText(/Train today/i)).toBeInTheDocument();
     // Redirected to the athlete's one canonical address, and stayed there.
     expect(window.location.pathname).toBe('/home');
@@ -74,16 +73,18 @@ describe('the unscoped dashboard root', () => {
 
     render(<App />);
 
-    /* An explicit timeout because this one is waiting on a DYNAMIC IMPORT: the
-       bench is `lazy(() => import('./coach'))`, so this case pays for pulling
-       and evaluating the whole coach chunk before the gate can render. It lands
-       around 950ms against testing-library's 1000ms default, which is a flake
-       waiting to happen on any loaded machine — and it flaked twice while this
-       was being written. The wait is legitimate, so the budget should say so
-       rather than the assertion being lucky. */
+    /* 5s, not the 1s default: `/coach` is a `React.lazy` chunk (App.tsx), so
+       this waits on a real dynamic import — it pays for pulling and evaluating
+       the whole coach bundle before the gate can render. Alone it resolves in
+       well under a second; cold it lands around 950ms, and in the full parallel
+       suite it intermittently did not, failing on machine load rather than on
+       anything about the app. Two sessions found this independently and landed
+       the same number. The wait is legitimate, so the budget says so rather
+       than the assertion being lucky. */
     expect(
       await screen.findByRole('button', { name: /sign in/i }, { timeout: 5000 }),
     ).toBeInTheDocument();
+
     expect(window.location.pathname).toBe('/coach');
     // The sign-in screen sits outside the Shell on purpose.
     expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
