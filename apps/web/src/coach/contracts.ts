@@ -65,6 +65,16 @@ export interface ProgramTemplate {
   weeks: number;
   summary: string;
   progression: ProgressionModel;
+  /**
+   * The program's own sessions, read from its latest version body by
+   * `sessionsFromBody`.
+   *
+   * Empty until phase 2 gives a program a way to hold more than one editable
+   * draft — `coach_workout_drafts` carries `unique (template_id)` today, so a
+   * published body can only ever hold the one session its single draft held.
+   * An empty list is an honest "not recorded", never a rendering failure.
+   */
+  sessions: readonly Workout[];
   status: 'draft' | 'published';
   source: 'coach-template' | 'engine-derived';
 }

@@ -904,3 +904,19 @@
     .th-add-action .th-create-icon { width: 30px; height: 30px; }
     .th-add-action span { font-weight: 700; font-size: 14px; color: var(--color-text); }
   }
+
+/*
+ * The session picker (Stage 3c substance, 12 August 2026). The mockup has no
+ * design for it — Sessions was drawn as a Library tab, and the owner deleted
+ * the Library's tabs — so this reuses the builder's own list vocabulary rather
+ * than introducing a third one.
+ */
+.cal-session-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.cal-session-row {
+  width: 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  padding: 10px 12px; min-height: 44px; text-align: left; font: inherit; color: inherit;
+  background: var(--color-panel3); border: 1px solid var(--color-line2); border-radius: 8px;
+}
+.cal-session-row:hover { background: var(--color-panel); }
+.cal-session-name { font-size: 13px; font-weight: 600; }
+.cal-session-meta { font-size: 11px; color: var(--color-dim); }
