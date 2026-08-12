@@ -12,6 +12,8 @@
  * multiplier accumulated from how the session has actually gone.
  */
 
+import { roundToIncrement } from './num';
+
 /** Reps-to-failure cap. Above this the Epley estimate stops meaning anything. */
 export const RTF_CAP = 12;
 
@@ -148,4 +150,90 @@ export function walkLogs(logs: FoldLog[]): WalkState {
   }
 
   return s;
+}
+
+export interface FoldInput {
+  targets: PlanTarget[];
+  logs: FoldLog[];
+  /** Set 1's weight, as the athlete entered it. 0 for bodyweight. */
+  opener: number;
+  /** Smallest load step this exercise's equipment allows. */
+  increment: number;
+}
+
+export interface FoldResult {
+  setIndex: number;
+  target: PlanTarget;
+  kg: number;
+  message: string;
+}
+
+/**
+ * What the next set should weigh, and the one line explaining it.
+ *
+ * Returns null when the exercise is finished. The message is part of the
+ * contract, not decoration: the parity gate asserts on it, because a number
+ * with no reason attached is what athletes override.
+ */
+export function foldExercise({ targets, logs, opener, increment }: FoldInput): FoldResult | null {
+  const setIndex = logs.length;
+  if (setIndex >= targets.length) return null;
+
+  const target = targets[setIndex];
+  const inc = increment > 0 ? increment : 1;
+
+  if (!(opener > 0)) return { setIndex, target, kg: 0, message: 'bodyweight' };
+  if (setIndex === 0) {
+    return { setIndex, target, kg: opener, message: 'opener — everything works from here' };
+  }
+
+  const state = walkLogs(logs);
+  const anchor = anchorFor(opener, targets[0]);
+
+  if (target.reps === 'max') {
+    // A max set is not priced off the plan — it is set 1's weight, minus any
+    // back-off the session has earned, so the athlete arrives fresh enough to
+    // make the rep count mean something.
+    const base = logs[0] ? logs[0].kg : opener;
+    const ground = state.last != null && state.last.felt >= state.last.target.rpe + 1;
+    const kg = roundToIncrement(base * (state.locked ? state.adj : 1) * (ground ? 0.95 : 1), inc);
+    return {
+      setIndex,
+      target,
+      kg,
+      message:
+        kg < base
+          ? 'set 1 minus the back-off — arrive fresh'
+          : 'back to set 1’s weight — count the reps',
+    };
+  }
+
+  const planned = plannedKg(anchor, target);
+  let want = planned * state.adj;
+  // One easy set may nudge by at most a single increment, however generous the
+  // rating was. The rest of the correction waits for a second easy set.
+  if (!state.locked && state.easyRun === 1) want = Math.min(want, planned + inc);
+
+  const kg = roundToIncrement(want, inc);
+  const plan = roundToIncrement(planned, inc);
+  const last = state.last;
+
+  let message: string;
+  if (state.locked && kg < plan && last) {
+    message = `backed off — your ${last.reps} @ ${last.felt} was harder than asked`;
+  } else if (kg === plan && state.easyRun >= 1) {
+    message =
+      Math.abs(want - planned) < inc && inc >= 2
+        ? `holding — the next jump is ${inc} kg, chase clean reps instead`
+        : 'holding — one easy set is not evidence yet';
+  } else if (kg > plan) {
+    message =
+      state.easyRun >= 2
+        ? 'two easy sets — full correction'
+        : `one jump up — your ${last?.reps} @ ${last?.felt} was easy`;
+  } else {
+    message = 'on plan';
+  }
+
+  return { setIndex, target, kg, message };
 }

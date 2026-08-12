@@ -143,3 +143,84 @@ describe('walkLogs', () => {
     expect(s.adj).toBeCloseTo(1.075, 6);
   });
 });
+
+import { foldExercise } from './fold';
+
+const LADDER: PlanTarget[] = [
+  { reps: 10, rpe: 7 },
+  { reps: 8, rpe: 8 },
+  { reps: 6, rpe: 9 },
+  { reps: 'max', rpe: 10 },
+];
+
+const input = (logs: FoldLog[]) => ({ targets: LADDER, logs, opener: 60, increment: 2.5 });
+
+describe('foldExercise', () => {
+  it('opens at the weight the athlete chose, and says so', () => {
+    const r = foldExercise(input([]))!;
+    expect(r.setIndex).toBe(0);
+    expect(r.kg).toBe(60);
+    expect(r.message).toBe('opener — everything works from here');
+  });
+
+  it('returns null once every planned set is logged', () => {
+    const logs = LADDER.map((t) => log(8, 8, t));
+    expect(foldExercise(input(logs))).toBeNull();
+  });
+
+  it('is on plan when the opener landed on target', () => {
+    const r = foldExercise(input([log(10, 7, LADDER[0])]))!;
+    expect(r.setIndex).toBe(1);
+    expect(r.kg).toBe(62.5);
+    expect(r.message).toBe('on plan');
+  });
+
+  it('holds after one easy set rather than jumping on thin evidence', () => {
+    const r = foldExercise(input([log(10, 6, LADDER[0])]))!;
+    // planned 63 → want 63.63 → rounds back to 62.5, which IS the plan. The
+    // wanted rise is smaller than one plate, so the message names the plate.
+    expect(r.kg).toBe(62.5);
+    expect(r.message).toBe('holding — the next jump is 2.5 kg, chase clean reps instead');
+  });
+
+  it('says plainly that one easy set is not evidence when the step is small', () => {
+    // The "next jump is N kg" wording is reserved for inc >= 2, where naming
+    // the plate is useful. Below that it just says why it held.
+    // planned 63, want 63.63, both round to 63 on a 1.5 kg step.
+    const r = foldExercise({ ...input([log(10, 6, LADDER[0])]), increment: 1.5 })!;
+    expect(r.kg).toBe(63);
+    expect(r.message).toBe('holding — one easy set is not evidence yet');
+  });
+
+  it('backs off after a set harder than asked, and names the set', () => {
+    const r = foldExercise(input([log(10, 9, LADDER[0])]))!;
+    expect(r.kg).toBeLessThan(62.5);
+    expect(r.message).toBe('backed off — your 10 @ 9 was harder than asked');
+  });
+
+  it('gives a bodyweight exercise no load and no advice about load', () => {
+    const r = foldExercise({ targets: LADDER, logs: [], opener: 0, increment: 2.5 })!;
+    expect(r.kg).toBe(0);
+    expect(r.message).toBe('bodyweight');
+  });
+
+  it('sends a max set back to set 1 weight when the run has gone well', () => {
+    const logs = [log(10, 7, LADDER[0]), log(8, 8, LADDER[1]), log(6, 9, LADDER[2])];
+    const r = foldExercise(input(logs))!;
+    expect(r.setIndex).toBe(3);
+    expect(r.kg).toBe(60);
+    expect(r.message).toBe('back to set 1’s weight — count the reps');
+  });
+
+  it('backs a max set off when the set before it was a grind', () => {
+    const logs = [log(10, 7, LADDER[0]), log(8, 8, LADDER[1]), log(6, 10, LADDER[2])];
+    const r = foldExercise(input(logs))!;
+    expect(r.kg).toBeLessThan(60);
+    expect(r.message).toBe('set 1 minus the back-off — arrive fresh');
+  });
+
+  it('rounds to the exercise’s own increment', () => {
+    const r = foldExercise({ ...input([log(10, 6, LADDER[0])]), increment: 5 })!;
+    expect(r.kg % 5).toBe(0);
+  });
+});
