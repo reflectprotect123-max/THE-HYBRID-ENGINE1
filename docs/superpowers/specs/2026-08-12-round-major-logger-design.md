@@ -8,7 +8,7 @@ The prototype is the specification. The app must come back as a mirror of it,
 proven by check rather than by eye.
 
 This document is in two halves. The first states the constraints that hold
-across the whole job. The second cuts it into six slices, each one small enough
+across the whole job. The second cuts it into seven slices, each one small enough
 to plan, build and verify on its own, and each one leaving the repo green.
 
 ---
@@ -32,15 +32,14 @@ are per-app screens that render what the hook returns.
 New package. Pure TypeScript. Depends on `react` and `@hybrid/engine`, and on
 nothing that resolves to `react-dom` or `react-native`.
 
-It owns:
+It owns everything about running a session EXCEPT the coaching rule, which
+belongs to `@hybrid/engine` (see slice 1):
 
 - the block model — prep blocks (warm-up, cool-down) and strength blocks
   (single movement, or a superset of two)
 - the round queue — which set is live, in which order, across a superset's
   interleaved rounds
 - superset rotation
-- the coaching fold — plan-anchored e1RM, the adjustment, and the message shown
-  on the live card
 - draft state — weight, reps and RPE being entered but not yet logged
 
 Its entire public surface is one hook:
@@ -178,32 +177,64 @@ rule. No `*.test.ts` under `test/`.
 
 ---
 
-# Part two — the six slices
+# Part two — the seven slices
+
+There are seven, not six: planning turned up a coaching-rule conflict that has
+to be settled in the engine before anything is built on top of it.
 
 Each slice leaves the repo green and is independently revertable. The order is
 not arbitrary: the engine is built before anything renders it, the gates exist
 before the thing they judge, and the irreversible step is last.
 
-## Slice 1 — the package
+## Slice 1 — the coaching rule moves into the engine
 
-Build `@hybrid/session-authoring`: block model, round queue, rotation, coaching
-fold, draft state, and `useSession`. No app touches it yet.
+Discovered while planning, and it changes the shape of the job: the prototype
+did **not** re-implement the engine's coaching. It invented a different rule.
 
-The coaching fold is ported from the prototype's arithmetic, which is itself the
-existing engine behaviour: plan-anchored e1RM, `k` by rep range, the ±7.5% clamp,
-lock-on-underperformance, and the two-easy-sets full correction.
+- `packages/engine/src/autoreg.ts`'s `computeSetAdjustment(reps, rpe, low,
+  weight, center)` judges **one set** against its own target and returns a
+  delta. It is golden-tested and has thirteen consumers.
+- The prototype's fold is **plan-anchored**: it walks every set logged in the
+  exercise so far, holds an adjustment multiplier, locks it on an
+  underperformance, counts consecutive easy sets, and prices the next set off
+  the plan rather than off the last set.
+
+Two rules answering "what should this set weigh" cannot both live here — one
+owner per decision domain. Decision taken 12 August 2026: **the prototype's
+rule wins and moves into `packages/engine`.**
+
+- New `packages/engine/src/fold.ts` owns it, exporting `foldExercise`.
+- `computeSetAdjustment` is deleted, not left beside it. A deprecated twin is
+  the thing this decision exists to prevent.
+- Its call sites migrate: `src/lift.ts:102`, `src/logger.ts:221`, and the
+  comment at `src/adaptive/strength.ts:257`.
+- The golden vectors in `packages/engine/test/golden/` are regenerated, and the
+  regeneration is reviewed as a behaviour change rather than waved through — a
+  golden file that is updated without anyone reading the diff is not a test.
+
+**Done when** typecheck and the full test run pass, and the golden diff has been
+read and is understood line by line.
+
+## Slice 2 — the package
+
+Build `@hybrid/session-authoring`: block model, round queue, rotation, draft
+state, and `useSession`. The coaching fold is **not** re-implemented here — the
+hook calls `foldExercise` from the engine. No app touches the package yet.
+
+`@hybrid/guided-flow` is the precedent to follow: it is a small pure-TS package
+already shared by both apps' builders. It is superseded by this one and is
+deleted with the last `GuidedBuilder` that imports it.
 
 **Tests** — colocated, and this slice carries the bulk of the suite:
 
 - round queue across supersets with unequal set counts
 - rotation: un-started rounds move, started rounds do not
-- the coaching fold: hold, back-off, one jump, full correction, `max` sets
 - draft state and the log transition
 
 **Done when** typecheck and tests pass and the package is in the workspace.
 Nothing user-visible changes.
 
-## Slice 2 — the parity harness
+## Slice 3 — the parity harness
 
 Build the two parity gates as runnable checks, before there is an app screen to
 point them at.
@@ -219,7 +250,7 @@ three surfaces.
 **Done when** both run against the prototype and record its trace and shots as
 the baseline every later slice is measured against.
 
-## Slice 3 — the athlete app on web
+## Slice 4 — the athlete app on web
 
 New builder and logger screens in `apps/web`, rendering `useSession`. Routes
 switched. `screens/Logger.tsx`, `screens/Planner.tsx`, `screens/planner/*` and
@@ -230,7 +261,7 @@ table, stats.
 
 **Done when** all three gates pass for the web athlete surface.
 
-## Slice 4 — the coach bench
+## Slice 5 — the coach bench
 
 The bench renders its own authoring screens on the hook. `CoachAuthoring.tsx`'s
 imports of `Planner` and `GuidedBuilder` are deleted, and with them the last two
@@ -240,7 +271,7 @@ entries in `checks/lane-contract.mjs`'s `ALLOWED`.
 passes with an empty `ALLOWED` list. Per the check's own ratchet rule, a stale
 entry is itself a failure, so this is self-proving.
 
-## Slice 5 — the athlete app on mobile
+## Slice 6 — the athlete app on mobile
 
 React Native screens in `apps/mobile` on the same hook. `screens/Logger.tsx`,
 `screens/Planner.tsx` and `screens/guided/*` deleted in the same commit.
@@ -249,7 +280,7 @@ React Native screens in `apps/mobile` on the same hook. `screens/Logger.tsx`,
 is judged against the same 412px baseline as web — the prototype was drawn at a
 real Android viewport for this reason.
 
-## Slice 6 — the wipe, and release
+## Slice 7 — the wipe, and release
 
 The one-time "Start fresh" clear on first launch of the new version, per
 constraint 8.
