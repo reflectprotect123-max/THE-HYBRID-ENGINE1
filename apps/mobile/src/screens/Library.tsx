@@ -94,6 +94,13 @@ export function LibraryScreen() {
     nav.navigate('GuidedBuilder', { id: w.id });
   };
 
+  /** Into the coach's day builder, dateless on purpose — that is LIBRARY
+   *  mode. This authors a session for the library; it is not scheduling a
+   *  day, so no `date` (and no other param) is threaded through. Unlike
+   *  `add` above it creates nothing up front: the builder owns its own
+   *  save, so abandoning it leaves no empty shell behind to clean up. */
+  const newSession = () => nav.navigate('DayBuilder');
+
   /** A clone, independent from the id up — see `duplicateWorkout`'s own doc
    *  comment for why. Lands on Planner, pre-populated, not GuidedBuilder:
    *  GuidedBuilder is append-only and cannot open on existing content. */
@@ -265,6 +272,18 @@ export function LibraryScreen() {
       <>
       <Btn variant="brass" className="mt-2" onPress={add}>
         ＋ New session
+      </Btn>
+
+      {/* The coach's door, beside the athlete's: the day builder "sits at
+          New session, under Library" — the owner's words — so it lives with
+          the creation affordance at the top of the Sessions slice, not
+          buried under "Yours". Both buttons make a session; they differ in
+          HOW. "＋ New session" above is the guided one-step-at-a-time flow;
+          this one is the block-by-block authoring bench, opened dateless
+          (library mode), and ghost rather than brass so the screen keeps a
+          single primary CTA. */}
+      <Btn variant="ghost" className="mt-1" onPress={newSession}>
+        New session
       </Btn>
 
       {/* The whole "Yours" section — folder management plus every row — is

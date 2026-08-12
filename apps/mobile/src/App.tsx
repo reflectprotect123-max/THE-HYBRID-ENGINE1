@@ -41,6 +41,7 @@ import { DayScreen } from './screens/Day';
 import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
 import { GuidedBuilderScreen } from './screens/guided/GuidedBuilder';
+import { DayBuilderScreen } from './coach/builder/DayBuilderScreen';
 import { ConditioningScreen } from './screens/Conditioning';
 import { DailyLogScreen } from './screens/nutrition/DailyLog';
 import { NutritionSettingsScreen } from './screens/nutrition/NutritionSettings';
@@ -99,6 +100,11 @@ export type RootStackParams = {
   /* Only the date — see Day.tsx's own doc comment for why a workoutId is
      deliberately NOT threaded through navigation params here. */
   Day: { date: string };
+  /* The coach's day builder. No `date` = library mode, authoring a session
+     for the library rather than a day — which is how Library's "New session"
+     opens it. All three params are optional, so `navigate('DayBuilder')`
+     with nothing at all is the library-mode call. */
+  DayBuilder: { date?: string; pick?: boolean; from?: string } | undefined;
 };
 
 /**
@@ -328,6 +334,7 @@ function AppInner() {
                   <Stack.Screen name="Calendar" component={CalendarScreen} />
                   <Stack.Screen name="Exercise" component={ExerciseScreen} />
                   <Stack.Screen name="Day" component={DayScreen} />
+                  <Stack.Screen name="DayBuilder" component={DayBuilderScreen} />
                 </Stack.Navigator>
               )}
                 </NavigationContainer>
