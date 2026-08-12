@@ -15,6 +15,7 @@ import {
   type RestoreReport,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
+import { startFresh, startFreshCounts } from '../store/startFresh';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
 import { useConcept2 } from '../cloud/concept2';
@@ -200,7 +201,73 @@ export function Settings() {
           </p>
         ) : null}
       </Card>
+
+      <StartFreshCard />
     </>
+  );
+}
+
+/**
+ * Clear the training content and start over.
+ *
+ * Why it exists: an app full of sessions built while the coach builder's Save
+ * button was still a stub — a session called "Session", a block called "NEW
+ * BLOCK", exercises called "Exercise" with nothing prescribed. Real rows with
+ * no real content, and until now the only way out was clearing site data,
+ * which also takes the settings, the integrations and the food log.
+ *
+ * Destructive, so it behaves like it: it says exactly what will go and how
+ * many, points at the export sitting directly above it, and needs a second
+ * deliberate press. No `window.confirm` — it is suppressible per-site on a
+ * phone, which makes it the wrong guard for the one action here that cannot be
+ * undone.
+ */
+function StartFreshCard() {
+  const { db, update } = useDb();
+  const [arming, setArming] = useState(false);
+  const [done, setDone] = useState('');
+  const counts = startFreshCounts(db);
+  const empty = counts.workouts === 0 && counts.sessions === 0;
+
+  function clear() {
+    const removed = startFreshCounts(db);
+    update((draft) => {
+      const next = startFresh(draft, Date.now());
+      draft.workouts = next.workouts;
+      draft.sessions = next.sessions;
+      draft.settings = next.settings;
+    });
+    setArming(false);
+    setDone(`Cleared ${removed.workouts} in the library and ${removed.sessions} logged.`);
+  }
+
+  return (
+    <Card className="flex flex-col gap-1">
+      <p className="text-5 font-[750]">Start fresh</p>
+      <p className="text-3 text-dim">
+        Deletes every session in your library and every logged session on this device, and stops
+        them coming back from the cloud. Your settings, connected devices and food log are not
+        touched.
+      </p>
+      {done ? (
+        <p role="status" className="text-3 text-ok">
+          {done}
+        </p>
+      ) : empty ? (
+        <p className="text-3 text-dim">Nothing to clear — there are no sessions stored.</p>
+      ) : arming ? (
+        <>
+          <p role="alert" className="num text-4 text-bad">
+            This deletes {counts.workouts} in the library and {counts.sessions} logged. It cannot be
+            undone. Export a backup first if you might want any of it.
+          </p>
+          <Button onClick={clear}>Yes, delete everything</Button>
+          <Button onClick={() => setArming(false)}>Keep it</Button>
+        </>
+      ) : (
+        <Button onClick={() => setArming(true)}>Clear all sessions…</Button>
+      )}
+    </Card>
   );
 }
 
