@@ -42,3 +42,30 @@ describe('clampPct', () => {
     expect(clampPct(-20)).toBe(-7.5);
   });
 });
+
+import { anchorFor, plannedKg, type PlanTarget } from './fold';
+
+describe('anchorFor', () => {
+  it('is the e1RM implied by set 1 at the opener', () => {
+    const first: PlanTarget = { reps: 10, rpe: 7 };
+    // rtf = 10 + 3 = 13, capped to 12 → 60 * (1 + 12/30) = 84
+    expect(anchorFor(60, first)).toBeCloseTo(84, 6);
+  });
+
+  it('is 0 for a bodyweight exercise, so nothing downstream invents a load', () => {
+    expect(anchorFor(0, { reps: 10, rpe: 8 })).toBe(0);
+  });
+});
+
+describe('plannedKg', () => {
+  it('prices a later set off the anchor, not off the last set', () => {
+    const anchor = anchorFor(60, { reps: 10, rpe: 7 });
+    // set 2 asks 8 @ 8 → rtf 10 → 84 / (1 + 10/30) = 63
+    expect(plannedKg(anchor, { reps: 8, rpe: 8 })).toBeCloseTo(63, 6);
+  });
+
+  it('treats a max set as the anchor set would be, since it has no rep target', () => {
+    const anchor = anchorFor(60, { reps: 10, rpe: 7 });
+    expect(plannedKg(anchor, { reps: 'max', rpe: 10 })).toBeCloseTo(84, 6);
+  });
+});

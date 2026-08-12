@@ -49,3 +49,39 @@ export function kFor(reps: number): number {
 export function clampPct(pct: number): number {
   return Math.max(-MAX_STEP_PCT, Math.min(MAX_STEP_PCT, pct));
 }
+
+/**
+ * A planned set, reduced to the two numbers the fold needs. `reps: 'max'` is an
+ * AMRAP: it has no rep floor to miss and no target load of its own.
+ */
+export interface PlanTarget {
+  reps: number | 'max';
+  rpe: number;
+}
+
+/**
+ * The exercise's reference point: the e1RM implied by set 1's plan at the
+ * weight the athlete opened with.
+ *
+ * Set 1 and not the best set, because the opener is the one number the athlete
+ * chose deliberately. Anchoring on the best set would let one good day ratchet
+ * the whole exercise upward with no decision behind it.
+ */
+export function anchorFor(opener: number, first: PlanTarget): number {
+  if (!(opener > 0)) return 0;
+  const reps = first.reps === 'max' ? RTF_CAP : first.reps;
+  return e1rmOf(opener, reps, first.rpe);
+}
+
+/**
+ * What the plan says this set should weigh, before anything that happened today
+ * is taken into account.
+ *
+ * A `max` set has no reps to price against, so it sits at the anchor and the
+ * walk's own back-off rule decides what it actually gets.
+ */
+export function plannedKg(anchor: number, target: PlanTarget): number {
+  if (!(anchor > 0)) return 0;
+  if (target.reps === 'max') return anchor;
+  return anchor / (1 + repsToFailure(target.reps, target.rpe) / EPLEY_DIV);
+}
