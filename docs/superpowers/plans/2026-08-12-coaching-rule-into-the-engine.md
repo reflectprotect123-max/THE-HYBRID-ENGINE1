@@ -785,24 +785,18 @@ export function foldFromExercise(
 }
 ```
 
-Then add to `packages/engine/src/index.ts`, beside the other re-exports:
+Then add one line to `packages/engine/src/index.ts`, in the run of `export *`
+lines that begins at line 11. That file re-exports whole modules, not named
+symbols, and a named block would be the only one of its kind:
 
 ```ts
-export {
-  foldExercise,
-  foldFromExercise,
-  anchorFor,
-  plannedKg,
-  walkLogs,
-  repsToFailure,
-  e1rmOf,
-  kFor,
-  clampPct,
-  RTF_CAP,
-  MAX_STEP_PCT,
-} from './fold';
-export type { PlanTarget, FoldLog, WalkState, FoldInput, FoldResult } from './fold';
+export * from './fold';
 ```
+
+Put it directly after `export * from './autoreg';`, so the new rule sits beside
+the module it replaces. None of `fold.ts`'s exported names collide with
+anything the other modules export — that was checked before this instruction
+was written.
 
 - [ ] **Step 4: Run the tests and make sure they pass**
 
