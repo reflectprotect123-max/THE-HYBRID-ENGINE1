@@ -51,13 +51,57 @@ describe('startFresh', () => {
     expect(out.settings.units).toBe('lb');
   });
 
-  it('does not touch the nutrition slice, the shared-core facts or the ecosystem snapshots', () => {
-    // CLAUDE.md: nutrition is its own slice and its own sync partition.
-    // "Start fresh" means start the TRAINING fresh.
-    const source = { ...db(), core: { version: 1 } as never, ecosystem: { a: 1 } as never };
-    const out = startFresh(source, 100);
-    expect(out.core).toBe(source.core);
-    expect(out.ecosystem).toBe(source.ecosystem);
+  it('leaves the shared-core facts alone — they are observations, not workouts', () => {
+    const source = { ...db(), core: { version: 1 } as never };
+    expect(startFresh(source, 100).core).toBe(source.core);
+  });
+
+  it('empties the TRAINING sync partitions, so a second device cannot hand them back', () => {
+    // Tombstones cover records that travel by id. A partition is a whole blob
+    // under a revision — clearing workouts while leaving the strength snapshot
+    // holding them is how the junk reappeared from the other device.
+    const source = {
+      ...db(),
+      ecosystem: {
+        schemaVersion: 1,
+        core: {},
+        partitions: {
+          strength: { rev: 3, data: { workouts: ['junk'] } },
+          conditioning: { rev: 2, data: {} },
+          athleteState: { rev: 1, data: {} },
+          weeklyPlan: { rev: 1, data: {} },
+          nutrition: { rev: 9, data: { foods: ['keep me'] } },
+        },
+        events: [{ id: 'e1' }],
+      } as never,
+    };
+    const eco = startFresh(source, 100).ecosystem as unknown as {
+      partitions: Record<string, unknown>;
+      events: unknown[];
+    };
+    expect(eco.partitions.strength).toBeUndefined();
+    expect(eco.partitions.conditioning).toBeUndefined();
+    expect(eco.partitions.athleteState).toBeUndefined();
+    expect(eco.partitions.weeklyPlan).toBeUndefined();
+    expect(eco.events).toEqual([]);
+  });
+
+  it('does not touch the nutrition partition, which is its own slice', () => {
+    // CLAUDE.md: nutrition is its own slice and its own sync partition, and a
+    // training write must never be able to reach it.
+    const nutrition = { rev: 9, data: { foods: ['keep me'] } };
+    const source = {
+      ...db(),
+      ecosystem: { schemaVersion: 1, core: {}, partitions: { nutrition }, events: [] } as never,
+    };
+    const eco = startFresh(source, 100).ecosystem as unknown as { partitions: { nutrition: unknown } };
+    expect(eco.partitions.nutrition).toBe(nutrition);
+  });
+
+  it('is safe on a database that has no ecosystem slice at all', () => {
+    const source = db();
+    delete (source as { ecosystem?: unknown }).ecosystem;
+    expect(() => startFresh(source, 100)).not.toThrow();
   });
 
   it('does not mutate the database it was handed', () => {
