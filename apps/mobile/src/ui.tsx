@@ -78,7 +78,28 @@ export function Input({ w = 'reg', num, style, ...rest }: TextInputProps & { w?:
       placeholderTextColor={color.dim}
       textAlignVertical="center"
       {...rest}
-      style={[{ fontFamily: font[w], includeFontPadding: false, paddingVertical: 0 }, num ? tabular : null, style]}
+      /*
+       * `color` FIRST, and it is not optional.
+       *
+       * React Native's TextInput defaults its text to BLACK on Android. This
+       * app is black. So an <Input> that named no colour rendered what you
+       * typed invisibly — the placeholder showed, because
+       * `placeholderTextColor` was set right above, and then typing appeared
+       * to erase it. Reported from the guided builder, but it was 32 of the
+       * 33 <Input> uses in the app, including the Logger's weight and reps
+       * fields.
+       *
+       * It belongs here rather than at each call site: a default that is
+       * invisible is not a default anyone should have to remember to
+       * override. It sits first in the array so a caller's own `style` — or a
+       * NativeWind className, which compiles to one — still wins when a
+       * screen genuinely wants a different colour.
+       */
+      style={[
+        { color: color.text, fontFamily: font[w], includeFontPadding: false, paddingVertical: 0 },
+        num ? tabular : null,
+        style,
+      ]}
     />
   );
 }
