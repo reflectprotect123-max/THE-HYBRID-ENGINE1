@@ -325,11 +325,24 @@ describe('Logger', () => {
     // (this file) kept the silent write.
     //
     // 100kg x5 @ RPE 7.5 against this fixture's '5'@8 target computes a
-    // +2.5kg suggestion (102.5kg) — see computeSetAdjustment. The bug wrote
-    // that 102.5 straight into Set 2's kg field. The field opening at 100
-    // instead is Set 2 correctly falling back to what Set 1 ITSELF logged
-    // (prefillPrimary's same-exercise fallback), not a leftover suggestion.
-    liveSession();
+    // +2.5kg suggestion (102.5kg) — see computeSetAdjustment.
+    //
+    // WHAT "SILENTLY WRITES" MEANS, corrected 12 August 2026. This used to
+    // assert the kg FIELD reopened at 100, on the reading that showing 102.5
+    // was itself the write. The engine then settled the question the other
+    // way: `prefillPrimary` reads the adjustment of a RATED previous set,
+    // deliberately, because the screen printing "+2.5 kg for Set 2" and then
+    // handing over 100 was the app disagreeing with itself — see the long
+    // note in packages/engine/src/logger.ts. Web prefills the same number
+    // from the same call, so 102.5 in the field is the two surfaces agreeing,
+    // not a regression in one of them.
+    //
+    // The rule this test defends is untouched by that: a suggestion must not
+    // become an ACTUAL. So the assertion moves to where an actual lives — the
+    // persisted set — which stays empty until a confirm. A prefilled field is
+    // an offer the athlete can type over; a written `aVal` is a set the app
+    // logged on their behalf.
+    const s = liveSession();
     mount();
     fireEvent.changeText(screen.getByLabelText('kg'), '100');
     fireEvent.changeText(screen.getByLabelText('reps'), '5');
@@ -338,7 +351,15 @@ describe('Logger', () => {
 
     expect(screen.getByText(/\+2\.5 kg for Set 2 \(102\.5 kg\)/)).toBeTruthy();
     fireEvent.press(screen.getByText('Skip rest'));
-    expect(screen.getByLabelText('kg').props.value).toBe('100');
+    // The offer: field and hint name the same number.
+    expect(screen.getByLabelText('kg').props.value).toBe('102.5');
+    // The actual: Set 2 is still unlogged. Nothing was written on the
+    // athlete's behalf.
+    act(() => jest.advanceTimersByTime(500));
+    const sets = persisted().sessions.find((x) => x.id === s.id)!.blocks[0].exercises![0].sets;
+    expect(sets[0].aVal).toBe('100');
+    expect(sets[1].aVal).toBeFalsy();
+    expect(sets[1].done).toBeFalsy();
   });
 
   it('survives being opened with no live session instead of crashing', () => {
