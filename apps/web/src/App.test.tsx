@@ -49,7 +49,11 @@ describe('the unscoped dashboard root', () => {
   it('lands on the coach sign-in screen from `/`, without a navigation loop', async () => {
     mockAllowed = false;
     render(<App />);
-    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    /* 5s, not the 1s default: `/coach` is a `React.lazy` chunk (App.tsx), so
+       this waits on a real dynamic import. Alone it resolves in well under a
+       second; in the full parallel suite it intermittently did not, and the
+       test failed on machine load rather than on anything about the app. */
+    expect(await screen.findByRole('button', { name: /sign in/i }, { timeout: 5000 })).toBeInTheDocument();
     // Arrived at the bench's address, and stayed there.
     expect(window.location.pathname).toBe('/coach');
     // The athlete chrome must NOT be underneath it — the sign-in screen sits
