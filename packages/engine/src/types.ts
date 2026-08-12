@@ -135,6 +135,15 @@ export interface CondBlock {
    *  portable across air-bike brands/generations, so a same-device baseline
    *  needs this stored with every result (see docs/research/echo-v3-connectivity-bundle). */
   device?: { manufacturer?: string; model?: string; generation?: string; consoleMetric?: string };
+  /**
+   * The coach's note for this block.
+   *
+   * A conditioning workout cannot carry a `TextBlock` alongside its
+   * conditioning block — `sanitizeDB`'s `splitMixedWorkout` treats a text
+   * block as "other" and splits the workout in two — so a conditioning-only
+   * session had nowhere to put the coach's instructions. This is that place.
+   */
+  note?: string;
   exercises?: undefined;
   condResult?: CondResult;
 }
