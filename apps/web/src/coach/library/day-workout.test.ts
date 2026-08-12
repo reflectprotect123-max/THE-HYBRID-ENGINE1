@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Workout } from '@hybrid/engine';
-import { dayBuilderToWorkout, workoutToDayBuilder, INSTRUCTIONS_HEADING } from './day-workout';
+import { dayBuilderToWorkouts, workoutsToDayBuilder, workoutToDayBuilder, INSTRUCTIONS_HEADING } from './day-workout';
 import type { DayBuilderValue } from './DayBuilder';
 
 /*
@@ -10,6 +10,14 @@ import type { DayBuilderValue } from './DayBuilder';
  * a session survives the round trip UNCHANGED. A lossy save is worse than no
  * save: it silently rewrites a coach's programming.
  */
+
+/** The day's single workout. Every case here authors one kind, so there is
+ *  exactly one; the two-sibling cases live in day-conditioning.test.ts. */
+function one(value: DayBuilderValue, opts: { id: string; date?: string; name?: string }) {
+  const out = dayBuilderToWorkouts(value, opts);
+  expect(out).toHaveLength(1);
+  return out[0];
+}
 
 function value(): DayBuilderValue {
   return {
@@ -49,22 +57,26 @@ function value(): DayBuilderValue {
   };
 }
 
-describe('dayBuilderToWorkout', () => {
+describe('dayBuilderToWorkouts', () => {
   it('survives a round trip unchanged', () => {
     const before = value();
-    const after = workoutToDayBuilder(dayBuilderToWorkout(before, { id: 'w1', date: '2026-08-14' }));
+    const after = workoutsToDayBuilder(dayBuilderToWorkouts(before, { id: 'w1', date: '2026-08-14' }));
     expect(after).toEqual(before);
   });
 
   it('records the authored column pair, not just the closest engine mode', () => {
     // reps × meters has no exact ModeKey. Without `cols` the coach would
     // reopen the builder and find columns they never chose.
-    const w = dayBuilderToWorkout(
+    //
+    // Authored under a STRENGTH category on purpose: a Conditioning block is
+    // a real `CondBlock` now and holds no exercises at all, so it has no
+    // columns to preserve. See day-conditioning.test.ts.
+    const w = one(
       {
         instructions: '',
         blocks: [{
           id: 'b0',
-          category: 'Conditioning',
+          category: 'Cooldown',
           exercises: [{ id: 'e0', name: 'Row', columnA: 'reps', columnB: 'meters', sets: [{ id: 's0', a: '4', b: '500' }] }],
         }],
       },
@@ -75,19 +87,19 @@ describe('dayBuilderToWorkout', () => {
   });
 
   it('puts each set value in the two slots the engine already has for them', () => {
-    const w = dayBuilderToWorkout(value(), { id: 'w1' });
+    const w = one(value(), { id: 'w1' });
     const squat = (w.blocks[2] as { exercises: { sets: { aVal?: string; aVal2?: string }[] }[] }).exercises[0];
     expect(squat.sets.map((s) => [s.aVal, s.aVal2])).toEqual([['5', '100'], ['5', '105'], ['3', '110']]);
   });
 
   it('names a reps-and-kilos pair as the engine names it', () => {
-    const w = dayBuilderToWorkout(value(), { id: 'w1' });
+    const w = one(value(), { id: 'w1' });
     const squat = (w.blocks[2] as { exercises: { mode: string }[] }).exercises[0];
     expect(squat.mode).toBe('reps_kg');
   });
 
   it('marks a warm-up block as a warm-up, so its sets never earn a working weight', () => {
-    const w = dayBuilderToWorkout(value(), { id: 'w1' });
+    const w = one(value(), { id: 'w1' });
     const warm = w.blocks[1] as { warmup?: boolean; heading?: string };
     expect(warm.warmup).toBe(true);
     expect(warm.heading).toBe('Warm-up');
@@ -96,7 +108,7 @@ describe('dayBuilderToWorkout', () => {
   });
 
   it('carries the coach instructions as a real block the athlete can read', () => {
-    const w = dayBuilderToWorkout(value(), { id: 'w1' });
+    const w = one(value(), { id: 'w1' });
     const first = w.blocks[0] as { kind?: string; heading?: string; body?: string };
     expect(first.kind).toBe('text');
     expect(first.heading).toBe(INSTRUCTIONS_HEADING);
@@ -104,34 +116,34 @@ describe('dayBuilderToWorkout', () => {
   });
 
   it('writes no instructions block when the coach wrote none', () => {
-    const w = dayBuilderToWorkout({ instructions: '   ', blocks: [] }, { id: 'w1' });
+    const w = one({ instructions: '   ', blocks: [] }, { id: 'w1' });
     expect(w.blocks).toEqual([]);
   });
 
   it('schedules a dated session on that date and nothing else', () => {
-    const w = dayBuilderToWorkout(value(), { id: 'w1', date: '2026-08-14' });
+    const w = one(value(), { id: 'w1', date: '2026-08-14' });
     expect(w.dates).toEqual(['2026-08-14']);
     expect(w.days).toBeUndefined();
   });
 
   it('leaves a library session unscheduled', () => {
-    const w = dayBuilderToWorkout(value(), { id: 'w1' });
+    const w = one(value(), { id: 'w1' });
     expect(w.dates).toBeUndefined();
   });
 
   it('calls an all-conditioning session conditioning, and anything else strength', () => {
-    const cond = dayBuilderToWorkout(
+    const cond = one(
       { instructions: '', blocks: [{ id: 'b0', category: 'Conditioning', exercises: [] }] },
       { id: 'w1' },
     );
     expect(cond.kind).toBe('conditioning');
-    expect(dayBuilderToWorkout(value(), { id: 'w2' }).kind).toBe('strength');
+    expect(one(value(), { id: 'w2' }).kind).toBe('strength');
   });
 
   it('leaves an empty session with no kind at all rather than guessing one', () => {
     // types.ts: "Absent on a workout with no blocks yet: sanitizeDB infers a
     // kind, it never guesses one". Neither does this.
-    expect(dayBuilderToWorkout({ instructions: '', blocks: [] }, { id: 'w1' }).kind).toBeUndefined();
+    expect(one({ instructions: '', blocks: [] }, { id: 'w1' }).kind).toBeUndefined();
   });
 });
 

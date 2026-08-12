@@ -1,5 +1,6 @@
-import type { Block, Exercise, LoggedSet, ModeKey, Workout } from '@hybrid/engine';
-import { BLOCK_CATEGORIES, type BlockValue } from './BlockEditor';
+import type { Block, CondBlock, CondFmtKey, EffortKey, Exercise, LoggedSet, Modality, ModeKey, Workout } from '@hybrid/engine';
+import { CON_EFFORTS } from '@hybrid/engine';
+import { BLOCK_CATEGORIES, CONDITIONING_CATEGORIES, newCondValue, type BlockValue, type CondValue } from './BlockEditor';
 import type { SetRow } from './SetRows';
 import type { DayBuilderValue } from './DayBuilder';
 
@@ -60,16 +61,62 @@ function isCategory(value: string | undefined): value is (typeof BLOCK_CATEGORIE
   return !!value && (BLOCK_CATEGORIES as readonly string[]).includes(value);
 }
 
+/** Whether a block authors conditioning rather than exercises and sets. */
+export function isConditioningCategory(category: string): boolean {
+  return CONDITIONING_CATEGORIES.includes(category);
+}
+
 /**
- * One authored block becomes a `StrengthBlock` whatever its category —
- * including Conditioning.
+ * The id of the conditioning sibling of `id`.
  *
- * That looks wrong for a second and is not: `CondBlock` has no `exercises`
- * field at all (`exercises?: undefined`), so routing a Conditioning block
- * there would discard every exercise and set row the coach typed. The builder
- * gives all five categories exercises and sets, so all five are stored as what
- * they are. The category survives as the block's `heading`, which is what
- * brings it back on reopen.
+ * `<id>-cond` is the engine's OWN convention — `sanitizeDB`'s `condSiblingId`
+ * derives exactly this when it splits a legacy mixed workout. Matching it means
+ * a day the builder wrote and a day the engine split converge on one pair of
+ * records instead of accumulating duplicates.
+ */
+export function condSiblingId(id: string): string {
+  return `${id}-cond`;
+}
+
+/** A finite number, or undefined. Never NaN, which survives into every later read. */
+function num(value: string): number | undefined {
+  const n = Number(value.trim());
+  return value.trim() !== '' && Number.isFinite(n) ? n : undefined;
+}
+
+function toCondBlock(block: BlockValue, note: string): CondBlock {
+  const value = block.conditioning ?? newCondValue(block.category);
+  const effort = (['easy', 'medium', 'hard'].includes(value.effort) ? value.effort : 'easy') as EffortKey;
+  const minutes = num(value.minutes);
+  const metres = num(value.targetDistanceM);
+  return {
+    id: block.id,
+    kind: 'conditioning',
+    // The category, exactly as the strength path stores it, and for the same
+    // reason: it is what tells `workoutsToDayBuilder` which of the two
+    // conditioning categories this was.
+    heading: block.category,
+    condFmt: value.fmt as CondFmtKey,
+    effort,
+    // Kept in lockstep with `effort` — types.ts: "so older read paths still
+    // work", and the live conditioning engine reads the zone, not the effort.
+    targetZone: CON_EFFORTS[effort].zone,
+    // Absent, not '', when the block has no single modality. types.ts calls
+    // that "unlabeled/general conditioning", which is what Mixed modal is.
+    ...(value.modality ? { modality: value.modality as Modality } : {}),
+    ...(minutes !== undefined ? { minutes } : {}),
+    ...(metres !== undefined ? { targetDistanceM: metres } : {}),
+    ...(note ? { note } : {}),
+  };
+}
+
+/**
+ * One authored block becomes a `StrengthBlock` — for every category that is
+ * not conditioning.
+ *
+ * Warm-up, Cooldown and Mobility all hold exercises and sets, so all three are
+ * stored as what they are, with the category surviving as the block's
+ * `heading`. Conditioning and Mixed modal go through `toCondBlock` instead.
  */
 function toBlock(block: BlockValue): Block<LoggedSet> {
   const exercises: Exercise<LoggedSet>[] = block.exercises.map((ex) => ({
@@ -95,28 +142,59 @@ function toBlock(block: BlockValue): Block<LoggedSet> {
  * actually authored and left ABSENT for an empty session, matching the rule in
  * `types.ts`: sanitizeDB infers a kind, it never guesses one.
  */
-export function dayBuilderToWorkout(
+export function dayBuilderToWorkouts(
   value: DayBuilderValue,
   { id, date, name }: { id: string; date?: string; name?: string },
-): Workout<LoggedSet> {
+): Workout<LoggedSet>[] {
   const instructions = value.instructions.trim();
-  const blocks: Block<LoggedSet>[] = [
-    ...(instructions ? [{ id: `${id}-instructions`, kind: 'text' as const, heading: INSTRUCTIONS_HEADING, body: instructions }] : []),
-    ...value.blocks.map(toBlock),
-  ];
-  const authored = value.blocks;
-  const kind = authored.length === 0
-    ? undefined
-    : authored.every((b) => b.category === 'Conditioning') ? 'conditioning' as const : 'strength' as const;
+  const condValues = value.blocks.filter((b) => isConditioningCategory(b.category));
+  const liftValues = value.blocks.filter((b) => !isConditioningCategory(b.category));
+  const updatedAt = Date.now();
+  const scheduled = date ? { dates: [date] } : {};
 
-  return {
-    id,
-    ...(name ? { name } : {}),
-    ...(kind ? { kind } : {}),
-    blocks,
-    ...(date ? { dates: [date] } : {}),
-    updatedAt: Date.now(),
-  };
+  const out: Workout<LoggedSet>[] = [];
+
+  /*
+   * The strength sibling keeps the ORIGINAL id, exactly as splitMixedWorkout
+   * does, so a record the engine split and a record the builder wrote are the
+   * same record rather than two.
+   */
+  if (liftValues.length || (instructions && !condValues.length)) {
+    out.push({
+      id,
+      ...(name ? { name } : {}),
+      kind: 'strength',
+      blocks: [
+        ...(instructions ? [{ id: `${id}-instructions`, kind: 'text' as const, heading: INSTRUCTIONS_HEADING, body: instructions }] : []),
+        ...liftValues.map(toBlock),
+      ],
+      ...scheduled,
+      updatedAt,
+    });
+  }
+
+  if (condValues.length) {
+    /*
+     * The coach's note goes on the FIRST conditioning block when there is no
+     * strength sibling to carry it as a text block. It cannot be a text block
+     * here: splitMixedWorkout counts a text block as "other" and would tear
+     * this workout in two on the next load.
+     */
+    const noteHere = !liftValues.length ? instructions : '';
+    out.push({
+      id: condSiblingId(id),
+      ...(name ? { name: `${name} — Conditioning` } : {}),
+      kind: 'conditioning',
+      blocks: condValues.map((block, i) => toCondBlock(block, i === 0 ? noteHere : '')),
+      ...scheduled,
+      updatedAt,
+    });
+  }
+
+  /* An empty day writes one empty workout, with no kind — types.ts: sanitizeDB
+     infers a kind, it never guesses one, and neither does this. */
+  if (!out.length) out.push({ id, ...(name ? { name } : {}), blocks: [], ...scheduled, updatedAt });
+  return out;
 }
 
 /**
@@ -128,18 +206,47 @@ export function dayBuilderToWorkout(
  * not measure reps, which is the quiet-rewrite failure this module exists to
  * avoid.
  */
+export function workoutsToDayBuilder(workouts: readonly Workout<LoggedSet>[]): DayBuilderValue {
+  const values = workouts.map(workoutToDayBuilder);
+  return {
+    // Exactly one of the siblings carries the note — the strength one as a
+    // text block, or the conditioning one on its first block. First non-empty
+    // wins; there is never a second to lose.
+    instructions: values.map((v) => v.instructions).find((t) => t) ?? '',
+    blocks: values.flatMap((v) => v.blocks),
+  };
+}
+
 export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValue {
   const blocks = workout.blocks ?? [];
   const instructionsBlock = blocks.find(
     (b) => (b as { kind?: string }).kind === 'text' && (b as { heading?: string }).heading === INSTRUCTIONS_HEADING,
   ) as { body?: string } | undefined;
+  /* A conditioning-only day keeps the note on its first block instead — see
+     `dayBuilderToWorkouts` for why it cannot be a text block there. */
+  const condNote = (blocks.find((b) => (b as { kind?: string }).kind === 'conditioning') as CondBlock | undefined)?.note;
 
   return {
-    instructions: instructionsBlock?.body ?? '',
+    instructions: instructionsBlock?.body ?? condNote ?? '',
     blocks: blocks
       .filter((b) => b !== (instructionsBlock as unknown))
       .map((block) => {
         const heading = (block as { heading?: string }).heading;
+        if ((block as { kind?: string }).kind === 'conditioning') {
+          const cond = block as CondBlock;
+          return {
+            id: cond.id,
+            category: isCategory(heading) ? heading : 'Conditioning',
+            exercises: [],
+            conditioning: {
+              fmt: cond.condFmt ?? 'steady',
+              modality: cond.modality ?? '',
+              effort: cond.effort ?? 'easy',
+              minutes: cond.minutes === undefined ? '' : String(cond.minutes),
+              targetDistanceM: cond.targetDistanceM === undefined ? '' : String(cond.targetDistanceM),
+            } satisfies CondValue,
+          };
+        }
         const exercises = ((block as { exercises?: Exercise<LoggedSet>[] }).exercises ?? []).map((ex) => {
           const cols = ex.cols ?? columnsForMode(ex.mode);
           const sets: SetRow[] = (ex.sets ?? []).map((set, i) => ({
