@@ -178,7 +178,9 @@ function CalendarTab({ clientId, repository }: { clientId: string | null; reposi
         month={view.month}
         onMonthChange={(year, month) => setView({ year, month })}
         onCreate={(date) => navigate(`/coach/day/${date}`)}
-        onAddFromLibrary={(date) => navigate(`/coach/day/${date}`)}
+        // "Add from library" now means it: pick one of the coach's own
+        // sessions and open the day seeded with a copy of it.
+        onAddFromLibrary={(date) => navigate(`/coach/day/${date}?pick=1`)}
         onOpen={(date) => navigate(`/coach/day/${date}`)}
       />
     </div>

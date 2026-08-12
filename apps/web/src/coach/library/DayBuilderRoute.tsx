@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { buildCatalogue } from '@hybrid/engine';
 import type { Workout } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { DayBuilder, type DayBuilderValue } from './DayBuilder';
 import { dayBuilderToWorkout, workoutToDayBuilder } from './day-workout';
+import { SessionPicker } from './SessionPicker';
 
 /**
  * The day builder's route wrapper: it supplies the real catalogue, loads any
@@ -29,6 +30,55 @@ import { dayBuilderToWorkout, workoutToDayBuilder } from './day-workout';
  */
 export function DayBuilderRoute({ mode }: { mode: 'dated' | 'library' }) {
   const { date } = useParams<{ date: string }>();
+  const { db } = useDb();
+  const navigate = useNavigate();
+  const [search, setSearch] = useSearchParams();
+
+  /*
+   * `?pick=1` is the Calendar's "Add from library" — choose an existing
+   * session before the builder opens. `?from=<id>` is what that choice
+   * becomes: the builder opens seeded with a COPY of that session. Both live
+   * in the URL rather than in component state so the back button behaves and a
+   * half-made choice is not stranded.
+   */
+  if (search.get('pick') === '1') {
+    return (
+      <SessionPicker
+        workouts={db.workouts}
+        date={date}
+        onPick={(id) => setSearch({ from: id }, { replace: true })}
+        onCreateInstead={() => setSearch({}, { replace: true })}
+        onBack={() => navigate('/coach/library')}
+      />
+    );
+  }
+
+  /*
+   * Keyed on the chosen source so picking one REMOUNTS the surface below.
+   * Without the key the editor's seed — a `useState` initialiser, deliberately
+   * read once so a re-render cannot overwrite what the coach is typing — would
+   * still hold the value from before the choice, and the session they picked
+   * would silently fail to appear.
+   */
+  return (
+    <DayBuilderSurface
+      key={search.get('from') ?? 'blank'}
+      mode={mode}
+      date={date}
+      copyFromId={search.get('from')}
+    />
+  );
+}
+
+function DayBuilderSurface({
+  mode,
+  date,
+  copyFromId,
+}: {
+  mode: 'dated' | 'library';
+  date?: string;
+  copyFromId: string | null;
+}) {
   const { db, update } = useDb();
   const navigate = useNavigate();
   const [notice, setNotice] = useState('');
@@ -39,9 +89,9 @@ export function DayBuilderRoute({ mode }: { mode: 'dated' | 'library' }) {
   }, [db.workouts, db.sessions, db.settings]);
 
   /*
-   * The day's existing session, if any. Resolved ONCE — `useState`'s
-   * initialiser, not `useMemo` — because this seeds an editor: recomputing it
-   * after the coach's own save would hand the editor back its saved self
+   * The day's existing session, if any. Resolved ONCE — a `useState`
+   * initialiser, not a `useMemo` — because this seeds an editor: recomputing
+   * it after the coach's own save would hand the editor back its saved self
    * mid-edit. A day holds one session (the builder's "+ Add new session" is
    * deliberately disabled), so the first match is the match.
    */
@@ -49,9 +99,17 @@ export function DayBuilderRoute({ mode }: { mode: 'dated' | 'library' }) {
     date ? db.workouts.find((w) => w.dates?.includes(date)) : undefined,
   );
   const [workoutId] = useState(() => existing?.id ?? `coach-day-${date ?? 'library'}-${Date.now()}`);
-  const [initialValue] = useState<DayBuilderValue | undefined>(() =>
-    existing ? workoutToDayBuilder(existing) : undefined,
-  );
+  const [initialValue] = useState<DayBuilderValue | undefined>(() => {
+    if (existing) return workoutToDayBuilder(existing);
+    /*
+     * A COPY, not a link. The chosen session's block and exercise ids come
+     * along inside the value, but `persist` writes under THIS day's
+     * `workoutId`, so editing here never reaches back into the session the
+     * coach picked — which is exactly what the picker promises them in words.
+     */
+    const source = copyFromId ? db.workouts.find((w) => w.id === copyFromId) : undefined;
+    return source ? workoutToDayBuilder(source) : undefined;
+  });
 
   function persist(value: DayBuilderValue, message: string) {
     const next = dayBuilderToWorkout(value, {
@@ -67,17 +125,6 @@ export function DayBuilderRoute({ mode }: { mode: 'dated' | 'library' }) {
     setNotice(message);
   }
 
-  function handlePublish(value: DayBuilderValue) {
-    persist(
-      value,
-      `Saved and scheduled for ${date}. Sending it to a roster athlete is a separate step and has not happened.`,
-    );
-  }
-
-  function handleSave(value: DayBuilderValue) {
-    persist(value, 'Saved to your library.');
-  }
-
   return (
     <>
       {notice && (
@@ -91,8 +138,13 @@ export function DayBuilderRoute({ mode }: { mode: 'dated' | 'library' }) {
         published={false}
         entries={entries}
         initialValue={initialValue}
-        onPublish={handlePublish}
-        onSave={handleSave}
+        onPublish={(value) =>
+          persist(
+            value,
+            `Saved and scheduled for ${date}. Sending it to a roster athlete is a separate step and has not happened.`,
+          )
+        }
+        onSave={(value) => persist(value, 'Saved to your library.')}
         onBack={() => navigate('/coach/library')}
       />
     </>
