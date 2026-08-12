@@ -150,7 +150,7 @@ export function clampPct(pct: number): number {
 - [ ] **Step 4: Run the tests and make sure they pass**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/fold.test.ts`
-Expected: PASS — 8 tests.
+Expected: PASS — every test in the file green.
 
 - [ ] **Step 5: Commit**
 
@@ -256,7 +256,7 @@ export function plannedKg(anchor: number, target: PlanTarget): number {
 - [ ] **Step 4: Run the tests and make sure they pass**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/fold.test.ts`
-Expected: PASS — 12 tests.
+Expected: PASS — every test in the file green.
 
 - [ ] **Step 5: Commit**
 
@@ -443,7 +443,7 @@ export function walkLogs(logs: FoldLog[]): WalkState {
 - [ ] **Step 4: Run the tests and make sure they pass**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/fold.test.ts`
-Expected: PASS — 21 tests.
+Expected: PASS — every test in the file green.
 
 - [ ] **Step 5: Commit**
 
@@ -656,7 +656,7 @@ export function foldExercise({ targets, logs, opener, increment }: FoldInput): F
 - [ ] **Step 4: Run the tests and make sure they pass**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/fold.test.ts`
-Expected: PASS — 30 tests.
+Expected: PASS — every test in the file green.
 
 - [ ] **Step 5: Commit**
 
