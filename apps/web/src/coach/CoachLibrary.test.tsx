@@ -2,9 +2,11 @@
 import '@testing-library/jest-dom/vitest';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { LS_KEY } from '@hybrid/engine';
 import { CoachLibrary } from './CoachLibrary';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
+import { DbProvider } from '../store/db';
 
 /*
  * The Library is the month calendar and nothing else. The "Programs" tab and
@@ -19,9 +21,11 @@ import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from '.
 
 async function renderLibrary(repository: FakeCoachWorkspaceRepository) {
   const result = renderCoachScreen(
-    <MemoryRouter initialEntries={['/coach/library']}>
-      <CoachLibrary />
-    </MemoryRouter>,
+    <DbProvider>
+      <MemoryRouter initialEntries={['/coach/library']}>
+        <CoachLibrary />
+      </MemoryRouter>
+    </DbProvider>,
     { repository },
   );
   await act(async () => {});
@@ -29,6 +33,10 @@ async function renderLibrary(repository: FakeCoachWorkspaceRepository) {
 }
 
 describe('CoachLibrary', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('opens straight onto the calendar, with no view tabs to choose between', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [rosterClient({ id: 'roster-1', name: 'Riley Roster' })];
@@ -84,6 +92,26 @@ describe('CoachLibrary', () => {
     await renderLibrary(repo);
 
     expect(screen.getAllByText('Heavy Squat A').length).toBeGreaterThan(0);
+  });
+
+  it('shows a session the coach built in the day builder, closing the save loop', async () => {
+    // The day builder writes an engine Workout into the local store. If the
+    // calendar only read the repository, a coach would save a session, come
+    // back, and find the day they just filled looking empty — which reads as
+    // the save having failed. Regression guard for exactly that.
+    const now = new Date();
+    const midMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-16`;
+    const before = JSON.parse(localStorage.getItem(LS_KEY) ?? '{}') as { workouts?: unknown[] };
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      ...before,
+      workouts: [{ id: 'coach-day-1', name: 'Heavy Pull', blocks: [], dates: [midMonth] }],
+    }));
+
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [];
+    await renderLibrary(repo);
+
+    expect(screen.getAllByText('Heavy Pull').length).toBeGreaterThan(0);
   });
 
   it('still draws the month with no athlete selected, saying why it is bare', async () => {

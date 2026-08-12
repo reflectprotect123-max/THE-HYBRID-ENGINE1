@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
+import { useDb } from '../store/db';
 import type { AthleteWeekSummary } from './contracts';
 import { CalendarMonth, type CalendarDay } from './library/CalendarMonth';
 
@@ -74,6 +75,8 @@ export function CoachLibrary() {
 
 function CalendarTab({ clientId, repository }: { clientId: string | null; repository: ReturnType<typeof useCoachWorkspace>['repository'] }) {
   const navigate = useNavigate();
+  const { db } = useDb();
+  const localWorkouts = db.workouts;
   const now = new Date();
   const [view, setView] = useState({ year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 });
 
@@ -118,8 +121,7 @@ function CalendarTab({ clientId, repository }: { clientId: string | null; reposi
    * Create session / Add from library — the mockup's own two actions.
    */
   const days: CalendarDay[] = useMemo(() => {
-    if (!sessionsByDate) return [];
-    return Array.from(sessionsByDate.entries()).map(([date, sessions]) => ({
+    const out: CalendarDay[] = Array.from(sessionsByDate?.entries() ?? []).map(([date, sessions]) => ({
       date,
       // `name` is nullable in AthleteWeekSummary; an unnamed session is still a
       // real session, so it is labelled rather than dropped.
@@ -130,7 +132,29 @@ function CalendarTab({ clientId, repository }: { clientId: string | null; reposi
       published: sessions.every((x) => x.status === 'published'),
       items: sessions.length,
     }));
-  }, [sessionsByDate]);
+
+    /*
+     * Sessions the coach built HERE, in the day builder, which writes an
+     * engine `Workout` into the local store (see day-workout.ts). Without
+     * this the loop does not close: a coach saves a session, returns to the
+     * calendar, and the day they just filled looks empty — which reads as the
+     * save having failed.
+     *
+     * They are marked unpublished, because they are: writing a session to the
+     * coach's own calendar is not the same as sending it to an athlete, and
+     * `DayBuilderRoute` is careful to say so at the moment of saving. This
+     * must not quietly contradict it one screen later.
+     */
+    const seen = new Set(out.map((d) => d.date));
+    for (const workout of localWorkouts) {
+      for (const date of workout.dates ?? []) {
+        if (seen.has(date)) continue;
+        seen.add(date);
+        out.push({ date, title: workout.name || 'Session', published: false, items: 1 });
+      }
+    }
+    return out;
+  }, [sessionsByDate, localWorkouts]);
 
   /*
    * The month grid renders with or without a client. With none there are no

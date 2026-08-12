@@ -43,6 +43,7 @@ export function DayBuilder({
   date,
   published,
   entries,
+  initialValue,
   onPublish,
   onSave,
   onBack,
@@ -51,12 +52,20 @@ export function DayBuilder({
   date?: string;
   published: boolean;
   entries: CatalogueEntry[];
+  /**
+   * The session already stored for this day, if there is one. Seeds the editor
+   * ONCE, on mount — after that the coach's own edits are the truth, and
+   * re-seeding from a prop would overwrite what they are typing. The store
+   * hydrates synchronously (`store/db.tsx` reads it in a `useState`
+   * initialiser), so there is no later arrival to wait for.
+   */
+  initialValue?: DayBuilderValue;
   onPublish: (value: DayBuilderValue) => void;
   onSave: (value: DayBuilderValue) => void;
   onBack: () => void;
 }) {
-  const [instructions, setInstructions] = useState('');
-  const [blocks, setBlocks] = useState<BlockValue[]>([]);
+  const [instructions, setInstructions] = useState(initialValue?.instructions ?? '');
+  const [blocks, setBlocks] = useState<BlockValue[]>(initialValue?.blocks ?? []);
 
   const value: DayBuilderValue = { instructions, blocks };
   const dated = mode === 'dated' && !!date;

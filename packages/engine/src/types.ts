@@ -64,6 +64,18 @@ export interface Exercise<S extends AnySet = LoggedSet> {
    */
   ssNext?: boolean;
   tempo?: string;
+  /**
+   * What this exercise's two set columns MEASURE, when it was authored in the
+   * coach's day builder — values from `COLUMN_TYPES` in `setColumns.ts`.
+   *
+   * `mode` is the engine's own vocabulary and only six values wide, so a pair
+   * like reps × meters has no exact `ModeKey`. The pair is recorded here so
+   * reopening the builder shows the coach the columns they chose rather than
+   * the closest mode the engine could name. Absent on everything authored any
+   * other way, and read by the day builder only — `mode` remains what every
+   * other screen reads.
+   */
+  cols?: { a: string; b: string };
   /** free text from the coach, shown on the logger stage */
   cue?: string;
 }
