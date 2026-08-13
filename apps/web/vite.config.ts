@@ -37,6 +37,13 @@ const productShortName =
  * free of inline <script>.
  */
 export default defineConfig({
+  // See vitest.config.ts's matching comment: `@hybrid/session-authoring`
+  // carries its own `react` devDependency at a different pinned version, and
+  // Vite resolves a workspace package's imports from its real path — so
+  // without this the bundle would carry two React instances.
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
   plugins: [
     react(),
     tailwindcss(),

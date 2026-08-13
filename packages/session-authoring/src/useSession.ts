@@ -42,5 +42,9 @@ export function useSession(initial: Session) {
   }, []);
 
   const view: SessionView = useMemo(() => sessionView(state.session, state.run), [state]);
-  return { ...view, dispatch };
+  // `session` is exposed alongside the view because an app has to persist the
+  // session; the alternative is a second state machine mirroring this one in
+  // the screen. `SessionView` has no `session` key of its own, so this spread
+  // order cannot shadow anything.
+  return { ...view, session: state.session, dispatch };
 }
