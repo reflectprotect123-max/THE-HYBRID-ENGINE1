@@ -1,7 +1,91 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 13 August 2026. One branch, 66 commits ahead of
+> `main`, not merged and no PR open.**
+>
+> The branch is `claude/handoff-md-review-z00wqf`. Everything below in this
+> block happened on it. Supersedes the 11 August checkpoint that follows, which
+> stays as history and remains accurate about its own scope; where the two
+> disagree, this one wins.
+>
+> **1. The round-major logger was rebuilt from scratch and now ships in the
+> Android app.** It replaces the old logger completely — the old one is deleted,
+> not disabled. Decision logic lives in `@hybrid/session-authoring`
+> (`useSession`), a platform-free hook; `apps/mobile/src/screens/logger/` is
+> the React Native screen over it. The coaching arithmetic moved down into
+> `@hybrid/engine`'s fold (`foldExercise` / `foldNextOpener`) and
+> `computeSetAdjustment` was deleted — there is one coaching rule now, not two.
+>
+> **2. Two browser-driven parity gates judge that screen against the original
+> HTML prototype**, which is committed at `checks/fixtures/prototype/`:
+>
+> - `checks/parity-behaviour.mjs` — a 19-step trace. **PASSES** on both
+>   targets (19 steps against the prototype, 18 against the harness; the
+>   missing step is a prototype-only affordance, documented in the driver).
+> - `checks/parity-visual.mjs` — 8 screenshots at a phone viewport, 0.1%
+>   threshold. **FOUR SHOTS STILL FAIL**, and this is a KNOWN, ACCEPTED state,
+>   not an open bug someone forgot: live-superset 7.33%, finish-card 2.85%,
+>   rest-takeover 2.00%, block-done 1.30%. Element-by-element measurement shows
+>   identical tops and heights; what is left is glyph rasterisation between
+>   Chromium's own text and React Native Web's. The owner reviewed the four
+>   images and said to leave it. **Do not "fix" this by loosening the
+>   threshold.** If you reduce it further, reduce it with evidence.
+>
+>   Run them with `pnpm run check:parity-mobile` (harness) or `--target=proto`.
+>   The harness itself is `apps/mobile/parity/Harness.tsx`, reached only
+>   through `src/root.web.tsx` — Metro's platform extensions keep it out of the
+>   native bundle, and `checks/parity-harness.mjs --android` greps the Hermes
+>   bytecode to prove it.
+>
+> **3. An APK of that logger is built and installed.** EAS run
+> `31676133660`, commit `00a27498`, branch as above, **success**.
+> <https://expo.dev/accounts/ths1s-team/projects/hybrid-engine/builds/e147f8c0-6398-481c-af56-8f595ddb0489>
+> versionCode 32, runtimeVersion **still 4** — the whole branch is JavaScript,
+> nothing new autolinks, so the app.json note's native-bump rule does not
+> apply. The owner's first report on the device was that it "doesn't look any
+> different"; only the logger screen changed, and it is reached by opening a
+> session and tapping an exercise. That is unresolved as of this checkpoint.
+>
+> **4. The athlete web app no longer authors or logs a session.** `/log/:bi/:ei`,
+> `/planner/:id` and `/build/:id` are gone from `apps/web/src/App.tsx`, and
+> `screens/Logger.tsx` with `screens/logger/` was deleted outright. `Planner`
+> and `GuidedBuilder` were `git mv`'d into `apps/web/src/coach/authoring/` and
+> are now the bench's own code. That closed the last two entries in
+> `checks/lane-contract.mjs` — the ALLOWED list is empty and the athlete/coach
+> lane rule is absolute. See CLAUDE.md, which records the whole path.
+>
+> **5. Coach workspace redesign: stage 1 and stage 3a are SHIPPED. Stage 2 is
+> in progress on this branch.** Six `/coach` routes hold at 420px under
+> `checks/screens.mjs`, `/coach/library` included. Stage 2 rebuilds
+> `/coach/settings` against the 34 unused `st-` rules in `coach-redesign.css`
+> — that rule set is the specification, there is no mockup HTML left, and the
+> stage adds no CSS. The plan is
+> `docs/superpowers/plans/2026-08-13-coach-redesign-stage2.md`, five tasks.
+> **Task 1 (the shell — grid, tabs, panels) is done and green** (commit
+> `a78035c`). Tasks 2–5 are not started: the rows and toggle, the save row,
+> the 420px check for this route, and correcting two stale documents.
+>
+> One thing stage 2 must not lose: `/coach/settings` is not a mock. Four
+> preferences round-trip through `CoachWorkspaceRepository`, and the five
+> colocated tests in `CoachSettings.test.tsx` are the contract. They may be
+> rewritten to query differently; they may not be deleted or weakened.
+>
+> Task 2 step 4 deliberately CHANGES wording on the read-only rows, and that is
+> the only place in the stage where copy changes. The screen currently claims
+> "Coach workspace · Local demonstration" and "Multi-client data · Synthetic
+> fixtures only". Both are false — the workspace is Supabase-backed across
+> eight RLS-owned tables, and the four preferences are the only device-local
+> thing on the page. See the spec's "Settings says where the data actually
+> lives" amendment, 13 August.
+>
+> **State of the gates on this branch:** `pnpm run typecheck` clean,
+> `pnpm run test` 617 passing / 2 skipped across 91 files, `check:lanes` green,
+> behaviour parity green, visual parity four-shot residual as described above.
+>
+> ---
+>
 > **AUTHORITATIVE CHECKPOINT — 11 August 2026. Two work streams, both now on
-> `main`.**
+> `main`.** *(superseded by the block above)*
 >
 > **Coach side:** Stage 1 of the workspace redesign is merged, deployed and
 > live — `/coach` is a four-tile Command Center over four pillar screens, wired
