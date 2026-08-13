@@ -21,21 +21,28 @@ Generated 13 August 2026 from branch `claude/handoff-md-review-z00wqf`
 
 ## What is in this zip
 
-The complete working tree. Excluded: `node_modules`, build output
-(`apps/web/dist*`, `apps/mobile/.expo-export`), Expo and Metro caches, check
-output directories, and `.git`. Nothing source-shaped is missing.
+The complete working tree **and `.git`**, so the history comes with it.
+Excluded: `node_modules`, build output (`apps/web/dist*`,
+`apps/mobile/.expo-export`), Expo and Metro caches, and check output
+directories. Nothing source-shaped is missing.
 
-`.git` is left out to keep the pack under a 30 MB transfer limit, not because
-the history is uninteresting — it is the opposite. Sixty-seven commits explain
-why most of this code is shaped the way it is, and the commit messages are
-where the reasoning lives. Clone it instead:
+The history is not padding — it is where the reasoning is. Sixty-eight commits
+explain why most of this code is shaped the way it is, and the commit messages
+carry the argument that the files themselves only carry the conclusion of.
+`git log` before you change anything load-bearing.
 
-```bash
-git clone -b claude/handoff-md-review-z00wqf \
-  https://github.com/reflectprotect123-max/THE-HYBRID-ENGINE1
-```
+Two things to know about the repository you are unzipping:
 
-The tip of that branch is the same tree as this zip.
+- It is a **shallow** clone (`.git/shallow`). Recent history is complete;
+  the earliest commits are grafted. `git fetch --unshallow` against the remote
+  fills it in if you need the full record.
+- `git worktree list` names three worktrees at paths that will not exist on
+  your machine. They are stale registrations, harmless, and
+  `git worktree prune` clears them.
+
+The checked-out branch is `claude/handoff-md-review-z00wqf`. It is 68 commits
+ahead of `main`, unmerged, with no PR open. Remote:
+`https://github.com/reflectprotect123-max/THE-HYBRID-ENGINE1`.
 
 ## Getting it running
 
