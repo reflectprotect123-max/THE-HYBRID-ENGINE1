@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { Action, BlockView, HotSet, RestState } from '@hybrid/session-authoring';
 import { Dial } from './Dial';
+import { RIPPLE, pressed } from './press';
 import { useLoggerStyles } from './styles';
 
 /*
@@ -116,13 +117,15 @@ export function RestTakeover({
         {timed && rest.left > 0 ? (
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Fifteen seconds more"
+            android_ripple={RIPPLE}
             onPress={() => dispatch({ type: 'extendRest', seconds: 15 })}
-            style={st.ghost}
+            style={pressed(st.ghost)}
           >
             <Text style={st.ghostInk}>+15</Text>
           </Pressable>
         ) : null}
-        <Pressable testID="rest-go" accessibilityRole="button" onPress={leave} style={st.takeoverCta}>
+        <Pressable testID="rest-go" accessibilityRole="button" android_ripple={RIPPLE} onPress={leave} style={pressed(st.takeoverCta)}>
           <Text style={st.takeoverCtaInk}>
             {rest.kind === 'block' ? (nextBlock ? 'Go' : 'Finish') : rest.left > 0 ? 'Skip' : 'Lift'}
           </Text>

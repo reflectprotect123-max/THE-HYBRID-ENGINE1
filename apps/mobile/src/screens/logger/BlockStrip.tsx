@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 import type { BlockView } from '@hybrid/session-authoring';
+import { RIPPLE, pressed, slopTo44 } from './press';
 import { useLoggerStyles } from './styles';
 
 /*
@@ -37,8 +38,20 @@ export function BlockStrip({
             testID={`seg-${i}`}
             accessibilityRole="button"
             accessibilityState={{ selected: current }}
+            /* The visible label is the block's title alone; a screen reader
+               also gets how far through it is, which is the only thing the
+               fill bar conveys and colour is the only way it conveys it. */
+            accessibilityLabel={
+              block.progress.total > 0
+                ? `${block.title}, ${block.progress.done} of ${block.progress.total} sets`
+                : block.title
+            }
+            android_ripple={RIPPLE}
+            /* 24pt tall by the prototype's `.seg`. The tap area is brought up
+               to the platform floor without moving the bar. */
+            hitSlop={slopTo44(0, 24)}
             onPress={() => onSelect(i)}
-            style={[st.seg, current ? st.segCurrent : st.segIdle]}
+            style={pressed([st.seg, current ? st.segCurrent : st.segIdle])}
           >
             <View style={[st.segFill, { width: `${pct}%` }]} />
             <Text

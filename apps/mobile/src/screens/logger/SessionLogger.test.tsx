@@ -1,4 +1,6 @@
+import type { ReactElement } from 'react';
 import { act, render, renderHook } from '@testing-library/react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { LoggedSet, Session, StrengthBlock } from '@hybrid/engine';
 
 /* `mock`-prefixed so jest's factory hoisting lets the module factory below
@@ -48,6 +50,15 @@ const activeSession = (blocks: StrengthBlock<LoggedSet>[]): Session => ({
   blocks,
 } as Session);
 
+/* A notched phone, matching `test/harness.tsx`'s own metrics. The screen runs
+   with the navigator's header off and takes the insets itself, so a test that
+   mounted it bare would be testing a device that does not exist. */
+const FRAME = { x: 0, y: 0, width: 390, height: 844 };
+const INSETS = { top: 47, left: 0, right: 0, bottom: 34 };
+
+const mount = (ui: ReactElement) =>
+  render(<SafeAreaProvider initialMetrics={{ frame: FRAME, insets: INSETS }}>{ui}</SafeAreaProvider>);
+
 beforeEach(() => {
   mockHost.activeSession = null;
   mockHost.updateSession.mockReset();
@@ -61,20 +72,31 @@ beforeEach(() => {
 describe('SessionLogger', () => {
   it('renders a live session without crashing', () => {
     mockHost.activeSession = activeSession([solo([workingSet(), workingSet()])]);
-    expect(() => render(<SessionLogger />)).not.toThrow();
+    expect(() => mount(<SessionLogger />)).not.toThrow();
   });
 
   it('holds the screen awake for as long as a session is on it', () => {
     mockHost.activeSession = activeSession([solo([workingSet()])]);
-    const r = render(<SessionLogger />);
+    const r = mount(<SessionLogger />);
     expect(mockWakeLock.on).toHaveBeenCalledTimes(1);
     expect(mockWakeLock.off).not.toHaveBeenCalled();
     r.unmount();
     expect(mockWakeLock.off).toHaveBeenCalledTimes(1);
   });
 
+  it('clears the status bar rather than sitting under the notch', () => {
+    // The navigator runs this screen with `headerShown: false`, so nothing
+    // above it is clearing the status bar. The first port of this screen
+    // dropped the insets the logger it replaced had taken, which put the
+    // session's name under the notch on every phone that has one.
+    mockHost.activeSession = activeSession([solo([workingSet()])]);
+    const r = mount(<SessionLogger />);
+    const style = Object.assign({}, ...[r.getByTestId('logger-appbar').props.style].flat().filter(Boolean));
+    expect(style.paddingTop).toBe(INSETS.top + 14);
+  });
+
   it('holds nothing awake when no session is live', () => {
-    const r = render(<SessionLogger />);
+    const r = mount(<SessionLogger />);
     expect(r.getByText('No live session')).toBeTruthy();
     expect(mockWakeLock.on).not.toHaveBeenCalled();
   });

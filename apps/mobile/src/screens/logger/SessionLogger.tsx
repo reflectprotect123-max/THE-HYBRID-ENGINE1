@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isCond, isText, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useSession, type Action, type SessionView } from '@hybrid/session-authoring';
 import { useLoggerHost, useWakeLock } from './bridge';
@@ -115,6 +116,16 @@ function NoLiveSession({ onLeave }: { onLeave?: () => void }) {
 
 function RunningSession({ session: initialSession }: { session: Session }) {
   const st = useLoggerStyles();
+  /*
+   * This screen runs with the navigator's header off, so nothing above it is
+   * clearing the status bar or the gesture bar — the same reason the logger
+   * this replaced took the insets itself. The first port dropped them, which
+   * put the session's name under the notch on any phone that has one.
+   *
+   * The parity harness reports zero insets (a browser viewport has no notch),
+   * so this costs the visual gate nothing while fixing the phone.
+   */
+  const insets = useSafeAreaInsets();
   const { updateSession, startRest, stopRest, addRest } = useLoggerHost();
   const { view, dispatch, session } = useLoggerBridge(
     initialSession,
@@ -147,12 +158,12 @@ function RunningSession({ session: initialSession }: { session: Session }) {
       {/* The session's own name, at the top of its own screen. The navigator
           runs with `headerShown: false`, so every screen in this app carries
           its own bar — and the parity harness has no navigator at all. */}
-      <View style={st.appbar}>
+      <View testID="logger-appbar" style={[st.appbar, { paddingTop: insets.top + 14 }]}>
         <Text numberOfLines={1} style={st.appbarTitle}>
           {session.name || 'Session'}
         </Text>
       </View>
-      <ScrollView contentContainerStyle={st.scroll}>
+      <ScrollView contentContainerStyle={[st.scroll, { paddingBottom: insets.bottom + 40 }]}>
         <BlockStrip blocks={view.blocks} currentIndex={view.blockIndex} onSelect={goToBlock} />
         {allDone && onLastBlock ? (
           <FinishCard blocks={view.blocks.length} setsLogged={setsLogged} bestE1rm={view.bestE1rm} />

@@ -24,7 +24,9 @@
     "check:artifact": "node checks/artifact-smoke.mjs",
     "check:parity-behaviour": "node checks/parity-behaviour.mjs",
     "check:parity-visual": "node checks/parity-visual.mjs",
-    "check:parity-harness": "node checks/parity-harness.mjs"
+    "check:parity-harness": "node checks/parity-harness.mjs",
+    "//check:parity-mobile": "The mobile side of both gates, end to end: exports apps/mobile's parity harness, serves it, and drives it. One command, so the gate is runnable by anyone rather than only on the machine that hand-started a server.",
+    "check:parity-mobile": "node checks/parity-behaviour.mjs --target=harness && node checks/parity-visual.mjs --target=harness"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9"

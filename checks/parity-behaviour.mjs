@@ -13,6 +13,8 @@
  *   node checks/parity-behaviour.mjs [--target=prototype|<url>] [--record] [--phase=build|run|all]
  *
  *   --target=prototype (default)  load the committed HTML from file://
+ *   --target=harness              export apps/mobile's parity harness, serve it,
+ *                                 and drive that — the mobile side, in one command
  *   --target=<url>                load a running app at that URL
  *   --record                      write the trace to the baseline and exit 0
  *   (no --record)                 diff a fresh run against the baseline
@@ -33,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { launchChromium } from './_chromium.mjs';
 import { runScript, seedAndGoToLogger, filterTraceByPhase } from './parity/drive.mjs';
 import { steps } from './parity/script.mjs';
+import { serveHarness } from './parity/serve-harness.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TRACE_PATH = resolve(ROOT, 'checks/fixtures/prototype/trace.json');
@@ -105,12 +108,22 @@ function diffTraces(expected, actual) {
 }
 
 async function main() {
-  const { target, record, phase } = parseArgs(process.argv.slice(2));
+  let { target, phase } = parseArgs(process.argv.slice(2));
+  const { record } = parseArgs(process.argv.slice(2));
 
   const { browser, skip } = await launchChromium();
   if (skip) {
     console.log(`SKIP — parity-behaviour: ${skip}`);
     process.exit(0);
+  }
+
+  /* `harness` is not a URL, it is an instruction: build the mobile harness and
+     serve it. Resolved here so everything downstream sees an ordinary target. */
+  let harness = null;
+  if (target === 'harness') {
+    harness = await serveHarness();
+    target = harness.url;
+    if (phase === 'all') phase = 'run';
   }
 
   try {
@@ -165,6 +178,7 @@ async function main() {
     );
   } finally {
     await browser.close();
+    if (harness) harness.close();
   }
 }
 

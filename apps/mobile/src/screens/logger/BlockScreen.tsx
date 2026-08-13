@@ -4,6 +4,7 @@ import { isLiftMode, type LoggedSet, type StrengthBlock } from '@hybrid/engine';
 import type { Action, Draft, HotSet, RoundSet, RoundView } from '@hybrid/session-authoring';
 import { HotCard } from './HotCard';
 import { PieceCard } from './PieceCard';
+import { RIPPLE, pressed, slopTo44 } from './press';
 import { useLoggerStyles } from './styles';
 
 /*
@@ -233,8 +234,9 @@ export function BlockScreen({
                           testID="grip"
                           accessibilityRole="button"
                           accessibilityLabel="Do this movement first"
+                          hitSlop={slopTo44(28, 40)}
                           onPress={() => onRotate(block.id)}
-                          style={st.grip}
+                          style={pressed(st.grip)}
                         >
                           <GripIcon />
                         </Pressable>
@@ -271,16 +273,22 @@ function SkipAddRow({ dispatch }: { dispatch: (action: Action) => void }) {
       <Pressable
         testID="skip-set"
         accessibilityRole="button"
+        accessibilityHint="Comes back to this set later"
+        android_ripple={RIPPLE}
+        hitSlop={slopTo44(0, 32)}
         onPress={() => dispatch({ type: 'skipSet' })}
-        style={st.pill}
+        style={pressed(st.pill)}
       >
         <Text style={st.pillInk}>Skip</Text>
       </Pressable>
       <Pressable
         testID="add-set"
         accessibilityRole="button"
+        accessibilityHint="Adds another set like the last one"
+        android_ripple={RIPPLE}
+        hitSlop={slopTo44(0, 32)}
         onPress={() => dispatch({ type: 'addSet' })}
-        style={st.pill}
+        style={pressed(st.pill)}
       >
         <Text style={st.pillInk}>+ Add set</Text>
       </Pressable>

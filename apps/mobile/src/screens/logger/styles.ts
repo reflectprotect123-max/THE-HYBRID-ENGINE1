@@ -107,6 +107,11 @@ function build(color: Palette) {
     skipRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
     pill: { height: 32, borderRadius: radius.pill, borderWidth: 1, borderColor: color.line2, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
     pillInk: { fontFamily: font.med, fontSize: 12, color: color.muted },
+    /* `.warmclock .cbtn` is 44 tall in the prototype, and 44 is also the
+       platform touch-target floor. The first port took the 32px pill by
+       mistake and missed both. */
+    clockBtn: { height: 44, borderRadius: 12, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.goldWash, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
+    clockBtnInk: { fontFamily: font.semi, fontSize: 14, color: color.gold2 },
 
     /* ---- hot card (.hot) -------------------------------------------- */
     card: { borderRadius: 16, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.panel, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 12, marginVertical: 6 },

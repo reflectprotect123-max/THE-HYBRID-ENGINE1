@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { plateBreakdown } from '@hybrid/engine';
 import type { Action, Draft, HotSet } from '@hybrid/session-authoring';
+import { RIPPLE, pressed } from './press';
 import { useLoggerStyles } from './styles';
 
 /*
@@ -113,10 +114,12 @@ export function HotCard({
                 testID="hot-kg"
                 accessibilityRole="button"
                 accessibilityLabel="Weight, tap to edit"
+                android_ripple={RIPPLE}
                 onPress={() => {
                   typed.current = String(draft.kg);
                   setEditingKg(true);
                 }}
+                style={pressed(undefined)}
               >
                 {/* Two siblings on a shared baseline rather than a nested
                     `<Text>`: React Native does not apply margin to nested
@@ -147,8 +150,9 @@ export function HotCard({
               testID="reps-down"
               accessibilityRole="button"
               accessibilityLabel="One rep fewer"
+              android_ripple={RIPPLE}
               onPress={() => setDraft({ reps: Math.max(0, draft.reps - 1) })}
-              style={st.stepper}
+              style={pressed(st.stepper)}
             >
               <Text style={st.stepperInk}>−</Text>
             </Pressable>
@@ -157,8 +161,9 @@ export function HotCard({
               testID="reps-up"
               accessibilityRole="button"
               accessibilityLabel="One rep more"
+              android_ripple={RIPPLE}
               onPress={() => setDraft({ reps: draft.reps + 1 })}
-              style={st.stepper}
+              style={pressed(st.stepper)}
             >
               <Text style={st.stepperInk}>+</Text>
             </Pressable>
@@ -176,8 +181,10 @@ export function HotCard({
               testID={`rpe-${key}`}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
+              accessibilityLabel={`Rated ${value} out of 10`}
+              android_ripple={RIPPLE}
               onPress={() => setDraft({ felt: value })}
-              style={[st.chip, on ? st.chipOn : st.chipOff]}
+              style={pressed([st.chip, on ? st.chipOn : st.chipOff])}
             >
               <Text style={on ? st.chipInkOn : st.chipInkOff}>{value}</Text>
             </Pressable>
@@ -190,8 +197,10 @@ export function HotCard({
         accessibilityRole="button"
         accessibilityState={{ disabled: !ready }}
         disabled={!ready}
+        accessibilityHint={ready ? undefined : 'Choose how hard the set was first'}
+        android_ripple={ready ? RIPPLE : undefined}
         onPress={() => dispatch({ type: 'logSet' })}
-        style={[st.cta, ready ? st.ctaOn : st.ctaOff]}
+        style={pressed([st.cta, ready ? st.ctaOn : st.ctaOff])}
       >
         <Text style={ready ? st.ctaInkOn : st.ctaInkOff}>Log set</Text>
       </Pressable>

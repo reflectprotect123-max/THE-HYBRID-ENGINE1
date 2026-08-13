@@ -5,6 +5,7 @@ import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
 import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@hybrid/design';
 import { SessionLogger } from '../src/screens/logger/SessionLogger';
 
@@ -49,10 +50,16 @@ export function Harness() {
   if (!fontsReady) return <View />;
 
   return (
-    <ThemeProvider world="strength">
-      <View testID="parity-harness-ready" style={{ flex: 1 }}>
-        <SessionLogger />
-      </View>
-    </ThemeProvider>
+    /* `SafeAreaProvider` is here for one reason: the screen reads
+       `useSafeAreaInsets`, and without a provider that hook has nothing to
+       read. A browser viewport has no notch, so it reports zeros — which is
+       exactly what keeps the shots comparable with the prototype's. */
+    <SafeAreaProvider>
+      <ThemeProvider world="strength">
+        <View testID="parity-harness-ready" style={{ flex: 1 }}>
+          <SessionLogger />
+        </View>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

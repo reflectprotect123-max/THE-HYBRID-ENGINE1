@@ -20,6 +20,8 @@
  *   node checks/parity-visual.mjs [--target=prototype|<url>] [--record] [--phase=build|run|all]
  *
  *   --target=prototype (default)  load the committed HTML from file://
+ *   --target=harness              export apps/mobile's parity harness, serve it,
+ *                                 and drive that — the mobile side, in one command
  *   --target=<url>                load a running app at that URL
  *   --record                      write the baseline shots and exit 0
  *   (no --record)                 diff a fresh run against the baseline
@@ -41,6 +43,7 @@ import { fileURLToPath } from 'node:url';
 import { inflateSync, deflateSync } from 'node:zlib';
 import { launchChromium } from './_chromium.mjs';
 import { steps } from './parity/script.mjs';
+import { serveHarness } from './parity/serve-harness.mjs';
 import { hookSel, seedAndGoToLogger } from './parity/drive.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -400,12 +403,22 @@ async function unlinkIfExists(path) {
 }
 
 async function main() {
-  const { target, record, phase } = parseArgs(process.argv.slice(2));
+  let { target, phase } = parseArgs(process.argv.slice(2));
+  const { record } = parseArgs(process.argv.slice(2));
 
   const { browser, skip } = await launchChromium();
   if (skip) {
     console.log(`SKIP — parity-visual: ${skip}`);
     process.exit(0);
+  }
+
+  /* `harness` is not a URL, it is an instruction: build the mobile harness and
+     serve it. Resolved here so everything downstream sees an ordinary target. */
+  let harness = null;
+  if (target === 'harness') {
+    harness = await serveHarness();
+    target = harness.url;
+    if (phase === 'all') phase = 'run';
   }
 
   try {
@@ -514,6 +527,7 @@ async function main() {
     console.log(`PASS — parity-visual: ${shots.size} shots match the baseline (target: ${target}, phase: ${phase})`);
   } finally {
     await browser.close();
+    if (harness) harness.close();
   }
 }
 

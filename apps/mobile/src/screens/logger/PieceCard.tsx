@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { Action, RoundSet } from '@hybrid/session-authoring';
+import { RIPPLE, pressed } from './press';
 import { useLoggerStyles } from './styles';
 
 /*
@@ -99,10 +100,11 @@ export function PieceCard({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={running ? 'Pause' : 'Start'}
+            android_ripple={RIPPLE}
             onPress={() => setRunning((r) => !r)}
-            style={st.pill}
+            style={pressed(st.clockBtn)}
           >
-            <Text style={st.pillInk}>{running ? 'Pause' : 'Start'}</Text>
+            <Text style={st.clockBtnInk}>{running ? 'Pause' : 'Start'}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -110,8 +112,9 @@ export function PieceCard({
       <Pressable
         testID="piece-done"
         accessibilityRole="button"
+        android_ripple={RIPPLE}
         onPress={() => finish.current()}
-        style={[st.cta, st.ctaOn]}
+        style={pressed([st.cta, st.ctaOn])}
       >
         <Text style={st.ctaInkOn}>Done</Text>
       </Pressable>

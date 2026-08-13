@@ -1,3 +1,11 @@
+<meta charset="utf-8">
+<!-- Declared, not guessed. The file has always been UTF-8 on disk, but with
+     no declaration Chromium sniffs the encoding, and the sniff is not stable
+     across environments: one run of parity-behaviour read every receipt's
+     `×` back as `Ã—` and failed, and the next run passed. A specification
+     whose gate flips on where it happens to be opened is not a specification.
+     This adds no content and changes no behaviour -- the recorded trace is
+     byte-identical either side of it. -->
 <title>Round-Major Logger</title>
 
 <style>
