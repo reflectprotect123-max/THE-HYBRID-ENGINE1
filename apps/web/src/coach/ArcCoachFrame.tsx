@@ -3,12 +3,15 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useDb } from '../store/db';
 import { useProgressionLedger } from '../store/progression';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
+import { useDesktopView, useViewportMetaApplies } from './useDesktopView';
 
 export function ArcCoachFrame() {
   const { weeklyPlan } = useDb();
   const ledger = useProgressionLedger();
   const location = useLocation();
   const { selectedClient } = useCoachWorkspace();
+  const desktopView = useDesktopView();
+  const canSwitchViewport = useViewportMetaApplies();
   const decided = new Set(ledger.decisions.map((decision) => decision.proposalId));
   const pending = ledger.proposals.filter((proposal) => !decided.has(proposal.id)).length;
   const weekExceptions = weeklyPlan.decisions.filter((decision) => decision.action === 'dropped').length;
@@ -75,6 +78,36 @@ export function ArcCoachFrame() {
    */
   return (
     <div className="mx-auto grid min-h-screen max-w-[1440px] bg-bg text-text max-lg:auto-rows-min lg:grid-cols-[208px_minmax(0,1fr)]">
+      {/*
+        DESKTOP VIEW, and why it is `fixed` rather than living in the phone
+        bar above.
+        `/coach` is composed at 1440px; phone is a supported second viewport,
+        not a replacement, so the phone layout necessarily drops what a wide
+        one holds side by side. This is the way back to the whole dashboard —
+        what a browser's "Request desktop site" does, remembered, and scoped
+        to this bench.
+        The obvious home for it was the `sm:hidden` phone bar. That is a
+        TRAP: turning it on makes the viewport 1440px, which is above `sm`,
+        which hides that bar — taking the only way back with it. So it sits
+        outside the responsive layout entirely and is reachable in both
+        states.
+        Rendered only where the viewport meta does anything at all. A desktop
+        browser ignores that tag, so showing this there would ship a control
+        that silently fails.
+      */}
+      {canSwitchViewport && (
+        <button
+          type="button"
+          onClick={desktopView.toggle}
+          aria-pressed={desktopView.on}
+          className={`fixed bottom-3 right-3 z-40 min-h-11 rounded-full border px-3 text-xs font-semibold shadow-lg ${
+            desktopView.on ? 'border-gold-line bg-gold-wash text-gold2' : 'border-line2 bg-panel text-muted'
+          }`}
+          style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          {desktopView.on ? 'Phone view' : 'Desktop view'}
+        </button>
+      )}
       <div className="flex items-center gap-2 border-b border-line2 bg-panel3 px-2 py-2 sm:hidden">
         <button
           type="button"

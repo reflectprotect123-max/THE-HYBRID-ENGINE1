@@ -83,6 +83,18 @@ once, can catch its regression.
   review width for every route under `/coach`, `CoachWorkspaceRepository` and
   everything that consumes it. Phone is a supported second viewport, not the
   primary one — nothing here reverses that ordering.
+- **A coach on a phone can ask for the desktop layout** (13 August 2026).
+  `useDesktopView` rewrites the viewport meta to `width=1440`, which is the
+  only lever that can talk CSS media queries out of their answer — nothing
+  inside the page can. Consequences that are part of the rule, not
+  incidental: it is a WHOLE-DOCUMENT switch, so the hook restores the
+  original tag on unmount and the control lives in `ArcCoachFrame`, which
+  only mounts under `/coach`; `maximum-scale=1` is dropped with it, or the
+  coach cannot zoom into what they just asked for; and the control is
+  `fixed`, NOT in the `sm:hidden` phone bar, because turning it on takes the
+  viewport above `sm` and would hide the only way back. This does not soften
+  the phone-support requirement above — a route must still hold at 420px on
+  its own.
 - Phone-width support is per-route, proven by `checks/screens.mjs`, not
   claimed for the whole bench at once. As of stage 1 (11 August 2026) it
   shoots five `/coach` routes at 420px and fails on horizontal overflow:
