@@ -23,6 +23,15 @@ import {
   pushEcosystem,
   readNutritionPartition,
 } from './ecosystem';
+import {
+  acceptAssignment as acceptAssignmentRpc,
+  clearArcOrgCache,
+  declineAssignment as declineAssignmentRpc,
+  getMyArcOrgId,
+  listPendingAssignments,
+  materializeAcceptedAssignments,
+  type PendingAssignment,
+} from './arc-assignments';
 import { useNutrition } from '../store/nutrition';
 import '../product'; // build-config guard
 
@@ -57,6 +66,11 @@ interface SyncCtx {
   signUp: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
+  /** Coach-assigned programs waiting for this athlete's answer. Empty for
+   *  every account with no coaching relationship, which is most of them. */
+  pendingAssignments: readonly PendingAssignment[];
+  acceptAssignment: (assignmentId: string) => Promise<void>;
+  declineAssignment: (assignmentId: string) => Promise<void>;
 }
 
 const Ctx = createContext<SyncCtx | null>(null);
@@ -134,6 +148,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [syncedAt, setSyncedAt] = useState(0);
+  const [pendingAssignments, setPendingAssignments] = useState<readonly PendingAssignment[]>([]);
+  /* The org the accept/decline RPCs are addressed to. A ref, not state:
+     `reconcile` learns it and the accept handler needs the current value
+     without either re-rendering the tree or re-creating the callback. */
+  const arcOrgRef = useRef<string | null>(null);
 
   // The DB changes on every logged set; reading it through a ref keeps the
   // reconcile callback stable so the AppState listener isn't torn down and
@@ -159,6 +178,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
      past. */
   const remoteNamespace = useRef<EcosystemSyncNamespace | null>(null);
   const inFlight = useRef(false);
+  /* A reconcile asked for while one is already running. `reconcile` drops such
+     a call, which is right for a foreground tick (the running one is already
+     fetching the same thing) and WRONG for an athlete's accept: the tap is a
+     specific new server state this device has not seen, and dropping it means
+     the coach's session appears at some unrelated later foreground. Set by
+     that caller, honoured once in `reconcile`'s finally. */
+  const rerunRequested = useRef(false);
   /*
    * Every push, in the order it was asked for.
    *
@@ -464,6 +490,50 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // The app hosts both worlds — nothing is narrowed.
       if (cloudFp(local) !== cloudFp(previousLocal)) applyMerged(local);
 
+      /*
+       * The COACH -> ATHLETE half of the ARC loop, best-effort and
+       * deliberately isolated in its own try/catch: an athlete with no coach —
+       * the common case — has no organisation membership, every call below
+       * refuses, and that refusal must never become an error banner on the
+       * training sync it rides alongside.
+       *
+       * Runs AFTER the pull and the push above, so a materialised workout is
+       * added on top of this device's freshest known state and is carried up
+       * by the next push rather than racing the one that just ran.
+       *
+       * Not gated on ECOSYSTEM_SYNC_ENABLED: `program_assignments` is not one
+       * of the three ecosystem snapshot tables that flag guards, and the
+       * assignment tables are already live.
+       */
+      try {
+        const orgId = await getMyArcOrgId(client, user.id);
+        arcOrgRef.current = orgId;
+        if (orgId) {
+          setPendingAssignments(await listPendingAssignments(client, user.id));
+
+          const existingWorkoutIds = new Set(dbRef.current.workouts.map((w) => w.id));
+          const newWorkouts = await materializeAcceptedAssignments(client, user.id, existingWorkoutIds);
+          if (newWorkouts.length > 0) {
+            // Written through `update` — the store is the only owner of the
+            // athlete's workouts. NOT mirrored onto `dbRef` by hand: this block
+            // runs after the push above, so there is no later push in this
+            // reconcile for a mirror to serve, and `dbRef.current = db` in the
+            // component body already runs on the render `update()` schedules.
+            // Writing the ref here is the exact pattern `applyMerged` above
+            // deleted on purpose, and its comment says why.
+            update((draft) => {
+              for (const w of newWorkouts) {
+                if (!draft.workouts.some((existing) => existing.id === w.id)) draft.workouts.push(w);
+              }
+            });
+          }
+        } else {
+          setPendingAssignments([]);
+        }
+      } catch {
+        /* Best-effort — see above. Nothing here may fail the training sync. */
+      }
+
       // A refused push has already said so through `error`. Stamping the clock
       // on top of it would put "Last synced <now>" beside the message and make
       // the refusal read as a completed sync.
@@ -473,8 +543,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     } finally {
       inFlight.current = false;
       setBusy(false);
+      /* Honour a rerun asked for while this one was running. The flag is
+         cleared BEFORE the call, so a rerun that is itself interrupted arms a
+         fresh flag rather than looping on a stale one. Only `acceptAssignment`
+         sets it, so this is one extra pass, not a pump. */
+      if (rerunRequested.current) {
+        rerunRequested.current = false;
+        void reconcileRef.current?.();
+      }
     }
-  }, [user, applyMerged, pushNow, reconcileNutrition]);
+  }, [user, applyMerged, pushNow, reconcileNutrition, update]);
+
+  /* `reconcile` cannot name itself inside its own useCallback, and the rerun
+     above must run the CURRENT one, not the closure that armed it. */
+  const reconcileRef = useRef<(() => Promise<void>) | null>(null);
+  reconcileRef.current = reconcile;
 
   /* ---- auth ---- */
   useEffect(() => {
@@ -575,10 +658,50 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         lastNutritionFp.current = null;
         remoteNamespace.current = null;
         nutritionSchemaBlocked.current = false;
+        // The next account on this device is not the same athlete: a cached
+        // org id or a pending card left standing would be the previous one's.
+        arcOrgRef.current = null;
+        clearArcOrgCache();
+        setPendingAssignments([]);
       },
       syncNow: reconcile,
+      pendingAssignments,
+      /*
+       * Accept/decline are the only calls in this file the athlete asked for
+       * directly, so unlike the best-effort reads they THROW: the card is
+       * showing a button and must be able to say the tap did not land.
+       *
+       * The row is dropped from `pendingAssignments` on success. Nothing is
+       * materialised here — the assignment becomes real training on the next
+       * reconcile, through `materializeAcceptedAssignments`, so the local
+       * workout only ever appears for a state the server actually recorded.
+       */
+      acceptAssignment: async (assignmentId: string) => {
+        /* THROWS rather than returning quietly. A silent `return` here would
+           be a tapped button that does nothing and says nothing — the card
+           would keep showing the assignment with no explanation, which is the
+           one outcome the card's error line exists to prevent. */
+        if (!client || !arcOrgRef.current) throw new Error('No coaching relationship is available right now.');
+        await acceptAssignmentRpc(client, arcOrgRef.current, assignmentId);
+        setPendingAssignments((current) => current.filter((a) => a.id !== assignmentId));
+        /* Materialise now rather than at the next foreground. A phone is not a
+           browser tab left open — the athlete taps Accept and may not
+           background the app for days, and "it will appear eventually" is a
+           coach's session silently missing from today.
+           `reconcile` DROPS a call made while one is already running, so a tap
+           landing mid-sync would be exactly that silent wait. `rerunRequested`
+           makes the running one come back round instead. Not awaited: the tap
+           has already succeeded and `reconcile` reports its own failures. */
+        if (inFlight.current) rerunRequested.current = true;
+        else void reconcile();
+      },
+      declineAssignment: async (assignmentId: string) => {
+        if (!client || !arcOrgRef.current) throw new Error('No coaching relationship is available right now.');
+        await declineAssignmentRpc(client, arcOrgRef.current, assignmentId);
+        setPendingAssignments((current) => current.filter((a) => a.id !== assignmentId));
+      },
     }),
-    [user, busy, error, syncedAt, reconcile],
+    [user, busy, error, syncedAt, reconcile, pendingAssignments],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

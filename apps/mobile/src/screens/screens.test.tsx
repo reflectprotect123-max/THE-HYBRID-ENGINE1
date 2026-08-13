@@ -23,8 +23,25 @@ import { PlannerScreen } from './Planner';
 import { ymd, LS_KEY, type EngineDB, type Workout } from '@hybrid/engine';
 import { __resetDisciplineForTest, setDiscipline } from '../discipline';
 import { storage } from '../store/storage';
+import { NutritionProvider } from '../store/nutrition';
+import { SyncProvider } from '../cloud/sync';
 
 const persisted = (): EngineDB => JSON.parse(storage.getItem(LS_KEY) || '{}');
+
+/* Home mounts ArcAssignmentCard, which reads useSync — and SyncProvider itself
+   reads useNutrition. Both throw outside their provider, and renderScreen's
+   stack (test/harness.tsx) deliberately covers only what every OTHER screen
+   needs. Same shape as Settings.test.tsx's renderSettings, in App.tsx's real
+   order. Without a Supabase client both providers sit inert at "signed out",
+   which is what these tests want anyway. */
+const renderHome = () =>
+  renderScreen(
+    <NutritionProvider>
+      <SyncProvider>
+        <HomeScreen />
+      </SyncProvider>
+    </NutritionProvider>,
+  );
 
 /* Real navigation by default — every screen here mounts under `renderScreen`'s
    genuine NavigationContainer, exactly as it does in the app. Only the
@@ -454,7 +471,7 @@ describe("Home's week strip tap", () => {
     const navigate = jest.fn();
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
 
-    renderScreen(<HomeScreen />);
+    renderHome();
     fireEvent.press(screen.getByLabelText(cellLabel(date, ', trained')));
 
     expect(navigate).toHaveBeenCalledWith('Recap', { id: trained.id });
@@ -465,7 +482,7 @@ describe("Home's week strip tap", () => {
     const navigate = jest.fn();
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
 
-    renderScreen(<HomeScreen />);
+    renderHome();
     fireEvent.press(screen.getByLabelText(cellLabel(new Date())));
 
     // A tab switch, not a stack push — the exact `toTraining` HomeScreen's
@@ -479,7 +496,7 @@ describe("Home's week strip tap", () => {
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
     const date = weekEndDate();
 
-    renderScreen(<HomeScreen />);
+    renderHome();
     fireEvent.press(screen.getByLabelText(cellLabel(date)));
 
     // No workoutId in the params — same as Calendar, Day re-derives the
@@ -494,7 +511,7 @@ describe("Home's Today's plan delete", () => {
     const w: Workout = { id: 'home-del-1', name: 'Home Delete Target', updatedAt: 1, blocks: [], dates: [ymd(new Date())] };
     seed({ workouts: [w] });
 
-    renderScreen(<HomeScreen />);
+    renderHome();
     fireEvent.press(screen.getByLabelText('delete Home Delete Target'));
 
     expect(alertSpy).toHaveBeenCalledTimes(1);

@@ -22,6 +22,7 @@ import { useTheme } from '@hybrid/design';
 import { useDb } from '../store/db';
 import { ForeignSessionNotice } from './ForeignSession';
 import { resolveDayTarget, sessionFrom } from '../store/session';
+import { ArcAssignmentCard } from '../autocoach/ArcAssignmentCard';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
 import { useLedger, type LedgerEntry } from '../autocoach/ledger';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
@@ -185,6 +186,11 @@ export function HomeScreen() {
       </T>
 
       <ForeignSessionNotice />
+
+      {/* A coach's assignment waiting on an answer, above the week it would
+          join. Renders nothing at all for an athlete with no coach, which is
+          most of them — same contract as ForeignSessionNotice above it. */}
+      <ArcAssignmentCard />
 
       <View className="mt-2 mb-1 flex-row items-end justify-between gap-1">
         <T w="semi" className="text-1 uppercase text-dim" style={{ letterSpacing: 1.4 }}>
