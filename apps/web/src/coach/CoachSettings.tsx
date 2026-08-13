@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
-import type { ClientSummary } from './contracts';
+import type { ClientSummary, CoachInvite, CoachOrganization } from './contracts';
 import './coach-redesign.css';
 
 /*
@@ -42,6 +42,51 @@ function describeClients(clients: readonly ClientSummary[], error: string | null
   return `${head} · ${fixtures} fixture${fixtures === 1 ? '' : 's'}`;
 }
 
+/**
+ * A 32-hex-character code in four readable groups.
+ *
+ * The separators are cosmetic and safe: `redeem_coach_invite` strips every
+ * non-hex character before it compares, precisely so a code read aloud, or
+ * retyped with the spacing a human sees, still works.
+ */
+function formatCode(code: string): string {
+  return (code.match(/.{1,8}/g) ?? [code]).join(' ');
+}
+
+/** How many whole days remain, floored — "expires in 0 days" is today, which
+ *  is what a coach needs to hear rather than a rounded-up tomorrow. */
+function daysUntil(iso: string, now: number): number {
+  return Math.max(0, Math.floor((Date.parse(iso) - now) / 86_400_000));
+}
+
+function describeInvite(invite: CoachInvite, now: number): string {
+  switch (invite.status) {
+    case 'accepted': return 'Redeemed · on your roster';
+    case 'revoked': return 'Revoked';
+    case 'expired': return 'Expired · unused';
+    default: {
+      const days = daysUntil(invite.expiresAt, now);
+      return `Unused · expires in ${days} day${days === 1 ? '' : 's'}`;
+    }
+  }
+}
+
+/**
+ * The summary line for the invite block.
+ *
+ * "Not loaded", "loaded and empty" and "loaded with invites" are three states,
+ * and printing "none yet" while the request is still in flight is the same
+ * class of lie the Multi-client row above was rewritten to stop telling.
+ */
+function describeInvites(invites: readonly CoachInvite[], error: string | null, loading: boolean): string {
+  if (error) return 'Could not be loaded';
+  if (loading) return 'Loading…';
+  const open = invites.filter((invite) => invite.status === 'open').length;
+  const accepted = invites.filter((invite) => invite.status === 'accepted').length;
+  if (invites.length === 0) return 'None created';
+  return `${open} unused · ${accepted} redeemed`;
+}
+
 export function CoachSettings() {
   const { repository, clients, loading: clientsLoading, error: clientsError } = useCoachWorkspace();
   const [section, setSection] = useState<Section>('Workspace');
@@ -54,7 +99,80 @@ export function CoachSettings() {
   // save row never has to pattern-match a sentence to decide on a colour.
   const [loadFailed, setLoadFailed] = useState(false);
 
+  /*
+   * Athlete invites. The coach's HALF of getting somebody onto the roster —
+   * this screen mints a code and nothing more. No control here attaches an
+   * athlete, because none can: the roster row is written by the athlete's own
+   * `redeem_coach_invite` call, from their session, with their own id.
+   *
+   * The repository methods are optional on the contract (the demo repository
+   * has no server to mint against), so every call is guarded rather than
+   * assumed — an older repository must render as "no organisation", not crash
+   * the settings screen.
+   */
+  const [organizations, setOrganizations] = useState<readonly CoachOrganization[]>([]);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [invites, setInvites] = useState<readonly CoachInvite[]>([]);
+  const [invitesSettled, setInvitesSettled] = useState(false);
+  const [invitesError, setInvitesError] = useState<string | null>(null);
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [inviteFailed, setInviteFailed] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
+
   const clientCount = describeClients(clients, clientsError, clientsLoading);
+  const now = Date.now();
+  const selectedOrganization = organizations.find((org) => org.id === organizationId) ?? organizations[0] ?? null;
+
+  useEffect(() => {
+    let active = true;
+    setInvitesSettled(false);
+    const listOrgs = repository.listCoachOrganizations?.bind(repository);
+    const listInvites = repository.listCoachInvites?.bind(repository);
+    Promise.all([listOrgs ? listOrgs() : [], listInvites ? listInvites() : []])
+      .then(([orgs, list]) => {
+        if (!active) return;
+        setOrganizations(orgs);
+        setOrganizationId((current) => current ?? orgs[0]?.id ?? null);
+        setInvites(list);
+      })
+      .catch(() => { if (active) setInvitesError('Athlete invites could not be loaded.'); })
+      .finally(() => { if (active) setInvitesSettled(true); });
+    return () => { active = false; };
+  }, [repository]);
+
+  const createInvite = async () => {
+    const mint = repository.createCoachInvite?.bind(repository);
+    if (!mint || !selectedOrganization) return;
+    setInviteBusy(true);
+    try {
+      const invite = await mint(selectedOrganization.id);
+      setInvites((current) => [invite, ...current]);
+      setInviteFailed(false);
+      setInviteMessage('Code created. It links nobody until the athlete redeems it.');
+    } catch (cause) {
+      setInviteFailed(true);
+      setInviteMessage(cause instanceof Error ? cause.message : 'The invite could not be created.');
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const revokeInvite = async (inviteId: string) => {
+    const revoke = repository.revokeCoachInvite?.bind(repository);
+    if (!revoke) return;
+    setInviteBusy(true);
+    try {
+      const invite = await revoke(inviteId);
+      setInvites((current) => current.map((item) => (item.id === invite.id ? invite : item)));
+      setInviteFailed(false);
+      setInviteMessage('Code revoked. Anyone already on your roster stays there.');
+    } catch (cause) {
+      setInviteFailed(true);
+      setInviteMessage(cause instanceof Error ? cause.message : 'The invite could not be revoked.');
+    } finally {
+      setInviteBusy(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -123,6 +241,60 @@ export function CoachSettings() {
               <ReadOnlyRow label="Assistant coaches" value="0 invited" />
               <ReadOnlyRow label="Symptom reports" value="Visible to organisation coaches" />
               <ReadOnlyRow label="Private coach notes" value="Coach-only" />
+
+              {/*
+                The invite block. Everything below states, in the screen's own
+                words, the property the migration enforces: a code is an offer,
+                and the athlete's redemption is what makes the link.
+              */}
+              {organizations.length > 1 && (
+                <SelectRow
+                  label="Invite athletes into"
+                  detail="You coach in more than one organisation. An athlete joins the one you choose here."
+                  value={selectedOrganization?.name ?? ''}
+                  onChange={(name) => setOrganizationId(organizations.find((org) => org.name === name)?.id ?? null)}
+                  options={organizations.map((org) => org.name)}
+                />
+              )}
+              <ReadOnlyRow
+                label="Athlete invites"
+                detail="A code you send. The athlete redeeming it is what puts them on your roster — creating one links nobody."
+                value={invitesSettled || invitesError ? describeInvites(invites, invitesError, false) : 'Loading…'}
+                alert={Boolean(invitesError)}
+              />
+              {/* The newest few. An accepted invite is kept rather than swept
+                  away — a coach chasing "it didn't work" needs to see that it
+                  did — but the list is bounded so a year of them cannot bury
+                  the rest of this panel. */}
+              {invites.slice(0, 6).map((invite) => (
+                <div className="st-row" key={invite.id}>
+                  <RowText label={formatCode(invite.code)} detail={describeInvite(invite, now)} />
+                  <span className="st-row-value">
+                    {invite.status === 'open' && repository.revokeCoachInvite
+                      ? <button type="button" className="cb-add-btn ghost" disabled={inviteBusy} onClick={() => revokeInvite(invite.id)}>Revoke</button>
+                      : null}
+                  </span>
+                </div>
+              ))}
+              {invites.length > 6 ? <ReadOnlyRow label="Older invites" value={`${invites.length - 6} not shown`} /> : null}
+              {invitesSettled && !invitesError && organizations.length === 0 ? (
+                <p className="st-warning">You are not an owner or coach of any organisation, so there is nothing to invite an athlete into.</p>
+              ) : null}
+              <div className="st-save-row">
+                <button
+                  type="button"
+                  className="cb-add-btn ghost"
+                  disabled={inviteBusy || !selectedOrganization || !repository.createCoachInvite}
+                  onClick={createInvite}
+                >
+                  Create athlete invite
+                </button>
+                {inviteMessage
+                  ? (inviteFailed
+                      ? <p className="st-warning" role="status">{inviteMessage}</p>
+                      : <p className="st-save-note show" role="status">{inviteMessage}</p>)
+                  : null}
+              </div>
             </SettingsSection>
           )}
           {section === 'Data & sync' && (

@@ -1469,6 +1469,110 @@ try {
     if (!wasRefused(out)) throw new Error('a proposals change was smuggled in alongside created_by erasure');
   });
 
+  /*
+   * ---------------------------------------------------------------------
+   * Getting onto a roster, and having a name (20260813).
+   *
+   * The property being proved is the one the whole design rests on: the
+   * COACH's half of an invite links nobody, and the ATHLETE's redemption is
+   * what writes the row. Every deny here would look like working software if
+   * it were broken — a coach who could attach a stranger would simply see an
+   * extra athlete, and nothing on the screen would say the athlete never
+   * agreed.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC roster invites and athlete names — the athlete consents:\n');
+
+  const NEWBIE = 'a9a9a9a9-0001-0001-0001-a9a9a9a9a9a9';
+  asOwnerSql(`insert into auth.users (id) values ('${NEWBIE}') on conflict do nothing;`);
+
+  const inviteCode = (coach) => lastLine(asOwnerSqlOut(
+    `select code from public.coach_athlete_invites where coach_user_id = '${coach}' and accepted_at is null and revoked_at is null order by created_at desc limit 1;`));
+  const rosterCount = (coach, athlete) => lastLine(asOwnerSqlOut(
+    `select count(*) from public.coach_athlete_assignments where coach_user_id = '${coach}' and athlete_user_id = '${athlete}' and status = 'active';`));
+
+  check('INVITE: a coach can mint a code, and it puts nobody on their roster', () => {
+    const out = asAthlete(COACH_1, refusalProbe(`perform public.create_coach_invite('${ORG_1}')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`the legitimate mint was refused: ${lastLine(out)}`);
+    if (rosterCount(COACH_1, NEWBIE) !== '0') throw new Error('minting an invite attached an athlete — the consent model is inverted');
+  });
+
+  check('INVITE: a coach cannot mint into an organisation they do not coach', () => {
+    const out = asAthlete(COACH_1, refusalProbe(`perform public.create_coach_invite('${ORG_2}')`));
+    if (!wasRefused(out)) throw new Error('a coach minted an invite into another tenant');
+  });
+
+  check('INVITE: no other coach can read the code — it is a bearer secret', () => {
+    // RLS FILTERS, so this asserts on a COUNT. An empty answer here is the
+    // denial; an exception would prove nothing either way.
+    const mine = countAs(COACH_1, `from public.coach_athlete_invites where coach_user_id = '${COACH_1}'`);
+    if (mine === '0') throw new Error('the legitimate read returned nothing, so the deny below proves nothing');
+    const theirs = countAs(COACH_3, `from public.coach_athlete_invites where coach_user_id = '${COACH_1}'`);
+    if (theirs !== '0') throw new Error(`a colleague read ${theirs} of another coach's invite codes`);
+  });
+
+  check('INVITE: the ATHLETE redeeming it is what creates the roster row', () => {
+    const code = inviteCode(COACH_1);
+    const out = asAthlete(NEWBIE, refusalProbe(`perform public.redeem_coach_invite('${code}')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`the athlete could not redeem: ${lastLine(out)}`);
+    if (rosterCount(COACH_1, NEWBIE) !== '1') throw new Error('redemption did not create the roster row');
+    // And the row AUTHORISES — an assignment without the athlete-side
+    // membership would be a roster entry that every read still filters away.
+    const authorised = lastLine(asAthlete(COACH_1, `select public.coaches_athlete('${ORG_1}', '${NEWBIE}');`));
+    if (authorised !== 't') throw new Error('the roster row exists but authorises nothing');
+  });
+
+  check('INVITE: a code is single-use', () => {
+    const code = lastLine(asOwnerSqlOut(
+      `select code from public.coach_athlete_invites where accepted_by = '${NEWBIE}' limit 1;`));
+    const out = asAthlete(ATHLETE_B, refusalProbe(`perform public.redeem_coach_invite('${code}')`));
+    if (!wasRefused(out)) throw new Error('a spent code was redeemed a second time');
+  });
+
+  check('INVITE: a revoked code is refused, and revoking cannot unlink a redeemed one', () => {
+    asAthlete(COACH_1, `select public.create_coach_invite('${ORG_1}');`);
+    const code = inviteCode(COACH_1);
+    const id = lastLine(asOwnerSqlOut(`select id from public.coach_athlete_invites where code = '${code}';`));
+    const killed = asAthlete(COACH_1, refusalProbe(`perform public.revoke_coach_invite('${id}')`));
+    if (!killed.includes('ACCEPTED')) throw new Error(`the coach could not revoke their own code: ${lastLine(killed)}`);
+    const out = asAthlete(ATHLETE_B, refusalProbe(`perform public.redeem_coach_invite('${code}')`));
+    if (!wasRefused(out)) throw new Error('a revoked code was still redeemable');
+
+    const spent = lastLine(asOwnerSqlOut(`select id from public.coach_athlete_invites where accepted_by = '${NEWBIE}' limit 1;`));
+    const refused = asAthlete(COACH_1, refusalProbe(`perform public.revoke_coach_invite('${spent}')`));
+    if (!wasRefused(refused)) throw new Error('revoking a spent code was allowed — that would look like unlinking an athlete');
+    if (rosterCount(COACH_1, NEWBIE) !== '1') throw new Error('the athlete was unlinked by an invite revocation');
+  });
+
+  check('NAME: the athlete sets their own, and their coach may read it', () => {
+    const out = asAthlete(NEWBIE, refusalProbe(`perform public.set_athlete_display_name('Riley Roster')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`the athlete could not set their own name: ${lastLine(out)}`);
+    const asCoach = lastLine(asAthlete(COACH_1, `select display_name from public.athlete_profiles where user_id = '${NEWBIE}';`));
+    if (asCoach !== 'Riley Roster') throw new Error(`the coach read '${asCoach}' instead of the published name`);
+  });
+
+  check('NAME: nobody else can read it, however senior', () => {
+    // COACH_3 is a legitimate, active coach in the SAME organisation — just
+    // not this athlete's. Within-tenant is the boundary that gets forgotten.
+    const got = countAs(COACH_3, `from public.athlete_profiles where user_id = '${NEWBIE}'`);
+    if (got !== '0') throw new Error('a coach who does not coach this athlete read their name');
+  });
+
+  check('NAME: a coach cannot set an athlete’s name, and a blank withdraws it', () => {
+    /* Asserted TWICE, and the second half is the one that matters. RLS alone
+       would let this UPDATE "succeed" against zero rows — fail-closed, but
+       reported as accepted — so the migration revokes the write privilege
+       outright and the name is re-read to prove nothing moved either way. */
+    const forged = asAthlete(COACH_1, refusalProbe(
+      `update public.athlete_profiles set display_name = 'Forged' where user_id = '${NEWBIE}'`));
+    if (!wasRefused(forged)) throw new Error('a coach wrote into an athlete profile directly');
+    const still = lastLine(asOwnerSqlOut(`select display_name from public.athlete_profiles where user_id = '${NEWBIE}';`));
+    if (still !== 'Riley Roster') throw new Error(`the athlete's name became '${still}'`);
+
+    asAthlete(NEWBIE, `select public.set_athlete_display_name(null);`);
+    const left = lastLine(asOwnerSqlOut(`select count(*) from public.athlete_profiles where user_id = '${NEWBIE}';`));
+    if (left !== '0') throw new Error('the athlete could publish a name but not withdraw it');
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });

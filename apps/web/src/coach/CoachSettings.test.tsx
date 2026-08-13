@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CoachSettings } from './CoachSettings';
-import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
+import { FakeCoachWorkspaceRepository, openInvite, renderCoachScreen, rosterClient } from './coach-test-harness';
 import type { CoachWorkspaceSettings } from './contracts';
 
 /**
@@ -175,5 +175,124 @@ describe('CoachSettings', () => {
     expect(screen.getByDisplayValue('Monday')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Kilograms')).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: /Priority notifications/ })).toBeChecked();
+  });
+});
+
+/*
+ * Athlete invites — the coach's half of getting somebody onto a roster.
+ *
+ * The property under test is never "a button exists". It is that this screen
+ * cannot, by any control on it, attach an athlete: it mints an offer, and the
+ * copy it prints says so. A future edit that turned "Create athlete invite"
+ * into "Add athlete" would still render, still pass a smoke test, and would
+ * have reversed the consent model — so the words are pinned too.
+ */
+describe('CoachSettings · athlete invites', () => {
+  const withOrg = () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.organizations = [{ id: 'org-1', name: 'Hybrid Barbell', role: 'coach' }];
+    return repo;
+  };
+
+  const openAccess = () => fireEvent.click(screen.getByRole('button', { name: 'Coaches & access' }));
+
+  it('mints a code for the coach organisation and never names an athlete', async () => {
+    const repo = withOrg();
+    await renderSettings(repo);
+    openAccess();
+
+    expect(screen.getByText('None created')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create athlete invite' }));
+    await act(async () => {});
+
+    // The ONLY argument the coach's half of this flow carries is the tenant.
+    // There is no athlete id here, and there must never be one.
+    expect(repo.mintedFor).toEqual(['org-1']);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Code created. It links nobody until the athlete redeems it.',
+    );
+    expect(screen.getByRole('status')).toHaveClass('st-save-note');
+  });
+
+  it('says an invite links nobody, rather than offering to add an athlete', async () => {
+    await renderSettings(withOrg());
+    openAccess();
+
+    expect(screen.getByRole('button', { name: 'Create athlete invite' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Add athlete/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/redeeming it is what puts them on your roster/)).toBeInTheDocument();
+  });
+
+  it('shows an existing code grouped, with how long it has left', async () => {
+    const repo = withOrg();
+    repo.invites = [openInvite()];
+    await renderSettings(repo);
+    openAccess();
+
+    // Grouped for reading aloud; `redeem_coach_invite` strips the separators.
+    expect(screen.getByText('01234567 89ABCDEF 01234567 89ABCDEF')).toBeInTheDocument();
+    expect(screen.getByText('Unused · expires in 3 days')).toBeInTheDocument();
+    expect(screen.getByText('1 unused · 0 redeemed')).toBeInTheDocument();
+  });
+
+  it('revokes an unused code and says the roster is untouched', async () => {
+    const repo = withOrg();
+    repo.invites = [openInvite()];
+    await renderSettings(repo);
+    openAccess();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await act(async () => {});
+
+    expect(repo.revokedInvites).toEqual(['invite-1']);
+    expect(screen.getByText('Revoked')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Code revoked. Anyone already on your roster stays there.',
+    );
+  });
+
+  it('offers no revoke on a code that was already redeemed', async () => {
+    const repo = withOrg();
+    repo.invites = [openInvite({ status: 'accepted', acceptedAt: '2026-08-13T09:00:00.000Z' })];
+    await renderSettings(repo);
+    openAccess();
+
+    expect(screen.getByText('Redeemed · on your roster')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeInTheDocument();
+  });
+
+  it('disables minting and says why when the coach has no organisation', async () => {
+    await renderSettings(new FakeCoachWorkspaceRepository());
+    openAccess();
+
+    expect(screen.getByRole('button', { name: 'Create athlete invite' })).toBeDisabled();
+    expect(screen.getByText(/not an owner or coach of any organisation/)).toBeInTheDocument();
+  });
+
+  it('reports a failed mint in the warning voice, never the success one', async () => {
+    const repo = withOrg();
+    repo.createInviteError = 'too many open invites';
+    await renderSettings(repo);
+    openAccess();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create athlete invite' }));
+    await act(async () => {});
+
+    // Same trap as the save row: `.st-save-note` is declared after
+    // `.st-warning` and is coloured `--color-ok`, so a failure wearing both
+    // classes ships in green.
+    expect(screen.getByRole('status')).toHaveTextContent('too many open invites');
+    expect(screen.getByRole('status')).toHaveClass('st-warning');
+    expect(screen.getByRole('status')).not.toHaveClass('st-save-note');
+  });
+
+  it('says invites could not be loaded rather than showing none', async () => {
+    const repo = withOrg();
+    repo.listCoachInvites = async () => { throw new Error('simulated listCoachInvites failure'); };
+    await renderSettings(repo);
+    openAccess();
+
+    expect(screen.getByText('Could not be loaded')).toBeInTheDocument();
+    expect(screen.queryByText('None created')).not.toBeInTheDocument();
   });
 });

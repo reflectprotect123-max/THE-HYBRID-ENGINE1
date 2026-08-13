@@ -8,6 +8,8 @@ import type {
   AthleteWeekSummary,
   AthleteWorkoutDraft,
   ClientSummary,
+  CoachInvite,
+  CoachOrganization,
   CoachWorkspaceRepository,
   CoachWorkspaceSettings,
   ProgramAssignmentDraft,
@@ -33,30 +35,50 @@ import { supabaseClient } from './sync';
  *
  * WHAT IT CAN AND CANNOT DO TODAY
  *
- * Reads: real. Clients come from `coach_athlete_assignments`, templates from
- * `program_templates` joined to their published versions, settings from the
- * coach's own row.
+ * Reads: real. Clients come from `coach_athlete_assignments`, their names from
+ * `athlete_profiles`, templates from `program_templates` joined to their
+ * published versions, settings from the coach's own device.
  *
- * Writes: through `create_program_assignment` ONLY. No client role holds INSERT
- * on any coach table, by design — the command derives the actor from the
- * session, checks the coach↔athlete relationship, and writes the assignment,
- * decision and receipt in one transaction. A direct table write from here would
- * be trusting a client-supplied organisation id, which the handoff forbids.
+ * Layer 3 is IMPLEMENTED, not pending. `getAthleteWeekSummary`,
+ * `listWorkoutDrafts`, `listProgressionProposals`, `getTrendSnapshot`,
+ * `listAutocoachReceipts` and `getNutritionSummary` all read one authorised,
+ * tenant-scoped projection each, and `saveWorkoutDraft`,
+ * `publishWorkoutDraft` and `decideProgressionProposal` write through their
+ * own commands.
  *
- * THE TRUTH BOUNDARY, KEPT
+ * Writes: through SECURITY DEFINER commands ONLY — `create_program_assignment`,
+ * `save_workout_draft`, `publish_workout_draft`, `decide_progression_proposal`,
+ * `create_coach_invite`, `revoke_coach_invite`. No client role holds INSERT on
+ * any coach table, by design: each command derives the actor from the session,
+ * checks the coach↔athlete relationship, and commits its record and its receipt
+ * in one transaction. A direct table write from here would be trusting a
+ * client-supplied organisation id, which the handoff forbids.
  *
- * Detailed training data for a client is NOT readable yet — that is layer 3,
- * the seventeen files still reading the signed-in user's own stores. So every
- * client fetched from the database is returned with `source: 'synthetic-fixture'`,
- * which is the flag the bench already uses to disable detail links and print
- * "Detailed records await the backend adapter".
+ * THE TRUTH BOUNDARY, KEPT — AND WHAT THIS PREAMBLE USED TO SAY
  *
- * A roster client is returned as `roster-summary` — a real person whose
- * summary is authorised and whose detail is not readable yet. That is a
- * distinct state from `synthetic-fixture`, which is an invented client, and
- * conflating them made the UI call a real athlete a fixture. Zeroes below are
- * "not readable", never "did nothing", and nothing here fabricates a number to
- * fill a shape.
+ * It used to read: "Detailed training data for a client is NOT readable yet —
+ * that is layer 3, the seventeen files still reading the signed-in user's own
+ * stores. So every client fetched from the database is returned with
+ * `source: 'synthetic-fixture'`." Both halves were true when written and both
+ * stopped being true as layer 3 landed; the sentence is kept here rather than
+ * deleted because a reader who remembers the old rule needs to know it moved
+ * rather than wonder whether they misread it.
+ *
+ * What replaced it: a roster client is returned as `roster-summary` — a real
+ * person whose summary and layer-3 projections are authorised, and who is
+ * still not `engine-local`, because the local-store detail screens would show
+ * the coach their OWN training under this person's name. That is a distinct
+ * state from `synthetic-fixture`, which is an invented client, and conflating
+ * them made the UI call a real athlete a fixture. Zeroes below are "not
+ * readable", never "did nothing", and nothing here fabricates a number — or a
+ * name — to fill a shape.
+ *
+ * GETTING AN ATHLETE ONTO THE ROSTER IS A TWO-SIDED ACT
+ *
+ * `createCoachInvite` mints a code and links nobody. The roster row is written
+ * by `redeem_coach_invite`, called from the ATHLETE's session with their own
+ * `auth.uid()`. This file holds only the coach's half; there is deliberately
+ * no method here that attaches an athlete by id.
  */
 
 const initialsOf = (name: string): string =>
@@ -95,6 +117,52 @@ const SETTINGS_DEFAULTS: CoachWorkspaceSettings = {
 interface AssignmentRow {
   athlete_user_id: string;
   organization_id: string;
+}
+
+interface MembershipRow {
+  organization_id: string;
+  role: 'owner' | 'coach';
+  /* PostgREST returns an embedded to-one relationship as an object, and some
+     versions as a one-element array. Both are handled rather than guessed at. */
+  organizations: { name: string } | { name: string }[] | null;
+}
+
+interface InviteRow {
+  id: string;
+  organization_id: string;
+  code: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
+}
+
+/**
+ * The invite's status, DERIVED here because the table stores none.
+ *
+ * Order matters and is not arbitrary. A redeemed invite reads `accepted` even
+ * after its expiry passes, because it was spent while valid and the roster row
+ * it created is real; showing it as `expired` would suggest the link had
+ * lapsed. Revoked outranks expired for the same reason in reverse — the coach
+ * killed it, and that is the more informative fact.
+ */
+function inviteFromRow(row: InviteRow): CoachInvite {
+  const status: CoachInvite['status'] = row.accepted_at
+    ? 'accepted'
+    : row.revoked_at
+      ? 'revoked'
+      : Date.parse(row.expires_at) <= Date.now()
+        ? 'expired'
+        : 'open';
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    code: row.code,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    acceptedAt: row.accepted_at,
+    status,
+  };
 }
 
 interface SummaryRow {
@@ -152,6 +220,7 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
 
     const monday = weekStart(new Date());
     const rows = (data ?? []) as AssignmentRow[];
+    const names = await this.displayNames(rows.map((row) => row.athlete_user_id));
 
     /* One projection call per client, in parallel. Each is authorised
        server-side; a refusal for one client must not blank the whole roster,
@@ -173,14 +242,18 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
 
     return [...ENGINE_LOCAL, ...rows.map((row, i) => {
       const s = summaries[i];
+      /* The athlete's OWN name, if they published one. `athlete_profiles` is
+         set by the athlete and read through the coaching relationship; a row
+         that is not there means they have not published one, and the id's
+         first segment stands in exactly as it always did. A placeholder that
+         looks like an id reads as missing data; a placeholder that looks like
+         a name would be a fabricated person, so nothing here derives one from
+         an email address or a uuid. */
+      const name = names.get(row.athlete_user_id) ?? null;
       return {
         id: row.athlete_user_id,
-        /* No profile table is readable cross-athlete yet, so the id's first
-           segment stands in. A placeholder that looks like an id reads as
-           missing data; a placeholder that looks like a name would be a
-           fabricated person. */
-        name: `Athlete ${row.athlete_user_id.slice(0, 8)}`,
-        initials: initialsOf(row.athlete_user_id.slice(0, 2)),
+        name: name ?? `Athlete ${row.athlete_user_id.slice(0, 8)}`,
+        initials: name ? initialsOf(name) : initialsOf(row.athlete_user_id.slice(0, 2)),
         /* A REAL athlete whose summary is authorised and whose detail is not
            readable yet — which is a different thing from an invented one, and
            now says so. Still not `engine-local`: the detail screens read local
@@ -206,6 +279,110 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
           : null,
       };
     })];
+  }
+
+  /**
+   * The athletes' own published display names, keyed by user id.
+   *
+   * A missing entry is the normal case, not an error: `athlete_profiles` only
+   * has a row once the athlete sets one, and RLS FILTERS rather than raising,
+   * so a name the coach is not entitled to read simply is not in the answer.
+   * Both come back as "no name", which is the truth the caller needs.
+   *
+   * A FAILURE degrades to the same place rather than propagating. This is the
+   * one read in `listClients` whose absence costs nothing but a nicer label —
+   * blanking a whole roster because a cosmetic lookup failed would trade a
+   * real answer for a missing one.
+   */
+  private async displayNames(ids: readonly string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (!this.client || ids.length === 0) return out;
+    try {
+      const { data, error } = await this.client
+        .from('athlete_profiles')
+        .select('user_id, display_name')
+        .in('user_id', [...ids]);
+      if (error) return out;
+      for (const row of (data ?? []) as { user_id: string; display_name: string | null }[]) {
+        const name = (row.display_name ?? '').trim();
+        if (name) out.set(row.user_id, name);
+      }
+    } catch {
+      /* No name is a supported state. See above. */
+    }
+    return out;
+  }
+
+  /**
+   * Organisations the signed-in coach may mint invites into.
+   *
+   * `organization_memberships` is readable for one's OWN rows, so this needs
+   * no command — and it must be filtered to `owner`/`coach`, because a coach
+   * who is also somebody else's athlete has an `athlete` membership too and
+   * `create_coach_invite` would refuse it server-side. Offering a choice the
+   * server will reject is a worse screen than not offering it.
+   */
+  async listCoachOrganizations(): Promise<readonly CoachOrganization[]> {
+    if (!this.client) return [];
+    const { data: session } = await this.client.auth.getUser();
+    if (!session?.user) return [];
+    const { data, error } = await this.client
+      .from('organization_memberships')
+      .select('organization_id, role, organizations(name)')
+      .eq('user_id', session.user.id)
+      .eq('status', 'active')
+      .in('role', ['owner', 'coach']);
+    if (error) throw error;
+    return ((data ?? []) as MembershipRow[]).map((row) => ({
+      id: row.organization_id,
+      /* An organisation whose name did not come back is named by its id.
+         Same rule as an athlete without a profile: an id-shaped label reads
+         as missing data, an invented one reads as a fact. */
+      name: (Array.isArray(row.organizations) ? row.organizations[0]?.name : row.organizations?.name)
+        ?? `Organisation ${row.organization_id.slice(0, 8)}`,
+      role: row.role,
+    }));
+  }
+
+  async listCoachInvites(): Promise<readonly CoachInvite[]> {
+    if (!this.client) return [];
+    const { data: session } = await this.client.auth.getUser();
+    if (!session?.user) return [];
+    const { data, error } = await this.client
+      .from('coach_athlete_invites')
+      .select('id, organization_id, code, created_at, expires_at, accepted_at, revoked_at')
+      .eq('coach_user_id', session.user.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return ((data ?? []) as InviteRow[]).map(inviteFromRow);
+  }
+
+  /**
+   * Mints a code. This creates NO coaching relationship — the athlete's own
+   * `redeem_coach_invite` call does that, from their session, with their own
+   * id. Nothing in this class can attach an athlete by id, deliberately.
+   */
+  async createCoachInvite(organizationId: string): Promise<CoachInvite> {
+    if (!this.client) throw new Error('Inviting an athlete needs a connection.');
+    const { data, error } = await this.client.rpc('create_coach_invite', {
+      p_organization_id: organizationId,
+    });
+    if (error) throw error;
+    const row = (Array.isArray(data) ? data[0] : data) as InviteRow | null;
+    /* A command that came back empty wrote nothing. Reporting a code the
+       coach could then send to an athlete — one that exists nowhere — is the
+       failure they could not detect from the screen. */
+    if (!row) throw new Error('The invite was not created. Nothing has changed — try again.');
+    return inviteFromRow(row);
+  }
+
+  async revokeCoachInvite(inviteId: string): Promise<CoachInvite> {
+    if (!this.client) throw new Error('Revoking an invite needs a connection.');
+    const { data, error } = await this.client.rpc('revoke_coach_invite', { p_invite_id: inviteId });
+    if (error) throw error;
+    const row = (Array.isArray(data) ? data[0] : data) as InviteRow | null;
+    if (!row) throw new Error('The invite was not revoked. It may still be usable — try again.');
+    return inviteFromRow(row);
   }
 
   async listProgramTemplates(): Promise<readonly ProgramTemplate[]> {

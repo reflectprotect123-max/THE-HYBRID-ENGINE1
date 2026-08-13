@@ -233,6 +233,45 @@ export interface AthleteWeekSummary {
   sessions: readonly { id: string; kind: TrainingDomain; date: string; status: string; name: string | null }[];
 }
 
+/**
+ * An organisation the SIGNED-IN coach may mint invites into — that is, one
+ * where they hold an active `owner` or `coach` membership.
+ *
+ * The list exists because `create_coach_invite` takes an organisation and the
+ * bench cannot guess one. A coach in exactly one organisation never sees this
+ * choice; a coach in two must make it, because picking for them would put an
+ * athlete in the wrong tenant and nothing downstream would notice.
+ */
+export interface CoachOrganization {
+  id: string;
+  name: string;
+  role: 'owner' | 'coach';
+}
+
+/**
+ * A code a coach offers and an athlete redeems.
+ *
+ * `status` is DERIVED from the row's timestamps rather than stored — the
+ * migration keeps no status column, on the same reasoning every other table
+ * in that schema states: a status and a timestamp that can disagree
+ * eventually do, and the audit trail is what loses.
+ *
+ * An invite links NOBODY. It is an offer; the athlete's own redemption is
+ * what writes the roster row, so `accepted` is the only status that
+ * corresponds to a real coaching relationship.
+ */
+export interface CoachInvite {
+  id: string;
+  organizationId: string;
+  /** The bearer secret. Shown to the coach so they can pass it on, and
+   *  readable by nobody but them, the athlete who spent it, and the owner. */
+  code: string;
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt: string | null;
+  status: 'open' | 'accepted' | 'revoked' | 'expired';
+}
+
 export interface CoachWorkspaceRepository {
   listClients(): Promise<readonly ClientSummary[]>;
   /**
@@ -280,6 +319,22 @@ export interface CoachWorkspaceRepository {
   publishWorkoutDraft?(clientId: string, workoutId: string, baseVersion: number, preferredStartDate: string, preferredWeekdays: number[]): Promise<void>;
 
   getAthleteWeekSummary?(clientId: string, weekStart: string): Promise<AthleteWeekSummary | null>;
+
+  /* --- Getting an athlete ONTO the roster -------------------------------- */
+
+  /** Organisations the signed-in coach can mint invites into. Empty means
+   *  "you are not a coach anywhere yet", which is a fact and not a failure. */
+  listCoachOrganizations?(): Promise<readonly CoachOrganization[]>;
+  /** Every invite this coach has minted, newest first — spent, expired and
+   *  revoked ones included, because a coach chasing an athlete who says "it
+   *  didn't work" needs to see WHICH of those happened. */
+  listCoachInvites?(): Promise<readonly CoachInvite[]>;
+  /** Mints a code. Creates no relationship and grants no read — the athlete's
+   *  own redemption does that. */
+  createCoachInvite?(organizationId: string): Promise<CoachInvite>;
+  /** Kills an unredeemed code. Never unlinks an athlete who already spent
+   *  one; ending a relationship is a different act. */
+  revokeCoachInvite?(inviteId: string): Promise<CoachInvite>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -12,6 +12,8 @@ import type {
   AthleteWeekSummary,
   AthleteWorkoutDraft,
   ClientSummary,
+  CoachInvite,
+  CoachOrganization,
   CoachWorkspaceRepository,
   CoachWorkspaceSettings,
   ProgramAssignmentDraft,
@@ -180,6 +182,67 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   async getAthleteWeekSummary(): Promise<AthleteWeekSummary | null> {
     return this.weekSummary;
   }
+
+  /* Invites. Defaults are the state a brand-new coach is really in — no
+     organisation and no codes — because that is the shape the settings screen
+     has to render honestly before it renders anything interesting. */
+  organizations: readonly CoachOrganization[] = [];
+  invites: readonly CoachInvite[] = [];
+  createInviteError: string | null = null;
+  mintedFor: string[] = [];
+  revokedInvites: string[] = [];
+
+  async listCoachOrganizations(): Promise<readonly CoachOrganization[]> {
+    return this.organizations;
+  }
+
+  async listCoachInvites(): Promise<readonly CoachInvite[]> {
+    return this.invites;
+  }
+
+  async createCoachInvite(organizationId: string): Promise<CoachInvite> {
+    if (this.createInviteError) throw new Error(this.createInviteError);
+    this.mintedFor.push(organizationId);
+    const invite: CoachInvite = {
+      id: `invite-${this.mintedFor.length}`,
+      organizationId,
+      code: 'A'.repeat(32),
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+      acceptedAt: null,
+      status: 'open',
+    };
+    this.invites = [invite, ...this.invites];
+    return invite;
+  }
+
+  async revokeCoachInvite(inviteId: string): Promise<CoachInvite> {
+    this.revokedInvites.push(inviteId);
+    const found = this.invites.find((invite) => invite.id === inviteId);
+    if (!found) throw new Error('no such invite');
+    const revoked: CoachInvite = { ...found, status: 'revoked' };
+    this.invites = this.invites.map((invite) => (invite.id === inviteId ? revoked : invite));
+    return revoked;
+  }
+}
+
+/** An `open` invite fixture — the only status the settings screen offers an
+ *  action on, and therefore the one every test needs a maker for. */
+export function openInvite(over: Partial<CoachInvite> = {}): CoachInvite {
+  return {
+    id: 'invite-1',
+    organizationId: 'org-1',
+    code: '0123456789ABCDEF0123456789ABCDEF',
+    createdAt: '2026-08-13T00:00:00.000Z',
+    /* Three and a half days, not three: the screen FLOORS the remaining days,
+       so a boundary-exact fixture reads as 2 or 3 depending on how many
+       milliseconds the render took. Half a day of slack removes the flake
+       without hiding the flooring. */
+    expiresAt: new Date(Date.now() + 3.5 * 86_400_000).toISOString(),
+    acceptedAt: null,
+    status: 'open',
+    ...over,
+  };
 }
 
 /** Mounts `ui` inside a real `CoachWorkspaceProvider` — no mocked hooks, no

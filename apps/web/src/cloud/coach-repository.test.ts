@@ -183,3 +183,140 @@ describe('the roster projection', () => {
     expect(client.source).toBe('roster-summary');
   });
 });
+
+/*
+ * Names, and getting onto the roster in the first place.
+ *
+ * These fakes route by TABLE, unlike the ones above, because `listClients`
+ * now makes two reads and a single-shape stub cannot tell them apart. That is
+ * also the point of the first test: the roster read is load-bearing and the
+ * name read is cosmetic, so they must fail differently.
+ */
+const ATHLETE = 'abcdef12-0000-0000-0000-000000000000';
+
+const tableClient = (tables: Record<string, unknown>, rpc?: unknown) => clientWith({
+  from: (table: string) => tables[table] ?? { select: () => { throw new Error(`unexpected read of ${table}`); } },
+  rpc: rpc ?? (async () => ({ data: null, error: new Error('no rpc') })),
+});
+
+const rosterTable = {
+  select: () => ({ eq: () => ({ eq: async () => ({ data: [{ athlete_user_id: ATHLETE, organization_id: 'org-1' }], error: null }) }) }),
+};
+
+const profilesTable = (data: unknown, error: unknown = null) => ({
+  select: () => ({ in: async () => ({ data, error }) }),
+});
+
+describe('an athlete’s name', () => {
+  it('uses the name the ATHLETE published', async () => {
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_assignments: rosterTable,
+      athlete_profiles: profilesTable([{ user_id: ATHLETE, display_name: 'Riley Roster' }]),
+    }) as never);
+    const client = (await repo.listClients()).find((c) => c.id === ATHLETE)!;
+    expect(client.name).toBe('Riley Roster');
+    expect(client.initials).toBe('RR');
+  });
+
+  it('keeps the id-shaped placeholder when no name was published', async () => {
+    // A placeholder must read as MISSING DATA. Deriving something name-like
+    // from the uuid or an email would put a person on the screen who does not
+    // exist, which is worse than an unlovely label.
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_assignments: rosterTable,
+      athlete_profiles: profilesTable([]),
+    }) as never);
+    const client = (await repo.listClients()).find((c) => c.id === ATHLETE)!;
+    expect(client.name).toBe('Athlete abcdef12');
+  });
+
+  it('treats a blank published name as no name at all', async () => {
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_assignments: rosterTable,
+      athlete_profiles: profilesTable([{ user_id: ATHLETE, display_name: '   ' }]),
+    }) as never);
+    expect((await repo.listClients()).find((c) => c.id === ATHLETE)!.name).toBe('Athlete abcdef12');
+  });
+
+  it('does not blank the roster when the NAME read fails', async () => {
+    // The roster is the answer; the name is a label on it. A failed label
+    // must not cost the coach their client list — unlike a failed roster
+    // read, which is thrown two tests above.
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_assignments: rosterTable,
+      athlete_profiles: profilesTable(null, new Error('denied')),
+    }) as never);
+    const client = (await repo.listClients()).find((c) => c.id === ATHLETE)!;
+    expect(client.name).toBe('Athlete abcdef12');
+  });
+});
+
+describe('athlete invites', () => {
+  const inviteRow = (over: Record<string, unknown> = {}) => ({
+    id: 'invite-1',
+    organization_id: 'org-1',
+    code: '0123456789ABCDEF0123456789ABCDEF',
+    created_at: '2026-08-13T00:00:00.000Z',
+    expires_at: '2999-01-01T00:00:00.000Z',
+    accepted_at: null,
+    revoked_at: null,
+    ...over,
+  });
+
+  it('mints a code with the ORGANISATION and nothing else', async () => {
+    // The whole consent model rests on this: the coach's half names a tenant.
+    // An athlete id here would let a coach attach themselves to a stranger.
+    const rpc = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({ data: inviteRow(), error: null }));
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({}, rpc) as never);
+    const invite = await repo.createCoachInvite('org-1');
+
+    expect(rpc.mock.calls[0][0]).toBe('create_coach_invite');
+    expect(Object.keys(rpc.mock.calls[0][1])).toEqual(['p_organization_id']);
+    expect(invite.status).toBe('open');
+  });
+
+  it('does not report a code that was never written', async () => {
+    // A returned-but-empty command would otherwise print a code the coach
+    // sends on to an athlete for whom it does not exist.
+    const repo = new SupabaseCoachWorkspaceRepository(
+      tableClient({}, async () => ({ data: null, error: null })) as never,
+    );
+    await expect(repo.createCoachInvite('org-1')).rejects.toThrow(/not created/);
+  });
+
+  it('derives status from the timestamps, and redeemed outranks expired', async () => {
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_invites: {
+        select: () => ({ eq: () => ({ order: async () => ({ data: [
+          inviteRow({ id: 'a' }),
+          inviteRow({ id: 'b', revoked_at: '2026-08-13T01:00:00.000Z' }),
+          inviteRow({ id: 'c', expires_at: '2026-08-01T00:00:00.000Z' }),
+          // Spent while valid, then its expiry passed. It bought a real
+          // roster row, so calling it "expired" would suggest the link lapsed.
+          inviteRow({ id: 'd', expires_at: '2026-08-01T00:00:00.000Z', accepted_at: '2026-07-30T00:00:00.000Z' }),
+        ], error: null }) }) }),
+      },
+    }) as never);
+    expect((await repo.listCoachInvites()).map((i) => i.status)).toEqual(['open', 'revoked', 'expired', 'accepted']);
+  });
+
+  it('says invites need a connection rather than failing silently offline', async () => {
+    const repo = new SupabaseCoachWorkspaceRepository(null as never);
+    await expect(repo.createCoachInvite('org-1')).rejects.toThrow(/connection/);
+    expect(await repo.listCoachInvites()).toEqual([]);
+    expect(await repo.listCoachOrganizations()).toEqual([]);
+  });
+
+  it('offers only the organisations a coach may actually invite into', async () => {
+    const eq2 = { in: async () => ({ data: [
+      { organization_id: 'org-1', role: 'coach', organizations: { name: 'Hybrid Barbell' } },
+      { organization_id: 'org-2', role: 'owner', organizations: [{ name: 'Second Gym' }] },
+      { organization_id: 'org-3', role: 'owner', organizations: null },
+    ], error: null }) };
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      organization_memberships: { select: () => ({ eq: () => ({ eq: () => eq2 }) }) },
+    }) as never);
+    const orgs = await repo.listCoachOrganizations();
+    expect(orgs.map((o) => o.name)).toEqual(['Hybrid Barbell', 'Second Gym', 'Organisation org-3']);
+  });
+});
