@@ -15,6 +15,12 @@ node_modules/
 # the `.claude/*` form rather than `.claude/`.
 .claude/*
 !.claude/skills/
+# Agents and commands are the same kind of thing as skills — the cavecrew
+# subagents and the /caveman* commands are half of what the caveman family
+# does, and a clone that got the skills but not these would silently lose
+# them. Same reasoning, same re-include.
+!.claude/agents/
+!.claude/commands/
 
 # build output — never commit a copy of the app inside the app
 the-hybrid-engine-netlify/
@@ -67,3 +73,6 @@ apps/mobile/.expo-parity/
 # a stale picture of a failure that has since been fixed.
 checks/fixtures/prototype/shots/*.actual.png
 checks/fixtures/prototype/shots/*.diff.png
+
+# graphify knowledge-graph output — derived, rebuildable, never committed
+graphify-out/

@@ -302,6 +302,31 @@ from the entry graph, so an unimported `*.test.ts` is not reachable. That was
 verified with canary markers before the move and again after, against both the
 Android bundle and the web dist.
 
+## The skill toolchain is written down, not remembered
+
+`skills.md` at the repo root is the SINGLE canonical record of every Claude
+skill and plugin this project depends on — source, pinned version and commit,
+verify path, what it writes outside its own directory, caveats, removal
+command. Read it in a fresh container; `bash scripts/ensure-skills.sh` restores
+anything dead and is safe to run when nothing is.
+
+The reason it exists is the same asymmetry that governs everything else here:
+`~/.claude/skills/` is user scope and dies with the container, the repo does
+not. So markdown-only skills are VENDORED — committed under `.claude/skills/`,
+where they need no install at all — and only a toolchain that cannot be a file
+in this repo is INSTALLED. Two things qualify: `graphify` and
+`claude-obsidian`. Everything else is in the tree.
+
+Two standing prohibitions, both recorded in `skills.md` with their reasons.
+`graphify install --project` is never run — it writes PreToolUse hooks into
+`.claude/settings.json` and appends a section to THIS file. And `omniroute` is
+not installed by the script: it is not a skill, it is a 3.3 GB gateway that
+routes prompts to third-party providers, and that is an environment decision
+with a human in it.
+
+A skill installed without a row in `skills.md` does not survive. Add the row in
+the same commit that does the install.
+
 ## Safe workflow
 
 1. Start with a read-only audit and preserve unrelated worktree changes.

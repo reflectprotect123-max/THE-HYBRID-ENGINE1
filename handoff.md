@@ -82,6 +82,17 @@
 > `pnpm run test` 617 passing / 2 skipped across 91 files, `check:lanes` green,
 > behaviour parity green, visual parity four-shot residual as described above.
 >
+> **6. The Claude toolchain is written down and restorable.** `skills.md` at
+> the repo root is now the single canonical record of every skill and plugin
+> this project depends on — what it is, its pinned version and SHA, its verify
+> path, its caveats and its removal command. Most of the inventory was moved
+> INTO the repo (27 skill directories under `.claude/skills/`, committed), so
+> it now survives a container recycle the same way `frontend-design` always
+> did. Two entries cannot be vendored because they are toolchains rather than
+> markdown — graphify and claude-obsidian — and `scripts/ensure-skills.sh`
+> restores those. Read `skills.md` at the start of a session in a fresh
+> container; run the script if anything is missing.
+>
 > ---
 >
 > **AUTHORITATIVE CHECKPOINT — 11 August 2026. Two work streams, both now on
