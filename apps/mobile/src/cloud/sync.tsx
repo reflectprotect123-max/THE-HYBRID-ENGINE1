@@ -32,6 +32,7 @@ import {
   materializeAcceptedAssignments,
   type PendingAssignment,
 } from './arc-assignments';
+import { clearArcNameCache } from './arc-roster';
 import { useNutrition } from '../store/nutrition';
 import '../product'; // build-config guard
 
@@ -662,6 +663,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         // org id or a pending card left standing would be the previous one's.
         arcOrgRef.current = null;
         clearArcOrgCache();
+        // Same reason, one table over: the display name is the previous
+        // athlete's, and Settings would show it to whoever signs in next.
+        clearArcNameCache();
         setPendingAssignments([]);
       },
       syncNow: reconcile,

@@ -27,8 +27,10 @@ import { isPersistent } from '../store/storage';
 import { SCAN_CORPUS_CAP, clearScanCorpus, exportScanCorpus, scanCorpusStats } from '../store/scanCorpus';
 import { parseBackup } from '../store/restore';
 import { startFresh, startFreshCounts } from '../store/startFresh';
-import { Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
+import { Btn, Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
 import { humanizeError } from '../errors';
+import { supabaseClient } from '../cloud/sync';
+import { getMyDisplayName, redeemCoachInvite, setMyDisplayName } from '../cloud/arc-roster';
 
 /*
  * Declared at MODULE scope, not inside SettingsScreen.
@@ -113,6 +115,10 @@ export function SettingsScreen() {
       <Field label="Resting HR" hint="With this, zones use Karvonen instead of percent-of-max." value={profile.restingHr} onChange={(v) => set({ restingHr: v })} />
 
       <CloudCard />
+      {/* Both halves of the athlete's consent, and both directly under the
+          sign-in card because both require an account and say so. */}
+      <CoachLinkCard />
+      <AthleteNameCard />
       <WhoopCard />
       <RecoveryCard />
       <Concept2Card />
@@ -653,6 +659,225 @@ function CloudCard() {
               </Tap>
             </View>
           </>
+        )}
+      </Card>
+    </View>
+  );
+}
+
+/*
+ * THE ATHLETE'S HALF OF THE COACHING LINK.
+ *
+ * A coach mints a code on the bench; nothing happens until the athlete redeems
+ * it here, from their own session, and the row is written with their own
+ * auth.uid(). This card is that action — it is the only place in the athlete
+ * product where a coaching relationship can begin.
+ *
+ * The server answers EVERY rejection — unknown, expired, revoked, already spent
+ * — with one message, deliberately, so that it cannot tell someone guessing
+ * codes when they have found a real one. This card must not be cleverer than
+ * that: it says the code did not work and never which part, never how close.
+ */
+function CoachLinkCard() {
+  const { enabled, user, syncNow } = useSync();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+  if (!enabled) return null;
+
+  const redeem = async () => {
+    if (!supabaseClient || !user) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await redeemCoachInvite(supabaseClient, code);
+      setCode('');
+      setMsg({
+        tone: 'ok',
+        text: "You're linked. Your coach can now send you programs, and they arrive here for you to accept or decline.",
+      });
+      /* The link is live but this device has never looked for it. A sync now
+         is what puts a waiting program on Home today instead of at whatever
+         later foreground happens to come first. Not awaited — the redeem has
+         already succeeded and the sync reports its own failures on the cloud
+         card above. */
+      void syncNow();
+    } catch (e) {
+      /* humanizeError's 'invite' context is the single sentence for every
+         refusal the server makes. A network failure resolves ahead of it and
+         says so instead, which is the one distinction worth drawing: it is
+         about the phone, not about the code. */
+      setMsg({ tone: 'bad', text: humanizeError(e, 'invite') + ' Nothing on this phone changed.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View>
+      <SectionHead title="Your coach" />
+      <Card>
+        <T className="text-4 text-muted">
+          If a coach gave you a code, enter it here. Redeeming it is what links you to them — nobody can add you to a
+          roster without this.
+        </T>
+        {user ? (
+          <>
+            <Input
+              value={code}
+              onChangeText={(t: string) => {
+                setCode(t);
+                if (msg) setMsg(null);
+              }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="invite code"
+              accessibilityLabel="invite code"
+              className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
+            />
+            <Btn
+              variant="brass"
+              className="mt-1.5"
+              onPress={() => void redeem()}
+              disabled={busy || !code.trim()}
+            >
+              {busy ? 'Linking…' : 'Link my coach'}
+            </Btn>
+            {msg ? (
+              <T
+                accessibilityLiveRegion={msg.tone === 'bad' ? 'assertive' : 'polite'}
+                className={`mt-1 text-3 ${msg.tone === 'ok' ? 'text-ok' : 'text-bad'}`}
+              >
+                {msg.text}
+              </T>
+            ) : null}
+            <T className="mt-1 text-3 text-dim">
+              A linked coach can see your training, and can send you sessions. Only your coach can end the link.
+            </T>
+          </>
+        ) : (
+          <T className="mt-1.5 text-3 text-dim">
+            Sign in above first — the link is made against your account, so there is nothing to link a code to until then.
+          </T>
+        )}
+      </Card>
+    </View>
+  );
+}
+
+/*
+ * The athlete's name, owned by the athlete.
+ *
+ * Without a row here a coach's roster shows `Athlete 3f2a1b9c` off the uuid,
+ * and that is the honest default: nothing anywhere backfills a name from an
+ * email address. Setting one is a grant, and clearing it is the withdrawal —
+ * the server DELETES the row for a blank name, which is why "Clear" is a real
+ * control on this card and not an error case hidden behind validation.
+ */
+function AthleteNameCard() {
+  const { enabled, user } = useSync();
+  const [stored, setStored] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+
+  /* Read once per account, through the module's cache — Settings is a TAB and
+     stays mounted, so this must not become a query per render. A failed read
+     answers null, which shows "no name set"; that is a display the athlete can
+     correct by typing, never a write. */
+  useEffect(() => {
+    if (!supabaseClient || !user) {
+      setStored(null);
+      setName('');
+      return;
+    }
+    let alive = true;
+    void getMyDisplayName(supabaseClient, user.id).then((current) => {
+      if (!alive) return;
+      setStored(current);
+      setName(current ?? '');
+    });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
+  if (!enabled) return null;
+
+  const save = async (next: string) => {
+    if (!supabaseClient || !user) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const written = await setMyDisplayName(supabaseClient, user.id, next);
+      setStored(written);
+      setName(written ?? '');
+      setMsg({
+        tone: 'ok',
+        text: written
+          ? 'Saved. Your coach sees this name from now on.'
+          : 'Name withdrawn. Your coach sees the id again, not a name.',
+      });
+    } catch (e) {
+      setMsg({ tone: 'bad', text: humanizeError(e, 'display name') + ' Nothing on this phone changed.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View>
+      <SectionHead title="Your name" />
+      <Card>
+        <T className="text-4 text-muted">
+          {stored ? `Your coach sees you as “${stored}”.` : 'You have no name set — a coach sees an id, like “Athlete 3f2a1b9c”.'}
+        </T>
+        {user ? (
+          <>
+            <Input
+              value={name}
+              onChangeText={(t: string) => {
+                setName(t);
+                if (msg) setMsg(null);
+              }}
+              maxLength={80}
+              placeholder="the name your coach sees"
+              accessibilityLabel="display name"
+              className="mt-1 h-5 rounded-md border border-line bg-well px-1 text-4 text-text"
+            />
+            <View className="mt-1.5 flex-row gap-1">
+              <Btn
+                variant="brass"
+                className="flex-1"
+                onPress={() => void save(name)}
+                disabled={busy || !name.trim() || name.trim() === stored}
+              >
+                {busy ? 'Saving…' : 'Save name'}
+              </Btn>
+              <Btn className="flex-1" onPress={() => void save('')} disabled={busy || !stored} label="clear my name">
+                Clear
+              </Btn>
+            </View>
+            {msg ? (
+              <T
+                accessibilityLiveRegion={msg.tone === 'bad' ? 'assertive' : 'polite'}
+                className={`mt-1 text-3 ${msg.tone === 'ok' ? 'text-ok' : 'text-bad'}`}
+              >
+                {msg.text}
+              </T>
+            ) : null}
+            {/* The whole point of the card, so it is stated plainly and not as
+                fine print: this is the ONE thing a coach can see about you that
+                you typed, and clearing it takes it back. */}
+            <T className="mt-1 text-3 text-dim">
+              Only a coach you are linked to can see this name. Nobody else can — not other athletes, not other coaches.
+              Clearing it takes it back.
+            </T>
+          </>
+        ) : (
+          <T className="mt-1.5 text-3 text-dim">
+            Sign in above first — the name is stored against your account, so there is nowhere to keep it until then.
+          </T>
         )}
       </Card>
     </View>

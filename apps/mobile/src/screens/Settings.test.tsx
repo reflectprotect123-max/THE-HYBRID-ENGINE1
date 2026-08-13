@@ -15,7 +15,7 @@
  *    in as TODAY's check-in.
  */
 import { Alert, type AlertButton } from 'react-native';
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { renderScreen, seed } from '../../test/harness';
 import { SettingsScreen } from './Settings';
 import { SyncProvider } from '../cloud/sync';
@@ -24,6 +24,7 @@ import { Concept2Provider } from '../cloud/concept2';
 import { NutritionProvider } from '../store/nutrition';
 import { LS_KEY, type EngineDB } from '@hybrid/engine';
 import { storage } from '../store/storage';
+import { resetArcRosterForTests } from '../cloud/arc-roster';
 
 const persisted = (): EngineDB => JSON.parse(storage.getItem(LS_KEY) || '{}');
 
@@ -44,6 +45,248 @@ const renderSettings = () =>
       </SyncProvider>
     </NutritionProvider>,
   );
+
+/*
+ * THE ATHLETE'S HALF OF THE COACHING LINK, on the screen.
+ *
+ * Both controls are Supabase-shaped, and the harness has no Supabase client at
+ * all — `enabled` is false, so unmocked they render nothing and every
+ * assertion below would pass against an empty tree. So `useSync` and the shared
+ * `supabaseClient` are the two things replaced, and NOTHING else: the cards,
+ * the cloud module they call and the copy they show are the real ones.
+ *
+ * `renderSettings` above is untouched and still mounts the real providers —
+ * the mock sits under them, not instead of them.
+ */
+let mockSupabaseClient: unknown = null;
+let mockSyncOverride: Record<string, unknown> | null = null;
+
+jest.mock('../cloud/sync', () => {
+  const actual = jest.requireActual('../cloud/sync');
+  const mod = {
+    __esModule: true,
+    ...actual,
+    useSync: () => ({ ...actual.useSync(), ...(mockSyncOverride ?? {}) }),
+  };
+  /*
+   * `Object.defineProperty`, NOT a `get supabaseClient()` in the literal above.
+   * Babel's object-spread helper reads a literal's accessors as VALUES, and
+   * jest hoists this factory above the `let`s — so the spread form captured
+   * `undefined` once, at first require, and every card here quietly took its
+   * signed-out path while the assertions still found the screen.
+   */
+  Object.defineProperty(mod, 'supabaseClient', { get: () => mockSupabaseClient });
+  return mod;
+});
+
+const SIGNED_IN = { id: 'u-1', email: 'athlete@example.com' };
+
+/** Minimal PostgREST/RPC double: one canned `athlete_profiles` row and one
+ *  canned RPC answer, with every call recorded. */
+function fakeSupabase(options: { profile?: { display_name: string } | null; rpc?: { data?: unknown; error?: unknown } } = {}) {
+  const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
+  const client = {
+    from() {
+      const self: Record<string, unknown> = {};
+      for (const m of ['select', 'eq']) self[m] = () => self;
+      self.maybeSingle = () => Promise.resolve({ data: options.profile ?? null, error: null });
+      return self;
+    },
+    rpc(fn: string, args: Record<string, unknown>) {
+      rpcCalls.push({ fn, args });
+      return Promise.resolve({ data: options.rpc?.data ?? null, error: options.rpc?.error ?? null });
+    },
+  };
+  return { client, rpcCalls };
+}
+
+describe('Your coach — redeeming an invite', () => {
+  beforeEach(() => {
+    resetArcRosterForTests();
+    mockSupabaseClient = null;
+    mockSyncOverride = null;
+    seed({});
+  });
+  afterEach(() => {
+    mockSyncOverride = null;
+  });
+
+  it('tells a signed-out athlete to sign in rather than showing a button that does nothing', () => {
+    const { client } = fakeSupabase();
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: null };
+    renderSettings();
+
+    expect(screen.queryByText('Link my coach')).toBeNull();
+    expect(screen.queryByLabelText('invite code')).toBeNull();
+    expect(
+      screen.getByText(
+        'Sign in above first — the link is made against your account, so there is nothing to link a code to until then.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('redeems the code, says so, and asks for a sync so a waiting program arrives today', async () => {
+    const { client, rpcCalls } = fakeSupabase({ rpc: { data: { id: 'assignment-1' } } });
+    const syncNow = jest.fn(() => Promise.resolve());
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN, syncNow };
+    renderSettings();
+
+    fireEvent.changeText(screen.getByLabelText('invite code'), 'ab12-cd34');
+    await act(async () => {
+      fireEvent.press(screen.getByText('Link my coach'));
+    });
+
+    // The typed code goes up EXACTLY as typed — normalising is the server's
+    // rule, and a second copy of it here is a second thing to keep in step.
+    expect(rpcCalls).toEqual([{ fn: 'redeem_coach_invite', args: { p_code: 'ab12-cd34' } }]);
+    expect(
+      screen.getByText(
+        "You're linked. Your coach can now send you programs, and they arrive here for you to accept or decline.",
+      ),
+    ).toBeTruthy();
+    expect(syncNow).toHaveBeenCalled();
+    // The spent code is cleared, so it cannot be pressed a second time.
+    expect(screen.getByLabelText('invite code').props.value).toBe('');
+  });
+
+  /*
+   * The server answers unknown / expired / revoked / already-spent with ONE
+   * sentence, so that it cannot tell someone guessing codes when they have
+   * found a real one. This screen is the last place that property can be lost,
+   * so it is asserted the only way that means anything: different refusals,
+   * character-identical copy.
+   */
+  it.each([
+    ['the single refusal the server gives', 'invite not found or no longer valid'],
+    ['a refusal that named the reason', 'invite expired at 2026-08-01 and was revoked by coach 3f2a'],
+    ['a bare constraint name', 'coach_athlete_distinct'],
+  ])('says only that the code did not work — %s', async (_case, message) => {
+    const { client } = fakeSupabase({ rpc: { error: { message } } });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN, syncNow: jest.fn(() => Promise.resolve()) };
+    renderSettings();
+
+    fireEvent.changeText(screen.getByLabelText('invite code'), 'DEADBEEF');
+    await act(async () => {
+      fireEvent.press(screen.getByText('Link my coach'));
+    });
+
+    expect(
+      screen.getByText("That code didn't work — check it with your coach and try again. Nothing on this phone changed."),
+    ).toBeTruthy();
+    // The raw string reaches the console and nothing else.
+    expect(screen.queryByText(new RegExp(message.slice(0, 12), 'i'))).toBeNull();
+    // And the code stays in the box: it is not spent, and retyping it is work.
+    expect(screen.getByLabelText('invite code').props.value).toBe('DEADBEEF');
+  });
+});
+
+describe('Your name — the athlete owns it', () => {
+  beforeEach(() => {
+    resetArcRosterForTests();
+    mockSupabaseClient = null;
+    mockSyncOverride = null;
+    seed({});
+  });
+  afterEach(() => {
+    mockSyncOverride = null;
+  });
+
+  it('says who can see it, in the card, not in fine print somewhere else', () => {
+    const { client } = fakeSupabase();
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    expect(
+      screen.getByText(
+        'Only a coach you are linked to can see this name. Nobody else can — not other athletes, not other coaches. Clearing it takes it back.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('shows the id-shaped placeholder when there is no name — absence stays absence', async () => {
+    const { client } = fakeSupabase({ profile: null });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByLabelText('display name').props.value).toBe(''));
+    expect(screen.getByText('You have no name set — a coach sees an id, like “Athlete 3f2a1b9c”.')).toBeTruthy();
+  });
+
+  it('publishes a name, and reports what the server actually stored', async () => {
+    const { client, rpcCalls } = fakeSupabase({ profile: null, rpc: { data: { display_name: 'Sam Okoye' } } });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    fireEvent.changeText(screen.getByLabelText('display name'), '  Sam Okoye ');
+    await act(async () => {
+      fireEvent.press(screen.getByText('Save name'));
+    });
+
+    expect(rpcCalls).toEqual([{ fn: 'set_athlete_display_name', args: { p_display_name: 'Sam Okoye' } }]);
+    expect(screen.getByText('Saved. Your coach sees this name from now on.')).toBeTruthy();
+    expect(screen.getByText('Your coach sees you as “Sam Okoye”.')).toBeTruthy();
+  });
+
+  it('CLEARS the name — the withdrawal is a control, not an error path', async () => {
+    const { client, rpcCalls } = fakeSupabase({ profile: { display_name: 'Sam Okoye' }, rpc: { data: null } });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByText('Your coach sees you as “Sam Okoye”.')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(screen.getByText('Clear'));
+    });
+
+    // A blank name is what deletes the row. It must reach the server as one.
+    expect(rpcCalls).toEqual([{ fn: 'set_athlete_display_name', args: { p_display_name: '' } }]);
+    expect(screen.getByText('Name withdrawn. Your coach sees the id again, not a name.')).toBeTruthy();
+    expect(screen.getByText('You have no name set — a coach sees an id, like “Athlete 3f2a1b9c”.')).toBeTruthy();
+  });
+
+  it('leaves the shown name alone when the write fails, and says nothing changed', async () => {
+    const { client } = fakeSupabase({
+      profile: { display_name: 'Sam Okoye' },
+      rpc: { error: { message: 'display name too long' } },
+    });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByText('Your coach sees you as “Sam Okoye”.')).toBeTruthy());
+    fireEvent.changeText(screen.getByLabelText('display name'), 'Something else');
+    await act(async () => {
+      fireEvent.press(screen.getByText('Save name'));
+    });
+
+    expect(
+      screen.getByText('Something went wrong. Try again, or check your connection. Nothing on this phone changed.'),
+    ).toBeTruthy();
+    // What the coach sees is still what the coach saw.
+    expect(screen.getByText('Your coach sees you as “Sam Okoye”.')).toBeTruthy();
+  });
+
+  it('tells a signed-out athlete to sign in rather than offering a name with nowhere to go', () => {
+    const { client } = fakeSupabase();
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: null };
+    renderSettings();
+
+    expect(screen.queryByLabelText('display name')).toBeNull();
+    expect(screen.queryByText('Save name')).toBeNull();
+    expect(
+      screen.getByText(
+        'Sign in above first — the name is stored against your account, so there is nowhere to keep it until then.',
+      ),
+    ).toBeTruthy();
+  });
+});
 
 describe('Backup restore', () => {
   it('keeps core safety flags (pain hold, illness) after a full restore, not just workouts/sessions/settings', () => {
