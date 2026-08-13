@@ -1,0 +1,238 @@
+[
+ {
+  "step": "start session",
+  "hot": {
+   "name": "Row",
+   "presc": null,
+   "why": null,
+   "kg": null
+  },
+  "receipts": []
+ },
+ {
+  "step": "warm-up: finish piece 1 (Row)",
+  "hot": {
+   "name": "Air Squats",
+   "presc": "12 reps",
+   "why": null,
+   "kg": null
+  },
+  "receipts": [
+   "Row1:00"
+  ]
+ },
+ {
+  "step": "warm-up: finish piece 2 (Air Squats)",
+  "hot": {
+   "name": "Walk",
+   "presc": null,
+   "why": null,
+   "kg": null
+  },
+  "receipts": [
+   "Row1:00",
+   "Air Squats12 reps"
+  ]
+ },
+ {
+  "step": "warm-up: advance past rest",
+  "hot": {
+   "name": "Barbell Back Squat",
+   "presc": "10 reps @ RPE 7",
+   "why": "opener — everything works from here",
+   "kg": "60kg"
+  },
+  "receipts": []
+ },
+ {
+  "step": "superset: round 1 — Barbell Back Squat set 1",
+  "hot": {
+   "name": "Dumbbell Row",
+   "presc": "10 reps @ RPE 8",
+   "why": "opener — everything works from here",
+   "kg": "12kg"
+  },
+  "receipts": [
+   "Barbell Back Squat60 kg × 10 @ 7"
+  ]
+ },
+ {
+  "step": "superset: round 1 — Dumbbell Row set 1",
+  "hot": {
+   "name": "Barbell Back Squat",
+   "presc": "8 reps @ RPE 8",
+   "why": "on plan",
+   "kg": "62.5kg"
+  },
+  "receipts": [
+   "Barbell Back Squat60 kg × 10 @ 7",
+   "Dumbbell Row12 kg × 10 @ 8"
+  ]
+ },
+ {
+  "step": "superset: rotate the pair",
+  "hot": {
+   "name": "Dumbbell Row",
+   "presc": "10 reps @ RPE 8",
+   "why": "on plan",
+   "kg": "12kg"
+  },
+  "receipts": [
+   "Barbell Back Squat60 kg × 10 @ 7",
+   "Dumbbell Row12 kg × 10 @ 8"
+  ]
+ },
+ {
+  "step": "superset: round 2 — Dumbbell Row set 2",
+  "hot": {
+   "name": "Barbell Back Squat",
+   "presc": "8 reps @ RPE 8",
+   "why": "on plan",
+   "kg": "62.5kg"
+  },
+  "receipts": [
+   "Barbell Back Squat60 kg × 10 @ 7",
+   "Dumbbell Row12 kg × 10 @ 8",
+   "Dumbbell Row12 kg × 10 @ 7"
+  ]
+ },
+ {
+  "step": "superset: round 2 — Barbell Back Squat set 2",
+  "hot": {
+   "name": "Dumbbell Row",
+   "presc": "10 reps @ RPE 8",
+   "why": "holding — the next jump is 2 kg, chase clean reps instead",
+   "kg": "12kg"
+  },
+  "receipts": [
+   "Barbell Back Squat60 kg × 10 @ 7",
+   "Dumbbell Row12 kg × 10 @ 8",
+   "Dumbbell Row12 kg × 10 @ 7",
+   "Barbell Back Squat62.5 kg × 8 @ 9"
+  ]
+ },
+ {
+  "step": "superset: round 3 — Dumbbell Row set 3",
+  "hot": {
+   "name": "Barbell Back Squat",
+   "presc": "6 reps @ RPE 9",
+   "why": "on plan",
+   "kg": "67.5kg"
+  },
+  "receipts": [
+   "Barbell Back Squat60 kg × 10 @ 7",
+   "Dumbbell Row12 kg × 10 @ 8",
+   "Dumbbell Row12 kg × 10 @ 7",
+   "Barbell Back Squat62.5 kg × 8 @ 9",
+   "Dumbbell Row12 kg × 10 @ 7.5"
+  ]
+ },
+ {
+  "step": "superset: round 3 — Barbell Back Squat set 3",
+  "hot": {
+   "name": "Dumbbell Row",
+   "presc": "10 reps @ RPE 8",
+   "why": "on plan",
+   "kg": "12kg"
+  },
+  "receipts": [
+   "Barbell Back Squat60 kg × 10 @ 7",
+   "Dumbbell Row12 kg × 10 @ 8",
+   "Dumbbell Row12 kg × 10 @ 7",
+   "Barbell Back Squat62.5 kg × 8 @ 9",
+   "Dumbbell Row12 kg × 10 @ 7.5",
+   "Barbell Back Squat67.5 kg × 6 @ 7"
+  ]
+ },
+ {
+  "step": "superset: round 4 — Dumbbell Row set 4",
+  "hot": {
+   "name": "Barbell Back Squat",
+   "presc": "max reps @ RPE 10",
+   "why": "back to set 1’s weight — count the reps",
+   "kg": "60kg"
+  },
+  "receipts": [
+   "Barbell Back Squat60 kg × 10 @ 7",
+   "Dumbbell Row12 kg × 10 @ 8",
+   "Dumbbell Row12 kg × 10 @ 7",
+   "Barbell Back Squat62.5 kg × 8 @ 9",
+   "Dumbbell Row12 kg × 10 @ 7.5",
+   "Barbell Back Squat67.5 kg × 6 @ 7",
+   "Dumbbell Row12 kg × 10 @ 10"
+  ]
+ },
+ {
+  "step": "superset: round 4 — Barbell Back Squat max set",
+  "hot": {
+   "name": "Set 1",
+   "presc": "10 reps @ RPE 8",
+   "why": "bodyweight",
+   "kg": null
+  },
+  "receipts": []
+ },
+ {
+  "step": "bodyweight lift: set 1",
+  "hot": {
+   "name": "Set 2",
+   "presc": "10 reps @ RPE 8",
+   "why": "bodyweight",
+   "kg": null
+  },
+  "receipts": [
+   "Set 110 @ 8"
+  ]
+ },
+ {
+  "step": "bodyweight lift: set 2 (easy)",
+  "hot": {
+   "name": "Set 3",
+   "presc": "10 reps @ RPE 8",
+   "why": "bodyweight",
+   "kg": null
+  },
+  "receipts": [
+   "Set 110 @ 8",
+   "Set 210 @ 7"
+  ]
+ },
+ {
+  "step": "bodyweight lift: set 3 (hard)",
+  "hot": {
+   "name": "Set 4",
+   "presc": "10 reps @ RPE 8",
+   "why": "bodyweight",
+   "kg": null
+  },
+  "receipts": [
+   "Set 110 @ 8",
+   "Set 210 @ 7",
+   "Set 310 @ 9"
+  ]
+ },
+ {
+  "step": "bodyweight lift: set 4",
+  "hot": {
+   "name": "Walk",
+   "presc": null,
+   "why": null,
+   "kg": null
+  },
+  "receipts": []
+ },
+ {
+  "step": "cool-down: finish piece (Walk)",
+  "hot": null,
+  "receipts": [
+   "Walk1:00"
+  ]
+ },
+ {
+  "step": "finish session",
+  "hot": null,
+  "receipts": [
+   "Walk1:00"
+  ]
+ }
+]
