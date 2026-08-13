@@ -151,13 +151,32 @@ export function ArcCoachFrame() {
          * direct address on every build. One real link, not a URL a coach
          * has to already know to type.
          */}
-        <Link
-          to="/home"
-          className="mt-2 flex w-full shrink-0 items-center rounded-md border border-line2 px-2 py-1.5 text-xs text-muted transition-colors hover:bg-panel hover:text-text lg:mt-3"
-        >
-          <span aria-hidden="true" className="mr-1 h-1 w-1 rounded-full bg-transparent" />
-          <span>Athlete app</span>
-        </Link>
+        {/*
+          SEPARATED from the three nav items above, deliberately.
+
+          This is the only control that leaves the bench entirely, and it sat
+          one row under "Library" with ~8px between them and near-identical
+          styling — so in the phone drawer it read as a fourth nav entry.
+          Reaching for Library and hitting this instead lands you in the
+          athlete app, which is exactly what it looks like: the coach
+          workspace "reverting to the athlete side". Reported from a real
+          phone, 13 August 2026.
+
+          A rule and real space put it in its own zone, and the label says
+          where it goes rather than naming a place. The link itself is not
+          negotiable — `/` redirects to the bench on the unscoped build, so
+          without it a coach account is stuck here.
+        */}
+        <div className="mt-5 border-t border-line2 pt-3">
+          <p className="mb-1 text-[9px] uppercase tracking-wider text-dim">Leave the bench</p>
+          <Link
+            to="/home"
+            className="flex w-full shrink-0 items-center rounded-md border border-line2 px-2 py-1.5 text-xs text-muted transition-colors hover:bg-panel hover:text-text"
+          >
+            <span aria-hidden="true" className="mr-1 h-1 w-1 rounded-full bg-transparent" />
+            <span>Go to the athlete app</span>
+          </Link>
+        </div>
         <details className="mt-5 hidden border-t border-line pt-2 text-[11px] text-muted lg:block">
           <summary className="cursor-pointer select-none text-[9px] uppercase tracking-wider text-dim">How ARC decides</summary>
           <p className="mt-1">Strength and Conditioning propose. The Coordinator resolves. Nutrition remains context.</p>
