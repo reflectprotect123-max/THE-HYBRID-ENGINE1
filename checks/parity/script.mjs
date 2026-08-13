@@ -21,66 +21,87 @@ const repsUp = () => click('reps-up');
 const logAndRest = () => [click('log'), click('rest-go')];
 
 function step(label, actions, opts = {}) {
-  return { label, actions, record: !!opts.record, block: opts.block };
+  return { label, actions, record: !!opts.record, block: opts.block, phase: opts.phase };
 }
+
+/* Every step is authored under a BUILD or RUN heading below, and `step()`
+   is only ever called with an explicit `phase` — never inferred — so a step
+   moved between headings without updating its `phase` fails loudly instead
+   of silently drifting to the wrong side of the split.
+
+   The boundary is the `start` tap: it is the LAST build step (it is what
+   turns the authored `session` into the one the run phase must start
+   from — see checks/fixtures/session.json), not the first run step. */
 
 export const steps = [
   /* ============================= BUILD ============================= */
   /* Warm-up: one timed piece, one reps piece — the pair the brief calls
      out, because they take different branches of the hot card (a timed
      piece suppresses `hot-presc`; a reps piece doesn't). */
-  step('warm-up: choose kind', [click('add-block'), click('kind-warm')]),
-  step('warm-up: add piece 1 (timed)', [fill('name', 'Row'), click('add-piece')]),
-  step('warm-up: switch unit to reps', [click('unit-reps')]),
-  step('warm-up: add piece 2 (reps)', [fill('name', 'Air Squats'), click('add-piece')]),
-  step('warm-up: commit block', [click('done-block')]),
+  step('warm-up: choose kind', [click('add-block'), click('kind-warm')], { phase: 'build' }),
+  step('warm-up: add piece 1 (timed)', [fill('name', 'Row'), click('add-piece')], { phase: 'build' }),
+  step('warm-up: switch unit to reps', [click('unit-reps')], { phase: 'build' }),
+  step('warm-up: add piece 2 (reps)', [fill('name', 'Air Squats'), click('add-piece')], { phase: 'build' }),
+  step('warm-up: commit block', [click('done-block')], { phase: 'build' }),
 
   /* Superset: a barbell movement on a ladder (its last set is a `max` set)
      paired with a straight dumbbell movement (the pair that can rotate). */
-  step('superset: choose kind', [click('add-block'), click('kind-ss')]),
-  step('superset: first movement (barbell)', [
-    fill('name', 'Barbell Back Squat'),
-    click('equip-barbell'),
-    click('next'),
-  ]),
-  step('superset: first movement scheme (ladder)', [click('scheme-ladder'), click('next')]),
-  step('superset: first movement grid', [click('next')]),
-  step('superset: first movement load + rest', [click('next')]),
-  step('superset: second movement (dumbbell)', [
-    fill('name', 'Dumbbell Row'),
-    click('equip-dumbbell'),
-    click('next'),
-  ]),
-  step('superset: second movement scheme (straight)', [click('scheme-straight'), click('next')]),
-  step('superset: second movement grid', [click('next')]),
-  step('superset: second movement load + rest, commit block', [click('done-block')]),
+  step('superset: choose kind', [click('add-block'), click('kind-ss')], { phase: 'build' }),
+  step(
+    'superset: first movement (barbell)',
+    [fill('name', 'Barbell Back Squat'), click('equip-barbell'), click('next')],
+    { phase: 'build' },
+  ),
+  step('superset: first movement scheme (ladder)', [click('scheme-ladder'), click('next')], { phase: 'build' }),
+  step('superset: first movement grid', [click('next')], { phase: 'build' }),
+  step('superset: first movement load + rest', [click('next')], { phase: 'build' }),
+  step(
+    'superset: second movement (dumbbell)',
+    [fill('name', 'Dumbbell Row'), click('equip-dumbbell'), click('next')],
+    { phase: 'build' },
+  ),
+  step('superset: second movement scheme (straight)', [click('scheme-straight'), click('next')], {
+    phase: 'build',
+  }),
+  step('superset: second movement grid', [click('next')], { phase: 'build' }),
+  step('superset: second movement load + rest, commit block', [click('done-block')], { phase: 'build' }),
 
   /* A bodyweight straight lift — the no-weight path. */
-  step('bodyweight lift: choose kind', [click('add-block'), click('kind-lift')]),
-  step('bodyweight lift: movement', [
-    fill('name', 'Push-up'),
-    click('equip-bodyweight'),
-    click('next'),
-  ]),
-  step('bodyweight lift: scheme (straight)', [click('scheme-straight'), click('next')]),
-  step('bodyweight lift: grid', [click('next')]),
-  step('bodyweight lift: rest, commit block', [click('done-block')]),
+  step('bodyweight lift: choose kind', [click('add-block'), click('kind-lift')], { phase: 'build' }),
+  step(
+    'bodyweight lift: movement',
+    [fill('name', 'Push-up'), click('equip-bodyweight'), click('next')],
+    { phase: 'build' },
+  ),
+  step('bodyweight lift: scheme (straight)', [click('scheme-straight'), click('next')], { phase: 'build' }),
+  step('bodyweight lift: grid', [click('next')], { phase: 'build' }),
+  step('bodyweight lift: rest, commit block', [click('done-block')], { phase: 'build' }),
 
   /* Cool-down. */
-  step('cool-down: choose kind', [click('add-block'), click('kind-cool')]),
-  step('cool-down: add piece', [fill('name', 'Walk'), click('add-piece')]),
-  step('cool-down: commit block', [click('done-block')]),
+  step('cool-down: choose kind', [click('add-block'), click('kind-cool')], { phase: 'build' }),
+  step('cool-down: add piece', [fill('name', 'Walk'), click('add-piece')], { phase: 'build' }),
+  step('cool-down: commit block', [click('done-block')], { phase: 'build' }),
 
   /* ============================== RUN =============================== */
-  step('start session', [click('start')], { record: true, block: 0 }),
+  /* `start session` is the boundary step: it belongs to BUILD as its last
+     action (it is what turns the authored `session` into the one
+     checks/fixtures/session.json captures and the run phase starts from),
+     even though it lives under the RUN heading and is the first recorded
+     step of the trace. */
+  step('start session', [click('start')], { record: true, block: 0, phase: 'build' }),
 
   /* --- block 0: warm-up --- */
   step('warm-up: finish piece 1 (Row)', [click('piece-done')], {
     record: true,
     block: 0,
+    phase: 'run',
   }),
-  step('warm-up: finish piece 2 (Air Squats)', [click('piece-done')], { record: true, block: 0 }),
-  step('warm-up: advance past rest', [click('rest-go')], { record: true, block: 1 }),
+  step('warm-up: finish piece 2 (Air Squats)', [click('piece-done')], {
+    record: true,
+    block: 0,
+    phase: 'run',
+  }),
+  step('warm-up: advance past rest', [click('rest-go')], { record: true, block: 1, phase: 'run' }),
 
   /* --- block 1: superset (barbell ladder + dumbbell straight) ---
      Round 1 in the built order (squat leads), then rotate once before
@@ -88,30 +109,59 @@ export const steps = [
      on-target, easy and hard so the coaching message crosses several
      branches instead of repeating one. Every `log` opens the rest
      takeover, so `logAndRest()` clears it before the step is recorded. */
-  step('superset: round 1 — Barbell Back Squat set 1', [rpe(7), ...logAndRest()], { record: true, block: 1 }),
-  step('superset: round 1 — Dumbbell Row set 1', [rpe(8), ...logAndRest()], { record: true, block: 1 }),
-  step('superset: rotate the pair', [click('grip')], { record: true, block: 1 }),
-  step('superset: round 2 — Dumbbell Row set 2', [rpe(7), ...logAndRest()], { record: true, block: 1 }),
-  step('superset: round 2 — Barbell Back Squat set 2', [rpe(9), ...logAndRest()], { record: true, block: 1 }),
-  step('superset: round 3 — Dumbbell Row set 3', [rpe(7.5), ...logAndRest()], { record: true, block: 1 }),
-  step('superset: round 3 — Barbell Back Squat set 3', [rpe(7), ...logAndRest()], { record: true, block: 1 }),
-  step('superset: round 4 — Dumbbell Row set 4', [rpe(10), ...logAndRest()], { record: true, block: 1 }),
+  step('superset: round 1 — Barbell Back Squat set 1', [rpe(7), ...logAndRest()], {
+    record: true,
+    block: 1,
+    phase: 'run',
+  }),
+  step('superset: round 1 — Dumbbell Row set 1', [rpe(8), ...logAndRest()], {
+    record: true,
+    block: 1,
+    phase: 'run',
+  }),
+  step('superset: rotate the pair', [click('grip')], { record: true, block: 1, phase: 'run' }),
+  step('superset: round 2 — Dumbbell Row set 2', [rpe(7), ...logAndRest()], {
+    record: true,
+    block: 1,
+    phase: 'run',
+  }),
+  step('superset: round 2 — Barbell Back Squat set 2', [rpe(9), ...logAndRest()], {
+    record: true,
+    block: 1,
+    phase: 'run',
+  }),
+  step('superset: round 3 — Dumbbell Row set 3', [rpe(7.5), ...logAndRest()], {
+    record: true,
+    block: 1,
+    phase: 'run',
+  }),
+  step('superset: round 3 — Barbell Back Squat set 3', [rpe(7), ...logAndRest()], {
+    record: true,
+    block: 1,
+    phase: 'run',
+  }),
+  step('superset: round 4 — Dumbbell Row set 4', [rpe(10), ...logAndRest()], {
+    record: true,
+    block: 1,
+    phase: 'run',
+  }),
   step(
     'superset: round 4 — Barbell Back Squat max set',
     [repsUp(), repsUp(), repsUp(), repsUp(), repsUp(), rpe(9), ...logAndRest()],
-    { record: true, block: 2 },
+    { record: true, block: 2, phase: 'run' },
   ),
 
   /* --- block 2: bodyweight straight lift --- */
-  step('bodyweight lift: set 1', [rpe(8), ...logAndRest()], { record: true, block: 2 }),
-  step('bodyweight lift: set 2 (easy)', [rpe(7), ...logAndRest()], { record: true, block: 2 }),
-  step('bodyweight lift: set 3 (hard)', [rpe(9), ...logAndRest()], { record: true, block: 2 }),
-  step('bodyweight lift: set 4', [rpe(8), ...logAndRest()], { record: true, block: 3 }),
+  step('bodyweight lift: set 1', [rpe(8), ...logAndRest()], { record: true, block: 2, phase: 'run' }),
+  step('bodyweight lift: set 2 (easy)', [rpe(7), ...logAndRest()], { record: true, block: 2, phase: 'run' }),
+  step('bodyweight lift: set 3 (hard)', [rpe(9), ...logAndRest()], { record: true, block: 2, phase: 'run' }),
+  step('bodyweight lift: set 4', [rpe(8), ...logAndRest()], { record: true, block: 3, phase: 'run' }),
 
   /* --- block 3: cool-down --- */
   step('cool-down: finish piece (Walk)', [click('piece-done')], {
     record: true,
     block: 3,
+    phase: 'run',
   }),
-  step('finish session', [click('rest-go')], { record: true, block: 3 }),
+  step('finish session', [click('rest-go')], { record: true, block: 3, phase: 'run' }),
 ];

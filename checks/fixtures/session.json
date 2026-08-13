@@ -1,0 +1,136 @@
+{
+ "name": "New session",
+ "blocks": [
+  {
+   "kind": "warm",
+   "title": "Warm-up",
+   "items": [
+    {
+     "name": "Row",
+     "secs": 60,
+     "held": false,
+     "left": 60,
+     "timer": 2
+    },
+    {
+     "name": "Air Squats",
+     "target": "12 reps"
+    }
+   ]
+  },
+  {
+   "kind": "str",
+   "superset": true,
+   "title": "Squat + Row",
+   "exercises": [
+    {
+     "name": "Barbell Back Squat",
+     "rest": 30,
+     "opener": 60,
+     "inc": 2.5,
+     "bar": true,
+     "targets": [
+      {
+       "reps": "10",
+       "rpe": 7
+      },
+      {
+       "reps": "8",
+       "rpe": 8
+      },
+      {
+       "reps": "6",
+       "rpe": 9
+      },
+      {
+       "reps": "max",
+       "rpe": 10
+      }
+     ],
+     "logs": [],
+     "anchor": 84
+    },
+    {
+     "name": "Dumbbell Row",
+     "rest": 90,
+     "opener": 12,
+     "inc": 2,
+     "bar": false,
+     "targets": [
+      {
+       "reps": "10",
+       "rpe": 8
+      },
+      {
+       "reps": "10",
+       "rpe": 8
+      },
+      {
+       "reps": "10",
+       "rpe": 8
+      },
+      {
+       "reps": "10",
+       "rpe": 8
+      }
+     ],
+     "logs": [],
+     "anchor": 16.799999999999997
+    }
+   ],
+   "order": [
+    0,
+    1
+   ],
+   "orderLog": {}
+  },
+  {
+   "kind": "str",
+   "superset": false,
+   "title": "Push-up",
+   "exercises": [
+    {
+     "name": "Push-up",
+     "rest": 120,
+     "opener": 0,
+     "inc": 1,
+     "bar": false,
+     "targets": [
+      {
+       "reps": "10",
+       "rpe": 8
+      },
+      {
+       "reps": "10",
+       "rpe": 8
+      },
+      {
+       "reps": "10",
+       "rpe": 8
+      },
+      {
+       "reps": "10",
+       "rpe": 8
+      }
+     ],
+     "logs": [],
+     "anchor": 0
+    }
+   ],
+   "order": [
+    0
+   ],
+   "orderLog": {}
+  },
+  {
+   "kind": "warm",
+   "title": "Cool-down",
+   "items": [
+    {
+     "name": "Walk",
+     "secs": 60
+    }
+   ]
+  }
+ ]
+}

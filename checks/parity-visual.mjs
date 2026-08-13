@@ -17,12 +17,21 @@
  * is measured against it.
  *
  * Usage:
- *   node checks/parity-visual.mjs [--target=prototype|<url>] [--record]
+ *   node checks/parity-visual.mjs [--target=prototype|<url>] [--record] [--phase=build|run|all]
  *
  *   --target=prototype (default)  load the committed HTML from file://
  *   --target=<url>                load a running app at that URL
  *   --record                      write the baseline shots and exit 0
  *   (no --record)                 diff a fresh run against the baseline
+ *   --phase=build|run|all         which half of the session to shoot (default all)
+ *
+ * `--phase` narrows SHOTS to the ones whose named step falls on that side of
+ * the build/run split (see checks/parity/script.mjs). Against
+ * `--target=prototype` the full step list still gets walked regardless of
+ * phase — the run half's shots depend on the DOM the build half produced —
+ * only which shots get CAPTURED is narrowed. Against `--target=<url>`,
+ * `--phase=run` seeds `checks/fixtures/session.json` into the app's storage
+ * and starts at the logger route instead of replaying the build steps.
  *
  * Run: node checks/parity-visual.mjs
  */
@@ -32,10 +41,12 @@ import { fileURLToPath } from 'node:url';
 import { inflateSync, deflateSync } from 'node:zlib';
 import { launchChromium } from './_chromium.mjs';
 import { steps } from './parity/script.mjs';
+import { seedAndGoToLogger } from './parity/drive.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS_DIR = resolve(ROOT, 'checks/fixtures/prototype/shots');
 const PROTOTYPE_PATH = resolve(ROOT, 'checks/fixtures/prototype/rolling-logger.html');
+const SESSION_PATH = resolve(ROOT, 'checks/fixtures/session.json');
 
 /* A real Android viewport at 1:1 — the same one the prototype itself was
    built against (see the CSS comment "device: 412 x 915" in
@@ -92,15 +103,31 @@ const SHOTS = [
 function parseArgs(argv) {
   let target = 'prototype';
   let record = false;
+  let phase = 'all';
   for (const arg of argv) {
     if (arg === '--record') record = true;
     else if (arg.startsWith('--target=')) target = arg.slice('--target='.length);
+    else if (arg.startsWith('--phase=')) phase = arg.slice('--phase='.length);
     else {
       console.error(`parity-visual: unrecognised argument \`${arg}\``);
       process.exit(1);
     }
   }
-  return { target, record };
+  if (!['build', 'run', 'all'].includes(phase)) {
+    console.error(`parity-visual: --phase must be build, run or all — got \`${phase}\``);
+    process.exit(1);
+  }
+  return { target, record, phase };
+}
+
+/** `empty-builder` has no `step` to look phase up from (it fires before any
+ *  step runs) — it is unambiguously a build-phase shot, the page load
+ *  before the first build action. Every other shot's phase is the phase of
+ *  the step it names. */
+function shotPhase(shot, steps) {
+  if (!shot.step) return 'build';
+  const st = steps.find((s) => s.label === shot.step);
+  return st ? st.phase : undefined;
 }
 
 /* ------------------------------ the driver -------------------------------
@@ -124,13 +151,17 @@ async function execAction(page, action, label) {
   }
 }
 
-/** Walks the full script once, taking a screenshot (a PNG Buffer) at each
- *  named point in SHOTS, keyed by shot name. Fails loudly if a shot names a
- *  step that no longer exists in script.mjs — a sign the two files have
- *  drifted apart. */
-async function captureShots(page) {
+/** Walks `walkSteps` once, taking a screenshot (a PNG Buffer) at each named
+ *  point in `activeShots`, keyed by shot name. `walkSteps` is every action
+ *  to execute, in order — the full `steps` list against the prototype
+ *  (the run half's DOM depends on the build half having run), or a
+ *  phase-filtered subset against a real target. `activeShots` is the
+ *  phase-filtered subset of SHOTS actually expected out of this walk.
+ *  Fails loudly if a shot names a step that no longer exists in
+ *  script.mjs — a sign the two files have drifted apart. */
+async function captureShots(page, walkSteps, activeShots) {
   const stepLabels = new Set(steps.map((s) => s.label));
-  for (const shot of SHOTS) {
+  for (const shot of activeShots) {
     if (shot.step && !stepLabels.has(shot.step)) {
       throw new Error(
         `parity-visual: shot \`${shot.name}\` names step \`${shot.step}\`, which is not in checks/parity/script.mjs`,
@@ -138,13 +169,13 @@ async function captureShots(page) {
     }
   }
 
-  const shotsByStep = new Map(SHOTS.filter((s) => s.step).map((s) => [s.step, s]));
+  const shotsByStep = new Map(activeShots.filter((s) => s.step).map((s) => [s.step, s]));
   const captured = new Map();
 
-  const initial = SHOTS.find((s) => s.before);
+  const initial = activeShots.find((s) => s.before);
   if (initial) captured.set(initial.name, await page.screenshot());
 
-  for (const st of steps) {
+  for (const st of walkSteps) {
     const shot = shotsByStep.get(st.label);
     const cutoff = shot && shot.actions != null ? shot.actions : st.actions.length;
     for (let i = 0; i < st.actions.length; i++) {
@@ -155,7 +186,7 @@ async function captureShots(page) {
     }
   }
 
-  const missing = SHOTS.filter((s) => !captured.has(s.name)).map((s) => s.name);
+  const missing = activeShots.filter((s) => !captured.has(s.name)).map((s) => s.name);
   if (missing.length) {
     throw new Error(`parity-visual: never captured shot(s): ${missing.join(', ')}`);
   }
@@ -365,7 +396,7 @@ async function unlinkIfExists(path) {
 }
 
 async function main() {
-  const { target, record } = parseArgs(process.argv.slice(2));
+  const { target, record, phase } = parseArgs(process.argv.slice(2));
 
   const { browser, skip } = await launchChromium();
   if (skip) {
@@ -386,10 +417,30 @@ async function main() {
     await page.clock.install({ time: 0 });
     await page.clock.pauseAt(0);
 
-    const url = target === 'prototype' ? 'file://' + PROTOTYPE_PATH : target;
-    await page.goto(url);
+    const activeShots = SHOTS.filter((s) => phase === 'all' || shotPhase(s, steps) === phase);
 
-    const shots = await captureShots(page);
+    let walkSteps;
+    if (target === 'prototype') {
+      // One page builds and runs the session — the run half's shots need
+      // the DOM the build half produced, so the full step list is always
+      // walked; `phase` only narrows which shots get captured.
+      await page.goto('file://' + PROTOTYPE_PATH);
+      walkSteps = steps;
+    } else if (phase === 'run') {
+      // No build UI to replay against a real app: seed the fixed session
+      // straight into storage and start at the logger route.
+      const session = JSON.parse(await readFile(SESSION_PATH, 'utf8'));
+      await seedAndGoToLogger(page, target, session);
+      walkSteps = steps.filter((s) => s.phase === 'run');
+    } else if (phase === 'build') {
+      await page.goto(target);
+      walkSteps = steps.filter((s) => s.phase === 'build');
+    } else {
+      await page.goto(target);
+      walkSteps = steps;
+    }
+
+    const shots = await captureShots(page, walkSteps, activeShots);
 
     if (record) {
       await mkdir(SHOTS_DIR, { recursive: true });
@@ -450,11 +501,13 @@ async function main() {
     }
 
     if (failures) {
-      console.error(`FAIL — parity-visual: ${failures}/${shots.size} shot(s) differ from baseline (target: ${target})`);
+      console.error(
+        `FAIL — parity-visual: ${failures}/${shots.size} shot(s) differ from baseline (target: ${target}, phase: ${phase})`,
+      );
       process.exitCode = 1;
       return;
     }
-    console.log(`PASS — parity-visual: ${shots.size} shots match the baseline (target: ${target})`);
+    console.log(`PASS — parity-visual: ${shots.size} shots match the baseline (target: ${target}, phase: ${phase})`);
   } finally {
     await browser.close();
   }

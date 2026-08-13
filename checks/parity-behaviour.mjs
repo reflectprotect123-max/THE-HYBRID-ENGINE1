@@ -10,12 +10,20 @@
  * once, and everything after that is measured against it.
  *
  * Usage:
- *   node checks/parity-behaviour.mjs [--target=prototype|<url>] [--record]
+ *   node checks/parity-behaviour.mjs [--target=prototype|<url>] [--record] [--phase=build|run|all]
  *
  *   --target=prototype (default)  load the committed HTML from file://
  *   --target=<url>                load a running app at that URL
  *   --record                      write the trace to the baseline and exit 0
  *   (no --record)                 diff a fresh run against the baseline
+ *   --phase=build|run|all         which half of the session to drive (default all)
+ *
+ * Against `--target=prototype`, every phase still walks the FULL step list —
+ * the run half needs the DOM the build half left behind — and `--phase` only
+ * narrows which steps get recorded and compared. Against `--target=<url>`,
+ * `--phase=run` seeds `checks/fixtures/session.json` into the app's storage
+ * and starts at the logger route instead of replaying the build steps, and
+ * `--phase=build` walks only the build steps. See `checks/parity/drive.mjs`.
  *
  * Run: node checks/parity-behaviour.mjs
  */
@@ -23,25 +31,32 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchChromium } from './_chromium.mjs';
-import { runScript } from './parity/drive.mjs';
+import { runScript, seedAndGoToLogger, filterTraceByPhase } from './parity/drive.mjs';
 import { steps } from './parity/script.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TRACE_PATH = resolve(ROOT, 'checks/fixtures/prototype/trace.json');
 const PROTOTYPE_PATH = resolve(ROOT, 'checks/fixtures/prototype/rolling-logger.html');
+const SESSION_PATH = resolve(ROOT, 'checks/fixtures/session.json');
 
 function parseArgs(argv) {
   let target = 'prototype';
   let record = false;
+  let phase = 'all';
   for (const arg of argv) {
     if (arg === '--record') record = true;
     else if (arg.startsWith('--target=')) target = arg.slice('--target='.length);
+    else if (arg.startsWith('--phase=')) phase = arg.slice('--phase='.length);
     else {
       console.error(`parity-behaviour: unrecognised argument \`${arg}\``);
       process.exit(1);
     }
   }
-  return { target, record };
+  if (!['build', 'run', 'all'].includes(phase)) {
+    console.error(`parity-behaviour: --phase must be build, run or all — got \`${phase}\``);
+    process.exit(1);
+  }
+  return { target, record, phase };
 }
 
 function fieldsOf(field, expected, actual) {
@@ -90,7 +105,7 @@ function diffTraces(expected, actual) {
 }
 
 async function main() {
-  const { target, record } = parseArgs(process.argv.slice(2));
+  const { target, record, phase } = parseArgs(process.argv.slice(2));
 
   const { browser, skip } = await launchChromium();
   if (skip) {
@@ -100,10 +115,26 @@ async function main() {
 
   try {
     const page = await browser.newPage();
-    const url = target === 'prototype' ? 'file://' + PROTOTYPE_PATH : target;
-    await page.goto(url);
 
-    const trace = await runScript(page, steps);
+    let trace;
+    if (target === 'prototype') {
+      // One page builds and runs the session, so every phase walks the
+      // full step list — `phase` only narrows what gets recorded.
+      await page.goto('file://' + PROTOTYPE_PATH);
+      trace = await runScript(page, steps, phase);
+    } else if (phase === 'run') {
+      // No build UI to replay against a real app: seed the fixed session
+      // straight into storage and start at the logger route.
+      const session = JSON.parse(await readFile(SESSION_PATH, 'utf8'));
+      await seedAndGoToLogger(page, target, session);
+      trace = await runScript(page, steps.filter((s) => s.phase === 'run'), 'run');
+    } else if (phase === 'build') {
+      await page.goto(target);
+      trace = await runScript(page, steps.filter((s) => s.phase === 'build'), 'build');
+    } else {
+      await page.goto(target);
+      trace = await runScript(page, steps, 'all');
+    }
 
     if (record) {
       await writeFile(TRACE_PATH, JSON.stringify(trace, null, 1) + '\n');
@@ -120,6 +151,7 @@ async function main() {
       process.exitCode = 1;
       return;
     }
+    baseline = filterTraceByPhase(baseline, steps, phase);
 
     const diffs = diffTraces(baseline, trace);
     if (diffs.length) {
@@ -128,7 +160,9 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-    console.log(`PASS — parity-behaviour: ${trace.length} recorded steps match the baseline (target: ${target})`);
+    console.log(
+      `PASS — parity-behaviour: ${trace.length} recorded steps match the baseline (target: ${target}, phase: ${phase})`,
+    );
   } finally {
     await browser.close();
   }
