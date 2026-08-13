@@ -6,7 +6,9 @@ import { useNutrition } from '../store/nutrition';
 import { buildCoachNutritionReview } from './nutrition-review';
 import { useProgressionLedger } from '../store/progression';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
-import type { AthleteNutritionSummary, AthleteProgressionProposal, ClientSummary } from './contracts';
+import type { AthleteNutritionSummary, AthleteProgressionProposal, AthleteWeekSummary, ClientSummary } from './contracts';
+import { localWeek, rosterWeek } from './command-week';
+import { CommandWeek } from './CommandWeek';
 import './coach-redesign.css';
 
 /*
@@ -69,18 +71,23 @@ export function CoachCommandCenter() {
   const { clients: clientContracts, selectedClient: selectedContract, selectClient, loading: clientsLoading, error: clientsError, repository } = useCoachWorkspace();
   const clients = useMemo(() => clientContracts.map(toSnapshot), [clientContracts]);
   const selectedClient = selectedContract ? toSnapshot(selectedContract) : null;
-  const { athleteState } = useDb();
+  const { db, athleteState } = useDb();
   const progressionLedger = useProgressionLedger();
   const { nutrition } = useNutrition();
   const nutritionReview = useMemo(() => buildCoachNutritionReview(nutrition, today()), [nutrition]);
   const weekStart = useMemo(() => mondayOf(new Date()), []);
   const [rosterProposals, setRosterProposals] = useState<readonly AthleteProgressionProposal[]>([]);
   const [rosterNutritionSummary, setRosterNutritionSummary] = useState<AthleteNutritionSummary | null>(null);
+  /* `undefined` = still asking, `null` = asked and this client's detail is not
+     readable. Collapsing the two would make a slow request look like a
+     permission answer, which is the difference this panel exists to state. */
+  const [rosterWeekSummary, setRosterWeekSummary] = useState<AthleteWeekSummary | null | undefined>(undefined);
   const rosterClientId = selectedContract && selectedContract.source !== 'engine-local' ? selectedContract.id : null;
   useEffect(() => {
     let active = true;
     setRosterProposals([]);
     setRosterNutritionSummary(null);
+    setRosterWeekSummary(undefined);
     if (!rosterClientId) return;
     /* `?.()` alone short-circuits to `undefined` when unimplemented (an
        older build, or the mock repository) — chaining `.then` on that
@@ -90,6 +97,8 @@ export function CoachCommandCenter() {
       .then((v) => { if (active) setRosterProposals(v); }).catch(() => { if (active) setRosterProposals([]); });
     (repository.getNutritionSummary?.(rosterClientId, weekStart) ?? Promise.resolve(null))
       .then((v) => { if (active) setRosterNutritionSummary(v); }).catch(() => { if (active) setRosterNutritionSummary(null); });
+    (repository.getAthleteWeekSummary?.(rosterClientId, weekStart) ?? Promise.resolve(null))
+      .then((v) => { if (active) setRosterWeekSummary(v); }).catch(() => { if (active) setRosterWeekSummary(null); });
     return () => { active = false; };
   }, [repository, rosterClientId, weekStart]);
   const rosterStrengthPending = rosterProposals.filter((proposal) => proposal.domain === 'strength').length;
@@ -122,6 +131,18 @@ export function CoachCommandCenter() {
       ? `${rosterNutritionSummary.loggedDays}/${rosterNutritionSummary.windowDays} days logged`
       : 'Not available';
   const nutritionWarn = isLocalClient && (nutritionExceptionCount ?? 0) > 0;
+
+  /*
+   * The week panel's two sources, chosen by exactly the same rule every other
+   * read on this screen follows: local stores are the SIGNED-IN account's own
+   * and may only ever render for `engine-local`. Rendering them under another
+   * client's name is the failure the handoff names by hand.
+   */
+  const weekDaysForPanel = isLocalClient
+    ? localWeek(weekStart, db.sessions, db.workouts)
+    : rosterWeek(weekStart, rosterWeekSummary ?? null);
+  // Readable unless we asked and were told no. Still asking is not "no".
+  const weekReadable = isLocalClient || rosterWeekSummary !== null;
 
   return (
     <div className="rd-content">
@@ -238,6 +259,13 @@ export function CoachCommandCenter() {
           </svg>
         </Link>
       </div>
+
+      <CommandWeek
+        days={weekDaysForPanel}
+        today={today()}
+        readable={weekReadable}
+        athleteName={selectedClient.name}
+      />
     </div>
   );
 }
