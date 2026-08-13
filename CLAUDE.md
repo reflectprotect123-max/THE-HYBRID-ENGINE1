@@ -110,15 +110,33 @@ once, can catch its regression.
   it was asked to. Stage 2 added no CSS whatsoever, which is the strongest
   form this claim comes in: the layout is the mockup's, unamended, and the
   check proves it.
-- Nothing under `/coach` is named desktop-only yet, because nothing has
-  failed a phone check. The Library calendar tab was one of the two
-  anticipated candidates and it PASSED — Stage 3a shot it at 420px with no
-  overflow, so the guess that a month grid could not work on a phone was
-  wrong and is retired here rather than left standing. `/coach/review/
-  :weekStart` (WeekReview's ledger) remains untested and remains a
-  candidate; this section still does not get to guess its outcome. When it
-  is verified, if it genuinely cannot work at phone width, it is named here
-  explicitly with the reason, exactly as this rule already requires.
+  **Stage 4 (13 August 2026) closes the set.** `checks/screens.mjs` now
+  shoots EVERY `/coach` route at 420px: the seven above plus `author`,
+  `progression`, `review/:weekStart`, `legacy`, `day/:date`, `build/:id`,
+  `planner/:id` and `roster-plan/:workoutId`. Fifteen shots, all green. The
+  parameterised ones are addressed with values the seed really contains — a
+  route pointed at a missing id renders a not-found state, which has no
+  overflow and would pass while proving nothing.
+- **Nothing under `/coach` is desktop-only.** Not "not yet" — every route is
+  now shot at 420px and every one passes. The spec named two candidates it
+  expected to fail, both wide tables: the Library calendar and WeekReview's
+  ledger. BOTH PASSED, so both guesses are retired here rather than left
+  standing as hedges.
+
+  Stage 4 found two real defects instead, neither of them a table:
+  `CoachShell`'s header laid a title and ten controls in one non-wrapping row
+  — 775px inside a 420px viewport, the whole PAGE scrolling sideways — and
+  `BlockTypeStep`'s brass option pills had a fixed `!h-9`, so "Warm-up /
+  Cooldown" and "Metcon / notes" wrapped to a second line that rendered
+  outside the pill. Both are fixed. Worth keeping in mind next time: the
+  screens that were feared were fine, and the damage was in a toolbar and a
+  button height nobody had thought about.
+
+  `ProgramGrid`'s week table is the pattern to copy — it has always had its
+  own `overflow-x-auto`, so wide content scrolls INSIDE its container and the
+  page never does. If a future screen genuinely cannot work at phone width,
+  it is named here explicitly with the reason, exactly as this rule requires
+  — but no screen has earned that yet.
 - Phone support here means the responsive WEB bench — `apps/web`'s own
   `/coach` routes rendering usably down to a phone-width viewport. This bullet
   used to add "there is no native mobile app in this repository to port into"
@@ -131,13 +149,17 @@ once, can catch its regression.
   proposed again, that is its own product
   decision requiring its own explicit approval — this amendment does not
   imply or grant one.
-- Seven routes are covered; the bench has more. `/coach/review/:weekStart`,
-  `/coach/day/:date`, `/coach/author` and the builder chain behind it are all
-  still unshot. Each one that lands a stage gets the same treatment: update
-  this section with the real boundary — the new route, and any confirmed
-  desktop-only exception named with its reason — rather than leaving a
-  stage's wording standing once it is stale. That instruction has now been
-  followed three times; it is not decoration.
+- Every route is covered, so the standing instruction changes shape rather
+  than retiring: a NEW `/coach` route joins `checks/screens.mjs` in the same
+  commit that adds it. The coverage list above is now a claim about the whole
+  bench, and a route that ships without a shot silently makes it false.
+
+  One honest limit on that claim. `roster-plan/:workoutId` is gated
+  `layer3Ready` and the seed signs in a local account with no roster, so what
+  that shot proves usable at 420px is the GATE, not `RosterPlanner` itself.
+  The planner behind it stays unproven at phone width until there is a roster
+  fixture to reach it with. That is written in `checks/screens.mjs` beside
+  the shot as well, so the next reader finds it there rather than here.
 
 ## Storage and release rules
 

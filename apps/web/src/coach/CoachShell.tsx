@@ -33,7 +33,14 @@ export function CoachShell() {
 
   return (
     <div className="coach-root min-h-screen bg-bg text-text">
-      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line2 bg-panel3/95 px-2 py-1 backdrop-blur">
+      {/* `flex-wrap`, added by stage 4's phone pass (13 August 2026). This
+          row carries a title and ten controls, and without wrapping it laid
+          them out in one line 775px wide inside a 420px viewport — the whole
+          PAGE scrolled sideways, which is the one thing `checks/screens.mjs`
+          treats as a real failure. The week grid below was never the problem:
+          `ProgramGrid` has had its own `overflow-x-auto` all along, so it
+          scrolls inside itself the way wide content is supposed to. */}
+      <header className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-line2 bg-panel3/95 px-2 py-1 backdrop-blur">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-gold">Coach</div>
           <h1 className="text-base font-semibold leading-tight">Program bench</h1>

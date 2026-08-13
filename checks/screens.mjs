@@ -112,11 +112,16 @@ const SHOTS = [
 ];
 
 /*
- * Stage-1 coach redesign (11 August 2026): the four pillar screens plus the
- * Command Center launcher, at the same 420px phone viewport as every athlete
- * shot above. `/coach/library` and `/coach/settings` are NOT here — they
- * join once their own stage lands and CLAUDE.md's boundary is updated again,
- * per that section's own instruction.
+ * Every `/coach` route, at the same 420px phone viewport as every athlete
+ * shot above.
+ *
+ * This began as stage 1's five — the Command Center launcher and the four
+ * pillars — with a note here saying `/coach/library` and `/coach/settings`
+ * would "join once their own stage lands". They did (stages 3a and 2), and
+ * stage 4 (13 August 2026) closes the set: `author`, `progression`,
+ * `review/:weekStart`, `legacy`, `day/:date`, `build/:id`, `planner/:id` and
+ * `roster-plan/:workoutId`. The spec calls stage 4 "a verification-and-repair
+ * pass, not net-new work", and this table is the verification half.
  *
  * The third element is a list of patterns that must ALL match the rendered
  * page's text for the shot to count as real — see `assertContent` below for
@@ -136,6 +141,18 @@ const SHOTS = [
  * the instant the browser paints it as "RESTING HR", which is a false
  * alarm about the check, not a fact about the screen.
  */
+/* Addresses for the parameterised coach routes, computed rather than
+ * hardcoded so they stay valid tomorrow. `w1` is a workout `_seed.mjs`
+ * actually creates; a date-shaped route pointed at nothing renders a
+ * not-found state, which has no overflow and would pass while proving
+ * nothing. */
+const TODAY = new Date().toISOString().slice(0, 10);
+const THIS_MONDAY = (() => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+})();
+
 const COACH_SHOTS = [
   ['12-coach', '/coach', [/Readiness/i, /Strength/i, /Conditioning/i, /Nutrition/i]],
   ['13-coach-readiness', '/coach/readiness', [/\bHRV\b/i, /Resting HR/i]],
@@ -163,6 +180,36 @@ const COACH_SHOTS = [
   // pass against a screen whose panels never mounted. "Training week begins"
   // is a Workspace-panel row, and Workspace is the default section.
   ['18-coach-settings', '/coach/settings', [/Training week begins/i, /Default load unit/i, /Data . sync/i]],
+
+  /*
+   * Stage 4. The eight routes stages 1-3 left unshot.
+   *
+   * The parameterised ones are addressed with values this seed actually
+   * contains — `w1` is a seeded workout, `TODAY` and `THIS_MONDAY` are
+   * computed below — because a route shot with an id that resolves to
+   * nothing renders a not-found state, and a not-found state has no
+   * horizontal overflow. It would pass, and prove nothing.
+   *
+   * `roster-plan/:workoutId` is the one exception and is documented where it
+   * sits, below.
+   */
+  ['19-coach-author', '/coach/author', [/Authoring/i]],
+  ['20-coach-progression', '/coach/progression', [/Progression queue/i, /Lift trends/i]],
+  ['21-coach-review', `/coach/review/${THIS_MONDAY}`, [/Week/i]],
+  ['22-coach-legacy', '/coach/legacy', [/Program/i]],
+  ['23-coach-day', `/coach/day/${TODAY}`, [/Session/i]],
+  ['24-coach-build', '/coach/build/w1', [/What are we doing/i]],
+  ['25-coach-planner', '/coach/planner/w1', [/Plan editor/i]],
+  /*
+   * `roster-plan` is gated `layer3Ready` and addresses a ROSTER workout. This
+   * seed signs in a local account with no roster, so what renders here is the
+   * gate, not the planner. That is worth shooting anyway — the gate is what a
+   * coach in this state actually sees, and it must be usable at 420px like
+   * anything else — but it must not be mistaken for coverage of RosterPlanner
+   * itself, which stays unproven at phone width until there is a roster
+   * fixture to reach it with.
+   */
+  ['26-coach-roster-plan', '/coach/roster-plan/w1', null],
 ];
 
 /*

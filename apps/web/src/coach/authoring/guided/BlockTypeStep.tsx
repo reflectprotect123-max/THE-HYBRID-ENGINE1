@@ -40,7 +40,14 @@ export function BlockTypeStep({
             key={c.kind}
             variant="brass"
             size="lg"
-            className="flex-col gap-0.5 !h-9 !w-[9.5rem]"
+            /* `min-h`, not `h`. This was `!h-9`, a FIXED height, and
+               "Warm-up / Cooldown" and "Metcon / notes" both wrap to two
+               lines inside `!w-[9.5rem]` — so their second line rendered
+               outside the brass pill entirely, clipped and unreadable.
+               Caught by `checks/screens.mjs` at 420px in stage 4; the phone
+               app never showed it because its own layout stacks these full
+               width. */
+            className="flex-col gap-0.5 !h-auto min-h-9 !w-[9.5rem] py-1 text-center leading-tight"
             onClick={() => onPick(c.kind)}
           >
             <span aria-hidden className="text-8">{c.glyph}</span>
