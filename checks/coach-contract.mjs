@@ -14,7 +14,7 @@
  *
  * Run: node checks/coach-contract.mjs
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -204,14 +204,41 @@ console.log('Coach surface contract\n');
   const targets = [
     'apps/web/src/screens/Training.tsx',
     'apps/web/src/screens/Conditioning.tsx',
-    'apps/web/src/screens/Logger.tsx',
-    // The mobile Logger is the surface athletes actually train from — the
-    // same collapse-of-actual-into-prescription rule 7 forbids on web was
-    // found here too (2026-08-08) and fixed the same way: delete the write,
-    // keep the hint informational. Listed explicitly rather than globbed, so
-    // a NEW mobile screen that reintroduces this pattern is still caught the
-    // moment someone adds it here — silence was exactly how this one hid.
-    'apps/mobile/src/screens/Logger.tsx',
+    // `apps/web/src/screens/Logger.tsx` was here until 13 August 2026, when
+    // the athlete web logger was DELETED outright (not parked — see the
+    // CLAUDE.md section on the lane crossings). Its absence crashed this whole
+    // file with ENOENT, which is worse than either outcome the check has: rule
+    // 7 stopped being enforced on the two surfaces that still exist, and the
+    // failure looked like a broken tool rather than a broken contract.
+    // The mobile logging surface is where athletes actually train — the same
+    // collapse-of-actual-into-prescription rule 7 forbids on web was found
+    // here too (2026-08-08) and fixed the same way: delete the write, keep
+    // the hint informational. Listed explicitly rather than globbed, so a NEW
+    // mobile screen that reintroduces this pattern is still caught the moment
+    // someone adds it here — silence was exactly how this one hid.
+    //
+    // `apps/mobile/src/screens/Logger.tsx` was the entry until slice 6
+    // replaced it with the round-major logger in `screens/logger/`.
+    // `SessionLogger.tsx` is its successor and the surface that logs the set,
+    // so a write added there is exactly what this rule exists to catch.
+    'apps/mobile/src/screens/logger/SessionLogger.tsx',
+    //
+    // KNOWN GAP, recorded rather than quietly enforced or quietly dropped.
+    // `apps/mobile/src/screens/Training.tsx` and `Conditioning.tsx` DO match
+    // the forbidden patterns: both bank the next prescription in the same
+    // `update()` that closes the session (`liftProgress = liftAdapt(...)`,
+    // `d.settings.conProgress = conProgress`). Their web counterparts above
+    // had that write removed; the mobile ones never did, and were never in
+    // this list, so nothing has ever failed over it.
+    //
+    // They are NOT added here yet, because adding them turns a check green-to-
+    // red on behaviour that is deliberate on its face — the comment at
+    // Training.tsx:148 explains banking it atomically so a crash cannot leave
+    // a finished session that progressed nothing — and because self-coached
+    // progression on the athlete's own device is a different question from
+    // "a coach's athlete progressed without the coach deciding". Making that
+    // call is a product decision, not a check-file edit. Found 13 August 2026
+    // while repairing this check's ENOENT crash.
   ];
   const forbidden = [
     /liftProgress\s*=\s*liftAdapt\s*\(/,
@@ -219,13 +246,25 @@ console.log('Coach surface contract\n');
     /settings\.conProgress\s*=\s*conProgress\b/,
     /\.aVal\s*=\s*String\s*\(\s*adj\.newWeight\s*\)/,
   ];
-  const offenders = targets.filter((file) => forbidden.some((pattern) => pattern.test(code(resolve(ROOT, file)))));
-  if (offenders.length) {
+  /* A listed target that no longer exists is a FAILURE, not a crash and not a
+     silent skip. Deleting a screen is allowed; leaving its name here afterwards
+     is not, because the list is the only record of which surfaces this rule
+     covers and a stale entry makes the coverage claim false. */
+  const missing = targets.filter((file) => !existsSync(resolve(ROOT, file)));
+  if (missing.length) {
     fail(
       'athlete performance creates proposals instead of applying progression',
-      `${offenders.join(', ')} automatically mutates a future prescription from an athlete actual.`,
+      `${missing.join(', ')} is listed here but does not exist. If the screen was deleted on purpose, delete it from this list too.`,
     );
-  } else pass('athlete performance creates proposals instead of applying progression');
+  } else {
+    const offenders = targets.filter((file) => forbidden.some((pattern) => pattern.test(code(resolve(ROOT, file)))));
+    if (offenders.length) {
+      fail(
+        'athlete performance creates proposals instead of applying progression',
+        `${offenders.join(', ')} automatically mutates a future prescription from an athlete actual.`,
+      );
+    } else pass('athlete performance creates proposals instead of applying progression');
+  }
 }
 
 /* ---------------------------------------------------------------------------

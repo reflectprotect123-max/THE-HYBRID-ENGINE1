@@ -65,7 +65,15 @@ export function Planner(props: PlannerProps = {}) {
   const nav = useNavigate();
   const [search] = useSearchParams();
   const requestedReturn = search.get('returnTo');
-  const returnTo = requestedReturn?.startsWith('/coach') ? requestedReturn : '/library';
+  /*
+   * `/coach/library`, not `/library`. This screen was an ATHLETE screen when
+   * the fallback was written, and `/library` was its Library. It is now the
+   * coach bench's own code (moved 13 August 2026) and the athlete app is
+   * parked, so `/library` matches App.tsx's catch-all and bounces to `/coach`
+   * — a coach who opened the planner from the Library is returned to the
+   * Command Center instead, having lost their place for no visible reason.
+   */
+  const returnTo = requestedReturn?.startsWith('/coach') ? requestedReturn : '/coach/library';
   const { db, update } = useDb();
   const [openEx, setOpenEx] = useState<string | null>('0-0');
 

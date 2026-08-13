@@ -70,7 +70,10 @@ export function GuidedBuilder() {
   const [search] = useSearchParams();
   const location = useLocation();
   const requestedReturn = search.get('returnTo');
-  const returnTo = requestedReturn?.startsWith('/coach') ? requestedReturn : '/library';
+  /* `/coach/library`, not `/library` — same reason as Planner.tsx's fallback:
+     the athlete Library this pointed at no longer exists, so the old value
+     bounced the coach to the Command Center through App.tsx's catch-all. */
+  const returnTo = requestedReturn?.startsWith('/coach') ? requestedReturn : '/coach/library';
   /*
    * Where the flow HANDS OFF once a session's first pass is authored.
    *
