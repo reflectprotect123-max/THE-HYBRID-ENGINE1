@@ -88,19 +88,6 @@ export function CoachLibrary() {
         <p className="text-[10px] uppercase tracking-[.18em] text-gold">ARC · library</p>
         <h1 className="mt-0.5 text-xl font-semibold sm:text-2xl">Build once. Coach the individual.</h1>
         <p className="mt-1 max-w-[68ch] text-xs text-muted">Open a day to build or edit its session. Preferred days are inputs; the Coordinator still resolves the week.</p>
-        {/*
-          The Programs tab carried the only two links to `/coach/author`, and
-          `/coach/author` is the only door to `/coach/build/:id`,
-          `/coach/planner/:id` and `/coach/roster-plan/:workoutId`. Deleting
-          the tab orphaned all four — caught by coach-routes.test.tsx's graph
-          walk, not by eye. One link keeps the whole session-builder chain
-          reachable. The assignment CONFIGURATOR stays deleted — what came
-          back in stage 3b is the assign action itself, on the program's own
-          detail view, which is where it belonged.
-        */}
-        <Link to="/coach/author" className="mt-3 inline-block rounded-md border border-gold-line bg-gold-wash px-2 py-1.5 text-xs font-semibold text-gold2">
-          Open the session builder
-        </Link>
         <label className="mt-3 block max-w-xs text-xs">
           <span className="mb-1 block font-medium">Athlete</span>
           <select
@@ -138,6 +125,28 @@ export function CoachLibrary() {
         ) : null}
       </div>
       {tab === 'calendar' ? <CalendarTab clientId={selectedClient?.id ?? null} repository={repository} /> : null}
+
+      {/*
+        The session builder's one inbound link, and it belongs DOWN HERE.
+
+        `/coach/author` is the only door to `/coach/build/:id`,
+        `/coach/planner/:id` and `/coach/roster-plan/:workoutId`, so deleting
+        this link orphans four routes — caught by coach-routes.test.tsx's
+        graph walk, not by eye. That is why it exists.
+        It used to sit in the header as a filled brass button, above the
+        Library's own content. At phone width that made it the largest, first
+        thing on the screen: the Library's primary action was to LEAVE the
+        Library. Worse, where it leads is the one coach route still in the
+        pre-redesign styling, so the trip read as being dumped in a different,
+        older app. Reported from a real phone, 13 August 2026.
+        Kept reachable, demoted to what it is — a way out, after the thing you
+        came for.
+      */}
+      <p className="px-3 pb-6 text-xs sm:px-4">
+        <Link to="/coach/author" className="text-muted underline underline-offset-2 hover:text-text">
+          Open the session builder
+        </Link>
+      </p>
     </main>
   );
 }
