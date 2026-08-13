@@ -21,9 +21,21 @@ Generated 13 August 2026 from branch `claude/handoff-md-review-z00wqf`
 
 ## What is in this zip
 
-The complete working tree, plus `.git` so you have full history and every
-branch. Excluded: `node_modules`, build output (`apps/web/dist*`), Expo and
-Metro caches, and check output directories. Nothing source-shaped is missing.
+The complete working tree. Excluded: `node_modules`, build output
+(`apps/web/dist*`, `apps/mobile/.expo-export`), Expo and Metro caches, check
+output directories, and `.git`. Nothing source-shaped is missing.
+
+`.git` is left out to keep the pack under a 30 MB transfer limit, not because
+the history is uninteresting — it is the opposite. Sixty-seven commits explain
+why most of this code is shaped the way it is, and the commit messages are
+where the reasoning lives. Clone it instead:
+
+```bash
+git clone -b claude/handoff-md-review-z00wqf \
+  https://github.com/reflectprotect123-max/THE-HYBRID-ENGINE1
+```
+
+The tip of that branch is the same tree as this zip.
 
 ## Getting it running
 
