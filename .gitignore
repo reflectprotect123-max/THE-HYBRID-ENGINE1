@@ -58,3 +58,12 @@ __pycache__/
 # checks/parity-harness.mjs serves. Both are regenerated, never committed.
 apps/mobile/.expo-export/
 apps/mobile/.expo-parity/
+
+# checks/parity-visual.mjs's failure output. It writes `<shot>.actual.png` and
+# `<shot>.diff.png` beside the baseline when a shot differs, and deletes both
+# again the moment that shot passes — so they exist only while the gate is red.
+# The BASELINES themselves are committed and are the specification; these two
+# are the evidence for one run of one machine, and committing them would leave
+# a stale picture of a failure that has since been fixed.
+checks/fixtures/prototype/shots/*.actual.png
+checks/fixtures/prototype/shots/*.diff.png
