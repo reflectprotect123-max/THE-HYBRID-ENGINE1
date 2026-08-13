@@ -114,11 +114,14 @@ describe('decideStrengthProgression — progression', () => {
   });
 
   it('holds when the earned weight has already banked the step the load branch would offer', () => {
-    // felt 7.5 against an rpe-8 target is 'a touch under target' — on target for
-    // this function, and worth +2.5kg to `computeSetAdjustment`, which lift.ts
-    // has already banked. 100 → 102.5 is in the field; repeating it is not a
-    // suggestion.
-    const s = (id: string, at: number) => sessionWith(id, at, set('100', '5', '7.5', '5', '8'));
+    // Set 1 is rated a FULL point easy (felt 7 vs rpe 8), which is where the
+    // fold's walk starts to move: +1.25% off the 100kg opener, and
+    // `roundToIncrement` carries 101.25 up to 102.5 — exactly the step this
+    // branch would offer. Set 2 stays at 100 and is rated on target, so the
+    // exposure (the last working set) still classifies on-target. lift.ts has
+    // already banked 102.5 into the field; repeating it is not a suggestion.
+    const s = (id: string, at: number) =>
+      sessionWithSets(id, at, [set('100', '5', '7', '5', '8'), set('100', '5', '8', '5', '8')]);
     const sessions = [s('s0', 1000), s('s1', 2000), s('s2', 3000)];
     const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
     expect(out.action).toBe('hold');
@@ -157,8 +160,10 @@ describe('decideStrengthProgression — progression', () => {
 
 describe('decideStrengthProgression — deload', () => {
   it('suggests a step down when the in-session drop was smaller than a plate step', () => {
-    // 20kg missed: `computeSetAdjustment`'s 6.25% is 1.25kg, which rounds back
-    // to 20 — the field still shows 20, so there IS a deload left to offer.
+    // 20kg missed: the fold scores the miss at effective RPE 10.5 — a −2.5
+    // deviation at 2.5%/point for a 5-rep floor is 6.25%, 1.25kg — which
+    // rounds back to 20. The field still shows 20, so there IS a deload left
+    // to offer.
     const s = (id: string, at: number) => sessionWith(id, at, set('20', '3', '8', '5', '8'));
     const sessions = [s('s0', 1000), s('s1', 2000), s('s2', 3000)];
     const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
@@ -328,9 +333,12 @@ describe('decideStrengthProgression — RPE classification boundaries', () => {
     // felt, verdict it lands in, expected action, expected reason code
     ['7.9', 'a touch under target', 'progress_load', 'consistently_on_target'],
     ['8.5', 'right on target (upper edge)', 'progress_load', 'consistently_on_target'],
-    // On target, but the touch-under rating already earned the step — the field
-    // shows 102.5 and there is nothing to add.
-    ['7.5', 'a touch under target', 'hold', 'already_at_earned_load'],
+    // Still on target — and half a point under is BELOW the fold's one-point
+    // threshold, so the walk banks nothing and the field still shows 100.
+    // (Under the deleted `computeSetAdjustment` this row held: 7.5 banked the
+    // step in-session. The fold changed that on purpose, so the suggestion now
+    // genuinely moves the number the athlete is looking at.)
+    ['7.5', 'a touch under target', 'progress_load', 'consistently_on_target'],
     ['7', 'easy', 'hold', 'mixed_recent_results'],
     ['6', 'too light', 'hold', 'mixed_recent_results'],
     ['4.5', 'way too light', 'hold', 'mixed_recent_results'],
@@ -398,11 +406,12 @@ describe('decideStrengthProgression — decision table', () => {
   /*
    * What `lift.ts` has ALREADY banked from the last exposure — i.e. what the
    * weight field is prefilled with. Written out rather than recomputed here on
-   * purpose: restating `computeSetAdjustment`'s formula in the test would only
-   * prove the test can multiply. An on-target set AT its own target RPE holds
-   * the weight (raw === weight), and a missed set drops 6.25% (missedFloorRpe
-   * 10.5 against a centre of 8, at 2.5%/point) snapped to 2.5kg — so 100 → 95,
-   * while 20 → 20, the drop being smaller than one increment.
+   * purpose: restating the fold's walk in the test would only prove the test
+   * can multiply. An on-target set holds the weight (deviation under one
+   * point, the walk does not move), and a missed set is scored at effective
+   * RPE 10.5 and locks — against a centre of 8 that is a −2.5 deviation, worth
+   * 5% at an 8-rep floor and 6.25% at a 5-rep floor, both snapping to 2.5kg —
+   * so 100 → 95, while 20 → 20, the drop being smaller than one increment.
    */
   const EARNED_AFTER_MISS: Record<string, number> = { '100': 95, '20': 20 };
 

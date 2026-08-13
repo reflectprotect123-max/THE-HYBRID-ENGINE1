@@ -456,13 +456,6 @@ export interface Zones {
   list: [ZoneBand, ZoneBand, ZoneBand];
 }
 
-export interface SetAdjustment {
-  delta: number;
-  newWeight: number;
-  verdict: string;
-  cls: 'good' | 'bad';
-}
-
 export interface PrRecord {
   name: string;
   kg: number;

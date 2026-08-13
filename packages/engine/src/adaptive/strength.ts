@@ -254,10 +254,13 @@ export function decideStrengthProgression(
       };
     }
     const kg = last.kg;
-    // A missed set has already cost ~6.25% through `computeSetAdjustment`, and
-    // that drop is what the field is prefilled with. A flat `stepKg` off what
-    // was LIFTED can therefore be more weight than is already on offer — the
-    // deload has to be measured against the earned number, never past it.
+    // A missed set has already cost weight through `foldExercise`'s walk: it
+    // is scored at effective RPE 10.5 whatever the athlete rated it, the
+    // back-off applies in full, and the exercise LOCKS — no later easy set
+    // raises the load again. That walked-down number is what the field is
+    // prefilled with. A flat `stepKg` off what was LIFTED can therefore be
+    // more weight than is already on offer — the deload has to be measured
+    // against the earned number, never past it.
     const shownKg = earnedKgFrom(name, last) ?? kg;
     const load = roundToIncrement(
       Math.max(AUTOREG.stepKg, Math.min(kg - AUTOREG.stepKg, shownKg)),

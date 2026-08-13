@@ -1,53 +1,13 @@
-import type { SetAdjustment, Prescription, CondResult } from '../types';
+import type { Prescription, CondResult } from '../types';
 import type { WorkingWeight } from '../lift';
 import type { AdaptResult } from '../conditioning';
 import { isProgressedFmt } from '../conditioning';
-import type { ReasonCode, TrainingDecisionExplanation } from './types';
-
-const SET_ADJUSTMENT_REASON_CODES: Record<string, ReasonCode> = {
-  'missed the rep floor': 'missed_rep_floor',
-  'way too light': 'way_too_light',
-  'too light': 'too_light',
-  'easy': 'easy',
-  'a touch under target': 'touch_under_target',
-  'right on target': 'on_target',
-  'grindy': 'grindy',
-  'max effort': 'max_effort',
-};
+import type { TrainingDecisionExplanation } from './types';
 
 /**
- * Explains an already-computed set adjustment. Read-only: never recomputes
- * or alters `adj` — it only reshapes it into the adaptive-decision contract.
- */
-export function explainSetAdjustment(adj: SetAdjustment): TrainingDecisionExplanation {
-  // `action` and `reasonCodes`/`note` are orthogonal axes: `action` reports
-  // whether the engine actually changed the prescribed load (by delta), while
-  // `reasonCodes`/`note` report the effort verdict for that set. A rounding
-  // artifact can pair a 'too light' verdict with a 'hold' action when the
-  // computed delta happens to round to zero — this is not a bug; do not join
-  // these two fields into a single sentence in UI copy without accounting for
-  // this.
-  const action =
-    adj.verdict === 'right on target'
-      ? 'hold'
-      : adj.delta < 0
-        ? 'reduce_load'
-        : adj.delta > 0
-          ? 'progress_load'
-          : 'hold';
-  return {
-    action,
-    confidence: 'high',
-    reasonCodes: [SET_ADJUSTMENT_REASON_CODES[adj.verdict] || 'unclassified'],
-    note: adj.verdict,
-    safetyState: 'approved',
-    dataLimitations: [],
-  };
-}
-
-/**
- * Explains an already-computed working-weight offer. Read-only, same
- * discipline as `explainSetAdjustment`.
+ * Explains an already-computed working-weight offer. Read-only: never
+ * recomputes or alters `w` — it only reshapes it into the adaptive-decision
+ * contract.
  */
 export function explainWorkingWeight(w: WorkingWeight | null, rec?: number | null): TrainingDecisionExplanation {
   if (!w) {

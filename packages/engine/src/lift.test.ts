@@ -6,9 +6,10 @@
  * there — the vanilla app never carried a working weight forward either — so a
  * file in that directory would claim a parity that does not exist.
  *
- * What it does reuse is `computeSetAdjustment`, which IS golden-tested. These
- * cases are about the decisions layered on top: which set is judged, what
- * happens when nothing was earned, and how the recovery gate behaves.
+ * What it does reuse is the fold (`foldNextOpener`), whose walk IS
+ * golden-tested through `foldExercise`. These cases are about the decisions
+ * layered on top: which set is judged, what happens when nothing was earned,
+ * and how the recovery gate behaves.
  */
 import { describe, expect, it } from 'vitest';
 import { liftAdapt, liftMoves, nextWorkingWeight, prescribedKg, sessionOpeners } from './lift';

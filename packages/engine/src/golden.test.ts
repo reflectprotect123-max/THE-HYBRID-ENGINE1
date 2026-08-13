@@ -9,6 +9,13 @@
  * fails, the TypeScript engine and the shipped app disagree about training
  * maths, and one of them is wrong. Regenerating the fixtures to make a test
  * pass is how a silent behaviour change gets shipped — don't.
+ *
+ * One exception: test/golden/foldExercise.json. The fold is a NEW rule — it
+ * replaced `computeSetAdjustment`, and that replacement was a reviewed
+ * behaviour change, so there is no vanilla output to harvest. Its vectors were
+ * computed BY HAND from the rule in fold.ts and are the record of what the
+ * fold was agreed to do. The same discipline applies: never regenerate them by
+ * running the code they test.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -19,7 +26,6 @@ import {
   MODE_KEYS,
   REZONE_PROVISIONAL,
   ZONE_TO_EFFORT,
-  computeSetAdjustment,
   conDownsample,
   conHrr,
   conMaxHr,
@@ -30,6 +36,7 @@ import {
   condEffortRpe,
   detectPRs,
   epley,
+  foldExercise,
   isWarmup,
   mergeEngines,
   plateBreakdown,
@@ -46,6 +53,7 @@ import {
   verdictForRpe,
 } from './index';
 import { CON_FORMAT_KEYS } from './conditioning';
+import type { FoldLog, PlanTarget } from './fold';
 import type { Downsampled, EngineDB, Exercise, LoggedSet, Profile, Session } from './types';
 
 import epleyV from '../test/golden/epley.json';
@@ -53,7 +61,7 @@ import roundV from '../test/golden/roundToIncrement.json';
 import saneKgV from '../test/golden/saneKg.json';
 import sanNumStrV from '../test/golden/sanNumStr.json';
 import verdictV from '../test/golden/verdictForRpe.json';
-import adjustV from '../test/golden/computeSetAdjustment.json';
+import foldV from '../test/golden/foldExercise.json';
 import centerV from '../test/golden/rpeCenterOf.json';
 import warmupV from '../test/golden/isWarmup.json';
 import platesV from '../test/golden/plateBreakdown.json';
@@ -111,9 +119,15 @@ describe('autoregulation', () => {
   it('verdictForRpe', () => {
     for (const v of verdictV) expect(verdictForRpe(v.rpe, v.center), JSON.stringify(v)).toBe(v.out);
   });
-  it('computeSetAdjustment', () => {
-    for (const v of adjustV) {
-      expect(computeSetAdjustment(v.reps, v.rpe, v.low, v.weight, v.center), JSON.stringify(v)).toEqual(v.out);
+  it('foldExercise', () => {
+    for (const v of foldV) {
+      const got = foldExercise({
+        targets: v.targets as PlanTarget[],
+        logs: v.logs as FoldLog[],
+        opener: v.opener,
+        increment: v.increment,
+      });
+      expect(got, JSON.stringify(v)).toEqual(expect.objectContaining(v.out));
     }
   });
   it('rpeCenterOf', () => {

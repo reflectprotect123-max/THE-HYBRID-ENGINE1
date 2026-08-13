@@ -1,11 +1,11 @@
 /**
  * The coaching rule: what should the next set weigh.
  *
- * This is the ONE owner of that question. It exists to replace
- * `autoreg.computeSetAdjustment`, which judges a single set against its own
- * target and moves off the last weight lifted. The difference is not a tuning
- * change: that rule has no memory, so a hard set followed by an easy one
- * wanders, and an opener entered heavy stays the reference forever.
+ * This is the ONE owner of that question. It replaced (and deleted)
+ * `autoreg.computeSetAdjustment`, which judged a single set against its own
+ * target and moved off the last weight lifted. The difference was not a tuning
+ * change: that rule had no memory, so a hard set followed by an easy one
+ * wandered, and an opener entered heavy stayed the reference forever.
  *
  * This rule is plan-anchored. It reads the exercise's first planned set as the
  * anchor, prices every other planned set off that anchor, and then applies one

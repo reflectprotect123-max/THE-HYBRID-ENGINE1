@@ -1,6 +1,5 @@
 import { AUTOREG } from './constants';
-import { roundToIncrement } from './num';
-import type { AnySet, SetAdjustment } from './types';
+import type { AnySet } from './types';
 
 /**
  * A target beginning with W is a warm-up set: "W" alone (work up as you like)
@@ -55,9 +54,10 @@ export type Deviation = 'easier' | 'harder';
  * The sets table logs a set in ONE tap and asks nothing, because being made to
  * dial in a number after every set is what the table exists to stop. The rating
  * it does offer is two targets, and this is the rule behind them: one RPE point
- * either side of what THIS set was asked for, which `computeSetAdjustment` then
- * turns into `pctPerRpePoint` of load. Easier than asked reads BELOW the
- * centre, so the weight goes up.
+ * either side of what THIS set was asked for, which the fold's walk
+ * (`walkLogs` in fold.ts) reads as a full one-point deviation — exactly the
+ * threshold at which it moves load. Easier than asked reads BELOW the centre,
+ * so the weight goes up.
  *
  * A rating rather than a load delta, because `felt` is the field the rest of
  * the engine already runs on — `liftMoves` banks from it, `prefillPrimary`
@@ -80,45 +80,6 @@ export function deviationFelt(st: Pick<AnySet, 'rpe'> | null | undefined, dir: D
   // produce an 11, and a number off the end of the scale is not a rating
   // anyone could have given — `verdictForRpe` already gives a 10 its own band.
   return Math.max(1, Math.min(10, Math.round(felt * 10) / 10));
-}
-
-/**
- * Move the next set's load from how the last one actually went.
- *
- * Tuchscherer/Helms basis: one RPE point below target is worth roughly
- * `pctPerRpePoint` of load. Missing the rep floor is treated as harder than a
- * 10 (`missedFloorRpe`), so a missed set always brings the weight down even if
- * the athlete rated the effort modestly.
- */
-export function computeSetAdjustment(
-  reps: number,
-  rpe: number,
-  low: number,
-  weight: number,
-  center: number,
-): SetAdjustment {
-  const missed = low > 0 && reps < low;
-  const eff = missed ? AUTOREG.missedFloorRpe : rpe;
-  const raw = weight * (1 + ((center - eff) * AUTOREG.pctPerRpePoint) / 100);
-  // When the set hit its target exactly (eff === center, so the multiplier is
-  // 1 and `raw` IS the weight), holding is the right answer — rounding a
-  // manually-entered non-plate load (101 → 100) otherwise banked a "−1 kg"
-  // change and painted a perfect set red. A missed set has eff = 10.5 > center,
-  // so raw < weight and this never fires for it.
-  let newWeight = raw === weight ? weight : roundToIncrement(raw, AUTOREG.plateIncrement);
-  // A missed set's RAW adjustment is always below `weight` (see above), but
-  // rounding to the nearest plate increment can round a non-multiple `weight`
-  // UP past it — e.g. 24.9 kg rounds to 25. That would recommend more load
-  // right after a failed set. Missed sets only ever move down, so once
-  // rounded, step back one increment rather than let the round trip upward.
-  if (missed && newWeight > weight) newWeight -= AUTOREG.plateIncrement;
-  const delta = Math.round((newWeight - weight) * 100) / 100;
-  return {
-    delta,
-    newWeight,
-    verdict: missed ? 'missed the rep floor' : verdictForRpe(rpe, center),
-    cls: delta < 0 ? 'bad' : 'good',
-  };
 }
 
 /**

@@ -17,9 +17,10 @@ import type { AnySet, Block, LiftState, LoggedSet, Session, Settings, WhoopSampl
  * offered it again. The app said it was progressing you and did not.
  *
  * This module is that sentence, kept. It computes NOTHING new:
- * `computeSetAdjustment` is the whole model, already golden-tested against
- * vectors captured from the vanilla app. What is added is persistence, and a
- * daily recovery gate on the way back out.
+ * `foldNextOpener` is the whole model — the same plan-anchored walk that
+ * prices sets in-session (golden-tested through `foldExercise`), applied to
+ * the opener the athlete chose. What is added is persistence, and a daily
+ * recovery gate on the way back out.
  *
  * It deliberately mirrors `conditioning.ts`, which has run this shape for
  * months: `conAdapt` banks an earned level from performance alone, and
