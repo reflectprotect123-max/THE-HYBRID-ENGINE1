@@ -30,6 +30,7 @@
     "@hybrid/nutrition-core": "workspace:*",
     "@hybrid/nutrition-engine": "workspace:*",
     "@hybrid/product-scope": "workspace:*",
+    "@hybrid/session-authoring": "workspace:*",
     "@hybrid/shared-core": "workspace:*",
     "@hybrid/whole-athlete-state": "workspace:*",
     "@react-navigation/bottom-tabs": "^7.4.0",

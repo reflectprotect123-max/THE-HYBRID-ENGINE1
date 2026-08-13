@@ -60,6 +60,7 @@ module.exports = {
   moduleNameMapper: {
     '^@hybrid/engine$': path.resolve(__dirname, '../../packages/engine/src/index.ts'),
     '^@hybrid/design$': path.resolve(__dirname, '../../packages/design/src/index.ts'),
+    '^@hybrid/session-authoring$': path.resolve(__dirname, '../../packages/session-authoring/src/index.ts'),
     '^@hybrid/config$': path.resolve(__dirname, '../../packages/config/src/index.ts'),
     // Imported for its side effect only; there is no CSS in a jest environment.
     '\\.css$': path.resolve(__dirname, 'test/style-stub.js'),
