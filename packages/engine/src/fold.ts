@@ -294,6 +294,21 @@ export function foldFromExercise(
 }
 
 /**
+ * The weight this session opened the exercise at — the number `foldNextOpener`
+ * prices its answer off.
+ *
+ * A read, not a rule: it exists so a surface that shows `foldNextOpener`'s
+ * answer can name the weight that answer is relative to without re-deriving
+ * "first working set" itself. Two copies of that definition is exactly how the
+ * hint came to compare a next-session opener against the last set of a ramp.
+ * 0 when there is nothing to read.
+ */
+export function openerKgOf(ex: Exercise<LoggedSet>): number {
+  const read = readExercise(ex);
+  return read ? read.opener : 0;
+}
+
+/**
  * What the NEXT session should open this exercise at.
  *
  * The sibling of `foldExercise`, answering a different question: that one

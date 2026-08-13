@@ -313,7 +313,22 @@ describe('decideStrengthProgression — the exposure a session contributes', () 
         set('105', '5', '8', '5', '8'),
       ]),
     );
-    for (const s of sessions) expect(liftMoves(s)[0].from).toBe(105);
+    /*
+     * This asserted `liftMoves(s)[0].from === 105` until 13 August 2026, on
+     * the reading that `from` was "the set lift.ts judges". It never was the
+     * whole judgement — the walk reads EVERY set — and since the ramp fix
+     * `from` reports the opener, the weight `to` is priced off. Both sets are
+     * on target (dev = 8 − 8 = 0, dead band), so adj stays 1 and the opener
+     * holds: from 100, to 100.
+     *
+     * The agreement this test exists to pin is untouched, and now sits on the
+     * number the two layers actually share: `earnedKgFrom` reads `to`, so the
+     * field shows 100 and a 107.5 suggestion is real progress on it.
+     */
+    for (const s of sessions) {
+      expect(liftMoves(s)[0].from).toBe(100);
+      expect(liftMoves(s)[0].to).toBe(100);
+    }
 
     const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
     expect(out.action).toBe('progress_load');

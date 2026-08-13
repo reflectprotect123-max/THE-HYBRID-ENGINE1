@@ -367,6 +367,43 @@ describe('Logger', () => {
     expect(sets[1].done).toBeFalsy();
   });
 
+  it('names next session\'s OPENER at the end of a ramped exercise, with no delta against the last set', () => {
+    /*
+     * The final-set hint used to take its kilos from `foldNextOpener` — which
+     * prices next session off THIS session's opener — and its delta from the
+     * set just logged. On a flat exercise those are the same weight and the
+     * sentence reads fine. Ramp it and the two come apart:
+     *
+     *   set 1  100kg × 5, rated at the default 7.5 against a '5' @ 8 target
+     *   set 2  110kg × 5, same rating
+     *
+     * dev = 8 − 7.5 = 0.5 on both, inside the ±1 dead band, so the fold's
+     * multiplier stays 1 and next session opens at 100 × 1 = 100 — a hold.
+     * The old sentence subtracted that 100 from the 110 just logged and
+     * announced "hold — open here again — -10 kg for next session (100 kg)":
+     * a ten-kilo cut, a hold, and a weight the athlete never has to change,
+     * all in one line.
+     *
+     * There is no room at the end of a set for a delta whose reference point
+     * is off-screen, so the delta is gone and the opener is stated outright.
+     */
+    liveSession();
+    mount();
+    fireEvent.changeText(screen.getByLabelText('kg'), '100');
+    fireEvent.changeText(screen.getByLabelText('reps'), '5');
+    fireEvent.press(screen.getByText('Finish Set'));
+    fireEvent.press(screen.getByText('Confirm Set'));
+    fireEvent.press(screen.getByText('Skip rest'));
+
+    fireEvent.changeText(screen.getByLabelText('kg'), '110');
+    fireEvent.changeText(screen.getByLabelText('reps'), '5');
+    fireEvent.press(screen.getByText('Finish Set'));
+    fireEvent.press(screen.getByText('Confirm Set'));
+
+    expect(screen.getByText('hold — open here again — next session opens at 100 kg.')).toBeTruthy();
+    expect(screen.queryByText(/-10 kg/)).toBeNull();
+  });
+
   it('survives being opened with no live session instead of crashing', () => {
     // Reachable for real: finish a session on one device, then restore the
     // stack on another with the logger still on top.

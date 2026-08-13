@@ -93,7 +93,11 @@ export function strengthProgressionProposals(
       intent: 'Set the next-session working weight without changing the completed session.',
       reason: safetyReason ?? move.verdict,
       evidence: [
-        `Last working set: ${move.from} kg × ${move.reps}`,
+        // The OPENER, not the last set: `move.to` is what next session should
+        // open at, so the only weight it can be compared against is the weight
+        // this session opened at. On a ramped exercise the last set is a
+        // different number answering a different question.
+        `Opening set: ${move.from} kg × ${move.reps}`,
         `Engine adjustment: ${move.delta > 0 ? '+' : ''}${move.delta} kg`,
       ],
       confidence: safetyReason ? 'low' : 'high',

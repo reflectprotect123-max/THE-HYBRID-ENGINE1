@@ -321,3 +321,26 @@ describe('foldNextOpener', () => {
     expect(foldNextOpener(ex([{ t: '8', rpe: '8' }]), 2.5)).toBeNull();
   });
 });
+
+import { openerKgOf } from './fold';
+
+describe('openerKgOf', () => {
+  it('names the weight `foldNextOpener` prices its answer off', () => {
+    // A ramp: 100 then 120, both on target. The opener is the 100 — the same
+    // set `foldNextOpener` anchors on, which is why its answer (a hold at 100)
+    // is only comparable with THIS number and not with the 120.
+    const ramped = ex([doneSet(8), doneSet(8, { aVal: '120' })]);
+    expect(openerKgOf(ramped)).toBe(100);
+    expect(foldNextOpener(ramped, 2.5)!.kg).toBe(100);
+  });
+
+  it('skips warm-ups, exactly as the fold does', () => {
+    // A 40kg warm-up first is not what the exercise opened at.
+    const warmed = ex([doneSet(8, { t: 'W3', aVal: '40', aVal2: '3' }), doneSet(8)]);
+    expect(openerKgOf(warmed)).toBe(100);
+  });
+
+  it('is 0 when there is no working set to read', () => {
+    expect(openerKgOf(ex([]))).toBe(0);
+  });
+});

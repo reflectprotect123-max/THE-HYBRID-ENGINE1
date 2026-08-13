@@ -17,7 +17,7 @@ import { Recap } from './Recap';
  * asserting the actual destination this environment resolves to: `/home`.
  */
 
-function seedSession(id: string) {
+function seedSession(id: string, blocks: EngineDB['sessions'][number]['blocks'] = []) {
   const db: EngineDB = {
     workouts: [],
     sessions: [
@@ -25,7 +25,7 @@ function seedSession(id: string) {
         id,
         date: '2026-08-01',
         status: 'completed',
-        blocks: [],
+        blocks,
         startedAt: 1000,
         completedAt: 2000,
       },
@@ -35,12 +35,28 @@ function seedSession(id: string) {
   localStorage.setItem(LS_KEY, JSON.stringify(db));
 }
 
+/** One lift, RAMPED: 100 → 110 → 120, every set 5 reps rated at its target. */
+const rampedBlocks = (): EngineDB['sessions'][number]['blocks'] => [{
+  id: 'b1',
+  heading: 'Main',
+  exercises: [{
+    id: 'e1',
+    name: 'Back squat',
+    mode: 'reps_kg',
+    sets: [
+      { t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true },
+      { t: '5', rpe: '8', aVal: '110', aVal2: '5', felt: '8', done: true },
+      { t: '5', rpe: '8', aVal: '120', aVal2: '5', felt: '8', done: true },
+    ],
+  }],
+}];
+
 function DestinationEcho({ label }: { label: string }) {
   return <p>{label}</p>;
 }
 
-async function renderRecap(id: string) {
-  seedSession(id);
+async function renderRecap(id: string, blocks?: EngineDB['sessions'][number]['blocks']) {
+  seedSession(id, blocks);
   return render(
     <DbProvider>
       <MemoryRouter initialEntries={[`/recap/${id}`]}>
@@ -64,5 +80,24 @@ describe('Recap', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(await screen.findByText('Landed on Home')).toBeInTheDocument();
     expect(screen.queryByText('Landed on coach-bench root')).not.toBeInTheDocument();
+  });
+
+  /*
+   * The "Next session" line, on a RAMPED lift.
+   *
+   * It renders `${m.from} →` beside `${m.to}kg`, so the two have to be
+   * answers to the same question. They were not: `from` was the last working
+   * set (120) and `to` the fold's next-session opener (100), and this session
+   * — three sets, all rated exactly as asked, nothing wrong with any of them —
+   * printed "120 → 100" in red under the word hold.
+   *
+   * By hand: dev = 8 − 8 = 0 on every set, inside the ±1 dead band, so the
+   * multiplier stays 1 and 100 × 1 rounds to 100. Opener in, same opener out.
+   */
+  it('pairs the opener with next session\'s opener, not the top of the ramp', async () => {
+    await renderRecap('s2', rampedBlocks());
+    expect(await screen.findByText('100 →')).toBeInTheDocument();
+    expect(screen.getByText('100kg')).toBeInTheDocument();
+    expect(screen.queryByText('120 →')).not.toBeInTheDocument();
   });
 });

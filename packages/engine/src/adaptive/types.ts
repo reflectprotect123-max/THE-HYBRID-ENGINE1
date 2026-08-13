@@ -28,17 +28,22 @@ export type SafetyState = 'approved' | 'held' | 'reduced' | 'blocked';
  * every explainer in `explain.ts` must draw only from this union — never
  * emit a raw verdict string here even though several explainers echo that
  * same string back in the `note` field for a human to read.
+ *
+ * Nine members were removed on 13 August 2026 — `missed_rep_floor`,
+ * `way_too_light`, `too_light`, `easy`, `touch_under_target`, `on_target`,
+ * `grindy`, `max_effort`, `unclassified`. They were the per-set RPE
+ * classification emitted by `explainSetAdjustment`, which the plan-anchored
+ * fold replaced and this branch deleted. Nothing emitted them afterwards and
+ * nothing read them: no explainer, no UI switch, and no stored data — a
+ * `TrainingDecisionExplanation` is computed on demand and never persisted, and
+ * the one `reason_codes` column that IS persisted
+ * (`autocoach_receipts`, migration 20260808) is the auto-coach resolver's own
+ * disjoint vocabulary, enumerated in its own CHECK constraint. Removing a dead
+ * member is therefore not a breaking change, and leaving it would have made
+ * "closed set" a claim about the past rather than about what this engine can
+ * say today.
  */
 export type ReasonCode =
-  | 'missed_rep_floor'
-  | 'way_too_light'
-  | 'too_light'
-  | 'easy'
-  | 'touch_under_target'
-  | 'on_target'
-  | 'grindy'
-  | 'max_effort'
-  | 'unclassified'
   | 'eased_for_recovery'
   | 'at_earned_weight'
   | 'no_earned_weight'

@@ -19,6 +19,7 @@ import {
   MAX_KG,
   nextLoggerLocation,
   nextWorkingWeight,
+  openerKgOf,
   plateBreakdown,
   prefillPrimary,
   prefillSecondary,
@@ -447,6 +448,21 @@ export function Logger() {
 
       // A warm-up at RPE 4 would otherwise tell the engine to add weight, and a
       // heavy single warm-up to take it off. Neither reads working effort.
+      /*
+       * NOT REACHABLE TODAY on the web, and kept deliberately in step with
+       * mobile anyway. `confirmSet` is called from one place — `RpeStep`'s
+       * button — and that whole one-set stage renders under `!lift`, because
+       * commit 1b2353d gave lift modes the sets table instead. So on this app
+       * a lift never reaches these lines; mobile still runs them for every
+       * rated set, and `apps/mobile/src/screens/logger.test.tsx` covers the
+       * sentence they produce.
+       *
+       * Deleting the branch would make the two Loggers disagree about what
+       * the fold's two entry points mean, days before the table's own rating
+       * flow has to answer the same question. Whoever gives the table a
+       * next-session hint should take this shape with them, and delete this
+       * branch — and this note — at that point.
+       */
       if (lift && !isWarmup(dst)) {
         const weight = saneKg(dst.aVal);
         const reps = parseInt(String(dst.aVal2), 10) || 0;
@@ -456,16 +472,32 @@ export function Logger() {
           // just written above, so `dex` already counts this set as logged.
           // On the final set there is no next set, and the question becomes
           // what next session should open at.
-          const fold = isFinal
-            ? foldNextOpener(dex, AUTOREG.plateIncrement)
-            : foldFromExercise(dex, AUTOREG.plateIncrement);
-          const newWeight = fold && fold.kg > 0 ? fold.kg : weight;
-          const delta = Math.round((newWeight - weight) * 100) / 100;
-          const dtxt = delta > 0 ? '+' + delta + ' kg' : delta < 0 ? delta + ' kg' : 'hold weight';
-          nextHint = {
-            txt: `${fold ? fold.message + ' — ' : ''}${dtxt} for ${isFinal ? 'next session' : 'Set ' + (si + 2)} (${newWeight} kg).`,
-            cls: delta < 0 ? 'bad' : 'good',
-          };
+          if (isFinal) {
+            // A next-session opener is priced off THIS session's OPENER, not
+            // off the set just logged. On a ramped exercise those are two
+            // different weights, and subtracting one from the other printed
+            // things like "hold weight — −20 kg for next session (100 kg)" —
+            // a delta whose reference point was nowhere on the screen. At the
+            // end of a set there is no second number worth holding in your
+            // head, so the delta goes and the opener is stated plainly.
+            const fold = foldNextOpener(dex, AUTOREG.plateIncrement);
+            const opener = openerKgOf(dex) || weight;
+            const newWeight = fold && fold.kg > 0 ? fold.kg : opener;
+            nextHint = {
+              txt: `${fold ? fold.message + ' — ' : ''}next session opens at ${newWeight} kg.`,
+              // Against the opener, the one weight it is comparable with.
+              cls: newWeight < opener ? 'bad' : 'good',
+            };
+          } else {
+            const fold = foldFromExercise(dex, AUTOREG.plateIncrement);
+            const newWeight = fold && fold.kg > 0 ? fold.kg : weight;
+            const delta = Math.round((newWeight - weight) * 100) / 100;
+            const dtxt = delta > 0 ? '+' + delta + ' kg' : delta < 0 ? delta + ' kg' : 'hold weight';
+            nextHint = {
+              txt: `${fold ? fold.message + ' — ' : ''}${dtxt} for Set ${si + 2} (${newWeight} kg).`,
+              cls: delta < 0 ? 'bad' : 'good',
+            };
+          }
         }
       }
 

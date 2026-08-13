@@ -72,6 +72,41 @@ describe('progression proposals', () => {
     expect(proposal?.reason).toMatch(/pain/i);
   });
 
+  it('states the OPENER as its evidence on a ramped exercise, beside a delta measured from it', () => {
+    /*
+     * The bug this pins. A coach reading the card saw "Last working set: 120
+     * kg × 5" over "Engine adjustment: -20 kg" over a reason that said hold —
+     * three lines describing two different sets, on a movement where nothing
+     * had gone wrong at all.
+     *
+     * 100/110/120, every set 5 reps rated exactly at its '5' @ 8 target:
+     * dev = 8 − 8 = 0 on all three, inside the ±1 dead band, so the fold's
+     * multiplier stays 1 and next session opens at 100 × 1 = 100. The
+     * evidence must therefore name the 100, and the adjustment 0.
+     */
+    const ramped: Session = {
+      ...strengthSession(),
+      blocks: [{
+        id: 'main',
+        heading: 'Main',
+        exercises: [{
+          id: 'squat',
+          name: 'Back squat',
+          mode: 'reps_kg',
+          sets: [
+            { t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true },
+            { t: '5', rpe: '8', aVal: '110', aVal2: '5', felt: '8', done: true },
+            { t: '5', rpe: '8', aVal: '120', aVal2: '5', felt: '8', done: true },
+          ],
+        }],
+      }],
+    };
+    const [proposal] = strengthProgressionProposals(ramped, {});
+    expect(proposal.evidence).toEqual(['Opening set: 100 kg × 5', 'Engine adjustment: 0 kg']);
+    expect(proposal.direction).toBe('hold');
+    expect(proposal.after.kg).toBe(100);
+  });
+
   it('refuses to apply a proposal over a changed accepted prescription', () => {
     const [proposal] = strengthProgressionProposals(strengthSession(), {});
     const changed: Settings = { liftProgress: { 'back squat': { kg: 110, at: 3000, reps: 5 } } };

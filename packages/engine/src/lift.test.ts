@@ -35,18 +35,33 @@ const session = (exercises: Exercise<LoggedSet>[], completedAt = 5000): Session 
 const onTarget = { t: '5', rpe: '8.5', aVal: '100', aVal2: '5', felt: '8.5', done: true };
 
 describe('which set decides the next weight', () => {
-  it('judges the LAST completed working set', () => {
+  it('reads EVERY set, so a hard last set still costs weight', () => {
     const s = session([
       ex('Back squat', [
         { t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '6', done: true },
         { t: '5', rpe: '8', aVal: '105', aVal2: '5', felt: '9.5', done: true },
       ]),
     ]);
-    // Judged on the 105 at 9.5, not the 100 at 6 — a session that ramps up
-    // must not be scored on how the first set felt.
+    /*
+     * The 105 at 9.5 is in the walk, not just the 100 at 6 — a session that
+     * ramps up must not be scored on how the first set felt alone. By hand,
+     * k = kFor(5) = 2.5:
+     *   set 1: dev = 8 − 6 = +2, easy, half now → ×(1 + 2.5×2/2 / 100) = ×1.025
+     *   set 2: dev = 8 − 9.5 = −1.5, hard, in full → ×(1 − 2.5×1.5 / 100)
+     *          = ×0.9625, and the exercise LOCKS
+     *   adj = 1.025 × 0.9625 = 0.98656…
+     *   opener 100 × 0.98656 = 98.656 → /2.5 = 39.46 → 39 → 97.5
+     *
+     * `from` is the OPENER (100), not the 105 the last set was done at: it is
+     * the weight `to` is priced off, and the only one it can be subtracted
+     * from. This assertion read 105 until 13 August 2026, which is exactly the
+     * incoherence — 105 → 97.5 was a −7.5 delta between two numbers that
+     * answered different questions.
+     */
     const [m] = liftMoves(s);
-    expect(m.from).toBe(105);
-    expect(m.to).toBeLessThan(105);
+    expect(m.from).toBe(100);
+    expect(m.to).toBe(97.5);
+    expect(m.delta).toBe(-2.5);
   });
 
   it('ignores warm-ups entirely', () => {
@@ -329,4 +344,85 @@ it('does not bank a rise from an easy set that followed a hard one', () => {
     { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
   ]));
   expect(moves[0].to).toBe(97.5);
+});
+
+/*
+ * A RAMPED exercise — the case every other fixture in this file misses.
+ *
+ * Flat sets hide an entire class of bug, because on 100/100/100 the opener and
+ * the last working set are the same number and any pairing of them looks
+ * right. On 100/110/120 they are not, and `from`/`to` have to be two answers
+ * to the SAME question or the recap prints "120 → 100, hold".
+ *
+ * Every set here is 5 reps against a `'5' @ 8` target, so the rep floor is met
+ * throughout and `k = kFor(5) = 2.5`.
+ */
+const ramp = (felt: [string, string, string], reps: [string, string, string] = ['5', '5', '5']) =>
+  sessionWith([
+    { t: '5', rpe: '8', aVal: '100', aVal2: reps[0], felt: felt[0], done: true },
+    { t: '5', rpe: '8', aVal: '110', aVal2: reps[1], felt: felt[1], done: true },
+    { t: '5', rpe: '8', aVal: '120', aVal2: reps[2], felt: felt[2], done: true },
+  ]);
+
+describe('a ramped exercise', () => {
+  it('reports the opener as `from`, so `delta` is a real difference', () => {
+    // All three sets rated exactly as asked: dev = 8 − 8 = 0 every time, which
+    // is inside the ±1 dead band, so adj stays 1 and nothing locks.
+    //   opener 100 × 1 = 100 → roundToIncrement(100, 2.5) = 100
+    // from 100, to 100, delta 0 — and the verdict says hold, which now agrees
+    // with the numbers beside it. Before 13 August 2026 this same session
+    // produced from 120, to 100, delta −20, verdict "hold — open here again".
+    const [m] = liftMoves(ramp(['8', '8', '8']));
+    expect(m.from).toBe(100);
+    expect(m.to).toBe(100);
+    expect(m.delta).toBe(0);
+    expect(m.verdict).toBe('hold — open here again');
+  });
+
+  it('prices a rise off the opener, not off the top of the ramp', () => {
+    // Every set a full point easy: dev = 8 − 7 = +1, half now = 2.5×1/2 =
+    // 1.25% per set, nothing locks, three easy sets so the one-set cap does
+    // not apply (easyRun = 3, not 1).
+    //   adj = 1.0125³ = 1.037970…
+    //   100 × 1.037970 = 103.797 → /2.5 = 41.52 → 42 → 105
+    // +5 off the opener. Priced off the 120 instead it would have read
+    // 120 → 105, a five-kilo RISE printed as a fifteen-kilo drop.
+    const [m] = liftMoves(ramp(['7', '7', '7']));
+    expect(m.from).toBe(100);
+    expect(m.to).toBe(105);
+    expect(m.delta).toBe(5);
+    expect(m.verdict).toBe('two easy sets — full correction');
+  });
+
+  it('prices a back-off off the opener too', () => {
+    // Sets 1 and 2 on target (dev 0). Set 3 rated 9.5: dev = 8 − 9.5 = −1.5,
+    // harder than asked, applied in full and the exercise locks.
+    //   adj = 1 − 2.5×1.5/100 = 0.9625
+    //   100 × 0.9625 = 96.25 → /2.5 = 38.5 → 39 → 97.5
+    // A one-notch back-off is −2.5 from the opener. Measured against the 120
+    // it read −22.5, which is not a step any rule in this engine can take.
+    const [m] = liftMoves(ramp(['8', '8', '9.5']));
+    expect(m.from).toBe(100);
+    expect(m.to).toBe(97.5);
+    expect(m.delta).toBe(-2.5);
+    expect(m.verdict).toBe('backed off — harder than asked');
+  });
+
+  it('reports the reps of the SAME set `from` describes', () => {
+    // The opener is 5 reps; the top set stops at 3, missing the floor. The
+    // walk scores that miss at RPE 10.5 whatever it was rated:
+    //   dev = 8 − 10.5 = −2.5 → 2.5 × −2.5 = −6.25% (inside the 7.5% ceiling)
+    //   adj = 0.9375 → 100 × 0.9375 = 93.75 → /2.5 = 37.5 → 38 → 95
+    // `reps` must be 5, the opener's. Reporting the last set's 3 beside a
+    // `from` of 100 would describe a 100kg × 3 that nobody performed — and
+    // `liftAdapt` banks this pair into `liftProgress` as the record of what
+    // the weight was earned at.
+    const [m] = liftMoves(ramp(['8', '8', '8'], ['5', '5', '3']));
+    expect(m.from).toBe(100);
+    expect(m.reps).toBe(5);
+    expect(m.to).toBe(95);
+    expect(m.delta).toBe(-5);
+    expect(liftAdapt(ramp(['8', '8', '8'], ['5', '5', '3']), {}).liftProgress['back squat'])
+      .toEqual({ kg: 95, at: expect.any(Number), reps: 5 });
+  });
 });

@@ -41,12 +41,29 @@ function lastWorkingSet(ex: { sets: LoggedSet[] }): LoggedSet | null {
   return null;
 }
 
+/**
+ * The set `foldNextOpener` anchors on: the FIRST working set of the movement.
+ *
+ * `readExercise` inside the fold drops warm-ups and then walks the remaining
+ * sets in order, stopping at the first one that is not a completed, rated,
+ * repped set — so `logs[0]`, the opener the fold prices next session off, is
+ * always this set. Reading it the same way here is what keeps `from` and `to`
+ * two answers to the same question.
+ */
+function openingWorkingSet(ex: { sets: LoggedSet[] }): LoggedSet | null {
+  for (const st of ex.sets) if (st && !isWarmup(st)) return st;
+  return null;
+}
+
 export interface LiftMove {
   /** the movement's name as written, for display */
   name: string;
   /** lowercased, the `liftProgress` key */
   key: string;
-  /** the weight the last working set was actually done at */
+  /**
+   * the weight this session OPENED the movement at — the set `to` is priced
+   * off, so the two are comparable and `delta` means something
+   */
   from: number;
   /** what it becomes next session */
   to: number;
@@ -54,6 +71,7 @@ export interface LiftMove {
   delta: number;
   /** the same plain-language verdict the logger prints after the set */
   verdict: string;
+  /** the reps of that same opening set */
   reps: number;
 }
 
@@ -88,12 +106,11 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
       const st = lastWorkingSet(ex);
       if (!st) return;
 
-      const from = saneKg(st.aVal);
-      const reps = parseInt(String(st.aVal2), 10) || 0;
+      const lastReps = parseInt(String(st.aVal2), 10) || 0;
       // Reps are what make it a set — exLogFor/sessionVolume/epley all require
       // reps > 0. Progression used not to, so a 0-rep AMRAP (aVal2 unwritten)
       // read reps 0 and moved the working weight UP.
-      if (!(reps > 0)) return;
+      if (!(lastReps > 0)) return;
       seen.add(key);
       // `felt` is what the athlete RATED the set at; `rpe` is what was asked
       // for. Judging a set against its own target would score everything as
@@ -103,6 +120,23 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
 
       const next = foldNextOpener(ex, AUTOREG.plateIncrement);
       if (!next) return;
+
+      // WHICH set these numbers describe, and why it is not the one guarded
+      // above. The guards decide WHETHER anything was earned, and they read the
+      // last working set for that — a movement is only finished when its last
+      // set is a real, rated, repped set. What is REPORTED is a different
+      // question: `to` answers "what should this movement open at next time",
+      // priced by `foldNextOpener` off THIS session's opener. So `from` must be
+      // that same opener, and `reps` its reps.
+      //
+      // On a flat exercise the two sets coincide. On a ramp they do not, and
+      // reading `from` off the last set produced 120 → 100 labelled "hold —
+      // open here again": a −20kg delta between two numbers that were never
+      // answers to the same question.
+      const open = openingWorkingSet(ex);
+      if (!open) return;
+      const from = saneKg(open.aVal);
+      const reps = parseInt(String(open.aVal2), 10) || 0;
       out.push({ name, key, from, to: next.kg, delta: Math.round((next.kg - from) * 100) / 100, verdict: next.message, reps });
     });
   });

@@ -29,7 +29,7 @@ function strengthProposal(over: Partial<StrengthProgressionProposal> = {}): Stre
     status: 'pending',
     intent: 'Set the next-session working weight without changing the completed session.',
     reason: 'Completed at RPE 7, engine adjusted +2.5kg.',
-    evidence: ['Last working set: 100 kg × 5'],
+    evidence: ['Opening set: 100 kg × 5'],
     confidence: 'high',
     dataLimitations: [],
     ruleVersion: 'progression-proposal-v1',

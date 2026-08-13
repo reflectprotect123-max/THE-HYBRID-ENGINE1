@@ -20,6 +20,7 @@ import {
   MAX_KG,
   nextLoggerLocation,
   nextWorkingWeight,
+  openerKgOf,
   plateBreakdown,
   prefillPrimary,
   prefillSecondary,
@@ -368,16 +369,32 @@ export function LoggerScreen({ route, navigation }: Props) {
           // just written above, so `dex` already counts this set as logged.
           // On the final set there is no next set, and the question becomes
           // what next session should open at.
-          const fold = isFinal
-            ? foldNextOpener(dex, AUTOREG.plateIncrement)
-            : foldFromExercise(dex, AUTOREG.plateIncrement);
-          const newWeight = fold && fold.kg > 0 ? fold.kg : weight;
-          const delta = Math.round((newWeight - weight) * 100) / 100;
-          const dtxt = delta > 0 ? `+${delta} kg` : delta < 0 ? `${delta} kg` : 'hold weight';
-          nextHint = {
-            txt: `${fold ? fold.message + ' — ' : ''}${dtxt} for ${isFinal ? 'next session' : 'Set ' + (si + 2)} (${newWeight} kg).`,
-            cls: delta < 0 ? 'bad' : 'good',
-          };
+          if (isFinal) {
+            // A next-session opener is priced off THIS session's OPENER, not
+            // off the set just logged. On a ramped exercise those are two
+            // different weights, and subtracting one from the other printed
+            // things like "hold weight — −20 kg for next session (100 kg)" —
+            // a delta whose reference point was nowhere on the screen. At the
+            // end of a set there is no second number worth holding in your
+            // head, so the delta goes and the opener is stated plainly.
+            const fold = foldNextOpener(dex, AUTOREG.plateIncrement);
+            const opener = openerKgOf(dex) || weight;
+            const newWeight = fold && fold.kg > 0 ? fold.kg : opener;
+            nextHint = {
+              txt: `${fold ? fold.message + ' — ' : ''}next session opens at ${newWeight} kg.`,
+              // Against the opener, the one weight it is comparable with.
+              cls: newWeight < opener ? 'bad' : 'good',
+            };
+          } else {
+            const fold = foldFromExercise(dex, AUTOREG.plateIncrement);
+            const newWeight = fold && fold.kg > 0 ? fold.kg : weight;
+            const delta = Math.round((newWeight - weight) * 100) / 100;
+            const dtxt = delta > 0 ? `+${delta} kg` : delta < 0 ? `${delta} kg` : 'hold weight';
+            nextHint = {
+              txt: `${fold ? fold.message + ' — ' : ''}${dtxt} for Set ${si + 2} (${newWeight} kg).`,
+              cls: delta < 0 ? 'bad' : 'good',
+            };
+          }
         }
       }
       ds.updatedAt = Date.now();

@@ -125,8 +125,8 @@ export function Recap() {
               ))}
             </ul>
             <p className="mt-1 border-t border-line pt-1 text-2 text-dim">
-              From your last working set of each lift. It is what the weight field starts at next time — not a rule,
-              and a red recovery morning eases it further.
+              The weight you opened each lift at, and what it opens at next time — the same set, one session apart.
+              It is what the weight field starts at — not a rule, and a red recovery morning eases it further.
             </p>
           </Card>
         </>
