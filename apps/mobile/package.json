@@ -3,7 +3,7 @@
   "version": "2.14.0",
   "private": true,
   "main": "index.js",
-  "//": "Expo SDK 54 \u2014 RN 0.81 on React 19, so the whole monorepo stays on one React major. SDK 52 predates React 19 and would have forced a second React version into the workspace.",
+  "//": "Expo SDK 54 — RN 0.81 on React 19, so the whole monorepo stays on one React major. SDK 52 predates React 19 and would have forced a second React version into the workspace.",
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",
@@ -14,6 +14,8 @@
     "build": "tsc -p tsconfig.json --noEmit",
     "test": "jest",
     "bundle": "expo export --platform android --output-dir .expo-export",
+    "//parity": "Exports the parity harness \u2014 src/root.web.tsx, and nothing that imports src/App. Consumed by the two parity gates, which serve the output as a static site.",
+    "parity:build": "expo export --platform web --output-dir .expo-parity",
     "ios": "expo run:ios"
   },
   "dependencies": {
@@ -58,6 +60,7 @@
     "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
+    "@expo/metro-runtime": "~6.1.2",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.0",
@@ -65,6 +68,8 @@
     "eas-cli": "^21.3.0",
     "jest": "~29.7.0",
     "jest-expo": "~54.0.17",
+    "react-dom": "19.1.0",
+    "react-native-web": "^0.21.2",
     "react-test-renderer": "19.1.0",
     "typescript": "^5.9.3"
   }

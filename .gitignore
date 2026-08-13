@@ -52,3 +52,9 @@ apps/*/vite.config.js
 # next to them the first time a skill invokes one. Artefacts, never sources.
 __pycache__/
 *.pyc
+
+# Expo export output. `.expo-export` is the android bundle the release path
+# builds; `.expo-parity` is the web export of the parity harness that
+# checks/parity-harness.mjs serves. Both are regenerated, never committed.
+apps/mobile/.expo-export/
+apps/mobile/.expo-parity/

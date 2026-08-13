@@ -1,4 +1,6 @@
 import { registerRootComponent } from 'expo';
-import { App } from './src/App';
+import { Root } from './src/root';
 
-registerRootComponent(App);
+// Extensionless on purpose — Metro resolves `./src/root` to `root.web.tsx` for
+// the parity harness and `root.tsx` for android/ios. See `src/root.tsx`.
+registerRootComponent(Root);
