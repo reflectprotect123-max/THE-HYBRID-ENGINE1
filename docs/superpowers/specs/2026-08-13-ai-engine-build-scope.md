@@ -1,7 +1,8 @@
 # AI as the prescribing engine — build scope
 
 **Status:** scope, not a design and not built. Written 13 August 2026.
-**Split across three tools:** Claude (in-repo), ChatGPT (model layer), Codex (service layer).
+**Split across four tools:** Claude (in-repo contract), ChatGPT (model layer),
+Codex (service layer), Gemini (evidence base).
 
 ---
 
@@ -137,22 +138,82 @@ recording it.
 
 ---
 
+---
+
+### Stream D — the evidence base (Gemini)
+
+Added 13 August 2026 at the owner's suggestion, and it closed a real hole
+rather than adding a nice-to-have. Stream B grounds the model in THIS APP's
+golden vectors — what the deterministic engine already does. Nothing in the
+original three streams grounds it in training science, so a model asked to
+prescribe better than the engine had no basis on which to be better.
+
+Suited to a long-context tool, and it touches no source at all, so it has zero
+collision surface and can start immediately — it is the only stream that does
+not wait on A's schema.
+
+**Owns:** `docs/ai/evidence/`. Writes no code, no prompt, no decision.
+
+**Deliverables**
+
+1. A structured, **cited** knowledge base — not prose. Every claim is a record
+   with the assertion, the bounds it implies, its source, and the strength of
+   that source. "Typical weekly load progression for a developing lifter is
+   2–10%" is a usable record. A paragraph about periodisation is not.
+2. The **bounds table**, which is the deliverable that actually matters: for
+   each thing the model may prescribe, the range the literature supports.
+   This feeds Stream A's validator directly and is the point of the whole
+   stream — it is how "in-bounds" stops being a number someone guessed.
+3. Exercise and modality reference reconciled against the app's own catalogue
+   (`packages/engine/src/catalogue.ts`), so the model cannot prescribe a
+   movement the app does not have.
+4. Conflicts stated, not resolved. Where sources disagree — and on
+   concurrent-training interference they very much do — the record carries both
+   positions. A knowledge base that hides disagreement produces a model that is
+   confident about contested things.
+5. Provenance and licence per source. This is a commercial product; what may be
+   ingested, quoted or redistributed is a real question and the answer belongs
+   beside the material, not in someone's memory.
+
+**Hard limits, same rule as every other layer here**
+
+- **It decides nothing.** It supplies bounds and facts. Stream A's validator
+  enforces, the coach or Coordinator places, the safety layer overrides.
+- **Nothing enters a prompt uncited.** An assertion without a source does not
+  go in the file, which means it cannot reach the model.
+- The repo already has ingestion tooling with provenance built in
+  (`wiki-ingest`, and the claude-obsidian family in `skills.md`) — use it
+  rather than inventing a second one.
+
+**Done when:** the bounds table covers every field of `AiPrescription`, every
+record carries a source, and Stream A can import it as the validator's limits
+instead of hard-coded constants.
+
+---
+
 ## Sequencing
 
 ```
+D (evidence + bounds) ─────────────────────┐   starts now, blocks nobody
+                                           ▼
 A (schema + validator + harness)  ──┬──▶  B (prompts, evaluated by A's harness)
         freeze the schema           └──▶  C (service, built to A's schema)
                                              │
                                     A's eval gate ──▶ ship or don't
 ```
 
+D feeding A is what turns the validator's bounds from a guess into something
+defensible. A can begin with placeholder constants, but must not SHIP with
+them — that is the seam where the two streams meet.
+
 ## Handoff rules between the three tools
 
 Learned the hard way, and non-negotiable if three tools work in one repo:
 
-- **One owner per path.** A owns `packages/ai-prescription/`, B owns `docs/ai/`,
-  C owns `supabase/functions/prescribe/` plus its two client modules. No file
-  is written by two streams.
+- **One owner per path.** A owns `packages/ai-prescription/`, B owns `docs/ai/`
+  except `evidence/`, C owns `supabase/functions/prescribe/` plus its two
+  client modules, D owns `docs/ai/evidence/`. No file is written by two
+  streams. B reads D's evidence; it does not edit it.
 - **The schema is a file, not a message.** B and C import A's type. They never
   keep their own copy of the shape — a second copy drifts, silently.
 - **Nobody weakens a check to make their part pass.** If C's timeout makes the
