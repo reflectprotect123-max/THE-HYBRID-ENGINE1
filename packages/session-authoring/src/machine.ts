@@ -109,7 +109,23 @@ export function reduce(session: Session, run: RunState, action: Action): { sessi
         ),
       };
       const nextSession = withBlock(session, run.blockIndex, completed);
-      return { session: nextSession, run };
+      /*
+       * The last piece ends the block, and the block ending has to be SAID.
+       *
+       * `restAfter` is no use here: it is written against `nextUp`, which is
+       * empty for a prep block by design, so asking it would return a page
+       * turn after every piece rather than after the last one. `nextPiece` is
+       * the prep block's own queue and is the honest question.
+       *
+       * A prep block never opens a timed rest — a piece is not a set and
+       * carries no rest — so the only thing that can follow it is the page
+       * turn. Without this, finishing a warm-up left the athlete on a
+       * finished block with nothing on screen saying so and no way forward,
+       * which is what the parity harness caught: the driver went looking for
+       * `rest-go` and found nothing there.
+       */
+      const rest = nextPiece(completed) ? run.rest : { left: 0, total: 0, kind: 'block' as const };
+      return { session: nextSession, run: { ...run, rest } };
     }
 
     case 'rotate': {

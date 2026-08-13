@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import type { Action, HotSet } from '@hybrid/session-authoring';
+import type { Action, RoundSet } from '@hybrid/session-authoring';
 import { useLoggerStyles } from './styles';
 
 /*
@@ -8,10 +8,18 @@ import { useLoggerStyles } from './styles';
  *
  * A piece is a prep movement, not a working set: nothing here may reach a
  * working weight or an e1RM, so unlike `HotCard` this file renders no rating
- * chips and reads no `hot.message` — that field is the coaching fold speaking,
- * and a piece has nothing for the fold to judge. `hot` is `useSession`'s own
- * view, read here ONLY for the two fields a piece actually has: its name and
- * its authored target.
+ * chips and no coaching line.
+ *
+ * It is handed a `RoundSet` rather than a `HotSet`, and that is the whole
+ * point rather than a convenience. `sessionView` deliberately leaves `hot`
+ * NULL for a prep block — `hot` carries the fold's word on a set, and a piece
+ * has nothing for the fold to judge — so a card that waited for a matching
+ * `HotSet` before rendering waited forever, and the live piece simply never
+ * appeared. It could not be seen until something drove the real screens over
+ * a real prep block, which is what the parity harness is for. Taking the
+ * `RoundSet` fixes the defect and makes the rule structural at the same time:
+ * this component cannot read a coaching message, because it is never given
+ * one.
  *
  * Completion is `completePiece`, not `logSet`. The web body of this card
  * predated that action and had to satisfy `logSet`'s felt-rating gate by
@@ -31,20 +39,20 @@ import { useLoggerStyles } from './styles';
 const fmtSecs = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
 
 export function PieceCard({
-  hot,
+  piece,
   mode,
   dispatch,
 }: {
-  /** `useSession`'s `view.hot` for this piece. `message` is deliberately
-   *  never rendered. */
-  hot: HotSet;
-  /** `block.exercises[hot.exerciseIndex].mode` — only `'seconds'` gets a
+  /** The live row from `view.rounds` — its name and its authored target are
+   *  the only two fields a piece has. */
+  piece: RoundSet;
+  /** `block.exercises[piece.exerciseIndex].mode` — only `'seconds'` gets a
    *  clock. */
   mode: string;
   dispatch: (action: Action) => void;
 }) {
   const st = useLoggerStyles();
-  const target = parseInt(hot.planned.reps, 10) || 0;
+  const target = parseInt(piece.planned.reps, 10) || 0;
   const timed = mode === 'seconds' && target > 0;
 
   const [left, setLeft] = useState(target);
@@ -72,14 +80,14 @@ export function PieceCard({
   return (
     <View style={st.card}>
       <Text testID="hot-name" style={st.hotName}>
-        {hot.exerciseName}
+        {piece.exerciseName}
       </Text>
 
       {/* A timed piece's target IS the big clock — printing it twice is noise,
           the same call the prototype's `renderWarm` makes. */}
       {timed ? null : (
         <Text testID="hot-presc" style={st.hotPresc}>
-          {hot.planned.reps}
+          {piece.planned.reps}
         </Text>
       )}
 

@@ -1,6 +1,6 @@
 import { AUTOREG, RECOVERY_BANDS } from './constants';
 import { isWarmup, loadPctOf } from './autoreg';
-import { foldNextOpener } from './fold';
+import { foldNextOpener, incrementFor } from './fold';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
 import { blockExercises, exBest, isLiftMode, isWarmupBlock } from './session';
@@ -118,7 +118,7 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
       const felt = parseFloat(String(st.felt));
       if (!Number.isFinite(felt)) return;
 
-      const next = foldNextOpener(ex, AUTOREG.plateIncrement);
+      const next = foldNextOpener(ex, incrementFor(ex));
       if (!next) return;
 
       // WHICH set these numbers describe, and why it is not the one guarded

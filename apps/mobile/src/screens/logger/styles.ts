@@ -58,7 +58,11 @@ function build(color: Palette) {
 
     receipt: { flexDirection: 'row', alignItems: 'center', gap: s[1], borderRadius: radius.md, borderWidth: 1, borderColor: color.line, backgroundColor: color.well, paddingHorizontal: s.three, paddingVertical: s[1], marginVertical: s.half },
     receiptTick: { width: 20, height: 20, borderRadius: radius.pill, borderWidth: 1, borderColor: color.doneLine, backgroundColor: color.doneBg, alignItems: 'center', justifyContent: 'center' },
-    receiptTickInk: { fontFamily: font.bold, fontSize: fontSize[2], color: color.doneInk },
+    /* The tick, as two rotated bars — see `Tick` in BlockScreen.tsx for why it
+       must not be a text glyph. */
+    tick: { width: 12, height: 12, alignItems: 'center', justifyContent: 'center' },
+    tickShort: { position: 'absolute', width: 2, height: 5, borderRadius: 1, backgroundColor: color.doneInk, transform: [{ rotate: '-45deg' }], left: 2, top: 5 },
+    tickLong: { position: 'absolute', width: 2, height: 10, borderRadius: 1, backgroundColor: color.doneInk, transform: [{ rotate: '45deg' }], left: 6, top: 1 },
     receiptLabel: { flex: 1, fontFamily: font.med, fontSize: fontSize[4], color: color.muted },
     receiptValue: { fontFamily: font.reg, fontSize: fontSize[3], color: color.doneInk },
 

@@ -16,6 +16,28 @@ describe('openDraft', () => {
     expect(openDraft(b, { exerciseIndex: 0, setIndex: 1 }).kg).toBe(100);
   });
 
+  /*
+   * A dumbbell rack moves in 2kg, not in the barbell's 2.5. Before
+   * `Exercise.inc` existed, every movement rounded to the one global
+   * increment and a 12kg dumbbell's next step was priced at 12.5 — a weight
+   * that is not on the rack. Caught by the parity harness, which drove the
+   * prototype's own per-exercise increments through the real screens.
+   */
+  it("rounds to the exercise's own increment when it has one", () => {
+    const b = one([done('12', '10', '7'), { t: '10', rpe: '8' }]);
+    b.exercises[0].inc = 2;
+    // One easy set earns 1%: 12 × 1.01 = 12.12, which rounds to the nearest
+    // 2kg the rack actually has — 12, i.e. the same dumbbell again.
+    expect(openDraft(b, { exerciseIndex: 0, setIndex: 1 }).kg).toBe(12);
+  });
+
+  it('falls back to the global increment when the exercise carries none', () => {
+    const b = one([done('12', '10', '7'), { t: '10', rpe: '8' }]);
+    // The same 12.12, rounded to the barbell's 2.5 instead — 12.5, a dumbbell
+    // that does not exist. That divergence is the whole reason `inc` does.
+    expect(openDraft(b, { exerciseIndex: 0, setIndex: 1 }).kg).toBe(12.5);
+  });
+
   it('opens at the planned reps, so the common case is one tap', () => {
     const b = one([{ t: '8', rpe: '8' }]);
     expect(openDraft(b, { exerciseIndex: 0, setIndex: 0 }).reps).toBe(8);

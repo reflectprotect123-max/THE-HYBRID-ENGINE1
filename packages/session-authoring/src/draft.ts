@@ -1,4 +1,4 @@
-import { AUTOREG, foldFromExercise, repFloorOf, type LoggedSet, type StrengthBlock } from '@hybrid/engine';
+import { foldFromExercise, incrementFor, repFloorOf, type LoggedSet, type StrengthBlock } from '@hybrid/engine';
 import type { QueueItem } from './queue';
 
 /** What the athlete is entering for the set in front of them. */
@@ -21,7 +21,7 @@ export interface Draft {
 export function openDraft(block: StrengthBlock<LoggedSet>, item: QueueItem): Draft {
   const ex = block.exercises[item.exerciseIndex];
   const st = ex.sets[item.setIndex];
-  const folded = foldFromExercise(ex, AUTOREG.plateIncrement);
+  const folded = foldFromExercise(ex, incrementFor(ex));
   const isMax = /max/i.test(st.t || '');
   return {
     kg: folded ? folded.kg : 0,

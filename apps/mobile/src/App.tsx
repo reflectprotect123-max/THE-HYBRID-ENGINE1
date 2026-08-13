@@ -30,7 +30,7 @@ import { WhoopProvider } from './cloud/whoop';
 import { Concept2Provider } from './cloud/concept2';
 import { HomeScreen } from './screens/Home';
 import { TrainingScreen } from './screens/Training';
-import { LoggerScreen } from './screens/Logger';
+import { SessionLogger } from './screens/logger/SessionLogger';
 import { SettingsScreen } from './screens/Settings';
 import { LibraryScreen } from './screens/Library';
 import { ProgressScreen } from './screens/Progress';
@@ -85,7 +85,10 @@ export type TabParams = {
 
 export type RootStackParams = {
   Tabs: NavigatorScreenParams<TabParams> | undefined;
-  Logger: { bi: number; ei: number };
+  /* No params. The round-major logger owns block navigation itself — it
+     opens on the active session and moves by its own block strip, so there
+     is no exercise for a caller to address. */
+  Logger: undefined;
   Planner: { id: string };
   GuidedBuilder: { id: string };
   Recap: { id: string };
@@ -319,7 +322,16 @@ function AppInner() {
               ) : (
                 <Stack.Navigator screenOptions={stackOptions}>
                   <Stack.Screen name="Tabs" component={TabNav} />
-                  <Stack.Screen name="Logger" component={LoggerScreen} />
+                  {/* Wrapped rather than passed straight through, so the
+                      empty state's way back is the navigator's — the logger
+                      itself is rendered by the parity harness too, where
+                      there is no NavigationContainer for a useNavigation to
+                      resolve against. */}
+                  <Stack.Screen name="Logger">
+                    {({ navigation }) => (
+                      <SessionLogger onLeave={() => navigation.navigate('Tabs', { screen: 'Train' })} />
+                    )}
+                  </Stack.Screen>
                   <Stack.Screen name="Planner" component={PlannerScreen} />
                   <Stack.Screen name="GuidedBuilder" component={GuidedBuilderScreen} />
                   <Stack.Screen name="Recap" component={RecapScreen} />

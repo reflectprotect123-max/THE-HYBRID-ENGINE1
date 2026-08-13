@@ -39,6 +39,19 @@
  *    because the prototype builds its own `session` in-page.
  */
 import { LS_KEY } from '../../packages/engine/src/constants.ts';
+import { toEngineSession } from './session-fixture.mjs';
+
+/*
+ * One hook, two attribute names.
+ *
+ * The prototype is hand-written HTML and spells its hooks `data-parity`. The
+ * app is React Native: the only hook a React Native element can carry is
+ * `testID`, and react-native-web renders that as `data-testid`. The VALUES are
+ * identical by contract — `hot-why` is `hot-why` on both — so matching either
+ * attribute is not a loosening of the gate, it is the same vocabulary spoken
+ * in the two spellings the two platforms have.
+ */
+export const hookSel = (hook) => `[data-parity="${hook}"], [data-testid="${hook}"]`;
 
 /** Where the run phase lands once a session is already active — the same
  *  `/log/:bi/:ei` route the existing (soon to be replaced) Logger renders
@@ -48,19 +61,6 @@ import { LS_KEY } from '../../packages/engine/src/constants.ts';
  *  to change when that lands — only if the route itself does. */
 export const LOGGER_ROUTE = '/log/0/0';
 
-/** Turns the bare `session` the prototype produces (`checks/fixtures/
- *  session.json`: `{ name, blocks, … }`, no `id`/`date`/`status`) into the
- *  one `Session` the app's `EngineDB` expects to find as `activeSession` —
- *  filling only the fields the fixture doesn't carry, never overwriting
- *  what it does. */
-function toActiveSession(session) {
-  return {
-    id: 'parity-session',
-    date: new Date().toISOString().slice(0, 10),
-    status: 'active',
-    ...session,
-  };
-}
 
 /** Writes `session` into `targetUrl`'s storage as the app's one active
  *  session, then navigates to `LOGGER_ROUTE`. `targetUrl` must already be
@@ -68,12 +68,17 @@ function toActiveSession(session) {
  *  write `localStorage` against, then a second to the logger route itself. */
 export async function seedAndGoToLogger(page, targetUrl, session) {
   await page.goto(targetUrl);
-  const db = { workouts: [], sessions: [toActiveSession(session)], settings: {} };
+  const db = { workouts: [], sessions: [toEngineSession(session)], settings: {} };
   await page.evaluate(
     ({ key, value }) => window.localStorage.setItem(key, value),
     { key: LS_KEY, value: JSON.stringify(db) },
   );
   await page.goto(new URL(LOGGER_ROUTE, targetUrl).toString());
+  /* The prototype is a static page and is ready the moment it loads; a real
+     app has to boot a JS bundle and mount first. Without this the very first
+     action fires against an empty body and the run dies reporting a missing
+     hook, which reads like a defect in the screen rather than a race. */
+  await page.waitForSelector('[data-parity], [data-testid]', { timeout: 15_000 });
 }
 
 /** Keeps only the baseline trace entries recorded by a step whose own
@@ -88,7 +93,7 @@ export function filterTraceByPhase(baseline, steps, phase) {
 
 async function execAction(page, action, label) {
   if (action.type === 'click') {
-    const loc = page.locator(`[data-parity="${action.hook}"]`);
+    const loc = page.locator(hookSel(action.hook));
     if ((await loc.count()) === 0) {
       throw new Error(`missing hook \`${action.hook}\` at step \`${label}\``);
     }
@@ -96,7 +101,7 @@ async function execAction(page, action, label) {
     return;
   }
   if (action.type === 'fill') {
-    const loc = page.locator(`[data-parity="${action.hook}"]`);
+    const loc = page.locator(hookSel(action.hook));
     if ((await loc.count()) === 0) {
       throw new Error(`missing hook \`${action.hook}\` at step \`${label}\``);
     }
@@ -111,7 +116,7 @@ async function execAction(page, action, label) {
  *  strength card genuinely has no `hot-kg` either. `null` records that
  *  honestly rather than papering over it. */
 async function readOptionalText(page, hook) {
-  const loc = page.locator(`[data-parity="${hook}"]`);
+  const loc = page.locator(hookSel(hook));
   if ((await loc.count()) === 0) return null;
   const el = loc.first();
   const tag = await el.evaluate((n) => n.tagName);
@@ -128,11 +133,25 @@ async function readHot(page) {
   return { name, presc, why, kg };
 }
 
+/** Receipts, scoped to ONE block's screen.
+ *
+ *  Every block screen sits in the prototype's DOM at once (a carousel), so a
+ *  bare `[data-parity="receipt-0"]` would match the first receipt of EVERY
+ *  block. Each recorded step names which block was active, and the receipts
+ *  are read from within that block's screen only.
+ *
+ *  Scoped by the `blockscreen-<i>` HOOK rather than by `#track >
+ *  .blockscreen:nth-of-type(n)`, which was the prototype's own private
+ *  markup: a rebuilt app has no `#track` and no `.blockscreen`, so that
+ *  selector matched nothing and the driver reported an empty receipt list for
+ *  every step — silently agreeing with itself while measuring nothing. An app
+ *  that shows one block at a time carries the hook only on the block on
+ *  screen, which is the same block every recorded step names. */
 async function readReceipts(page, blockIndex) {
   if (blockIndex == null) return [];
-  const scope = page.locator(`#track > .blockscreen:nth-of-type(${blockIndex + 1})`);
+  const scope = page.locator(hookSel(`blockscreen-${blockIndex}`));
   if ((await scope.count()) === 0) return [];
-  const items = scope.locator('[data-parity^="receipt-"]');
+  const items = scope.locator('[data-parity^="receipt-"], [data-testid^="receipt-"]');
   const n = await items.count();
   const out = [];
   for (let i = 0; i < n; i++) {

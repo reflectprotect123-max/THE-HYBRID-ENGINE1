@@ -1,20 +1,32 @@
 import { View } from 'react-native';
+import { ThemeProvider } from '@hybrid/design';
+import { SessionLogger } from '../src/screens/logger/SessionLogger';
 
 /*
  * The parity harness.
  *
  * Reached only through `src/root.web.tsx`, which is only in the module graph
- * when Metro bundles for web. Its job is to mount the app's REAL logger over
- * the fixed session in `checks/fixtures/session.json` so the two browser-driven
- * parity gates can judge it. See `README.md` beside this file.
+ * when Metro bundles for web. It mounts the app's REAL logger — the same
+ * `SessionLogger` the navigator renders — over the session
+ * `checks/parity/drive.mjs` seeds into storage, so the two browser-driven
+ * parity gates can judge it.
  *
- * Until the logger exists (task 7 of the mobile-logger plan points this at it),
- * the harness mounts its own liveness marker instead. That marker is not a
- * placeholder standing in for shipped code: it lives outside `src/`, it can
- * never reach the android bundle, and it exists so that task 1 can prove the
- * one assumption everything downstream rests on — that a React Native `testID`
- * really does arrive in the DOM as `data-testid` through react-native-web.
+ * What is deliberately absent: the navigator, the tab bar, the safe-area
+ * insets and every provider the app wraps itself in. The logger reads none of
+ * them — its one seam on the app is `src/screens/logger/bridge.ts`, and the
+ * web resolution of that file supplies the session and no-ops the rest. What
+ * IS here is `ThemeProvider`, because the screens read `useTheme()` for every
+ * colour and an unwrapped consumer would silently take the strength palette
+ * from the context default rather than because anything chose it.
+ *
+ * See `README.md` beside this file for what this proves and what it does not.
  */
 export function Harness() {
-  return <View testID="parity-harness-ready" />;
+  return (
+    <ThemeProvider world="strength">
+      <View testID="parity-harness-ready" style={{ flex: 1 }}>
+        <SessionLogger />
+      </View>
+    </ThemeProvider>
+  );
 }

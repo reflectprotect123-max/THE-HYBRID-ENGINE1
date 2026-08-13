@@ -118,6 +118,42 @@ describe('completePiece', () => {
     reduce(sess, initialRun(sess), { type: 'completePiece' });
     expect(JSON.stringify(sess)).toBe(snapshot);
   });
+
+  /*
+   * A prep block ends with a page turn, and a piece never opens a timed rest.
+   * Missing, the athlete finished a warm-up and was left on a block with
+   * nothing owed, nothing on screen saying it had ended, and no way forward —
+   * found by driving the real screens through the parity harness.
+   */
+  const twoPieces = (): StrengthBlock<LoggedSet> => ({
+    id: 'w2',
+    warmup: true,
+    exercises: [
+      { id: 'e0', name: 'Row', mode: 'seconds', sets: [{ t: '60', rpe: '' }] },
+      { id: 'e1', name: 'Air Squats', mode: 'reps', sets: [{ t: '12', rpe: '' }] },
+    ],
+  });
+
+  it('opens no rest while a piece is still owed', () => {
+    const sess = session([twoPieces()]);
+    const st = reduce(sess, initialRun(sess), { type: 'completePiece' });
+    expect(st.run.rest).toBeNull();
+  });
+
+  it('turns the page once the last piece is done', () => {
+    const sess = session([twoPieces()]);
+    const first = reduce(sess, initialRun(sess), { type: 'completePiece' });
+    const second = reduce(first.session, first.run, { type: 'completePiece' });
+    expect(second.run.rest).toEqual({ left: 0, total: 0, kind: 'block' });
+  });
+
+  it('never opens a timed rest for a piece, whatever the block carries', () => {
+    const withRest = twoPieces();
+    withRest.exercises[0].rest = 90;
+    const sess = session([withRest]);
+    const first = reduce(sess, initialRun(sess), { type: 'completePiece' });
+    expect(first.run.rest).toBeNull();
+  });
 });
 
 describe('addSet', () => {

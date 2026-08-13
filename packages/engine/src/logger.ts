@@ -1,6 +1,6 @@
 import { isWarmup, repTopOf } from './autoreg';
 import { AUTOREG } from './constants';
-import { foldFromExercise } from './fold';
+import { foldFromExercise, incrementFor } from './fold';
 import { nextWorkingWeight, prescribedKg } from './lift';
 import { blockExercises, isCond, isLiftMode, isText } from './session';
 import type { AnySet, Block, Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
@@ -214,7 +214,7 @@ export function prefillPrimary(
      * holds, since that fixture's previous set was never rated.
      */
     if (isLiftMode(ex.mode) && !warm && p.done) {
-      const folded = foldFromExercise(ex, AUTOREG.plateIncrement);
+      const folded = foldFromExercise(ex, incrementFor(ex));
       if (folded && folded.kg > 0) return String(folded.kg);
     }
     return p.aVal;

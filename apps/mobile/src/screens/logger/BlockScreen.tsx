@@ -32,24 +32,42 @@ const isSupersetRound = (round: RoundView) => round.sets.length > 1;
 const roundStarted = (round: RoundView) => round.sets.some((s) => s.status === 'done');
 const roundIsLive = (round: RoundView) => round.sets.some((s) => s.status === 'live');
 
-/** `L.kg × L.reps @ L.felt`, the prototype's receipt line, off `RoundSet.logged`. */
+/**
+ * The receipt line, off `RoundSet.logged` — `60 kg × 10 @ 7`.
+ *
+ * Three details are the prototype's, each of which the behaviour gate caught
+ * this file getting wrong: the unit is separated from the number by a SPACE,
+ * the `×` appears only when there is a load for the reps to multiply (a
+ * bodyweight set reads `10 @ 8`, not `× 10 @ 8`), and the rating is appended
+ * only when there is one.
+ */
 function receiptValue(ex: { mode: string }, logged: NonNullable<RoundSet['logged']>): string {
+  const loaded = logged.kg > 0;
   const parts: string[] = [];
-  if (logged.kg) parts.push(`${logged.kg}${isLiftMode(ex.mode) ? 'kg' : ''}`);
-  if (logged.reps) parts.push(`× ${logged.reps}`);
+  if (loaded) parts.push(`${logged.kg}${isLiftMode(ex.mode) ? ' kg' : ''}`);
+  if (logged.reps) parts.push(loaded ? `× ${logged.reps}` : `${logged.reps}`);
   const load = parts.join(' ');
   return logged.felt ? (load ? `${load} @ ${logged.felt}` : `@ ${logged.felt}`) : load;
 }
 
-/** A piece's target for a done/upcoming row — a `'seconds'` piece is authored
- *  as a bare number of seconds, so it reads as time; every other mode reads as
- *  written. */
+/**
+ * A piece's target for a done or upcoming row.
+ *
+ * A `'seconds'` piece is authored as a bare number of seconds and reads as a
+ * CLOCK — `60` is `1:00`, the same `fmt` the prototype's `renderWarm` applies
+ * to `it.secs` and the same face the live piece's own countdown shows. Every
+ * other mode reads exactly as written.
+ */
 function pieceTarget(mode: string, text: string): string {
-  return mode === 'seconds' ? `${text}s` : text;
+  if (mode !== 'seconds') return text;
+  const secs = parseInt(text, 10);
+  if (!Number.isFinite(secs)) return text;
+  return `${Math.floor(secs / 60)}:${String(Math.max(0, secs) % 60).padStart(2, '0')}`;
 }
 
 export function BlockScreen({
   block,
+  blockIndex,
   title,
   rounds,
   onRotate,
@@ -58,6 +76,11 @@ export function BlockScreen({
   dispatch,
 }: {
   block: StrengthBlock<LoggedSet>;
+  /** Which block this is in the session. Carried as the `blockscreen-<i>`
+   *  hook, which is how `checks/parity/drive.mjs` scopes `receipt-<i>` to one
+   *  block: the prototype holds every block screen in the DOM at once, so a
+   *  bare `receipt-0` would match the first receipt of every block. */
+  blockIndex: number;
   /** The block's title, from the hook's own `BlockView.title` — a superset's
    *  "Press + Raise" join stays in one place. */
   title: string;
@@ -78,7 +101,7 @@ export function BlockScreen({
   const pieces = warmup ? rounds.flatMap((round) => round.sets) : [];
 
   return (
-    <View style={st.block}>
+    <View testID={`blockscreen-${blockIndex}`} style={st.block}>
       <Text style={st.blockTitle}>{title}</Text>
       {warmup ? (
         <Text style={st.blockNote}>
@@ -98,7 +121,7 @@ export function BlockScreen({
               return (
                 <View key={key} testID={testID} style={st.receipt}>
                   <View style={st.receiptTick}>
-                    <Text style={st.receiptTickInk}>✓</Text>
+                    <Tick />
                   </View>
                   <Text numberOfLines={1} style={st.receiptLabel}>
                     {set.exerciseName}
@@ -109,10 +132,11 @@ export function BlockScreen({
             }
 
             if (set.status === 'live') {
-              // A live row with no matching `hot` would mean the hook
-              // contradicted itself, so nothing renders rather than guessing.
-              if (!hot || hot.exerciseIndex !== set.exerciseIndex || hot.setIndex !== set.setIndex) return null;
-              return <PieceCard key={key} hot={hot} mode={ex.mode} dispatch={dispatch} />;
+              // No `hot` check here, deliberately: `sessionView` leaves `hot`
+              // null for a prep block on purpose, so gating the live piece on
+              // one would mean it never renders at all. The row's own
+              // `status` is the authority for a piece.
+              return <PieceCard key={key} piece={set} mode={ex.mode} dispatch={dispatch} />;
             }
 
             return (
@@ -144,7 +168,7 @@ export function BlockScreen({
                     return (
                       <View key={key} testID={testID} style={st.receipt}>
                         <View style={st.receiptTick}>
-                          <Text style={st.receiptTickInk}>✓</Text>
+                          <Tick />
                         </View>
                         <Text numberOfLines={1} style={st.receiptLabel}>
                           {label}
@@ -233,6 +257,25 @@ function SkipAddRow({ dispatch }: { dispatch: (action: Action) => void }) {
       >
         <Text style={st.pillInk}>+ Add set</Text>
       </Pressable>
+    </View>
+  );
+}
+
+/**
+ * The done tick, DRAWN rather than written.
+ *
+ * The prototype's is an inline `<svg>`, which contributes nothing to the
+ * element's text. A `✓` character does, and it prefixed every recorded receipt
+ * with a tick the baseline had never seen — the behaviour gate reads a
+ * receipt's text, so a decorative glyph is not decorative to it. Two rotated
+ * bars carry no text at all.
+ */
+function Tick() {
+  const st = useLoggerStyles();
+  return (
+    <View style={st.tick}>
+      <View style={st.tickShort} />
+      <View style={st.tickLong} />
     </View>
   );
 }

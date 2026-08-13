@@ -258,7 +258,7 @@ export function TrainingScreen() {
               return (
                 <Tap
                   key={ex.id ?? ei}
-                  onPress={() => nav.navigate('Logger', { bi, ei })}
+                  onPress={() => nav.navigate('Logger')}
                   // The one you are on. Every card carried the same weight, so
                   // finding your place meant reading seven set counters.
                   style={isCurrent ? { boxShadow: '0 18px 40px -20px rgba(0,0,0,.9)' } : undefined}

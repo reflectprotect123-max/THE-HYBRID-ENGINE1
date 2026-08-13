@@ -36,10 +36,10 @@ describe('BlockScreen — receipt indices', () => {
     const r = render(
       <>
         <View testID="a">
-          <BlockScreen block={soloBlock('b0', 'Squat')} title="Squat" rounds={soloRounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />
+          <BlockScreen blockIndex={0} block={soloBlock('b0', 'Squat')} title="Squat" rounds={soloRounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />
         </View>
         <View testID="b">
-          <BlockScreen block={soloBlock('b1', 'Bench')} title="Bench" rounds={soloRounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />
+          <BlockScreen blockIndex={0} block={soloBlock('b1', 'Bench')} title="Bench" rounds={soloRounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />
         </View>
       </>,
     );
@@ -81,7 +81,7 @@ describe('BlockScreen — a rotated round', () => {
       },
     ];
     const r = render(
-      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={rotated} onRotate={noop} hot={null} draft={null} dispatch={noop} />,
+      <BlockScreen blockIndex={0} block={supersetBlock()} title="Press + Raise" rounds={rotated} onRotate={noop} hot={null} draft={null} dispatch={noop} />,
     );
 
     const names = r.getAllByText(/^(Press|Raise)$/).map((n) => n.props.children);
@@ -115,7 +115,7 @@ describe('BlockScreen — the rotate grip', () => {
 
   it('appears only on a round that has not started', () => {
     const r = render(
-      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={noop} hot={null} draft={null} dispatch={noop} />,
+      <BlockScreen blockIndex={0} block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={noop} hot={null} draft={null} dispatch={noop} />,
     );
     expect(r.queryAllByTestId('grip')).toHaveLength(1);
   });
@@ -125,7 +125,7 @@ describe('BlockScreen — the rotate grip', () => {
     // not discoverable, so this has to be a tap target that a screen reader
     // can also name — the same reason the web body made it a <button>.
     const r = render(
-      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={noop} hot={null} draft={null} dispatch={noop} />,
+      <BlockScreen blockIndex={0} block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={noop} hot={null} draft={null} dispatch={noop} />,
     );
     const grip = r.getByLabelText('Do this movement first');
     expect(grip.props.accessibilityRole).toBe('button');
@@ -134,7 +134,7 @@ describe('BlockScreen — the rotate grip', () => {
   it('dispatches rotate for its own block on press', () => {
     const onRotate = jest.fn();
     const r = render(
-      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={onRotate} hot={null} draft={null} dispatch={noop} />,
+      <BlockScreen blockIndex={0} block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={onRotate} hot={null} draft={null} dispatch={noop} />,
     );
     fireEvent.press(r.getByTestId('grip'));
     expect(onRotate).toHaveBeenCalledTimes(1);
@@ -151,7 +151,7 @@ describe('BlockScreen — skip / add set', () => {
   const liveBlock: StrengthBlock<LoggedSet> = { id: 'b0', exercises: [{ id: 'e0', name: 'Squat', mode: 'reps_kg', sets: [target()] }] };
 
   it('renders neither control when nothing is owed', () => {
-    const r = render(<BlockScreen block={soloBlock('b0', 'Squat')} title="Squat" rounds={soloRounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />);
+    const r = render(<BlockScreen blockIndex={0} block={soloBlock('b0', 'Squat')} title="Squat" rounds={soloRounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />);
     expect(r.queryByTestId('skip-set')).toBeNull();
     expect(r.queryByTestId('add-set')).toBeNull();
   });
@@ -161,7 +161,7 @@ describe('BlockScreen — skip / add set', () => {
     ['add-set', { type: 'addSet' }],
   ])('dispatches from %s while an owed set is on screen', (hook, action) => {
     const dispatch = jest.fn();
-    const r = render(<BlockScreen block={liveBlock} title="Squat" rounds={liveRounds} onRotate={noop} hot={hot} draft={draft} dispatch={dispatch} />);
+    const r = render(<BlockScreen blockIndex={0} block={liveBlock} title="Squat" rounds={liveRounds} onRotate={noop} hot={hot} draft={draft} dispatch={dispatch} />);
     fireEvent.press(r.getByTestId(hook));
     expect(dispatch).toHaveBeenCalledWith(action);
   });
@@ -194,7 +194,7 @@ describe('BlockScreen — a warm-up block', () => {
     ];
     const hot = { exerciseIndex: 1, setIndex: 0, exerciseName: 'Arm circles', message: 'irrelevant for a piece', planned: piecePlanned };
     const r = render(
-      <BlockScreen block={warmBlock()} title="Warm-up" rounds={rounds} onRotate={noop} hot={hot} draft={pieceDraft} dispatch={noop} />,
+      <BlockScreen blockIndex={0} block={warmBlock()} title="Warm-up" rounds={rounds} onRotate={noop} hot={hot} draft={pieceDraft} dispatch={noop} />,
     );
 
     expect(r.getByText('Band pull-apart')).toBeTruthy();
@@ -212,7 +212,7 @@ describe('BlockScreen — a warm-up block', () => {
     ];
     const hot = { exerciseIndex: 1, setIndex: 0, exerciseName: 'Arm circles', message: 'a coaching line that must not appear', planned: piecePlanned };
     const r = render(
-      <BlockScreen block={warmBlock()} title="Warm-up" rounds={rounds} onRotate={noop} hot={hot} draft={pieceDraft} dispatch={noop} />,
+      <BlockScreen blockIndex={0} block={warmBlock()} title="Warm-up" rounds={rounds} onRotate={noop} hot={hot} draft={pieceDraft} dispatch={noop} />,
     );
     expect(r.queryByText('a coaching line that must not appear')).toBeNull();
   });
@@ -231,7 +231,7 @@ describe('BlockScreen — the live set seam', () => {
       id: 'b0',
       exercises: [{ id: 'e0', name: 'Squat', mode: 'reps_kg', sets: [target()] }],
     };
-    const r = render(<BlockScreen block={block} title="Squat" rounds={rounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />);
+    const r = render(<BlockScreen blockIndex={0} block={block} title="Squat" rounds={rounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />);
 
     // The title renders; nothing else does for this single live-only round.
     expect(r.getAllByText(/\S/).map((n) => n.props.children)).toEqual(['Squat']);

@@ -41,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 import { inflateSync, deflateSync } from 'node:zlib';
 import { launchChromium } from './_chromium.mjs';
 import { steps } from './parity/script.mjs';
-import { seedAndGoToLogger } from './parity/drive.mjs';
+import { hookSel, seedAndGoToLogger } from './parity/drive.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS_DIR = resolve(ROOT, 'checks/fixtures/prototype/shots');
@@ -138,7 +138,11 @@ function shotPhase(shot, steps) {
  * the mechanics of walking it one action at a time.
  */
 async function execAction(page, action, label) {
-  const loc = page.locator(`[data-parity="${action.hook}"]`);
+  /* `hookSel`, not a bare `[data-parity]`: the prototype spells its hooks
+     `data-parity` and react-native-web spells the same vocabulary
+     `data-testid`. Shared with drive.mjs so the two drivers cannot drift on
+     which attributes count. */
+  const loc = page.locator(hookSel(action.hook));
   if ((await loc.count()) === 0) {
     throw new Error(`missing hook \`${action.hook}\` at step \`${label}\``);
   }

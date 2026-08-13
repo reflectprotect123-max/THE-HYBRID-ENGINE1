@@ -152,6 +152,7 @@ function RunningSession({ session: initialSession }: { session: Session }) {
         {strengthBlock ? (
           <BlockScreen
             block={strengthBlock}
+            blockIndex={view.blockIndex}
             title={currentTitle}
             rounds={view.rounds}
             onRotate={rotate}

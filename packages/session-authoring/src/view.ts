@@ -1,7 +1,7 @@
 import {
-  AUTOREG,
   e1rmOf,
   foldFromExercise,
+  incrementFor,
   isCond,
   isText,
   isWarmup,
@@ -125,11 +125,23 @@ function isStrengthBlock(b: Block<LoggedSet>): b is StrengthBlock<LoggedSet> {
   return !isCond(b) && !isText(b);
 }
 
-/** A superset's paired names read as "Press + Raise"; a solo block is just its name. */
+/**
+ * A block's own authored title wins.
+ *
+ * `heading` is where every kind of block keeps one, and a strength block used
+ * to be the one kind that ignored it — its title was always its exercise names
+ * joined. That is a fine FALLBACK and a poor rule: it renamed the prototype's
+ * "Warm-up" to "Row + Air Squats" and its "Squat + Row" to "Barbell Back Squat
+ * + Dumbbell Row", so a block strip showed something the athlete never wrote.
+ * Found by driving the parity harness, which is exactly what it is for.
+ *
+ * With no heading, a superset's paired names still read as "Press + Raise" and
+ * a solo block is still just its movement.
+ */
 function blockTitle(block: Block<LoggedSet>): string {
   if (isCond(block)) return block.heading || 'Conditioning';
   if (isText(block)) return block.heading || 'Notes';
-  return block.exercises.map((ex) => ex.name).join(' + ');
+  return block.heading || block.exercises.map((ex) => ex.name).join(' + ');
 }
 
 /**
@@ -237,7 +249,7 @@ export function sessionView(session: Session, run: RunState): SessionView {
   let hot: HotSet | null = null;
   if (liveItem && strengthBlock && !prep) {
     const ex = strengthBlock.exercises[liveItem.exerciseIndex];
-    const folded = foldFromExercise(ex, AUTOREG.plateIncrement);
+    const folded = foldFromExercise(ex, incrementFor(ex));
     if (folded) {
       const st = ex.sets[liveItem.setIndex];
       hot = {

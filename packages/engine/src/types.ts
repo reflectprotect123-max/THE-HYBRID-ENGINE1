@@ -51,6 +51,21 @@ export interface Exercise<S extends AnySet = LoggedSet> {
   /** seconds */
   rest?: number;
   /**
+   * The smallest step this movement's load can actually move by, in kg.
+   *
+   * A barbell moves in 2.5kg (the pair of 1.25s); a dumbbell rack moves in 2;
+   * a weight stack moves in whatever the stack says. Without this, every
+   * exercise rounded to the one global `AUTOREG.plateIncrement`, so a
+   * 12kg dumbbell's next step was priced at 12.5kg — a weight that does not
+   * exist on the rack — and the coaching line said so out loud ("the next jump
+   * is 2.5 kg"). Found by driving the parity harness against the prototype,
+   * which has authored this per exercise all along.
+   *
+   * Optional, and absent means the global. Every session logged before this
+   * existed keeps behaving exactly as it did.
+   */
+  inc?: number;
+  /**
    * Superset this exercise into the NEXT one: no rest between them, and the
    * pair cycles until both are done.
    *

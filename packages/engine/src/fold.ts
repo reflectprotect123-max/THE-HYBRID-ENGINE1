@@ -13,6 +13,7 @@
  */
 
 import { isWarmup, repFloorOf, rpeCenterOf } from './autoreg';
+import { AUTOREG } from './constants';
 import { roundToIncrement, saneKg } from './num';
 import type { Exercise, LoggedSet } from './types';
 
@@ -279,6 +280,17 @@ function readExercise(
 
   const opener = logs.length ? logs[0].kg : saneKg(working[0].aVal);
   return { targets, logs, opener };
+}
+
+/**
+ * The increment to price THIS exercise's next step by.
+ *
+ * `ex.inc` when the movement carries one, the global `AUTOREG.plateIncrement`
+ * otherwise. One reader, so no caller has to remember the fallback and no two
+ * callers can disagree about it.
+ */
+export function incrementFor(ex: Pick<Exercise<LoggedSet>, 'inc'>): number {
+  return ex.inc && ex.inc > 0 ? ex.inc : AUTOREG.plateIncrement;
 }
 
 /**
