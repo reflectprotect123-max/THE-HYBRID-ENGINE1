@@ -1004,7 +1004,7 @@ Write `packages/session-authoring/src/machine.ts` so every test above passes. It
 - on `skipSet`: advance past the current item WITHOUT marking it done, leaving it owed, and reopen the draft on the following item
 - on `addSet`: append a set carrying the planned `t` and `rpe` of the last set in that exercise, and nothing else — no recorded values
 - on `rotate`: find the block by id, `rotateBlock` it, reopen the draft
-- on `tick`: `tickRest`, and clear `rest` to null once a `'set'` rest reaches zero, leaving a `'block'` page-turn standing until dismissed
+- on `tick`: `tickRest`. A `'set'` rest that reaches zero STAYS on screen showing 0:00 for that tick — the athlete needs to see it hit zero — and clears to null on the following tick. A `'block'` page-turn stands until dismissed. The tests in Step 1 are the authority on this; follow them exactly
 - on `finish`: set `status: 'completed'` and `completedAt`. Take the timestamp from `Date.now()` inside `reduce` — note it in your report as the one impure edge, and confirm the `finish` test does not depend on its value
 
 Use the exact spellings in the Interfaces block above. Later tasks and other slices are written against them.

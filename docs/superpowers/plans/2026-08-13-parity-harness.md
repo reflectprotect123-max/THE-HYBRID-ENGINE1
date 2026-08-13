@@ -54,6 +54,20 @@ This plan takes the second. The cost is a real obligation on slices 4, 5 and 6: 
 | `rest-go` | button | leave the rest takeover |
 | `receipt-<i>` | element | a logged set's receipt row |
 
+**Two scoping rules, settled after the prototype was hooked up rather than left to the driver to guess:**
+
+- `seg-<i>` is the block's index in the whole session, globally. There is one
+  block strip, so a segment means the same thing everywhere.
+- `receipt-<i>` is the index **within the block it belongs to**, in DOM order.
+  Every block screen is in the DOM at once in a carousel, so global receipt
+  numbering would collide across blocks. The driver must scope a receipt query
+  to the block currently on screen; a bare `[data-parity="receipt-0"]` would
+  match the first receipt of every block at once.
+- `next` and `done-block` may be the SAME element, carrying whichever value
+  fits the builder's current state — the prototype's final builder button is
+  "Next movement" partway through a superset and "Add block" at the end of one.
+  The driver must select on the value, never assume two distinct elements.
+
 React Native has no DOM attributes; on `apps/mobile` these map to `testID`, with the same values. Slice 6 owns that translation.
 
 ---

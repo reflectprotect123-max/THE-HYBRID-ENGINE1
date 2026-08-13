@@ -3,6 +3,9 @@
 **Date:** 12 August 2026
 **Status:** design approved, implementation not started
 **Prototype:** `https://claude.ai/code/artifact/08c70f5e-f2af-488a-a9b6-48671966b761`
+(hosted) and `checks/fixtures/prototype/rolling-logger.html` (in-repo). The
+committed in-repo copy is the one the parity gates load and measure against —
+it carries the `data-parity` hooks the app must match.
 
 The prototype is the specification. The app must come back as a mirror of it,
 proven by check rather than by eye.
