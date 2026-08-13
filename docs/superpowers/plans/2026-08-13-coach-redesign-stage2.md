@@ -28,9 +28,17 @@ elements the new way, but not one of them may be deleted, and none of their
 assertions may be weakened.** A test that stops asserting the repository call
 is a test that stops protecting the only real behaviour on this screen.
 
-The read-only rows are also not decoration. They state where authority sits —
-"Pain or illness · Hold and human review", "Authoritative receipts · Backend
-required" — and this stage restyles them, it does not edit what they claim.
+The read-only rows are also not decoration, and they split in two.
+
+The three under **Decisions & safety** state where authority sits — "Pain or
+illness · Hold and human review" and its neighbours — and this stage restyles
+them without editing a word of what they claim, because they are still true.
+
+The rows under **Coaches & access** and **Data & sync** are a different case:
+several of them now assert the opposite of the truth, and Task 2 Step 4
+rewrites those deliberately, against the spec's 13 August amendment. That is
+the one place in this stage where wording changes, and it changes because it
+is wrong, not because it is being restyled.
 
 ## Global Constraints
 
