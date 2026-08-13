@@ -23,7 +23,7 @@
     "android": {
       "//": "applicationId, versionCode and the signing keystore must match the existing native/android-app build or Play treats this as a NEW app and current users get a second icon instead of an update.",
       "package": "com.hybridengine.app",
-      "versionCode": 31,
+      "versionCode": 32,
       "minSdkVersion": 24,
       "targetSdkVersion": 35,
       "adaptiveIcon": {
