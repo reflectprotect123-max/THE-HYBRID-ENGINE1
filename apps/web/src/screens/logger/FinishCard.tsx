@@ -5,17 +5,14 @@ import { Card } from '../../ui';
  * The session receipt — the prototype's `finishHtml()`.
  *
  * Every number here is a prop: this file formats what it is handed and
- * derives nothing from a raw `Session` itself. `blocks` and `setsLogged`
- * come from `useSession`'s own `view.blocks` (`BlockView.progress`, already
- * tallied by the package); `bestE1rm` does not — `SessionView` has no field
- * for it today, and deriving one means walking every exercise's logged sets
- * and calling `@hybrid/engine`'s `e1rmOf`, the same file that owns the
- * coaching fold. That is exactly the "weight arithmetic" a screen is told
- * not to do, so this file was NOT given a way to compute it: the caller
- * passes `null` when it has nothing better, and this card renders the same
- * "—" fallback the prototype uses for a day with no rated lift. See the
- * task report for the recommendation that `session-authoring` grow a real
- * stats export instead.
+ * derives nothing from a raw `Session` itself. `blocks`, `setsLogged` and
+ * `bestE1rm` all come from `useSession`'s own view — `BlockView.progress`
+ * and `SessionView.bestE1rm` (`view.ts`), both already tallied by the
+ * package, which is the one place that walks logged sets and calls
+ * `@hybrid/engine`'s `e1rmOf`. This file never derives that itself; the
+ * caller passes `null` only when the view genuinely has nothing to report
+ * (no rated working set yet), and this card renders the same "—" fallback
+ * the prototype uses for a day with no rated lift.
  *
  * The comment box is local, uncontrolled state — the prototype's own
  * `<textarea>` has no save path either; `Session` carries no field for it

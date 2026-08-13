@@ -113,6 +113,116 @@ describe('sessionView', () => {
     expect(view.blocks[0].progress).toEqual({ done: 1, total: 2 });
   });
 
+  it('never folds a warm-up block\'s live piece — hot stays null', () => {
+    const block: StrengthBlock<LoggedSet> = {
+      id: 'w1',
+      warmup: true,
+      exercises: [{ id: 'e0', name: 'Arm circles', mode: 'seconds', sets: [{ t: '90', rpe: '' }] }],
+    };
+    const sess = session([block]);
+    const view = sessionView(sess, initialRun(sess));
+
+    // The piece is still live, for the block strip / rounds to draw — just
+    // never through the coaching fold.
+    expect(view.rounds[0].sets[0].status).toBe('live');
+    expect(view.hot).toBeNull();
+  });
+
+  it('a warm-up block contributes nothing to blockProgress', () => {
+    const block: StrengthBlock<LoggedSet> = {
+      id: 'w1',
+      warmup: true,
+      exercises: [
+        { id: 'e0', name: 'Band pull-apart', mode: 'reps', sets: [{ t: '10', rpe: '', aVal: '10', done: true }] },
+        { id: 'e1', name: 'Arm circles', mode: 'seconds', sets: [{ t: '30', rpe: '' }] },
+      ],
+    };
+    const sess = session([block]);
+    const view = sessionView(sess, initialRun(sess));
+
+    expect(view.blocks[0].progress).toEqual({ done: 0, total: 0 });
+  });
+
+  describe('bestE1rm', () => {
+    it('is the best estimate across every logged working set in the session', () => {
+      const a: StrengthBlock<LoggedSet> = {
+        id: 'b1',
+        exercises: [
+          {
+            id: 'e0',
+            name: 'Back Squat',
+            mode: 'reps_kg',
+            sets: [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true }],
+          },
+        ],
+      };
+      const b: StrengthBlock<LoggedSet> = {
+        id: 'b2',
+        exercises: [
+          {
+            id: 'e1',
+            name: 'Bench',
+            mode: 'reps_kg',
+            sets: [{ t: '5', rpe: '8', aVal: '150', aVal2: '5', felt: '9', done: true }],
+          },
+        ],
+      };
+      const sess = session([a, b]);
+      const view = sessionView(sess, initialRun(sess));
+
+      // Bench's set is heavier AND rated harder, so it wins outright —
+      // e1rmOf(150, 5, 9) > e1rmOf(100, 5, 8).
+      expect(view.bestE1rm).not.toBeNull();
+      expect(view.bestE1rm).toBeCloseTo(150 * (1 + Math.min(12, 5 + (10 - 9)) / 30), 5);
+    });
+
+    it('ignores a warm-up block and a `W`-marked set inside a working exercise', () => {
+      const block: StrengthBlock<LoggedSet> = {
+        id: 'b1',
+        exercises: [
+          {
+            id: 'e0',
+            name: 'Back Squat',
+            mode: 'reps_kg',
+            sets: [
+              { t: 'W10', rpe: '5', aVal: '200', aVal2: '10', felt: '3', done: true },
+              { t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true },
+            ],
+          },
+        ],
+      };
+      const warm: StrengthBlock<LoggedSet> = {
+        id: 'w1',
+        warmup: true,
+        exercises: [{ id: 'e1', name: 'Arm circles', mode: 'seconds', sets: [{ t: '30', rpe: '' }] }],
+      };
+      const sess = session([warm, block]);
+      const view = sessionView(sess, initialRun(sess));
+
+      // The 200kg "W10" set would dwarf the real 100kg working set if it were
+      // ever let in — it is not, so the working set's own estimate wins.
+      expect(view.bestE1rm).toBeCloseTo(100 * (1 + Math.min(12, 5 + (10 - 8)) / 30), 5);
+    });
+
+    it('is null for a bodyweight-only session — a logged set with no recorded weight', () => {
+      const block: StrengthBlock<LoggedSet> = {
+        id: 'b1',
+        exercises: [
+          {
+            id: 'e0',
+            name: 'Pull-up',
+            mode: 'reps',
+            sets: [{ t: '10', rpe: '8', aVal2: '10', felt: '8', done: true }],
+          },
+        ],
+      };
+      const sess = session([block]);
+      const view = sessionView(sess, initialRun(sess));
+
+      expect(view.bestE1rm).toBeNull();
+    });
+  });
+
   it('reports blockIndex, and it follows goToBlock', () => {
     const block = (id: string): StrengthBlock<LoggedSet> => ({
       id,

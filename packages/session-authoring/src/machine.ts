@@ -1,6 +1,6 @@
-import { isCond, isText, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
+import { isCond, isText, isWarmupBlock, repFloorOf, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { openDraft, applyDraft, draftReady, type Draft } from './draft';
-import { blockQueue, nextUp, type QueueItem } from './queue';
+import { blockQueue, nextPiece, nextUp, type QueueItem } from './queue';
 import { rotateBlock } from './rotate';
 import { restAfter, tickRest, extendRest, type RestState } from './rest';
 
@@ -24,6 +24,7 @@ export interface RunState {
 export type Action =
   | { type: 'setDraft'; patch: Partial<Draft> }
   | { type: 'logSet' }
+  | { type: 'completePiece' }
   | { type: 'rotate'; blockId: string }
   | { type: 'skipSet' }
   | { type: 'addSet' }
@@ -79,6 +80,36 @@ export function reduce(session: Session, run: RunState, action: Action): { sessi
       const nextItem = nextUp(logged);
       const draft = nextItem ? openDraft(logged, nextItem) : null;
       return { session: nextSession, run: { ...run, draft, rest } };
+    }
+
+    // A prep piece is not a rated set — it never gives a `felt`, and writing
+    // one anyway (the app's old workaround, a fabricated `felt: 0`) would be
+    // evidence the athlete never gave (`deviationFelt`'s own doc, engine's
+    // autoreg.ts). This action marks the piece done and records the one
+    // thing it DOES have — the authored target, `seconds` for a timed piece
+    // or the rep target for a rep piece, both taken from `t` the same way
+    // `openDraft`/`repFloorOf` already read it — and leaves `felt` untouched.
+    case 'completePiece': {
+      const block = strengthBlockAt(session, run.blockIndex);
+      if (!block || !isWarmupBlock(block)) return { session, run };
+      const item = nextPiece(block);
+      if (!item) return { session, run };
+      const ex = block.exercises[item.exerciseIndex];
+      const st = ex.sets[item.setIndex];
+      const recorded = ex.mode === 'seconds' ? String(parseInt(st.t, 10) || 0) : String(repFloorOf(st.t));
+      const completed: StrengthBlock<LoggedSet> = {
+        ...block,
+        exercises: block.exercises.map((e, ei) =>
+          ei !== item.exerciseIndex
+            ? e
+            : {
+                ...e,
+                sets: e.sets.map((s, si) => (si !== item.setIndex ? s : { ...s, aVal: recorded, done: true })),
+              },
+        ),
+      };
+      const nextSession = withBlock(session, run.blockIndex, completed);
+      return { session: nextSession, run };
     }
 
     case 'rotate': {

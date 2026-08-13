@@ -113,13 +113,14 @@ export function BlockScreen({
               }
 
               if (set.status === 'live') {
-                // Same contract as the working-set branch below: a live row
-                // with no matching `hot` would mean the hook contradicted
-                // itself, so nothing renders rather than guessing.
-                if (!hot || !draft || hot.exerciseIndex !== set.exerciseIndex || hot.setIndex !== set.setIndex) {
-                  return null;
-                }
-                return <PieceCard key={key} hot={hot} mode={ex.mode} draft={draft} dispatch={dispatch} />;
+                // Unlike the working-set branch below, this needs no `hot`
+                // to confirm it: `hot` is `sessionView`'s coaching fold, and
+                // a prep block's piece is never folded — `view.hot` stays
+                // null the whole time this block is on screen (`view.ts`).
+                // `set` (the live `RoundSet` itself) already carries every
+                // field a piece has — name and authored target — so that is
+                // what `PieceCard` reads.
+                return <PieceCard key={key} piece={set} mode={ex.mode} dispatch={dispatch} />;
               }
 
               return (

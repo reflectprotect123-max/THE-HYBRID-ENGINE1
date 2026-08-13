@@ -1,9 +1,11 @@
 import {
   AUTOREG,
+  e1rmOf,
   foldFromExercise,
   isCond,
   isText,
   isWarmup,
+  isWarmupBlock,
   saneKg,
   type AnySet,
   type Block,
@@ -12,7 +14,7 @@ import {
   type StrengthBlock,
 } from '@hybrid/engine';
 import type { Draft } from './draft';
-import { nextUp, orderFor, roundCount, type QueueItem } from './queue';
+import { nextPiece, nextUp, orderFor, roundCount, type QueueItem } from './queue';
 import type { RunState } from './machine';
 import type { RestState } from './rest';
 
@@ -92,6 +94,10 @@ export interface SessionView {
   rest: RestState | null;
   draft: Draft | null;
   finished: boolean;
+  /** Best estimated one-rep max across every logged WORKING set in the
+   *  session, or null when there is none yet. Prep blocks and `W`-marked
+   *  ramps inside a working exercise are excluded — see `bestE1rm`. */
+  bestE1rm: number | null;
 }
 
 /** The target as authored, verbatim — never reparsed by a screen. */
@@ -126,10 +132,16 @@ function blockTitle(block: Block<LoggedSet>): string {
   return block.exercises.map((ex) => ex.name).join(' + ');
 }
 
-/** Working sets only: a warm-up sitting alongside real work must not inflate this. */
+/**
+ * Working sets only: a warm-up sitting alongside real work must not inflate
+ * this. A whole `warmup: true` block contributes nothing at all — 0 of 0 —
+ * because none of its pieces are working sets to begin with, the same rule
+ * `bestE1rm` applies below.
+ */
 function blockProgress(block: Block<LoggedSet>): BlockProgress {
   if (isCond(block)) return { done: block.condResult ? 1 : 0, total: 1 };
   if (isText(block)) return { done: block.done ? 1 : 0, total: 1 };
+  if (isWarmupBlock(block)) return { done: 0, total: 0 };
   let done = 0;
   let total = 0;
   for (const ex of block.exercises) {
@@ -168,11 +180,48 @@ function buildRounds(block: StrengthBlock<LoggedSet>, hotItem: QueueItem | null)
 }
 
 /**
+ * The best estimated one-rep max across every logged working set in the
+ * session, or null when there is none.
+ *
+ * A prep block (`isWarmupBlock`) is skipped whole, and a `W`-marked ramp
+ * inside a working exercise is skipped per set (`isWarmup`) — the identical
+ * working-set rule `blockProgress` applies, so neither can inflate this any
+ * more than it can inflate the progress tally. The estimate itself is
+ * `@hybrid/engine`'s own `e1rmOf`, called on the recorded weight, reps, and
+ * the athlete's own `felt` rating for that set (the actual difficulty, not
+ * the planned `rpe`) — this package derives no lifting arithmetic of its own.
+ */
+function bestE1rm(session: Session): number | null {
+  let best: number | null = null;
+  for (const block of session.blocks) {
+    if (isCond(block) || isText(block) || isWarmupBlock(block)) continue;
+    for (const ex of block.exercises) {
+      for (const st of ex.sets) {
+        if (!st.done || isWarmup(st)) continue;
+        const logged = loggedOf(st);
+        if (!(logged.kg > 0) || !(logged.reps > 0) || !(logged.felt > 0)) continue;
+        const est = e1rmOf(logged.kg, logged.reps, logged.felt);
+        if (best === null || est > best) best = est;
+      }
+    }
+  }
+  return best;
+}
+
+/**
  * Derive the whole screen from state.
  *
  * A finished session has nothing owed and nothing live: `hot`, `rest`, and
  * `draft` all go null once `session.status` says 'completed', even if the
  * run state underneath was not itself reset.
+ *
+ * A prep block's live piece never becomes `hot`. `hot` is the coaching
+ * rule's word on a set (`foldFromExercise`, `@hybrid/engine`), and a piece
+ * has nothing for the fold to judge — warming up with an empty bar must
+ * never teach the progression that your bench went to 20kg. The block still
+ * needs to know which piece is live, for `rounds`' own `status`, so that
+ * comes from `nextPiece` (queue.ts's mirror of `nextUp`, scoped to prep
+ * blocks) rather than from `nextUp`/`hot` at all.
  */
 export function sessionView(session: Session, run: RunState): SessionView {
   const finished = session.status === 'completed';
@@ -180,19 +229,20 @@ export function sessionView(session: Session, run: RunState): SessionView {
 
   const current = session.blocks[run.blockIndex];
   const strengthBlock = current && isStrengthBlock(current) ? current : null;
+  const prep = !!strengthBlock && isWarmupBlock(strengthBlock);
 
-  const hotItem = !finished && strengthBlock ? nextUp(strengthBlock) : null;
-  const rounds = strengthBlock ? buildRounds(strengthBlock, hotItem) : [];
+  const liveItem = !finished && strengthBlock ? (prep ? nextPiece(strengthBlock) : nextUp(strengthBlock)) : null;
+  const rounds = strengthBlock ? buildRounds(strengthBlock, liveItem) : [];
 
   let hot: HotSet | null = null;
-  if (hotItem && strengthBlock) {
-    const ex = strengthBlock.exercises[hotItem.exerciseIndex];
+  if (liveItem && strengthBlock && !prep) {
+    const ex = strengthBlock.exercises[liveItem.exerciseIndex];
     const folded = foldFromExercise(ex, AUTOREG.plateIncrement);
     if (folded) {
-      const st = ex.sets[hotItem.setIndex];
+      const st = ex.sets[liveItem.setIndex];
       hot = {
-        exerciseIndex: hotItem.exerciseIndex,
-        setIndex: hotItem.setIndex,
+        exerciseIndex: liveItem.exerciseIndex,
+        setIndex: liveItem.setIndex,
         exerciseName: ex.name,
         message: folded.message,
         planned: plannedOf(st),
@@ -208,5 +258,6 @@ export function sessionView(session: Session, run: RunState): SessionView {
     rest: finished ? null : run.rest,
     draft: finished ? null : run.draft,
     finished,
+    bestE1rm: bestE1rm(session),
   };
 }

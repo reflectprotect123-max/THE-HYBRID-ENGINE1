@@ -81,6 +81,45 @@ describe('skipSet', () => {
   });
 });
 
+describe('completePiece', () => {
+  const warm = (mode: 'seconds' | 'reps', t: string): StrengthBlock<LoggedSet> => ({
+    id: 'w1',
+    warmup: true,
+    exercises: [{ id: 'e0', name: 'Arm circles', mode, sets: [{ t, rpe: '' }] }],
+  });
+
+  it('marks a timed piece done, records its seconds, and writes no felt', () => {
+    const sess = session([warm('seconds', '30')]);
+    const st = reduce(sess, initialRun(sess), { type: 'completePiece' });
+    const piece = (st.session.blocks[0] as StrengthBlock<LoggedSet>).exercises[0].sets[0];
+    expect(piece.done).toBe(true);
+    expect(piece.aVal).toBe('30');
+    expect(piece.felt).toBeUndefined();
+  });
+
+  it('marks a rep piece done, records its rep target, and writes no felt', () => {
+    const sess = session([warm('reps', '12')]);
+    const st = reduce(sess, initialRun(sess), { type: 'completePiece' });
+    const piece = (st.session.blocks[0] as StrengthBlock<LoggedSet>).exercises[0].sets[0];
+    expect(piece.done).toBe(true);
+    expect(piece.aVal).toBe('12');
+    expect(piece.felt).toBeUndefined();
+  });
+
+  it('does nothing to an ordinary working block', () => {
+    const sess = session([solo([s()])]);
+    const st = reduce(sess, initialRun(sess), { type: 'completePiece' });
+    expect(st.session).toBe(sess);
+  });
+
+  it('does not mutate the session it was given', () => {
+    const sess = session([warm('seconds', '30')]);
+    const snapshot = JSON.stringify(sess);
+    reduce(sess, initialRun(sess), { type: 'completePiece' });
+    expect(JSON.stringify(sess)).toBe(snapshot);
+  });
+});
+
 describe('addSet', () => {
   it('appends a set shaped like the last one', () => {
     const sess = session([solo([s()])]);
