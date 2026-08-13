@@ -18,7 +18,7 @@ This is slice 2 of `docs/superpowers/specs/2026-08-12-round-major-logger-design.
 - The coaching rule is not re-implemented. Any weight the package reports comes from `foldFromExercise`. If a task's diff contains rep-to-failure or RPE arithmetic, it is wrong.
 - All state transitions are pure and immutable: a reducer returns new `Session`/`RunState` objects and never mutates its arguments. A test asserting the input was not mutated is required wherever a reducer touches nested data.
 - **Run the FULL suite at every task gate**, not a scoped one: `pnpm run typecheck` and `pnpm run test`. Slice 1 lost three tasks' worth of confidence to a scoped gate that hid two failures.
-- Known pre-existing red, not to be fixed here: `apps/web/src/screens/StartFreshCard.test.tsx` fails 3 tests, reproduced at commit `0e464f7` before any of this work. Any OTHER failure is yours.
+- There is NO known-red list. The repo is green everywhere; a long-standing `StartFreshCard` failure was diagnosed as a wall-clock time-bomb in its own fixture and fixed in `ecce0e9`. Any failure you see is yours or a real regression.
 
 ## Two corrections to the spec, established before planning
 
