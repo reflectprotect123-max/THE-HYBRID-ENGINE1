@@ -21,6 +21,16 @@ import { useLoggerStyles } from './styles';
  * renders) and the next `BlockView.title` for a block turn.
  */
 
+function Chevron() {
+  const st = useLoggerStyles();
+  return (
+    <View style={st.chevron}>
+      <View style={st.chevronUp} />
+      <View style={st.chevronDown} />
+    </View>
+  );
+}
+
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
 
 export function RestTakeover({
@@ -74,7 +84,7 @@ export function RestTakeover({
       <Text style={st.takeoverKind}>{timed ? 'rest' : 'block done'}</Text>
 
       {timed ? (
-        <View testID="rest-dial">
+        <View testID="rest-dial" style={st.dialWrap}>
           <Dial frac={frac}>
             <Text style={st.dialInk}>{fmt(Math.max(0, rest.left))}</Text>
           </Dial>
@@ -113,9 +123,14 @@ export function RestTakeover({
           </Pressable>
         ) : null}
         <Pressable testID="rest-go" accessibilityRole="button" onPress={leave} style={st.takeoverCta}>
-          <Text style={st.ctaInkOn}>
+          <Text style={st.takeoverCtaInk}>
             {rest.kind === 'block' ? (nextBlock ? 'Go' : 'Finish') : rest.left > 0 ? 'Skip' : 'Lift'}
           </Text>
+          {/* The prototype's `.cbtn` carries a chevron after its label. Drawn
+              from two rotated bars for the same reason the done tick is: a
+              glyph would land in the element's text and the behaviour gate
+              reads that text. */}
+          <Chevron />
         </Pressable>
       </View>
     </View>

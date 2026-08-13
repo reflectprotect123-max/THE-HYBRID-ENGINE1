@@ -39,7 +39,7 @@ export function FinishCard({
       <Text style={st.finishSub}>nice work</Text>
 
       <View style={st.stats}>
-        <Stat hook="blocks" label="Blocks" value={String(blocks)} first />
+        <Stat hook="blocks" label="Blocks" value={String(blocks)} />
         <Stat hook="sets" label="Sets logged" value={String(setsLogged)} />
         <Stat hook="e1rm" label="Best e1RM today" value={bestE1rm ? `${Math.round(bestE1rm)} kg` : '—'} />
       </View>
@@ -56,20 +56,10 @@ export function FinishCard({
   );
 }
 
-function Stat({
-  hook,
-  label,
-  value,
-  first,
-}: {
-  hook: string;
-  label: string;
-  value: string;
-  first?: boolean;
-}) {
+function Stat({ hook, label, value }: { hook: string; label: string; value: string }) {
   const st = useLoggerStyles();
   return (
-    <View style={[st.stat, !first && st.statDivider]}>
+    <View style={st.stat}>
       <Text style={st.statLabel}>{label}</Text>
       <Text testID={`fstat-${hook}`} style={st.statValue}>
         {value}
