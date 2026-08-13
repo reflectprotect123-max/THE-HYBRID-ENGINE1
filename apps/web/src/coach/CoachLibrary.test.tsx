@@ -1,22 +1,26 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LS_KEY } from '@hybrid/engine';
 import { CoachLibrary } from './CoachLibrary';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
+import type { ProgramTemplate } from './contracts';
 import { DbProvider } from '../store/db';
 
 /*
- * The Library is the month calendar and nothing else. The "Programs" tab and
- * its "Prepare an assignment" configurator were deleted by the owner on
- * 11 August 2026 — see CoachLibrary.tsx's header comment for what that cost.
+ * The Library is the month calendar first, with Programs beside it.
  *
- * The first two tests below are the ones that keep the deletion honest: a
- * partial revert that left any part of the configurator behind would put a
- * dead-end form back in front of the coach, which is the exact bug the old
- * suite existed to cover.
+ * This header read "the month calendar and nothing else" between 11 and 13
+ * August, when the owner had deleted the Programs tab and its "Prepare an
+ * assignment" configurator. Stage 3b brought Programs back — as a table and a
+ * per-program detail view, not as the sidebar — so the wording moves with it.
+ *
+ * What the tests below still protect is the part that was never about the
+ * tab: the calendar is what opens, the sidebar configurator does not come
+ * back, and `saveAssignmentDraft` has a reachable caller. That last one is
+ * not hypothetical — it had none at all for two days.
  */
 
 async function renderLibrary(repository: FakeCoachWorkspaceRepository) {
@@ -37,17 +41,34 @@ describe('CoachLibrary', () => {
     localStorage.clear();
   });
 
-  it('opens straight onto the calendar, with no view tabs to choose between', async () => {
+  /*
+   * This read "with no view tabs to choose between" until stage 3b (13 August
+   * 2026) brought Programs back. What that test was really protecting is the
+   * DEFAULT, not the absence: the Library is the calendar day to day, and a
+   * coach who opens it must land on the month grid rather than on a tab they
+   * did not ask for. That is asserted here, and the tab pair is now asserted
+   * as present rather than as missing.
+   */
+  it('opens straight onto the calendar, with Programs available but unselected', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [rosterClient({ id: 'roster-1', name: 'Riley Roster' })];
     await renderLibrary(repo);
 
-    expect(screen.queryByRole('tablist', { name: 'Library view' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous month' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next month' })).toBeInTheDocument();
+
+    const tabs = screen.getByRole('tablist', { name: 'Library view' });
+    expect(within(tabs).getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(tabs).getByRole('tab', { name: 'Programs' })).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('carries no assignment configurator any more', async () => {
+  /*
+   * The SIDEBAR configurator stays deleted. Stage 3b put the assign action
+   * back, but on the program's own detail view — not as a permanent panel
+   * sitting beside the calendar asking for a training system, an experience
+   * level and a sessions-per-week before it will show you anything.
+   */
+  it('carries no assignment configurator beside the calendar', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     await renderLibrary(repo);
 
@@ -55,6 +76,54 @@ describe('CoachLibrary', () => {
     expect(screen.queryByText('Training system')).not.toBeInTheDocument();
     expect(screen.queryByText(/preferred training days/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('tablist', { name: 'Filter Library by training system' })).not.toBeInTheDocument();
+  });
+
+  /*
+   * THE assignment path, end to end.
+   *
+   * `saveAssignmentDraft` is the only way this app assigns a program to an
+   * athlete. It was deleted with the sidebar on 11 August and sat with zero
+   * callers for two days — the exact defect the stage 3b plan names as its
+   * reason to verify rather than trust. This test is that verification: it
+   * drives the real screen and asserts the real write, including the state
+   * that keeps assignment a PROPOSAL rather than a placement.
+   */
+  it('assigns a program through the only assignment path there is', async () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.clients = [rosterClient({ id: 'roster-1', name: 'Riley Roster' })];
+    repo.templates = [{
+      id: 'p1',
+      domain: 'strength',
+      name: 'Build · Full Body',
+      category: 'Full body',
+      level: 'developing',
+      sessionsPerWeek: 3,
+      weeks: 8,
+      summary: 'Three balanced sessions.',
+      progression: { kind: 'strength', stages: ['Volume base'], increaseAuthority: 'coach-approval-only' },
+      status: 'published',
+      source: 'coach-template',
+      sessions: [],
+    } as unknown as ProgramTemplate];
+    await renderLibrary(repo);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Programs' }));
+    fireEvent.click(screen.getByRole('button', { name: /Build · Full Body/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Mon$/ }));
+    fireEvent.click(screen.getByRole('button', { name: /prepare assignment/i }));
+    await act(async () => {});
+
+    expect(repo.assignmentDrafts).toHaveLength(1);
+    expect(repo.assignmentDrafts[0]).toMatchObject({
+      clientId: 'roster-1',
+      programTemplateId: 'p1',
+      preferredWeekdays: [1],
+      // Assignment PROPOSES. The Coordinator resolves the week; this draft is
+      // an input to that, and a screen that wrote anything else here would be
+      // claiming an authority the coach bench does not have.
+      state: 'ready-for-coordinator',
+    });
+    expect(screen.getByRole('status')).toHaveTextContent(/the Coordinator still resolves the week/i);
   });
 
   it('keeps one link to the session builder, which is the only door to the whole builder chain', async () => {

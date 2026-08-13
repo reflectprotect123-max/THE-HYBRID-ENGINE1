@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import { useDb } from '../store/db';
-import type { AthleteWeekSummary } from './contracts';
+import type { AthleteWeekSummary, ProgramTemplate } from './contracts';
 import { CalendarMonth, type CalendarDay } from './library/CalendarMonth';
+import { ProgramsTab } from './ProgramsTab';
 
 function mondayOf(d: Date): string {
   const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -23,10 +24,13 @@ function mondayOf(d: Date): string {
  * Two consequences worth stating rather than discovering later:
  *
  *  - `saveAssignmentDraft` was the app's ONLY program-assignment path. It was
- *    named as such before the deletion and deleted anyway; assigning a program
- *    template to a client is not something this app can do today. The
- *    repository method survives untouched, so re-homing it is a UI job, not a
- *    backend one.
+ *    named as such before the deletion and deleted anyway. It stayed uncalled
+ *    for two days. STAGE 3B (13 August 2026) re-homed it, exactly as this
+ *    comment predicted: a UI job, not a backend one — the repository method
+ *    was never touched, and `prepareAssignment` below writes the same draft,
+ *    in the same state, with the same message it always did. The controls now
+ *    live with the program they assign (`ProgramsTab`) rather than in a
+ *    sidebar beside it.
  *  - The configurator carried the Library's only client picker, and the month
  *    calendar needs a client to read. The picker moves into the header here
  *    rather than vanishing with the tab — the calendar would otherwise be
@@ -34,6 +38,49 @@ function mondayOf(d: Date): string {
  */
 export function CoachLibrary() {
   const { clients, selectedClient, selectClient, repository } = useCoachWorkspace();
+  const [tab, setTab] = useState<'programs' | 'calendar'>('calendar');
+  const [templates, setTemplates] = useState<readonly ProgramTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [templatesError, setTemplatesError] = useState('');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    repository.listProgramTemplates()
+      .then((items) => { if (active) setTemplates(items); })
+      .catch(() => { if (active) setTemplatesError('The Library could not be loaded.'); })
+      .finally(() => { if (active) setTemplatesLoading(false); });
+    return () => { active = false; };
+  }, [repository]);
+
+  /*
+   * The app's one program-assignment path, restored verbatim.
+   *
+   * Every part of the draft is what the deleted configurator wrote: the same
+   * id shape, `state: 'ready-for-coordinator'`, and the same sentence
+   * afterwards. Assignment PROPOSES — preferred days and a preferred start are
+   * inputs, and the Coordinator resolves the week. Weakening that message
+   * would be the screen quietly claiming an authority it does not have.
+   */
+  const prepareAssignment = async (template: ProgramTemplate, clientId: string, startDate: string, weekdays: number[]) => {
+    const client = clients.find((item) => item.id === clientId);
+    if (!client) return;
+    try {
+      await repository.saveAssignmentDraft({
+        id: `assignment:${client.id}:${template.id}`,
+        clientId: client.id,
+        programTemplateId: template.id,
+        preferredStartDate: startDate,
+        preferredWeekdays: weekdays,
+        baseProgramVersion: `${template.id}:v1`,
+        state: 'ready-for-coordinator',
+        createdAt: new Date().toISOString(),
+      });
+      setMessage(`${template.name} is prepared for ${client.name}. Preferred days are inputs; the Coordinator still resolves the week.`);
+    } catch {
+      setMessage('That assignment could not be saved. Nothing was sent to the athlete.');
+    }
+  };
 
   return (
     <main className="min-h-screen bg-bg text-text">
@@ -47,7 +94,9 @@ export function CoachLibrary() {
           `/coach/planner/:id` and `/coach/roster-plan/:workoutId`. Deleting
           the tab orphaned all four — caught by coach-routes.test.tsx's graph
           walk, not by eye. One link keeps the whole session-builder chain
-          reachable; the assignment configurator stays deleted.
+          reachable. The assignment CONFIGURATOR stays deleted — what came
+          back in stage 3b is the assign action itself, on the program's own
+          detail view, which is where it belonged.
         */}
         <Link to="/coach/author" className="mt-3 inline-block rounded-md border border-gold-line bg-gold-wash px-2 py-1.5 text-xs font-semibold text-gold2">
           Open the session builder
@@ -68,7 +117,27 @@ export function CoachLibrary() {
         </label>
       </header>
 
-      <CalendarTab clientId={selectedClient?.id ?? null} repository={repository} />
+      <div className="p-3 sm:p-4">
+        {/* The Programs/Calendar pair the mockup describes, back after stage
+            3a deleted it — `.lib-tabs` has been in the stylesheet since stage
+            1 and this is what it is for. Calendar stays the default: it is
+            the half a coach opens the Library for day to day. */}
+        <div className="lib-tabs" role="tablist" aria-label="Library view">
+          <button type="button" role="tab" aria-selected={tab === 'calendar'} className={tab === 'calendar' ? 'active' : undefined} onClick={() => setTab('calendar')}>Calendar</button>
+          <button type="button" role="tab" aria-selected={tab === 'programs'} className={tab === 'programs' ? 'active' : undefined} onClick={() => setTab('programs')}>Programs</button>
+        </div>
+        {message ? <p className="mb-2 text-xs text-good" role="status">{message}</p> : null}
+        {tab === 'programs' ? (
+          <ProgramsTab
+            templates={templates}
+            loading={templatesLoading}
+            error={templatesError}
+            clients={clients}
+            onAssign={prepareAssignment}
+          />
+        ) : null}
+      </div>
+      {tab === 'calendar' ? <CalendarTab clientId={selectedClient?.id ?? null} repository={repository} /> : null}
     </main>
   );
 }

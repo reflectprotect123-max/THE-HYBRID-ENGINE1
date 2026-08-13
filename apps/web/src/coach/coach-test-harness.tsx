@@ -92,6 +92,7 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   savedDrafts: { clientId: string; workoutId: string; kind: TrainingDomain; body: unknown; baseVersion: number | null }[] = [];
   publishedDrafts: { clientId: string; workoutId: string; baseVersion: number; preferredStartDate: string; preferredWeekdays: number[] }[] = [];
   weekSummary: AthleteWeekSummary | null = null;
+  assignmentDrafts: readonly ProgramAssignmentDraft[] = [];
 
   async listClients(): Promise<readonly ClientSummary[]> {
     return this.clients;
@@ -106,7 +107,11 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
     return this.templates;
   }
 
+  /** Recorded, not just echoed: `saveAssignmentDraft` is the app's only
+   *  program-assignment path, and a test that cannot see what it wrote cannot
+   *  tell an assignment from a no-op that returned its own argument. */
   async saveAssignmentDraft(draft: ProgramAssignmentDraft): Promise<ProgramAssignmentDraft> {
+    this.assignmentDrafts = [...this.assignmentDrafts, draft];
     return draft;
   }
 

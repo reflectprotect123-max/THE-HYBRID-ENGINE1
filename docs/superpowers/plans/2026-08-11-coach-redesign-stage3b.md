@@ -1,6 +1,39 @@
 # Coach Redesign Stage 3b — Programs Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **COMPLETE — shipped 13 August 2026.** Gates green: `pnpm run typecheck`,
+> `pnpm run test` (636 tests), `node checks/lane-contract.mjs`, and
+> `node checks/screens.mjs` at 420px.
+>
+> Tasks 1 and 2 were ALREADY DONE when this stage was picked up —
+> `program-body.ts`, `ProgramTemplate.sessions`, the repository read and the
+> six `sessions: []` fixtures all shipped earlier. Tasks 3-5 are this stage.
+>
+> Four things this plan could not have known, all decided against the tree
+> rather than against the plan:
+>
+> - **The Programs TAB no longer existed.** The owner deleted it on 11 August,
+>   after this plan was written. It is back as `.lib-tabs` inside
+>   `/coach/library`, with Calendar as the default — that is the half a coach
+>   opens the Library for day to day.
+> - **The plan's central warning had already come true.** It says deleting a
+>   sidebar and taking the only assign path with it "is the exact defect Stage
+>   1 shipped with roster approve/decline". `saveAssignmentDraft` had ZERO
+>   callers for two days. `CoachLibrary.test.tsx` now drives the real screen
+>   and asserts the real write, rather than trusting a grep.
+> - **The stylesheet says detail VIEW, not inline expansion.** `.lib-days`,
+>   `.lib-ex-list` and `#lib-detail-view[hidden]` describe a separate view, so
+>   a row opens one. The plan's tests pass either way; the stylesheet is the
+>   spec, as it has been every stage.
+> - **Two `CoachLibrary` tests pinned the deletion this stage partly
+>   reverses.** They are rewritten, not deleted: the calendar is still what
+>   opens, and the sidebar configurator still does not come back.
+>
+> Task 5's `Starting point` heading does not exist in the built table, exactly
+> as step 1 anticipated. `Programs` was used instead and is documented in
+> `checks/screens.mjs` as a TAB LABEL — chrome that would pass dishonestly, so
+> `ProgramsTab.test.tsx` carries the real proof by driving the panel directly.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make a program contain real sessions, and turn the Programs tab into a table the coach browses and assigns from — with no database migration.
 
@@ -55,7 +88,7 @@ Five tasks. The reader comes first because both the repository and the tab consu
 
 The body is coach-written, unconstrained jsonb (`arc-athlete-sync.ts:385` says so). It may be absent, malformed, or carry sessions in the engine's `Workout` shape. This reader is the one place that decides what counts, and it never throws — a bad body yields no sessions, because a Library that crashes on one malformed template is worse than one that shows it empty.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/coach/program-body.test.ts`:
 
@@ -107,12 +140,12 @@ describe('sessionsFromBody', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/program-body.test.ts`
 Expected: FAIL — cannot resolve `./program-body`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/coach/program-body.ts`:
 
@@ -147,12 +180,12 @@ export function sessionsFromBody(body: unknown): Workout[] {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/program-body.test.ts`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/coach/program-body.ts apps/web/src/coach/program-body.test.ts
@@ -180,7 +213,7 @@ showing that template as empty."
 
 **The fixtures deliberately get `sessions: []`.** Every real program is in that state until phase 2, so the fixtures must exercise the honest empty state rather than a happy path that does not exist yet.
 
-- [ ] **Step 1: Add the contract field**
+- [x] **Step 1: Add the contract field**
 
 In `apps/web/src/coach/contracts.ts`, inside `ProgramTemplate`, after `progression`:
 
@@ -195,12 +228,12 @@ In `apps/web/src/coach/contracts.ts`, inside `ProgramTemplate`, after `progressi
   sessions: readonly Workout[];
 ```
 
-- [ ] **Step 2: Run typecheck to see every site that must change**
+- [x] **Step 2: Run typecheck to see every site that must change**
 
 Run: `pnpm --filter @hybrid/web exec tsc --noEmit -p .`
 Expected: FAIL — `sessions` missing from the repository mapping and from `PROGRAM_TEMPLATE_FIXTURES`. That list is the work.
 
-- [ ] **Step 3: Read the sessions in the repository**
+- [x] **Step 3: Read the sessions in the repository**
 
 In `apps/web/src/cloud/coach-repository.ts`, import the reader and add one line to the mapped object, beside `progression`:
 
@@ -214,11 +247,11 @@ import { sessionsFromBody } from '../coach/program-body';
 
 The `body` local already exists on line 223 — do not re-fetch or re-reduce it.
 
-- [ ] **Step 4: Give the fixtures the field**
+- [x] **Step 4: Give the fixtures the field**
 
 In `apps/web/src/coach/mock-fixtures.ts`, add `sessions: []` to each of the six entries in `PROGRAM_TEMPLATE_FIXTURES`, keeping them on one line each as the file already does.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 pnpm --filter @hybrid/web exec tsc --noEmit -p .
@@ -227,7 +260,7 @@ node checks/coach-contract.mjs
 ```
 Expected: all clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/coach/contracts.ts apps/web/src/cloud/coach-repository.ts apps/web/src/coach/mock-fixtures.ts
@@ -268,7 +301,7 @@ The table shows every program: name, category, level, dose (`sessionsPerWeek` ×
 
 **No recommender, and no "ARC recommends" anywhere.** The coach picks; the screen says they picked.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/coach/ProgramsTab.test.tsx`:
 
@@ -381,12 +414,12 @@ describe('ProgramsTab', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/ProgramsTab.test.tsx`
 Expected: FAIL — cannot resolve `./ProgramsTab`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/coach/ProgramsTab.tsx`. Follow the classes already used by `CoachLibrary`'s current table (read lines 109-146 before writing) so this looks like the same screen it replaces. Each row is a `<button>` whose accessible name includes the program name, so a test and a screen-reader user address it the same way.
 
@@ -394,12 +427,12 @@ The two empty states are distinct and both required: a load failure renders `rol
 
 Assign controls are Task 4; leave the expanded row without them for now.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/ProgramsTab.test.tsx`
 Expected: PASS, 10 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/coach/ProgramsTab.tsx apps/web/src/coach/ProgramsTab.test.tsx
@@ -428,7 +461,7 @@ phase 2, so the empty state is the common case, not the edge."
 
 **This is the task the spec singles out.** `prepareAssignment` is the only program-assignment path in the app. It writes an assignment draft with `state: 'ready-for-coordinator'` and reports "Preferred days are inputs; the Coordinator still resolves the week." All of that is preserved exactly; only where the inputs live changes.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `apps/web/src/coach/ProgramsTab.test.tsx`:
 
@@ -472,20 +505,20 @@ describe('ProgramsTab — assigning', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/ProgramsTab.test.tsx`
 Expected: FAIL — no assign controls in the expanded row.
 
-- [ ] **Step 3: Add the controls**
+- [x] **Step 3: Add the controls**
 
 In `ProgramsTab.tsx`'s expanded row, add: an `Assign to` `<select>` over `clients`, a `Preferred start` date input defaulting to today, the seven weekday toggles (`WEEKDAYS` already exists in `CoachLibrary.tsx` — move it into a shared spot or copy the array, but do not invent different labels), the note "Preferences are not resolved calendar positions.", and a `Prepare assignment` button that calls `onAssign` only when at least one weekday is chosen.
 
-- [ ] **Step 4: Mount it and delete the sidebar**
+- [x] **Step 4: Mount it and delete the sidebar**
 
 In `CoachLibrary.tsx`: render `<ProgramsTab ... onAssign={...} />` in the `programs` tab, wiring `onAssign` to the existing `prepareAssignment` body. Delete the sidebar `<aside>`, the `Choice` controls, `recommended`, `selectedId`/`selected`, and the "ARC recommends" panel. Keep the success and error messages.
 
-- [ ] **Step 5: Verify the assign path end to end**
+- [x] **Step 5: Verify the assign path end to end**
 
 This is the guard, not a formality. Run the whole web suite and confirm `CoachLibrary`'s existing assignment tests still pass:
 
@@ -503,7 +536,7 @@ grep -rn "saveAssignmentDraft" apps/web/src --include=*.tsx --include=*.ts | gre
 
 Expected: the repository definitions, and exactly one caller. If the caller is gone, stop — the sidebar took the only assign path with it, which is the defect this task exists to prevent.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/coach/ProgramsTab.tsx apps/web/src/coach/ProgramsTab.test.tsx apps/web/src/coach/CoachLibrary.tsx
@@ -531,7 +564,7 @@ rather than trusting the sidebar's removal."
 
 Stage 3a added `['17-coach-library', '/coach/library', [/Programs/i, /Calendar/i]]`. Those are tab labels — chrome that renders whether or not the Programs panel works. This task makes the assertion prove the panel itself mounted.
 
-- [ ] **Step 1: Strengthen the assertion**
+- [x] **Step 1: Strengthen the assertion**
 
 In `checks/screens.mjs`, change the Library entry's patterns to include something only the Programs table renders — its column heading or the training-system filter:
 
@@ -541,7 +574,7 @@ In `checks/screens.mjs`, change the Library entry's patterns to include somethin
 
 Confirm `Starting point` is what the built table actually renders; if the implementation used a different heading, use that one and say so. An assertion on text that is not there fails honestly; an assertion on chrome passes dishonestly.
 
-- [ ] **Step 2: Run the check**
+- [x] **Step 2: Run the check**
 
 ```bash
 pnpm run build
@@ -549,7 +582,7 @@ node checks/screens.mjs
 ```
 Expected: 17 of 17, no overflow, exit 0.
 
-- [ ] **Step 3: Verify the whole tree**
+- [x] **Step 3: Verify the whole tree**
 
 ```bash
 pnpm run typecheck
@@ -560,7 +593,7 @@ node checks/docs.mjs
 ```
 Expected: all clean.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add checks/screens.mjs CLAUDE.md
