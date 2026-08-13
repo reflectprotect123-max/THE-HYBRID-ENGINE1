@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Session, LoggedSet, StrengthBlock } from '@hybrid/engine';
 import { sessionView } from './view';
-import { initialRun } from './machine';
+import { initialRun, reduce } from './machine';
 import { rotateBlock } from './rotate';
 import { orderFor } from './queue';
 
@@ -42,6 +42,7 @@ describe('sessionView', () => {
       setIndex: 1,
       exerciseName: 'Back Squat',
       message: 'on plan',
+      planned: { reps: '8', rpe: '8' },
     });
   });
 
@@ -110,5 +111,48 @@ describe('sessionView', () => {
     // Three sets on the exercise, one of them a warm-up: progress must read
     // 1 of 2, not 2 of 3.
     expect(view.blocks[0].progress).toEqual({ done: 1, total: 2 });
+  });
+
+  it('reports blockIndex, and it follows goToBlock', () => {
+    const block = (id: string): StrengthBlock<LoggedSet> => ({
+      id,
+      exercises: [{ id: `${id}-e0`, name: 'Bench', mode: 'reps_kg', sets: [{ t: '8', rpe: '8' }] }],
+    });
+    const sess = session([block('b1'), block('b2')]);
+    const run0 = initialRun(sess);
+    expect(sessionView(sess, run0).blockIndex).toBe(0);
+
+    const { run: run1 } = reduce(sess, run0, { type: 'goToBlock', index: 1 });
+    expect(sessionView(sess, run1).blockIndex).toBe(1);
+  });
+
+  it('carries the recorded values on a done set, and null on one not yet logged', () => {
+    const block: StrengthBlock<LoggedSet> = {
+      id: 'b1',
+      exercises: [
+        {
+          id: 'e0',
+          name: 'Back Squat',
+          mode: 'reps_kg',
+          sets: [
+            { t: '8-10', rpe: '7-9', aVal: '100', aVal2: '8', felt: '7.5', done: true },
+            { t: '5', rpe: '8' },
+          ],
+        },
+      ],
+    };
+    const sess = session([block]);
+    const view = sessionView(sess, initialRun(sess));
+    const allSets = view.rounds.flatMap((r) => r.sets);
+
+    const done = allSets.find((s) => s.setIndex === 0)!;
+    expect(done.status).toBe('done');
+    expect(done.logged).toEqual({ kg: 100, reps: 8, felt: 7.5 });
+    expect(done.planned).toEqual({ reps: '8-10', rpe: '7-9' });
+
+    const upcoming = allSets.find((s) => s.setIndex === 1)!;
+    expect(upcoming.status).not.toBe('done');
+    expect(upcoming.logged).toBeNull();
+    expect(upcoming.planned).toEqual({ reps: '5', rpe: '8' });
   });
 });

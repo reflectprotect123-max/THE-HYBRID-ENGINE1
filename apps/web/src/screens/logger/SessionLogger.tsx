@@ -1,11 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Session } from '@hybrid/engine';
+import { isCond, isText, type Session, type StrengthBlock, type LoggedSet } from '@hybrid/engine';
 import { useSession, type Action, type SessionView } from '@hybrid/session-authoring';
 import { useDb } from '../../store/db';
 import { useRest } from '../../store/rest';
 import { requestWakeLock, releaseWakeLock } from '../../native/wakeLock';
 import { Button, Card } from '../../ui';
+import { BlockStrip } from './BlockStrip';
+import { BlockScreen } from './BlockScreen';
 
 /*
  * The screen shell for `@hybrid/session-authoring`'s `useSession`.
@@ -17,16 +19,18 @@ import { Button, Card } from '../../ui';
  * bridging the hook's own rest model onto the store that actually fires the
  * rest-complete Notification and drives the global `RestChip`.
  *
- * The block strip, the current block and the rest takeover are Tasks 3-5.
- * This shell renders their slots and nothing else — no placeholder text, no
- * stub markup, because there is nothing yet to show in them.
+ * The block strip (`BlockStrip`) and the current block's rounds
+ * (`BlockScreen`) are Task 3, rendered below. The rest takeover is Task 5
+ * and still renders nothing — no placeholder text, no stub markup, because
+ * there is nothing yet to show there.
  */
 
 /**
  * Wire `useSession` to this app's side effects.
  *
- * `useSession` hands back a derived VIEW — `blocks`, `rounds`, `hot`, `rest`,
- * `draft`, `finished` — plus the concrete `Session` it holds inside. This
+ * `useSession` hands back a derived VIEW — `blockIndex`, `blocks`, `rounds`,
+ * `hot`, `rest`, `draft`, `finished` — plus the concrete `Session` it holds
+ * inside. This
  * shell renders the view and persists the session; it duplicates no part of
  * `useSession`'s own state machine to get one.
  */
@@ -35,7 +39,7 @@ export function useLoggerBridge(
   updateSession: (id: string, fn: (s: Session) => void | false) => void,
   startRest: (seconds: number) => void,
   stopRest: () => void,
-): { view: SessionView; dispatch: (action: Action) => void } {
+): { view: SessionView; dispatch: (action: Action) => void; session: Session } {
   const { dispatch, session, ...view } = useSession(initial);
 
   // Persist: write-through on change, matching the old Logger's cadence at
@@ -72,7 +76,7 @@ export function useLoggerBridge(
     }
   }, [view.rest, startRest, stopRest]);
 
-  return { view, dispatch };
+  return { view, dispatch, session };
 }
 
 /** Keep the screen awake for the life of this component — ported from
@@ -112,16 +116,37 @@ function NoLiveSession() {
   );
 }
 
-function RunningSession({ session }: { session: Session }) {
+/** A `Block` that is not a `StrengthBlock` has no rounds to log — the same
+ *  guard `@hybrid/session-authoring`'s `view.ts` applies internally, mirrored
+ *  here because the view exposes only the current block's `rounds`, never
+ *  the block itself. */
+function isStrengthBlock(b: Session['blocks'][number]): b is StrengthBlock<LoggedSet> {
+  return !isCond(b) && !isText(b);
+}
+
+function RunningSession({ session: initialSession }: { session: Session }) {
   const { updateSession } = useDb();
   const { start: startRest, stop: stopRest } = useRest();
-  useLoggerBridge(session, updateSession, startRest, stopRest);
+  const { view, dispatch, session } = useLoggerBridge(initialSession, updateSession, startRest, stopRest);
   useWakeLock();
+
+  // `view.blockIndex` is the hook's own `run.blockIndex`, surfaced — the
+  // single source `goToBlock` moves. Nothing here mirrors it into local
+  // state, so there is no second copy of "which block is on screen" that
+  // could drift from what the hook is actually showing.
+  const goToBlock = useCallback((index: number) => dispatch({ type: 'goToBlock', index }), [dispatch]);
+  const rotate = useCallback((blockId: string) => dispatch({ type: 'rotate', blockId }), [dispatch]);
+
+  const currentBlock = session.blocks[view.blockIndex];
+  const strengthBlock = currentBlock && isStrengthBlock(currentBlock) ? currentBlock : null;
+  const currentTitle = view.blocks[view.blockIndex]?.title ?? '';
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-2 pt-2 pb-3">
-      {/* Block strip — Task 3. */}
-      {/* Current block (rounds, hot card) — Tasks 3 and 4. */}
+      <BlockStrip blocks={view.blocks} currentIndex={view.blockIndex} onSelect={goToBlock} />
+      {strengthBlock ? (
+        <BlockScreen block={strengthBlock} title={currentTitle} rounds={view.rounds} onRotate={rotate} />
+      ) : null}
       {/* Rest takeover — Task 5. */}
     </div>
   );
