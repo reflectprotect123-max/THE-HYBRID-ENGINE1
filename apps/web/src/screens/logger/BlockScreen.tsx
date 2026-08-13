@@ -1,6 +1,7 @@
 import { isLiftMode, type LoggedSet, type StrengthBlock } from '@hybrid/engine';
-import type { RoundSet, RoundView } from '@hybrid/session-authoring';
+import type { Action, Draft, HotSet, RoundSet, RoundView } from '@hybrid/session-authoring';
 import { cx } from '../../ui';
+import { HotCard } from './HotCard';
 
 /*
  * The rounds of the block currently on screen.
@@ -36,6 +37,9 @@ export function BlockScreen({
   title,
   rounds,
   onRotate,
+  hot,
+  draft,
+  dispatch,
 }: {
   block: StrengthBlock<LoggedSet>;
   /** The block's title, from the hook's own `BlockView.title` — not
@@ -44,6 +48,13 @@ export function BlockScreen({
   title: string;
   rounds: RoundView[];
   onRotate: (blockId: string) => void;
+  /** The set in front of the athlete, and the coaching rule's word on it —
+   *  `useSession`'s `view.hot`, straight through. Null whenever no round in
+   *  `rounds` is `'live'`. */
+  hot: HotSet | null;
+  /** The athlete's in-progress entry for `hot` — `view.draft`. */
+  draft: Draft | null;
+  dispatch: (action: Action) => void;
 }) {
   const superset = !!block.superset;
   let receiptIndex = 0; // within THIS block, DOM order — never across the session
@@ -89,9 +100,24 @@ export function BlockScreen({
               }
 
               if (set.status === 'live') {
-                // Hot card seam — Task 4 renders the live set here. Nothing
-                // in the DOM for it yet: no placeholder markup to ship.
-                return null;
+                // `nextUp` (via `view.ts`'s `buildRounds`) is the only thing
+                // that marks a set 'live', and it is the same call that
+                // produces `hot` — so a live row here and a null/mismatched
+                // `hot` would mean the hook contradicted itself. Rendering
+                // nothing in that case is a safe no-op, not a guess.
+                if (!hot || !draft || hot.exerciseIndex !== set.exerciseIndex || hot.setIndex !== set.setIndex) {
+                  return null;
+                }
+                return (
+                  <HotCard
+                    key={key}
+                    hot={hot}
+                    draft={draft}
+                    dispatch={dispatch}
+                    label={label}
+                    weighted={isLiftMode(ex.mode)}
+                  />
+                );
               }
 
               return (

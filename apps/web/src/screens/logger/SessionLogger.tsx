@@ -145,7 +145,15 @@ function RunningSession({ session: initialSession }: { session: Session }) {
     <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-2 pt-2 pb-3">
       <BlockStrip blocks={view.blocks} currentIndex={view.blockIndex} onSelect={goToBlock} />
       {strengthBlock ? (
-        <BlockScreen block={strengthBlock} title={currentTitle} rounds={view.rounds} onRotate={rotate} />
+        <BlockScreen
+          block={strengthBlock}
+          title={currentTitle}
+          rounds={view.rounds}
+          onRotate={rotate}
+          hot={view.hot}
+          draft={view.draft}
+          dispatch={dispatch}
+        />
       ) : null}
       {/* Rest takeover — Task 5. */}
     </div>

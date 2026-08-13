@@ -30,10 +30,10 @@ describe('BlockScreen — receipt indices', () => {
     render(
       <>
         <div data-testid="a">
-          <BlockScreen block={soloBlock('b0', 'Squat')} title="Squat" rounds={soloRounds} onRotate={vi.fn()} />
+          <BlockScreen block={soloBlock('b0', 'Squat')} title="Squat" rounds={soloRounds} onRotate={vi.fn()} hot={null} draft={null} dispatch={vi.fn()} />
         </div>
         <div data-testid="b">
-          <BlockScreen block={soloBlock('b1', 'Bench')} title="Bench" rounds={soloRounds} onRotate={vi.fn()} />
+          <BlockScreen block={soloBlock('b1', 'Bench')} title="Bench" rounds={soloRounds} onRotate={vi.fn()} hot={null} draft={null} dispatch={vi.fn()} />
         </div>
       </>,
     );
@@ -77,7 +77,7 @@ describe('BlockScreen — a rotated round', () => {
       },
     ];
     const { container } = render(
-      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={rotated} onRotate={vi.fn()} />,
+      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={rotated} onRotate={vi.fn()} hot={null} draft={null} dispatch={vi.fn()} />,
     );
 
     const order = Array.from(container.querySelectorAll('.text-dim.font-\\[600\\]')).map((el) => el.textContent);
@@ -111,7 +111,7 @@ describe('BlockScreen — the rotate grip', () => {
 
   it('appears only on a round that has not started', () => {
     const { container } = render(
-      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={vi.fn()} />,
+      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={vi.fn()} hot={null} draft={null} dispatch={vi.fn()} />,
     );
 
     const grips = container.querySelectorAll('[data-parity="grip"]');
@@ -121,7 +121,7 @@ describe('BlockScreen — the rotate grip', () => {
   it('is a real button that dispatches rotate on tap', () => {
     const onRotate = vi.fn();
     render(
-      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={onRotate} />,
+      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={onRotate} hot={null} draft={null} dispatch={vi.fn()} />,
     );
 
     const grip = screen.getByRole('button', { name: /do this movement first/i });
@@ -134,7 +134,7 @@ describe('BlockScreen — the rotate grip', () => {
   it('rotates on keyboard Enter, not only on click', () => {
     const onRotate = vi.fn();
     render(
-      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={onRotate} />,
+      <BlockScreen block={supersetBlock()} title="Press + Raise" rounds={roundsWithOneStarted()} onRotate={onRotate} hot={null} draft={null} dispatch={vi.fn()} />,
     );
 
     const grip = screen.getByRole('button', { name: /do this movement first/i });
@@ -154,7 +154,7 @@ describe('BlockScreen — the live set seam', () => {
       id: 'b0',
       exercises: [{ id: 'e0', name: 'Squat', mode: 'reps_kg', sets: [target()] }],
     };
-    const { container } = render(<BlockScreen block={block} title="Squat" rounds={rounds} onRotate={vi.fn()} />);
+    const { container } = render(<BlockScreen block={block} title="Squat" rounds={rounds} onRotate={vi.fn()} hot={null} draft={null} dispatch={vi.fn()} />);
 
     // The title renders; nothing else does for this single live-only round.
     expect(container.textContent?.trim()).toBe('Squat');

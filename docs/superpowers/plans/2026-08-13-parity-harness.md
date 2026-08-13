@@ -48,7 +48,7 @@ This plan takes the second. The cost is a real obligation on slices 4, 5 and 6: 
 | `hot-why` | element | the coaching message — the string the gate asserts on |
 | `hot-kg` | element | the live card's weight |
 | `reps-up` / `reps-down` | button | rep stepper |
-| `rpe-<n>` | button | rating chip, `n` being 7, 7.5 … 10 with the dot removed: `rpe-75` |
+| `rpe-<n>` | button | rating chip. `n` is the value with the decimal point removed and NOTHING else — `String(v).replace('.', '')`. So 7 is `rpe-7`, 7.5 is `rpe-75`, 10 is `rpe-10`. Not the value times ten: an earlier draft of this table said `rpe-70`/`rpe-100`, which disagreed with the prototype and the driver on four of the seven chips. |
 | `log` | button | log the set |
 | `piece-done` | button | finish the warm-up/cool-down piece currently on the hot card |
 | `grip` | button | the superset rotate handle |
