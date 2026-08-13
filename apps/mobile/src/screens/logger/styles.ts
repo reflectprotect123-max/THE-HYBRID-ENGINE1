@@ -35,7 +35,9 @@ function build(color: Palette) {
   return StyleSheet.create({
     /* ---- shell ---------------------------------------------------- */
     screen: { flex: 1, backgroundColor: color.bg },
-    scroll: { paddingHorizontal: s[2], paddingTop: s[2], paddingBottom: s[3] },
+    appbar: { paddingHorizontal: s[2], paddingTop: s[2], paddingBottom: s[1] },
+    appbarTitle: { fontFamily: font.bold, fontSize: fontSize[7], color: color.text },
+    scroll: { paddingHorizontal: s[2], paddingTop: 0, paddingBottom: s[3] },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: s[3] },
     emptyTitle: { fontFamily: font.semi, fontSize: fontSize[6], color: color.text, textAlign: 'center' },
     emptyBody: { fontFamily: font.reg, fontSize: fontSize[4], color: color.muted, marginTop: s[1], textAlign: 'center' },
@@ -54,6 +56,10 @@ function build(color: Palette) {
     block: { paddingTop: s.half, paddingBottom: s[3] },
     blockTitle: { fontFamily: font.semi, fontSize: fontSize[7], color: color.text, marginTop: s.half, marginBottom: s.half },
     blockNote: { fontFamily: font.reg, fontSize: fontSize[3], color: color.dim, marginBottom: s[1] },
+    blockDone: { borderRadius: radius.lg, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.panel, paddingVertical: s[2], alignItems: 'center', marginVertical: s[1] },
+    blockDoneTitle: { fontFamily: font.semi, fontSize: fontSize[7], color: color.text },
+    blockDoneSub: { fontFamily: font.reg, fontSize: fontSize[4], color: color.muted, marginTop: s.quarter },
+    roundHint: { color: color.gold2 },
     roundLabel: { fontFamily: font.reg, fontSize: fontSize[1], letterSpacing: 1.2, color: color.dim, marginTop: s[2], marginBottom: s.half, textTransform: 'uppercase' },
 
     receipt: { flexDirection: 'row', alignItems: 'center', gap: s[1], borderRadius: radius.md, borderWidth: 1, borderColor: color.line, backgroundColor: color.well, paddingHorizontal: s.three, paddingVertical: s[1], marginVertical: s.half },

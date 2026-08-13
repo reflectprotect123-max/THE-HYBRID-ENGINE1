@@ -144,6 +144,14 @@ function RunningSession({ session: initialSession }: { session: Session }) {
 
   return (
     <View style={st.screen}>
+      {/* The session's own name, at the top of its own screen. The navigator
+          runs with `headerShown: false`, so every screen in this app carries
+          its own bar — and the parity harness has no navigator at all. */}
+      <View style={st.appbar}>
+        <Text numberOfLines={1} style={st.appbarTitle}>
+          {session.name || 'Session'}
+        </Text>
+      </View>
       <ScrollView contentContainerStyle={st.scroll}>
         <BlockStrip blocks={view.blocks} currentIndex={view.blockIndex} onSelect={goToBlock} />
         {allDone && onLastBlock ? (

@@ -233,7 +233,9 @@ describe('BlockScreen — the live set seam', () => {
     };
     const r = render(<BlockScreen blockIndex={0} block={block} title="Squat" rounds={rounds} onRotate={noop} hot={null} draft={null} dispatch={noop} />);
 
-    // The title renders; nothing else does for this single live-only round.
-    expect(r.getAllByText(/\S/).map((n) => n.props.children)).toEqual(['Squat']);
+    // The title and its subtitle render; nothing else does for this single
+    // live-only round. (`1 sets` is the prototype's own wording, ungrammatical
+    // and copied deliberately — the specification is the specification.)
+    expect(r.getAllByText(/\S/).map((n) => n.props.children)).toEqual(['Squat', '1 sets']);
   });
 });

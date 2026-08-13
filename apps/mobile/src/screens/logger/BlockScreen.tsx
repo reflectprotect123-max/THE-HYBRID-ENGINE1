@@ -28,7 +28,6 @@ import { useLoggerStyles } from './styles';
  * make every block after the first disagree with the baseline.
  */
 
-const isSupersetRound = (round: RoundView) => round.sets.length > 1;
 const roundStarted = (round: RoundView) => round.sets.some((s) => s.status === 'done');
 const roundIsLive = (round: RoundView) => round.sets.some((s) => s.status === 'live');
 
@@ -100,6 +99,19 @@ export function BlockScreen({
 
   const pieces = warmup ? rounds.flatMap((round) => round.sets) : [];
 
+  /* The prototype's `bsub`. A superset names its pair; anything else counts
+     its sets. Presentation of facts already on the block — nothing is decided
+     here. */
+  const subtitle = warmup
+    ? null
+    : superset
+      ? `${block.exercises.map((ex) => ex.name).join(' + ')} · superset`
+      : `${block.exercises[0]?.sets.length ?? 0} sets`;
+
+  /* Every round of this block logged. The prototype says so on the block
+     itself rather than leaving the last receipt as the last word. */
+  const blockDone = !warmup && rounds.every((round) => round.sets.every((set) => set.status === 'done'));
+
   return (
     <View testID={`blockscreen-${blockIndex}`} style={st.block}>
       <Text style={st.blockTitle}>{title}</Text>
@@ -107,6 +119,14 @@ export function BlockScreen({
         <Text style={st.blockNote}>
           {pieces.length} pieces · nothing here counts toward your weights
         </Text>
+      ) : (
+        <Text style={st.blockNote}>{subtitle}</Text>
+      )}
+      {blockDone ? (
+        <View style={st.blockDone}>
+          <Text style={st.blockDoneTitle}>Block done</Text>
+          <Text style={st.blockDoneSub}>every set logged</Text>
+        </View>
       ) : null}
 
       {warmup
@@ -151,8 +171,15 @@ export function BlockScreen({
 
             return (
               <Fragment key={round.round}>
-                {isSupersetRound(round) ? (
-                  <Text style={st.roundLabel}>Round {round.round + 1}</Text>
+                {superset ? (
+                  <Text style={st.roundLabel}>
+                    Round {round.round + 1}
+                    {round.sets.length < block.exercises.length && round.sets[0]
+                      ? ` · ${round.sets[0].exerciseName} only`
+                      : ''}
+                    {showGrip ? ' · ' : ''}
+                    {showGrip ? <Text style={st.roundHint}>pull up to swap</Text> : null}
+                  </Text>
                 ) : null}
 
                 {round.sets.map((set) => {

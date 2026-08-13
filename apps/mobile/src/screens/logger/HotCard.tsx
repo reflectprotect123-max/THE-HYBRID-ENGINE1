@@ -36,6 +36,17 @@ const RPE_CHIPS = [7, 7.5, 8, 8.5, 9, 9.5, 10].map((value) => ({
   key: String(value).replace('.', ''),
 }));
 
+/**
+ * The plate reading, in the prototype's own words: `bar 20 · per side 20`, or
+ * `empty bar` when there is nothing on it. The engine still does the
+ * arithmetic — this only formats its answer, and it formats it the way the
+ * specification does rather than the way the web body happened to.
+ */
+function plateLine(plates: { perSide: number[] }): string {
+  if (!plates.perSide.length) return 'empty bar';
+  return `bar ${BAR_KG} · per side ${plates.perSide.join(' + ')}`;
+}
+
 export function HotCard({
   hot,
   draft,
@@ -120,7 +131,7 @@ export function HotCard({
             )}
             {plates ? (
               <Text style={st.plates}>
-                {plates.perSide.length ? `per side: ${plates.perSide.join(' · ')}` : 'bar only'}
+                {plateLine(plates)}
                 {!plates.loadable
                   ? ` — nearest is ${plates.achievableKg}kg (${plates.delta > 0 ? '+' : ''}${plates.delta})`
                   : ''}
