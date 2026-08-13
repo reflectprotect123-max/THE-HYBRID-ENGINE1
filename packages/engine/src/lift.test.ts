@@ -30,34 +30,25 @@ const session = (exercises: Exercise<LoggedSet>[], completedAt = 5000): Session 
   blocks: [{ id: 'b1', heading: 'Main', exercises }],
 });
 
-const sessionWith = (sets: LoggedSet[]): Session => ({
-  id: 's1', date: '2026-08-12', status: 'completed',
-  blocks: [{ id: 'b1', exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg', sets }] }],
-});
-
 /** On target at the 8.5 default centre: the weight holds. */
 const onTarget = { t: '5', rpe: '8.5', aVal: '100', aVal2: '5', felt: '8.5', done: true };
 
 describe('which set decides the next weight', () => {
-  it('folds to nothing once every planned set has been logged', () => {
-    // Both sets in the plan are done, so the fold has no next set left to
-    // price — `foldFromExercise` returns null (setIndex 2 >= targets.length
-    // 2) and `liftMoves` banks nothing for this movement. This replaces the
-    // old "judges the LAST completed working set" case: that rule judged one
-    // set in isolation and always had an answer; the fold judges against the
-    // plan and has none once the plan is exhausted.
+  it('judges the LAST completed working set', () => {
     const s = session([
       ex('Back squat', [
         { t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '6', done: true },
         { t: '5', rpe: '8', aVal: '105', aVal2: '5', felt: '9.5', done: true },
       ]),
     ]);
-    expect(liftMoves(s)).toEqual([]);
+    // Judged on the 105 at 9.5, not the 100 at 6 — a session that ramps up
+    // must not be scored on how the first set felt.
+    const [m] = liftMoves(s);
+    expect(m.from).toBe(105);
+    expect(m.to).toBeLessThan(105);
   });
 
-  it('folds to nothing when the only working set (warm-ups aside) is already done', () => {
-    // The warm-up is filtered out before folding, leaving one working set that
-    // is itself the whole plan — done, with nothing left to predict.
+  it('ignores warm-ups entirely', () => {
     const s = session([
       ex('Bench press', [
         { t: '5', rpe: '8', aVal: '80', aVal2: '5', felt: '8.5', done: true },
@@ -65,7 +56,7 @@ describe('which set decides the next weight', () => {
         { t: 'W3', rpe: '', aVal: '40', aVal2: '3', felt: '10', done: true },
       ]),
     ]);
-    expect(liftMoves(s)).toEqual([]);
+    expect(liftMoves(s)[0].from).toBe(80);
   });
 
   it('ignores sets that were never completed', () => {
@@ -78,22 +69,19 @@ describe('which set decides the next weight', () => {
     expect(liftMoves(s)[0].from).toBe(140);
   });
 
-  it('folds to nothing when a single-set plan is the only, and completed, set', () => {
-    // A one-set exercise with that set done is a plan with setIndex (1) equal
-    // to targets.length (1) — finished, nothing left for the fold to predict.
-    // This replaces "judges the set against what was ASKED, not against
-    // itself": that per-set rule always had a verdict; a plan-anchored fold
-    // over an exhausted plan does not.
+  it('judges the set against what was ASKED, not against itself', () => {
+    // A set targeted at RPE 7 and rated 9 is too heavy even though 9 is a
+    // perfectly ordinary rating. Using the set's own `rpe` as the centre would
+    // score everything as perfect and the weight would never move.
     const s = session([ex('Row', [{ t: '8', rpe: '7', aVal: '60', aVal2: '8', felt: '9', done: true }])]);
-    expect(liftMoves(s)).toEqual([]);
+    expect(liftMoves(s)[0].delta).toBeLessThan(0);
   });
 
-  it('folds to nothing when the only set missed its rep floor and finished the plan', () => {
-    // Same exhausted-plan shape as above; a single logged set — even one that
-    // missed its floor — leaves no next target to fold, so nothing is banked
-    // rather than a "took weight off" verdict.
+  it('takes weight off a set that missed its rep floor, however it was rated', () => {
     const s = session([ex('Front squat', [{ t: '5', rpe: '8', aVal: '90', aVal2: '3', felt: '7', done: true }])]);
-    expect(liftMoves(s)).toEqual([]);
+    const [m] = liftMoves(s);
+    expect(m.delta).toBeLessThan(0);
+    expect(m.verdict).toBe('missed the rep floor');
   });
 
   it('produces nothing for non-lift modes', () => {
@@ -105,30 +93,14 @@ describe('which set decides the next weight', () => {
     expect(liftMoves(session([ex('', [onTarget])]))).toEqual([]);
   });
 
-  it('an unrated set banks a hold at the same weight, not a move', () => {
-    // An older session, logged before the rating existed. `foldFromExercise`
-    // cannot fold an unrated set into its log (it requires a finite `felt`),
-    // so its own log list stays empty and setIndex is 0 — read as "the
-    // opener" — which returns the weight unchanged (`from` === `to`, delta 0)
-    // rather than a judged move. This is not "moving weight on evidence
-    // nobody gave": it is a hold, banking exactly the weight that was already
-    // lifted.
+  it('produces nothing when the set was never rated', () => {
+    // An older session, logged before the rating existed. Judging it at some
+    // default would move the weight on evidence nobody gave.
     const s = session([ex('Back squat', [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', done: true }])]);
-    const [m] = liftMoves(s);
-    expect(m.from).toBe(100);
-    expect(m.to).toBe(100);
-    expect(m.delta).toBe(0);
-    expect(m.verdict).toBe('opener — everything works from here');
+    expect(liftMoves(s)).toEqual([]);
   });
 
-  it('a later lighter block does not get a chance to overwrite, because both fold to nothing', () => {
-    // Each block's "Back Squat" is a single-set, fully-done plan on its own —
-    // b1's exercise folds to null (setIndex 1 >= targets.length 1) and
-    // returns before `seen.add(key)` runs, so b2's exercise is tried too and
-    // folds to null the same way. Nothing is banked for either, so the
-    // dedup-by-first-occurrence guard this test used to pin never even
-    // engages. This replaces "banks the working effort, not a later lighter
-    // block".
+  it('banks the working effort, not a later lighter block', () => {
     const s: Session = { id: 's', date: '2026-01-01', status: 'completed', completedAt: 1, blocks: [
       { id: 'b1', exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg',
         sets: [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true }] }] },
@@ -136,8 +108,9 @@ describe('which set decides the next weight', () => {
         sets: [{ t: '3', rpe: '9', aVal: '60', aVal2: '3', felt: '6', done: true }] }] },
     ] };
     const mv = liftMoves(s);
-    expect(mv.length).toBe(0);
-    expect(liftAdapt(s, {}).liftProgress['back squat']).toBeUndefined();
+    expect(mv.length).toBe(1);
+    expect(mv[0].from).toBe(100);
+    expect(liftAdapt(s, {}).liftProgress['back squat'].kg).toBe(100);
   });
 
   it('a set with zero reps earns no progression', () => {
@@ -150,28 +123,18 @@ describe('which set decides the next weight', () => {
 });
 
 describe('banking it', () => {
-  it('a single-set, fully-done plan folds to nothing, so nothing is keyed', () => {
-    // `onTarget` is one set, done — setIndex 1 >= targets.length 1, so
-    // `foldFromExercise` returns null and `liftMoves` produces no entry for
-    // it. This replaces "keys by lowercased name and carries the timestamp":
-    // that fixture happened to be exactly the shape that now folds to
-    // nothing, so there is nothing left to key or timestamp.
+  it('keys by lowercased name and carries the timestamp', () => {
     const { liftProgress } = liftAdapt(session([ex('Back Squat', [onTarget])]), {});
-    expect(liftProgress['back squat']).toBeUndefined();
+    expect(liftProgress['back squat']).toEqual({ kg: 100, at: 5000, reps: 5 });
   });
 
   it('leaves a lift alone when this session earned nothing for it', () => {
     // Skipping a lift, or logging only warm-ups, must not erase what the last
     // session earned. Zeroing it here would silently reset the athlete.
-    // `onTarget` is again a single-set, fully-done plan that folds to null
-    // (setIndex 1 >= targets.length 1), so "Back squat" earns nothing here
-    // too — the assertion on it is updated to match, while the case this
-    // test actually exists to pin (an untouched movement's progress survives)
-    // is still proven by the `deadlift` assertion.
     const before = { liftProgress: { deadlift: { kg: 180, at: 1000 } } };
     const { liftProgress } = liftAdapt(session([ex('Back squat', [onTarget])]), before);
     expect(liftProgress.deadlift).toEqual({ kg: 180, at: 1000 });
-    expect(liftProgress['back squat']).toBeUndefined();
+    expect(liftProgress['back squat'].kg).toBe(100);
   });
 
   it('does not let an older session overwrite a newer one', () => {
@@ -342,28 +305,5 @@ describe('prescribedKg — an authored % of e1RM, and what it outranks', () => {
     // working prescription is the thing `same` exists to stop.
     const today = ex('Back squat', [{ t: 'W5 @80%', rpe: '' } as LoggedSet]);
     expect(prefillPrimary(today, 0, history, {})).toBe('');
-  });
-});
-
-describe('liftMoves banks the fold, not the last set’s own adjustment', () => {
-  it('banks the folded weight, not the last set’s own adjustment', () => {
-    // Two easy sets earn the full correction; the old per-set rule would have
-    // moved only off the second one.
-    const moves = liftMoves(sessionWith([
-      { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
-      { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
-      { t: '8', rpe: '8' },
-    ]));
-    expect(moves).toHaveLength(1);
-    expect(moves[0].to).toBeGreaterThan(100);
-  });
-
-  it('does not bank a rise from an easy set that followed a hard one', () => {
-    const moves = liftMoves(sessionWith([
-      { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '9', done: true },
-      { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
-      { t: '8', rpe: '8' },
-    ]));
-    expect(moves[0].to).toBeLessThan(100);
   });
 });

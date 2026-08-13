@@ -1,6 +1,5 @@
 import { AUTOREG, RECOVERY_BANDS } from './constants';
-import { isWarmup, loadPctOf } from './autoreg';
-import { foldFromExercise } from './fold';
+import { computeSetAdjustment, isWarmup, loadPctOf, repFloorOf, rpeCenterOf } from './autoreg';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
 import { blockExercises, exBest, isLiftMode, isWarmupBlock } from './session';
@@ -84,9 +83,6 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
       // (working) occurrence wins; a back-off/burnout block written after the
       // main lift must not overwrite the working weight it earned.
 
-      const folded = foldFromExercise(ex, AUTOREG.plateIncrement);
-      if (!folded || folded.kg <= 0) return;
-
       const st = lastWorkingSet(ex);
       if (!st) return;
 
@@ -97,16 +93,14 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
       // read reps 0 and moved the working weight UP.
       if (!(reps > 0)) return;
       seen.add(key);
+      // `felt` is what the athlete RATED the set at; `rpe` is what was asked
+      // for. Judging a set against its own target would score everything as
+      // perfect and the weight would never move.
+      const felt = parseFloat(String(st.felt));
+      if (!Number.isFinite(felt)) return;
 
-      out.push({
-        name,
-        key,
-        from,
-        to: folded.kg,
-        delta: Math.round((folded.kg - from) * 100) / 100,
-        verdict: folded.message,
-        reps,
-      });
+      const adj = computeSetAdjustment(reps, felt, repFloorOf(st.t), from, rpeCenterOf(st));
+      out.push({ name, key, from, to: adj.newWeight, delta: adj.delta, verdict: adj.verdict, reps });
     });
   });
 
