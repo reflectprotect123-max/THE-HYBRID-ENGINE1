@@ -288,6 +288,21 @@ the baseline every later slice is measured against.
 
 ## Slice 4 — the athlete app on web
 
+**Narrowed to the LOGGER only, 13 August 2026.** `Planner`, `screens/planner/*`
+and `screens/guided/*` survive this slice; the old builder writes the same
+`Session` shape the new logger reads, so the app works end to end after it —
+author with the existing builder, log with the new logger. That takes the
+blast radius from 14 files to 1 and gets a usable app sooner. The builder
+replacement, and with it the two coach crossings in the lane contract, becomes
+its own slice. Plan: `docs/superpowers/plans/2026-08-13-athlete-web-logger.md`.
+
+**Two of constraint 7's five extras are dropped.** Wake lock, the per-set timer
+and skip/add-set are carried. The sets table and session stats are not — the
+prototype has neither, so building them means inventing UI no parity gate can
+judge. Decided 13 August 2026.
+
+### Slice 4, as originally written
+
 New builder and logger screens in `apps/web`, rendering `useSession`. Routes
 switched. `screens/Logger.tsx`, `screens/Planner.tsx`, `screens/planner/*` and
 `screens/guided/*` deleted in the same commit.
