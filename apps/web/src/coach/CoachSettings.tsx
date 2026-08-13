@@ -1,5 +1,21 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
+import './coach-redesign.css';
+
+/*
+ * `/coach/settings` in the workspace redesign's own styling — stage 2 of
+ * `docs/superpowers/specs/2026-08-11-coach-workspace-redesign-design.md`.
+ *
+ * Stage 1 ported the mockup's stylesheet whole, and the 34 `st-` rules for
+ * this screen sat unused in `coach-redesign.css` from that day. There is no
+ * mockup HTML left in the repo, so that rule set IS the specification: the
+ * grid, the tab column, the panels, the row shapes, the toggle, the advanced
+ * disclosure, the warning line and the save row are all described there,
+ * phone block included. This file writes JSX against those class names and
+ * adds no CSS of its own.
+ *
+ * The frame is `rd-content`, the same one every stage-1 screen uses.
+ */
 
 const SECTIONS = ['Workspace', 'Programming', 'Decisions & safety', 'Coaches & access', 'Data & sync'] as const;
 type Section = typeof SECTIONS[number];
@@ -36,10 +52,9 @@ export function CoachSettings() {
   };
 
   return (
-    <main className="min-h-screen bg-bg text-text">
-      <header className="border-b border-line2 px-3 py-3 sm:px-4"><p className="text-[10px] uppercase tracking-[.18em] text-gold">ARC · settings</p><h1 className="mt-0.5 text-xl font-semibold sm:text-2xl">Set the workspace once.</h1><p className="mt-1 max-w-[62ch] text-xs text-muted">Everyday preferences stay simple. Authority, access and safety controls remain explicit.</p></header>
-      <div className="grid gap-5 p-3 sm:p-4 lg:grid-cols-[210px_minmax(0,680px)]">
-        <nav className="flex gap-1 overflow-x-auto lg:grid lg:self-start" aria-label="Settings sections">{SECTIONS.map((item) => <button key={item} type="button" aria-current={section === item ? 'page' : undefined} onClick={() => setSection(item)} className={`min-h-9 shrink-0 rounded-md border px-2 text-left text-xs ${section === item ? 'border-line2 bg-panel text-text' : 'border-transparent text-muted hover:bg-panel'}`}>{item}</button>)}</nav>
+    <main className="rd-content">
+      <div className="st-grid">
+        <nav className="st-tabs" aria-label="Settings sections">{SECTIONS.map((item) => <button key={item} type="button" aria-current={section === item ? 'page' : undefined} onClick={() => setSection(item)} className={`st-tab${section === item ? ' active' : ''}`}>{item}</button>)}</nav>
         <div>
           {section === 'Workspace' && <SettingsSection title="Workspace" detail="How ARC looks and behaves for you."><SelectRow label="Training week begins" value={weekStart} onChange={setWeekStart} options={['Monday', 'Sunday']} /><SelectRow label="Default load unit" value={units} onChange={setUnits} options={['Kilograms', 'Pounds']} /><ToggleRow label="Priority notifications" detail="Safety, conflicts and programming gaps only." checked={notifications} onChange={setNotifications} /></SettingsSection>}
           {section === 'Programming' && <SettingsSection title="Programming" detail="Choose what appears in your Library. Progression rules remain versioned."><ToggleRow label="Strength library" detail="Exercises, sessions and reusable blocks." checked={library.strength} onChange={(checked) => setLibrary((current) => ({ ...current, strength: checked }))} /><ToggleRow label="Conditioning library" detail="Modalities, subsystems and intensity progressions." checked={library.conditioning} onChange={(checked) => setLibrary((current) => ({ ...current, conditioning: checked }))} /><ToggleRow label="Beginner foundations" detail="Keep genuinely accessible starting blocks visible by default." checked={library.beginner} onChange={(checked) => setLibrary((current) => ({ ...current, beginner: checked }))} /><details className="border-t border-line py-3 text-xs"><summary className="cursor-pointer font-medium">Advanced programming defaults</summary><p className="mt-1 text-muted">Block lengths, protected anchors and reduction bounds will live here once backed by versioned server policy.</p></details></SettingsSection>}
@@ -54,7 +69,15 @@ export function CoachSettings() {
   );
 }
 
-function SettingsSection({ title, detail, children }: { title: string; detail: string; children: ReactNode }) { return <section aria-labelledby={`settings-${title.replaceAll(' ', '-').toLowerCase()}`}><h2 id={`settings-${title.replaceAll(' ', '-').toLowerCase()}`} className="text-lg font-semibold">{title}</h2><p className="mt-1 text-xs text-muted">{detail}</p><div className="mt-4 border-y border-line2">{children}</div></section>; }
+/**
+ * One `.st-panel` per section.
+ *
+ * The stylesheet hides an inactive panel with `display: none` and shows
+ * `.st-panel.active`. Only the active panel is ever rendered here, so nothing
+ * needs hiding — but the one that IS rendered must still carry `.active`, or
+ * it inherits `display: none` from the base rule and the screen goes blank.
+ */
+function SettingsSection({ title, detail, children }: { title: string; detail: string; children: ReactNode }) { const id = `settings-${title.replaceAll(' ', '-').toLowerCase()}`; return <section className="st-panel active" aria-labelledby={id}><h2 id={id} className="rd-section-label">{title}</h2><p className="rd-panel-note">{detail}</p>{children}</section>; }
 function SelectRow({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) { return <label className="flex min-h-14 items-center gap-2 border-b border-line py-2 last:border-b-0"><span className="text-sm font-medium">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="ml-auto rounded-md border border-line2 bg-well px-2 py-1.5 text-xs text-text">{options.map((option) => <option key={option}>{option}</option>)}</select></label>; }
 function ToggleRow({ label, detail, checked, onChange }: { label: string; detail: string; checked: boolean; onChange: (checked: boolean) => void }) { return <label className="flex min-h-16 cursor-pointer items-center gap-3 border-b border-line py-2 last:border-b-0"><span><span className="block text-sm font-medium">{label}</span><span className="mt-0.5 block text-[11px] text-muted">{detail}</span></span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="ml-auto h-4 w-4 accent-[var(--color-gold)]" /></label>; }
 function ReadOnlyRow({ label, value }: { label: string; value: string }) { return <div className="flex min-h-14 items-center gap-2 border-b border-line py-2 last:border-b-0"><span className="text-sm font-medium">{label}</span><span className="ml-auto text-right text-xs text-muted">{value}</span></div>; }
