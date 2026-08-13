@@ -1,5 +1,5 @@
 import { CON_EFFORTS, CON_EFFORT_KEYS, CON_FORMATS, CON_FORMAT_KEYS, type CondFmtKey, type EffortKey } from '@hybrid/engine';
-import { Button, Chip } from '../../ui';
+import { Button, Chip } from '../../../ui';
 
 export function CondDetailStep({
   condFmt,

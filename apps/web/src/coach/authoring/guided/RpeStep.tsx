@@ -1,4 +1,4 @@
-import { Button, Chip } from '../../ui';
+import { Button, Chip } from '../../../ui';
 
 const RPE_VALUES = ['6', '7', '8', '9', '10'];
 

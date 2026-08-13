@@ -65,21 +65,21 @@ const LANES = [
  *
  * `count` is asserted exactly. A crossing that GROWS fails just as loudly as a
  * new one — otherwise "already on the list" becomes a licence to add more.
+ *
+ * EMPTY as of 13 August 2026. The last two entries were `Planner` and
+ * `GuidedBuilder` — the coach bench importing the athlete's plan editor and
+ * guided builder under `apps/web/src/screens/`. Both retired the same way
+ * this comment always said they would, but not by the package extraction it
+ * predicted: the owner parked session authoring and logging on athlete web
+ * entirely, so there was no longer an athlete screen to extract FROM. The
+ * builder moved — `git mv`, history intact — into
+ * `apps/web/src/coach/authoring/` and became the bench's own code; the
+ * athlete logger was deleted outright. With no athlete-lane file left for
+ * the coach to reach into, both crossings disappeared on their own. The
+ * rule is now absolute: the athlete and the coach import nothing of each
+ * other's, full stop.
  */
-const ALLOWED = [
-  {
-    from: 'coach', to: 'athlete', target: 'apps/web/src/screens/Planner.tsx', count: 2,
-    why: 'The bench reuses the athlete plan editor rather than forking it, which '
-       + 'coach-contract rule 8 explicitly permits. Unlike the entries this list '
-       + 'started with, this is not a misfiling — Planner is genuinely an athlete '
-       + 'screen that the coach also renders. Retired by promoting it into a shared '
-       + 'authoring package, which is a package extraction and not a file move.',
-  },
-  {
-    from: 'coach', to: 'athlete', target: 'apps/web/src/screens/guided/GuidedBuilder.tsx', count: 1,
-    why: 'Same reuse, same permission, same retirement as Planner.',
-  },
-];
+const ALLOWED = [];
 
 const walk = (dir) => {
   const out = [];

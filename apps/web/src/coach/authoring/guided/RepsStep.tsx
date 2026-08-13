@@ -1,4 +1,4 @@
-import { Button, Chip } from '../../ui';
+import { Button, Chip } from '../../../ui';
 
 const PRESETS = ['5', '8', '10', '12', 'max'];
 

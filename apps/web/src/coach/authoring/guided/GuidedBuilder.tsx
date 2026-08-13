@@ -17,8 +17,8 @@ import {
   type CondFmtKey,
   type EffortKey,
 } from '@hybrid/engine';
-import { useDb } from '../../store/db';
-import { Button, Kicker } from '../../ui';
+import { useDb } from '../../../store/db';
+import { Button, Kicker } from '../../../ui';
 import { BlockTypeStep } from './BlockTypeStep';
 import { MovementStep } from './MovementStep';
 import { SetsStep } from './SetsStep';

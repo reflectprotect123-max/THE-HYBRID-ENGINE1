@@ -151,24 +151,39 @@ relative import under `apps/web/src` into an edge and asserts the property
 directly, so it cannot pass while the thing it guards is broken — the failure
 mode that made five earlier guards decorative.
 
-It is a ratchet, not a wall. Real crossings exist today and are listed in
-`ALLOWED` with the reason each one is there and what retires it. A crossing
-that is not on the list fails; so does a list entry that no longer happens, so
-a fixed crossing must be deleted from the list rather than leaving budget
-behind. The list only shrinks. When it empties the rule becomes absolute and
-the list goes with it.
+The rule is now absolute, and `ALLOWED` is empty. It was a ratchet on the way
+here, not a wall: real crossings existed and were listed with the reason each
+one was there and what would retire it — a crossing not on the list failed,
+and so did a list entry that no longer happened, so a fixed crossing had to be
+deleted from the list rather than leaving budget behind. The list only ever
+shrank. This section stays, empty list and all, because the point of it was
+always to record the path, not just the destination.
 
-The list started at fourteen crossings and is down to two. Eleven of them were
-one shape: `autocoach/policy.ts`, `autocoach/ledger.ts`, `coach/progression.ts`
-and `coach/progression-store.ts` were shared code wearing a lane's directory
-name — not violations, misfilings. They now sit where they belong (`store/` for
-the three stores, `lib/progression.ts` for the pure proposal logic) and the
+The list started at fourteen crossings. Eleven of them were one shape:
+`autocoach/policy.ts`, `autocoach/ledger.ts`, `coach/progression.ts` and
+`coach/progression-store.ts` were shared code wearing a lane's directory name —
+not violations, misfilings. They now sit where they belong (`store/` for the
+three stores, `lib/progression.ts` for the pure proposal logic) and the
 crossings went with them.
 
-What is left is the genuine case: the bench renders the athlete's `Planner` and
-`GuidedBuilder`. That is real shared UI, permitted by coach-contract rule 8, and
-it retires by promoting those screens into a shared authoring package — a
-package extraction, not a file move.
+The last two were the genuine case: the bench rendered the athlete's `Planner`
+and `GuidedBuilder`, real shared UI permitted by coach-contract rule 8. The
+plan on record for retiring them was a package extraction — promote both
+screens into a shared authoring package. That is not how it happened. On 13
+August 2026 the owner parked session authoring and logging on athlete web
+entirely: the athlete web app no longer authors or logs a session at all, so
+there was no longer an athlete screen for the coach to reach into, and no
+shared package to extract to either. `Planner`, its `planner/` block cards,
+and `GuidedBuilder` with its step components moved — `git mv`, history
+intact — from `apps/web/src/screens/` into `apps/web/src/coach/authoring/`
+and became the bench's own code, importable without crossing a lane because
+they are no longer on the other side of one. The athlete logger
+(`screens/Logger.tsx` and `screens/logger/`) was deleted outright, and its
+routes (`/log/:bi/:ei`, `/planner/:id`, `/build/:id`) came out of
+`apps/web/src/App.tsx` along with the athlete-side controls that navigated
+into them. Both crossings closed the same way the comment in
+`checks/lane-contract.mjs` always said the list would end: by deletion from
+the list, not by raising the budget.
 
 ## Where a test goes
 

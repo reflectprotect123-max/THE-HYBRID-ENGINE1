@@ -1,6 +1,6 @@
 import {
   CON_FORMATS, CON_EFFORTS, condEffort, condEffortRpe, type CondBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
-import { Card, Chip, LetterChip } from '../../ui';
+import { Card, Chip, LetterChip } from '../../../ui';
 
 const FORMATS: CondFmtKey[] = ['steady', 'intervals', 'tempo', 'free'];
 const EFFORTS: EffortKey[] = ['easy', 'medium', 'hard'];

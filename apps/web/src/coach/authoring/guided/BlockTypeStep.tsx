@@ -1,5 +1,5 @@
 import type { BlockKind } from '@hybrid/guided-flow';
-import { Button } from '../../ui';
+import { Button } from '../../../ui';
 
 const CHOICES: { kind: Exclude<BlockKind, null>; label: string; glyph: string }[] = [
   { kind: 'lift', label: 'Lift', glyph: '🏋' },

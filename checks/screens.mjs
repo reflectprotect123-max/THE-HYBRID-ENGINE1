@@ -106,11 +106,9 @@ const SHOTS = [
   ['06-progress', '/progress', null],
   ['07-calendar', '/calendar', null],
   ['08-settings', '/settings', null],
-  ['09-planner', '/planner/w1', null],
-  ['10-logger', '/log/0/0', null],
   // The third world's web surface. Home (01) carries the nutrition card above
   // it, so the two are judged together.
-  ['11-nutrition', '/nutrition', null],
+  ['09-nutrition', '/nutrition', null],
 ];
 
 /*

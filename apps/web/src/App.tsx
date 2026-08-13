@@ -3,7 +3,6 @@ import { Suspense, lazy } from 'react';
 import { DbProvider } from './store/db';
 import { NutritionProvider } from './store/nutrition';
 import { RestProvider } from './store/rest';
-import { SetTimerProvider } from './store/setTimer';
 import { SyncProvider } from './cloud/sync';
 import { WhoopProvider } from './cloud/whoop';
 import { Concept2Provider } from './cloud/concept2';
@@ -14,14 +13,11 @@ import { SaveAlert } from './components/SaveAlert';
 import { useDiscipline } from './discipline';
 import { Home } from './screens/Home';
 import { Training } from './screens/Training';
-import { Logger } from './screens/Logger';
 import { Library } from './screens/Library';
-import { Planner } from './screens/Planner';
 import { Conditioning } from './screens/Conditioning';
 import { History } from './screens/History';
 import { Progress } from './screens/Progress';
 import { Exercise } from './screens/Exercise';
-import { GuidedBuilder } from './screens/guided/GuidedBuilder';
 import { UpdateBanner } from './UpdateBanner';
 import { Calendar } from './screens/Calendar';
 import { Day } from './screens/Day';
@@ -56,9 +52,10 @@ const Coach = lazy(() => import('./coach'));
  * dispatched by hand. Routes give back the browser's own back button, which
  * that system had to fake.
  *
- * The Logger and the plan editor are full-screen by design — they sit OUTSIDE
- * the shell so nothing competes with the work in front of you, which is why
- * they are not nested under the chrome route.
+ * The athlete web app no longer authors or logs sessions at all — that work
+ * moved into the coach bench (see CLAUDE.md, "The athlete and the coach never
+ * face each other"). The coach bench (`/coach/*`) stays outside the athlete
+ * `Shell` because it is its own workspace, not athlete chrome.
  *
  * Provider order matters: Sync and WHOOP both read the DB, and Sync writes to
  * it on a pull, so DbProvider has to be outermost.
@@ -68,8 +65,8 @@ export function App() {
   const world = useDiscipline();
   return (
     <DbProvider>
-      {/* Above the router: a failed write has to reach the logger and the plan
-          editor too, and both sit outside the shell. */}
+      {/* Above the router: a failed write has to reach every screen, including
+          the coach bench, which sits outside the shell. */}
       <SaveAlert />
       {/* A SIBLING store, not a branch of the engine one: it holds no
           EngineDB and DbProvider holds no NutritionDB. It sits above
@@ -79,7 +76,6 @@ export function App() {
         <WhoopProvider>
           <Concept2Provider>
           <RestProvider>
-          <SetTimerProvider>
             <Router>
               {/* Points the document at the athlete's manifest or the coach's,
                   by route, so the two can be installed as separate apps from
@@ -92,7 +88,6 @@ export function App() {
                   live, so there is no path collision between them. */}
               {world === 'training' && (
                 <Routes>
-                  <Route path="/log/:bi/:ei" element={<Logger />} />
                   <Route
                     path="/coach/*"
                     element={
@@ -101,8 +96,6 @@ export function App() {
                       </Suspense>
                     }
                   />
-                  <Route path="/planner/:id" element={<Planner />} />
-                  <Route path="/build/:id" element={<GuidedBuilder />} />
                   <Route element={<Shell />}>
                     {/* The bare address is the ATHLETE's. It used to redirect
                         to the coach bench, which made the front page of the
@@ -158,7 +151,6 @@ export function App() {
                 </Routes>
               )}
             </Router>
-          </SetTimerProvider>
           </RestProvider>
           </Concept2Provider>
         </WhoopProvider>

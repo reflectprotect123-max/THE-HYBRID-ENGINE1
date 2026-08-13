@@ -4,7 +4,6 @@ import {
   CON_FORMATS,
   agoLabel,
   blockExercises,
-  duplicateWorkout,
   isCond,
   isCondWorkout,
   knownMovements,
@@ -86,24 +85,6 @@ export function Library() {
     const k = q.trim().toLowerCase();
     return k ? list.filter((m) => m.toLowerCase().includes(k)) : list;
   };
-
-  function addWorkout() {
-    const w: Workout = { id: uid(), name: 'New session', blocks: [], updatedAt: Date.now() };
-    update((draft) => {
-      draft.workouts.push(w);
-    });
-    nav(`/build/${w.id}`);
-  }
-
-  function duplicate(w: Workout) {
-    // The library's own names, so the copy lands on one that is not already in
-    // the list it is about to join — see `duplicateWorkout`.
-    const copy = duplicateWorkout(w, db.workouts.map((x) => x.name || ''));
-    update((draft) => {
-      draft.workouts.push(copy);
-    });
-    nav(`/planner/${copy.id}`);
-  }
 
   function toggleDay(id: string, d: number) {
     update((draft) => {
@@ -244,10 +225,6 @@ export function Library() {
 
       {tab !== 'sessions' ? null : (
       <>
-      <Button variant="brass" className="mt-2 w-full" onClick={addWorkout}>
-        ＋ New session
-      </Button>
-
       <SectionHead title="Yours" />
       <div className="mb-1 flex flex-wrap items-center gap-1">
         <Button size="sm" onClick={addFolder}>
@@ -332,7 +309,7 @@ export function Library() {
               <ul className="mt-0.5 flex flex-col gap-1 pl-2">
                 {inFolder.map((w) => (
                   <li key={w.id}>
-                    <WorkoutRow w={w} open={open} setOpen={setOpen} armDel={armDel} setArmDel={setArmDel} duplicate={duplicate} removeWorkout={removeWorkout} nav={nav} toggleDay={toggleDay} folderId={f.id} folderName={f.name} removeFromFolder={removeFromFolder} />
+                    <WorkoutRow w={w} open={open} setOpen={setOpen} armDel={armDel} setArmDel={setArmDel} removeWorkout={removeWorkout} toggleDay={toggleDay} folderId={f.id} folderName={f.name} removeFromFolder={removeFromFolder} />
                   </li>
                 ))}
               </ul>
@@ -344,12 +321,12 @@ export function Library() {
         <ul className="flex flex-col gap-1">
           {ungrouped.map((w) => (
             <li key={w.id}>
-              <WorkoutRow w={w} open={open} setOpen={setOpen} armDel={armDel} setArmDel={setArmDel} duplicate={duplicate} removeWorkout={removeWorkout} nav={nav} toggleDay={toggleDay} />
+              <WorkoutRow w={w} open={open} setOpen={setOpen} armDel={armDel} setArmDel={setArmDel} removeWorkout={removeWorkout} toggleDay={toggleDay} />
             </li>
           ))}
         </ul>
       ) : !folders.length ? (
-        <Empty title="Nothing here yet" body="Use “＋ New session” above to build your first one." />
+        <Empty title="Nothing here yet" body="Sessions you can train appear here." />
       ) : null}
       </>
       )}
@@ -394,18 +371,21 @@ function Signal({ w }: { w: Workout }) {
   );
 }
 
-/** One workout's card: expand/Detail, day chips, Edit/Duplicate/Delete.
+/** One workout's card: expand/Detail, day chips, Delete.
  *  Extracted so folder groups (Task 3) and the flat ungrouped list can both
- *  render the same row without duplicating this markup. */
+ *  render the same row without duplicating this markup.
+ *
+ *  Edit and Duplicate used to live here too, navigating to the athlete plan
+ *  editor and guided builder — both retired along with the rest of session
+ *  authoring on athlete web (see CLAUDE.md, "The athlete and the coach never
+ *  face each other"). Authoring now happens only on the coach bench. */
 function WorkoutRow({
   w,
   open,
   setOpen,
   armDel,
   setArmDel,
-  duplicate,
   removeWorkout,
-  nav,
   toggleDay,
   folderId,
   folderName,
@@ -416,9 +396,7 @@ function WorkoutRow({
   setOpen: (id: string | null) => void;
   armDel: string | null;
   setArmDel: (id: string | null) => void;
-  duplicate: (w: Workout) => void;
   removeWorkout: (id: string) => void;
-  nav: ReturnType<typeof useNavigate>;
   toggleDay: (id: string, d: number) => void;
   /** Set only when this row renders INSIDE a folder — adds a small ✕ that
    *  removes just that one tag, distinct from the whole-workout delete.
@@ -488,12 +466,6 @@ function WorkoutRow({
         <>
           <WorkoutDetail w={w} />
           <div className="mt-1.5 flex flex-wrap gap-1">
-            <Button size="sm" variant="brass" onClick={() => nav(`/planner/${w.id}`)}>
-              Edit
-            </Button>
-            <Button size="sm" onClick={() => duplicate(w)}>
-              Duplicate
-            </Button>
             <Button
               size="sm"
               onClick={() => {

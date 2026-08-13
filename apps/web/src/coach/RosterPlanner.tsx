@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Workout } from '@hybrid/engine';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
-import { Planner } from '../screens/Planner';
+import { Planner } from './authoring/Planner';
 import { Button, Card } from '../ui';
 import { createSaveCoalescer } from './save-coalescer';
 
@@ -10,7 +10,7 @@ import { createSaveCoalescer } from './save-coalescer';
  * The block/set editor for a ROSTER CLIENT's draft — the gap
  * docs/ARC_LAYER3_DESIGN.md flagged as the one thing `RosterAuthoringView`
  * couldn't do: create a named shell and publish it, but never edit its
- * structure. This is not a fork of the editor; `Planner` (screens/Planner.tsx)
+ * structure. This is not a fork of the editor; `Planner` (coach/authoring/Planner.tsx)
  * already isolates every mutation behind one `edit(fn)` closure, so this file
  * only supplies a different `workout`/`edit`/`onBack` — the block, exercise
  * and set rendering underneath is the exact same code the self-coach uses.

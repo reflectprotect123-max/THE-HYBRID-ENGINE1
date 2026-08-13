@@ -22,8 +22,8 @@ import {
   type TextBlock,
   type Workout,
 } from '@hybrid/engine';
-import { useDb } from '../store/db';
-import { Button, Card, Kicker, cx } from '../ui';
+import { useDb } from '../../store/db';
+import { Button, Card, Kicker, cx } from '../../ui';
 import { CondBlockCard } from './planner/CondBlockCard';
 import { ExerciseCard } from './planner/ExerciseCard';
 import { SupersetSeam } from './planner/SupersetSeam';

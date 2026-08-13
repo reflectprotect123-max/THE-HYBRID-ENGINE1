@@ -1,4 +1,4 @@
-import { Button, Field, Kicker } from '../../ui';
+import { Button, Field, Kicker } from '../../../ui';
 
 const MOVEMENT_LIST_ID = 'guided-movement-list';
 

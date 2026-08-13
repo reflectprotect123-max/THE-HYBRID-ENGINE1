@@ -13,8 +13,8 @@ import { ArcCoachFrame } from './ArcCoachFrame';
 import { CoachLibrary } from './CoachLibrary';
 import { CoachSettings } from './CoachSettings';
 import { ClientDetailGate } from './ClientDetailGate';
-import { Planner } from '../screens/Planner';
-import { GuidedBuilder } from '../screens/guided/GuidedBuilder';
+import { Planner } from './authoring/Planner';
+import { GuidedBuilder } from './authoring/guided/GuidedBuilder';
 import { RosterPlanner } from './RosterPlanner';
 import { CoachWorkspaceProvider } from './CoachWorkspaceContext';
 /* The live repository. Imported, not constructed here — this file is under

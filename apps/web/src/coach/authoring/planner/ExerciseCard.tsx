@@ -1,5 +1,5 @@
 import { fmtRest, isWarmup, rxLine, type Exercise, type LoggedSet } from '@hybrid/engine';
-import { Card, LetterChip, cx } from '../../ui';
+import { Card, LetterChip, cx } from '../../../ui';
 
 /**
  * One exercise, as a card — collapsed to a single line until opened. Split

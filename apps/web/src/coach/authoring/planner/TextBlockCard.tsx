@@ -1,4 +1,4 @@
-import { Card } from '../../ui';
+import { Card } from '../../../ui';
 
 /*
  * Just words. A metcon is one prescription that does not decompose into sets

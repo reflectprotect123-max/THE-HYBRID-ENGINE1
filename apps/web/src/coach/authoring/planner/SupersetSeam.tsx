@@ -1,4 +1,4 @@
-import { cx } from '../../ui';
+import { cx } from '../../../ui';
 
 /**
  * The chain BETWEEN two movements, not a row inside one: a superset is a
