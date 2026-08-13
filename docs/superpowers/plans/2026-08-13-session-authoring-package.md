@@ -17,6 +17,7 @@ This is slice 2 of `docs/superpowers/specs/2026-08-12-round-major-logger-design.
 - No placeholders in shipped code — no `TODO`, no stub, no mock data.
 - The coaching rule is not re-implemented. Any weight the package reports comes from `foldFromExercise`. If a task's diff contains rep-to-failure or RPE arithmetic, it is wrong.
 - All state transitions are pure and immutable: a reducer returns new `Session`/`RunState` objects and never mutates its arguments. A test asserting the input was not mutated is required wherever a reducer touches nested data.
+- **A task gate is `typecheck` AND tests, never tests alone.** Vitest does not typecheck, so a test file can pass every assertion while `tsc` rejects it. That happened here: Task 6's fixtures typed `rest` onto a `StrengthBlock` (it belongs on `Exercise`) and a green vitest run said nothing. An agent restricted to its own files must still run `pnpm --filter <pkg> typecheck` alongside `pnpm --filter <pkg> test`.
 - **Run the FULL suite at every task gate**, not a scoped one: `pnpm run typecheck` and `pnpm run test`. Slice 1 lost three tasks' worth of confidence to a scoped gate that hid two failures.
 - There is NO known-red list. The repo is green everywhere; a long-standing `StartFreshCard` failure was diagnosed as a wall-clock time-bomb in its own fixture and fixed in `ecce0e9`. Any failure you see is yours or a real regression.
 

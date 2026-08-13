@@ -16,6 +16,7 @@ This is slice 3 of `docs/superpowers/specs/2026-08-12-round-major-logger-design.
 - A missing Chromium is a SKIP with a reason, never a silent pass and never a crash — `launchChromium` already returns `{ skip }` for this; honour it.
 - No placeholders — no TODO, no stub, no mock data.
 - Tests colocated where the repo has tests; these checks are scripts, not unit tests, and live in `checks/` like their siblings.
+- **A task gate is `typecheck` AND tests, never tests alone.** Vitest does not typecheck, so a test file can pass every assertion while `tsc` rejects it. That happened here: Task 6's fixtures typed `rest` onto a `StrengthBlock` (it belongs on `Exercise`) and a green vitest run said nothing. An agent restricted to its own files must still run `pnpm --filter <pkg> typecheck` alongside `pnpm --filter <pkg> test`.
 - Ends green on the FULL suite: `pnpm run typecheck && pnpm run test`. The repo is currently green with **no** known-red exceptions, so any failure is yours or a real regression.
 
 ## The design decision this slice rests on

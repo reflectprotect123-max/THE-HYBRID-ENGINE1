@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Session, LoggedSet, StrengthBlock } from '@hybrid/engine';
 import { initialRun, reduce } from './machine';
+import type { RunState } from './machine';
 import { orderFor } from './queue';
 
 const s = (done = false): LoggedSet =>
@@ -15,7 +16,7 @@ const solo = (sets: LoggedSet[], rest = 120): StrengthBlock<LoggedSet> => ({
 });
 
 const pair = (): StrengthBlock<LoggedSet> => ({
-  id: 'b2', superset: true, rest: 60,
+  id: 'b2', superset: true,
   exercises: [
     { id: 'e0', name: 'Press', mode: 'reps_kg', sets: [s(), s()], rest: 60 },
     { id: 'e1', name: 'Raise', mode: 'reps_kg', sets: [s(), s()], rest: 60 },
@@ -93,7 +94,7 @@ describe('addSet', () => {
 describe('rest', () => {
   it('ticks down and clears itself when spent', () => {
     const sess = session([solo([s(), s()])]);
-    let run = { ...initialRun(sess), rest: { left: 1, total: 120, kind: 'set' as const } };
+    let run: RunState = { ...initialRun(sess), rest: { left: 1, total: 120, kind: 'set' as const } };
     run = reduce(sess, run, { type: 'tick' }).run;
     expect(run.rest).toEqual({ left: 0, total: 120, kind: 'set' });
   });

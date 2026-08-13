@@ -10,4 +10,12 @@
  * decides what a set should weigh: that is `@hybrid/engine`'s `foldExercise`,
  * the single owner of the coaching rule, and this package calls it.
  */
+export * from './queue';
+export * from './rotate';
+export * from './draft';
+export * from './rest';
+export * from './machine';
+export * from './view';
+export * from './useSession';
+
 export const SESSION_AUTHORING_VERSION = '1.0.0';
