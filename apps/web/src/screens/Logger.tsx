@@ -4,13 +4,14 @@ import {
   AUTOREG,
   advanceAfterSet,
   blockExercises,
-  computeSetAdjustment,
   curSetIndex,
   decideStrengthProgression,
   deviationFelt,
   explainWorkingWeight,
   fmtRest,
   fmtRpe,
+  foldFromExercise,
+  foldNextOpener,
   isCond,
   isText,
   isLiftMode,
@@ -21,9 +22,7 @@ import {
   plateBreakdown,
   prefillPrimary,
   prefillSecondary,
-  repFloorOf,
   repTopOf,
-  rpeCenterOf,
   sanNumStr,
   saneKg,
   sessionLetters,
@@ -452,19 +451,20 @@ export function Logger() {
         const weight = saneKg(dst.aVal);
         const reps = parseInt(String(dst.aVal2), 10) || 0;
         if (weight > 0 && reps > 0) {
-          const adj = computeSetAdjustment(
-            reps,
-            rpe,
-            repFloorOf(dst.t),
-            weight,
-            rpeCenterOf(dst),
-          );
-          const dtxt = adj.delta > 0 ? '+' + adj.delta + ' kg' : adj.delta < 0 ? adj.delta + ' kg' : 'hold weight';
-          const lead =
-            adj.verdict === 'missed the rep floor' ? 'That set missed the rep floor' : 'That set was ' + adj.verdict;
+          // The fold has two entry points for two different questions. Mid-
+          // session, the hint prices the next UNLOGGED set — `dst.done` was
+          // just written above, so `dex` already counts this set as logged.
+          // On the final set there is no next set, and the question becomes
+          // what next session should open at.
+          const fold = isFinal
+            ? foldNextOpener(dex, AUTOREG.plateIncrement)
+            : foldFromExercise(dex, AUTOREG.plateIncrement);
+          const newWeight = fold && fold.kg > 0 ? fold.kg : weight;
+          const delta = Math.round((newWeight - weight) * 100) / 100;
+          const dtxt = delta > 0 ? '+' + delta + ' kg' : delta < 0 ? delta + ' kg' : 'hold weight';
           nextHint = {
-            txt: `${lead} — ${dtxt} for ${isFinal ? 'next session' : 'Set ' + (si + 2)} (${adj.newWeight} kg).`,
-            cls: adj.cls,
+            txt: `${fold ? fold.message + ' — ' : ''}${dtxt} for ${isFinal ? 'next session' : 'Set ' + (si + 2)} (${newWeight} kg).`,
+            cls: delta < 0 ? 'bad' : 'good',
           };
         }
       }

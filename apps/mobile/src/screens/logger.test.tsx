@@ -324,18 +324,23 @@ describe('Logger', () => {
     // once already (2026-08-08) — the web Logger was fixed, the mobile one
     // (this file) kept the silent write.
     //
-    // 100kg x5 @ RPE 7.5 against this fixture's '5'@8 target computes a
-    // +2.5kg suggestion (102.5kg) — see computeSetAdjustment.
+    // 100kg x5 @ RPE 7.5 against this fixture's '5'@8 target, through the
+    // fold (the old per-set rule read a half-point-easy set as +2.5kg):
+    // anchor = e1rm(100, 5, 8) = 100 x (1 + (5 + (10-8))/30) = 123.33;
+    // set 2 planned = anchor / (1 + 7/30) = 100; deviation = 8 - 7.5 = 0.5,
+    // inside the +/-1 dead band, so the multiplier stays 1 and set 2 is
+    // 100kg, "on plan" — half a point of RPE is not evidence.
     //
     // WHAT "SILENTLY WRITES" MEANS, corrected 12 August 2026. This used to
-    // assert the kg FIELD reopened at 100, on the reading that showing 102.5
-    // was itself the write. The engine then settled the question the other
-    // way: `prefillPrimary` reads the adjustment of a RATED previous set,
-    // deliberately, because the screen printing "+2.5 kg for Set 2" and then
-    // handing over 100 was the app disagreeing with itself — see the long
-    // note in packages/engine/src/logger.ts. Web prefills the same number
-    // from the same call, so 102.5 in the field is the two surfaces agreeing,
-    // not a regression in one of them.
+    // assert the kg FIELD reopened at 100, on the reading that showing the
+    // adjusted weight was itself the write. The engine then settled the
+    // question the other way: `prefillPrimary` reads the adjustment of a
+    // RATED previous set, deliberately, because the screen printing an
+    // adjustment and then handing over the old weight was the app
+    // disagreeing with itself — see the long note in
+    // packages/engine/src/logger.ts. Hint and field both come from the fold
+    // now, so the number in the field is the two agreeing, not a regression
+    // in one of them.
     //
     // The rule this test defends is untouched by that: a suggestion must not
     // become an ACTUAL. So the assertion moves to where an actual lives — the
@@ -349,10 +354,10 @@ describe('Logger', () => {
     fireEvent.press(screen.getByText('Finish Set'));
     fireEvent.press(screen.getByText('Confirm Set'));
 
-    expect(screen.getByText(/\+2\.5 kg for Set 2 \(102\.5 kg\)/)).toBeTruthy();
+    expect(screen.getByText(/on plan — hold weight for Set 2 \(100 kg\)/)).toBeTruthy();
     fireEvent.press(screen.getByText('Skip rest'));
     // The offer: field and hint name the same number.
-    expect(screen.getByLabelText('kg').props.value).toBe('102.5');
+    expect(screen.getByLabelText('kg').props.value).toBe('100');
     // The actual: Set 2 is still unlogged. Nothing was written on the
     // athlete's behalf.
     act(() => jest.advanceTimersByTime(500));
