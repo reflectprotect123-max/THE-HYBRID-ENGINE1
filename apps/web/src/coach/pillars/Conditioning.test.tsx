@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LS_KEY, type CondResult, type Session } from '@hybrid/engine';
 import { DbProvider } from '../../store/db';
 import { Conditioning } from './Conditioning';
+import { CoachWorkspaceProvider } from '../CoachWorkspaceContext';
+import { FakeCoachWorkspaceRepository } from '../coach-test-harness';
 
 /*
  * `Conditioning` calls `useConcept2()` unconditionally, matching its real
@@ -20,11 +22,21 @@ vi.mock('../../cloud/concept2', () => ({
   useConcept2: () => ({ results: concept2Results }),
 }));
 
+/*
+ * Wrapped in `CoachWorkspaceProvider` since 13 August 2026, when the pillar
+ * gap was closed: each pillar now branches on `selectedClient.source`, so it
+ * needs a workspace to ask. The fake repository's roster is empty, which
+ * resolves to no selected client and therefore to the SELF branch — which is
+ * exactly what every test below is about, and is now asserted by
+ * construction rather than by there being no other branch to take.
+ */
 function renderPillar() {
   return render(
-    <DbProvider>
-      <MemoryRouter><Conditioning /></MemoryRouter>
-    </DbProvider>,
+    <CoachWorkspaceProvider repository={new FakeCoachWorkspaceRepository()}>
+      <DbProvider>
+        <MemoryRouter><Conditioning /></MemoryRouter>
+      </DbProvider>,
+    </CoachWorkspaceProvider>
   );
 }
 
@@ -34,15 +46,17 @@ beforeEach(() => {
 });
 
 describe('Conditioning pillar', () => {
-  it('offers a way back to the Command Center', () => {
+  it('offers a way back to the Command Center', async () => {
     renderPillar();
+    await act(async () => {});
     expect(screen.getByRole('link', { name: /Command Center/ })).toHaveAttribute('href', '/coach');
   });
 
-  it('shows no zone minutes at all when nothing has been logged', () => {
+  it('shows no zone minutes at all when nothing has been logged', async () => {
     // A fresh DB has no sessions. The mockup's 62m/40m/18m split is
     // furniture; rendering it would invent training that never happened.
     renderPillar();
+    await act(async () => {});
     expect(screen.queryByText('62m')).not.toBeInTheDocument();
     expect(screen.queryByText('40m')).not.toBeInTheDocument();
     expect(screen.queryByText('18m')).not.toBeInTheDocument();
@@ -57,7 +71,7 @@ describe('Conditioning pillar', () => {
    * thing it was there to protect. It now asserts the COUNT, in both
    * directions: silent when nothing was excluded, exact when something was.
    */
-  it('names how many efforts the HR donut had to exclude — and stays silent when none were', () => {
+  it('names how many efforts the HR donut had to exclude — and stays silent when none were', async () => {
     const monday = mondayOfThisWeek();
     const traced = condSession('cond-traced', monday, {
       id: 'r-traced',
@@ -81,6 +95,7 @@ describe('Conditioning pillar', () => {
       JSON.stringify({ workouts: [], sessions: [traced], settings, core: {} }),
     );
     const allTraced = renderPillar();
+    await act(async () => {});
     expect(screen.queryByText(/excluded from the donut\./)).not.toBeInTheDocument();
     allTraced.unmount();
 
@@ -89,6 +104,7 @@ describe('Conditioning pillar', () => {
       JSON.stringify({ workouts: [], sessions: [traced, untraced], settings, core: {} }),
     );
     renderPillar();
+    await act(async () => {});
     expect(
       screen.getByText(
         /1 of 2 conditioning efforts logged this week had no recorded heart rate and is excluded from the donut\./,
@@ -128,7 +144,7 @@ function mondayOfThisWeek(): string {
 }
 
 describe('Conditioning pillar — real data derivation', () => {
-  it('sums the three-band zone bar and the five-zone HR donut from stored sessions, and flags the untraced one', () => {
+  it('sums the three-band zone bar and the five-zone HR donut from stored sessions, and flags the untraced one', async () => {
     const monday = mondayOfThisWeek();
     // Session A: a full HR trace, evenly split across the run — real seconds
     // banked by both the three-band model and the five-zone %HRmax model.
@@ -160,6 +176,8 @@ describe('Conditioning pillar — real data derivation', () => {
 
     const { container } = renderPillar();
 
+    await act(async () => {});
+
     // Total logged minutes: (600 + 300) / 60 = 15.
     expect(container.querySelector('.rd-cond-total .rv')?.textContent).toBe('15min');
     // Three-band bar: 600s low, 200s mod, 100s high across both sessions.
@@ -171,7 +189,7 @@ describe('Conditioning pillar — real data derivation', () => {
     expect(screen.getByText(/1 of 2 conditioning efforts logged this week/)).toBeInTheDocument();
   });
 
-  it('counts a standalone conditioning effort (no session, no block) in the weekly total', () => {
+  it('counts a standalone conditioning effort (no session, no block) in the weekly total', async () => {
     // Home's "Start conditioning" with no session context banks straight
     // into `settings.conditioning` — `screens/Conditioning.tsx:441-447`.
     // No `Session` exists for this effort at all.
@@ -192,6 +210,8 @@ describe('Conditioning pillar — real data derivation', () => {
     localStorage.setItem(LS_KEY, JSON.stringify(db));
 
     const { container } = renderPillar();
+
+    await act(async () => {});
 
     // 480s / 60 = 8 minutes — invisible to this screen if only
     // `session.condResult` were read, since no session exists.
@@ -231,11 +251,12 @@ function bigChartPointCount(): number {
 }
 
 describe('erg card range toggle', () => {
-  it('draws genuinely more real tests for a wider range, and never pads up to it', () => {
+  it('draws genuinely more real tests for a wider range, and never pads up to it', async () => {
     // 30 real 2000m rows, each a second faster than the last, so an 8-point
     // window and a 20-point window can never be accidentally identical.
     concept2Results = Array.from({ length: 30 }, (_, i) => ergResult(i, 2000, 4400 - i * 10));
     renderPillar();
+    await act(async () => {});
 
     fireEvent.click(screen.getByRole('button', { name: /Expand .* chart/ }));
     expect(bigChartPointCount()).toBe(8); // 8 is the default on open
@@ -249,9 +270,10 @@ describe('erg card range toggle', () => {
     expect(screen.queryByText(/not a full/)).not.toBeInTheDocument();
   });
 
-  it('says how little history there really is rather than faking the window', () => {
+  it('says how little history there really is rather than faking the window', async () => {
     concept2Results = Array.from({ length: 12 }, (_, i) => ergResult(i, 2000, 4400 - i * 10));
     renderPillar();
+    await act(async () => {});
 
     fireEvent.click(screen.getByRole('button', { name: /Expand .* chart/ }));
     fireEvent.click(screen.getByRole('button', { name: '20' }));
@@ -262,7 +284,7 @@ describe('erg card range toggle', () => {
     ).toBeInTheDocument();
   });
 
-  it('cannot swap which test the card is showing when the range widens', () => {
+  it('cannot swap which test the card is showing when the range widens', async () => {
     // 20 x 2000m and 6 x 500m: the 2000m group is the largest, and
     // `ergTrend` picks the group BEFORE applying `maxPoints`, so widening
     // the range must never re-point the card at the 500m series.
@@ -271,6 +293,7 @@ describe('erg card range toggle', () => {
       ...Array.from({ length: 6 }, (_, i) => ergResult(i, 500, 1000 - i * 10)),
     ];
     renderPillar();
+    await act(async () => {});
 
     const label = screen.getByText(/2000m rower/);
     fireEvent.click(screen.getByRole('button', { name: /Expand .* chart/ }));

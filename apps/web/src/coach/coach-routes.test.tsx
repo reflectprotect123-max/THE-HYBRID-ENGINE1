@@ -67,13 +67,42 @@ describe('coach pillar routes', () => {
     return match![1];
   }
 
+  /*
+   * REWRITTEN 13 August 2026, when the pillar gap was closed.
+   *
+   * This block used to assert `layer3Ready` was ABSENT from all four pillar
+   * routes. That was never the property worth protecting — it was a proxy
+   * for the real one, stated in this file's own header: a roster client must
+   * be REFUSED rather than shown the coach's own records under someone
+   * else's name. Absence of the flag bought that by blocking roster clients
+   * outright, at the cost of the four main tiles of the dashboard being dead
+   * ends for every athlete except yourself.
+   *
+   * The flag is now present and the property is protected directly instead:
+   * each pillar branches on `selectedClient.source` before it renders
+   * anything. Both halves are asserted together, and that pairing is the
+   * point — `layer3Ready` WITHOUT a branch is precisely the leak the old
+   * assertion feared, and would now fail here rather than passing quietly.
+   */
   it.each(['readiness', 'strength', 'conditioning', 'nutrition'])(
-    'wraps /coach/%s in ClientDetailGate WITHOUT layer3Ready',
+    'lets a roster client through /coach/%s, because the screen branches for them',
     (path) => {
-      const tag = gateOpenTag(path);
-      expect(tag).not.toMatch(/\blayer3Ready\b/);
+      expect(gateOpenTag(path)).toMatch(/\blayer3Ready\b/);
     },
   );
+
+  it.each([
+    ['readiness', 'Readiness'],
+    ['strength', 'Strength'],
+    ['conditioning', 'Conditioning'],
+    ['nutrition', 'Nutrition'],
+  ])('the %s pillar branches on the client source rather than assuming local', (_path, file) => {
+    const pillar = readFileSync(resolve(__dirname, `pillars/${file}.tsx`), 'utf8');
+    expect(
+      pillar,
+      `${file}.tsx renders a roster client without branching on selectedClient.source — it would show the signed-in coach's own records under that athlete's name.`,
+    ).toMatch(/selectedClient\.source !== 'engine-local'/);
+  });
 
   /* AMENDED 11 August 2026 — see "Task 7 amendment" below. The route is NOT a
      redirect: it survives as the roster decision surface, so it must still be

@@ -1,17 +1,29 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../../store/db';
 import { Readiness } from './Readiness';
+import { CoachWorkspaceProvider } from '../CoachWorkspaceContext';
+import { FakeCoachWorkspaceRepository } from '../coach-test-harness';
 
+/*
+ * Wrapped in `CoachWorkspaceProvider` since 13 August 2026, when the pillar
+ * gap was closed: each pillar now branches on `selectedClient.source`, so it
+ * needs a workspace to ask. The fake repository's roster is empty, which
+ * resolves to no selected client and therefore to the SELF branch — which is
+ * exactly what every test below is about, and is now asserted by
+ * construction rather than by there being no other branch to take.
+ */
 function renderPillar() {
   return render(
-    <DbProvider>
-      <MemoryRouter><Readiness /></MemoryRouter>
-    </DbProvider>,
+    <CoachWorkspaceProvider repository={new FakeCoachWorkspaceRepository()}>
+      <DbProvider>
+        <MemoryRouter><Readiness /></MemoryRouter>
+      </DbProvider>,
+    </CoachWorkspaceProvider>
   );
 }
 
@@ -48,8 +60,9 @@ function bigChartPointCount(): number {
 beforeEach(() => localStorage.clear());
 
 describe('Readiness pillar', () => {
-  it('offers a way back to the Command Center', () => {
+  it('offers a way back to the Command Center', async () => {
     renderPillar();
+    await act(async () => {});
     expect(screen.getByRole('link', { name: /Command Center/ })).toHaveAttribute('href', '/coach');
   });
 
@@ -72,9 +85,10 @@ describe('Readiness pillar', () => {
     );
   }
 
-  it('surfaces the illness flag alongside pain, both as hard constraints', () => {
+  it('surfaces the illness flag alongside pain, both as hard constraints', async () => {
     seedSafetyFlags({ pain: true, illness: true });
     renderPillar();
+    await act(async () => {});
 
     expect(screen.getByText('Pain flag active')).toBeInTheDocument();
     expect(screen.getByText('Illness flag active')).toBeInTheDocument();
@@ -87,17 +101,19 @@ describe('Readiness pillar', () => {
     expect(document.querySelectorAll('.rd-alert')).toHaveLength(2);
   });
 
-  it('surfaces illness on its own, with no pain flag present', () => {
+  it('surfaces illness on its own, with no pain flag present', async () => {
     seedSafetyFlags({ pain: false, illness: true });
     renderPillar();
+    await act(async () => {});
 
     expect(screen.queryByText('Pain flag active')).not.toBeInTheDocument();
     expect(screen.getByText('Illness flag active')).toBeInTheDocument();
   });
 
-  it('expands each safety alert independently', () => {
+  it('expands each safety alert independently', async () => {
     seedSafetyFlags({ pain: true, illness: true });
     renderPillar();
+    await act(async () => {});
     const heads = screen.getAllByRole('button', { name: /flag active/ });
     expect(heads).toHaveLength(2);
     expect(heads[0]).toHaveAttribute('aria-expanded', 'false');
@@ -107,24 +123,27 @@ describe('Readiness pillar', () => {
     expect(heads[1]).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('shows no safety alert when neither flag is set', () => {
+  it('shows no safety alert when neither flag is set', async () => {
     renderPillar();
+    await act(async () => {});
     expect(document.querySelectorAll('.rd-alert')).toHaveLength(0);
   });
 
-  it('asks for a WHOOP connection instead of inventing a recovery score', () => {
+  it('asks for a WHOOP connection instead of inventing a recovery score', async () => {
     // A fresh DB has no WHOOP data. The mockup shows 87%; showing that
     // number here would be a fabricated vital sign.
     renderPillar();
+    await act(async () => {});
     expect(screen.getByRole('link', { name: /Connect WHOOP/i })).toBeInTheDocument();
     expect(screen.queryByText('87')).not.toBeInTheDocument();
   });
 });
 
 describe('trend card range toggle', () => {
-  it('renders genuinely more points for a longer real range than a shorter one', () => {
+  it('renders genuinely more points for a longer real range than a shorter one', async () => {
     seedWhoopHrvHistory(40);
     renderPillar();
+    await act(async () => {});
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand HRV chart' }));
     // 7d is the default range on open.
@@ -140,9 +159,10 @@ describe('trend card range toggle', () => {
     expect(screen.getByText(/Only 40 days of history on record/)).toBeInTheDocument();
   });
 
-  it('says so, rather than faking a window, when the real history is shorter than the range', () => {
+  it('says so, rather than faking a window, when the real history is shorter than the range', async () => {
     seedWhoopHrvHistory(12);
     renderPillar();
+    await act(async () => {});
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand HRV chart' }));
     fireEvent.click(screen.getByRole('button', { name: '90d' }));

@@ -1,17 +1,29 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LS_KEY, type Session } from '@hybrid/engine';
 import { DbProvider } from '../../store/db';
 import { Strength } from './Strength';
+import { CoachWorkspaceProvider } from '../CoachWorkspaceContext';
+import { FakeCoachWorkspaceRepository } from '../coach-test-harness';
 
+/*
+ * Wrapped in `CoachWorkspaceProvider` since 13 August 2026, when the pillar
+ * gap was closed: each pillar now branches on `selectedClient.source`, so it
+ * needs a workspace to ask. The fake repository's roster is empty, which
+ * resolves to no selected client and therefore to the SELF branch — which is
+ * exactly what every test below is about, and is now asserted by
+ * construction rather than by there being no other branch to take.
+ */
 function renderPillar() {
   return render(
-    <DbProvider>
-      <MemoryRouter><Strength /></MemoryRouter>
-    </DbProvider>,
+    <CoachWorkspaceProvider repository={new FakeCoachWorkspaceRepository()}>
+      <DbProvider>
+        <MemoryRouter><Strength /></MemoryRouter>
+      </DbProvider>,
+    </CoachWorkspaceProvider>
   );
 }
 
@@ -60,15 +72,17 @@ function bigChartPointCount(): number {
 beforeEach(() => localStorage.clear());
 
 describe('Strength pillar', () => {
-  it('offers a way back to the Command Center', () => {
+  it('offers a way back to the Command Center', async () => {
     renderPillar();
+    await act(async () => {});
     expect(screen.getByRole('link', { name: /Command Center/ })).toHaveAttribute('href', '/coach');
   });
 
-  it('says the queue is empty rather than showing the mockup lifts', () => {
+  it('says the queue is empty rather than showing the mockup lifts', async () => {
     // A fresh DB has no proposals. "Back squat 100 → 102.5" is mockup
     // furniture; shipping it would invent a decision the coach never made.
     renderPillar();
+    await act(async () => {});
     expect(screen.queryByText(/Back squat/)).not.toBeInTheDocument();
     expect(screen.getByText(/no .*(proposal|decision)/i)).toBeInTheDocument();
   });
@@ -93,10 +107,11 @@ function seedManyLifts(names: string[], weeks: number) {
 }
 
 describe('lift trend card count', () => {
-  it('charts every lift with enough exposure, not the first two', () => {
+  it('charts every lift with enough exposure, not the first two', async () => {
     const names = ['Back Squat', 'Bench Press', 'Deadlift', 'Overhead Press', 'Barbell Row', 'Front Squat'];
     seedManyLifts(names, 6);
     renderPillar();
+    await act(async () => {});
 
     for (const name of names) {
       expect(screen.getByRole('button', { name: `Expand ${name} chart` })).toBeInTheDocument();
@@ -106,7 +121,7 @@ describe('lift trend card count', () => {
     expect(screen.queryByText(/Not charted:/)).not.toBeInTheDocument();
   });
 
-  it('names the lifts it is NOT charting, rather than dropping them silently', () => {
+  it('names the lifts it is NOT charting, rather than dropping them silently', async () => {
     // Three weeks of exposure is the engine's real threshold. A lift trained
     // twice cannot honestly be given a line — but it must still be named.
     const sessions = [
@@ -123,6 +138,7 @@ describe('lift trend card count', () => {
     ];
     localStorage.setItem(LS_KEY, JSON.stringify({ workouts: [], sessions, settings: {}, core: {} }));
     renderPillar();
+    await act(async () => {});
 
     expect(screen.getByRole('button', { name: 'Expand Back Squat chart' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Expand Snatch chart' })).not.toBeInTheDocument();
@@ -131,9 +147,10 @@ describe('lift trend card count', () => {
 });
 
 describe('lift trend card range toggle', () => {
-  it('renders genuinely more points for a longer real range than a shorter one', () => {
+  it('renders genuinely more points for a longer real range than a shorter one', async () => {
     seedLiftHistory(13);
     renderPillar();
+    await act(async () => {});
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand Back Squat chart' }));
     // 8w is the default range on open.
@@ -145,9 +162,10 @@ describe('lift trend card range toggle', () => {
     expect(bigChartPointCount()).toBe(13);
   });
 
-  it('says so, rather than faking a window, when real session history is shorter than the range', () => {
+  it('says so, rather than faking a window, when real session history is shorter than the range', async () => {
     seedLiftHistory(10);
     renderPillar();
+    await act(async () => {});
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand Back Squat chart' }));
     fireEvent.click(screen.getByRole('button', { name: '13w' }));

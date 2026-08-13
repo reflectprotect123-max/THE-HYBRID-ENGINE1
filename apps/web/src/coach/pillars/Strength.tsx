@@ -2,10 +2,13 @@ import { useMemo, useState } from 'react';
 import type { Session } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { PillarBack } from './PillarBack';
+import { useCoachWorkspace } from '../CoachWorkspaceContext';
+import { useRosterTrend } from './useRosterTrend';
+import { RosterTrendPanel } from './RosterTrendPanel';
 import { useProgressionLedger } from '../../store/progression';
 import type { ProgressionDirection, StrengthProgressionProposal } from '../../lib/progression';
 import { ProgressionActions } from '../progression-actions';
-import { liftTrends, liftTrendSummary, weeklyHardBudget, type TrendSeries } from '../trends';
+import { liftTrends, liftTrendSummary, weeklyHardBudget, type HardBudget, type TrendSeries } from '../trends';
 import '../coach-redesign.css';
 
 /*
@@ -216,7 +219,74 @@ function LiftCard({
   );
 }
 
+/**
+ * A roster athlete's Strength pillar.
+ *
+ * Two snapshots, because the self-coach screen shows two things: the lift
+ * trends and the weekly hard-session budget. Both are pushed by the
+ * athlete's own device (`trendSnapshotInputs`), so both are read rather than
+ * recomputed — this screen has none of the raw sessions they were computed
+ * from and must not pretend otherwise.
+ *
+ * The progression QUEUE is absent here by design, not by omission: roster
+ * proposals live on `/coach/progression`, which already reads them and
+ * already carries the approve/decline controls. Duplicating that queue here
+ * would give a coach two places to decide the same thing.
+ */
+function RosterStrength({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const lifts = useRosterTrend<TrendSeries>(clientId, 'lift_trend');
+  const budget = useRosterTrend<HardBudget>(clientId, 'hard_budget');
+  const hard = budget.status === 'ready' ? budget.points[0] ?? null : null;
+
+  return (
+    <div className="rd-content">
+      <PillarBack />
+      <p className="rd-section-label">Lift trends · {clientName}</p>
+      <RosterTrendPanel state={lifts} unit="kg" label="lift trends" />
+
+      <p className="rd-section-label">Weekly hard-session budget</p>
+      {hard ? (
+        <div className="rd-panel">
+          <div className="rd-loadbar">
+            <div className="lb-top">
+              <span>Used</span>
+              <span className="num">{hard.count} of {hard.budget} hard sessions</span>
+            </div>
+            <div className="lb-track">
+              <div className="lb-fill" style={{ width: `${Math.min(100, (hard.count / hard.budget) * 100)}%` }} />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="rd-panel-note">
+          {budget.status === 'loading' ? 'Loading the budget…' : 'No hard-session budget has been shared yet.'}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function Strength() {
+  const { selectedClient, loading } = useCoachWorkspace();
+  /*
+   * The loading state is NOT folded into the self branch, and that is the
+   * whole reason it is written out. `listClients()` is async, so for the
+   * first frames after mount `selectedClient` is null — and a naive
+   * `selectedClient?.source !== 'engine-local' ? roster : self` renders the
+   * SELF view during those frames, which puts the signed-in coach's own
+   * training on screen under a roster athlete's name. Briefly, but that is
+   * exactly the leak `ClientDetailGate`'s header comment exists to prevent,
+   * and "only for 200ms" is not a defence for showing one person's data
+   * under another person's name. Caught by `roster-pillars.test.tsx`.
+   */
+  if (loading) return <main className="rd-content" aria-busy="true">Loading…</main>;
+  if (selectedClient && selectedClient.source !== 'engine-local') {
+    return <RosterStrength clientId={selectedClient.id} clientName={selectedClient.name} />;
+  }
+  return <SelfStrength />;
+}
+
+function SelfStrength() {
   const { db, workouts, sessions } = useDb();
   const ledger = useProgressionLedger();
   const today = new Date().toISOString().slice(0, 10);

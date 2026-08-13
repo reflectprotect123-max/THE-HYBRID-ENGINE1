@@ -3,6 +3,8 @@ import { FN } from '@hybrid/config';
 import type { StateConstraint } from '@hybrid/whole-athlete-state';
 import { useDb } from '../../store/db';
 import { PillarBack } from './PillarBack';
+import { useCoachWorkspace } from '../CoachWorkspaceContext';
+import { AthleteStatus } from '../AthleteStatus';
 import '../coach-redesign.css';
 
 /*
@@ -352,7 +354,61 @@ function TrendCard({
   );
 }
 
+/**
+ * A roster athlete's Readiness pillar.
+ *
+ * This renders `AthleteStatus`'s roster view, which was BUILT for exactly
+ * this and had no reachable caller: it reads `readiness_trend` and, before
+ * showing a single number, checks `hasReadinessGrant`. Readiness is the one
+ * pillar behind an explicit, revocable consent — `readiness_read_grants` —
+ * and every read is written to the athlete's own receipt trail.
+ *
+ * The WHOOP gauge and the four trend cards below it are absent here on
+ * purpose: they are computed from raw daily rows on the signed-in coach's
+ * own device. What crosses the boundary is the shared series and nothing
+ * else.
+ *
+ * Safety flags are absent for the same reason and it is worth being explicit,
+ * because CLAUDE.md is explicit: pain and illness are safety flags, not
+ * readiness penalties. They live in `whole-athlete-state` on the athlete's
+ * device and are not part of the roster tier — so this screen must not be
+ * read as "no pain flags", only as "pain flags are not visible from here".
+ */
+function RosterReadiness({ clientId, clientName }: { clientId: string; clientName: string }) {
+  return (
+    <div className="rd-content">
+      <PillarBack />
+      <p className="rd-section-label">Readiness · {clientName}</p>
+      <AthleteStatus clientId={clientId} clientName={clientName} />
+      <p className="rd-panel-note">
+        Pain and illness flags are not shared with the roster tier. This screen showing none is not
+        the same as {clientName} having none.
+      </p>
+    </div>
+  );
+}
+
 export function Readiness() {
+  const { selectedClient, loading } = useCoachWorkspace();
+  /*
+   * The loading state is NOT folded into the self branch, and that is the
+   * whole reason it is written out. `listClients()` is async, so for the
+   * first frames after mount `selectedClient` is null — and a naive
+   * `selectedClient?.source !== 'engine-local' ? roster : self` renders the
+   * SELF view during those frames, which puts the signed-in coach's own
+   * training on screen under a roster athlete's name. Briefly, but that is
+   * exactly the leak `ClientDetailGate`'s header comment exists to prevent,
+   * and "only for 200ms" is not a defence for showing one person's data
+   * under another person's name. Caught by `roster-pillars.test.tsx`.
+   */
+  if (loading) return <main className="rd-content" aria-busy="true">Loading…</main>;
+  if (selectedClient && selectedClient.source !== 'engine-local') {
+    return <RosterReadiness clientId={selectedClient.id} clientName={selectedClient.name} />;
+  }
+  return <SelfReadiness />;
+}
+
+function SelfReadiness() {
   const { db, athleteState } = useDb();
 
   /* Every hard constraint, in the engine's own order (state.ts pushes pain

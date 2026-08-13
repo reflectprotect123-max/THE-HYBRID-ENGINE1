@@ -12,6 +12,9 @@ import { mondayOf } from '@hybrid/coordinator-adapter';
 import { useDb } from '../../store/db';
 import { useConcept2 } from '../../cloud/concept2';
 import { PillarBack } from './PillarBack';
+import { useCoachWorkspace } from '../CoachWorkspaceContext';
+import { useRosterTrend } from './useRosterTrend';
+import { RosterTrendPanel } from './RosterTrendPanel';
 import { useProgressionLedger } from '../../store/progression';
 import type { ConditioningProgressionProposal, ProgressionDirection } from '../../lib/progression';
 import { ProgressionActions } from '../progression-actions';
@@ -239,7 +242,56 @@ function ErgCard({ series, results }: { series: TrendSeries; results: Concept2Re
   );
 }
 
+/**
+ * A roster athlete's Conditioning pillar.
+ *
+ * Only the erg trend crosses the roster boundary. The zone breakdown this
+ * screen shows for the signed-in coach is derived from raw HR traces on
+ * their own device, and those are not part of the roster tier — so this
+ * screen shows what was actually shared rather than an empty zone chart that
+ * would read as "they trained in no zones at all".
+ */
+function RosterConditioning({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const erg = useRosterTrend<TrendSeries>(clientId, 'erg_trend');
+  return (
+    <div className="rd-content">
+      <PillarBack />
+      <p className="rd-section-label">Erg trends · {clientName}</p>
+      <RosterTrendPanel
+        state={erg}
+        unit="w"
+        label="erg trends"
+        emptyNote="Erg trends come from a connected Concept2 account on the athlete's device. Nothing has arrived for them yet."
+      />
+      <p className="rd-panel-note">
+        Time-in-zone is not shared: it is derived from raw heart-rate traces held on the athlete&rsquo;s
+        own device, which the roster tier does not carry.
+      </p>
+    </div>
+  );
+}
+
 export function Conditioning() {
+  const { selectedClient, loading } = useCoachWorkspace();
+  /*
+   * The loading state is NOT folded into the self branch, and that is the
+   * whole reason it is written out. `listClients()` is async, so for the
+   * first frames after mount `selectedClient` is null — and a naive
+   * `selectedClient?.source !== 'engine-local' ? roster : self` renders the
+   * SELF view during those frames, which puts the signed-in coach's own
+   * training on screen under a roster athlete's name. Briefly, but that is
+   * exactly the leak `ClientDetailGate`'s header comment exists to prevent,
+   * and "only for 200ms" is not a defence for showing one person's data
+   * under another person's name. Caught by `roster-pillars.test.tsx`.
+   */
+  if (loading) return <main className="rd-content" aria-busy="true">Loading…</main>;
+  if (selectedClient && selectedClient.source !== 'engine-local') {
+    return <RosterConditioning clientId={selectedClient.id} clientName={selectedClient.name} />;
+  }
+  return <SelfConditioning />;
+}
+
+function SelfConditioning() {
   const { db, sessions } = useDb();
   const ledger = useProgressionLedger();
   const c2 = useConcept2();

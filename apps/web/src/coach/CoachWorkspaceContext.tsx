@@ -21,10 +21,30 @@ export function CoachWorkspaceProvider({ children, repository = coachWorkspaceRe
     try { return localStorage.getItem(SELECTED_CLIENT_KEY) ?? 'engine-local'; } catch { return 'engine-local'; }
   });
   const [error, setError] = useState<string | null>(null);
+  /*
+   * Whether `listClients()` has ANSWERED — not whether it returned anything.
+   *
+   * `loading` used to be derived as `clients.length === 0 && !error`, which
+   * makes "still asking" and "asked, and this coach has no athletes"
+   * indistinguishable. In production that was invisible, because
+   * `listClients()` always returns at least the signed-in coach's own
+   * `engine-local` entry, so a zero-length list never happened.
+   *
+   * It stopped being invisible when the pillar screens started BRANCHING on
+   * the answer (13 August 2026): a screen that treats "no answer yet" as
+   * "local client" renders the signed-in coach's own training for the first
+   * frames after mount, under whichever athlete is selected. Tracking the
+   * settle explicitly is the only way to tell those two states apart.
+   */
+  const [settled, setSettled] = useState(false);
 
   useEffect(() => {
     let active = true;
-    repository.listClients().then((value) => { if (active) setClients(value); }).catch(() => { if (active) setError('Client summaries could not be loaded.'); });
+    setSettled(false);
+    repository.listClients()
+      .then((value) => { if (active) setClients(value); })
+      .catch(() => { if (active) setError('Client summaries could not be loaded.'); })
+      .finally(() => { if (active) setSettled(true); });
     return () => { active = false; };
   }, [repository]);
 
@@ -33,7 +53,7 @@ export function CoachWorkspaceProvider({ children, repository = coachWorkspaceRe
     try { localStorage.setItem(SELECTED_CLIENT_KEY, clientId); } catch { /* Selection still works for this session. */ }
   };
   const selectedClient = clients.find((client) => client.id === selectedId) ?? clients[0] ?? null;
-  const value = useMemo(() => ({ clients, selectedClient, selectClient, repository, loading: clients.length === 0 && !error, error }), [clients, selectedClient, repository, error]);
+  const value = useMemo(() => ({ clients, selectedClient, selectClient, repository, loading: !settled && !error, error }), [clients, selectedClient, repository, error, settled]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 

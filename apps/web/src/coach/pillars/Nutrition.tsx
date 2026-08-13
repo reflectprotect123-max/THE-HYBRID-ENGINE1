@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNutrition } from '../../store/nutrition';
 import { PillarBack } from './PillarBack';
+import { useCoachWorkspace } from '../CoachWorkspaceContext';
+import type { AthleteNutritionSummary, AthleteNutritionWindow } from '../contracts';
 import { buildCoachNutritionReview, type NutritionReviewException } from '../nutrition-review';
 import '../coach-redesign.css';
 
@@ -208,7 +210,147 @@ function WeightSpark({ raw, trend }: { raw: (number | null)[]; trend: (number | 
   );
 }
 
+function mondayOf(d: Date): string {
+  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
+  return copy.toISOString().slice(0, 10);
+}
+
+/**
+ * A roster athlete's Nutrition pillar.
+ *
+ * Two tiers, and the split is the whole point. The SUMMARY — days logged,
+ * trend direction, confidence — is an ordinary roster read. The WINDOW —
+ * daily status, weigh-ins, macro targets, the latest check-in — is a
+ * privileged read behind `nutrition_read_grants`, revocable by the athlete
+ * at any time and logged to their receipt trail on every read.
+ *
+ * So the grant is checked before the window is shown, and a refusal is
+ * stated as a refusal rather than rendered as an empty athlete. "No grant"
+ * and "granted, nothing logged" are completely different facts about a
+ * person and this screen never conflates them.
+ *
+ * Per CLAUDE.md, nutrition here is a FACT surface. Nothing on it prescribes,
+ * and the macro targets shown are the athlete's own, read — never a target
+ * this bench computed for them.
+ */
+function RosterNutrition({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const { repository } = useCoachWorkspace();
+  const weekStart = useMemo(() => mondayOf(new Date()), []);
+  const [summary, setSummary] = useState<AthleteNutritionSummary | null | undefined>(undefined);
+  const [granted, setGranted] = useState<boolean | null>(null);
+  const [window_, setWindow] = useState<AthleteNutritionWindow | null | undefined>(undefined);
+
+  useEffect(() => {
+    let active = true;
+    setSummary(undefined);
+    setGranted(null);
+    setWindow(undefined);
+    /* `?.()` alone short-circuits to `undefined` on a repository that does
+       not implement the method; chaining `.then` on that throws rather than
+       degrading. Same guard as every other roster read on this bench. */
+    (repository.getNutritionSummary?.(clientId, weekStart) ?? Promise.resolve(null))
+      .then((v) => { if (active) setSummary(v); }).catch(() => { if (active) setSummary(null); });
+    (repository.hasNutritionGrant?.(clientId) ?? Promise.resolve(false))
+      .then((v) => { if (active) setGranted(v); }).catch(() => { if (active) setGranted(false); });
+    (repository.getNutritionWindow?.(clientId, weekStart) ?? Promise.resolve(null))
+      .then((v) => { if (active) setWindow(v); }).catch(() => { if (active) setWindow(null); });
+    return () => { active = false; };
+  }, [repository, clientId, weekStart]);
+
+  return (
+    <div className="rd-content">
+      <PillarBack />
+      <p className="rd-section-label">Adherence · {clientName}</p>
+      {summary === undefined && <p className="rd-panel-note" role="status">Loading adherence…</p>}
+      {summary === null && (
+        <div className="rd-panel">
+          <p className="lib-sub">No nutrition summary has been shared yet.</p>
+          <p className="rd-panel-note">Their device pushes this when it syncs. Nothing has arrived for them yet.</p>
+        </div>
+      )}
+      {summary && (
+        <div className="rd-panel">
+          <div className="rd-panel-grid">
+            <div>
+              <p className="rd-section-label">Days logged</p>
+              <p className="c-num num">{summary.loggedDays} / {summary.windowDays}</p>
+            </div>
+            <div>
+              <p className="rd-section-label">Weight trend</p>
+              <p className="c-num num">{summary.trendDirection ?? 'unknown'}</p>
+            </div>
+            <div>
+              <p className="rd-section-label">Estimate</p>
+              <p className="c-num num">{summary.estimateConfidence ?? 'unknown'}</p>
+            </div>
+          </div>
+          {/* `null` is a real answer here, not a gap: the engine declines to
+              call a direction it cannot support, and saying "unknown" is the
+              honest render of that rather than picking "stable". */}
+          {(summary.trendDirection === null || summary.estimateConfidence === null) && (
+            <p className="rd-panel-note">
+              Unknown means the engine declined to call it, not that data is missing.
+            </p>
+          )}
+        </div>
+      )}
+
+      <p className="rd-section-label">Daily detail</p>
+      {granted === false && (
+        <div className="rd-panel">
+          <p className="lib-sub">{clientName} has not granted daily nutrition access.</p>
+          <p className="rd-panel-note">
+            They can grant it from their own device, and revoke it at any time. Every read is written
+            to their receipt trail.
+          </p>
+        </div>
+      )}
+      {granted === null && <p className="rd-panel-note" role="status">Checking consent…</p>}
+      {granted && window_ === undefined && <p className="rd-panel-note" role="status">Loading daily detail…</p>}
+      {granted && window_ === null && <p className="rd-panel-note">Not available.</p>}
+      {granted && window_ && window_.dailyStatus.length === 0 && (
+        <p className="rd-panel-note">Access is granted; {clientName} has logged no days this week.</p>
+      )}
+      {granted && window_ && window_.dailyStatus.length > 0 && (
+        <>
+          <div className="rd-panel">
+            {window_.dailyStatus.map((day) => (
+              <div className="cc-sysrow" key={day.date}>
+                <span className="sn num">{day.date.slice(5)}</span>
+                <span className="sd">{day.status}</span>
+                {day.note && <span className="ss">{day.note}</span>}
+              </div>
+            ))}
+          </div>
+          <p className="rd-panel-note">This read was logged to {clientName}&rsquo;s receipt trail.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Nutrition() {
+  const { selectedClient, loading } = useCoachWorkspace();
+  /*
+   * The loading state is NOT folded into the self branch, and that is the
+   * whole reason it is written out. `listClients()` is async, so for the
+   * first frames after mount `selectedClient` is null — and a naive
+   * `selectedClient?.source !== 'engine-local' ? roster : self` renders the
+   * SELF view during those frames, which puts the signed-in coach's own
+   * training on screen under a roster athlete's name. Briefly, but that is
+   * exactly the leak `ClientDetailGate`'s header comment exists to prevent,
+   * and "only for 200ms" is not a defence for showing one person's data
+   * under another person's name. Caught by `roster-pillars.test.tsx`.
+   */
+  if (loading) return <main className="rd-content" aria-busy="true">Loading…</main>;
+  if (selectedClient && selectedClient.source !== 'engine-local') {
+    return <RosterNutrition clientId={selectedClient.id} clientName={selectedClient.name} />;
+  }
+  return <SelfNutrition />;
+}
+
+function SelfNutrition() {
   const { nutrition } = useNutrition();
   const [openExceptions, setOpenExceptions] = useState<ReadonlySet<string>>(new Set());
   const day = today();

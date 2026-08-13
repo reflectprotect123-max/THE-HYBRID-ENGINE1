@@ -59,18 +59,30 @@ export default function Coach() {
             */}
             <Route path="author" element={<ClientDetailGate tool="Authoring" layer3Ready><CoachAuthoring /></ClientDetailGate>} />
             {/*
-              Stage-1 coach redesign (11 August 2026, Task 7): the four pillar
-              screens read the SIGNED-IN athlete's own stores (useDb() /
-              useNutrition()), exactly like legacy / build / planner below —
-              there is no layer-3 backend behind any of them yet, so each
-              drops `layer3Ready` and a roster client is BLOCKED, not shown a
-              summary. See ClientDetailGate.tsx for why a block, not a
-              disclosure banner.
+              PILLAR GAP CLOSED, 13 August 2026.
+
+              This read, from stage 1 (11 August): "there is no layer-3
+              backend behind any of them yet, so each drops `layer3Ready` and
+              a roster client is BLOCKED". The first half stopped being true
+              almost immediately — `readiness_trend`, `lift_trend`,
+              `hard_budget` and `erg_trend` snapshots, plus the nutrition
+              summary/window pair and their two consent grants, were all built
+              and pushed by the athlete's own device. The screens simply never
+              read them, so selecting any athlete other than yourself made the
+              four main tiles of the dashboard dead ends.
+
+              Each pillar now branches on `selectedClient.source`, exactly as
+              `CoachProgression`, `WeekReview` and `CoachAuthoring` already
+              did. The roster view is deliberately SMALLER than the self view
+              — it shows the aggregated series the athlete shared and never
+              the raw sessions, HR traces or safety flags behind them, which
+              the roster tier does not carry. Each screen says so on itself
+              rather than letting an absence read as a zero.
             */}
-            <Route path="readiness" element={<ClientDetailGate tool="Readiness"><Readiness /></ClientDetailGate>} />
-            <Route path="strength" element={<ClientDetailGate tool="Strength"><Strength /></ClientDetailGate>} />
-            <Route path="conditioning" element={<ClientDetailGate tool="Conditioning"><Conditioning /></ClientDetailGate>} />
-            <Route path="nutrition" element={<ClientDetailGate tool="Nutrition"><Nutrition /></ClientDetailGate>} />
+            <Route path="readiness" element={<ClientDetailGate tool="Readiness" layer3Ready><Readiness /></ClientDetailGate>} />
+            <Route path="strength" element={<ClientDetailGate tool="Strength" layer3Ready><Strength /></ClientDetailGate>} />
+            <Route path="conditioning" element={<ClientDetailGate tool="Conditioning" layer3Ready><Conditioning /></ClientDetailGate>} />
+            <Route path="nutrition" element={<ClientDetailGate tool="Nutrition" layer3Ready><Nutrition /></ClientDetailGate>} />
             {/*
               The day builder reads the signed-in athlete's own stores to build
               its exercise catalogue, so it is gated WITHOUT layer3Ready, like

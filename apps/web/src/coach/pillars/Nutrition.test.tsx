@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   currentEstimate,
@@ -20,6 +20,8 @@ import {
 import { DbProvider } from '../../store/db';
 import { NutritionProvider, useNutrition } from '../../store/nutrition';
 import { Nutrition } from './Nutrition';
+import { CoachWorkspaceProvider } from '../CoachWorkspaceContext';
+import { FakeCoachWorkspaceRepository } from '../coach-test-harness';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -114,37 +116,51 @@ function Seed({ db }: { db: NutritionDB }) {
   return null;
 }
 
+/*
+ * Wrapped in `CoachWorkspaceProvider` since 13 August 2026, when the pillar
+ * gap was closed: this screen now branches on `selectedClient.source`, so it
+ * needs a workspace to ask. The fake repository's roster is empty, which
+ * resolves to no selected client and therefore to the SELF branch — which is
+ * what every test below is about, and is now true by construction rather
+ * than because no other branch existed.
+ */
 function renderPillar(db?: NutritionDB) {
   return render(
-    <DbProvider>
-      <NutritionProvider>
-        {db && <Seed db={db} />}
-        <MemoryRouter><Nutrition /></MemoryRouter>
-      </NutritionProvider>
-    </DbProvider>,
+    <CoachWorkspaceProvider repository={new FakeCoachWorkspaceRepository()}>
+      <DbProvider>
+        <NutritionProvider>
+          {db && <Seed db={db} />}
+          <MemoryRouter><Nutrition /></MemoryRouter>
+        </NutritionProvider>
+      </DbProvider>
+    </CoachWorkspaceProvider>,
   );
 }
 
 beforeEach(() => localStorage.clear());
 
 describe('Nutrition pillar', () => {
-  it('offers a way back to the Command Center', () => {
+  it('offers a way back to the Command Center', async () => {
     renderPillar();
+    await act(async () => {});
     expect(screen.getByRole('link', { name: /Command Center/ })).toHaveAttribute('href', '/coach');
   });
 
-  it('reports unlogged days as unlogged, not as zero-calorie days', () => {
+  it('reports unlogged days as unlogged, not as zero-calorie days', async () => {
     renderPillar();
+    await act(async () => {});
     expect(screen.getByText(/0 of 7|unlogged|no days logged/i)).toBeInTheDocument();
   });
 
-  it('states absent weigh-in data rather than a fake trend', () => {
+  it('states absent weigh-in data rather than a fake trend', async () => {
     renderPillar();
+    await act(async () => {});
     expect(screen.getByText(/no weigh-ins recorded/i)).toBeInTheDocument();
   });
 
-  it('states an absent macro target rather than a fabricated 0g bar', () => {
+  it('states an absent macro target rather than a fabricated 0g bar', async () => {
     renderPillar();
+    await act(async () => {});
     expect(screen.getAllByText(/no target set/i).length).toBe(3);
   });
 
@@ -155,6 +171,7 @@ describe('Nutrition pillar', () => {
     // Deliberately no log entries today: a real target exists, but nothing
     // has been logged against it yet.
     renderPillar(db);
+    await act(async () => {});
     expect(await screen.findAllByText(/not logged yet today/i)).toHaveLength(3);
   });
 
@@ -172,6 +189,7 @@ describe('Nutrition pillar', () => {
       weightEntry(day, 78.4),
     ];
     renderPillar(db);
+    await act(async () => {});
 
     // Actual totals are the plain sum of the two entries above: 150g
     // protein, 180g carbs, 55g fat — real numbers, not derived from the
@@ -225,6 +243,7 @@ describe('Nutrition pillar', () => {
     // unlogged day.
     db.program = programWithTodayTarget(day, { calories: 900, proteinG: 80, carbsG: 90, fatG: 70 });
     renderPillar(db);
+    await act(async () => {});
     expect(await screen.findByText(/macro target exceeds calorie target/i)).toBeInTheDocument();
     expect(screen.getByText(/1310 kcal, 410 kcal above the target/i)).toBeInTheDocument();
     // The `next` half of the exception is not dropped.

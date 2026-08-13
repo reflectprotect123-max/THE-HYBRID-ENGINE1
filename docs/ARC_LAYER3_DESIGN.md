@@ -23,6 +23,30 @@ backend it describes is now built.**
   8 was closed by inspection — see the migration's header comment for the
   citation.
 
+**Frontend wiring — COMPLETE as of 13 August 2026.** The four PILLAR screens
+(`Readiness`, `Strength`, `Conditioning`, `Nutrition`) joined the four routes
+below on that date. They had been gated WITHOUT `layer3Ready` since the
+stage-1 coach redesign on 11 August, which meant selecting any athlete other
+than the signed-in coach turned the dashboard's four main tiles into
+refusals — while the backend they needed (`readiness_trend`, `lift_trend`,
+`hard_budget`, `erg_trend`, the nutrition summary/window pair and both
+consent grants) was already built and already being pushed by athletes' own
+devices. The gap was in the reading, never in the backend.
+
+Two things the closing pass established that are worth keeping:
+
+- The roster view is deliberately SMALLER than the self view, and each screen
+  says so on itself. Raw sessions, HR traces, WHOOP dailies and the
+  pain/illness safety flags are not in the roster tier, so an absence is
+  stated rather than rendered as a zero. "This screen showing no pain flags
+  is not the same as this athlete having none" is written on the Readiness
+  roster view for that reason.
+- `CoachWorkspaceContext.loading` used to be `clients.length === 0 && !error`,
+  which cannot distinguish "still asking" from "no athletes". That was
+  invisible while nothing branched on the answer; the moment the pillars did,
+  it rendered the signed-in coach's own training under a roster athlete's
+  name for the first frames after mount. It now tracks the settle explicitly.
+
 **Frontend wiring — done for the four ClientDetailGate routes with a real
 backend.** `CoachProgression`, `CoachNutrition`, `WeekReview` and
 `CoachAuthoring` each branch on `selectedClient.source`: `engine-local`
