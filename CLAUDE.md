@@ -196,6 +196,36 @@ it in staging before enabling `VITE_HYBRID_ECOSYSTEM_SYNC=1` or
 Never remove the legacy read path until old mobile builds have aged out and a
 rollback rehearsal proves that no domain can overwrite another domain.
 
+## The athlete web app is PARKED, not deleted (13 August 2026)
+
+The owner asked for the athlete app to stop being reachable in a browser:
+"I don't want the athlete's app to be seen again — hide it somewhere, and if
+we ever need it again we can pull it out." So `apps/web` serves the coach
+workspace and nothing else. `/` and every parked address redirect to `/coach`.
+
+- **Nothing was deleted.** `apps/web/src/screens/` is untouched and its
+  colocated tests still run. That is what makes "pull it out" real rather
+  than hopeful: the screens are still PROVEN to work, so restoring them is
+  re-adding routes in `App.tsx`, not repairing a year of drift.
+- **They are dead code, and that is the accepted cost.** Nothing imports
+  them, `tsc` still checks them, and they will drift out of step with the
+  packages beneath them. If the answer ever becomes "we are not bringing it
+  back", delete them — git history keeps them either way, exactly as it kept
+  `apps/mobile` between commit `8628060` and its return.
+- The nutrition/MacroTrack WEB world is parked with them. It was athlete
+  facing too, and it lives in the Android app.
+- `checks/screens.mjs`'s athlete `SHOTS` list is empty for the same reason a
+  check is ever deleted: those addresses now redirect, so shooting them would
+  produce nine identical pictures of the coach bench under athlete filenames.
+- The coach rail's "Athlete app" link is GONE. It existed because `/`
+  redirected to the bench and a coach would otherwise be stuck; it would now
+  point at a route that bounces straight back. **Restoring the athlete app
+  means restoring that link too**, or the coach is stuck again for exactly the
+  original reason.
+- The ANDROID app is the athlete product and is untouched. It is the only
+  athlete client now, and it is Android-only — `eas.json` has no iOS profile.
+  That is a distribution consequence of this decision, not an oversight.
+
 ## The athlete and the coach never face each other
 
 They are one repo, one deploy and one bundle, and they are SUPPOSED to share —

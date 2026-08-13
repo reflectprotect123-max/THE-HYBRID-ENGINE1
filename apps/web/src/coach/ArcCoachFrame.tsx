@@ -152,31 +152,17 @@ export function ArcCoachFrame() {
          * has to already know to type.
          */}
         {/*
-          SEPARATED from the three nav items above, deliberately.
+          The "Athlete app" link is GONE (13 August 2026).
 
-          This is the only control that leaves the bench entirely, and it sat
-          one row under "Library" with ~8px between them and near-identical
-          styling — so in the phone drawer it read as a fourth nav entry.
-          Reaching for Library and hitting this instead lands you in the
-          athlete app, which is exactly what it looks like: the coach
-          workspace "reverting to the athlete side". Reported from a real
-          phone, 13 August 2026.
+          It existed for one reason, written here at the time: `/` redirects
+          to the bench, so a coach account with no reachable athlete link was
+          stuck. The athlete web app is parked now (see App.tsx) and every
+          non-coach address redirects HERE — so the link would have pointed at
+          a route that bounces straight back, which is worse than no link.
 
-          A rule and real space put it in its own zone, and the label says
-          where it goes rather than naming a place. The link itself is not
-          negotiable — `/` redirects to the bench on the unscoped build, so
-          without it a coach account is stuck here.
+          Restoring the athlete app means restoring this too, or the coach is
+          stuck again for exactly the original reason.
         */}
-        <div className="mt-5 border-t border-line2 pt-3">
-          <p className="mb-1 text-[9px] uppercase tracking-wider text-dim">Leave the bench</p>
-          <Link
-            to="/home"
-            className="flex w-full shrink-0 items-center rounded-md border border-line2 px-2 py-1.5 text-xs text-muted transition-colors hover:bg-panel hover:text-text"
-          >
-            <span aria-hidden="true" className="mr-1 h-1 w-1 rounded-full bg-transparent" />
-            <span>Go to the athlete app</span>
-          </Link>
-        </div>
         <details className="mt-5 hidden border-t border-line pt-2 text-[11px] text-muted lg:block">
           <summary className="cursor-pointer select-none text-[9px] uppercase tracking-wider text-dim">How ARC decides</summary>
           <p className="mt-1">Strength and Conditioning propose. The Coordinator resolves. Nutrition remains context.</p>

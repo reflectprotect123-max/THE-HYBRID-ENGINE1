@@ -93,23 +93,22 @@ function serve(port, dir = 'apps/web/dist') {
 }
 
 
-const SHOTS = [
-  // [label, path, waitForText]
-  // `/home`, not `/`: the unscoped dashboard build this shoots sends `/` to
-  // the coach bench, and Home's own path is the one address that renders the
-  // athlete Home screen on every build.
-  ['01-home', '/home', null],
-  ['02-training', '/training', null],
-  ['03-library', '/library', null],
-  ['04-conditioning', '/conditioning', null],
-  ['05-history', '/history', null],
-  ['06-progress', '/progress', null],
-  ['07-calendar', '/calendar', null],
-  ['08-settings', '/settings', null],
-  // The third world's web surface. Home (01) carries the nutrition card above
-  // it, so the two are judged together.
-  ['09-nutrition', '/nutrition', null],
-];
+/*
+ * EMPTY since 13 August 2026, when the athlete web app was parked (App.tsx).
+ *
+ * These were nine athlete screens — Home, Training, Library, Conditioning,
+ * History, Progress, Calendar, Settings and the nutrition world. Every one of
+ * those addresses now redirects to `/coach`, so shooting them would produce
+ * nine identical pictures of the coach bench under athlete filenames: a check
+ * that passes while proving nothing, which is the exact failure mode this
+ * file's header warns about twice.
+ *
+ * The SCREENS still exist in `src/screens/` and their colocated tests still
+ * run. If the athlete app is ever unparked, restore this list from git — it
+ * is the same nine labels and paths, and they will work again the moment the
+ * routes do.
+ */
+const SHOTS = [];
 
 /*
  * Every `/coach` route, at the same 420px phone viewport as every athlete

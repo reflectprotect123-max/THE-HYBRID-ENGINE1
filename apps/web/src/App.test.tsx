@@ -50,21 +50,26 @@ vi.mock('./cloud/sync', async () => {
 
 describe('the unscoped dashboard root', () => {
   /*
-   * `/` is the ATHLETE's. It used to redirect to the coach bench, so someone
-   * typing the bare domain landed in a workspace they had no account for and
-   * met a sign-in screen. The bench is still one tap away at `/coach`; it is
-   * just no longer what the product opens on.
+   * REWRITTEN 13 August 2026, when the athlete web app was parked.
+   *
+   * This asserted that `/` lands on the athlete Home. That was right while
+   * the athlete app was the front page; the owner has since asked for it to
+   * stop being reachable in a browser at all. Web is the coach workspace now.
+   *
+   * What the test still guards is the part that was never about which app
+   * won: `/` must RESOLVE, and it must not loop. A redirect to somewhere that
+   * redirects back is exactly what this file exists to catch, and parking one
+   * side of the fork is when that is most likely to happen.
    */
-  it('lands on the athlete Home from `/`, without a navigation loop', async () => {
+  it('lands on the coach bench from `/`, without a navigation loop', async () => {
     mockAllowed = false;
     window.history.pushState({}, '', '/');
 
     render(<App />);
-    expect(await screen.findByText(/Train today/i)).toBeInTheDocument();
-    // Redirected to the athlete's one canonical address, and stayed there.
-    expect(window.location.pathname).toBe('/home');
-    // And arrived inside the athlete's own chrome, not the bench's.
-    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+    await screen.findByText(/coach/i, undefined, { timeout: 5000 });
+    // Redirected once, to the one surface the browser still serves, and
+    // stayed there.
+    expect(window.location.pathname).toBe('/coach');
   });
 
   it('still lets the coach bench be reached directly, and does not gate it behind the athlete', async () => {
@@ -92,27 +97,28 @@ describe('the unscoped dashboard root', () => {
 });
 
 /*
- * The other half of the coach-first root, and the half that was wrong: `/` is
- * the bench BY DESIGN, but the training tree's catch-all also pointed at `/`,
- * so every unmatched athlete address chained through it into the coach
- * workspace. The most visible victim was the way back from the nutrition world,
- * whose addresses no training route matches — the one door out of that world
- * put the athlete in the coach bench.
+ * A PARKED app must not 404.
  *
- * Composition again, for the same reason as above: `athleteHomePath` has its own
- * assertions and so does the Home tab, and both pass while the catch-all quietly
- * disagrees with them.
+ * This case used to assert the opposite destination — that an unmatched
+ * address goes to the athlete Home rather than the bench — because at the
+ * time the athlete app was the front page and the catch-all wrongly pointed
+ * at the bench. Parking the athlete app inverts which answer is correct
+ * without changing what is being protected: an address someone has
+ * BOOKMARKED must land somewhere real.
+ *
+ * `/nutrition/settings` is deliberately the address used. It belongs to the
+ * nutrition world, which was parked alongside the training screens, and it is
+ * the kind of URL a person actually has saved. It resolving to the bench is
+ * the difference between "that moved" and a dead link.
  */
-describe('an unmatched athlete address on the unscoped build', () => {
-  it('goes to the athlete Home, not the coach bench', async () => {
+describe('a parked athlete address', () => {
+  it('lands on the coach bench rather than dying', async () => {
     mockAllowed = false;
     window.history.pushState({}, '', '/nutrition/settings');
 
     render(<App />);
 
-    expect(await screen.findByText(/Train today/i)).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/home');
-    // The athlete kept their own chrome rather than being handed the bench's.
-    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+    await screen.findByText(/coach/i, undefined, { timeout: 5000 });
+    expect(window.location.pathname).toBe('/coach');
   });
 });

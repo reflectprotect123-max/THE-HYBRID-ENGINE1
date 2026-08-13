@@ -81,75 +81,49 @@ export function App() {
                   by route, so the two can be installed as separate apps from
                   one origin. Renders nothing. */}
               <ManifestLink />
-              {/* The route tree forks by discipline world, not by product
-                  build: `world` is a runtime view preference (`discipline.ts`),
-                  so both blocks ship in every build and only one is mounted at
-                  a time. Each fork owns its own <Routes> — they are never both
-                  live, so there is no path collision between them. */}
-              {world === 'training' && (
-                <Routes>
-                  <Route
-                    path="/coach/*"
-                    element={
-                      <Suspense fallback={null}>
-                        <Coach />
-                      </Suspense>
-                    }
-                  />
-                  <Route element={<Shell />}>
-                    {/* The bare address is the ATHLETE's. It used to redirect
-                        to the coach bench, which made the front page of the
-                        product the surface most of its users never open — and
-                        meant an athlete typing the domain landed in someone
-                        else's workspace.
+              {/*
+                THE ATHLETE WEB APP IS PARKED (13 August 2026).
 
-                        A redirect to `ATHLETE_HOME` rather than rendering Home
-                        here, so the athlete app keeps ONE canonical address and
-                        the Home tab highlights when you arrive. It cannot loop:
-                        this branch only runs on the unscoped build, where
-                        `ATHLETE_HOME` is `/home`; the scoped builds render Home
-                        at `/` directly, exactly as before. The coach keeps
-                        `/coach` and every address under it. */}
-                    <Route path="/" element={IS_SCOPED_BUILD ? <Home /> : <Navigate to={ATHLETE_HOME} replace />} />
-                    {/* Home's own path, identical on all three builds, and now
-                        also where `/` lands on the unscoped one. */}
-                    <Route path="/home" element={<Home />} />
-                    <Route path="/training" element={<Training />} />
-                    <Route path="/library" element={<Library />} />
-                    <Route path="/conditioning" element={<Conditioning />} />
-                    <Route path="/history" element={<History />} />
-                    <Route path="/progress" element={<Progress />} />
-                    <Route path="/exercise" element={<Exercise />} />
-                    <Route path="/exercise/:name" element={<Exercise />} />
-                    <Route path="/calendar" element={<Calendar />} />
-                    <Route path="/day/:date" element={<Day />} />
-                    <Route path="/recap/:id" element={<Recap />} />
-                    <Route path="/nutrition" element={<FoodLog />} />
-                    <Route path="/settings" element={<Settings />} />
-                    {/* Home, NOT `/`. This mattered enormously when `/` was the
-                        bench — every unmatched athlete path chained through it
-                        and ejected the athlete into the coach workspace, most
-                        visibly on the way back from the nutrition world. `/` is
-                        the athlete's now, so the two agree, but naming
-                        `ATHLETE_HOME` directly is still right: it is the single
-                        source of truth for "send the athlete home" and does not
-                        depend on what `/` happens to mean on this build. */}
-                    <Route path="*" element={<Navigate to={ATHLETE_HOME} replace />} />
-                  </Route>
-                </Routes>
-              )}
-              {world === 'nutrition' && (
-                <Routes>
-                  <Route element={<Shell />}>
-                    <Route path="/nutrition/log" element={<FoodLog />} />
-                    <Route path="/nutrition/food" element={<NutritionFood />} />
-                    <Route path="/nutrition/weight" element={<NutritionWeight />} />
-                    <Route path="/nutrition/coach" element={<NutritionCoach />} />
-                    <Route path="/nutrition/settings" element={<NutritionSettings />} />
-                    <Route path="*" element={<Navigate to="/nutrition/log" replace />} />
-                  </Route>
-                </Routes>
-              )}
+                The owner asked for it to stop being reachable in a browser,
+                without deleting it: "hide it somewhere, and if we ever need
+                it again we can pull it out." So every athlete route is gone
+                from this tree and every address that is not `/coach` lands on
+                the bench. Web is the coach workspace now; the athlete is the
+                Android app.
+
+                NOTHING WAS DELETED. `src/screens/` is untouched on disk and
+                its colocated tests still run — that is deliberate, and it is
+                what makes "pull it out" a real option rather than a hope: the
+                screens are still proven to work, so restoring them is
+                re-adding routes here, not repairing a year of drift.
+
+                The honest cost, stated because it is the whole downside of
+                parking rather than deleting: those screens are now dead code.
+                Nothing imports them, `tsc` still checks them, and they will
+                drift out of step with the packages beneath them. If the
+                answer is ever "we are not bringing it back", delete them —
+                git history keeps them either way, exactly as it kept
+                `apps/mobile` between commit 8628060 and its return.
+
+                `useDiscipline()`'s nutrition fork went with it. That world was
+                athlete-facing too, and a `/nutrition/*` address that renders
+                nothing is worse than one that goes somewhere.
+              */}
+              <Routes>
+                <Route
+                  path="/coach/*"
+                  element={
+                    <Suspense fallback={null}>
+                      <Coach />
+                    </Suspense>
+                  }
+                />
+                {/* Every other address, including `/`, the old athlete paths
+                    and the nutrition world. A parked app should not 404 — a
+                    bookmarked `/training` belongs to someone who will now be
+                    shown the surface that does exist. */}
+                <Route path="*" element={<Navigate to="/coach" replace />} />
+              </Routes>
             </Router>
           </RestProvider>
           </Concept2Provider>
