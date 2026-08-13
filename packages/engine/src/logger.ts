@@ -1,6 +1,7 @@
-import { computeSetAdjustment, isWarmup, repFloorOf, repTopOf, rpeCenterOf } from './autoreg';
+import { isWarmup, repTopOf } from './autoreg';
+import { AUTOREG } from './constants';
+import { foldFromExercise } from './fold';
 import { nextWorkingWeight, prescribedKg } from './lift';
-import { saneKg } from './num';
 import { blockExercises, isCond, isLiftMode, isText } from './session';
 import type { AnySet, Block, Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
 
@@ -213,14 +214,8 @@ export function prefillPrimary(
      * holds, since that fixture's previous set was never rated.
      */
     if (isLiftMode(ex.mode) && !warm && p.done) {
-      const felt = parseFloat(String(p.felt));
-      const weight = saneKg(p.aVal);
-      const reps = parseInt(String(p.aVal2), 10) || 0;
-      if (Number.isFinite(felt) && weight > 0 && reps > 0) {
-        return String(
-          computeSetAdjustment(reps, felt, repFloorOf(p.t), weight, rpeCenterOf(p)).newWeight,
-        );
-      }
+      const folded = foldFromExercise(ex, AUTOREG.plateIncrement);
+      if (folded && folded.kg > 0) return String(folded.kg);
     }
     return p.aVal;
   }
