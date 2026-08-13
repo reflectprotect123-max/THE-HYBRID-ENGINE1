@@ -21,6 +21,13 @@ node_modules/
 # them. Same reasoning, same re-include.
 !.claude/agents/
 !.claude/commands/
+# Hook SOURCE, same reasoning again. These four files are the only reason
+# `/caveman-stats` can produce a number at all — the skill is a stub whose
+# output the hook injects. They are not live from here: `scripts/ensure-
+# skills.sh` copies them to `~/.claude/hooks/` (user scope) and registers ONE
+# UserPromptSubmit entry. Nothing under `.claude/settings.json` is committed,
+# and that exclusion is deliberate — see skills.md.
+!.claude/hooks/
 
 # build output — never commit a copy of the app inside the app
 the-hybrid-engine-netlify/

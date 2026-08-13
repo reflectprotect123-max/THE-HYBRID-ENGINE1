@@ -91,7 +91,8 @@ VENDORED=(
   # supabase-agent-skills v1.1.0
   .claude/skills/supabase
   .claude/skills/supabase-postgres-best-practices
-  # unattributed, see skills.md
+  # shipped with the container image (also at /home/claude/.claude/skills/),
+  # which is exactly why it is committed here — see skills.md
   .claude/skills/session-start-hook
   # pre-existing, committed long before this script
   .claude/skills/frontend-design
@@ -225,6 +226,91 @@ elif command -v git >/dev/null 2>&1; then
   fi
 else
   warn "claude-obsidian" "git not on PATH"
+fi
+
+# --- caveman-stats hook -----------------------------------------------------
+# `caveman-stats` is the one vendored skill that markdown alone cannot make
+# work. Its SKILL.md is a STUB — it says so itself: "the model does not need to
+# do anything when this skill fires", because the numbers are produced by
+# `caveman-mode-tracker.js` on UserPromptSubmit and injected as context. Vendor
+# the skill without the hook and you get a command that loads, runs, and
+# reports nothing. That was recorded as a known dead entry on 13 August 2026
+# and is fixed here.
+#
+# THE BOUNDARY, because this script writes a settings file and nothing else in
+# it does:
+#   - USER scope only (`~/.claude/`). This repo's `.claude/settings.json` is
+#     never created or touched, and neither is its CLAUDE.md — the same line
+#     drawn for `graphify install --project` above, for the same reason.
+#   - ONE hook: UserPromptSubmit → caveman-mode-tracker.js. The upstream
+#     installer also wires a SessionStart hook (`caveman-activate.js`, which
+#     injects the full caveman ruleset into every session) and a statusline.
+#     Neither is installed here. They are not what the gap was about, and
+#     turning on per-turn rule injection nobody asked for is a behaviour change,
+#     not a repair.
+#   - The tracker is INERT until asked. It writes `~/.claude/.caveman-active`
+#     only when it sees a `/caveman*` command, and injects nothing at all while
+#     that flag is absent. An ordinary prompt goes through it untouched.
+# Removal is `rm -rf ~/.claude/hooks` plus deleting the hooks block from
+# `~/.claude/settings.json`.
+echo
+echo "Hooks (user scope — required by a vendored skill that is a stub without them)"
+HOOK_SRC="${REPO_ROOT}/.claude/hooks"
+HOOK_DEST="${HOME}/.claude/hooks"
+SETTINGS="${HOME}/.claude/settings.json"
+HOOK_FILES=(caveman-mode-tracker.js caveman-stats.js caveman-config.js caveman-parse.js)
+
+if ! command -v node >/dev/null 2>&1; then
+  warn "caveman-stats hook" "node not on PATH — the hook cannot run, skipping"
+elif [ ! -d "$HOOK_SRC" ]; then
+  fail "caveman-stats hook" "${HOOK_SRC} is missing from the working tree"
+else
+  mkdir -p "$HOOK_DEST"
+  copied=0
+  for f in "${HOOK_FILES[@]}"; do
+    # Copy when absent OR when the repo's copy differs — the repo is the source
+    # of truth for these, so a stale user-scope copy is a bug, not local work.
+    if [ ! -f "${HOOK_DEST}/${f}" ] || ! cmp -s "${HOOK_SRC}/${f}" "${HOOK_DEST}/${f}"; then
+      cp "${HOOK_SRC}/${f}" "${HOOK_DEST}/${f}" && copied=$((copied + 1))
+    fi
+  done
+  chmod +x "${HOOK_DEST}"/*.js 2>/dev/null || true
+
+  # Register the hook. Done with node rather than `jq` (not guaranteed present)
+  # and never with a blind overwrite: an existing settings.json may hold the
+  # owner's own keys, and this must merge into it. Re-running is a no-op — the
+  # entry is matched by command substring, so a second run does not stack a
+  # duplicate.
+  registered="$(node - "$SETTINGS" "${HOOK_DEST}/caveman-mode-tracker.js" <<'NODE' 2>/dev/null || echo error
+const fs = require('fs');
+const [file, cmdPath] = process.argv.slice(2);
+const cmd = `node ${cmdPath}`;
+let settings = {};
+if (fs.existsSync(file)) {
+  try { settings = JSON.parse(fs.readFileSync(file, 'utf8')); }
+  // A settings.json we cannot parse is the owner's file and possibly their
+  // work. Bail out loudly rather than replacing it with our own.
+  catch { process.stdout.write('unparseable'); process.exit(0); }
+}
+settings.hooks ??= {};
+settings.hooks.UserPromptSubmit ??= [];
+const already = settings.hooks.UserPromptSubmit.some((m) =>
+  (m?.hooks ?? []).some((h) => typeof h?.command === 'string' && h.command.includes('caveman-mode-tracker.js')));
+if (already) { process.stdout.write('present'); process.exit(0); }
+settings.hooks.UserPromptSubmit.push({ hooks: [{ type: 'command', command: cmd }] });
+fs.mkdirSync(require('path').dirname(file), { recursive: true });
+fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
+process.stdout.write('added');
+NODE
+)"
+
+  case "$registered" in
+    present) if [ "$copied" -gt 0 ]; then fixed "caveman-stats hook" "refreshed ${copied} file(s), already registered"
+             else ok "caveman-stats hook" "4 files + UserPromptSubmit entry in ${SETTINGS/#$HOME/\~}"; fi ;;
+    added)   fixed "caveman-stats hook" "installed ${#HOOK_FILES[@]} files, registered UserPromptSubmit" ;;
+    unparseable) fail "caveman-stats hook" "${SETTINGS} is not valid JSON — left untouched, register the hook by hand" ;;
+    *)       fail "caveman-stats hook" "could not write ${SETTINGS}" ;;
+  esac
 fi
 
 echo

@@ -74,11 +74,12 @@ touched.
 | **What / why** | Output-token compression. `caveman` is a terse output mode (its README claims a measured 65% cut; that number is the upstream project's, not one we have reproduced here). `cavecrew` delegates to three caveman-style subagents so the tool results injected back into the main thread are smaller — which is what makes a long session last. `caveman-commit` and `caveman-review` are the same idea aimed at commit messages and PR feedback. |
 | **Source** | https://github.com/juliusbrussee/caveman (MIT) |
 | **Version** | commit `ec83e5b` |
-| **Install method** | VENDORED (originally installed to user scope 2026-08-06) |
-| **Verify path** | `.claude/skills/caveman/SKILL.md`, `.claude/agents/cavecrew-{builder,investigator,reviewer}.md`, `.claude/commands/caveman*.{md,toml}` |
-| **Writes outside its own directory** | `caveman-compress` does, at runtime — see caveats. Nothing at install time. |
-| **Caveats** | Three, and they are the reason this row is long. **(1)** `caveman-compress` **overwrites the target file in place** and names `CLAUDE.md` as a use case. Its backup goes OUT OF TREE to `$XDG_DATA_HOME/caveman-compress/backups/`, which dies with the container — so the backup is not a backup here. Commit before pointing it at anything. **(2)** `compress.py` makes model calls (`ANTHROPIC_API_KEY` via the SDK, else `claude --print`). **(3)** `caveman-stats` depends on a mode-tracker HOOK, and vendoring files does not install a hook. The skill will load and its numbers will be absent or stale. Not fixed here: installing the hook means writing to settings, which this file's whole point is to avoid doing behind the owner's back. |
-| **Removal** | `rm -rf .claude/skills/{cavecrew,caveman,caveman-commit,caveman-compress,caveman-help,caveman-review,caveman-stats} .claude/agents/cavecrew-*.md .claude/commands/caveman*` |
+| **Install method** | VENDORED (originally installed to user scope 2026-08-06), **plus one hook** — see the hook row below |
+| **Verify path** | `.claude/skills/caveman/SKILL.md`, `.claude/agents/cavecrew-{builder,investigator,reviewer}.md`, `.claude/commands/caveman*.{md,toml}`, and for the stats half, a `caveman-mode-tracker.js` entry under `UserPromptSubmit` in `~/.claude/settings.json` |
+| **Writes outside its own directory** | Two things, both deliberate. `caveman-compress` writes at runtime — see caveat (1). And `scripts/ensure-skills.sh` writes `~/.claude/hooks/` plus one `UserPromptSubmit` entry in `~/.claude/settings.json` — USER scope, never this repo's `.claude/settings.json` and never its CLAUDE.md. |
+| **Caveats** | **(1)** `caveman-compress` **overwrites the target file in place** and names `CLAUDE.md` as a use case. Its backup goes OUT OF TREE to `$XDG_DATA_HOME/caveman-compress/backups/`, which dies with the container — so the backup is not a backup here. Commit before pointing it at anything. **(2)** `compress.py` makes model calls (`ANTHROPIC_API_KEY` via the SDK, else `claude --print`). **(3)** `caveman-stats` **was a dead skill and is now live** — see below. |
+| **The `caveman-stats` hook** | Its `SKILL.md` is a STUB and says so: "the model does not need to do anything when this skill fires." The numbers come from `caveman-mode-tracker.js` on `UserPromptSubmit`, which shells out to `caveman-stats.js` and injects the block as context. Vendoring markdown gave a command that loaded, ran and reported nothing — recorded here as a known dead entry, then fixed on 13 August 2026. Four hook files (`caveman-mode-tracker`, `caveman-stats`, `caveman-config`, `caveman-parse`) are committed under `.claude/hooks/`, and `scripts/ensure-skills.sh` copies them to `~/.claude/hooks/` and registers the one entry. **What was deliberately NOT installed:** upstream's `caveman-activate.js` SessionStart hook, which injects the full caveman ruleset into every session, and its statusline. Neither is the gap; turning on per-turn rule injection nobody asked for is a behaviour change, not a repair. **The tracker is inert until asked** — verified by feeding it an ordinary prompt on stdin, which produced zero bytes of output; it acts only on a `/caveman*` command and only writes `~/.claude/.caveman-active`. The registration merges rather than overwrites, matches on command substring so a re-run cannot stack a duplicate, and refuses to touch a `settings.json` it cannot parse. |
+| **Removal** | `rm -rf .claude/skills/{cavecrew,caveman,caveman-commit,caveman-compress,caveman-help,caveman-review,caveman-stats} .claude/agents/cavecrew-*.md .claude/commands/caveman* .claude/hooks` — then delete the `caveman-mode-tracker.js` entry from `~/.claude/settings.json` and `rm -rf ~/.claude/hooks`. |
 
 ### supabase-agent-skills v1.1.0 — 2 skills
 
@@ -93,17 +94,17 @@ touched.
 | **Caveats** | None found. This is the cleanest entry in the inventory. |
 | **Removal** | `rm -rf .claude/skills/{supabase,supabase-postgres-best-practices}` |
 
-### session-start-hook — 1 skill, provenance UNKNOWN
+### session-start-hook — 1 skill, shipped with the container image
 
 | | |
 |---|---|
 | **What / why** | How to write a `SessionStart` hook so a repo can install dependencies and run tests in Claude Code on the web. |
-| **Source** | **Could not be determined.** No install receipt exists for it, and the directory holds a single `SKILL.md` with no source URL, no version and no commit. Its frontmatter `name` is `startup-hook-skill`, which does not match its directory name — so the directory was named by hand by whoever put it there. It predates every receipt (mtime 2026-08-05). Content and phrasing suggest Anthropic's own examples, but that is an inference and is recorded here as one rather than as a fact. |
-| **Version** | Unknown. |
-| **Install method** | VENDORED — safe to vendor regardless of provenance, because it is one markdown file with no scripts. |
+| **Source** | **The Claude Code on the web container image.** Nobody installed it. This row said "could not be determined" until 13 August 2026; the answer was one directory away. A second, otherwise-empty skills directory exists at `/home/claude/.claude/skills/`, and `session-start-hook` is the ONLY thing in it — an untouched image default, next to `/root/.claude/skills/` where every hand-installed skill landed. The two copies are byte-identical and share an mtime to the nanosecond (`2026-08-05 09:31:44.731500221`), which is an image layer being unpacked, not two installs. That timestamp also predates the earliest install receipt (superpowers, 6 August 20:00) by a day and a half. The frontmatter/directory name mismatch (`startup-hook-skill` vs `session-start-hook`) is upstream's, not a hand-naming tell as previously guessed. |
+| **Version** | None. The image ships no version for it, and there is no upstream repo here to pin one against — so this row stays empty rather than inventing a number. |
+| **Install method** | VENDORED — and vendoring is the RIGHT call precisely because of the provenance. An image-shipped skill is outside this repo's control: it arrives if the platform still ships it and silently vanishes if the image changes. The committed copy is the one that survives either way. |
 | **Verify path** | `.claude/skills/session-start-hook/SKILL.md` |
-| **Writes outside its own directory** | Nothing. |
-| **Caveats** | Unattributed. If its origin is ever established, fill in this row rather than leaving the gap standing. |
+| **Writes outside its own directory** | Nothing. One markdown file, no scripts. |
+| **Caveats** | It has no receipt and never will — `scripts/ensure-skills.sh` cannot restore it from a source URL, only from the git index like every other vendored entry. If the platform ever ships a newer copy, the committed one WINS in this project and no drift is reported; refresh it by hand from `/home/claude/.claude/skills/` if that matters. |
 | **Removal** | `rm -rf .claude/skills/session-start-hook` |
 
 ### Pre-existing — 3 skills, already committed before this file
@@ -141,12 +142,12 @@ Both of these are restored by `scripts/ensure-skills.sh`.
 |---|---|
 | **What / why** | The wiki/vault family: `wiki`, `wiki-ingest`, `wiki-query`, `wiki-retrieve`, `autoresearch`, `save`, `think`, `canvas`, and the Obsidian syntax helpers. Persistent knowledge outside the repo. |
 | **Source** | https://github.com/AgriciDaniel/claude-obsidian |
-| **Version** | v2.1.0, receipt records commit `1c1bc49` — **unverifiable on this machine, see caveats** |
+| **Version** | v2.1.0, pinned at commit `1c1bc49` — verified on this machine, `git -C /root/claude-obsidian rev-parse --short HEAD` agrees |
 | **Install method** | Clone to `/root/claude-obsidian` (`PRODUCT_ROOT`), then 15 symlinks from `~/.claude/skills/<name>` into `$PRODUCT_ROOT/skills/<name>/` |
 | **Verify path** | `/root/claude-obsidian/scripts/` exists, and each of the 15 symlinks resolves |
 | **Why it cannot be vendored** | The skills call `$PRODUCT_ROOT/scripts/*.py` — 11 Python scripts including `bm25-index.py`, `rerank.py`, `retrieve.py`, `claude-obsidian.py`. The clone must stay put. Vendoring the 15 SKILL.md files would give 15 skills whose every action fails on a missing script. This is the exact case the "check for scripts referencing paths outside the skill directory" test is meant to catch. |
 | **Writes outside its own directory** | The entire `/root/claude-obsidian` tree; vault writes into whatever vault is selected; derived caches under the vault's `.vault-meta`. |
-| **Caveats** | **Contradicts its receipt.** The receipt gives a commit SHA, which implies a clone, but `/root/claude-obsidian` **has no `.git` directory** — `git rev-parse` there fails with "not a git repository". So the pin cannot be verified against what is on disk, and the restore path in `scripts/ensure-skills.sh` clones the **default branch**, not `1c1bc49`. That is a real gap, stated rather than papered over: a restored container may get a newer claude-obsidian than the one this record describes. Fixing it properly means pinning the clone to a tag once someone confirms which tag `1c1bc49` belongs to. Also: `wiki-retrieve`'s reranking can egress to a remote model and requires explicit consent per its own skill rules. |
+| **Caveats** | **The pin was unverifiable until 13 August 2026, and is now checked rather than asserted.** This row used to record the gap: the receipt gave a SHA, but `/root/claude-obsidian` had no `.git` directory at all, so nothing on disk could be compared against it — and `scripts/ensure-skills.sh` restored the **default branch**, not the pin. Closed in three parts. The on-disk copy was reconciled: upstream was cloned to scratch, `diff -rq` proved `skills/` and `scripts/` byte-identical to `1c1bc49`, and the clone's `.git` was moved in and checked out at that SHA. The restore path now does a FULL clone (a shallow one cannot reach an arbitrary SHA; the repo is 3.7 MB) and checks the pin out. And the healthy path VERIFIES — it reads `HEAD` and prints a `SKIP` naming the drifted SHA instead of a confident `OK`. One honest limit remains: `1c1bc49` is currently also upstream's default HEAD, so this pin has not yet been tested against a moved default branch. Separately, `wiki-retrieve`'s reranking can egress to a remote model and requires explicit consent per its own skill rules. |
 | **Removal** | `rm -rf /root/claude-obsidian && rm -f ~/.claude/skills/{autoresearch,canvas,defuddle,obsidian-bases,obsidian-markdown,save,think,wiki,wiki-cli,wiki-fold,wiki-ingest,wiki-lint,wiki-mode,wiki-query,wiki-retrieve}` |
 
 ---
@@ -186,7 +187,9 @@ owns it and would be fighting a committed copy.
 |---|---|---|
 | VENDORED skills | **27** directories: 14 superpowers + 7 caveman + 2 supabase + 1 session-start-hook + 3 pre-existing | Yes — committed |
 | VENDORED agents / commands | 3 agents, 5 commands (`.md` + `.toml` each) | Yes — committed |
+| VENDORED hook source | 4 files in `.claude/hooks/` — the `caveman-stats` tracker and its deps | Source yes — committed. The user-scope INSTALL of it does not; the script re-does it. |
 | INSTALLED | **2** — graphify, claude-obsidian | No — `scripts/ensure-skills.sh` restores them |
+| Hooks registered in `~/.claude/settings.json` | **1** — `UserPromptSubmit` → `caveman-mode-tracker.js`. User scope only. | No — the script re-registers it |
 | Deliberately excluded | 1 — omniroute | n/a |
 | Platform-managed | 6 — `~/.claude/skills/synced/` | Handled by the platform, not by us |
 
