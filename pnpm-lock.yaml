@@ -202,6 +202,9 @@ importers:
       '@hybrid/product-scope':
         specifier: workspace:*
         version: link:../../packages/product-scope
+      '@hybrid/session-authoring':
+        specifier: workspace:*
+        version: link:../../packages/session-authoring
       '@hybrid/shared-core':
         specifier: workspace:*
         version: link:../../packages/shared-core
