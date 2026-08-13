@@ -40,6 +40,22 @@ module.exports = {
    */
   restoreMocks: true,
   /*
+   * 20s, not jest's default 5s.
+   *
+   * That default is a local-machine assumption. On GitHub's runners this
+   * suite takes ~25s where it takes ~2.7s here — roughly 9x — and the FIRST
+   * test in `nutrition-label-ocr.test.tsx`'s "photographing a label" block
+   * paid the module-init cost for the whole file and blew the 5s budget on
+   * every CI run for a day, while passing locally in 353ms. The test was
+   * never wrong; the budget was measured on the wrong machine.
+   *
+   * Raised at the CONFIG level rather than on that one test, because the next
+   * marginal test hits exactly the same wall and would be diagnosed from
+   * scratch. This does not hide a hang: a genuinely stuck test still fails,
+   * 15s later.
+   */
+  testTimeout: 20_000,
+  /*
    * React Native and every expo-* package ship untranspiled ESM, and the
    * workspace packages export TypeScript SOURCE rather than a built dist — all
    * of it has to go through babel, and node_modules is ignored by default.
