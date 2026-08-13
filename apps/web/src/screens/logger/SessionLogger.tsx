@@ -9,6 +9,7 @@ import { Button, Card } from '../../ui';
 import { BlockStrip } from './BlockStrip';
 import { BlockScreen } from './BlockScreen';
 import { RestTakeover } from './RestTakeover';
+import { FinishCard } from './FinishCard';
 
 /*
  * The screen shell for `@hybrid/session-authoring`'s `useSession`.
@@ -23,6 +24,13 @@ import { RestTakeover } from './RestTakeover';
  * The block strip (`BlockStrip`) and the current block's rounds
  * (`BlockScreen`) are Task 3, rendered below. The rest takeover
  * (`RestTakeover`) is Task 5, rendered whenever `view.rest` is up.
+ *
+ * `FinishCard` (Task 6) renders once, prepended to the LAST block's screen,
+ * the moment every block's working sets are logged — the same rule the
+ * prototype's `finishHtml()` uses (`i === session.blocks.length - 1`), and
+ * read the same way here: off `view.blocks`' own `progress`, never off a
+ * `finished`/`status` flag, because nothing in this package or the machine
+ * ever dispatches `finish` today. See the task report.
  */
 
 /**
@@ -164,9 +172,19 @@ function RunningSession({ session: initialSession }: { session: Session }) {
   const strengthBlock = currentBlock && isStrengthBlock(currentBlock) ? currentBlock : null;
   const currentTitle = view.blocks[view.blockIndex]?.title ?? '';
 
+  // Every block's working sets logged — `BlockProgress`, the package's own
+  // tally, summed rather than recomputed. Shown only on the last block's
+  // screen, mirroring the prototype's own placement for the same receipt.
+  const allDone = view.blocks.length > 0 && view.blocks.every((b) => b.progress.done >= b.progress.total);
+  const onLastBlock = view.blockIndex === view.blocks.length - 1;
+  const setsLogged = view.blocks.reduce((n, b) => n + b.progress.done, 0);
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-[560px] flex-col px-2 pt-2 pb-3">
       <BlockStrip blocks={view.blocks} currentIndex={view.blockIndex} onSelect={goToBlock} />
+      {allDone && onLastBlock ? (
+        <FinishCard blocks={view.blocks.length} setsLogged={setsLogged} bestE1rm={null} />
+      ) : null}
       {strengthBlock ? (
         <BlockScreen
           block={strengthBlock}

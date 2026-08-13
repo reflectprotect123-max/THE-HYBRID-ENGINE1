@@ -145,6 +145,87 @@ describe('BlockScreen — the rotate grip', () => {
   });
 });
 
+describe('BlockScreen — skip / add set', () => {
+  const hot = { exerciseIndex: 0, setIndex: 0, exerciseName: 'x', message: 'm', planned };
+  const draft = { kg: 100, reps: 8, felt: 8 };
+
+  it('renders neither control when nothing is owed', () => {
+    render(<BlockScreen block={soloBlock('b0', 'Squat')} title="Squat" rounds={soloRounds} onRotate={vi.fn()} hot={null} draft={null} dispatch={vi.fn()} />);
+    expect(document.querySelector('[data-parity="skip-set"]')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-parity="add-set"]')).not.toBeInTheDocument();
+  });
+
+  it('dispatches skipSet on tap, while an owed set is on screen', () => {
+    const dispatch = vi.fn();
+    const liveRounds: RoundView[] = [
+      { round: 0, sets: [{ exerciseIndex: 0, setIndex: 0, exerciseName: 'x', status: 'live', planned, logged: null }] },
+    ];
+    const block: StrengthBlock<LoggedSet> = { id: 'b0', exercises: [{ id: 'e0', name: 'Squat', mode: 'reps_kg', sets: [target()] }] };
+    render(<BlockScreen block={block} title="Squat" rounds={liveRounds} onRotate={vi.fn()} hot={hot} draft={draft} dispatch={dispatch} />);
+
+    fireEvent.click(document.querySelector('[data-parity="skip-set"]') as Element);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'skipSet' });
+  });
+
+  it('dispatches addSet on tap, while an owed set is on screen', () => {
+    const dispatch = vi.fn();
+    const liveRounds: RoundView[] = [
+      { round: 0, sets: [{ exerciseIndex: 0, setIndex: 0, exerciseName: 'x', status: 'live', planned, logged: null }] },
+    ];
+    const block: StrengthBlock<LoggedSet> = { id: 'b0', exercises: [{ id: 'e0', name: 'Squat', mode: 'reps_kg', sets: [target()] }] };
+    render(<BlockScreen block={block} title="Squat" rounds={liveRounds} onRotate={vi.fn()} hot={hot} draft={draft} dispatch={dispatch} />);
+
+    fireEvent.click(document.querySelector('[data-parity="add-set"]') as Element);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'addSet' });
+  });
+});
+
+describe('BlockScreen — a warm-up block', () => {
+  function warmBlock(): StrengthBlock<LoggedSet> {
+    return {
+      id: 'w0',
+      warmup: true,
+      exercises: [
+        { id: 'e0', name: 'Band pull-apart', mode: 'reps', sets: [done('done')] },
+        { id: 'e1', name: 'Arm circles', mode: 'seconds', sets: [target()] },
+      ],
+    };
+  }
+
+  it('renders a piece receipt for a done piece, and the live piece as a PieceCard', () => {
+    const rounds: RoundView[] = [
+      {
+        round: 0,
+        sets: [
+          { exerciseIndex: 0, setIndex: 0, exerciseName: 'Band pull-apart', status: 'done', planned, logged: loggedOf('done') },
+          { exerciseIndex: 1, setIndex: 0, exerciseName: 'Arm circles', status: 'live', planned: { reps: '30', rpe: '' }, logged: null },
+        ],
+      },
+    ];
+    const hot = { exerciseIndex: 1, setIndex: 0, exerciseName: 'Arm circles', message: 'irrelevant for a piece', planned: { reps: '30', rpe: '' } };
+    const draft = { kg: 0, reps: 30, felt: null };
+    render(
+      <BlockScreen block={warmBlock()} title="Warm-up" rounds={rounds} onRotate={vi.fn()} hot={hot} draft={draft} dispatch={vi.fn()} />,
+    );
+
+    expect(screen.getByText('Band pull-apart')).toBeInTheDocument();
+    expect(screen.getByText('0:30')).toBeInTheDocument();
+    expect(document.querySelector('[data-parity="piece-done"]')).toBeInTheDocument();
+  });
+
+  it('never renders hot.message for a piece', () => {
+    const rounds: RoundView[] = [
+      { round: 0, sets: [{ exerciseIndex: 1, setIndex: 0, exerciseName: 'Arm circles', status: 'live', planned: { reps: '30', rpe: '' }, logged: null }] },
+    ];
+    const hot = { exerciseIndex: 1, setIndex: 0, exerciseName: 'Arm circles', message: 'a coaching line that must not appear', planned: { reps: '30', rpe: '' } };
+    const draft = { kg: 0, reps: 30, felt: null };
+    render(
+      <BlockScreen block={warmBlock()} title="Warm-up" rounds={rounds} onRotate={vi.fn()} hot={hot} draft={draft} dispatch={vi.fn()} />,
+    );
+    expect(screen.queryByText('a coaching line that must not appear')).not.toBeInTheDocument();
+  });
+});
+
 describe('BlockScreen — the live set seam', () => {
   it('ships no placeholder markup for the live set', () => {
     const rounds: RoundView[] = [

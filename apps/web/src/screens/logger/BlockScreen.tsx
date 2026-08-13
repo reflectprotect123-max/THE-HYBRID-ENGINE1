@@ -2,6 +2,7 @@ import { isLiftMode, type LoggedSet, type StrengthBlock } from '@hybrid/engine';
 import type { Action, Draft, HotSet, RoundSet, RoundView } from '@hybrid/session-authoring';
 import { cx } from '../../ui';
 import { HotCard } from './HotCard';
+import { PieceCard } from './PieceCard';
 
 /*
  * The rounds of the block currently on screen.
@@ -15,6 +16,12 @@ import { HotCard } from './HotCard';
  * values. The engine already parsed `aVal`/`aVal2`/`felt` once, in
  * `@hybrid/session-authoring`'s `view.ts`; this file only formats what it was
  * handed.
+ *
+ * `block.warmup` picks a different set of rows for the very same `rounds`:
+ * a done/upcoming piece is a plain label-and-target row (no RPE, no grip —
+ * neither means anything for prep), and the live piece is `PieceCard`
+ * rather than `HotCard`. Skip/add-set (`SkipAddRow`, below) is the one
+ * region common to both — see its own comment for why it lives here.
  */
 
 const isSupersetRound = (round: RoundView) => round.sets.length > 1;
@@ -30,6 +37,14 @@ function receiptValue(ex: { mode: string }, logged: NonNullable<RoundSet['logged
   if (logged.reps) parts.push(`× ${logged.reps}`);
   const load = parts.join(' ');
   return logged.felt ? (load ? `${load} @ ${logged.felt}` : `@ ${logged.felt}`) : load;
+}
+
+/** A piece's target, formatted for a done/upcoming row — the prototype's own
+ *  `it.secs ? fmt(it.secs) : it.target` split, without the mm:ss conversion:
+ *  a `'seconds'` piece is authored as a bare number of seconds, so it reads
+ *  as time; every other mode (`'reps'` included) reads as written. */
+function pieceTarget(mode: string, text: string): string {
+  return mode === 'seconds' ? `${text}s` : text;
 }
 
 export function BlockScreen({
@@ -56,14 +71,68 @@ export function BlockScreen({
   draft: Draft | null;
   dispatch: (action: Action) => void;
 }) {
+  const warmup = !!block.warmup;
   const superset = !!block.superset;
   let receiptIndex = 0; // within THIS block, DOM order — never across the session
 
   return (
     <div className="px-0.5 pt-0.5 pb-3">
       <h2 className="mt-0.5 mb-0.5 text-7 font-[750] tracking-[-.015em]">{title}</h2>
+      {warmup ? (
+        <p className="mb-1 text-3 text-dim">
+          {rounds.reduce((n, r) => n + r.sets.length, 0)} pieces · nothing here counts toward your weights
+        </p>
+      ) : null}
 
-      {rounds.map((round) => {
+      {warmup
+        ? rounds
+            .flatMap((round) => round.sets)
+            .map((set) => {
+              const ex = block.exercises[set.exerciseIndex];
+              if (!ex) return null;
+              const key = `${set.exerciseIndex}-${set.setIndex}`;
+
+              if (set.status === 'done') {
+                const parity = `receipt-${receiptIndex}`;
+                receiptIndex += 1;
+                return (
+                  <div
+                    key={key}
+                    data-parity={parity}
+                    className="my-0.5 flex items-center gap-1 rounded-md border border-line bg-well px-1.5 py-1"
+                  >
+                    <span className="grid h-2.5 w-2.5 shrink-0 place-items-center rounded-full border border-done-line bg-done-bg text-done-ink">
+                      <CheckIcon />
+                    </span>
+                    <span className="flex-1 truncate text-4 font-[600] text-muted">{set.exerciseName}</span>
+                    <span className="num shrink-0 font-mono text-3 text-done-ink">
+                      {pieceTarget(ex.mode, set.planned.reps)}
+                    </span>
+                  </div>
+                );
+              }
+
+              if (set.status === 'live') {
+                // Same contract as the working-set branch below: a live row
+                // with no matching `hot` would mean the hook contradicted
+                // itself, so nothing renders rather than guessing.
+                if (!hot || !draft || hot.exerciseIndex !== set.exerciseIndex || hot.setIndex !== set.setIndex) {
+                  return null;
+                }
+                return <PieceCard key={key} hot={hot} mode={ex.mode} draft={draft} dispatch={dispatch} />;
+              }
+
+              return (
+                <div
+                  key={key}
+                  className="my-0.5 flex items-baseline justify-between gap-1 rounded-md border border-dashed border-line px-1.5 py-1"
+                >
+                  <span className="text-4 font-[600] text-dim">{set.exerciseName}</span>
+                  <span className="num font-mono text-3 text-dim">{pieceTarget(ex.mode, set.planned.reps)}</span>
+                </div>
+              );
+            })
+        : rounds.map((round) => {
         const showGrip = superset && roundIsLive(round) && !roundStarted(round);
 
         return (
@@ -161,6 +230,42 @@ export function BlockScreen({
           </div>
         );
       })}
+
+      {hot ? <SkipAddRow dispatch={dispatch} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Skip / add-set — the surviving half of the old Logger's affordances row.
+ *
+ * The prototype has no dedicated region for either control, so they sit here,
+ * below whatever the block is currently showing (rounds or pieces): the one
+ * place still true for every block, since it renders only while there is an
+ * owed set (`hot`) to skip or to add another of. Both dispatch straight
+ * through to the reducer — `skipSet` leaves the current set untouched and
+ * moves the draft on; `addSet` appends one more of the last set's target to
+ * whichever exercise `hot` belongs to. Neither is decided here.
+ */
+function SkipAddRow({ dispatch }: { dispatch: (action: Action) => void }) {
+  return (
+    <div className="mt-1.5 flex justify-end gap-1">
+      <button
+        type="button"
+        data-parity="skip-set"
+        onClick={() => dispatch({ type: 'skipSet' })}
+        className="h-4 rounded-pill border border-line2 px-1 text-3 font-[650] text-muted"
+      >
+        Skip
+      </button>
+      <button
+        type="button"
+        data-parity="add-set"
+        onClick={() => dispatch({ type: 'addSet' })}
+        className="h-4 rounded-pill border border-line2 px-1 text-3 font-[650] text-muted"
+      >
+        + Add set
+      </button>
     </div>
   );
 }
