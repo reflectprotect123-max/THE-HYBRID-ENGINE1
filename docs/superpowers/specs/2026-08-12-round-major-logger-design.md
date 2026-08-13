@@ -234,6 +234,39 @@ deleted with the last `GuidedBuilder` that imports it.
 **Done when** typecheck and tests pass and the package is in the workspace.
 Nothing user-visible changes.
 
+## Carried out of slice 1
+
+Slice 1 shipped on 12 August 2026. These were reviewed, judged not to block it,
+and are recorded here rather than in a scratch file, because the slice that has
+to act on them is a later one.
+
+**For slice 3, before the parity gate is authored.** `foldExercise.json` pins
+six vectors. Four message branches are unpinned — `'two easy sets — full
+correction'`, `'one jump up — …'`, and both `'holding — …'` variants — as are
+both of `foldNextOpener`'s rise messages and `FoldResult.target`. The parity
+gate asserts on message strings, so it would be writing assertions with no
+golden behind them. Pin them first.
+
+**Carried, no action needed.** `WalkState.easyRun` freezes once `locked` is set
+— no reader consults it while locked, but it wants a one-line comment saying so.
+`targetRepsOf('W10')` returns 10 rather than treating it as a warm-up, which is
+unreachable because `readExercise` filters warm-ups first. `AUTOREG.missedFloorRpe`
+and `pctPerRpePoint` are read by no code but still pinned by the constants
+golden; 10.5 and 2.5 now live in `fold.ts` as well, so the two homes can
+silently diverge — removing them is its own reviewed golden change. Some test
+files carry mid-file imports, and one header comment in
+`adaptive/strength.test.ts` contradicts the block comment beneath it.
+
+**Known unrelated red, not caused by this work.** `apps/web/src/screens/
+StartFreshCard.test.tsx` fails 3 tests. Reproduced at the branch base commit
+`0e464f7` before any of slice 1 landed.
+
+**A process note worth keeping.** Task 6's gate ran only the fold and lift
+suites, so two `adaptive/strength` failures it caused went unseen until task 9
+ran everything. The plan's global constraints said to run the full suite; the
+narrower per-task command won. Later slices: run the full suite at every task
+gate, not the scoped one.
+
 ## Slice 3 — the parity harness
 
 Build the two parity gates as runnable checks, before there is an app screen to
