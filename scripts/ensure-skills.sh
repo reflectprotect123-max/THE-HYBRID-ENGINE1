@@ -171,6 +171,10 @@ fi
 # SHA — see the claude-obsidian caveat in skills.md.
 OBSIDIAN_ROOT="/root/claude-obsidian"
 OBSIDIAN_REPO="https://github.com/AgriciDaniel/claude-obsidian"
+# v2.1.0. Verified 13 August 2026: this SHA exists upstream and is what the
+# installed copy is checked out at — `git -C /root/claude-obsidian rev-parse
+# HEAD` agrees. Bump it deliberately, never silently.
+OBSIDIAN_PIN="1c1bc49"
 OBSIDIAN_SKILLS=(autoresearch canvas defuddle obsidian-bases obsidian-markdown save think
                  wiki wiki-cli wiki-fold wiki-ingest wiki-lint wiki-mode wiki-query wiki-retrieve)
 
@@ -190,19 +194,34 @@ obsidian_link() {
 if [ -d "${OBSIDIAN_ROOT}/scripts" ]; then
   mkdir -p "$USER_SKILLS"
   made="$(obsidian_link)"
+  # State the pin it is actually sitting on rather than the one we hoped for.
+  # Before 13 August this clone had no `.git` at all, so skills.md recorded a
+  # commit that could not be checked against a single byte on disk. Now it can
+  # be, and an unpinned or drifted checkout says so out loud instead of
+  # reporting a confident OK.
+  at="$(git -C "$OBSIDIAN_ROOT" rev-parse --short HEAD 2>/dev/null || echo 'no .git')"
   if [ "$made" -gt 0 ]; then
-    fixed "claude-obsidian" "relinked ${made} of ${#OBSIDIAN_SKILLS[@]} skills"
+    fixed "claude-obsidian" "relinked ${made} of ${#OBSIDIAN_SKILLS[@]} skills (at ${at})"
+  elif [ "$at" = "$OBSIDIAN_PIN" ]; then
+    ok "claude-obsidian" "${#OBSIDIAN_SKILLS[@]} symlinks, pinned at ${at}"
   else
-    ok "claude-obsidian" "${#OBSIDIAN_SKILLS[@]} symlinks into ${OBSIDIAN_ROOT}"
+    warn "claude-obsidian" "${#OBSIDIAN_SKILLS[@]} symlinks, but HEAD is ${at}, not the pinned ${OBSIDIAN_PIN}"
   fi
 elif command -v git >/dev/null 2>&1; then
-  if git clone --depth 1 "$OBSIDIAN_REPO" "$OBSIDIAN_ROOT" >/dev/null 2>&1 \
+  # FULL clone, then check out the pin. This used to be `--depth 1` onto the
+  # default branch, which restored *a* claude-obsidian rather than THE one
+  # recorded in skills.md — and left no `.git` to check the result against, so
+  # nothing downstream could tell the difference. A shallow clone cannot reach
+  # an arbitrary SHA, hence the full one; the repo is 3.7 MB, so the cost of
+  # being able to prove what you restored is negligible.
+  if git clone -q "$OBSIDIAN_REPO" "$OBSIDIAN_ROOT" >/dev/null 2>&1 \
+     && git -C "$OBSIDIAN_ROOT" checkout -q "$OBSIDIAN_PIN" >/dev/null 2>&1 \
      && [ -d "${OBSIDIAN_ROOT}/scripts" ]; then
     mkdir -p "$USER_SKILLS"
     made="$(obsidian_link)"
-    fixed "claude-obsidian" "cloned ${OBSIDIAN_REPO}, linked ${made} skills (default branch, NOT pinned)"
+    fixed "claude-obsidian" "cloned at ${OBSIDIAN_PIN}, linked ${made} skills"
   else
-    fail "claude-obsidian" "clone of ${OBSIDIAN_REPO} failed — network or auth"
+    fail "claude-obsidian" "clone of ${OBSIDIAN_REPO} at ${OBSIDIAN_PIN} failed — network, auth, or the pin is gone"
   fi
 else
   warn "claude-obsidian" "git not on PATH"
