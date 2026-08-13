@@ -372,7 +372,7 @@ const COACH_UID = '00000000-0000-4000-8000-000000000002';
 const COACH_DIR = 'apps/web/dist-coach';
 const COACH_PORT = 4520;
 
-console.log('\nBuilding a coach-enabled bundle for the phone shots (VITE_COACH_USER_IDS set)…');
+console.log('\nBuilding a coach-enabled bundle for the coach shots (VITE_COACH_USER_IDS set)…');
 execFileSync(
   'pnpm',
   ['--filter', '@hybrid/web', 'exec', 'vite', 'build', '--outDir', 'dist-coach', '--emptyOutDir'],
@@ -381,125 +381,165 @@ execFileSync(
 
 const coachServer = await serve(COACH_PORT, COACH_DIR);
 const coachBase = 'http://127.0.0.1:' + COACH_PORT;
-const coachCtx = await browser.newContext({
-  viewport: { width: 420, height: 900 },
-  deviceScaleFactor: 2,
-  /* No service worker in the harness (12 August 2026). The app now registers
-     one above every route fork — it has to, or the coach bench cannot be
-     installed as an app — and inside this harness that worker begins
-     precaching the whole bundle while the shot navigates away, which surfaces
-     as `net::ERR_FAILED` on a cancelled request and fails the run. It would
-     also carry a cache between shots, which is the last thing a screenshot
-     comparison wants. This checks LAYOUT; installability is not its job. */
-  serviceWorkers: 'block',
-});
-const coachPage = await coachCtx.newPage();
-coachPage.on('pageerror', (e) => problems.push('coach pageerror: ' + e));
-coachPage.on('console', (m) => {
-  if (m.type() === 'error') problems.push('coach console: ' + m.text());
-});
-
-/*
- * The bench must render from local state alone — every Supabase request is
- * intercepted, exactly as `checks/react-smoke.mjs` does for the same reason.
- * Unlike that check's `/coach/legacy` (which never calls
- * `CoachWorkspaceRepository.listClients()`), the Command Center at `/coach`
- * — and so every pillar reached through it — does, on mount
- * (`CoachWorkspaceContext.tsx`). A blanket `{}` for every request breaks it:
- * `listClients()` awaits `auth.getUser()` then queries
- * `coach_athlete_assignments` expecting a JSON ARRAY back, and a plain `{}`
- * makes `rows.map` throw, which rejects the whole call and leaves
- * `selectedClient` null forever — `CoachCommandCenter` then never leaves its
- * "Loading coach workspace…" state. Two shapes fixes it: the auth check gets
- * a user object, and every REST query gets `[]`, which is a true answer
- * anyway — this throwaway id really does have zero roster assignments — and
- * resolves to just `ENGINE_LOCAL`, the signed-in coach's own entry
- * (`cloud/coach-repository.ts`), exactly like a fresh account with no roster
- * yet would.
- */
-await coachPage.route('**/*.supabase.co/**', (r) => {
-  const url = r.request().url();
-  if (url.includes('/auth/v1/user')) {
-    return r.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: COACH_UID, aud: 'authenticated', role: 'authenticated', email: 'coach@example.com',
-        app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
-      }),
-    });
-  }
-  if (url.includes('/rest/v1/')) {
-    return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
-  }
-  return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-});
-
-await coachPage.addInitScript(
-  (s) => {
-    const expires = Math.floor(Date.now() / 1000) + 86400;
-    localStorage.setItem(
-      'sb-orysjncrksmdfabpuftd-auth-token',
-      JSON.stringify({
-        access_token: 'fake.' + btoa(JSON.stringify({ sub: s.uid, exp: expires })) + '.sig',
-        token_type: 'bearer',
-        expires_in: 86400,
-        expires_at: expires,
-        refresh_token: 'fake-refresh',
-        user: {
-          id: s.uid, aud: 'authenticated', role: 'authenticated', email: 'coach@example.com',
-          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
-        },
-      }),
-    );
-    if (!localStorage.getItem('hybrid-engine-v1')) {
-      localStorage.setItem('hybrid-engine-v1', JSON.stringify(s.db));
-    }
-    if (!localStorage.getItem('hybrid-nutrition-v1')) {
-      localStorage.setItem('hybrid-nutrition-v1', JSON.stringify(s.nutrition));
-    }
-  },
-  { uid: COACH_UID, db: seed.db, nutrition: seed.nutrition },
-);
-
 const contentFailures = [];
 
-for (const [label, path, patterns] of COACH_SHOTS) {
-  try {
-    await coachPage.goto(coachBase + path, { waitUntil: 'networkidle' });
-    // The bench is `React.lazy`-loaded as its own chunk (index.tsx's own
-    // comment explains why: athlete navigation never fetches it). The FIRST
-    // coach navigation shows "Loading coach workspace…" — a real Suspense
-    // fallback, not a slow network — for longer than `networkidle` waits, so
-    // wait for a piece of the frame that owns every coach route instead of a
-    // fixed delay. The hamburger trigger, not the nav list it opens: below
-    // ArcCoachFrame's `sm` breakpoint the drawer nav is `invisible` until
-    // opened (ArcCoachFrame.tsx), by design — waiting on it would wait
-    // forever at 420px. NOTE: this element is `<ArcCoachFrame>`'s own,
-    // rendered unconditionally as a sibling of `<Outlet/>` — it existing
-    // proves the FRAME mounted, not that the pillar inside it did. That is
-    // what `assertContent` below is for.
-    await coachPage.waitForSelector('button[aria-label="Open coach navigation"]', { timeout: 15000 });
-    await coachPage.waitForTimeout(350); // let entrance transitions settle
-    await coachPage.screenshot({ path: join(OUT, label + '.png'), fullPage: true });
-    written += 1;
-    const w = await overflowWidth(coachPage);
-    if (w) overflows.push(label + ': ' + w + 'px of content in a 420px viewport');
-    contentFailures.push(...(await assertContent(coachPage, label, path, patterns)));
-    console.log('  ' + label);
-  } catch (e) {
-    console.log('  ' + label + ' — FAILED: ' + e.message);
-    problems.push(label + ': ' + e.message);
+/*
+ * One pass over every coach route at one viewport.
+ *
+ * There are TWO passes, and the desktop one is the one that was missing.
+ * CLAUDE.md has said since 11 August that "1440px remains the width the
+ * workspace is composed at and the default review width for every route under
+ * /coach" — and until stage 4's close-out (13 August 2026) this file only ever
+ * opened a 420px window. Every stage was proving the SECONDARY claim while the
+ * primary one, about the surface a coach actually works on, went unwatched.
+ * `/coach` is a desktop dashboard in a browser; it is not in the Android app
+ * and there is no native coach surface to put it in.
+ *
+ * Horizontal overflow is failed at both widths. It means different things at
+ * each: at 420px it is a phone screen needing a sideways swipe, and at 1440px
+ * it is a layout that has outgrown the width it was composed at, which is
+ * worse.
+ */
+async function coachPass(width, height, suffix) {
+  const coachCtx = await browser.newContext({
+    viewport: { width, height },
+    deviceScaleFactor: 2,
+    /* No service worker in the harness (12 August 2026). The app now registers
+       one above every route fork — it has to, or the coach bench cannot be
+       installed as an app — and inside this harness that worker begins
+       precaching the whole bundle while the shot navigates away, which surfaces
+       as `net::ERR_FAILED` on a cancelled request and fails the run. It would
+       also carry a cache between shots, which is the last thing a screenshot
+       comparison wants. This checks LAYOUT; installability is not its job. */
+    serviceWorkers: 'block',
+  });
+  const coachPage = await coachCtx.newPage();
+  coachPage.on('pageerror', (e) => problems.push('coach pageerror: ' + e));
+  coachPage.on('console', (m) => {
+    if (m.type() === 'error') problems.push('coach console: ' + m.text());
+  });
+
+  /*
+   * The bench must render from local state alone — every Supabase request is
+   * intercepted, exactly as `checks/react-smoke.mjs` does for the same reason.
+   * Unlike that check's `/coach/legacy` (which never calls
+   * `CoachWorkspaceRepository.listClients()`), the Command Center at `/coach`
+   * — and so every pillar reached through it — does, on mount
+   * (`CoachWorkspaceContext.tsx`). A blanket `{}` for every request breaks it:
+   * `listClients()` awaits `auth.getUser()` then queries
+   * `coach_athlete_assignments` expecting a JSON ARRAY back, and a plain `{}`
+   * makes `rows.map` throw, which rejects the whole call and leaves
+   * `selectedClient` null forever — `CoachCommandCenter` then never leaves its
+   * "Loading coach workspace…" state. Two shapes fixes it: the auth check gets
+   * a user object, and every REST query gets `[]`, which is a true answer
+   * anyway — this throwaway id really does have zero roster assignments — and
+   * resolves to just `ENGINE_LOCAL`, the signed-in coach's own entry
+   * (`cloud/coach-repository.ts`), exactly like a fresh account with no roster
+   * yet would.
+   */
+  await coachPage.route('**/*.supabase.co/**', (r) => {
+    const url = r.request().url();
+    if (url.includes('/auth/v1/user')) {
+      return r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: COACH_UID, aud: 'authenticated', role: 'authenticated', email: 'coach@example.com',
+          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+        }),
+      });
+    }
+    if (url.includes('/rest/v1/')) {
+      return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    }
+    return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+
+  await coachPage.addInitScript(
+    (s) => {
+      const expires = Math.floor(Date.now() / 1000) + 86400;
+      localStorage.setItem(
+        'sb-orysjncrksmdfabpuftd-auth-token',
+        JSON.stringify({
+          access_token: 'fake.' + btoa(JSON.stringify({ sub: s.uid, exp: expires })) + '.sig',
+          token_type: 'bearer',
+          expires_in: 86400,
+          expires_at: expires,
+          refresh_token: 'fake-refresh',
+          user: {
+            id: s.uid, aud: 'authenticated', role: 'authenticated', email: 'coach@example.com',
+            app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
+          },
+        }),
+      );
+      if (!localStorage.getItem('hybrid-engine-v1')) {
+        localStorage.setItem('hybrid-engine-v1', JSON.stringify(s.db));
+      }
+      if (!localStorage.getItem('hybrid-nutrition-v1')) {
+        localStorage.setItem('hybrid-nutrition-v1', JSON.stringify(s.nutrition));
+      }
+    },
+    { uid: COACH_UID, db: seed.db, nutrition: seed.nutrition },
+  );
+
+  
+  for (const [label, path, patterns] of COACH_SHOTS) {
+    try {
+      await coachPage.goto(coachBase + path, { waitUntil: 'networkidle' });
+      // The bench is `React.lazy`-loaded as its own chunk (index.tsx's own
+      // comment explains why: athlete navigation never fetches it). The FIRST
+      // coach navigation shows "Loading coach workspace…" — a real Suspense
+      // fallback, not a slow network — for longer than `networkidle` waits, so
+      // wait for a piece of the frame that owns every coach route instead of a
+      // fixed delay. The hamburger trigger, not the nav list it opens: below
+      // ArcCoachFrame's `sm` breakpoint the drawer nav is `invisible` until
+      // opened (ArcCoachFrame.tsx), by design — waiting on it would wait
+      // forever at 420px. NOTE: this element is `<ArcCoachFrame>`'s own,
+      // rendered unconditionally as a sibling of `<Outlet/>` — it existing
+      // proves the FRAME mounted, not that the pillar inside it did. That is
+      // what `assertContent` below is for.
+      /*
+     * WIDTH-AGNOSTIC on purpose. This waited on
+     * `button[aria-label="Open coach navigation"]` while there was only a
+     * 420px pass, and that button lives in a `sm:hidden` bar — so the first
+     * 1440px run timed out on all fifteen routes. The `<aside>`'s own home
+     * link is in the DOM at every width instead.
+     *
+     * `state: 'attached'`, not the default 'visible': below `sm` the aside is
+     * off-canvas until the drawer opens, so a visibility wait would hang at
+     * 420px for exactly the reason the hamburger was chosen originally.
+     * Attachment is all this ever claimed to prove — that the FRAME mounted,
+     * not the pillar inside it. `assertContent` below is what proves that.
+     */
+    await coachPage.waitForSelector('a[aria-label="ARC coach command center"]', { state: 'attached', timeout: 15000 });
+      await coachPage.waitForTimeout(350); // let entrance transitions settle
+      await coachPage.screenshot({ path: join(OUT, label + suffix + '.png'), fullPage: true });
+      written += 1;
+      const w = await overflowWidth(coachPage);
+      if (w) overflows.push(label + suffix + ': ' + w + 'px of content in a ' + width + 'px viewport');
+      contentFailures.push(...(await assertContent(coachPage, label + suffix, path, patterns)));
+      console.log('  ' + label + suffix);
+    } catch (e) {
+      console.log('  ' + label + ' — FAILED: ' + e.message);
+      problems.push(label + suffix + ': ' + e.message);
+    }
   }
+
+  await coachCtx.close();
 }
+
+// Desktop FIRST: it is the primary surface, and reading the log top-down
+// should say so.
+await coachPass(1440, 1000, '@1440');
+await coachPass(420, 900, '@420');
 
 await browser.close();
 coachServer.close();
 
-const expected = SHOTS.length + COACH_SHOTS.length;
+const expected = SHOTS.length + COACH_SHOTS.length * 2; // two coach passes: 1440 and 420
 console.log(
   '\nWrote ' + written + ' of ' + expected + ' screens (' + SHOTS.length + ' athlete, ' +
-  COACH_SHOTS.length + ' coach) to ' + OUT,
+  COACH_SHOTS.length * 2 + ' coach, at 1440px and 420px) to ' + OUT,
 );
 const uniqueProblems = [...new Set(problems)];
 if (uniqueProblems.length) {
@@ -507,7 +547,7 @@ if (uniqueProblems.length) {
   for (const p of uniqueProblems) console.log('  ' + p);
 }
 if (overflows.length) {
-  console.log('\nFAIL — horizontal overflow at 420px:');
+  console.log('\nFAIL — horizontal overflow (label carries the viewport):');
   for (const o of overflows) console.log('  ' + o);
 }
 if (contentFailures.length) {

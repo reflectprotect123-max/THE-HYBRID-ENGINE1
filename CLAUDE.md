@@ -111,12 +111,23 @@ once, can catch its regression.
   form this claim comes in: the layout is the mockup's, unamended, and the
   check proves it.
   **Stage 4 (13 August 2026) closes the set.** `checks/screens.mjs` now
-  shoots EVERY `/coach` route at 420px: the seven above plus `author`,
-  `progression`, `review/:weekStart`, `legacy`, `day/:date`, `build/:id`,
-  `planner/:id` and `roster-plan/:workoutId`. Fifteen shots, all green. The
-  parameterised ones are addressed with values the seed really contains — a
-  route pointed at a missing id renders a not-found state, which has no
-  overflow and would pass while proving nothing.
+  shoots EVERY `/coach` route at **both** widths — 1440px first, then 420px:
+  the seven above plus `author`, `progression`, `review/:weekStart`,
+  `legacy`, `day/:date`, `build/:id`, `planner/:id` and
+  `roster-plan/:workoutId`. Thirty shots, all green. The parameterised ones
+  are addressed with values the seed really contains — a route pointed at a
+  missing id renders a not-found state, which has no overflow and would pass
+  while proving nothing.
+
+  **The 1440px pass is new, and its absence was the real hole.** This section
+  has asserted since 11 August that 1440px is "the default review width for
+  every route under `/coach`", and until stage 4's close-out the check only
+  ever opened a 420px window. Every stage was proving the SECONDARY claim
+  while the primary one — about the desktop dashboard a coach actually works
+  on, which is a browser surface and is not in the Android app — went
+  unwatched. Both widths fail on horizontal overflow now, and they mean
+  different things: at 420px a phone needing a sideways swipe, at 1440px a
+  layout that has outgrown the width it was composed at.
 - **Nothing under `/coach` is desktop-only.** Not "not yet" — every route is
   now shot at 420px and every one passes. The spec named two candidates it
   expected to fail, both wide tables: the Library calendar and WeekReview's
