@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../store/db';
@@ -28,6 +28,23 @@ vi.stubGlobal('fetch', async () => new Response('{}', { status: 200, headers: { 
  * trusting the screen, and one of them proves the guard by pressing the first
  * button and checking nothing has gone yet.
  */
+
+/*
+ * The clock is frozen to the seeded session's date, and the two must stay in
+ * step. DbProvider runs expireStaleSessions on every mount, which DROPS an
+ * `active` session dated before today that has no logged work (blocks: []) —
+ * and immediately rewrites localStorage without it. With the real wall clock,
+ * this fixture is deleted during mount from the day after its hardcoded date
+ * onwards, before any test clicks anything. Do not "tidy" this back to an
+ * unfrozen literal date: it passes on the day it is written and fails forever
+ * after. Only Date is faked (toFake: ['Date']) so timers and microtasks —
+ * which @testing-library's async act relies on — keep running for real.
+ */
+const FIXTURE_DAY = new Date('2026-08-12T12:00:00');
+vi.useFakeTimers({ now: FIXTURE_DAY, toFake: ['Date'] });
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 function seed() {
   localStorage.setItem(LS_KEY, JSON.stringify({
