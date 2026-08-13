@@ -248,16 +248,17 @@ function targetRepsOf(t: string | undefined): number | 'max' {
 }
 
 /**
- * Run the fold over an engine exercise.
+ * Read an engine exercise into the fold's terms: the planned targets, the sets
+ * actually logged so far, and the opener.
  *
  * Warm-up sets are dropped before anything else happens — they are real work
  * the athlete performs, but they must never reach a working weight. That rule
- * belongs here, once, rather than at each call site.
+ * belongs here, once, rather than at each call site. Null when the exercise
+ * has no working sets at all.
  */
-export function foldFromExercise(
+function readExercise(
   ex: Exercise<LoggedSet>,
-  increment: number,
-): FoldResult | null {
+): { targets: PlanTarget[]; logs: FoldLog[]; opener: number } | null {
   const working = ex.sets.filter((st) => !isWarmup(st));
   if (!working.length) return null;
 
@@ -277,5 +278,50 @@ export function foldFromExercise(
   }
 
   const opener = logs.length ? logs[0].kg : saneKg(working[0].aVal);
-  return foldExercise({ targets, logs, opener, increment });
+  return { targets, logs, opener };
+}
+
+/**
+ * Run the fold over an engine exercise.
+ */
+export function foldFromExercise(
+  ex: Exercise<LoggedSet>,
+  increment: number,
+): FoldResult | null {
+  const read = readExercise(ex);
+  if (!read) return null;
+  return foldExercise({ ...read, increment });
+}
+
+/**
+ * What the NEXT session should open this exercise at.
+ *
+ * The sibling of `foldExercise`, answering a different question: that one
+ * prices the next set INSIDE a session and goes null when the session is
+ * finished; this one runs exactly then. `liftMoves` banks its answer.
+ *
+ * Same walk, same lock, same one-easy-set cap — applied to the opener the
+ * athlete actually chose rather than to a planned set.
+ */
+export function foldNextOpener(
+  ex: Exercise<LoggedSet>,
+  increment: number,
+): { kg: number; message: string } | null {
+  const read = readExercise(ex);
+  if (!read || !read.logs.length) return null;
+  const opener = read.logs[0].kg;
+  if (!(opener > 0)) return null;
+
+  const s = walkLogs(read.logs);
+  const inc = increment > 0 ? increment : 1;
+  let want = opener * s.adj;
+  if (!s.locked && s.easyRun === 1) want = Math.min(want, opener + inc);
+  const kg = roundToIncrement(want, inc);
+
+  let message: string;
+  if (s.locked && kg < opener) message = 'backed off — harder than asked';
+  else if (kg > opener)
+    message = s.easyRun >= 2 ? 'two easy sets — full correction' : 'one easy set — one jump';
+  else message = 'hold — open here again';
+  return { kg, message };
 }

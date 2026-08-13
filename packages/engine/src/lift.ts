@@ -1,5 +1,6 @@
 import { AUTOREG, RECOVERY_BANDS } from './constants';
-import { computeSetAdjustment, isWarmup, loadPctOf, repFloorOf, rpeCenterOf } from './autoreg';
+import { isWarmup, loadPctOf } from './autoreg';
+import { foldNextOpener } from './fold';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
 import { blockExercises, exBest, isLiftMode, isWarmupBlock } from './session';
@@ -99,8 +100,9 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
       const felt = parseFloat(String(st.felt));
       if (!Number.isFinite(felt)) return;
 
-      const adj = computeSetAdjustment(reps, felt, repFloorOf(st.t), from, rpeCenterOf(st));
-      out.push({ name, key, from, to: adj.newWeight, delta: adj.delta, verdict: adj.verdict, reps });
+      const next = foldNextOpener(ex, AUTOREG.plateIncrement);
+      if (!next) return;
+      out.push({ name, key, from, to: next.kg, delta: Math.round((next.kg - from) * 100) / 100, verdict: next.message, reps });
     });
   });
 

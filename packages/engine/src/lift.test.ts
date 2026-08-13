@@ -81,7 +81,7 @@ describe('which set decides the next weight', () => {
     const s = session([ex('Front squat', [{ t: '5', rpe: '8', aVal: '90', aVal2: '3', felt: '7', done: true }])]);
     const [m] = liftMoves(s);
     expect(m.delta).toBeLessThan(0);
-    expect(m.verdict).toBe('missed the rep floor');
+    expect(m.verdict).toBe('backed off — harder than asked');
   });
 
   it('produces nothing for non-lift modes', () => {
@@ -306,4 +306,26 @@ describe('prescribedKg — an authored % of e1RM, and what it outranks', () => {
     const today = ex('Back squat', [{ t: 'W5 @80%', rpe: '' } as LoggedSet]);
     expect(prefillPrimary(today, 0, history, {})).toBe('');
   });
+});
+
+const sessionWith = (sets: LoggedSet[]): Session => ({
+  id: 's1', date: '2026-08-12', status: 'completed',
+  blocks: [{ id: 'b1', exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg', sets }] }],
+});
+
+it('banks the folded opener from a fully logged exercise', () => {
+  const moves = liftMoves(sessionWith([
+    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
+    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
+  ]));
+  expect(moves).toHaveLength(1);
+  expect(moves[0].to).toBe(102.5);
+});
+
+it('does not bank a rise from an easy set that followed a hard one', () => {
+  const moves = liftMoves(sessionWith([
+    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '9', done: true },
+    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
+  ]));
+  expect(moves[0].to).toBe(97.5);
 });

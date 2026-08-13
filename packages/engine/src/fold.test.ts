@@ -272,3 +272,52 @@ describe('foldFromExercise', () => {
     expect(foldFromExercise(ex([{ t: 'W10', rpe: '5' }]), 2.5)).toBeNull();
   });
 });
+
+import { foldNextOpener } from './fold';
+
+const doneSet = (felt: number, over: Partial<LoggedSet> = {}): LoggedSet =>
+  ({ t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: String(felt), done: true, ...over });
+
+describe('foldNextOpener', () => {
+  it('gives two easy sets the full correction', () => {
+    // adj = 1.01 * 1.01 = 1.0201 → want 102.01 → rounds to 102.5
+    const r = foldNextOpener(ex([doneSet(7), doneSet(7)]), 2.5)!;
+    expect(r.kg).toBe(102.5);
+    expect(r.message).toBe('two easy sets — full correction');
+  });
+
+  it('stays down after a hard set, whatever came later', () => {
+    // set 1 locks at 0.98; set 2 easy but ignored → want 98 → rounds to 97.5
+    const r = foldNextOpener(ex([doneSet(9), doneSet(7)]), 2.5)!;
+    expect(r.kg).toBe(97.5);
+    expect(r.message).toBe('backed off — harder than asked');
+  });
+
+  it('caps one easy set below a full plate, which rounds to a hold', () => {
+    // adj 1.01 → want 101, capped at min(101, 102.5) = 101 → rounds to 100
+    const r = foldNextOpener(ex([doneSet(7)]), 2.5)!;
+    expect(r.kg).toBe(100);
+    expect(r.message).toBe('hold — open here again');
+  });
+
+  it('holds an on-target session exactly', () => {
+    const r = foldNextOpener(ex([doneSet(8)]), 2.5)!;
+    expect(r.kg).toBe(100);
+    expect(r.message).toBe('hold — open here again');
+  });
+
+  it('treats a missed floor as harder than a 10', () => {
+    // reps 5 < 8 → effective 10.5, dev -2.5, k=2 → adj 0.95 → 95
+    const r = foldNextOpener(ex([doneSet(7, { aVal2: '5' })]), 2.5)!;
+    expect(r.kg).toBe(95);
+    expect(r.message).toBe('backed off — harder than asked');
+  });
+
+  it('returns null for bodyweight — there is no load to bank', () => {
+    expect(foldNextOpener(ex([doneSet(8, { aVal: '' })]), 2.5)).toBeNull();
+  });
+
+  it('returns null when nothing was logged', () => {
+    expect(foldNextOpener(ex([{ t: '8', rpe: '8' }]), 2.5)).toBeNull();
+  });
+});
