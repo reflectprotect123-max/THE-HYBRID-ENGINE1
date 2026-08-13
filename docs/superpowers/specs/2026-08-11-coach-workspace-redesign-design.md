@@ -186,6 +186,44 @@ Rules for it:
   Conditioning queues display proposals and route approval to the existing
   decision path.
 
+## Settings says where the data actually lives (amended 13 August 2026)
+
+Written into this spec when stage 2 was scoped, because the screen it
+describes had drifted into saying the opposite of the truth.
+
+`/coach/settings` carries a set of read-only "honesty" rows — what is local,
+what is connected, what is unavailable. They were accurate when the bench was
+a demonstration. They are not accurate now, and they are wrong in a
+particular direction: they say the whole coach workspace is a local
+demonstration with synthetic fixtures, while ARC layer 2 in fact put the
+workspace on eight Supabase tables with RLS — assignments, program templates,
+decisions, read audit, the two read grants and the autocoach receipts. What
+IS device-local is the thing the screen never mentions: the four editable
+preferences, which persist to `localStorage` under `hybrid-arc-settings-v1`.
+
+So the rule for stage 2 is that these rows tell the truth, and stay true:
+
+- **A row that can be counted is counted.** `listClients()` already exists,
+  so the multi-client row reports the real number rather than asserting
+  "synthetic fixtures only". A derived number cannot go stale; a written one
+  always does, which is how this screen got here.
+- **A row that cannot be derived states a fact plainly**, and is only as
+  strong as what is actually built. "Offline replay · Not implemented" stays
+  because it is still true. "Authoritative receipts" becomes neither "backend
+  required" nor "backed": the `autocoach_receipts` table exists and the bench
+  does not read it, and the row says that rather than picking the flattering
+  half.
+- **The local/remote split is stated, not implied.** A row names the
+  preferences as this-device-only, because that is the one genuinely local
+  thing on a screen that currently blames the whole workspace for it.
+- **No new contract methods.** Deriving "offline replay" would mean building
+  backend to satisfy a settings label. `listClients` is the only thing
+  already there, and it is the only thing derived.
+
+The three Decisions & safety rows are NOT rewritten. "Coach approval
+required", "Hold and human review", "Unknown · never inferred clear" describe
+the live auto-coach policy and are still exactly right.
+
 ## Mobile
 
 The coach workspace is currently desktop-first by written policy, with a phone

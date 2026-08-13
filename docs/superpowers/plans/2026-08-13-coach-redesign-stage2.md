@@ -97,7 +97,37 @@ gave for free without replacing it deliberately.
 `.st-advanced` is a `<details>` with a `summary`; `.st-warning` is the
 owner-policy line in Decisions & safety.
 
-- [ ] **Step 4: Gate** — the full `CoachSettings` suite, plus `pnpm run typecheck`.
+- [ ] **Step 4: The honesty rows tell the truth**
+
+Per the spec's "Settings says where the data actually lives" amendment
+(13 August 2026), which was written after scoping found this screen asserting
+the OPPOSITE of the truth. Read it before touching these rows.
+
+The short version: the workspace is Supabase-backed (eight tables, RLS) and
+the four editable preferences are the only device-local thing on the screen,
+so "Coach workspace · Local demonstration" and "Multi-client data · Synthetic
+fixtures only" are simply wrong.
+
+- Multi-client data is **counted**, from the `listClients()` already on the
+  contract — a derived number cannot go stale, and a written one always does,
+  which is how these rows got here.
+- Authoritative receipts says neither "backend required" nor "backed": the
+  `autocoach_receipts` table exists and the bench does not read it. Say that.
+- Add the row the screen is missing — the preferences are this-device-only
+  (`localStorage`, `hybrid-arc-settings-v1`). Right now the screen blames the
+  whole workspace for what is true of these four settings alone.
+- "Offline replay · Not implemented" and "Assistant coaches · 0 invited" stay:
+  both are still true, and there is no invite mechanism to count.
+- The three Decisions & safety rows are NOT rewritten. They describe the live
+  auto-coach policy and are exactly right.
+- **No new contract methods.** `listClients` is the only thing already there
+  and the only thing derived. Wanting another one is the signal to stop and
+  ask, not to build backend to satisfy a label.
+
+A test pins the counted row against a stubbed `listClients`, and pins that the
+three safety rows still read what they read today.
+
+- [ ] **Step 5: Gate** — the full `CoachSettings` suite, plus `pnpm run typecheck`.
 
 ---
 
