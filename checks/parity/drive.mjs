@@ -115,8 +115,8 @@ async function execAction(page, action, label) {
  *  warm/cool card genuinely has no `hot-why`/`hot-kg`, and a bodyweight
  *  strength card genuinely has no `hot-kg` either. `null` records that
  *  honestly rather than papering over it. */
-async function readOptionalText(page, hook) {
-  const loc = page.locator(hookSel(hook));
+async function readOptionalText(scope, hook) {
+  const loc = scope.locator(hookSel(hook));
   if ((await loc.count()) === 0) return null;
   const el = loc.first();
   const tag = await el.evaluate((n) => n.tagName);
@@ -124,11 +124,31 @@ async function readOptionalText(page, hook) {
   return raw == null ? null : raw.trim();
 }
 
-async function readHot(page) {
-  const name = await readOptionalText(page, 'hot-name');
-  const presc = await readOptionalText(page, 'hot-presc');
-  const why = await readOptionalText(page, 'hot-why');
-  const kg = await readOptionalText(page, 'hot-kg');
+/**
+ * The hot card, scoped to ONE block's screen — the same scoping `readReceipts`
+ * already applies, and for the same reason.
+ *
+ * The prototype is a carousel: every block screen is in the DOM at once and
+ * only one is in view. An unscoped read therefore returned the FIRST hot card
+ * on the page, which is not necessarily the one on screen — and at the step
+ * where the warm-up's last piece is finished, the warm-up has no card left, so
+ * the read fell through to the COOL-DOWN's card three screens away and
+ * recorded "Walk". An app that mounts one block at a time can never reproduce
+ * that, and should not: it is a card the athlete cannot see.
+ *
+ * Scoping it costs one baseline value, which changed from a hot card to null.
+ * That is the only entry in `trace.json` this repair touched, and it was
+ * changed by hand rather than by re-recording the file, so the other eighteen
+ * steps still say exactly what they said the day the prototype was pinned.
+ */
+async function readHot(page, blockIndex) {
+  if (blockIndex == null) return null;
+  const scope = page.locator(hookSel(`blockscreen-${blockIndex}`));
+  if ((await scope.count()) === 0) return null;
+  const name = await readOptionalText(scope, 'hot-name');
+  const presc = await readOptionalText(scope, 'hot-presc');
+  const why = await readOptionalText(scope, 'hot-why');
+  const kg = await readOptionalText(scope, 'hot-kg');
   if (name == null && presc == null && why == null && kg == null) return null;
   return { name, presc, why, kg };
 }
@@ -183,7 +203,7 @@ export async function runScript(page, steps, phase = 'all') {
       await execAction(page, action, st.label);
     }
     if (st.record && (phase === 'all' || st.phase === phase)) {
-      const hot = await readHot(page);
+      const hot = await readHot(page, st.block);
       const receipts = await readReceipts(page, st.block);
       trace.push({ step: st.label, hot, receipts });
     }

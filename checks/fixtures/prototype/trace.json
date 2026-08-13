@@ -23,12 +23,7 @@
  },
  {
   "step": "warm-up: finish piece 2 (Air Squats)",
-  "hot": {
-   "name": "Walk",
-   "presc": null,
-   "why": null,
-   "kg": null
-  },
+  "hot": null,
   "receipts": [
    "Row1:00",
    "Air Squats12 reps"
