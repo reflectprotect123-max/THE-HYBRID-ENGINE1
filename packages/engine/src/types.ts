@@ -97,6 +97,16 @@ export interface StrengthBlock<S extends AnySet = LoggedSet> {
   minutes?: number | string;
   format?: string;
   superset?: boolean;
+  /**
+   * Which movement led each round, by round index, as indices into `exercises`.
+   *
+   * A superset's pair order is a fact about each ROUND, not about the block.
+   * Reordering the pair mid-session must not rewrite what already happened, so a
+   * round that has begun keeps the order it ran in and only unstarted rounds
+   * move. Absent means "the order `exercises` is in", which is every session
+   * logged before the athlete reordered anything.
+   */
+  roundOrder?: Record<number, number[]>;
   exercises: Exercise<S>[];
 }
 
