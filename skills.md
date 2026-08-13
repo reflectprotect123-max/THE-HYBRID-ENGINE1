@@ -44,7 +44,7 @@ down.
 
 ## VENDORED — committed to this repo, no install
 
-29 skill directories under `.claude/skills/`, plus 3 subagents under
+27 skill directories under `.claude/skills/`, plus 3 subagents under
 `.claude/agents/` and 5 commands (`.md` + `.toml` each) under
 `.claude/commands/`. `.gitignore` excludes `.claude/*` and re-includes these
 three paths specifically.
