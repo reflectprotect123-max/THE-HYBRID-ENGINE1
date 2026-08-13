@@ -40,5 +40,43 @@
   "opener": 0,
   "increment": 2.5,
   "out": { "setIndex": 0, "kg": 0, "message": "bodyweight" }
+ },
+ {
+  "targets": [{ "reps": 8, "rpe": 7 }, { "reps": "max", "rpe": 10 }],
+  "logs": [{ "reps": 8, "kg": 60, "felt": 9, "target": { "reps": 8, "rpe": 7 } }],
+  "opener": 60,
+  "increment": 2.5,
+  "out": { "setIndex": 1, "kg": 55, "message": "set 1 minus the back-off — arrive fresh" }
+ },
+ {
+  "targets": [{ "reps": 10, "rpe": 7 }, { "reps": 8, "rpe": 8 }],
+  "logs": [{ "reps": 10, "kg": 60, "felt": 6, "target": { "reps": 10, "rpe": 7 } }],
+  "opener": 60,
+  "increment": 2.5,
+  "out": { "setIndex": 1, "kg": 62.5, "message": "holding — the next jump is 2.5 kg, chase clean reps instead" }
+ },
+ {
+  "targets": [{ "reps": 10, "rpe": 7 }, { "reps": 8, "rpe": 8 }],
+  "logs": [{ "reps": 10, "kg": 60, "felt": 6, "target": { "reps": 10, "rpe": 7 } }],
+  "opener": 60,
+  "increment": 1.5,
+  "out": { "setIndex": 1, "kg": 63, "message": "holding — one easy set is not evidence yet" }
+ },
+ {
+  "targets": [{ "reps": 10, "rpe": 7 }, { "reps": 10, "rpe": 7 }, { "reps": 8, "rpe": 8 }],
+  "logs": [
+   { "reps": 10, "kg": 60, "felt": 6, "target": { "reps": 10, "rpe": 7 } },
+   { "reps": 10, "kg": 60, "felt": 6, "target": { "reps": 10, "rpe": 7 } }
+  ],
+  "opener": 60,
+  "increment": 2.5,
+  "out": { "setIndex": 2, "kg": 65, "message": "two easy sets — full correction" }
+ },
+ {
+  "targets": [{ "reps": 10, "rpe": 7 }, { "reps": 8, "rpe": 8 }],
+  "logs": [{ "reps": 10, "kg": 60, "felt": 5, "target": { "reps": 10, "rpe": 7 } }],
+  "opener": 60,
+  "increment": 2.5,
+  "out": { "setIndex": 1, "kg": 65, "message": "one jump up — your 10 @ 5 was easy" }
  }
 ]
