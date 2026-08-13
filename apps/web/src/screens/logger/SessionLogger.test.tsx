@@ -116,8 +116,9 @@ describe('useLoggerBridge', () => {
     const updateSession = vi.fn();
     const startRest = vi.fn();
     const stopRest = vi.fn();
-    const hook = renderHook(() => useLoggerBridge(session, updateSession, startRest, stopRest));
-    return { ...hook, updateSession, startRest, stopRest };
+    const addRest = vi.fn();
+    const hook = renderHook(() => useLoggerBridge(session, updateSession, startRest, stopRest, addRest));
+    return { ...hook, updateSession, startRest, stopRest, addRest };
   }
 
   it('does not persist while a draft is only being typed', () => {
@@ -201,5 +202,57 @@ describe('useLoggerBridge', () => {
     });
     expect(result.current.view.rest).toBeNull();
     expect(stopRest).toHaveBeenCalledTimes(1);
+  });
+
+  // The trap this task exists to close: `tickRest` returns a NEW `RestState`
+  // every second, so a bridge keyed on `view.rest`'s object identity would
+  // call `startRest` again on every one of those ticks and restart the
+  // store's own timer once a second. Keyed on the `armedByUs` flag instead,
+  // it must arm exactly once no matter how many ticks land.
+  it('starts the rest store exactly once across many ticks of the same rest', () => {
+    const { result, startRest, stopRest } = setup(activeSession([solo([workingSet(), workingSet()], 90)]));
+
+    act(() => {
+      result.current.dispatch({ type: 'setDraft', patch: { felt: 8 } });
+    });
+    act(() => {
+      result.current.dispatch({ type: 'logSet' });
+    });
+    expect(startRest).toHaveBeenCalledTimes(1);
+
+    for (let i = 0; i < 30; i++) {
+      act(() => {
+        result.current.dispatch({ type: 'tick' });
+      });
+    }
+
+    expect(result.current.view.rest?.left).toBe(60);
+    expect(startRest).toHaveBeenCalledTimes(1);
+    expect(stopRest).not.toHaveBeenCalled();
+  });
+
+  it('relays extendRest to the store so its background timer stays in step with the dial', () => {
+    const { result, startRest, addRest } = setup(activeSession([solo([workingSet(), workingSet()], 90)]));
+
+    act(() => {
+      result.current.dispatch({ type: 'setDraft', patch: { felt: 8 } });
+    });
+    act(() => {
+      result.current.dispatch({ type: 'logSet' });
+    });
+    expect(startRest).toHaveBeenCalledWith(90);
+
+    act(() => {
+      result.current.dispatch({ type: 'extendRest', seconds: 15 });
+    });
+
+    expect(result.current.view.rest).toEqual({ left: 105, total: 105, kind: 'set' });
+    expect(addRest).toHaveBeenCalledTimes(1);
+    expect(addRest).toHaveBeenCalledWith(15);
+    // A tick afterward must not re-relay the now-settled total.
+    act(() => {
+      result.current.dispatch({ type: 'tick' });
+    });
+    expect(addRest).toHaveBeenCalledTimes(1);
   });
 });

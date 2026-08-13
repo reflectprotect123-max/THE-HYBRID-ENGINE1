@@ -8,6 +8,7 @@ import { requestWakeLock, releaseWakeLock } from '../../native/wakeLock';
 import { Button, Card } from '../../ui';
 import { BlockStrip } from './BlockStrip';
 import { BlockScreen } from './BlockScreen';
+import { RestTakeover } from './RestTakeover';
 
 /*
  * The screen shell for `@hybrid/session-authoring`'s `useSession`.
@@ -20,9 +21,8 @@ import { BlockScreen } from './BlockScreen';
  * rest-complete Notification and drives the global `RestChip`.
  *
  * The block strip (`BlockStrip`) and the current block's rounds
- * (`BlockScreen`) are Task 3, rendered below. The rest takeover is Task 5
- * and still renders nothing — no placeholder text, no stub markup, because
- * there is nothing yet to show there.
+ * (`BlockScreen`) are Task 3, rendered below. The rest takeover
+ * (`RestTakeover`) is Task 5, rendered whenever `view.rest` is up.
  */
 
 /**
@@ -39,6 +39,7 @@ export function useLoggerBridge(
   updateSession: (id: string, fn: (s: Session) => void | false) => void,
   startRest: (seconds: number) => void,
   stopRest: () => void,
+  addRest: (seconds: number) => void,
 ): { view: SessionView; dispatch: (action: Action) => void; session: Session } {
   const { dispatch, session, ...view } = useSession(initial);
 
@@ -64,17 +65,39 @@ export function useLoggerBridge(
   // an armed-by-us timer is ever cleared here — an unrelated rest already
   // running in the store (a reload mid-rest, say) is left alone until this
   // screen itself puts one up.
+  //
+  // Keyed on `armedByUs`, a flag, not on `view.rest`'s object identity. Once
+  // the countdown ticks (Task 5), `tickRest` returns a NEW `RestState` every
+  // second — same rest, new reference — so an identity-keyed effect would
+  // call `startRest` again on every tick and restart the store's own timer
+  // once a second, and the athlete's rest-complete notification would never
+  // land on time. The flag only flips on a genuine transition: unarmed to
+  // armed (a fresh `'set'` rest, always preceded by `rest` going back to
+  // `null` — `dismissRest`/`goToBlock` before the next `logSet`, so a
+  // `'block'` turn can never be mistaken for the same armed rest) or armed
+  // to unarmed (the rest clears). A tick that only lowers `left` — same
+  // `kind`, same `total` — changes neither. Growing `total` while still
+  // armed (`extendRest`, the +15) is not a new rest either: it is relayed to
+  // the store's own `add` so the background timer that fires the
+  // Notification stays in step with the dial this screen paints.
   const armedByUs = useRef(false);
+  const armedTotal = useRef(0);
   useEffect(() => {
     const rest = view.rest;
     if (rest && rest.kind === 'set') {
-      armedByUs.current = true;
-      startRest(rest.total);
+      if (!armedByUs.current) {
+        armedByUs.current = true;
+        armedTotal.current = rest.total;
+        startRest(rest.total);
+      } else if (rest.total !== armedTotal.current) {
+        addRest(rest.total - armedTotal.current);
+        armedTotal.current = rest.total;
+      }
     } else if (armedByUs.current) {
       armedByUs.current = false;
       stopRest();
     }
-  }, [view.rest, startRest, stopRest]);
+  }, [view.rest, startRest, stopRest, addRest]);
 
   return { view, dispatch, session };
 }
@@ -126,8 +149,8 @@ function isStrengthBlock(b: Session['blocks'][number]): b is StrengthBlock<Logge
 
 function RunningSession({ session: initialSession }: { session: Session }) {
   const { updateSession } = useDb();
-  const { start: startRest, stop: stopRest } = useRest();
-  const { view, dispatch, session } = useLoggerBridge(initialSession, updateSession, startRest, stopRest);
+  const { start: startRest, stop: stopRest, add: addRest } = useRest();
+  const { view, dispatch, session } = useLoggerBridge(initialSession, updateSession, startRest, stopRest, addRest);
   useWakeLock();
 
   // `view.blockIndex` is the hook's own `run.blockIndex`, surfaced — the
@@ -155,7 +178,16 @@ function RunningSession({ session: initialSession }: { session: Session }) {
           dispatch={dispatch}
         />
       ) : null}
-      {/* Rest takeover — Task 5. */}
+      {view.rest ? (
+        <RestTakeover
+          rest={view.rest}
+          hot={view.hot}
+          draftKg={view.draft?.kg ?? null}
+          blocks={view.blocks}
+          blockIndex={view.blockIndex}
+          dispatch={dispatch}
+        />
+      ) : null}
     </div>
   );
 }
