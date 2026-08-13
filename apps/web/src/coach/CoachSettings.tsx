@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
+import type { ClientSummary } from './contracts';
 import './coach-redesign.css';
 
 /*
@@ -20,14 +21,40 @@ import './coach-redesign.css';
 const SECTIONS = ['Workspace', 'Programming', 'Decisions & safety', 'Coaches & access', 'Data & sync'] as const;
 type Section = typeof SECTIONS[number];
 
+/**
+ * The Multi-client row's value, DERIVED from the roster the workspace already
+ * loaded rather than written down.
+ *
+ * The states are kept apart on purpose. An empty roster and a roster that has
+ * not arrived yet look identical to a naive `clients.length`, and printing
+ * "0 athletes" while the request is still in flight is the same class of lie
+ * as the written claim this row replaced.
+ */
+function describeClients(clients: readonly ClientSummary[], error: string | null, loading: boolean): string {
+  if (error) return 'Could not be counted';
+  if (loading) return 'Counting…';
+  if (clients.length === 0) return 'No athletes yet';
+
+  const fixtures = clients.filter((client) => client.source === 'synthetic-fixture').length;
+  const head = `${clients.length} athlete${clients.length === 1 ? '' : 's'}`;
+  if (fixtures === 0) return head;
+  if (fixtures === clients.length) return `${head} · all fixtures`;
+  return `${head} · ${fixtures} fixture${fixtures === 1 ? '' : 's'}`;
+}
+
 export function CoachSettings() {
-  const { repository } = useCoachWorkspace();
+  const { repository, clients, loading: clientsLoading, error: clientsError } = useCoachWorkspace();
   const [section, setSection] = useState<Section>('Workspace');
   const [weekStart, setWeekStart] = useState('Monday');
   const [units, setUnits] = useState('Kilograms');
   const [notifications, setNotifications] = useState(true);
   const [library, setLibrary] = useState({ strength: true, conditioning: true, beginner: true });
   const [message, setMessage] = useState('');
+  // Which VOICE the message speaks in, tracked separately from the text so the
+  // save row never has to pattern-match a sentence to decide on a colour.
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  const clientCount = describeClients(clients, clientsError, clientsLoading);
 
   useEffect(() => {
     let active = true;
@@ -37,7 +64,7 @@ export function CoachSettings() {
       setUnits(settings.defaultLoadUnit === 'kg' ? 'Kilograms' : 'Pounds');
       setNotifications(settings.priorityNotifications);
       setLibrary({ strength: settings.visibleLibraries.strength, conditioning: settings.visibleLibraries.conditioning, beginner: settings.visibleLibraries.beginnerFoundations });
-    }).catch(() => { if (active) setMessage('Saved settings could not be loaded. Defaults are shown.'); });
+    }).catch(() => { if (active) { setLoadFailed(true); setMessage('Saved settings could not be loaded. Defaults are shown.'); } });
     return () => { active = false; };
   }, [repository]);
 
@@ -48,6 +75,7 @@ export function CoachSettings() {
       priorityNotifications: notifications,
       visibleLibraries: { strength: library.strength, conditioning: library.conditioning, beginnerFoundations: library.beginner },
     });
+    setLoadFailed(false);
     setMessage('Workspace preferences saved in the replaceable demo repository.');
   };
 
@@ -56,13 +84,101 @@ export function CoachSettings() {
       <div className="st-grid">
         <nav className="st-tabs" aria-label="Settings sections">{SECTIONS.map((item) => <button key={item} type="button" aria-current={section === item ? 'page' : undefined} onClick={() => setSection(item)} className={`st-tab${section === item ? ' active' : ''}`}>{item}</button>)}</nav>
         <div>
-          {section === 'Workspace' && <SettingsSection title="Workspace" detail="How ARC looks and behaves for you."><SelectRow label="Training week begins" value={weekStart} onChange={setWeekStart} options={['Monday', 'Sunday']} /><SelectRow label="Default load unit" value={units} onChange={setUnits} options={['Kilograms', 'Pounds']} /><ToggleRow label="Priority notifications" detail="Safety, conflicts and programming gaps only." checked={notifications} onChange={setNotifications} /></SettingsSection>}
-          {section === 'Programming' && <SettingsSection title="Programming" detail="Choose what appears in your Library. Progression rules remain versioned."><ToggleRow label="Strength library" detail="Exercises, sessions and reusable blocks." checked={library.strength} onChange={(checked) => setLibrary((current) => ({ ...current, strength: checked }))} /><ToggleRow label="Conditioning library" detail="Modalities, subsystems and intensity progressions." checked={library.conditioning} onChange={(checked) => setLibrary((current) => ({ ...current, conditioning: checked }))} /><ToggleRow label="Beginner foundations" detail="Keep genuinely accessible starting blocks visible by default." checked={library.beginner} onChange={(checked) => setLibrary((current) => ({ ...current, beginner: checked }))} /><details className="border-t border-line py-3 text-xs"><summary className="cursor-pointer font-medium">Advanced programming defaults</summary><p className="mt-1 text-muted">Block lengths, protected anchors and reduction bounds will live here once backed by versioned server policy.</p></details></SettingsSection>}
-          {section === 'Decisions & safety' && <SettingsSection title="Decisions & safety" detail="These controls describe authority. Safety gates cannot be disabled."><ReadOnlyRow label="Progression increases" value="Coach approval required" /><ReadOnlyRow label="Pain or illness" value="Hold and human review" /><ReadOnlyRow label="Missing or contradictory data" value="Unknown · never inferred clear" /><ToggleRow label="Decision notifications" detail="Notify when an approval, conflict or safety review is waiting." checked={notifications} onChange={setNotifications} /><p className="border-t border-line pt-3 text-[11px] text-warn">Owner-controlled policies must be versioned, scoped and audited before this demo can change them.</p></SettingsSection>}
-          {section === 'Coaches & access' && <SettingsSection title="Coaches & access" detail="Organisation-owner controls for the future multi-client backend."><ReadOnlyRow label="Organisation owner" value="You · full control" /><ReadOnlyRow label="Assistant coaches" value="0 invited" /><ReadOnlyRow label="Symptom reports" value="Visible to organisation coaches" /><ReadOnlyRow label="Private coach notes" value="Coach-only" /><button type="button" onClick={() => setMessage('Coach invitations are demonstrated only. Backend roles and tenant policies are not connected.')} className="mt-3 rounded-md border border-line2 bg-panel px-2 py-1.5 text-xs text-muted hover:text-text">Review access model</button></SettingsSection>}
-          {section === 'Data & sync' && <SettingsSection title="Data & sync" detail="Be honest about what is local, connected or unavailable."><ReadOnlyRow label="Coach workspace" value="Local demonstration" /><ReadOnlyRow label="Multi-client data" value="Synthetic fixtures only" /><ReadOnlyRow label="Authoritative receipts" value="Backend required" /><ReadOnlyRow label="Offline replay" value="Not implemented" /><button type="button" onClick={() => setMessage('No sync was started. This front end does not transmit client data.')} className="mt-3 rounded-md border border-line2 bg-panel px-2 py-1.5 text-xs text-muted hover:text-text">Check connection</button></SettingsSection>}
-          <div className="mt-4 flex items-center border-t border-line2 pt-3"><p className="text-[11px] text-dim">Demo preferences persist locally behind the CoachWorkspaceRepository contract.</p><button type="button" onClick={save} className="ml-auto rounded-md border border-gold-line bg-gold-wash px-3 py-1.5 text-xs font-semibold text-gold2">Save settings</button></div>
-          {message && <p className="mt-2 text-xs text-good" role="status">✓ {message}</p>}
+          {section === 'Workspace' && (
+            <SettingsSection title="Workspace" detail="How ARC looks and behaves for you.">
+              <SelectRow label="Training week begins" value={weekStart} onChange={setWeekStart} options={['Monday', 'Sunday']} />
+              <SelectRow label="Default load unit" value={units} onChange={setUnits} options={['Kilograms', 'Pounds']} />
+              <ToggleRow label="Priority notifications" detail="Safety, conflicts and programming gaps only." checked={notifications} onChange={setNotifications} />
+            </SettingsSection>
+          )}
+          {section === 'Programming' && (
+            <SettingsSection title="Programming" detail="Choose what appears in your Library. Progression rules remain versioned.">
+              <ToggleRow label="Strength library" detail="Exercises, sessions and reusable blocks." checked={library.strength} onChange={(checked) => setLibrary((current) => ({ ...current, strength: checked }))} />
+              <ToggleRow label="Conditioning library" detail="Modalities, subsystems and intensity progressions." checked={library.conditioning} onChange={(checked) => setLibrary((current) => ({ ...current, conditioning: checked }))} />
+              <ToggleRow label="Beginner foundations" detail="Keep genuinely accessible starting blocks visible by default." checked={library.beginner} onChange={(checked) => setLibrary((current) => ({ ...current, beginner: checked }))} />
+              <details className="st-advanced">
+                <summary>Advanced programming defaults</summary>
+                <p>Block lengths, protected anchors and reduction bounds will live here once backed by versioned server policy.</p>
+              </details>
+            </SettingsSection>
+          )}
+          {/* These three are NOT rewritten. They describe the live auto-coach
+              policy — pain and illness really do hold for human review, and
+              missing data really is left unknown rather than inferred clear —
+              and they were already exactly right. */}
+          {section === 'Decisions & safety' && (
+            <SettingsSection title="Decisions & safety" detail="These controls describe authority. Safety gates cannot be disabled.">
+              <ReadOnlyRow label="Progression increases" value="Coach approval required" />
+              <ReadOnlyRow label="Pain or illness" value="Hold and human review" />
+              <ReadOnlyRow label="Missing or contradictory data" value="Unknown · never inferred clear" />
+              <ToggleRow label="Decision notifications" detail="Notify when an approval, conflict or safety review is waiting." checked={notifications} onChange={setNotifications} />
+              <p className="st-warning">Owner-controlled policies must be versioned, scoped and audited before this bench can change them.</p>
+            </SettingsSection>
+          )}
+          {section === 'Coaches & access' && (
+            <SettingsSection title="Coaches & access" detail="Who can see what, and who is allowed to change it.">
+              <ReadOnlyRow label="Organisation owner" value="You · full control" />
+              {/* Stays. There is no invite mechanism to count, and none has
+                  been used, so the written zero is not a claim that can rot. */}
+              <ReadOnlyRow label="Assistant coaches" value="0 invited" />
+              <ReadOnlyRow label="Symptom reports" value="Visible to organisation coaches" />
+              <ReadOnlyRow label="Private coach notes" value="Coach-only" />
+            </SettingsSection>
+          )}
+          {section === 'Data & sync' && (
+            <SettingsSection title="Data & sync" detail="Where this workspace's data actually lives.">
+              <ReadOnlyRow
+                label="Coach workspace"
+                detail="Assignments, templates, decisions, read audit, grants, receipts."
+                value="Supabase · eight RLS-owned tables"
+              />
+              {/* COUNTED, not written. `listClients()` is already on the
+                  contract and the provider already calls it, so this row
+                  reports what the roster actually holds. A written claim here
+                  ("synthetic fixtures only") is exactly what went stale and
+                  ended up asserting the opposite of the truth. */}
+              <ReadOnlyRow
+                label="Multi-client data"
+                detail="Counted from the roster this workspace loaded, not asserted."
+                value={clientCount}
+                alert={Boolean(clientsError)}
+              />
+              {/* Neither "backend required" nor "backed". The table is in the
+                  migration; nothing on this bench reads it yet. Saying either
+                  half alone would be picking the flattering one. */}
+              <ReadOnlyRow
+                label="Authoritative receipts"
+                detail="autocoach_receipts exists in the schema."
+                value="Stored · not read by this bench"
+              />
+              {/* The row the screen was missing. These four preferences are the
+                  one genuinely device-local thing here, and the screen used to
+                  blame the whole workspace for what is true only of them. */}
+              <ReadOnlyRow
+                label="Workspace preferences"
+                detail="The four settings on this screen, keyed hybrid-arc-settings-v1."
+                value="This device only"
+              />
+              <ReadOnlyRow label="Offline replay" value="Not implemented" alert />
+            </SettingsSection>
+          )}
+          {/*
+            One save row, one place a message appears.
+            `.st-save-note` is styled with `--color-ok`, so it is the SUCCESS
+            voice and only the success voice. The load failure gets
+            `.st-warning` instead — a separate element rather than an extra
+            class, because `.st-save-note` is declared after `.st-warning` in
+            the stylesheet and would win the colour, which is precisely the
+            "red-meaning message in green ink" this must not ship.
+          */}
+          <div className="st-save-row">
+            <button type="button" className="cb-add-btn ghost" onClick={save}>Save settings</button>
+            {message
+              ? (loadFailed
+                  ? <p className="st-warning" role="status">{message}</p>
+                  : <p className="st-save-note show" role="status">{message}</p>)
+              : null}
+          </div>
         </div>
       </div>
     </main>
@@ -78,6 +194,69 @@ export function CoachSettings() {
  * it inherits `display: none` from the base rule and the screen goes blank.
  */
 function SettingsSection({ title, detail, children }: { title: string; detail: string; children: ReactNode }) { const id = `settings-${title.replaceAll(' ', '-').toLowerCase()}`; return <section className="st-panel active" aria-labelledby={id}><h2 id={id} className="rd-section-label">{title}</h2><p className="rd-panel-note">{detail}</p>{children}</section>; }
-function SelectRow({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) { return <label className="flex min-h-14 items-center gap-2 border-b border-line py-2 last:border-b-0"><span className="text-sm font-medium">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="ml-auto rounded-md border border-line2 bg-well px-2 py-1.5 text-xs text-text">{options.map((option) => <option key={option}>{option}</option>)}</select></label>; }
-function ToggleRow({ label, detail, checked, onChange }: { label: string; detail: string; checked: boolean; onChange: (checked: boolean) => void }) { return <label className="flex min-h-16 cursor-pointer items-center gap-3 border-b border-line py-2 last:border-b-0"><span><span className="block text-sm font-medium">{label}</span><span className="mt-0.5 block text-[11px] text-muted">{detail}</span></span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="ml-auto h-4 w-4 accent-[var(--color-gold)]" /></label>; }
-function ReadOnlyRow({ label, value }: { label: string; value: string }) { return <div className="flex min-h-14 items-center gap-2 border-b border-line py-2 last:border-b-0"><span className="text-sm font-medium">{label}</span><span className="ml-auto text-right text-xs text-muted">{value}</span></div>; }
+/** The label column every row shares: `.st-row-label`, and `.st-row-sub`
+ *  under it when there is something worth saying. */
+function RowText({ label, detail }: { label: string; detail?: string }) {
+  return (
+    <span className="st-row-text">
+      <span className="st-row-label">{label}</span>
+      {detail ? <span className="st-row-sub">{detail}</span> : null}
+    </span>
+  );
+}
+
+function SelectRow({ label, detail, value, onChange, options }: { label: string; detail?: string; value: string; onChange: (value: string) => void; options: string[] }) {
+  return (
+    <label className="st-row">
+      <RowText label={label} detail={detail} />
+      <select className="rd-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => <option key={option}>{option}</option>)}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * `.st-toggle` is a BUTTON in the stylesheet's shape — a 40×24 pill with an
+ * absolutely-positioned `.st-toggle-knob` that slides on `.on`. A checkbox
+ * cannot be styled into that, so the input this replaced is gone.
+ *
+ * What the input gave for free has to be put back by hand, and is: the button
+ * carries `role="switch"` and `aria-checked`, and takes its accessible name
+ * from `aria-label` rather than from a wrapping `<label>`, which does not
+ * name a button. Without those three it is a styled div — visible to a
+ * sighted mouse user and to nobody else.
+ */
+function ToggleRow({ label, detail, checked, onChange }: { label: string; detail: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <div className="st-row">
+      <RowText label={label} detail={detail} />
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        className={`st-toggle${checked ? ' on' : ''}`}
+        onClick={() => onChange(!checked)}
+      >
+        <span className="st-toggle-knob" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * A row that states a fact rather than changing one.
+ *
+ * `alert` paints the value in `--color-zone-red` and is for a value that
+ * genuinely reads as a warning — something unavailable or blocked. It is not
+ * for editorialising about a value that is merely uninteresting.
+ */
+function ReadOnlyRow({ label, detail, value, alert = false }: { label: string; detail?: string; value: string; alert?: boolean }) {
+  return (
+    <div className="st-row readonly">
+      <RowText label={label} detail={detail} />
+      <span className={`st-row-value${alert ? ' alert' : ''}`}>{value}</span>
+    </div>
+  );
+}

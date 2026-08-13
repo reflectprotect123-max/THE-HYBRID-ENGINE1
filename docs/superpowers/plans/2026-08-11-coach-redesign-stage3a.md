@@ -1,6 +1,17 @@
 # Coach Redesign Stage 3a — Library Spine Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **COMPLETE — shipped 11 August 2026.** Every box below is ticked because
+> the work landed, not because someone tidied the file. `apps/web/src/coach/
+> library/` holds the calendar, day builder, block editor, exercise picker and
+> set rows, and `CLAUDE.md` records `/coach/library` holding at 420px under
+> `checks/screens.mjs`. One thing here did NOT survive contact: the Programs
+> tab was deleted during the stage, so the Library is the calendar and there
+> are no tabs — anywhere below that says otherwise describes the plan, not the
+> tree. An unticked plan for finished work is how the next reader concludes it
+> is theirs to build, which is why this banner exists rather than a note
+> somewhere further down.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the coach Library's spine — a tagged exercise catalogue, the Calendar month view, and a two-mode day builder with the mockup's full block/picker/set editor, which the guided wizard now finishes into.
 
@@ -96,7 +107,7 @@ Nine tasks. The three `packages/engine` modules come first because every screen 
 
 A movement with no entry in `tagsByMovement` has `tags: []`. It is never inferred from context — the constraint above is the whole point of this task.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/engine/src/catalogue.test.ts`:
 
@@ -181,12 +192,12 @@ describe('filterCatalogue', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/catalogue.test.ts`
 Expected: FAIL — `buildCatalogue` is not exported from `./catalogue`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/engine/src/catalogue.ts`. Read `knownMovements` in this package first and call it rather than re-deriving; it already handles both workouts and logged sessions.
 
@@ -248,16 +259,16 @@ export function filterCatalogue(entries: CatalogueEntry[], query: string, active
 
 Traverse via `blockExercises(b)` — a block's exercises are not always on `.exercises`, and that helper is the one the rest of the engine uses.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/catalogue.test.ts`
 Expected: PASS, 9 tests.
 
-- [ ] **Step 5: Export from the package index**
+- [x] **Step 5: Export from the package index**
 
 `packages/engine/src/index.ts` uses `export * from './...'` per module. Add `export * from './catalogue';` beside its neighbours.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/engine/src/catalogue.ts packages/engine/src/catalogue.test.ts packages/engine/src/index.ts
@@ -291,7 +302,7 @@ The grid is Monday-first, matching the mockup's `Mon Tue Wed Thu Fri Sat Sun` he
 
 All maths is UTC. `mondayOf` in `@hybrid/coordinator-adapter` already establishes UTC week handling in this system; a local-time grid would shift a day for a coach in the wrong timezone.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/engine/src/month.test.ts`:
 
@@ -346,12 +357,12 @@ describe('monthLabel', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/month.test.ts`
 Expected: FAIL — `monthGrid` is not exported from `./month`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/engine/src/month.ts`:
 
@@ -400,12 +411,12 @@ export function shiftMonth(year: number, month1to12: number, delta: number): { y
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/month.test.ts`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Export and commit**
+- [x] **Step 5: Export and commit**
 
 Add `export * from './month';` to `packages/engine/src/index.ts`.
 
@@ -451,7 +462,7 @@ Note `Reps (min–max)` uses an EN DASH (–), and `e.g. 8-10` a hyphen. Copy th
 
 The rule, in the mockup's words: "picking the same thing for both would be a real logging mistake, so the second column greys out and locks until the two differ again."
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/engine/src/setColumns.test.ts`:
 
@@ -508,12 +519,12 @@ describe('isColumnPairValid', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/setColumns.test.ts`
 Expected: FAIL — `COLUMN_TYPES` is not exported from `./setColumns`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/engine/src/setColumns.ts`:
 
@@ -548,12 +559,12 @@ export function isColumnPairValid(first: string, second: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/setColumns.test.ts`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Export and commit**
+- [x] **Step 5: Export and commit**
 
 Add `export * from './setColumns';` to `packages/engine/src/index.ts`.
 
@@ -591,7 +602,7 @@ renders the second dropdown."
 
 `+ New circuit` is **not** wired in this stage — Circuit has no definition in this system (see `2026-08-11-stage3c-sessions-exercises-design.md`). Render the button per the mockup and leave it disabled with a title explaining it is not yet available. Do not silently render a dead button.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/coach/library/ExercisePicker.test.tsx`:
 
@@ -670,23 +681,23 @@ describe('ExercisePicker', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/ExercisePicker.test.tsx`
 Expected: FAIL — cannot resolve `./ExercisePicker`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/coach/library/ExercisePicker.tsx`, using the mockup's classes. `filterCatalogue` and `tagCounts` do the work; this component holds only the query and the active tags as state, and renders. No filtering logic inline — it is tested in `packages/engine`.
 
 Both empty states are required and distinct: "No movements match this search." when a filter excluded everything, and "No movements in your library yet — they appear here as you author sessions." when the catalogue itself is empty. Rendering the same message for both would tell an athlete with an empty library that their search was bad.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/ExercisePicker.test.tsx`
 Expected: PASS, 8 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/coach/library/ExercisePicker.tsx apps/web/src/coach/library/ExercisePicker.test.tsx
@@ -728,7 +739,7 @@ message for both tells a new athlete their search was wrong."
 
 **The empty-day actions must work by tap, not only hover.** The mockup exposes them on `:hover`; hover does not exist on a phone, and `/coach` is a supported phone surface. Make the cell itself a button that reveals the two actions on click, keeping `cal-hover` for the desktop affordance. A test asserts this.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/coach/library/CalendarMonth.test.tsx`:
 
@@ -805,21 +816,21 @@ describe('CalendarMonth', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/CalendarMonth.test.tsx`
 Expected: FAIL — cannot resolve `./CalendarMonth`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/coach/library/CalendarMonth.tsx`. `monthGrid(year, month)` gives the cells; match `days` onto them by `date`. Each empty in-month cell is a `<button>` whose accessible name is the full date ("12 August 2026") so a test and a screen-reader user can both address it.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/CalendarMonth.test.tsx`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/coach/library/CalendarMonth.tsx apps/web/src/coach/library/CalendarMonth.test.tsx
@@ -858,7 +869,7 @@ and the test asserts the click path."
 
 The eyebrow reads `BLOCK 01`, `BLOCK 02` — zero-padded, from the block's index, as the mockup's `relabelItems` does.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/coach/library/BlockEditor.test.tsx`:
 
@@ -928,21 +939,21 @@ describe('BlockEditor', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/BlockEditor.test.tsx`
 Expected: FAIL — cannot resolve `./BlockEditor`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/coach/library/BlockEditor.tsx`, mounting `ExercisePicker` behind the `cb-picker-reveal` button.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/BlockEditor.test.tsx`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/coach/library/BlockEditor.tsx apps/web/src/coach/library/BlockEditor.test.tsx
@@ -975,7 +986,7 @@ Sets default to **3 empty rows**, matching the mockup's note and the app's exist
 
 The lock rule is the point of this task: when the second column would duplicate the first, it is disabled and says why. `isColumnPairValid` decides; this component only renders that decision.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/coach/library/SetRows.test.tsx`:
 
@@ -1052,25 +1063,25 @@ describe('SetRows', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/SetRows.test.tsx`
 Expected: FAIL — cannot resolve `./SetRows`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/coach/library/SetRows.tsx`. The two column `<select>`s carry accessible names "First column measures" and "Second column measures". `availableSecondColumns(columnA)` populates the second; `isColumnPairValid` decides whether it is disabled.
 
-- [ ] **Step 4: Mount it in the block editor**
+- [x] **Step 4: Mount it in the block editor**
 
 In `BlockEditor.tsx`, render `SetRows` under each exercise in `cb-block-items`.
 
-- [ ] **Step 5: Run both test files**
+- [x] **Step 5: Run both test files**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/`
 Expected: PASS — SetRows 7, BlockEditor 7, ExercisePicker 8, CalendarMonth 7.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/coach/library/SetRows.tsx apps/web/src/coach/library/SetRows.test.tsx apps/web/src/coach/library/BlockEditor.tsx
@@ -1110,7 +1121,7 @@ The two modes, from the spec:
 
 The mockup's `+ Add new session` carries a note that multiple sessions per day are "next on the list — for now this day holds one". Render the button disabled with that note, exactly as the mockup does.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/coach/library/DayBuilder.test.tsx`:
 
@@ -1190,16 +1201,16 @@ describe('DayBuilder — library mode', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/library/DayBuilder.test.tsx`
 Expected: FAIL — cannot resolve `./DayBuilder`.
 
-- [ ] **Step 3: Implement the component**
+- [x] **Step 3: Implement the component**
 
 Create `apps/web/src/coach/library/DayBuilder.tsx`. One component; `mode` decides whether the date heading, status and Publish render. Do not build two components — the blocks-and-instructions half must exist once.
 
-- [ ] **Step 4: Register the route**
+- [x] **Step 4: Register the route**
 
 In `apps/web/src/coach/index.tsx`, inside the existing `<Route element={<ArcCoachFrame />}>` block:
 
@@ -1209,7 +1220,7 @@ In `apps/web/src/coach/index.tsx`, inside the existing `<Route element={<ArcCoac
 
 Read the file's existing comment about `layer3Ready` (around lines 35–44) before deciding otherwise. This route reads local stores, so it does **not** get `layer3Ready`.
 
-- [ ] **Step 5: Run the suite and the contract check**
+- [x] **Step 5: Run the suite and the contract check**
 
 ```bash
 pnpm --filter @hybrid/web exec tsc --noEmit -p .
@@ -1218,7 +1229,7 @@ node checks/coach-contract.mjs
 ```
 Expected: all clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/coach/library/DayBuilder.tsx apps/web/src/coach/library/DayBuilder.test.tsx apps/web/src/coach/index.tsx
@@ -1248,7 +1259,7 @@ button would otherwise imply a placement the coach never made."
 
 **Two tabs only** — Programs and Calendar. Do not add Sessions, Exercises or Circuit; they arrive with 3b and 3c. A tab with nothing behind it is the defect Stage 1 shipped three times.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/web/src/coach/CoachLibrary.test.tsx`:
 
@@ -1273,20 +1284,20 @@ describe('CoachLibrary tabs', () => {
 
 Reuse the file's existing `renderLibrary` harness; do not write a second one.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @hybrid/web exec vitest run src/coach/CoachLibrary.test.tsx`
 Expected: FAIL — no Calendar month grid.
 
-- [ ] **Step 3: Wire the tabs and the calendar**
+- [x] **Step 3: Wire the tabs and the calendar**
 
 Rename the `templates` tab to Programs in `CoachLibrary.tsx` (its panel is unchanged; 3b redesigns it) and replace `CalendarTab`'s body with `CalendarMonth`.
 
-- [ ] **Step 4: Rewire the wizard and the edit link**
+- [x] **Step 4: Rewire the wizard and the edit link**
 
 In `GuidedBuilder.tsx`, end the flow at `/coach/day/${id}` (library mode) rather than `plannerPath`, and update the header comment. In `CoachAuthoring.tsx:284`, point "Edit workout structure" at the day builder.
 
-- [ ] **Step 5: Add the Library to the phone check**
+- [x] **Step 5: Add the Library to the phone check**
 
 In `checks/screens.mjs`, add the Library to `COACH_SHOTS` with a content assertion, following the existing entries exactly:
 
@@ -1294,7 +1305,7 @@ In `checks/screens.mjs`, add the Library to `COACH_SHOTS` with a content asserti
 ['17-coach-library', '/coach/library', [/Programs/i, /Calendar/i]],
 ```
 
-- [ ] **Step 6: Verify everything, including the phone check**
+- [x] **Step 6: Verify everything, including the phone check**
 
 ```bash
 pnpm --filter @hybrid/web exec tsc --noEmit -p .
@@ -1304,7 +1315,7 @@ node checks/screens.mjs
 ```
 Expected: all clean; `screens.mjs` reports one more screen than before and exits 0.
 
-- [ ] **Step 7: Verify both decision paths are still reachable**
+- [x] **Step 7: Verify both decision paths are still reachable**
 
 The wizard rewire changes where an authoring flow ends. Confirm nothing became unreachable:
 
@@ -1315,7 +1326,7 @@ grep -rn "coach/day" apps/web/src --include=*.tsx | grep -v test
 
 The first must show `plannerPath` is either gone or still used for the ATHLETE path. The second must show at least the route registration and the two entry points. If either looks wrong, stop and report rather than committing — Stage 1 shipped three unreachable routes because a grep proved a mount rather than a path.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/web/src/coach/CoachLibrary.tsx apps/web/src/coach/CoachLibrary.test.tsx apps/web/src/screens/guided/GuidedBuilder.tsx apps/web/src/coach/CoachAuthoring.tsx checks/screens.mjs

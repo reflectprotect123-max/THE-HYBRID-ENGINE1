@@ -90,8 +90,14 @@
 > **Coach side:** Stage 1 of the workspace redesign is merged, deployed and
 > live — `/coach` is a four-tile Command Center over four pillar screens, wired
 > to real data and usable at phone width. A production deploy failure that
-> PREDATED that work is fixed. Stage 3 (the Library) is specced in three parts;
-> none of it is built.
+> PREDATED that work is fixed. Stage 3 (the Library) is specced in three
+> parts. *(Correction, 13 August 2026: this line read "none of it is built",
+> which was true when written and stopped being true later the same day.
+> Stage 3a SHIPPED on 11 August — `apps/web/src/coach/library/` holds the
+> calendar, day builder, block editor, exercise picker and set rows, and
+> CLAUDE.md records `/coach/library` passing the 420px check. Stage 3b, the
+> Programs half, is still unbuilt. Stage 2, the Settings screen, shipped on
+> 13 August; see the checkpoint at the top of this file.)*
 >
 > **Athlete side:** the whole athlete app ships as one self-contained working
 > HTML artifact; the hybrid build has BOTH training tabs; Home leads with

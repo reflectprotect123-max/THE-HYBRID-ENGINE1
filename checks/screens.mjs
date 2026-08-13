@@ -151,6 +151,13 @@ const COACH_SHOTS = [
   // (`.cal-dow` is `text-transform: uppercase`, and `innerText` reflects the
   // transform — hence the /i, exactly as the note above this table warns.)
   ['17-coach-library', '/coach/library', [/\bMon\b/i, /\bSun\b/i, /session builder/i]],
+  // Stage 2, 13 August 2026. The last /coach route to arrive here.
+  // The patterns name text ONLY this screen shows, and deliberately reach
+  // INSIDE the active panel rather than stopping at the tab column: the tab
+  // labels render whichever section is open, so matching those alone would
+  // pass against a screen whose panels never mounted. "Training week begins"
+  // is a Workspace-panel row, and Workspace is the default section.
+  ['18-coach-settings', '/coach/settings', [/Training week begins/i, /Default load unit/i, /Data . sync/i]],
 ];
 
 /*

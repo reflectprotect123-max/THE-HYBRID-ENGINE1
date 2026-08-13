@@ -1,6 +1,26 @@
 # Coach Redesign Stage 2 — Settings Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **COMPLETE — shipped 13 August 2026.** All five tasks landed and the gates
+> are green: `pnpm run typecheck`, `pnpm run test` (622 tests), `node
+> checks/lane-contract.mjs`, and `node checks/screens.mjs` with
+> `/coach/settings` now shot at 420px. No CSS was added, as the plan required.
+>
+> Two departures from what is written below, recorded rather than quietly
+> absorbed:
+>
+> - The plan named `.rd-btn` as an available atom for the save button. There is
+>   no such rule in `coach-redesign.css`. `.cb-add-btn.ghost` is used instead —
+>   it is the only existing gold button that sets `font: inherit`, and
+>   `.rd-connect`, the other candidate, does not, so a `<button>` wearing it
+>   loses Inter.
+> - The two demo buttons ("Review access model", "Check connection") are
+>   DELETED rather than restyled. Task 3 step 1 expected their messages to
+>   route through the save note; but "This front end does not transmit client
+>   data" is now false — the bench reads Supabase — and a button whose only
+>   job is to emit an untrue sentence could not survive the same step that
+>   rewrote the rows for lying.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Rebuild `/coach/settings` in the workspace redesign's own styling, and bring it under the phone check — the last `/coach` route with neither.
 
@@ -55,7 +75,7 @@ is wrong, not because it is being restyled.
 
 **Files:** Modify `apps/web/src/coach/CoachSettings.tsx`, `apps/web/src/coach/CoachSettings.test.tsx`
 
-- [ ] **Step 1: Frame and tab column**
+- [x] **Step 1: Frame and tab column**
 
 Replace the Tailwind `<main>`/`<header>`/grid with the redesign's own frame,
 matching what the pillar screens already do (read `CoachCommandCenter.tsx` or
@@ -63,7 +83,7 @@ any pillar for how a stage-1 screen is framed — do not invent a second
 convention). The section list becomes `.st-tabs` of `.st-tab`, with `.active`
 on the current one, inside `.st-grid`.
 
-- [ ] **Step 2: Panels**
+- [x] **Step 2: Panels**
 
 One `.st-panel` per section. The stylesheet hides an inactive panel with
 `display: none` and shows `.st-panel.active`; rendering only the active panel
@@ -71,12 +91,12 @@ is equally correct in React and is preferred — but then the active one must
 still carry `.active`, or it inherits `display: none` and the screen goes
 blank. That is the one trap in this task.
 
-- [ ] **Step 3: Keep the tab tests passing, adapted**
+- [x] **Step 3: Keep the tab tests passing, adapted**
 
 The first two tests find tabs and assert which section shows. Update how they
 query, keep what they assert.
 
-- [ ] **Step 4: Gate** — `pnpm --filter @hybrid/web test -- CoachSettings` and `pnpm run typecheck`.
+- [x] **Step 4: Gate** — `pnpm --filter @hybrid/web test -- CoachSettings` and `pnpm run typecheck`.
 
 ---
 
@@ -84,7 +104,7 @@ query, keep what they assert.
 
 **Files:** Modify `apps/web/src/coach/CoachSettings.tsx`, `apps/web/src/coach/CoachSettings.test.tsx`
 
-- [ ] **Step 1: The three row shapes**
+- [x] **Step 1: The three row shapes**
 
 `.st-row` carries `.st-row-text` (`.st-row-label` + `.st-row-sub`) and then
 one of: a `select.rd-select`, an `.st-toggle`, or an `.st-row-value`. A
@@ -92,7 +112,7 @@ read-only row adds `.st-row.readonly`. `.st-row-value.alert` exists for a
 value that should read as a warning — use it only where the current screen
 already says something is unavailable or blocked, not to editorialise.
 
-- [ ] **Step 2: The toggle**
+- [x] **Step 2: The toggle**
 
 `.st-toggle` with `.st-toggle-knob` inside, `.on` when checked. It is a
 `<button>` in the stylesheet's shape, so it needs `role="switch"`,
@@ -100,12 +120,12 @@ already says something is unavailable or blocked, not to editorialise.
 The old markup used a real `<input type="checkbox">`; do not lose what that
 gave for free without replacing it deliberately.
 
-- [ ] **Step 3: Advanced disclosure and warning**
+- [x] **Step 3: Advanced disclosure and warning**
 
 `.st-advanced` is a `<details>` with a `summary`; `.st-warning` is the
 owner-policy line in Decisions & safety.
 
-- [ ] **Step 4: The honesty rows tell the truth**
+- [x] **Step 4: The honesty rows tell the truth**
 
 Per the spec's "Settings says where the data actually lives" amendment
 (13 August 2026), which was written after scoping found this screen asserting
@@ -135,7 +155,7 @@ fixtures only" are simply wrong.
 A test pins the counted row against a stubbed `listClients`, and pins that the
 three safety rows still read what they read today.
 
-- [ ] **Step 5: Gate** — the full `CoachSettings` suite, plus `pnpm run typecheck`.
+- [x] **Step 5: Gate** — the full `CoachSettings` suite, plus `pnpm run typecheck`.
 
 ---
 
@@ -143,14 +163,14 @@ three safety rows still read what they read today.
 
 **Files:** Modify `apps/web/src/coach/CoachSettings.tsx`, `apps/web/src/coach/CoachSettings.test.tsx`
 
-- [ ] **Step 1: `.st-save-row`**
+- [x] **Step 1: `.st-save-row`**
 
 The note becomes `.st-save-note`, which the stylesheet fades in with `.show`.
 Every message the screen currently emits — save success, load failure, and
 both demo buttons — routes through it, so there is one place a message
 appears rather than two.
 
-- [ ] **Step 2: A message that is not a success must not look like one**
+- [x] **Step 2: A message that is not a success must not look like one**
 
 `.st-save-note` is styled with `--color-ok`. The load-failure message
 ("Saved settings could not be loaded") is not a success, and the existing
@@ -159,7 +179,7 @@ has (`.st-row-value.alert`'s `--color-zone-red`) via an existing class, or
 keep the two messages in separate elements. Do NOT ship a red-meaning message
 in green ink; if neither existing class fits, stop and report.
 
-- [ ] **Step 3: Gate** — full suite, `pnpm run typecheck`.
+- [x] **Step 3: Gate** — full suite, `pnpm run typecheck`.
 
 ---
 
@@ -167,13 +187,13 @@ in green ink; if neither existing class fits, stop and report.
 
 **Files:** Modify `checks/screens.mjs`, `CLAUDE.md`
 
-- [ ] **Step 1: Shoot it at 420px**
+- [x] **Step 1: Shoot it at 420px**
 
 Add `/coach/settings` to `COACH_SHOTS` in `checks/screens.mjs`, with wait
 patterns naming text only this screen shows. Run `node checks/screens.mjs`.
 It fails on horizontal overflow, which is the point.
 
-- [ ] **Step 2: Fix what it finds, in the stylesheet's own terms**
+- [x] **Step 2: Fix what it finds, in the stylesheet's own terms**
 
 `coach-redesign.css:689` already has the phone rules for this screen — the
 grid collapses to one column, the tabs turn into a wrapping row, and a row's
@@ -182,7 +202,7 @@ overflows anyway, the repair belongs in the JSX or in the mockup's existing
 responsive rules; a NEW rule means stop and report which element needed it
 and why, exactly as stage 3a did for the calendar's hover-only affordance.
 
-- [ ] **Step 3: Move the boundary in `CLAUDE.md`**
+- [x] **Step 3: Move the boundary in `CLAUDE.md`**
 
 The coach-workspace section names the six routes covered at 420px and says
 `/coach/settings` "is NOT yet covered — it is its own stage and joins
@@ -192,7 +212,7 @@ standing instruction: state the real boundary rather than leaving stale
 wording. `/coach/review/:weekStart` remains untested and remains the named
 candidate — do not guess its outcome.
 
-- [ ] **Step 4: Gate** — `node checks/screens.mjs` green, `pnpm run typecheck`, `pnpm run test`.
+- [x] **Step 4: Gate** — `node checks/screens.mjs` green, `pnpm run typecheck`, `pnpm run test`.
 
 ---
 
@@ -202,9 +222,9 @@ Housekeeping, but the kind this repo treats as real: two documents currently
 describe work that has shipped as unbuilt, and `CLAUDE.md` is explicit that a
 stale statement must not be left standing.
 
-- [ ] **Step 1:** `handoff.md`'s checkpoint says "Stage 3 (the Library) is specced in three parts; none of it is built." Stage 3a shipped on 11 August — `apps/web/src/coach/library/` holds the calendar, day builder, block editor, exercise picker and set rows, and `CLAUDE.md` already records `/coach/library` passing at 420px. Correct it, and add this stage.
-- [ ] **Step 2:** `docs/superpowers/plans/2026-08-11-coach-redesign-stage3a.md` has 51 unticked boxes for shipped work. Tick them, or mark the plan complete at its head with the commit that landed it. An unticked plan for finished work is how the next reader concludes it is theirs to build.
-- [ ] **Step 3: Gate** — no code changed; re-read both documents and confirm nothing else in them contradicts the tree.
+- [x] **Step 1:** `handoff.md`'s checkpoint says "Stage 3 (the Library) is specced in three parts; none of it is built." Stage 3a shipped on 11 August — `apps/web/src/coach/library/` holds the calendar, day builder, block editor, exercise picker and set rows, and `CLAUDE.md` already records `/coach/library` passing at 420px. Correct it, and add this stage.
+- [x] **Step 2:** `docs/superpowers/plans/2026-08-11-coach-redesign-stage3a.md` has 51 unticked boxes for shipped work. Tick them, or mark the plan complete at its head with the commit that landed it. An unticked plan for finished work is how the next reader concludes it is theirs to build.
+- [x] **Step 3: Gate** — no code changed; re-read both documents and confirm nothing else in them contradicts the tree.
 
 ---
 

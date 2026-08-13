@@ -94,15 +94,22 @@ once, can catch its regression.
   was in `ArcCoachFrame.tsx` itself (a CSS Grid row-stretch bug inflating the
   mobile hamburger bar into ~200px of dead space), not the mockup.
   Stage 3a (11 August 2026) adds a sixth: `/coach/library`, which holds at
-  420px with its Programs and Calendar tabs. The Calendar needed one repair
+  420px. (That stage originally read "with its Programs and Calendar tabs";
+  the owner deleted the Programs tab in the same stage, so the Library IS the
+  calendar and there are no tabs to hold.) The Calendar needed one repair
   the mockup could not have shown — it reveals an empty day's actions on
   `:hover` only, which does not exist on a phone, so the day carries a real
   tap target and an opened panel is shown regardless of pointer
   (`.cal-cell-tap` and `.cal-cell.empty .cal-hover.open` in
   `coach-redesign.css`, the only two rules in that file not ported from the
-  mockup). `/coach/settings` is NOT yet covered — it is its own stage and
-  joins `checks/screens.mjs` when that stage lands and is verified the same
-  way.
+  mockup). Stage 2 (13 August 2026) adds a seventh:
+  `/coach/settings`, which holds at 420px with **no repair at all** — the
+  mockup's own phone block (`coach-redesign.css:688`) already collapsed the
+  grid to one column, wrapped the tab column into a row and took a row's
+  select full width, and every one of those rules did its job the first time
+  it was asked to. Stage 2 added no CSS whatsoever, which is the strongest
+  form this claim comes in: the layout is the mockup's, unamended, and the
+  check proves it.
 - Nothing under `/coach` is named desktop-only yet, because nothing has
   failed a phone check. The Library calendar tab was one of the two
   anticipated candidates and it PASSED — Stage 3a shot it at 420px with no
@@ -113,17 +120,24 @@ once, can catch its regression.
   is verified, if it genuinely cannot work at phone width, it is named here
   explicitly with the reason, exactly as this rule already requires.
 - Phone support here means the responsive WEB bench — `apps/web`'s own
-  `/coach` routes rendering usably down to a phone-width viewport. There is
-  no native mobile app in this repository to port into (`apps/mobile` was
-  deleted — commit `8628060`, "the PWA now covers everything it did"), so
-  there is no separate directory this approval could leak into today. If a
-  native coach surface is ever proposed again, that is its own product
+  `/coach` routes rendering usably down to a phone-width viewport. This bullet
+  used to add "there is no native mobile app in this repository to port into"
+  — `apps/mobile` had been deleted (commit `8628060`, "the PWA now covers
+  everything it did"). That is no longer true: `apps/mobile` is back, and as
+  of 13 August it ships the round-major session logger. So the directory this
+  approval could leak into DOES exist now, which makes the boundary matter
+  rather than retire it — nothing under `/coach` has a native counterpart,
+  and none is authorised by this section. If a native coach surface is ever
+  proposed again, that is its own product
   decision requiring its own explicit approval — this amendment does not
   imply or grant one.
-- When Library and Settings land their own stage, treat it the same as any
-  other product decision here: update this section with the real boundary
-  again — new routes covered, any confirmed desktop-only exception named —
-  rather than leaving this stage's wording standing once it is stale.
+- Seven routes are covered; the bench has more. `/coach/review/:weekStart`,
+  `/coach/day/:date`, `/coach/author` and the builder chain behind it are all
+  still unshot. Each one that lands a stage gets the same treatment: update
+  this section with the real boundary — the new route, and any confirmed
+  desktop-only exception named with its reason — rather than leaving a
+  stage's wording standing once it is stale. That instruction has now been
+  followed three times; it is not decoration.
 
 ## Storage and release rules
 
