@@ -1,4 +1,4 @@
-import { BrowserRouter, HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { DbProvider } from './store/db';
 import { NutritionProvider } from './store/nutrition';
@@ -122,7 +122,7 @@ export function App() {
                     and the nutrition world. A parked app should not 404 — a
                     bookmarked `/training` belongs to someone who will now be
                     shown the surface that does exist. */}
-                <Route path="*" element={<Navigate to="/coach" replace />} />
+                <Route path="*" element={<ToCoach />} />
               </Routes>
             </Router>
           </RestProvider>
@@ -132,6 +132,30 @@ export function App() {
       </NutritionProvider>
     </DbProvider>
   );
+}
+
+/**
+ * The catch-all redirect, CARRYING THE QUERY STRING.
+ *
+ * `<Navigate to="/coach" replace />` drops the search params, and that is not
+ * cosmetic here: both OAuth callbacks hand the browser back to
+ * `/?integration=whoop&status=connected` (see `netlify/functions/
+ * whoop-callback.mjs` and `concept2-callback.mjs`), and `Concept2Provider`
+ * reads that outcome from `window.location.search` in a mount effect.
+ *
+ * The ordering is what makes it a real break rather than a theoretical one.
+ * The provider sits ABOVE the router, so the router's redirect — its child —
+ * runs its effect first. A plain `Navigate` therefore wipes the params before
+ * the provider ever looks, and a cancelled or failed authorization becomes
+ * indistinguishable from "never connected" — precisely the failure that
+ * effect's own comment says it exists to prevent.
+ *
+ * Fixed here rather than in the two Netlify functions because those also
+ * serve the NATIVE return URL, and the app's deep link must not change.
+ */
+function ToCoach() {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: '/coach', search, hash }} replace />;
 }
 
 function Shell() {

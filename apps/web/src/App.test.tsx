@@ -111,6 +111,40 @@ describe('the unscoped dashboard root', () => {
  * the kind of URL a person actually has saved. It resolving to the bench is
  * the difference between "that moved" and a dead link.
  */
+/*
+ * THE OAUTH RETURN. This is the case parking the athlete app nearly broke.
+ *
+ * `whoop-callback.mjs` and `concept2-callback.mjs` both hand the browser back
+ * to `/?integration=…&status=…`, and `Concept2Provider` reads that outcome
+ * from `window.location.search` in a mount effect. The provider sits above
+ * the router, so the router's redirect — its child — runs first: a plain
+ * `<Navigate to="/coach">` wipes the params before the provider ever looks,
+ * and a cancelled authorization becomes indistinguishable from "never
+ * connected".
+ *
+ * So the redirect has to CARRY the query, and that is what this pins.
+ */
+describe('the OAuth callback return', () => {
+  /*
+   * A NEUTRAL param, deliberately, not `integration=concept2`. The provider
+   * STRIPS its own params once it has read them, so asserting on those can
+   * never fail: gone-because-consumed and gone-because-the-redirect-ate-them
+   * look identical. A param nothing consumes distinguishes the two, and it is
+   * the same mechanism either way — if `keepme` survives, so does the OAuth
+   * outcome.
+   */
+  it('keeps the query when it redirects to the bench', async () => {
+    mockAllowed = false;
+    window.history.pushState({}, '', '/?keepme=1');
+
+    render(<App />);
+
+    await screen.findByText(/coach/i, undefined, { timeout: 5000 });
+    expect(window.location.pathname).toBe('/coach');
+    expect(window.location.search).toContain('keepme=1');
+  });
+});
+
 describe('a parked athlete address', () => {
   it('lands on the coach bench rather than dying', async () => {
     mockAllowed = false;
