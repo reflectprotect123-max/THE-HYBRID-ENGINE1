@@ -848,8 +848,8 @@
       list +
       '<input class="tin" id="pname" data-parity="name" value="' + esc(d.name) + '" placeholder="Movement or cardio" aria-label="Piece name">' +
       '<div class="pick">' +
-        '<button class="pill' + (d.unit === 'secs' ? ' on' : '') + '" data-u="secs">Seconds</button>' +
-        '<button class="pill' + (d.unit === 'reps' ? ' on' : '') + '" data-u="reps">Reps</button>' +
+        '<button class="pill' + (d.unit === 'secs' ? ' on' : '') + '" data-u="secs" data-parity="unit-secs">Seconds</button>' +
+        '<button class="pill' + (d.unit === 'reps' ? ' on' : '') + '" data-u="reps" data-parity="unit-reps">Reps</button>' +
       '</div>' +
       '<div class="numrow"><span class="nlbl">' + (d.unit === 'secs' ? 'how long' : 'how many') + '</span>' +
         '<button class="stepbtn" data-v="-1" aria-label="Less">' + icon('minus') + '</button>' +
@@ -1306,7 +1306,7 @@
           ? '<div class="warmclock"><b>' + fmt(left) + '</b><button class="cbtn" data-a="' +
             (it.timer ? 'pause' : 'start') + '">' + icon(it.timer ? 'pause' : 'play', 'sm') + (it.timer ? ' Pause' : ' Start') + '</button></div>'
           : '') +
-        '<button class="logbtn" data-a="done">Done</button>';
+        '<button class="logbtn" data-a="done" data-parity="piece-done">Done</button>';
 
       card.querySelectorAll('button').forEach((btn) => btn.addEventListener('click', () => {
         const a = btn.dataset.a;

@@ -40,6 +40,7 @@ This plan takes the second. The cost is a real obligation on slices 4, 5 and 6: 
 | `next` | button | advance the builder |
 | `back` | button | go back a step |
 | `add-piece` | button | add a warm-up/cool-down piece |
+| `unit-secs` / `unit-reps` | button | warm-up/cool-down piece's unit toggle |
 | `done-block` | button | commit the block being authored |
 | `start` | button | leave the builder, begin the session |
 | `hot-name` | element | the live card's movement or set name |
@@ -49,6 +50,7 @@ This plan takes the second. The cost is a real obligation on slices 4, 5 and 6: 
 | `reps-up` / `reps-down` | button | rep stepper |
 | `rpe-<n>` | button | rating chip, `n` being 7, 7.5 … 10 with the dot removed: `rpe-75` |
 | `log` | button | log the set |
+| `piece-done` | button | finish the warm-up/cool-down piece currently on the hot card |
 | `grip` | button | the superset rotate handle |
 | `seg-<i>` | button | block strip segment `i` |
 | `rest-dial` | element | the rest countdown |

@@ -1,9 +1,7 @@
 /*
  * Drives a target (the prototype today, the rebuilt app later) through the
  * abstract step list from `script.mjs`, using only `[data-parity="…"]`
- * selectors — with the two documented, explicitly-labelled exceptions
- * `script.mjs` routes through `clickRaw` (see the comment at the top of
- * that file for why).
+ * selectors.
  *
  * A hook the script asks for and the page does not have is a real defect
  * in the run, not a thing to swallow: it fails with the hook's name and
@@ -32,16 +30,6 @@ async function execAction(page, action, label) {
       throw new Error(`missing hook \`${action.hook}\` at step \`${label}\``);
     }
     await loc.first().fill(action.value);
-    return;
-  }
-  if (action.type === 'clickRaw') {
-    const loc = page.locator(action.selector);
-    if ((await loc.count()) === 0) {
-      throw new Error(
-        `missing element \`${action.selector}\` at step \`${label}\` (${action.why})`,
-      );
-    }
-    await loc.first().click();
     return;
   }
   throw new Error(`unknown action type \`${action.type}\` at step \`${label}\``);

@@ -6,28 +6,10 @@
  * that touches Playwright — this file just describes intent, so the same
  * list can be pointed at the prototype today and the rebuilt app later
  * without either side knowing about the other.
- *
- * ----------------------------------------------------------------------
- * Two known gaps in the prototype fixture (`rolling-logger.html`), found
- * by reading it before writing selectors against it:
- *
- *   1. The warm-up/cool-down unit toggle ("Seconds" / "Reps" pill) carries
- *      no `data-parity` hook.
- *   2. The warm-up/cool-down piece's "Done" button carries no `data-parity`
- *      hook either (only the strength/superset hot card's controls do).
- *
- * Both are needed to build the required session (a warm-up with one timed
- * and one reps piece) and to run it without waiting out real countdowns.
- * This file is scoped to NOT touch `rolling-logger.html`, so the two gaps
- * are routed through `clickRaw` — a small, explicitly-labelled escape
- * hatch `drive.mjs` uses only for these two cases, never for anything that
- * has a real hook. See task-3-report.md for the full writeup.
- * ----------------------------------------------------------------------
  */
 
 const click = (hook) => ({ type: 'click', hook });
 const fill = (hook, value) => ({ type: 'fill', hook, value });
-const clickRaw = (selector, why) => ({ type: 'clickRaw', selector, why });
 const rpe = (v) => click(`rpe-${String(v).replace('.', '')}`);
 const repsUp = () => click('reps-up');
 
@@ -37,13 +19,6 @@ const repsUp = () => click('reps-up');
    hot card until `rest-go` (labelled Skip/Lift or Go/Finish) is pressed,
    so every `log` needs one immediately after it. */
 const logAndRest = () => [click('log'), click('rest-go')];
-
-/** Selects the un-hooked warm/cool "Done" button, scoped to the block
- *  currently on screen so it can never match a strength block's hot card
- *  (whose own Done-equivalent, `log`, DOES carry a `data-parity` hook and
- *  is excluded here by `:not([data-parity])`). */
-const warmDone = (blockIndex) =>
-  `#track > .blockscreen:nth-of-type(${blockIndex + 1}) .hot .logbtn:not([data-parity])`;
 
 function step(label, actions, opts = {}) {
   return { label, actions, record: !!opts.record, block: opts.block };
@@ -56,9 +31,7 @@ export const steps = [
      piece suppresses `hot-presc`; a reps piece doesn't). */
   step('warm-up: choose kind', [click('add-block'), click('kind-warm')]),
   step('warm-up: add piece 1 (timed)', [fill('name', 'Row'), click('add-piece')]),
-  step('warm-up: switch unit to reps', [
-    clickRaw('[data-u="reps"]', 'unit toggle has no data-parity hook'),
-  ]),
+  step('warm-up: switch unit to reps', [click('unit-reps')]),
   step('warm-up: add piece 2 (reps)', [fill('name', 'Air Squats'), click('add-piece')]),
   step('warm-up: commit block', [click('done-block')]),
 
@@ -102,15 +75,11 @@ export const steps = [
   step('start session', [click('start')], { record: true, block: 0 }),
 
   /* --- block 0: warm-up --- */
-  step('warm-up: finish piece 1 (Row)', [clickRaw(warmDone(0), 'warm/cool Done button has no data-parity hook')], {
+  step('warm-up: finish piece 1 (Row)', [click('piece-done')], {
     record: true,
     block: 0,
   }),
-  step(
-    'warm-up: finish piece 2 (Air Squats)',
-    [clickRaw(warmDone(0), 'warm/cool Done button has no data-parity hook')],
-    { record: true, block: 0 },
-  ),
+  step('warm-up: finish piece 2 (Air Squats)', [click('piece-done')], { record: true, block: 0 }),
   step('warm-up: advance past rest', [click('rest-go')], { record: true, block: 1 }),
 
   /* --- block 1: superset (barbell ladder + dumbbell straight) ---
@@ -140,7 +109,7 @@ export const steps = [
   step('bodyweight lift: set 4', [rpe(8), ...logAndRest()], { record: true, block: 3 }),
 
   /* --- block 3: cool-down --- */
-  step('cool-down: finish piece (Walk)', [clickRaw(warmDone(3), 'warm/cool Done button has no data-parity hook')], {
+  step('cool-down: finish piece (Walk)', [click('piece-done')], {
     record: true,
     block: 3,
   }),
