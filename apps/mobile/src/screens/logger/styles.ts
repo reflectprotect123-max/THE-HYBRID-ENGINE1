@@ -35,6 +35,48 @@ import { font } from '../../ui';
  *
  * Every value below is traceable to a class in that file: `.hot`, `.receipt`,
  * `.future`, `.seg`, `.restover`, `.finish` and their neighbours.
+ *
+ * 3. Every text style states its LINE HEIGHT, and states it in px rather than
+ *    as a multiplier.
+ *
+ *    React Native sets none, so each line of text is whatever leading the font
+ *    happens to carry; a browser with no `line-height` does the same thing but
+ *    arrives at a different box for the same face at the same size. One or two
+ *    pixels a row, compounding down a screen — which is what the visual gate
+ *    was left reporting once the faces and the metrics matched. The numbers
+ *    here were MEASURED off the prototype with `getComputedStyle`, not derived:
+ *    the page runs at 1.55 with two deliberate exceptions the measurement
+ *    caught — `.seg > b` pins 22px flat, and `.kgval` (with the `small` inside
+ *    it) runs at 1.05 so a 44px figure does not push its own row open.
+ *
+ * 4. The mono styles carry an explicit `fontWeight`; the Inter ones never do.
+ *
+ *    `ui.tsx` is emphatic that a weight must not be set alongside one of the
+ *    Inter families, because each weight there IS its own static face and
+ *    asking for a second one on top invites Android to fake-bold an already
+ *    bold face. That rule is about Inter. The mono face is the platform's
+ *    own, has real weights, and the prototype leans on them — its figures are
+ *    750 and its strip labels 500, which is why the app's regular-weight
+ *    numbers read thin beside it. Weight is the correct lever there and the
+ *    wrong one next door.
+ *
+ * 5. Vertical rhythm is BOTTOM margins only, never symmetric ones.
+ *
+ *    CSS collapses adjacent vertical margins: two stacked `.receipt` rows with
+ *    `margin: 6px 0` sit 6px apart, not 12. React Native does not collapse
+ *    anything, so the direct port paid twice at every join and the page grew
+ *    by about 18px per round — visible as a diff that widened the further down
+ *    the screen it went, which is exactly what the visual gate showed.
+ *
+ *    Rather than reproduce collapsing, this states the COLLAPSED result:
+ *    every stacked element carries only a `marginBottom`, equal to what the
+ *    browser actually resolves that join to. The two joins where the
+ *    prototype's own margins differ — a row followed by a round label
+ *    (`max(6, 14)`) and a subtitle followed by one (`max(14, 14)`) — put the
+ *    difference on the round label's `marginTop`, so 6 + 8 lands on 14 either
+ *    way. `blockSub` exists for the second of those; `blockNote` is the same
+ *    line on a prep block, where no round label follows and the full 14 stays
+ *    where the prototype put it.
  */
 
 /**
@@ -58,14 +100,14 @@ function build(color: Palette) {
   return StyleSheet.create({
     /* ---- shell ---------------------------------------------------- */
     screen: { flex: 1, backgroundColor: color.bg },
-    appbar: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
-    appbarTitle: { fontFamily: font.semi, fontSize: 17, color: color.text, letterSpacing: -0.17 },
+    appbar: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
+    appbarTitle: { fontFamily: font.semi, fontSize: 17, color: color.text, letterSpacing: -0.17, lineHeight: 26.35 },
     /* `.blockscreen`: 16px top, 14px sides. Its 120px foot is the prototype's
        room for a floating control this app does not have. */
     scroll: { paddingHorizontal: 14, paddingTop: 0, paddingBottom: 40 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-    emptyTitle: { fontFamily: font.semi, fontSize: 21, color: color.text, textAlign: 'center' },
-    emptyBody: { fontFamily: font.reg, fontSize: 14, color: color.muted, marginTop: 6, textAlign: 'center' },
+    emptyTitle: { fontFamily: font.semi, fontSize: 21, color: color.text, textAlign: 'center', lineHeight: 32.55 },
+    emptyBody: { fontFamily: font.reg, fontSize: 14, color: color.muted, marginTop: 6, textAlign: 'center', lineHeight: 21.7 },
 
     /* ---- block strip (.strip / .seg) -------------------------------- */
     strip: { flexDirection: 'row', gap: 5, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: color.line },
@@ -73,27 +115,30 @@ function build(color: Palette) {
     segCurrent: { borderColor: color.doneLine },
     segIdle: { borderColor: color.line2 },
     segFill: { position: 'absolute', top: 0, bottom: 0, left: 0, borderRightWidth: 1, borderRightColor: color.goldLine, backgroundColor: color.goldWash },
-    segLabel: { fontFamily: mono, fontSize: 9, letterSpacing: 0.54, paddingHorizontal: 5, textAlign: 'center', textTransform: 'uppercase' },
+    segLabel: { fontFamily: mono, fontSize: 9, letterSpacing: 0.54, paddingHorizontal: 5, textAlign: 'center', textTransform: 'uppercase', lineHeight: 22, fontWeight: '500' },
     segLabelCurrent: { color: color.gold2 },
     segLabelIdle: { color: color.dim },
 
     /* ---- block screen (.btitle / .bsub / .roundlbl) ------------------ */
     block: { paddingTop: 16, paddingBottom: 24 },
-    blockTitle: { fontFamily: font.semi, fontSize: 21, color: color.text, letterSpacing: -0.315, marginVertical: 2, marginHorizontal: 2 },
-    blockNote: { fontFamily: mono, fontSize: 11, color: color.dim, marginHorizontal: 2, marginBottom: 14 },
-    roundLabel: { fontFamily: mono, fontSize: 10, letterSpacing: 1.2, color: color.dim, marginTop: 14, marginBottom: 6, marginHorizontal: 4, textTransform: 'uppercase' },
+    blockTitle: { fontFamily: font.semi, fontSize: 21, color: color.text, letterSpacing: -0.315, marginTop: 2, marginBottom: 2, marginHorizontal: 2, lineHeight: 32.55 },
+    blockNote: { fontFamily: mono, fontSize: 11, color: color.dim, marginHorizontal: 2, marginBottom: 14, lineHeight: 17.05 },
+    /* Same `.bsub`, but on a working block a round label follows it and
+       carries 8 of the 14 itself — see the rhythm note in the header. */
+    blockSub: { fontFamily: mono, fontSize: 11, color: color.dim, marginHorizontal: 2, marginBottom: 6, lineHeight: 17.05 },
+    roundLabel: { fontFamily: mono, fontSize: 10, letterSpacing: 1.2, color: color.dim, marginTop: 8, marginBottom: 6, marginHorizontal: 4, textTransform: 'uppercase', lineHeight: 15.5 },
     roundHint: { color: color.gold2 },
 
     /* ---- receipts and upcoming rows (.receipt / .future) ------------- */
-    receipt: { flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, borderWidth: 1, borderColor: color.line, backgroundColor: color.well, paddingHorizontal: 12, paddingVertical: 9, marginVertical: 6 },
+    receipt: { flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, borderWidth: 1, borderColor: color.line, backgroundColor: color.well, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 6 },
     receiptTick: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: color.doneLine, backgroundColor: color.doneBg, alignItems: 'center', justifyContent: 'center' },
-    receiptLabel: { flex: 1, fontFamily: font.med, fontSize: 13, color: color.muted },
-    receiptValue: { fontFamily: mono, fontSize: 12, color: color.doneInk },
+    receiptLabel: { flex: 1, fontFamily: font.med, fontSize: 13, color: color.muted, lineHeight: 20.15 },
+    receiptValue: { fontFamily: mono, fontSize: 12, color: color.doneInk, lineHeight: 18.6 },
 
-    upcoming: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, borderRadius: 11, borderWidth: 1, borderStyle: 'dashed', borderColor: color.line, paddingHorizontal: 12, paddingVertical: 9, marginVertical: 6 },
+    upcoming: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, borderRadius: 11, borderWidth: 1, borderStyle: 'dashed', borderColor: color.line, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 6 },
     upcomingGripped: { paddingLeft: 34 },
-    upcomingLabel: { fontFamily: font.med, fontSize: 13, color: color.dim },
-    upcomingValue: { fontFamily: mono, fontSize: 11, color: color.dim },
+    upcomingLabel: { fontFamily: font.med, fontSize: 13, color: color.dim, lineHeight: 20.15 },
+    upcomingValue: { fontFamily: mono, fontSize: 11, color: color.dim, lineHeight: 17.05 },
     grip: { position: 'absolute', left: 4, top: 0, bottom: 0, width: 28, alignItems: 'center', justifyContent: 'center' },
     gripGlyph: { width: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
     gripDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: color.dim },
@@ -114,35 +159,35 @@ function build(color: Palette) {
     clockBtnInk: { fontFamily: font.semi, fontSize: 14, color: color.gold2 },
 
     /* ---- hot card (.hot) -------------------------------------------- */
-    card: { borderRadius: 16, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.panel, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 12, marginVertical: 6 },
-    hotName: { fontFamily: font.semi, fontSize: 17, color: color.text, letterSpacing: -0.17 },
-    hotPresc: { fontFamily: mono, fontSize: 11, color: color.dim, marginTop: 1 },
+    card: { borderRadius: 16, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.panel, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 12, marginTop: 6, marginBottom: 0 },
+    hotName: { fontFamily: font.semi, fontSize: 17, color: color.text, letterSpacing: -0.17, lineHeight: 26.35 },
+    hotPresc: { fontFamily: mono, fontSize: 11, color: color.dim, marginTop: 1, lineHeight: 17.05 },
     /* minHeight matches `.hwhy`: the card must not jump when a short coaching
        line is replaced by a long one. */
-    hotWhy: { fontFamily: mono, fontSize: 10.5, color: color.gold, marginTop: 6, minHeight: 14 },
+    hotWhy: { fontFamily: mono, fontSize: 10.5, color: color.gold, marginTop: 6, minHeight: 14, lineHeight: 16.275 },
 
     hotRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 10 },
-    fieldLabel: { fontFamily: mono, fontSize: 9, letterSpacing: 1.17, color: color.dim, textTransform: 'uppercase' },
+    fieldLabel: { fontFamily: mono, fontSize: 9, letterSpacing: 1.17, color: color.dim, textTransform: 'uppercase', lineHeight: 13.95 },
     kgWrap: { flex: 1, minWidth: 0 },
     kgLine: { flexDirection: 'row', alignItems: 'baseline' },
-    kgValue: { fontFamily: mono, fontSize: 44, color: color.text, letterSpacing: -0.88 },
-    kgUnit: { fontFamily: font.reg, fontSize: 16, color: color.dim, marginLeft: 2 },
+    kgValue: { fontFamily: mono, fontSize: 44, color: color.text, letterSpacing: -0.88, lineHeight: 46.2, fontWeight: '700' },
+    kgUnit: { fontFamily: font.reg, fontSize: 16, color: color.dim, marginLeft: 2, lineHeight: 16.8 },
     kgInput: { width: 130, borderRadius: 8, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.panel2, paddingHorizontal: 8, paddingVertical: 0, fontFamily: mono, fontSize: 40, color: color.text },
-    plates: { fontFamily: mono, fontSize: 10.5, color: color.muted, marginTop: 4 },
+    plates: { fontFamily: mono, fontSize: 10.5, color: color.muted, marginTop: 4, lineHeight: 16.275 },
 
     repsCol: { alignItems: 'center', gap: 2 },
     repsColWide: { flex: 1 },
     repsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     stepper: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, borderColor: color.line2, backgroundColor: color.panel2, alignItems: 'center', justifyContent: 'center' },
     stepperInk: { fontFamily: font.reg, fontSize: 20, color: color.text },
-    repsValue: { minWidth: 62, textAlign: 'center', fontFamily: mono, fontSize: 24, color: color.text },
+    repsValue: { minWidth: 62, textAlign: 'center', fontFamily: mono, fontSize: 24, color: color.text, lineHeight: 37.2, fontWeight: '700' },
 
-    chipsLabel: { fontFamily: mono, fontSize: 9, letterSpacing: 1.17, color: color.dim, marginTop: 12, marginBottom: 6, textTransform: 'uppercase' },
+    chipsLabel: { fontFamily: mono, fontSize: 9, letterSpacing: 1.17, color: color.dim, marginTop: 12, marginBottom: 6, textTransform: 'uppercase', lineHeight: 13.95 },
     chips: { flexDirection: 'row', gap: 6 },
     chip: { flex: 1, height: 44, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
     chipOn: { borderColor: color.doneLine, backgroundColor: color.doneBg },
     chipOff: { borderColor: color.line2, backgroundColor: color.panel2 },
-    chipInkOn: { fontFamily: mono, fontSize: 13, color: color.doneInk },
+    chipInkOn: { fontFamily: mono, fontSize: 13, color: color.doneInk, fontWeight: '700' },
     chipInkOff: { fontFamily: mono, fontSize: 13, color: color.muted },
 
     /* `.logbtn` — the one control set in the UI face rather than the mono one. */
@@ -154,7 +199,7 @@ function build(color: Palette) {
 
     /* ---- piece card (.warmclock) ------------------------------------ */
     clockRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 10 },
-    clock: { fontFamily: mono, fontSize: 40, color: color.gold2, letterSpacing: -0.8 },
+    clock: { fontFamily: mono, fontSize: 40, color: color.gold2, letterSpacing: -0.8, lineHeight: 62, fontWeight: '700' },
 
     /* ---- rest takeover (.restover) ---------------------------------- */
     /*
@@ -169,15 +214,15 @@ function build(color: Palette) {
      * does not have.
      */
     takeover: { ...StyleSheet.absoluteFillObject, zIndex: 30, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: color.bg, padding: 24 },
-    takeoverKind: { fontFamily: mono, fontSize: 10, letterSpacing: 1.6, color: color.dim, textTransform: 'uppercase' },
+    takeoverKind: { fontFamily: mono, fontSize: 10, letterSpacing: 1.6, color: color.dim, textTransform: 'uppercase', lineHeight: 15.5 },
     dialWrap: { marginTop: 14, marginBottom: 18 },
-    dialInk: { fontFamily: mono, fontSize: 52, color: color.gold2, letterSpacing: -1.04 },
+    dialInk: { fontFamily: mono, fontSize: 52, color: color.gold2, letterSpacing: -1.04, lineHeight: 80.6, fontWeight: '700' },
     dialSpacer: { height: 18 },
     nextCard: { minWidth: 260, borderRadius: 15, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.panel, paddingHorizontal: 18, paddingVertical: 13, alignItems: 'center' },
-    nextKind: { fontFamily: mono, fontSize: 9, letterSpacing: 1.26, color: color.dim, textTransform: 'uppercase' },
-    nextName: { fontFamily: font.semi, fontSize: 16, color: color.text, marginTop: 2 },
-    nextBig: { fontFamily: mono, fontSize: 26, color: color.gold2, marginTop: 3 },
-    nextWhy: { fontFamily: mono, fontSize: 10, color: color.gold, marginTop: 4 },
+    nextKind: { fontFamily: mono, fontSize: 9, letterSpacing: 1.26, color: color.dim, textTransform: 'uppercase', lineHeight: 13.95 },
+    nextName: { fontFamily: font.semi, fontSize: 16, color: color.text, marginTop: 2, lineHeight: 24.8 },
+    nextBig: { fontFamily: mono, fontSize: 26, color: color.gold2, marginTop: 3, lineHeight: 40.3, fontWeight: '700' },
+    nextWhy: { fontFamily: mono, fontSize: 10, color: color.gold, marginTop: 4, lineHeight: 15.5 },
     takeoverActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
     ghost: { height: 46, borderRadius: 12, borderWidth: 1, borderColor: color.line2, backgroundColor: color.panel, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
     ghostInk: { fontFamily: font.med, fontSize: 14, color: color.text },
@@ -189,19 +234,19 @@ function build(color: Palette) {
 
     /* ---- finish card (.finish) -------------------------------------- */
     finish: { paddingTop: 28 },
-    finishTitle: { fontFamily: font.semi, fontSize: 21, color: color.text },
-    finishSub: { fontFamily: mono, fontSize: 11, color: color.dim, marginTop: 4, marginBottom: 16 },
+    finishTitle: { fontFamily: font.semi, fontSize: 21, color: color.text, lineHeight: 32.55 },
+    finishSub: { fontFamily: mono, fontSize: 11, color: color.dim, marginTop: 4, marginBottom: 16, lineHeight: 17.05 },
     stats: {},
     stat: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: color.line },
-    statLabel: { fontFamily: font.reg, fontSize: 14, color: color.text },
-    statValue: { fontFamily: mono, fontSize: 14, color: color.gold2 },
+    statLabel: { fontFamily: font.reg, fontSize: 14, color: color.text, lineHeight: 21.7 },
+    statValue: { fontFamily: mono, fontSize: 14, color: color.gold2, lineHeight: 21.7, fontWeight: '700' },
     comment: { height: 84, borderRadius: 12, borderWidth: 1, borderColor: color.line2, backgroundColor: color.panel, paddingHorizontal: 12, paddingVertical: 10, marginTop: 16, fontFamily: font.reg, fontSize: 14, color: color.text, textAlignVertical: 'top' },
 
     /* `.finish` again — the block-done banner is the same construction, so it
        takes the same metrics rather than a second set that could drift. */
     blockDone: { paddingTop: 28 },
-    blockDoneTitle: { fontFamily: font.semi, fontSize: 21, color: color.text },
-    blockDoneSub: { fontFamily: mono, fontSize: 11, color: color.dim, marginTop: 4, marginBottom: 16 },
+    blockDoneTitle: { fontFamily: font.semi, fontSize: 21, color: color.text, lineHeight: 32.55 },
+    blockDoneSub: { fontFamily: mono, fontSize: 11, color: color.dim, marginTop: 4, marginBottom: 16, lineHeight: 17.05 },
   });
 }
 

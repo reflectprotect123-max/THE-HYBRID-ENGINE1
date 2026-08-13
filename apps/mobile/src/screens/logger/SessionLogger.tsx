@@ -165,14 +165,16 @@ function RunningSession({ session: initialSession }: { session: Session }) {
       </View>
       <ScrollView contentContainerStyle={[st.scroll, { paddingBottom: insets.bottom + 40 }]}>
         <BlockStrip blocks={view.blocks} currentIndex={view.blockIndex} onSelect={goToBlock} />
-        {allDone && onLastBlock ? (
-          <FinishCard blocks={view.blocks.length} setsLogged={setsLogged} bestE1rm={view.bestE1rm} />
-        ) : null}
         {strengthBlock ? (
           <BlockScreen
             block={strengthBlock}
             blockIndex={view.blockIndex}
             title={currentTitle}
+            receipt={
+              allDone && onLastBlock ? (
+                <FinishCard blocks={view.blocks.length} setsLogged={setsLogged} bestE1rm={view.bestE1rm} />
+              ) : null
+            }
             rounds={view.rounds}
             onRotate={rotate}
             hot={view.hot}

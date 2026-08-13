@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { isLiftMode, type LoggedSet, type StrengthBlock } from '@hybrid/engine';
 import type { Action, Draft, HotSet, RoundSet, RoundView } from '@hybrid/session-authoring';
@@ -69,6 +69,7 @@ export function BlockScreen({
   block,
   blockIndex,
   title,
+  receipt,
   rounds,
   onRotate,
   hot,
@@ -81,6 +82,15 @@ export function BlockScreen({
    *  block: the prototype holds every block screen in the DOM at once, so a
    *  bare `receipt-0` would match the first receipt of every block. */
   blockIndex: number;
+  /** The session receipt, on the block that carries it.
+   *
+   *  It is a prop rather than a sibling because the prototype puts it INSIDE
+   *  the block screen — `insertAdjacentHTML('afterbegin', finishHtml())` — so
+   *  the screen's own 16px top padding applies once, above the receipt, and
+   *  the block title simply follows it. Rendered as a sibling instead, that
+   *  padding either went missing or was paid twice, and the whole finish
+   *  screen sat 16px out. */
+  receipt?: ReactNode;
   /** The block's title, from the hook's own `BlockView.title` — a superset's
    *  "Press + Raise" join stays in one place. */
   title: string;
@@ -115,13 +125,14 @@ export function BlockScreen({
 
   return (
     <View testID={`blockscreen-${blockIndex}`} style={st.block}>
+      {receipt}
       <Text style={st.blockTitle}>{title}</Text>
       {warmup ? (
         <Text style={st.blockNote}>
           {pieces.length} pieces · nothing here counts toward your weights
         </Text>
       ) : (
-        <Text style={st.blockNote}>{subtitle}</Text>
+        <Text style={st.blockSub}>{subtitle}</Text>
       )}
       {blockDone ? (
         <View style={st.blockDone}>
