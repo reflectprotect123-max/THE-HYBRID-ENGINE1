@@ -812,95 +812,184 @@ git commit -m "Adapt an engine Exercise to the fold, and export both"
 
 ---
 
-### Task 6: Migrate `lift.ts`
+### Task 6: `foldNextOpener`, then migrate `lift.ts`
 
-`liftMoves` banks each movement's next working weight after a session. It currently reads the last working set and calls `computeSetAdjustment`. It now folds the whole exercise.
+**Rewritten after the first attempt was reverted (`a501d2b`, reverted in `28ed50d`).** The defect was in this plan, not in that implementation: `foldExercise` answers "what should the NEXT SET weigh" and returns null when every planned set is logged — but `liftMoves` runs on a FINISHED session, where every set is logged by definition. Wiring it in as first written made `liftMoves` bank nothing for any completed exercise, which is progression death for `Recap.tsx` and `lib/progression.ts`. Eight pre-existing tests had to be bent to make it pass, which was the alarm.
+
+Two different questions, so two functions on the same rule: `foldExercise` prices the next set inside a session; `foldNextOpener` prices the NEXT SESSION's opener after one.
 
 **Files:**
+- Modify: `packages/engine/src/fold.ts` — add `foldNextOpener`, extracting the shared exercise-reading into one private helper so the free-text parsing still lives in exactly one place
 - Modify: `packages/engine/src/lift.ts:102`
-- Test: `packages/engine/src/lift.test.ts`
+- Test: `packages/engine/src/fold.test.ts`, `packages/engine/src/lift.test.ts`
 
 **Interfaces:**
-- Consumes: `foldFromExercise` from Task 5.
-- Produces: no signature change. `liftMoves` still returns `{ name, key, from, to, delta, verdict, reps }[]`.
+- Consumes: `walkLogs`, `roundToIncrement`, and Task 5's exercise-reading logic.
+- Produces: `foldNextOpener(ex: Exercise<LoggedSet>, increment: number): { kg: number; message: string } | null`. Null when nothing is logged, or the exercise is bodyweight (no load to bank). `liftMoves`'s return shape is unchanged: `{ name, key, from, to, delta, verdict, reps }[]`.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests for `foldNextOpener`**
 
-Append to `packages/engine/src/lift.test.ts`:
+Append to `packages/engine/src/fold.test.ts` (the `ex` helper from Task 5 is already in the file):
 
 ```ts
-it('banks the folded weight, not the last set’s own adjustment', () => {
-  // Two easy sets earn the full correction; the old per-set rule would have
-  // moved only off the second one.
-  const moves = liftMoves(sessionWith([
-    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
-    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
-    { t: '8', rpe: '8' },
-  ]));
-  expect(moves).toHaveLength(1);
-  expect(moves[0].to).toBeGreaterThan(100);
-});
+import { foldNextOpener } from './fold';
 
-it('does not bank a rise from an easy set that followed a hard one', () => {
-  const moves = liftMoves(sessionWith([
-    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '9', done: true },
-    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
-    { t: '8', rpe: '8' },
-  ]));
-  expect(moves[0].to).toBeLessThan(100);
+const doneSet = (felt: number, over: Partial<LoggedSet> = {}): LoggedSet =>
+  ({ t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: String(felt), done: true, ...over });
+
+describe('foldNextOpener', () => {
+  it('gives two easy sets the full correction', () => {
+    // adj = 1.01 * 1.01 = 1.0201 → want 102.01 → rounds to 102.5
+    const r = foldNextOpener(ex([doneSet(7), doneSet(7)]), 2.5)!;
+    expect(r.kg).toBe(102.5);
+    expect(r.message).toBe('two easy sets — full correction');
+  });
+
+  it('stays down after a hard set, whatever came later', () => {
+    // set 1 locks at 0.98; set 2 easy but ignored → want 98 → rounds to 97.5
+    const r = foldNextOpener(ex([doneSet(9), doneSet(7)]), 2.5)!;
+    expect(r.kg).toBe(97.5);
+    expect(r.message).toBe('backed off — harder than asked');
+  });
+
+  it('caps one easy set below a full plate, which rounds to a hold', () => {
+    // adj 1.01 → want 101, capped at min(101, 102.5) = 101 → rounds to 100
+    const r = foldNextOpener(ex([doneSet(7)]), 2.5)!;
+    expect(r.kg).toBe(100);
+    expect(r.message).toBe('hold — open here again');
+  });
+
+  it('holds an on-target session exactly', () => {
+    const r = foldNextOpener(ex([doneSet(8)]), 2.5)!;
+    expect(r.kg).toBe(100);
+    expect(r.message).toBe('hold — open here again');
+  });
+
+  it('treats a missed floor as harder than a 10', () => {
+    // reps 5 < 8 → effective 10.5, dev -2.5, k=2 → adj 0.95 → 95
+    const r = foldNextOpener(ex([doneSet(7, { aVal2: '5' })]), 2.5)!;
+    expect(r.kg).toBe(95);
+    expect(r.message).toBe('backed off — harder than asked');
+  });
+
+  it('returns null for bodyweight — there is no load to bank', () => {
+    expect(foldNextOpener(ex([doneSet(8, { aVal: '' })]), 2.5)).toBeNull();
+  });
+
+  it('returns null when nothing was logged', () => {
+    expect(foldNextOpener(ex([{ t: '8', rpe: '8' }]), 2.5)).toBeNull();
+  });
 });
 ```
 
-Add the `sessionWith` helper at the top of the file if it is not already there:
+Every expected value above was hand-computed: `roundToIncrement` is `Math.round(v / inc) * inc`, so 102.01 → 102.5, 98 → 97.5, 101 → 100, 95 → 95.
+
+- [ ] **Step 2: Run them to make sure they fail**
+
+Run: `pnpm --filter @hybrid/engine exec vitest run src/fold.test.ts`
+Expected: FAIL — `foldNextOpener is not a function`. Every pre-existing test still green.
+
+- [ ] **Step 3: Implement `foldNextOpener`**
+
+In `packages/engine/src/fold.ts`: first extract the body of `foldFromExercise` that derives `{ targets, logs, opener }` from an exercise into one private function `readExercise(ex: Exercise<LoggedSet>): { targets: PlanTarget[]; logs: FoldLog[]; opener: number } | null` (null when there are no working sets), and re-express `foldFromExercise` through it so the behaviour is byte-for-byte what Task 5 shipped. Then:
+
+```ts
+/**
+ * What the NEXT session should open this exercise at.
+ *
+ * The sibling of `foldExercise`, answering a different question: that one
+ * prices the next set INSIDE a session and goes null when the session is
+ * finished; this one runs exactly then. `liftMoves` banks its answer.
+ *
+ * Same walk, same lock, same one-easy-set cap — applied to the opener the
+ * athlete actually chose rather than to a planned set.
+ */
+export function foldNextOpener(
+  ex: Exercise<LoggedSet>,
+  increment: number,
+): { kg: number; message: string } | null {
+  const read = readExercise(ex);
+  if (!read || !read.logs.length) return null;
+  const opener = read.logs[0].kg;
+  if (!(opener > 0)) return null;
+
+  const s = walkLogs(read.logs);
+  const inc = increment > 0 ? increment : 1;
+  let want = opener * s.adj;
+  if (!s.locked && s.easyRun === 1) want = Math.min(want, opener + inc);
+  const kg = roundToIncrement(want, inc);
+
+  let message: string;
+  if (s.locked && kg < opener) message = 'backed off — harder than asked';
+  else if (kg > opener)
+    message = s.easyRun >= 2 ? 'two easy sets — full correction' : 'one easy set — one jump';
+  else message = 'hold — open here again';
+  return { kg, message };
+}
+```
+
+- [ ] **Step 4: Run the fold tests**
+
+Run: `pnpm --filter @hybrid/engine exec vitest run src/fold.test.ts`
+Expected: PASS — new tests green, every Task 1-5 test untouched and green.
+
+- [ ] **Step 5: Write the failing tests for `liftMoves`**
+
+Append to `packages/engine/src/lift.test.ts`, with the `sessionWith` helper if the file lacks one:
 
 ```ts
 const sessionWith = (sets: LoggedSet[]): Session => ({
   id: 's1', date: '2026-08-12', status: 'done',
   blocks: [{ id: 'b1', exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg', sets }] }],
 });
+
+it('banks the folded opener from a fully logged exercise', () => {
+  const moves = liftMoves(sessionWith([
+    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
+    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
+  ]));
+  expect(moves).toHaveLength(1);
+  expect(moves[0].to).toBe(102.5);
+});
+
+it('does not bank a rise from an easy set that followed a hard one', () => {
+  const moves = liftMoves(sessionWith([
+    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '9', done: true },
+    { t: '8', rpe: '8', aVal: '100', aVal2: '8', felt: '7', done: true },
+  ]));
+  expect(moves[0].to).toBe(97.5);
+});
 ```
 
-- [ ] **Step 2: Run it to make sure it fails**
+Note both fixtures are FULLY logged — no trailing planned set. That is the shape a finished session actually has, and it is exactly the shape the first attempt failed on.
+
+- [ ] **Step 6: Run them to make sure they fail**
 
 Run: `pnpm --filter @hybrid/engine exec vitest run src/lift.test.ts`
-Expected: FAIL — the second test fails, because the old rule moves up off the last easy set.
+Expected: the second test FAILS — the old rule prices off the last (easy) set and moves up.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 7: Migrate `liftMoves`**
 
-In `packages/engine/src/lift.ts`, replace the `computeSetAdjustment` call at line 102 and the `lastWorkingSet` lookup feeding it:
+In `packages/engine/src/lift.ts`, keep every existing guard exactly where it is — `lastWorkingSet`, the `reps > 0` gate, the finite-`felt` gate, and `seen.add(key)`'s position — and replace only the `computeSetAdjustment` call:
 
 ```ts
-      const folded = foldFromExercise(ex, AUTOREG.plateIncrement);
-      if (!folded || folded.kg <= 0) return;
-      const st = lastWorkingSet(ex);
-      if (!st) return;
-      const from = saneKg(st.aVal);
-      const reps = parseInt(String(st.aVal2), 10) || 0;
-      if (!(reps > 0)) return;
-      seen.add(key);
-      out.push({
-        name,
-        key,
-        from,
-        to: folded.kg,
-        delta: Math.round((folded.kg - from) * 100) / 100,
-        verdict: folded.message,
-        reps,
-      });
+      const next = foldNextOpener(ex, AUTOREG.plateIncrement);
+      if (!next) return;
+      out.push({ name, key, from, to: next.kg, delta: Math.round((next.kg - from) * 100) / 100, verdict: next.message, reps });
 ```
 
-Update the import on line 2 to drop `computeSetAdjustment` and add `foldFromExercise` from `./fold`, and import `AUTOREG` from `./constants` if it is not already imported.
+Update the import to drop `computeSetAdjustment` and add `foldNextOpener` from `./fold`; import `AUTOREG` from `./constants` if not already there.
 
-- [ ] **Step 4: Run the tests and make sure they pass**
+- [ ] **Step 8: Run everything that touches this**
 
-Run: `pnpm --filter @hybrid/engine exec vitest run src/lift.test.ts`
-Expected: PASS. If the pre-existing `liftMoves` tests fail, read each failure and decide whether the new expectation is correct — do not edit an assertion to make it green without understanding why it moved.
+Run: `pnpm --filter @hybrid/engine exec vitest run src/lift.test.ts src/fold.test.ts && pnpm run typecheck`
+Expected: PASS. The pre-existing `liftMoves` tests must pass UNCHANGED — if one fails, the migration is wrong; do not bend the assertion. The only acceptable pre-existing diffs are verdict STRINGS, since the verdict vocabulary changed with the rule; each one you touch must be listed in your report with the old and new string.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add packages/engine/src/lift.ts packages/engine/src/lift.test.ts
-git commit -m "Bank the folded weight in liftMoves, not the last set's own delta"
+git add packages/engine/src/fold.ts packages/engine/src/fold.test.ts packages/engine/src/lift.ts packages/engine/src/lift.test.ts
+git commit -m "Bank next session's opener from the fold, not the last set's delta"
 ```
 
 ---
