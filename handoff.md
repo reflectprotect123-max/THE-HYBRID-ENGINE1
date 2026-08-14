@@ -1,8 +1,128 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 14 August 2026, end of day. `main` is at
+> `50ab9a0`. THREE LAYERS WERE DELETED after the two blocks below were
+> written, so both are now history rather than current state.**
+>
+> The block immediately after this one says "`main` is at `66397ca`. Nothing
+> shipped since." That was true when written and stopped being true five
+> commits later. Both older blocks remain accurate about what they describe;
+> where any of them disagrees with this one, this one wins.
+>
+> **THE ENGINE IS BEING REBUILT FROM THE GROUND UP, AND THAT IS NOW VISIBLE IN
+> THE PACKAGE LIST.** Fourteen packages remain (`git ls-tree HEAD packages/`;
+> a working copy may show three more as leftover untracked directories holding
+> nothing but `node_modules`). Three are gone:
+>
+> | Deleted | What it did | Commit |
+> |---|---|---|
+> | `@hybrid/coordinator` + `-adapter` | Arbitrated the week for an athlete with no coach | `1d908d8` |
+> | the old authoring chain | `/coach/author`, `GuidedBuilder`, `Planner`, `RosterPlanner` | `5415dbe` |
+> | `@hybrid/auto-coach` | Adapted ONE session, and stopped one for pain or illness | `b8f344e` |
+>
+> **NOTHING ARBITRATES A WEEK, AND NOTHING STOPS A SESSION.** Both are
+> deliberate. The first has been recorded since `1d908d8`: an athlete with no
+> coach has no planned week, and their phone says so.
+>
+> The second is the one to read before touching anything safety-shaped.
+> `resolveSession` did two jobs in one package — it ADAPTED a session (RPE caps,
+> swaps, trims, proposals, receipts, shadow mode, the ledger) and it STOPPED one
+> when whole-athlete-state raised a hard constraint. The owner was told, before
+> any code was touched, that deleting the package deletes the stop; was offered
+> the alternative of keeping the ~10-line check and moving it into
+> `@hybrid/whole-athlete-state`, which already produces the flags; and chose to
+> delete all of it. CLAUDE.md quotes the rule that was overridden rather than
+> erasing it, because a decision only reads as a decision if the argument
+> against it survives.
+>
+> **Be precise about what is left, because "nothing consumes the flags" is
+> wrong and the truth is better.** `pain_hold_active` and `illness_flag_active`
+> are still raised by `@hybrid/whole-athlete-state`, and the coach's Readiness
+> pillar still RENDERS them: `pillars/Readiness.tsx` filters
+> `athleteState.constraints` for hard ones and shows each as its own alert,
+> deliberately outside the readiness score so a safety stop is not laundered
+> into a number. So a coach can still SEE that an athlete has flagged pain.
+>
+> What is gone is anything that ACTS on the flag. No session is held, the
+> athlete is told nothing, and no receipt reaches the coach — so on the bench a
+> missed session reads as a missed session whether the cause was injury or
+> indifference. `coach-week.ts` still maps a `pain_hold_active` reason code to
+> a `held-pain` day state (`PAIN_CODE` / `ILLNESS_CODE`, ~line 340), and that
+> path is now unreachable rather than deleted: nothing produces the receipts it
+> reads, because `arc-held-receipt.ts` went with the package. Left in place on
+> purpose — it is the half that would be needed again first.
+>
+> **THE OUTSTANDING ACTION IS NOW TWO MIGRATIONS, NOT ONE.** Both are the
+> owner's to apply, both are safe in either order, and the first still blocks
+> everything else:
+>
+> - `20260814_arc_self_coaching.sql` — lets a person onto their own roster.
+>   Until this is applied, the owner cannot publish a week to themselves.
+> - `20260814_arc_coach_week_two_repairs.sql` — stops a device write silently
+>   replacing a coach's week, and makes the athlete's "published by" name follow
+>   whoever published last rather than whoever published first.
+>
+> Then the real loop, still unrun: mint an invite → redeem it as yourself →
+> build a week → Publish → force-close and reopen the phone.
+>
+> **WHAT WAS REPAIRED ALONG THE WAY, and each one is a lesson rather than a
+> line of code:**
+>
+> - **Two functions were retyped from memory instead of copied**, in one day,
+>   in two different migrations. The first dropped `revoked_at = null` from a
+>   membership upsert, which a check constraint then rejected — so a
+>   previously-revoked athlete could never rejoin, and no existing check could
+>   catch it because every redeem test used an athlete who had never been
+>   revoked. The second was caught before it landed and was worse: wrong return
+>   type, wrong parameter order, invented syntax. **If you change a Postgres
+>   function body, COPY it and diff it.** Both files say so in their headers.
+> - **`coach-contract` crashed instead of failing.** A deleted scan directory
+>   made `readdirSync` throw ENOENT, killing the process before its
+>   `process.exit(failures ? 1 : 0)` — so it reported nothing rather than
+>   reporting a problem. Third time this repository has hit that shape. A
+>   listed-and-missing directory is now a named failure, and it immediately
+>   caught a second dead path.
+> - **`checks/css-state-classes.mjs` is new**, and exists because a coach on a
+>   phone could add a block to a session and then never put an exercise in it.
+>   `ExercisePicker` rendered `.cb-picker`, the phone stylesheet hid it until
+>   `.picker-open`, and no code ever wrote that class. Ten gates passed it:
+>   jsdom applies no stylesheet, the 420px shot fails on OVERFLOW and a hidden
+>   element has no width, and desktop review never enters the media query. Read
+>   that check's header before writing another gate — **its own first version
+>   was decorative**, passing with the bug reintroduced because the comment
+>   explaining the bug satisfied its token scan.
+> - **`strength-engine` and `conditioning-engine` had no test files** after the
+>   Coordinator's deletion, and `vitest run` exits 1 on "No test files found",
+>   so `pnpm run test` died there and never reached the rest. CI was red on
+>   `1d908d8` for exactly this. Fixed with real tests, not `--passWithNoTests`.
+>
+> **STILL OPEN, and it is a product decision rather than a repair:** nothing can
+> end a coaching relationship. No RPC sets `coach_athlete_assignments.status =
+> 'revoked'`, so the "athlete leaves a roster" scenario that several comments
+> and `chooseWeeklyPlan`'s one-week scoping are built around cannot currently
+> happen. If it could, an ex-coach's published week would keep governing the
+> athlete's phone until the calendar rolled to the next Monday.
+>
+> **State of the gates at `50ab9a0`:** typecheck clean; `apps/web` 645 passing /
+> 2 skipped; `apps/mobile` 394 across 40 suites; ten checks green —
+> `css-state-classes`, `ecosystem-contract`, `coach-contract`, `lane-contract`,
+> `reachability`, `migrations-apply`, `pentest`, `docs`, `screens`,
+> `web-touch`. CI green on the tip.
+>
+> `migrations-apply` prints **172 PASS lines: 17 are "applies <file>.sql" and
+> 155 are behaviour checks** against a real Postgres. Counted rather than
+> remembered — earlier commit messages in this range say "168" and "171", which
+> conflated the two kinds of line. If you quote a number here, run
+> `node checks/migrations-apply.mjs | grep -c PASS` first.
+> `main` and `claude/handoff-md-review-z00wqf` are the same commit; that branch
+> is canonical, by the owner's decision, and `claude/the-coach-brain` is behind
+> and should not be built on.
+>
+> ---
+>
 > **AUTHORITATIVE CHECKPOINT — 14 August 2026, later the same day. `main` is at
 > `66397ca`. Nothing shipped since the block below; this is a VERIFICATION pass
-> over it.**
+> over it.** *(superseded — five commits shipped after it; see above)*
 >
 > Read this first, then the block below it, which remains the record of what was
 > built. This one does not replace it — it says which of its claims were re-read
