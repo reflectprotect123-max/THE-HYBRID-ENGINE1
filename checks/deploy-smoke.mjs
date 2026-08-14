@@ -139,13 +139,25 @@ await t('the CSP survived the move into the publish directory', async () => {
   assert(!/script-src[^;]*unsafe-inline/.test(csp), 'script-src gained unsafe-inline');
 });
 
-await t('the athlete app is served at /', async () => {
+/*
+ * These two were named for the athlete app until 14 August 2026, and both
+ * still PASSED after it was parked — they assert that the shell loads, and the
+ * coach shell loads. That is the worse failure mode: a check that is green
+ * while proving something other than what its name claims. Renamed to the
+ * thing they actually verify, and the deep-link one kept because the property
+ * it tests is still real and still load-bearing.
+ */
+await t('the app is served at /', async () => {
   const html = await (await fetch(base + '/')).text();
   assert(/id="root"/.test(html), 'no React root');
   assert(/THE Hybrid System/.test(html), 'wrong document');
 });
 
-await t('an athlete deep link falls back to the athlete shell', async () => {
+await t('a parked athlete deep link still serves the shell, so the client can redirect', async () => {
+  /* `/log/0/0` was an athlete route and its screen is deleted. The SERVER must
+     still answer 200 with the shell: the redirect to /coach is client-side, so
+     a 404 here would strand anyone holding an old link or bookmark on a blank
+     page instead of sending them to the bench. */
   const r = await fetch(base + '/log/0/0');
   assert(r.status === 200, 'status ' + r.status);
   assert(/id="root"/.test(await r.text()), 'no React root on a deep link');
@@ -239,9 +251,16 @@ page.on('console', (m) => {
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 
-await t('the athlete app boots under the real CSP', async () => {
+await t('a parked athlete address boots and redirects, under the real CSP', async () => {
+  /* THE CHECK THAT WAS ACTUALLY BROKEN, rather than merely misnamed. It waited
+     for an `h1`, which the athlete home had and the coach sign-in does not, so
+     it timed out for a day and took the whole CI job with it.
+     `/home` is kept deliberately: a parked address reaching the bench is the
+     redirect working, and doing it under the deployed CSP is the only place
+     that gets proven. The wait is the sign-in submit — the same selector
+     react-smoke settled on for the same reason. */
   await page.goto(base + '/home', { waitUntil: 'networkidle' });
-  await page.waitForSelector('h1', { timeout: 8000 });
+  await page.waitForSelector('button:has-text("Sign in")', { timeout: 8000 });
   assert(violations.length === 0, 'CSP violations: ' + violations.join(' | '));
   assert(errors.length === 0, 'page errors: ' + errors.join(' | '));
 });
