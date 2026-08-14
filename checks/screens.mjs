@@ -53,12 +53,12 @@
  * Run: node checks/screens.mjs [outDir]     (after `pnpm run build`)
  */
 import { createServer } from 'node:http';
-import { execFileSync } from 'node:child_process';
 import { readFile, mkdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { launchChromium } from './_chromium.mjs';
 import { buildSeed } from './_seed.mjs';
+import { buildCoachBundle, signInCoach, COACH_DIR } from './_coach-bundle.mjs';
 
 const root = resolve(process.cwd(), '.');
 const OUT = resolve(root, process.argv[2] || '.screens');
@@ -370,14 +370,13 @@ server.close();
 /*
  * ---- the coach bench ----
  *
- * `CoachAccess` fails closed in a production build (`checks/react-smoke.mjs`
- * explains why, in full, above its own copy of this recipe): with no
- * `VITE_COACH_USER_IDS` and `import.meta.env.DEV` false, `coachAllowed`
- * denies everyone. So the athlete `dist` built above cannot show `/coach` at
- * all — this builds a SECOND bundle, `apps/web/dist-coach`, whose allowlist
- * names one throwaway id, and hands the browser a matching stored Supabase
- * session before the first navigation. `dist-coach` is gitignored, never
- * deployed, and the id is a made-up UUID no real Supabase account can hold.
+ * `CoachAccess` fails closed in a production build, so the athlete `dist`
+ * built above cannot show `/coach` at all: a SECOND bundle is needed, with an
+ * allowlist and a stored Supabase session. That recipe now lives in
+ * `checks/_coach-bundle.mjs` — it was written here, copied from
+ * `checks/react-smoke.mjs`, and was about to be copied a third time into
+ * `checks/web-touch.mjs`; the module's own header records why it was extracted
+ * rather than copied again.
  *
  * The pillar routes are gated `ClientDetailGate` WITHOUT `layer3Ready`
  * (`ClientDetailGate.tsx`), so they only ever read the SIGNED-IN account's
@@ -386,16 +385,10 @@ server.close();
  * own origin, so the pillars have real numbers to draw rather than empty
  * states.
  */
-const COACH_UID = '00000000-0000-4000-8000-000000000002';
-const COACH_DIR = 'apps/web/dist-coach';
 const COACH_PORT = 4520;
 
 console.log('\nBuilding a coach-enabled bundle for the coach shots (VITE_COACH_USER_IDS set)…');
-execFileSync(
-  'pnpm',
-  ['--filter', '@hybrid/web', 'exec', 'vite', 'build', '--outDir', 'dist-coach', '--emptyOutDir'],
-  { cwd: root, env: { ...process.env, VITE_COACH_USER_IDS: COACH_UID }, stdio: 'inherit' },
-);
+buildCoachBundle(root);
 
 const coachServer = await serve(COACH_PORT, COACH_DIR);
 const coachBase = 'http://127.0.0.1:' + COACH_PORT;
@@ -437,70 +430,12 @@ async function coachPass(width, height, suffix) {
     if (m.type() === 'error') problems.push('coach console: ' + m.text());
   });
 
-  /*
-   * The bench must render from local state alone — every Supabase request is
-   * intercepted, exactly as `checks/react-smoke.mjs` does for the same reason.
-   * Unlike that check's `/coach/legacy` (which never calls
-   * `CoachWorkspaceRepository.listClients()`), the Command Center at `/coach`
-   * — and so every pillar reached through it — does, on mount
-   * (`CoachWorkspaceContext.tsx`). A blanket `{}` for every request breaks it:
-   * `listClients()` awaits `auth.getUser()` then queries
-   * `coach_athlete_assignments` expecting a JSON ARRAY back, and a plain `{}`
-   * makes `rows.map` throw, which rejects the whole call and leaves
-   * `selectedClient` null forever — `CoachCommandCenter` then never leaves its
-   * "Loading coach workspace…" state. Two shapes fixes it: the auth check gets
-   * a user object, and every REST query gets `[]`, which is a true answer
-   * anyway — this throwaway id really does have zero roster assignments — and
-   * resolves to just `ENGINE_LOCAL`, the signed-in coach's own entry
-   * (`cloud/coach-repository.ts`), exactly like a fresh account with no roster
-   * yet would.
-   */
-  await coachPage.route('**/*.supabase.co/**', (r) => {
-    const url = r.request().url();
-    if (url.includes('/auth/v1/user')) {
-      return r.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          id: COACH_UID, aud: 'authenticated', role: 'authenticated', email: 'coach@example.com',
-          app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
-        }),
-      });
-    }
-    if (url.includes('/rest/v1/')) {
-      return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
-    }
-    return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-  });
+  /* Supabase interception + the stored session + the seeded local stores, all
+     in one call — see `checks/_coach-bundle.mjs` for why each shape is what it
+     is, and what a blanket `{}` would break. */
+  await signInCoach(coachPage, seed);
 
-  await coachPage.addInitScript(
-    (s) => {
-      const expires = Math.floor(Date.now() / 1000) + 86400;
-      localStorage.setItem(
-        'sb-orysjncrksmdfabpuftd-auth-token',
-        JSON.stringify({
-          access_token: 'fake.' + btoa(JSON.stringify({ sub: s.uid, exp: expires })) + '.sig',
-          token_type: 'bearer',
-          expires_in: 86400,
-          expires_at: expires,
-          refresh_token: 'fake-refresh',
-          user: {
-            id: s.uid, aud: 'authenticated', role: 'authenticated', email: 'coach@example.com',
-            app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString(),
-          },
-        }),
-      );
-      if (!localStorage.getItem('hybrid-engine-v1')) {
-        localStorage.setItem('hybrid-engine-v1', JSON.stringify(s.db));
-      }
-      if (!localStorage.getItem('hybrid-nutrition-v1')) {
-        localStorage.setItem('hybrid-nutrition-v1', JSON.stringify(s.nutrition));
-      }
-    },
-    { uid: COACH_UID, db: seed.db, nutrition: seed.nutrition },
-  );
 
-  
   for (const [label, path, patterns] of COACH_SHOTS) {
     try {
       await coachPage.goto(coachBase + path, { waitUntil: 'networkidle' });
