@@ -206,7 +206,7 @@ This section exists because the sentence it replaces was not a convention. It
 was a `check` constraint, and the database physically refused anything else:
 
 ```sql
--- 20260804_fitness_ecosystem_contracts.sql, until 14 August 2026
+-- 20260804_fitness_ecosystem_contracts.sql, until 13 August 2026
 constraint athlete_plan_writer check (writer = 'coordinator'),
 ```
 

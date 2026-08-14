@@ -65,13 +65,22 @@ export default defineConfig({
         theme_color: '#070706',
         background_color: '#070706',
         display: 'standalone',
-        /* `/home`, not `/`, so launching the installed app does not spend its
-           first paint on a redirect. `scope` is set EXPLICITLY and stays `/`:
-           it would otherwise be derived from start_url, and a `/home` scope
-           would push /training, /log and /progress out of the installed app
-           and into a browser tab. The coach's own manifest
-           (apps/web/public/coach.webmanifest) nests inside this one at
-           /coach — see src/manifestLink.tsx. */
+        /* THIS MANIFEST IS NO LONGER OFFERED TO ANYONE, and the reasoning
+           below is kept as the design to restore rather than as a live
+           description.
+
+           It read: "`/home`, not `/`, so launching the installed app does not
+           spend its first paint on a redirect… a `/home` scope would push
+           /training, /log and /progress out of the installed app and into a
+           browser tab." Every route it names was removed when the athlete web
+           app was parked on 13 August 2026, and `/home` IS a redirect now —
+           the exact thing the choice of start_url existed to avoid.
+
+           `src/manifestLink.tsx` therefore offers the coach manifest on every
+           path, so nothing installs from this one. It is still emitted because
+           parked means restorable and the service worker's precache scope
+           depends on it. Restoring the athlete app means restoring the routes,
+           the manifest swap, and the nested `/` + `/coach` scopes together. */
         id: '/',
         start_url: '/home',
         scope: '/',

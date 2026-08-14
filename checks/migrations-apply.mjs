@@ -1680,6 +1680,73 @@ try {
     if (!wasRefused(out)) throw new Error('a week starting mid-week was accepted, so two weeks can claim the same days');
   });
 
+  check('WEEK: a DEVICE write cannot take a week the coach published', () => {
+    /* `publish_athlete_weekly_plan` upserts `writer = 'coordinator'` and, until
+       14 August 2026, carried no writer predicate — so any call at a higher
+       revision replaced a coach's week, stamped it 'coordinator', and returned
+       TRUE. The coach was never told; their week just stopped being the
+       athlete's week.
+
+       Latent only by accident: no client has ever called that function. The
+       Coordinator's deletion makes a future call more likely to be a mistake
+       than a design, which is why the predicate is worth having rather than
+       relying on nobody wiring it up. */
+    const before = planRow(ATHLETE_A, 'revision');
+    const out = lastLine(asAthlete(ATHLETE_A,
+      `select public.publish_athlete_weekly_plan('${MONDAY}', 1, 9999, now(), '{"label":"device"}'::jsonb);`));
+    if (out !== 'f') throw new Error(`the device write reported '${out}' — it must refuse a coach week, and say so`);
+    if (planRow(ATHLETE_A, 'writer') !== 'coach') throw new Error('a device write took the coach week');
+    if (planRow(ATHLETE_A, 'revision') !== before) throw new Error('the coach week was modified by a refused write');
+  });
+
+  check('WEEK: the same device write still wins when NO coach owns the week', () => {
+    /* The other half, or the check above would pass against a function that
+       refuses everything. ATHLETE_B has no coach week, so the ordinary
+       coordinator path must still work exactly as 20260804 wrote it. */
+    const out = lastLine(asAthlete(ATHLETE_B,
+      `select public.publish_athlete_weekly_plan('${MONDAY}', 1, 7, now(), '{"label":"device-b"}'::jsonb);`));
+    if (out !== 't') throw new Error(`an uncontested device write was refused ('${out}')`);
+    if (planRow(ATHLETE_B, 'writer') !== 'coordinator') throw new Error('the device write did not land');
+  });
+
+  check('WEEK: a SECOND coach republishing takes the attribution with the body', () => {
+    /* `coach_week_plans` is unique on (org, athlete, week) and `coach_user_id`
+       was written on INSERT only, so a colleague republishing replaced the
+       BODY and left the athlete told the FIRST coach wrote it.
+       `readCoachWeekAttribution` reads exactly this column, and a confidently
+       wrong name is worse than the null it otherwise degrades to. */
+    const first = lastLine(asOwnerSqlOut(
+      `select coach_user_id from public.coach_week_plans where athlete_user_id = '${ATHLETE_A}' and week_start = '${MONDAY}';`));
+    if (first !== COACH_1) throw new Error(`setup: expected COACH_1 to own the row, found ${first}`);
+
+    /* COACH_3 is legitimate, in the SAME organisation. Put ATHLETE_A on their
+       roster so the publish is authorised — that is the whole scenario. */
+    asOwnerSql(`insert into public.coach_athlete_assignments (organization_id, coach_user_id, athlete_user_id, status)
+                values ('${ORG_1}', '${COACH_3}', '${ATHLETE_A}', 'active')
+                on conflict (organization_id, coach_user_id, athlete_user_id) do update set status = 'active', revoked_at = null;`);
+    asAthlete(COACH_3, `select public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '${MONDAY}', ${weekBody('by-coach-3')}, 'pub:c3');`);
+
+    const now = lastLine(asOwnerSqlOut(
+      `select coach_user_id from public.coach_week_plans where athlete_user_id = '${ATHLETE_A}' and week_start = '${MONDAY}';`));
+    if (now !== COACH_3) throw new Error(`the athlete is still told ${now === COACH_1 ? 'the FIRST coach' : now} published a week the second coach wrote`);
+    /* And the version row agreed all along — this makes the two consistent
+       rather than inventing a new source of truth. */
+    const publishedBy = lastLine(asOwnerSqlOut(
+      `select v.published_by from public.coach_week_plan_versions v
+         join public.coach_week_plans p on p.id = v.week_plan_id
+        where p.athlete_user_id = '${ATHLETE_A}' and p.week_start = '${MONDAY}'
+        order by v.version desc limit 1;`));
+    if (publishedBy !== COACH_3) throw new Error('the version row does not name the publishing coach');
+
+    /* PUT THE ROSTER BACK. `SELF: it authorises nothing about anybody else`
+       further down asserts COACH_3 cannot reach ATHLETE_A, which is exactly
+       the access this check grants itself. Leaving it would make that check
+       fail for a reason that has nothing to do with what it tests — and these
+       run against one shared database, in order. */
+    asOwnerSql(`delete from public.coach_athlete_assignments
+                 where organization_id = '${ORG_1}' and coach_user_id = '${COACH_3}' and athlete_user_id = '${ATHLETE_A}';`);
+  });
+
   check('WEEK: nobody can write these tables directly, not even the coach who owns the row', () => {
     /* RLS is not enough for UPDATE and DELETE — it FILTERS, so the statement
        matches zero rows and SUCCEEDS. The migration revokes the privilege
