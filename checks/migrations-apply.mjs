@@ -1684,6 +1684,39 @@ try {
     if (stranger !== '0') throw new Error('an unrelated athlete could read a coach profile');
   });
 
+  check('HELD: an athlete can report a session the safety layer stopped', () => {
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'held:1', now(), current_date, 'arc:w1', 'held', false, '[]'::jsonb, array['pain_hold_active'])`));
+    if (!out.includes('ACCEPTED')) throw new Error(`a held receipt was refused: ${lastLine(out)}`);
+    const kind = lastLine(asOwnerSqlOut(
+      `select action from public.autocoach_receipts where client_entry_id = 'held:1';`));
+    if (kind !== 'held') throw new Error(`the receipt recorded '${kind}'`);
+  });
+
+  check('HELD: the coach can read it, and can tell WHICH flag stopped the session', () => {
+    /* The point of the whole step: "held for injury" and "ignored me" must not
+       look the same on the bench. */
+    const codes = lastLine(asAthlete(COACH_1,
+      `select array_to_string(reason_codes, ',') from public.autocoach_receipts where client_entry_id = 'held:1';`));
+    if (!codes.includes('pain_hold_active')) throw new Error(`the coach cannot see why it was held (got '${codes}')`);
+  });
+
+  check('HELD: a hold carries no session content — only the id the coach already authored', () => {
+    /* No name travels. The coach resolves `workout_id` against their own
+       published week, so block and set level content still never crosses. A
+       raw caller trying to smuggle content through `operations` is refused by
+       the same element-by-element validation every other receipt gets. */
+    const smuggle = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'held:2', now(), current_date, 'arc:w1', 'held', false, '[{"type":"rest_or_pause","targetPath":"x","reasonCode":"r","materiality":"high","extra":"Back Squat 100kg"}]'::jsonb, array['pain_hold_active'])`));
+    if (!wasRefused(smuggle)) throw new Error('a held receipt smuggled a fifth field past the operations validator');
+  });
+
+  check('HELD: an invented action is still refused — the vocabulary stayed closed', () => {
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.push_autocoach_receipt('${ORG_1}', 'held:3', now(), current_date, 'arc:w1', 'skipped', false, '[]'::jsonb, array['pain_hold_active'])`));
+    if (!wasRefused(out)) throw new Error("widening the action list opened it — 'skipped' was accepted");
+  });
+
   check('WEEK: a self-coached athlete is untouched — coordinator still writes', () => {
     const out = asAthlete(ATHLETE_B, refusalProbe(
       `perform public.publish_athlete_weekly_plan('${MONDAY}', 1, 1, now(), '{}'::jsonb)`));
