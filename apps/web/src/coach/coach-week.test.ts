@@ -16,6 +16,7 @@ import {
   publishIdempotencyKey,
   weekBodyFromDays,
   weekDates,
+  weekStartOfLocalDate,
 } from './coach-week';
 
 const MONDAY = '2026-08-10';
@@ -308,5 +309,54 @@ describe('heldSessionName', () => {
   it('falls back rather than printing an id nobody named', () => {
     expect(heldSessionName(week, 'nope')).toBe(UNNAMED_HELD_SESSION);
     expect(heldSessionName(null, 'nope')).toBe(UNNAMED_HELD_SESSION);
+  });
+});
+
+describe('weekStartOfLocalDate', () => {
+  /* The bug this exists for is invisible at UTC and behind it, so a test that
+     only runs in the container's timezone proves nothing. `TZ` is read once
+     per process by Node, so the honest way to cover it here is to drive the
+     function with the local-date components a given zone would produce — the
+     function only ever reads getFullYear/getMonth/getDate, so a Date built
+     from those components IS the input it would receive in that zone.
+
+     The old implementation formatted with `toISOString()`, which converts to
+     UTC first. In London/Berlin/Sydney that printed the SUNDAY before, which
+     `isMonday` then correctly refused — closing the only door to the week
+     builder for every coach east of Greenwich. */
+  it('returns a Monday for every day of a week', () => {
+    // Mon 17th … Sun 23rd August 2026 all belong to the week of the 17th.
+    for (let day = 17; day <= 23; day += 1) {
+      expect(weekStartOfLocalDate(new Date(2026, 7, day, 0, 30))).toBe('2026-08-17');
+    }
+    expect(weekStartOfLocalDate(new Date(2026, 7, 24))).toBe('2026-08-24');
+  });
+
+  it('never round-trips through UTC — local midnight stays on its own date', () => {
+    // The regression, stated directly: this is the exact call the Command
+    // Center makes, and the old code returned '2026-08-16' — a Sunday — for it
+    // anywhere at UTC+.
+    const wednesday = new Date(2026, 7, 19, 0, 0, 0);
+    const monday = weekStartOfLocalDate(wednesday);
+    expect(monday).toBe('2026-08-17');
+    expect(isMonday(monday)).toBe(true);
+  });
+
+  it('agrees with weekDates, which the builder uses for the same week', () => {
+    const monday = weekStartOfLocalDate(new Date(2026, 7, 19));
+    expect(weekDates(monday)[0]).toBe(monday);
+    expect(weekDates(monday)).toHaveLength(7);
+  });
+
+  it('crosses a month and a year boundary without drifting', () => {
+    expect(weekStartOfLocalDate(new Date(2026, 8, 2))).toBe('2026-08-31');  // Wed 2 Sep -> Mon 31 Aug
+    expect(weekStartOfLocalDate(new Date(2027, 0, 1))).toBe('2026-12-28');  // Fri 1 Jan -> Mon 28 Dec
+  });
+
+  it('is a Monday for a whole year of dates, whatever the day', () => {
+    for (let offset = 0; offset < 365; offset += 1) {
+      const d = new Date(2026, 0, 1 + offset);
+      expect(isMonday(weekStartOfLocalDate(d))).toBe(true);
+    }
   });
 });

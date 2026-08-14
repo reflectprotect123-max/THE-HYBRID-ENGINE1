@@ -66,6 +66,37 @@ export function weekDates(weekStart: string): string[] {
   });
 }
 
+/**
+ * The Monday on or before a LOCAL calendar date, as `YYYY-MM-DD`.
+ *
+ * This exists because three screens hand-rolled it and all three got it wrong
+ * the same way (14 August 2026). The bug is worth naming, because it looks
+ * right and is invisible to anyone developing at UTC or behind it:
+ *
+ *     const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+ *     copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
+ *     return copy.toISOString().slice(0, 10);   // <- the mistake
+ *
+ * The arithmetic is fine. The FORMATTING is not: `toISOString` converts to UTC
+ * first, so a local midnight in any UTC+ zone reads back as the previous day.
+ * `mondayOf(19 Aug 2026)` returned `2026-08-16` — a Sunday — in London, Berlin
+ * and Sydney, and `2026-08-17` in Los Angeles. `isMonday` then correctly
+ * refused it, so the ONLY link into the week builder was a dead end for every
+ * coach east of Greenwich, and `get_athlete_week_plan` matched no row.
+ *
+ * So the rule for this module: pick the day from LOCAL components, and print
+ * it from LOCAL components. Never round-trip a wall-clock date through UTC.
+ * (`weekDates` above is UTC throughout and correct — it starts from an ISO
+ * string that is already a date, not from a moment in time. Both are right;
+ * what breaks is mixing them.)
+ */
+export function weekStartOfLocalDate(date: Date): string {
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+}
+
 function longDate(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',

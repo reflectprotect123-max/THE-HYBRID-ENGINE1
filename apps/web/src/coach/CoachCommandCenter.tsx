@@ -6,6 +6,7 @@ import { useNutrition } from '../store/nutrition';
 import { buildCoachNutritionReview } from './nutrition-review';
 import { useProgressionLedger } from '../store/progression';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
+import { weekStartOfLocalDate } from './coach-week';
 import type { AthleteNutritionSummary, AthleteProgressionProposal, AthleteWeekSummary, ClientSummary } from './contracts';
 import { localWeek, rosterWeek } from './command-week';
 import { CommandWeek } from './CommandWeek';
@@ -61,11 +62,6 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function mondayOf(d: Date): string {
-  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
-  return copy.toISOString().slice(0, 10);
-}
 
 export function CoachCommandCenter() {
   const { clients: clientContracts, selectedClient: selectedContract, selectClient, loading: clientsLoading, error: clientsError, repository } = useCoachWorkspace();
@@ -75,7 +71,7 @@ export function CoachCommandCenter() {
   const progressionLedger = useProgressionLedger();
   const { nutrition } = useNutrition();
   const nutritionReview = useMemo(() => buildCoachNutritionReview(nutrition, today()), [nutrition]);
-  const weekStart = useMemo(() => mondayOf(new Date()), []);
+  const weekStart = useMemo(() => weekStartOfLocalDate(new Date()), []);
   const [rosterProposals, setRosterProposals] = useState<readonly AthleteProgressionProposal[]>([]);
   const [rosterNutritionSummary, setRosterNutritionSummary] = useState<AthleteNutritionSummary | null>(null);
   /* `undefined` = still asking, `null` = asked and this client's detail is not

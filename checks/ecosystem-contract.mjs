@@ -31,7 +31,7 @@ for (const fn of ['upsert_athlete_core', 'upsert_athlete_domain_snapshot', 'publ
 
 check(has(/primary\s+key\s*\(user_id,\s*domain\)/i), 'domain snapshots are uniquely partitioned per user');
 check(has(/primary\s+key\s*\(user_id,\s*idempotency_key\)/i), 'events are idempotent per user');
-check(has(/constraint\s+athlete_plan_writer\s+check\s*\(writer\s*=\s*'coordinator'\)/i), 'weekly plans have a Coordinator-only writer invariant');
+check(has(/constraint\s+athlete_plan_writer\s+check\s*\(writer\s*=\s*'coordinator'\)/i), 'applied 20260804 migration still carries the original narrow writer invariant');
 check(!has(/create\s+policy\s+athlete_(?:core|domain|events|plans)_(?:insert|update)/i), 'snapshot/event writes are not exposed as unrestricted direct table writes');
 check(has(/where\s+public\.athlete_(?:core|domain_snapshots|weekly_plans)\.revision\s*<\s*excluded\.revision/i), 'snapshot writes reject stale revisions');
 check(has(/on\s+conflict\s*\(user_id,\s*idempotency_key\)\s+do\s+nothing/i), 'event retries are idempotent');
@@ -72,6 +72,63 @@ for (const constraintName of ['athlete_domain_name', 'athlete_event_source']) {
 }
 check(/--\s*ROLLBACK/i.test(nutritionSql), 'nutrition migration documents its rollback statements');
 check(!/grant\s+.*\s+to\s+anon/i.test(nutritionSql), 'nutrition migration grants no ecosystem write capability to anon');
+
+/* The WRITER invariant widens the same way, and this block exists because the
+ * check above did not follow it. `athlete_plan_writer` used to be
+ * `check (writer = 'coordinator')` — a database refusal, not a convention —
+ * and 20260813 widened it to `in ('coordinator', 'coach')` so a coach can
+ * publish a week. For a day, `check:ecosystem` printed
+ *
+ *   PASS — weekly plans have a Coordinator-only writer invariant
+ *
+ * against a database where that invariant no longer existed, because it only
+ * ever read the frozen 20260804 file. That is the decorative-guard failure
+ * mode this repository keeps paying for: green while asserting the opposite of
+ * what is true.
+ *
+ * The fix is not to delete the old assertion — 20260804 must still be
+ * unedited, and that is worth proving. It is to assert the WIDENING as well,
+ * so the pair says what actually holds: the applied file is frozen, and the
+ * follow-up is what moved the wall. Both halves must match, exactly as the
+ * nutrition block above does. */
+const weekFile = resolve(root, 'supabase/migrations/20260813_arc_coach_week_publish.sql');
+const weekSql = await readFile(weekFile, 'utf8');
+const hasWeek = (pattern) => pattern.test(weekSql);
+
+check(
+  hasWeek(/drop\s+constraint\s+if\s+exists\s+athlete_plan_writer/i),
+  'coach-week migration drops athlete_plan_writer idempotently before re-adding it',
+);
+check(
+  hasWeek(/constraint\s+athlete_plan_writer\s+check\s*\(writer\s+in\s*\([^)]*'coordinator'[^)]*'coach'[^)]*\)\)/i),
+  'coach-week migration widens the writer invariant to admit a coach',
+);
+/* The widening admits a coach and NOTHING else. A third writer would be a new
+ * owner of the week, which is a product decision and not a migration detail. */
+check(
+  !/constraint\s+athlete_plan_writer\s+check\s*\(writer\s+in\s*\((?:[^)]*'(?!coordinator'|coach')[a-z_]+')/i.test(weekSql),
+  'the writer list admits only coordinator and coach',
+);
+/* `publish_coach_week` is the only thing allowed to use the new half, and it
+ * must be server-owned for the same reason every other command here is. */
+check(
+  hasWeek(/create\s+or\s+replace\s+function\s+public\.publish_coach_week[\s\S]+?security\s+definer/i),
+  'publish_coach_week is server-owned and checks authorisation inside the function',
+);
+check(
+  hasWeek(/revoke\s+all\s+on\s+function\s+public\.publish_coach_week/i),
+  'publish_coach_week is not executable by public',
+);
+/* Direct table writes are revoked on both new tables — RLS FILTERS rather than
+ * refusing, so a missing policy on UPDATE/DELETE is a silent success. */
+for (const table of ['coach_week_plans', 'coach_week_plan_versions']) {
+  check(
+    hasWeek(new RegExp(`revoke\\s+insert,\\s*update,\\s*delete\\s+on\\s+public\\.${table}`, 'i')),
+    `${table} refuses direct writes rather than filtering them to zero rows`,
+  );
+}
+check(/--\s*ROLLBACK/i.test(weekSql), 'coach-week migration documents its rollback statements');
+check(!/grant\s+.*\s+to\s+anon/i.test(weekSql), 'coach-week migration grants no capability to anon');
 
 if (failures) process.exitCode = 1;
 else console.log('\nAll ecosystem-contract static checks passed.');

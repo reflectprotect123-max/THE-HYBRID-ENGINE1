@@ -5,12 +5,8 @@ import { useDb } from '../store/db';
 import type { AthleteWeekSummary, ProgramTemplate } from './contracts';
 import { CalendarMonth, type CalendarDay } from './library/CalendarMonth';
 import { ProgramsTab } from './ProgramsTab';
+import { weekStartOfLocalDate } from './coach-week';
 
-function mondayOf(d: Date): string {
-  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
-  return copy.toISOString().slice(0, 10);
-}
 
 /**
  * The Library is the month calendar and the day builder behind it.
@@ -185,7 +181,7 @@ function CalendarTab({ clientId, repository }: { clientId: string | null; reposi
     const cursor = new Date(Date.UTC(view.year, view.month - 1, 1));
     cursor.setUTCDate(cursor.getUTCDate() - ((cursor.getUTCDay() + 6) % 7));
     while (cursor <= last) {
-      starts.push(mondayOf(cursor));
+      starts.push(weekStartOfLocalDate(cursor));
       cursor.setUTCDate(cursor.getUTCDate() + 7);
     }
     return starts;

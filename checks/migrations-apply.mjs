@@ -1543,6 +1543,39 @@ try {
     if (rosterCount(COACH_1, NEWBIE) !== '1') throw new Error('the athlete was unlinked by an invite revocation');
   });
 
+  check('INVITE: an athlete who was REVOKED can rejoin by redeeming a new code', () => {
+    /* This check exists because the bug it catches shipped once. The membership
+       upsert's `revoked_at = null` looks like tidiness and is not:
+       `organization_membership_revoked_at` asserts that the stamp and the
+       status agree, so setting `status = 'active'` while a revoked_at is still
+       stamped violates it and aborts the WHOLE redemption.
+
+       A retype of `redeem_coach_invite` in 20260814 dropped that clause, and
+       every other redeem check here passed — because they all use an athlete
+       who is either brand new or has never been revoked. A previously-revoked
+       athlete is the ONLY input that reaches the line. */
+    asOwnerSql(`update public.organization_memberships
+                   set status = 'revoked', revoked_at = now()
+                 where organization_id = '${ORG_1}' and user_id = '${NEWBIE}';`);
+    const before = lastLine(asOwnerSqlOut(
+      `select status from public.organization_memberships
+        where organization_id = '${ORG_1}' and user_id = '${NEWBIE}';`));
+    if (before !== 'revoked') throw new Error('the setup did not revoke the membership, so this proves nothing');
+
+    asAthlete(COACH_1, `select public.create_coach_invite('${ORG_1}');`);
+    const code = inviteCode(COACH_1);
+    const out = asAthlete(NEWBIE, refusalProbe(`perform public.redeem_coach_invite('${code}')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`a revoked athlete could not rejoin: ${lastLine(out)}`);
+
+    const after = lastLine(asOwnerSqlOut(
+      `select status || '|' || coalesce(revoked_at::text, '') from public.organization_memberships
+        where organization_id = '${ORG_1}' and user_id = '${NEWBIE}';`));
+    if (after !== 'active|') throw new Error(`membership came back as '${after}' — status and stamp must agree`);
+    /* And it must AUTHORISE again, not merely exist. */
+    const authorised = lastLine(asAthlete(COACH_1, `select public.coaches_athlete('${ORG_1}', '${NEWBIE}');`));
+    if (authorised !== 't') throw new Error('the athlete rejoined but the coach still cannot read them');
+  });
+
   check('NAME: the athlete sets their own, and their coach may read it', () => {
     const out = asAthlete(NEWBIE, refusalProbe(`perform public.set_athlete_display_name('Riley Roster')`));
     if (!out.includes('ACCEPTED')) throw new Error(`the athlete could not set their own name: ${lastLine(out)}`);

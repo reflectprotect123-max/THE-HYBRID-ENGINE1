@@ -66,6 +66,23 @@ comment on table public.coach_athlete_assignments is
 -- `coach_user_id = v_actor` refusal — and nothing else touched. Diff it
 -- against that file if you are checking.
 --
+-- THAT SENTENCE WAS A LIE THE FIRST TIME IT WAS WRITTEN, and the way it was
+-- false is worth recording rather than quietly correcting. The first version
+-- of this file was retyped from memory instead of copied, and the retyping
+-- dropped `revoked_at = null` from the membership upsert. The target table
+-- carries
+--
+--     check ((status = 'revoked') = (revoked_at is not null))
+--
+-- so setting `status = 'active'` while leaving a stamped `revoked_at` violates
+-- it and aborts the WHOLE redemption. An athlete who had ever been revoked
+-- could never rejoin — and no check caught it, because every redeem check
+-- uses an athlete who is either new or has never been revoked. The same
+-- retyping also weakened the code-shape gate from `^[0-9A-F]{32}$` to
+-- "length > 0" and deleted three comments explaining load-bearing lines.
+--
+-- The body below is now a genuine copy. If you change it, COPY it.
+--
 -- Every other refusal stays exactly as it was: unknown, expired, revoked and
 -- already-spent codes all still raise the SAME message, so the function is
 -- still not an oracle a guesser can use to find a live code.
@@ -75,28 +92,32 @@ returns public.coach_athlete_assignments
 language plpgsql security definer set search_path = public as $$
 declare
   v_actor uuid := auth.uid();
-  v_norm text;
+  v_code text;
   v_invite public.coach_athlete_invites;
-  v_row public.coach_athlete_assignments;
+  v_assignment public.coach_athlete_assignments;
 begin
   if v_actor is null then
     raise exception 'not authenticated' using errcode = 'insufficient_privilege';
   end if;
 
-  -- Normalising lives HERE and nowhere else, so a client that trims differently
-  -- cannot make a valid code invalid or the reverse.
-  v_norm := upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
-  if length(v_norm) = 0 then
+  -- People retype codes with spaces and dashes in them. Normalising here is
+  -- kindness, not laxity — the comparison below is still exact.
+  v_code := upper(regexp_replace(coalesce(p_code, ''), '[^0-9A-Fa-f]', '', 'g'));
+  if v_code !~ '^[0-9A-F]{32}$' then
     raise exception 'invite not found or no longer valid' using errcode = 'invalid_parameter_value';
   end if;
 
+  -- FOR UPDATE, so two simultaneous redeems of one code serialise and the
+  -- second finds `accepted_at` already stamped. Without the lock both would
+  -- read it open and both would write.
   select * into v_invite from public.coach_athlete_invites
-   where code = v_norm
-     for update;
+   where code = v_code
+   for update;
 
-  -- ONE message for every rejection — unknown, expired, revoked, spent.
-  -- Distinguishing them tells a guesser when they have found a real code.
-  if not found
+  -- ONE message for every rejection — unknown, expired, revoked, already
+  -- spent. Distinguishing them turns this function into an oracle that tells
+  -- a guesser when they have found a real code.
+  if v_invite.id is null
      or v_invite.revoked_at is not null
      or v_invite.accepted_at is not null
      or v_invite.expires_at <= now() then
@@ -106,8 +127,10 @@ begin
   /*
    * THE SELF-COACHING REFUSAL WAS HERE, and is deliberately gone:
    *
+   *   -- `coach_athlete_distinct` on the target table would raise anyway; saying so
+   *   -- plainly is better than a constraint name in the coach's face.
    *   if v_invite.coach_user_id = v_actor then
-   *     raise exception 'a coach cannot be their own athlete';
+   *     raise exception 'a coach cannot be their own athlete' using errcode = 'invalid_parameter_value';
    *   end if;
    *
    * Removed 14 August 2026 with `coach_athlete_distinct`. A person minting a
@@ -116,23 +139,37 @@ begin
    * this function still applies to them unchanged.
    */
 
+  -- Membership first: `coaches_athlete` requires an ACTIVE athlete-side
+  -- membership, so an assignment written without one would be a roster row
+  -- that authorises nothing — the coach would see the athlete in no query at
+  -- all and have no way to tell why.
+  --
+  -- The `where` on DO UPDATE is load-bearing: it reactivates a lapsed athlete
+  -- membership (they are consenting again, right now) but leaves an existing
+  -- owner/coach/support membership exactly as it is. Redeeming an invite must
+  -- not be able to demote a colleague to 'athlete'.
+  --
+  -- `revoked_at = null` is load-bearing too, and for a reason the column name
+  -- does not advertise: `organization_membership_revoked_at` asserts that the
+  -- stamp and the status agree, so clearing the status without clearing the
+  -- stamp is not untidy, it is a constraint violation that aborts the redeem.
   insert into public.organization_memberships (organization_id, user_id, role, status)
   values (v_invite.organization_id, v_actor, 'athlete', 'active')
   on conflict (organization_id, user_id) do update
-    set status = 'active'
-  where public.organization_memberships.role = 'athlete';
+    set status = 'active', revoked_at = null
+    where organization_memberships.role = 'athlete';
 
   insert into public.coach_athlete_assignments (organization_id, coach_user_id, athlete_user_id, status)
   values (v_invite.organization_id, v_invite.coach_user_id, v_actor, 'active')
   on conflict (organization_id, coach_user_id, athlete_user_id) do update
     set status = 'active', revoked_at = null
-  returning * into v_row;
+  returning * into v_assignment;
 
   update public.coach_athlete_invites
      set accepted_at = now(), accepted_by = v_actor
    where id = v_invite.id;
 
-  return v_row;
+  return v_assignment;
 end;
 $$;
 

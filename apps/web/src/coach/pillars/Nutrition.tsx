@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNutrition } from '../../store/nutrition';
 import { PillarBack } from './PillarBack';
 import { useCoachWorkspace } from '../CoachWorkspaceContext';
+import { weekStartOfLocalDate } from '../coach-week';
 import type { AthleteNutritionSummary, AthleteNutritionWindow } from '../contracts';
 import { buildCoachNutritionReview, type NutritionReviewException } from '../nutrition-review';
 import '../coach-redesign.css';
@@ -210,11 +211,6 @@ function WeightSpark({ raw, trend }: { raw: (number | null)[]; trend: (number | 
   );
 }
 
-function mondayOf(d: Date): string {
-  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
-  return copy.toISOString().slice(0, 10);
-}
 
 /**
  * A roster athlete's Nutrition pillar.
@@ -236,7 +232,7 @@ function mondayOf(d: Date): string {
  */
 function RosterNutrition({ clientId, clientName }: { clientId: string; clientName: string }) {
   const { repository } = useCoachWorkspace();
-  const weekStart = useMemo(() => mondayOf(new Date()), []);
+  const weekStart = useMemo(() => weekStartOfLocalDate(new Date()), []);
   const [summary, setSummary] = useState<AthleteNutritionSummary | null | undefined>(undefined);
   const [granted, setGranted] = useState<boolean | null>(null);
   const [window_, setWindow] = useState<AthleteNutritionWindow | null | undefined>(undefined);
