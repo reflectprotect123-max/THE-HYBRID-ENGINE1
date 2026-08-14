@@ -1573,6 +1573,107 @@ try {
     if (left !== '0') throw new Error('the athlete could publish a name but not withdraw it');
   });
 
+  /* ---------------------------------------------------------------------
+   * A COACH PUBLISHES THE WEEK.
+   *
+   * Until 13 August 2026 `athlete_weekly_plans` carried
+   * `check (writer = 'coordinator')` — the database physically refused a week
+   * written by anything but the athlete's own device. Widening that is the
+   * single largest authority change this schema has made, so the checks below
+   * are about the two ways it could go wrong quietly rather than loudly:
+   * a publish that lands where it should not, and a publish that reports
+   * success while changing nothing.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC coach week publish — the coach owns the week, and it actually lands:\n');
+
+  const MONDAY = '2026-08-17';
+  const weekBody = (label) => `'${JSON.stringify({ label, days: [] }).replace(/'/g, "''")}'::jsonb`;
+  const planRow = (athlete, field) => lastLine(asOwnerSqlOut(
+    `select ${field} from public.athlete_weekly_plans where user_id = '${athlete}' and week_start = '${MONDAY}';`));
+
+  check('WEEK: the coach publishes, and the athlete row becomes theirs', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '${MONDAY}', ${weekBody('v1')}, 'pub:1')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`a legitimate publish was refused: ${lastLine(out)}`);
+    if (planRow(ATHLETE_A, 'writer') !== 'coach') throw new Error('the week was not marked coach-written');
+  });
+
+  check('WEEK: a coach cannot publish to an athlete who is not theirs', () => {
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '${MONDAY}', ${weekBody('intruder')}, 'pub:x')`));
+    if (!wasRefused(out)) throw new Error('a coach published into an athlete they do not coach');
+    /* Within-tenant, not cross-tenant: COACH_3 is a legitimate ORG_1 coach.
+       The deny that matters is the relationship one, not the org one. */
+  });
+
+  check('WEEK: the athlete cannot publish their own coach week', () => {
+    const out = asAthlete(ATHLETE_A, refusalProbe(
+      `perform public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '${MONDAY}', ${weekBody('self')}, 'pub:self')`));
+    if (!wasRefused(out)) throw new Error('an athlete published a coach week for themselves');
+  });
+
+  check('WEEK: a replayed publish returns the original, it does not publish twice', () => {
+    asAthlete(COACH_1, `select public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '${MONDAY}', ${weekBody('replay')}, 'pub:1');`);
+    const versions = lastLine(asOwnerSqlOut(
+      `select count(*) from public.coach_week_plan_versions v join public.coach_week_plans p on p.id = v.week_plan_id where p.athlete_user_id = '${ATHLETE_A}' and p.week_start = '${MONDAY}';`));
+    if (versions !== '1') throw new Error(`a replay created a second version (${versions} exist)`);
+  });
+
+  check('WEEK: the revision STEPS PAST the coordinator, so the publish is not silently discarded', () => {
+    /* The failure this exists for: publish_athlete_weekly_plan's upsert only
+       wins `where revision < excluded.revision`. A coach publish carrying a
+       stale revision succeeds as a statement, changes nothing, and reports
+       success — the coach is told it landed and the athlete never sees it.
+       Here the athlete's device writes revision 50 AFTER a coach week exists,
+       and the next coach publish must clear it rather than tie it. */
+    asOwnerSql(`update public.athlete_weekly_plans set revision = 50, writer = 'coordinator' where user_id = '${ATHLETE_A}' and week_start = '${MONDAY}';`);
+    asAthlete(COACH_1, `select public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '${MONDAY}', ${weekBody('after-device')}, 'pub:2');`);
+    const rev = Number(planRow(ATHLETE_A, 'revision'));
+    if (!(rev > 50)) throw new Error(`the coach publish did not clear the device revision (${rev})`);
+    if (planRow(ATHLETE_A, 'writer') !== 'coach') throw new Error('the coach publish was silently discarded');
+  });
+
+  check('WEEK: the optimistic lock refuses a stale base version', () => {
+    const current = Number(lastLine(asOwnerSqlOut(
+      `select coalesce(max(v.version), 0) from public.coach_week_plan_versions v join public.coach_week_plans p on p.id = v.week_plan_id where p.athlete_user_id = '${ATHLETE_A}' and p.week_start = '${MONDAY}';`)));
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '${MONDAY}', ${weekBody('stale')}, 'pub:3', ${current - 1})`));
+    if (!wasRefused(out)) throw new Error('a stale base version overwrote a newer week');
+  });
+
+  check('WEEK: a non-Monday week is refused rather than quietly stored', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '2026-08-19', ${weekBody('wednesday')}, 'pub:4')`));
+    if (!wasRefused(out)) throw new Error('a week starting mid-week was accepted, so two weeks can claim the same days');
+  });
+
+  check('WEEK: nobody can write these tables directly, not even the coach who owns the row', () => {
+    /* RLS is not enough for UPDATE and DELETE — it FILTERS, so the statement
+       matches zero rows and SUCCEEDS. The migration revokes the privilege
+       outright; this proves the refusal is real and the row did not move. */
+    const forged = asAthlete(COACH_1, refusalProbe(
+      `update public.coach_week_plan_versions set body = '{"label":"forged"}'::jsonb`));
+    if (!wasRefused(forged)) throw new Error('a coach edited an immutable published version');
+    const del = asAthlete(COACH_1, refusalProbe(`delete from public.coach_week_plans`));
+    if (!wasRefused(del)) throw new Error('a coach deleted a week plan row directly');
+  });
+
+  check('WEEK: the athlete can READ the week that governs their training', () => {
+    const seen = lastLine(asAthlete(ATHLETE_A,
+      `select count(*) from public.coach_week_plans where athlete_user_id = '${ATHLETE_A}';`));
+    if (seen === '0') throw new Error('the athlete cannot see the week they have been given');
+    const other = lastLine(asAthlete(ATHLETE_B,
+      `select count(*) from public.coach_week_plans where athlete_user_id = '${ATHLETE_A}';`));
+    if (other !== '0') throw new Error("an athlete read another athlete's week");
+  });
+
+  check('WEEK: a self-coached athlete is untouched — coordinator still writes', () => {
+    const out = asAthlete(ATHLETE_B, refusalProbe(
+      `perform public.publish_athlete_weekly_plan('${MONDAY}', 1, 1, now(), '{}'::jsonb)`));
+    if (!out.includes('ACCEPTED')) throw new Error(`the unchanged coordinator path broke: ${lastLine(out)}`);
+    if (planRow(ATHLETE_B, 'writer') !== 'coordinator') throw new Error('a self-coached week stopped being coordinator-written');
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });

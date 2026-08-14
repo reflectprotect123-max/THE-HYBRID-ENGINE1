@@ -114,9 +114,25 @@ And the precedence rule, which belongs in ONE place — the merge, not the UI:
 > `writer = 'coordinator'`, regardless of revision. A coach's week is not a
 > newer opinion, it is a different kind of thing.
 
-A coordinator-written row for that week is not deleted. It stays as the
-fallback for the moment the athlete leaves the roster — otherwise ending a
-coaching relationship leaves an athlete with no week at all.
+**Corrected 13 August 2026, by the schema.** This paragraph used to say a
+coordinator-written row "is not deleted, it stays as the fallback for the
+moment the athlete leaves the roster". It cannot: `athlete_weekly_plans` is
+keyed `primary key (user_id, week_start)`, so there is exactly one row per
+athlete per week and a coach publish REPLACES it.
+
+That is the better model rather than a compromise. The stored row is a
+published ARTEFACT, not the source — the Coordinator computes the week on
+device, from proposals, locally and offline. An athlete who leaves a roster
+loses nothing, because their device regenerates the week on the next
+reconcile. The fallback was never the row. The fallback is the Coordinator.
+
+One thing this section also missed, found the same way: `revision` is
+load-bearing. The existing upsert only wins `where revision < excluded.revision`,
+so a coach publish that does not clear the row's current revision is silently
+DISCARDED — the statement succeeds, nothing changes, and the coach is told it
+worked. `publish_coach_week` reads the current revision and steps past it,
+inside its transaction, behind a row lock. There is a behaviour check for
+exactly this in `checks/migrations-apply.mjs`.
 
 ### Publishing
 
