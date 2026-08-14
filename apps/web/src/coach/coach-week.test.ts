@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { CoachWeekBody } from './contracts';
+import type { AthleteAutocoachReceipt, CoachWeekBody } from './contracts';
 import type { DayBuilderValue } from './library/DayBuilder';
 import {
   DAY_STATE_IS_GOOD,
+  UNNAMED_HELD_SESSION,
   coachWeekBodyFrom,
   coachWeekDayState,
   daysFromWeekBody,
   emptyWeekBody,
   formatWeekRange,
+  heldDaysFromReceipts,
+  heldSessionName,
   isMonday,
   publishFailureMessage,
   publishIdempotencyKey,
@@ -171,7 +174,7 @@ describe('coachWeekDayState', () => {
   it('lets a hold outrank everything, so "held" never reads as "ignored me"', () => {
     expect(coachWeekDayState({ ...base, held: 'pain' })).toBe('held-pain');
     expect(coachWeekDayState({ ...base, held: 'illness', sessionStatuses: ['completed'] })).toBe('held-illness');
-    /* Step 5 supplies the fact; until it does, nothing may guess one. */
+    /* `heldDaysFromReceipts` supplies the fact. Without one, nothing guesses. */
     expect(coachWeekDayState({ ...base, held: null })).not.toMatch(/^held/);
   });
 
@@ -197,5 +200,113 @@ describe('publishFailureMessage', () => {
   it('falls back to a plain refusal for anything unrecognised', () => {
     expect(publishFailureMessage({})).toMatch(/was not published/i);
     expect(publishFailureMessage(new Error('network'))).toMatch(/Nothing has changed/);
+  });
+});
+
+describe('heldDaysFromReceipts', () => {
+  /* A week with Monday and Tuesday authored, so there are real published
+     sessions with real ids for a receipt to point at. */
+  const week = weekBodyFromDays(MONDAY, [dayWith('Strength/Power'), dayWith('Strength/Power')]);
+  const mondayId = week.days[0].sessions[0].id;
+  const tuesdayId = week.days[1].sessions[0].id;
+
+  function receipt(over: Partial<AthleteAutocoachReceipt> = {}): AthleteAutocoachReceipt {
+    return {
+      clientEntryId: 'entry-1',
+      occurredAt: `${MONDAY}T07:00:00.000Z`,
+      sessionDate: MONDAY,
+      workoutId: mondayId,
+      action: 'held',
+      wasForked: false,
+      operations: [],
+      reasonCodes: ['pain_hold_active'],
+      ...over,
+    };
+  }
+
+  it('puts a held session on its own day, with the reason and the coach’s own name for it', () => {
+    const held = heldDaysFromReceipts([receipt()], week, MONDAY);
+    expect(held[MONDAY]).toEqual({ reason: 'pain', sessionName: 'Mon · 2026-08-10' });
+    expect(held['2026-08-11']).toBeUndefined();
+  });
+
+  it('tells pain and illness apart, because a coach acts differently on each', () => {
+    const illness = heldDaysFromReceipts(
+      [receipt({ sessionDate: '2026-08-11', workoutId: tuesdayId, reasonCodes: ['illness_flag_active'] })],
+      week,
+      MONDAY,
+    );
+    expect(illness['2026-08-11'].reason).toBe('illness');
+  });
+
+  it('lets pain outrank illness, on one receipt and across two', () => {
+    const both = heldDaysFromReceipts(
+      [receipt({ reasonCodes: ['illness_flag_active', 'pain_hold_active'] })],
+      week,
+      MONDAY,
+    );
+    expect(both[MONDAY].reason).toBe('pain');
+
+    /* Illness first, so this only passes if the later pain receipt REPLACES
+       it rather than being dropped as a duplicate day. */
+    const twoReceipts = heldDaysFromReceipts(
+      [
+        receipt({ clientEntryId: 'a', reasonCodes: ['illness_flag_active'] }),
+        receipt({ clientEntryId: 'b', reasonCodes: ['pain_hold_active'] }),
+      ],
+      week,
+      MONDAY,
+    );
+    expect(twoReceipts[MONDAY].reason).toBe('pain');
+  });
+
+  it('says "a session" rather than inventing a name or showing a raw id', () => {
+    const held = heldDaysFromReceipts([receipt({ workoutId: 'gone-from-the-week' })], week, MONDAY);
+    expect(held[MONDAY].sessionName).toBe(UNNAMED_HELD_SESSION);
+    expect(held[MONDAY].sessionName).not.toContain('gone-from-the-week');
+    /* And the same when there is no published week at all to resolve against. */
+    expect(heldDaysFromReceipts([receipt()], null, MONDAY)[MONDAY].sessionName).toBe(UNNAMED_HELD_SESSION);
+  });
+
+  it('is empty when the receipts are absent — an absent fact is not a fact', () => {
+    expect(heldDaysFromReceipts(null, week, MONDAY)).toEqual({});
+    expect(heldDaysFromReceipts(undefined, week, MONDAY)).toEqual({});
+    expect(heldDaysFromReceipts([], week, MONDAY)).toEqual({});
+  });
+
+  it('reads only held receipts — an applied one is a session the athlete trained', () => {
+    expect(heldDaysFromReceipts([receipt({ action: 'applied' })], week, MONDAY)).toEqual({});
+    expect(heldDaysFromReceipts([receipt({ action: 'undone' })], week, MONDAY)).toEqual({});
+  });
+
+  it('ignores a hold from another week, so last week’s pain never marks this one', () => {
+    expect(heldDaysFromReceipts([receipt({ sessionDate: '2026-08-03' })], week, MONDAY)).toEqual({});
+    expect(heldDaysFromReceipts([receipt({ sessionDate: '2026-08-17' })], week, MONDAY)).toEqual({});
+  });
+
+  it('will not attribute a hold that names neither safety flag', () => {
+    /* `action: 'held'` with, say, `low_readiness` is reachable by a raw RPC
+       call. There is no held state that does not name a flag, and guessing one
+       would invent a medical fact about a person. */
+    expect(heldDaysFromReceipts([receipt({ reasonCodes: ['low_readiness'] })], week, MONDAY)).toEqual({});
+    expect(heldDaysFromReceipts([receipt({ reasonCodes: [] })], week, MONDAY)).toEqual({});
+  });
+});
+
+describe('heldSessionName', () => {
+  const week = weekBodyFromDays(MONDAY, [dayWith('Strength/Power')]);
+
+  it('resolves the id against the week the coach published', () => {
+    expect(heldSessionName(week, week.days[0].sessions[0].id)).toBe('Mon · 2026-08-10');
+  });
+
+  it('finds a session on any day, because the DAY comes from the receipt', () => {
+    const twoDays = weekBodyFromDays(MONDAY, [dayWith('Strength/Power'), dayWith('Strength/Power')]);
+    expect(heldSessionName(twoDays, twoDays.days[1].sessions[0].id)).toBe('Tue · 2026-08-11');
+  });
+
+  it('falls back rather than printing an id nobody named', () => {
+    expect(heldSessionName(week, 'nope')).toBe(UNNAMED_HELD_SESSION);
+    expect(heldSessionName(null, 'nope')).toBe(UNNAMED_HELD_SESSION);
   });
 });

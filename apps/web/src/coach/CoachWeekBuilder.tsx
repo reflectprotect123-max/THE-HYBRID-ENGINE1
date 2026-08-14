@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { buildCatalogue } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
-import type { AthleteWeekSummary, ClientSummary, CoachWeekPlan } from './contracts';
+import type { AthleteAutocoachReceipt, AthleteWeekSummary, ClientSummary, CoachWeekPlan } from './contracts';
 import { DayBuilder, type DayBuilderValue } from './library/DayBuilder';
 import {
   DAY_STATE_IS_GOOD,
@@ -12,6 +12,7 @@ import {
   coachWeekDayState,
   daysFromWeekBody,
   formatWeekRange,
+  heldDaysFromReceipts,
   isMonday,
   publishFailureMessage,
   publishIdempotencyKey,
@@ -36,6 +37,28 @@ import './coach-redesign.css';
  * holds a coach's session on the day. That is `@hybrid/auto-coach`, a
  * different layer at a different granularity, and taking the WEEK from the
  * Coordinator does not take the SESSION from the safety resolver.
+ *
+ * AND IT REPORTS WHEN IT DOES — step 5 of the same design. The athlete's
+ * device records a `safety_stop` as an auto-coach receipt with
+ * `action: 'held'`; `listAutocoachReceipts` reads them back through the
+ * coach-gated RPC and `heldDaysFromReceipts` turns them into the day states
+ * this screen has always been able to render. Three properties of that, each
+ * load-bearing:
+ *
+ *   — A held day is shown as a HOLD, never as a day the athlete ignored. It
+ *     wears the red `.qi-badge review` pill instead of the ordinary
+ *     `.cb-status` one, so the difference is a different SHAPE and different
+ *     WORDS, not only a different colour.
+ *   — Pain and illness are told apart, in the pill and again in words below
+ *     it. They are different facts and the coach acts differently on each.
+ *   — NO NAME TRAVELS. The receipt carries a `workoutId`; the session's name
+ *     comes from the week this coach published, resolved locally. When the id
+ *     matches nothing the sentence says "a session" rather than inventing a
+ *     name or showing the coach a raw id.
+ *
+ * An unreadable receipts list is not a fact and is not rendered as one: the
+ * days fall back to exactly the states they had before, which never claim a
+ * session ran and never claim one was held.
  *
  * NOTHING IS INVENTED. Every editor here is the day builder the Library
  * already ships (`library/DayBuilder`, `library/day-workout`), in a `week`
@@ -89,6 +112,8 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
   const [plan, setPlan] = useState<CoachWeekPlan | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [summary, setSummary] = useState<AthleteWeekSummary | null>(null);
+  /* `null` is "no such fact", NOT "nothing was held" — see the effect below. */
+  const [receipts, setReceipts] = useState<readonly AthleteAutocoachReceipt[] | null>(null);
   const [days, setDays] = useState<DayBuilderValue[]>(() => daysFromWeekBody(null, weekStart));
   const [editing, setEditing] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -133,7 +158,39 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
     return () => { active = false; };
   }, [repository, athlete.id, weekStart, roster]);
 
+  /*
+   * The held report. Not filtered by week here — `heldDaysFromReceipts` does
+   * that — because `get_athlete_autocoach_receipts` is a "most recent, newest
+   * first" read with no week parameter, and inventing one client-side would
+   * only hide the fact that the list is bounded rather than complete.
+   *
+   * Every failure path lands on `null`, and every one of them means the same
+   * thing to this screen: NO SUCH FACT. A client with no roster never asks; a
+   * repository with no `listAutocoachReceipts` (the mock bench, an older
+   * implementation) resolves to null; a read that throws catches to null. None
+   * of the three may produce a day that reads as "held" OR as "ran" — they all
+   * degrade to the state the day had before this feature existed.
+   */
+  useEffect(() => {
+    if (!roster) return;
+    let active = true;
+    (repository.listAutocoachReceipts?.(athlete.id) ?? Promise.resolve(null))
+      .then((value) => { if (active) setReceipts(value); })
+      .catch(() => { if (active) setReceipts(null); });
+    return () => { active = false; };
+  }, [repository, athlete.id, roster]);
+
   const publishedDays = plan?.body?.days ?? [];
+
+  /* Derived from the PUBLISHED body, not the coach's draft: the receipt names
+     a session the athlete actually had, and resolving its id against edits the
+     coach has not published yet would caption a hold with a session that never
+     reached the phone. */
+  const heldDays = useMemo(
+    () => heldDaysFromReceipts(receipts, plan?.body ?? null, weekStart),
+    [receipts, plan?.body, weekStart],
+  );
+
   const canPublish = roster && Boolean(repository.publishCoachWeek);
 
   async function publish() {
@@ -228,18 +285,16 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
         {dates.map((date, index) => {
           const draft = days[index] ?? { instructions: '', blocks: [] };
           const publishedSessions = publishedDays.find((d) => d.date === date)?.sessions ?? [];
+          const heldDay = heldDays[date] ?? null;
           const state = coachWeekDayState({
             hasSessions: draft.blocks.length > 0 || publishedSessions.length > 0,
             published: publishedSessions.length > 0,
             sessionStatuses: (summary?.sessions ?? []).filter((s) => s.date === date).map((s) => s.status),
             date,
             today,
-            /* STEP 5's SEAM, left open on purpose. Held-session reporting is
-               not built — no source here knows a session was held for pain or
-               illness — and `coachWeekDayState` renders those states the
-               moment one does. Deriving a hold from a missing session instead
-               would be a guess printed as a fact. */
-            held: null,
+            /* The athlete's device's own verdict, never a guess derived from a
+               missing session. Absent stays absent. */
+            held: heldDay?.reason ?? null,
           });
           return (
             <div key={date} className={`lib-day-col${draft.blocks.length === 0 ? ' empty' : ''}`}>
@@ -276,12 +331,36 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
                     `.cb-meta` is the wrapper the session builder already puts
                     it in, and `.lib-detail-cta-row` is a flex row, so the
                     button starts a line of its own. */}
+                {/* A HELD DAY WEARS A DIFFERENT PILL, not a different colour
+                    of the same one. `.qi-badge review` is the stylesheet's
+                    existing red bordered capital — the queue already uses it
+                    for the entries that need a person — and swapping the
+                    element rather than adding a class to `.cb-status` is what
+                    makes "held for injury" and "ignored me" impossible to
+                    confuse at a glance, in shape and in words at once.
+                    Nothing is added to `coach-redesign.css`. */}
                 <div className="cb-meta">
-                  <span className={`cb-status${DAY_STATE_IS_GOOD[state] ? ' published' : ''}`}>
-                    <span className="dot" />
-                    {DAY_STATE_LABEL[state]}
-                  </span>
+                  {heldDay ? (
+                    <span className="qi-badge review">{DAY_STATE_LABEL[state]}</span>
+                  ) : (
+                    <span className={`cb-status${DAY_STATE_IS_GOOD[state] ? ' published' : ''}`}>
+                      <span className="dot" />
+                      {DAY_STATE_LABEL[state]}
+                    </span>
+                  )}
                 </div>
+                {/* The pill says WHICH flag; this says which SESSION and that
+                    it was a safety hold rather than a session the athlete
+                    chose not to do. `sessionName` is the coach's own name for
+                    it, resolved from what they published — or "a session" when
+                    the id on the receipt matches nothing there. */}
+                {heldDay && (
+                  <p className="qi-detail">
+                    {heldDay.sessionName} was stopped by {athlete.name}&rsquo;s{' '}
+                    {heldDay.reason === 'pain' ? 'pain' : 'illness'} flag. Not skipped &mdash; they
+                    were told why.
+                  </p>
+                )}
                 <div className="lib-detail-cta-row">
                   <button type="button" className="cb-add-btn ghost" onClick={() => setEditing(index)}>
                     Edit {WEEK_DAY_LABELS[index]}

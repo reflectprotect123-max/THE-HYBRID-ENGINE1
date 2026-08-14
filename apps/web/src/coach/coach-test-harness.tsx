@@ -88,6 +88,7 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   decidedProposals: { clientId: string; proposalId: string; decision: 'approved' | 'declined' }[] = [];
   trendSnapshots: Partial<Record<AthleteTrendSnapshot['kind'], AthleteTrendSnapshot | null>> = {};
   autocoachReceipts: readonly AthleteAutocoachReceipt[] = [];
+  autocoachReceiptsError: unknown = null;
   nutritionSummary: AthleteNutritionSummary | null = null;
   nutritionWindow: AthleteNutritionWindow | null = null;
   nutritionGrant = false;
@@ -141,6 +142,10 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   }
 
   async listAutocoachReceipts(): Promise<readonly AthleteAutocoachReceipt[]> {
+    /* Settable per test because "the receipts could not be read" is a state a
+       screen has to handle DIFFERENTLY from "there are none" — a held session
+       that cannot be read must not become a day that looks skipped. */
+    if (this.autocoachReceiptsError) throw this.autocoachReceiptsError;
     return this.autocoachReceipts;
   }
 

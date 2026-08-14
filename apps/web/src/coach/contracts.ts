@@ -172,7 +172,14 @@ export interface AthleteAutocoachReceipt {
   occurredAt: string;
   sessionDate: string;
   workoutId: string;
-  action: 'applied' | 'undone';
+  /* `'held'` is NOT auto-coach modifying a session — it is the safety layer
+     stopping one, added by supabase/migrations/20260814_arc_held_session_receipt.sql
+     so a coach can tell a held session from an ignored one. A held receipt
+     carries an EMPTY `operations` (nothing was modified) and the flag that
+     stopped it in `reasonCodes` (`pain_hold_active` / `illness_flag_active`).
+     Widened here rather than given its own type because it is the same row,
+     through the same sanitiser, read back through the same coach-gated RPC. */
+  action: 'applied' | 'undone' | 'held';
   wasForked: boolean;
   /* No `before`/`after` — auto-coach's resolver interpolates the raw
      exercise NAME into those two fields for some operation types (see

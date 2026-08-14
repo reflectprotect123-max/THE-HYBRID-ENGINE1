@@ -1,5 +1,5 @@
 import type { Workout } from '@hybrid/engine';
-import type { CoachWeekBody, CoachWeekDay } from './contracts';
+import type { AthleteAutocoachReceipt, CoachWeekBody, CoachWeekDay } from './contracts';
 import type { DayBuilderValue } from './library/DayBuilder';
 import { dayBuilderToWorkouts, workoutsToDayBuilder } from './library/day-workout';
 
@@ -192,15 +192,16 @@ function hash(value: string): string {
 /**
  * What one day of a published week is doing.
  *
- * `held-pain` and `held-illness` are DELIBERATELY in this union and nothing
- * produces them yet. Held-session reporting is step 5 of
- * `docs/superpowers/specs/2026-08-13-coach-publishes-the-week-design.md` and is
- * not built here — but that design's sharpest line is that "a coach who cannot
- * tell 'held for injury' from 'ignored me' will distrust the whole system
- * within a week", so the two states are named, labelled and rendered from the
- * day this screen exists. Step 5 supplies the FACT; the seam it arrives
- * through is here, and a `not-done` that is really a safety hold is the exact
- * lie this leaves room to correct.
+ * `held-pain` and `held-illness` were named, labelled and rendered before
+ * anything produced them, because that design's sharpest line is that "a coach
+ * who cannot tell 'held for injury' from 'ignored me' will distrust the whole
+ * system within a week" — a `not-done` that is really a safety hold is the
+ * exact lie the two states exist to prevent.
+ *
+ * They are now PRODUCED. `heldDaysFromReceipts` below turns the athlete's own
+ * auto-coach receipts (`action: 'held'`, carried by
+ * `supabase/migrations/20260814_arc_held_session_receipt.sql`) into the `held`
+ * argument `coachWeekDayState` already accepted.
  */
 export type CoachWeekDayState =
   | 'rest'
@@ -240,11 +241,13 @@ export function coachWeekDayState({
   sessionStatuses,
   date,
   today,
-  /* STEP 5's SEAM. Nothing passes this yet — `getAthleteWeekSummary` carries
-     no safety flag per day, and inventing one from a missing session would be
-     precisely the "ignored me" reading the design forbids. When the held
-     report lands, it arrives here and outranks everything below it, exactly as
-     a pain or illness flag outranks a readiness score everywhere else. */
+  /* The safety verdict for this day, from `heldDaysFromReceipts` — a FACT the
+     athlete's device recorded, never something derived from a missing session,
+     which would be precisely the "ignored me" reading the design forbids. It
+     outranks everything below it, exactly as a pain or illness flag outranks a
+     readiness score everywhere else. Absent (`null`/omitted) means "no such
+     fact", which is not the same as "nothing was held" and must never be
+     rendered as one. */
   held,
 }: {
   hasSessions: boolean;
@@ -288,4 +291,113 @@ export function publishFailureMessage(error: unknown): string {
     return 'A published week has to start on a Monday. Nothing has changed.';
   }
   return 'The week was not published. Nothing has changed — try again.';
+}
+
+/* --------------------------------------------------------------------------
+ * HELD SESSIONS, ON THE COACH'S WEEK — step 5 of
+ * docs/superpowers/specs/2026-08-13-coach-publishes-the-week-design.md.
+ *
+ * The athlete's device resolves each of the coach's sessions through
+ * `@hybrid/auto-coach`'s `resolveSession`; a `safety_stop` is pushed as an
+ * auto-coach receipt with `action: 'held'` and the flag that caused it. The
+ * coach reads those back through `get_athlete_autocoach_receipts`. Everything
+ * below is the translation from that list to what one day column says.
+ * ----------------------------------------------------------------------- */
+
+/** The two reason codes the safety layer stops a session with. Both have been
+ *  in `push_autocoach_receipt`'s closed vocabulary since 8 August 2026. */
+const PAIN_CODE = 'pain_hold_active';
+const ILLNESS_CODE = 'illness_flag_active';
+
+/**
+ * What the coach is told about a held day.
+ *
+ * `sessionName` is resolved LOCALLY, from the week this coach published. No
+ * name travels on the receipt — it carries a `workoutId` and nothing else
+ * about the session — which is the same boundary every roster read tier holds:
+ * block and set level content never crosses, and a session name is not
+ * smuggled across in a field that exists for an id.
+ */
+export interface HeldDay {
+  reason: 'pain' | 'illness';
+  sessionName: string;
+}
+
+/** What a session is called when the id on the receipt matches nothing in the
+ *  published week — an athlete on an older version, or a session the coach has
+ *  since edited out. Deliberately a phrase and not a raw id: an id is not a
+ *  name, and showing one would be showing the coach a debugging artefact. */
+export const UNNAMED_HELD_SESSION = 'a session';
+
+/**
+ * `pain` beats `illness` when both codes are on one receipt.
+ *
+ * Null for a held receipt carrying NEITHER — which the server's vocabulary
+ * permits (a raw RPC call could pair `action: 'held'` with, say,
+ * `low_readiness`) and which this refuses to attribute. `CoachWeekDayState`
+ * has exactly two held states and both name a specific safety flag; picking
+ * one of them here would be inventing a medical fact about a person from a
+ * receipt that did not state it, which is worse than the day showing its
+ * ordinary state. Such a receipt is dropped, and it is the one case where
+ * this function is knowingly quieter than the truth.
+ */
+function heldReason(reasonCodes: readonly string[]): 'pain' | 'illness' | null {
+  if (reasonCodes.includes(PAIN_CODE)) return 'pain';
+  if (reasonCodes.includes(ILLNESS_CODE)) return 'illness';
+  return null;
+}
+
+/**
+ * The coach's own name for `workoutId`, out of the week they published.
+ *
+ * Searches the WHOLE week rather than only the receipt's day: the day comes
+ * from `sessionDate`, the name from the id, and a session the athlete reached
+ * on a different date is still the session the coach wrote. Falls back to
+ * `UNNAMED_HELD_SESSION` rather than inventing one or printing the id.
+ */
+export function heldSessionName(body: CoachWeekBody | null, workoutId: string): string {
+  for (const day of body?.days ?? []) {
+    for (const session of day.sessions ?? []) {
+      if ((session as { id?: unknown }).id !== workoutId) continue;
+      const name = (session as { name?: unknown }).name;
+      return typeof name === 'string' && name.trim() !== '' ? name.trim() : UNNAMED_HELD_SESSION;
+    }
+  }
+  return UNNAMED_HELD_SESSION;
+}
+
+/**
+ * The held days of one week, keyed by date.
+ *
+ * ABSENT IS NOT A FACT. `null` receipts — no roster, no backend, a read that
+ * failed — produce an empty result, so every day falls back to the state it
+ * would have had, and nothing on the screen implies a session ran OR was held.
+ * That is the whole reason this takes `null` rather than defaulting to `[]` at
+ * the call site: the two are the same answer here on purpose, and the caller
+ * is not asked to decide which it had.
+ *
+ * Only `action: 'held'` is read. An `applied` or `undone` receipt is auto-coach
+ * modifying a session the athlete then trained, which is not a hold and must
+ * never be shown as one.
+ *
+ * Two held receipts on one day resolve the same way two codes on one receipt
+ * do: pain outranks illness. A day with both flags is a day with a pain flag.
+ */
+export function heldDaysFromReceipts(
+  receipts: readonly AthleteAutocoachReceipt[] | null | undefined,
+  body: CoachWeekBody | null,
+  weekStart: string,
+): Record<string, HeldDay> {
+  const inWeek = new Set(weekDates(weekStart));
+  const out: Record<string, HeldDay> = {};
+  for (const receipt of receipts ?? []) {
+    if (receipt.action !== 'held') continue;
+    if (!inWeek.has(receipt.sessionDate)) continue;
+    const reason = heldReason(receipt.reasonCodes ?? []);
+    if (!reason) continue;
+    const existing = out[receipt.sessionDate];
+    if (existing && !(existing.reason === 'illness' && reason === 'pain')) continue;
+    out[receipt.sessionDate] = { reason, sessionName: heldSessionName(body, receipt.workoutId) };
+  }
+  return out;
 }

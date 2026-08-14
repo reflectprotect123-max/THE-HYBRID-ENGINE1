@@ -8,7 +8,7 @@ import { CoachWeekBuilder } from './CoachWeekBuilder';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
 import { COACH_CLIENT_FIXTURES } from './mock-fixtures';
 import { weekBodyFromDays } from './coach-week';
-import type { AthleteWeekSummary, CoachWeekPlan } from './contracts';
+import type { AthleteAutocoachReceipt, AthleteWeekSummary, CoachWeekPlan } from './contracts';
 
 /*
  * The week builder — step 3 of the coach-publishes-the-week design.
@@ -42,7 +42,7 @@ async function renderBuilder(
     { repository },
   );
   /* Two settles: the provider's own `listClients()`, then the screen's
-     `getCoachWeek` / `getAthleteWeekSummary` pair. */
+     `getCoachWeek` / `getAthleteWeekSummary` / `listAutocoachReceipts` trio. */
   await act(async () => {});
   await act(async () => {});
   return result;
@@ -64,6 +64,28 @@ function publishedWeek(version = 1): CoachWeekPlan {
       { instructions: 'Steady', blocks: [{ id: 'b1', category: 'Strength/Power', exercises: [] }] },
     ]),
     publishedAt: '2026-08-09T10:00:00.000Z',
+  };
+}
+
+/**
+ * The athlete's device reporting that Monday's session was stopped.
+ *
+ * `operations` is EMPTY and there is no name on it — a hold modifies nothing,
+ * and the session's name is the coach's own, resolved from `publishedWeek()`
+ * by its `workoutId`. `weekBodyFromDays` derives that id from the week and the
+ * weekday, so it is the same id the athlete's device would have had.
+ */
+function heldReceipt(over: Partial<AthleteAutocoachReceipt> = {}): AthleteAutocoachReceipt {
+  return {
+    clientEntryId: 'ledger-1',
+    occurredAt: `${MONDAY}T07:30:00.000Z`,
+    sessionDate: MONDAY,
+    workoutId: `coach-week-${MONDAY}-0`,
+    action: 'held',
+    wasForked: false,
+    operations: [],
+    reasonCodes: ['pain_hold_active'],
+    ...over,
   };
 }
 
@@ -217,6 +239,92 @@ describe('CoachWeekBuilder', () => {
 
     expect(screen.getByText(/could not be read/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Edit / })).toHaveLength(7);
+  });
+
+  it('shows a held day as a HOLD, never as one the athlete ignored', async () => {
+    const repository = rosterRepository();
+    repository.coachWeek = publishedWeek();
+    repository.autocoachReceipts = [heldReceipt()];
+    /* The day is over and nothing was logged, so without the receipt this
+       would read "Not done" — the exact lie the design forbids. */
+    vi.setSystemTime(new Date('2026-08-12T09:00:00Z'));
+    await renderBuilder(repository);
+
+    expect(screen.getByText('Held · pain')).toBeInTheDocument();
+    expect(screen.queryByText('Not done')).not.toBeInTheDocument();
+
+    /* A DIFFERENT pill, not a different colour of the same one: `.qi-badge
+       review` rather than `.cb-status`, so shape and words both carry it. */
+    const pill = screen.getByText('Held · pain');
+    expect(pill).toHaveClass('qi-badge', 'review');
+    expect(pill).not.toHaveClass('cb-status');
+    expect(pill).not.toHaveClass('published');
+
+    /* Which session, in the coach's own words, and that it was not a skip. */
+    expect(screen.getByText(/Mon · 2026-08-10 was stopped by Riley Roster’s pain flag/)).toBeInTheDocument();
+    expect(screen.getByText(/Not skipped/)).toBeInTheDocument();
+  });
+
+  it('tells pain and illness apart, and lets pain outrank illness', async () => {
+    const repository = rosterRepository();
+    repository.coachWeek = publishedWeek();
+    repository.autocoachReceipts = [heldReceipt({ reasonCodes: ['illness_flag_active'] })];
+    await renderBuilder(repository);
+
+    expect(screen.getByText('Held · illness')).toBeInTheDocument();
+    expect(screen.getByText(/stopped by Riley Roster’s illness flag/)).toBeInTheDocument();
+    expect(screen.queryByText('Held · pain')).not.toBeInTheDocument();
+  });
+
+  it('says "a session" when the receipt names a workout the published week does not', async () => {
+    const repository = rosterRepository();
+    repository.coachWeek = publishedWeek();
+    repository.autocoachReceipts = [heldReceipt({ workoutId: 'some-older-version' })];
+    await renderBuilder(repository);
+
+    expect(screen.getByText('Held · pain')).toBeInTheDocument();
+    /* A phrase, not an id — an id is a debugging artefact, not a session
+       name, and inventing a name would be worse than either. */
+    expect(screen.getByText(/^a session was stopped by/)).toBeInTheDocument();
+    expect(screen.queryByText(/some-older-version/)).not.toBeInTheDocument();
+  });
+
+  it('reads only held receipts — an applied one is a session that went ahead', async () => {
+    const repository = rosterRepository();
+    repository.coachWeek = publishedWeek();
+    repository.autocoachReceipts = [heldReceipt({ action: 'applied', operations: [{ type: 'cap_intensity', targetPath: 'blocks.0', reasonCode: 'low_readiness', materiality: 'material' }] })];
+    await renderBuilder(repository);
+
+    expect(screen.queryByText(/^Held · /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/was stopped by/)).not.toBeInTheDocument();
+  });
+
+  it('degrades to the ordinary state when the receipts cannot be read, claiming nothing', async () => {
+    const repository = rosterRepository();
+    repository.coachWeek = publishedWeek();
+    repository.autocoachReceiptsError = new Error('boom');
+    vi.setSystemTime(new Date('2026-08-12T09:00:00Z'));
+    await renderBuilder(repository);
+
+    /* An absent fact is not a fact. The day says what it said before this
+       feature existed — it must not claim the session ran, and it must not
+       claim it was held. */
+    expect(screen.getByText('Not done')).toBeInTheDocument();
+    expect(screen.queryByText(/^Held · /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/was stopped by/)).not.toBeInTheDocument();
+    /* And the week itself is still readable and publishable. */
+    expect(screen.getAllByRole('button', { name: /^Edit / })).toHaveLength(7);
+    expect(screen.getByRole('button', { name: 'Publish the week' })).toBeEnabled();
+  });
+
+  it('never asks for receipts for a client with no coaching relationship', async () => {
+    const repository = new FakeCoachWorkspaceRepository();
+    repository.clients = COACH_CLIENT_FIXTURES.filter((c) => c.source === 'engine-local');
+    const spy = vi.spyOn(repository, 'listAutocoachReceipts');
+    await renderBuilder(repository, 'engine-local');
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.queryByText(/^Held · /)).not.toBeInTheDocument();
   });
 
   it('opens the day builder for one day and takes its edit back into the week', async () => {
