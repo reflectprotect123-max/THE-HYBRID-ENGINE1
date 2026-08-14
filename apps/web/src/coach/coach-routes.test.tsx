@@ -265,15 +265,19 @@ describe('coach route reachability', () => {
     // Every derivation above is a regex over source. If any of them silently
     // stops matching, the walk reports everything reachable from an empty
     // graph and this file becomes the fourth decorative guard on the branch.
-    expect(declaredPaths).toEqual(expect.arrayContaining(['progression', 'legacy']));
+    expect(declaredPaths).toEqual(expect.arrayContaining(['progression', 'library']));
     // Was 12; then 11, when `author`, `build/:id`, `planner/:id` and
     // `roster-plan/:workoutId` went with the old authoring chain on 14 August
-    // 2026; now 10, after `review/:weekStart` went with the Coordinator the
-    // same day. Lowered deliberately each time, with the reason, rather than
-    // left as a floor no longer tied to anything.
-    expect(declaredPaths.length).toBeGreaterThanOrEqual(10);
+    // 2026; then 10, after `review/:weekStart` went with the Coordinator the
+    // same day; now 9, after `legacy` went with `CoachShell` hours later.
+    // Lowered deliberately each time, with the reason, rather than left as a
+    // floor no longer tied to anything.
+    expect(declaredPaths.length).toBeGreaterThanOrEqual(9);
     expect(componentsFor('')).toContain('CoachCommandCenter');
-    expect(componentsFor('legacy')).toContain('CoachShell');
+    // `legacy`/`CoachShell` was the second probe here until it was deleted.
+    // `library` replaces it: a route whose component is named differently from
+    // its path, which is what this line is really checking the parser can do.
+    expect(componentsFor('library')).toContain('CoachLibrary');
     expect([...layoutFiles].some((f) => f.endsWith('/ArcCoachFrame.tsx'))).toBe(true);
     expect(outgoing('').length).toBeGreaterThanOrEqual(6);
   });
@@ -296,7 +300,11 @@ describe('coach route reachability', () => {
    * They are listed here rather than exempted silently, so that deleting a
    * route outright, or quietly re-linking one, both change this file.
    */
-  const ORPHANED_BY_DECISION = ['progression', 'legacy'];
+  /* `legacy` left this list on 14 August 2026 — the route and `CoachShell` were
+   deleted outright rather than left as a typed-address back door. `progression`
+   remains: it is unlinked by decision but still declared, which is what this
+   list is for. */
+const ORPHANED_BY_DECISION = ['progression'];
 
   it('still declares every orphaned-by-decision route, so no capability was deleted with its link', () => {
     expect(declaredPaths).toEqual(expect.arrayContaining(ORPHANED_BY_DECISION));

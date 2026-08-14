@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { CoachAccess, CoachShell } from './CoachShell';
+import { CoachAccess } from './CoachAccess';
 import { Readiness } from './pillars/Readiness';
 import { Strength } from './pillars/Strength';
 import { Conditioning } from './pillars/Conditioning';
@@ -119,7 +119,12 @@ export default function Coach() {
               turns Publish off rather than pretending.
             */}
             <Route path="week/:athleteId/:weekStart" element={<ClientDetailGate tool="Week builder" layer3Ready><CoachWeekBuilder /></ClientDetailGate>} />
-            <Route path="legacy" element={<ClientDetailGate tool="Program bench"><CoachShell /></ClientDetailGate>} />
+            {/* `legacy` (the old `CoachShell` program bench) was declared here
+                until 14 August 2026. Nothing in the redesigned bench linked to
+                it — you had to type the address — and its panels are covered
+                by the Library, the Nutrition pillar and the Readiness pillar.
+                Deleted with the screen rather than left as a typed-address
+                back door into a surface nobody maintains. */}
           </Route>
           <Route path="*" element={<Navigate to="/coach" replace />} />
         </Routes>

@@ -144,8 +144,10 @@ One app, one route table.
 | Settings | `/settings` | Profile, cloud, WHOOP, backup **and restore**, and the switch into the nutrition world |
 
 Home carries the nutrition card above the zone card
-(`apps/web/src/screens/nutrition/NutritionCard.tsx`) and the coach bench carries
-a read-only nutrition panel (`apps/web/src/coach/NutritionPanel.tsx`).
+(`apps/web/src/screens/nutrition/NutritionCard.tsx`). The coach bench's
+read-only nutrition surface is the Nutrition pillar
+(`apps/web/src/coach/pillars/Nutrition.tsx`) — the old `NutritionPanel` was
+deleted on 14 August 2026 with CoachShell and the /coach/legacy route.
 
 ### The nutrition world
 

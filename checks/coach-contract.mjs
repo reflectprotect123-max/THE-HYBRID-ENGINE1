@@ -54,7 +54,23 @@ const walk = (dir) => {
   return out;
 };
 
-const read = (f) => readFileSync(f, 'utf8');
+/* A file named here and missing on disk is a FAILURE, not a crash — the same
+   rule the directory walk above follows, and added for the same reason on the
+   same day. `SessionDrawer.tsx` was deleted with the legacy bench while still
+   listed in `coachDoorways`, and the bare `readFileSync` threw ENOENT, killing
+   the process before it could report anything. That is the FOURTH time this
+   repository has hit crash-instead-of-fail; the directory guard did not cover
+   it because this reads a specific file. */
+const MISSING_FILES = [];
+const read = (f) => {
+  try {
+    return readFileSync(f, 'utf8');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    MISSING_FILES.push(relative(ROOT, f));
+    return '';
+  }
+};
 /* Comments explain the rules as often as they break them, so a naive grep over
    raw source reports the documentation as a violation. Strip comments first. */
 const code = (f) => read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -224,7 +240,7 @@ console.log('Coach surface contract\n');
     // Contract paths are repository paths, not host-OS paths. Normalising here
     // keeps the allowlist check identical on Windows and POSIX runners.
     const rel = relative(ROOT, f).replaceAll('\\', '/');
-    if (!/coach\/(guard|CoachShell)\.tsx?$/.test(rel)) offenders.push(rel);
+    if (!/coach\/(guard|CoachAccess)\.tsx?$/.test(rel)) offenders.push(rel);
   }
   if (offenders.length) {
     fail(
@@ -357,10 +373,11 @@ console.log('Coach surface contract\n');
    */
   /* `ResolutionPreview.tsx` was the third entry until 14 August 2026; it was
      deleted with the Coordinator whose decisions it rendered. */
-  const coachDoorways = [
-    'apps/web/src/coach/CoachLibrary.tsx',
-    'apps/web/src/coach/SessionDrawer.tsx',
-  ];
+  /* `SessionDrawer.tsx` was the second entry until 14 August 2026, and
+     `ResolutionPreview.tsx` the third before that. Both were deleted with the
+     surfaces they belonged to. A doorway that no longer exists cannot point
+     anywhere, so it leaves the list rather than being read from disk. */
+  const coachDoorways = ['apps/web/src/coach/CoachLibrary.tsx'];
   const offenders = coachDoorways.filter((file) => /[`'"]\/(?:build|planner)\//.test(code(resolve(ROOT, file))));
   const coachRouter = code(resolve(ROOT, 'apps/web/src/coach/index.tsx'));
   const generator = read(resolve(ROOT, 'tooling/build-single-html.mjs'));
@@ -373,7 +390,11 @@ console.log('Coach surface contract\n');
    * routes fails here, because the components they mounted no longer exist and
    * a route without a screen is the hole this rule was always about.
    */
-  const deletedRoutes = ['path="author"', 'path="build/:id"', 'path="planner/:id"', 'path="roster-plan/:workoutId"'];
+  /* `path="legacy"` joined this list on 14 August 2026 — the old CoachShell
+     program bench, deleted with the screen. It was reachable only by typing
+     the address, which is the shape of back door this guard exists to keep
+     shut once a decision has been made. */
+  const deletedRoutes = ['path="author"', 'path="build/:id"', 'path="planner/:id"', 'path="roster-plan/:workoutId"', 'path="legacy"'];
   if (deletedRoutes.some((decl) => coachRouter.includes(decl))) offenders.push('apps/web/src/coach/index.tsx');
   if (!generator.includes("location.hash.startsWith('#/coach')")) offenders.push('tooling/build-single-html.mjs');
   const athleteRoutes = /[`'"]\/(?:training|library|conditioning|history|progress|exercise|calendar|day|recap|nutrition|settings|log)(?:\/|[`'"])/;
@@ -446,7 +467,10 @@ console.log('Coach surface contract\n');
      are gone, and rule 8 above fails if the authoring four are declared again.
      A path listed here that no longer exists would report an ungated route
      forever. */
-  const gatedPaths = ['readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'legacy', 'week/:athleteId/:weekStart'];
+  /* `legacy` left this list on 14 August 2026 with the route and CoachShell.
+     A path named here and no longer declared would fail as "ungated", which is
+     the wrong reason — the deleted-route guard above is what keeps it gone. */
+  const gatedPaths = ['readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'week/:athleteId/:weekStart'];
   const ungatedRoutes = gatedPaths.filter((path) => {
     // The route line itself, e.g. `<Route path="author" element={<ClientDetailGate ...`
     const line = new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*element=\\{<ClientDetailGate\\b`);
@@ -495,6 +519,14 @@ console.log('Coach surface contract\n');
    first one — and reported at all, which is the whole point. A scan list
    pointing at a deleted folder used to take the process down before it could
    say so. */
+if (MISSING_FILES.length) {
+  fail(
+    'every named file exists',
+    `${[...new Set(MISSING_FILES)].join(', ')} is named by a rule and is not on disk. ` +
+      'A rule reading an empty string passes trivially — update the list in the same commit that deleted the file.',
+  );
+} else pass('every named file exists');
+
 if (MISSING_DIRS.length) {
   fail(
     'every scanned directory exists',

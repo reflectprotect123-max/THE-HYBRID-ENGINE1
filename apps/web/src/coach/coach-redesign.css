@@ -33,7 +33,25 @@
  * tokens.css first — not reinvent them locally.
  */
 
-  * { box-sizing: border-box; }
+  * {
+  /* CHART-GRADE ENTITY COLOURS, moved here 14 August 2026 from `coach.css`,
+     which was deleted with `CoachShell` and the `/coach/legacy` route.
+     `AthleteStatus` uses both — hard-day pips and two trend lines — and it is
+     rendered by the Command Center, Readiness and Strength.
+
+     They were scoped to `.coach-root`, a class ONLY CoachShell applied. So on
+     the redesigned bench these were already undefined, and an undefined custom
+     property makes the whole declaration invalid at computed-value time: the
+     pips rendered transparent and the trend strokes lost their colour. That
+     was a live bug before the deletion, not a consequence of it — deleting the
+     file is what surfaced it.
+
+     Validated (lightness band, chroma floor, CVD separation, contrast) against
+     the dark panel surface; the brand brass and blue fail chart checks and stay
+     reserved for UI chrome. */
+  --chart-gold: #b5842f;
+  --chart-blue: #5e8ce0;
+ box-sizing: border-box; }
   html, body { height: 100%; }
   body {
     margin: 0;

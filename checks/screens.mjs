@@ -221,7 +221,6 @@ const COACH_SHOTS = [
    * practice. A pattern list is only proof when it names text ONLY the
    * intended screen shows; `/Week/i` never did.
    */
-  ['22-coach-legacy', '/coach/legacy', [/Program/i]],
   ['23-coach-day', `/coach/day/${TODAY}`, [/Session/i]],
   /*
    * The week builder (13 August 2026), joining in the same commit that adds

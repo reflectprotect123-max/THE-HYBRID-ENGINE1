@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { CoachAccess } from './CoachShell';
+import { CoachAccess } from './CoachAccess';
 
 let mockUserId: string | null = null;
 let mockAuthReady = true;
