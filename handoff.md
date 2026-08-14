@@ -1,7 +1,70 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 14 August 2026, later the same day. `main` is at
+> `66397ca`. Nothing shipped since the block below; this is a VERIFICATION pass
+> over it.**
+>
+> Read this first, then the block below it, which remains the record of what was
+> built. This one does not replace it — it says which of its claims were re-read
+> out of the tree tonight and which were copied forward on trust, because a
+> handoff that cannot tell those two apart is how a stale statement survives.
+>
+> **The tip moved by one commit and nothing else.** `eb11f97` → `66397ca`, and
+> `66397ca` is the commit that wrote the block below. `main`, `claude/the-coach-brain`
+> and `claude/handoff-md-review-z00wqf` are all the same commit; the last of those
+> was reset onto `main` because its own history was already fully merged, so it
+> carries no unmerged work to lose.
+>
+> **THE ONE OUTSTANDING ACTION IS STILL OUTSTANDING.**
+> `supabase/migrations/20260814_arc_self_coaching.sql` is present in the tree and
+> unapplied. It is the owner's to take. Apply it, then: mint an invite → redeem
+> it as yourself → build a week → publish → open the phone. Nothing else in this
+> repository is waiting on anybody.
+>
+> **RE-VERIFIED TONIGHT, out of the tree rather than out of the last handoff:**
+>
+> - `pnpm run typecheck` — clean, exit 0, all eleven projects.
+> - The four "stale prose" items the block below lists as open are all REAL, and
+>   each now has its exact value recorded so the correction is a lookup rather
+>   than another investigation:
+>   - **Shots are 32, not thirty.** `checks/screens.mjs` computes
+>     `SHOTS.length + COACH_SHOTS.length * 2`; the athlete `SHOTS` list is empty
+>     (the athlete app is parked) and `COACH_SHOTS` holds **16** routes, each shot
+>     at 1440px and again at 420px. CLAUDE.md's coach-workspace section says
+>     "Thirty shots".
+>   - **Four `test/` projects, not three.** `packages/engine`,
+>     `packages/auto-coach`, `packages/nutrition-engine` — and `apps/mobile/test`,
+>     which CLAUDE.md's list omits. It holds `harness.tsx`, `syncHarness.tsx`,
+>     `setup.ts`, `camera-view-mock.js` and `style-stub.js`: harnesses and stubs,
+>     no `*.test.ts`. So it OBEYS the "nothing test-shaped under `test/`" rule
+>     while breaking the count — the rule is right and only the number is wrong.
+>   - **The date disagreement is real, and CLAUDE.md is the wrong side of it.**
+>     `20260813_arc_coach_week_publish.sql:72` says in its own constraint comment
+>     "Widened 13 August 2026; it read (writer = ''coordinator'') from 4 August."
+>     CLAUDE.md's "Who owns the week" says the constraint stood "until 14 August
+>     2026". The migration is the artefact that actually ran, so it wins.
+>   - **The athlete PWA still advertises the parked app.**
+>     `apps/web/dist/manifest.webmanifest` ships `"start_url": "/home"` with
+>     `"scope": "/"`, and `/home` redirects to `/coach`. An athlete who installed
+>     it gets an icon that opens the coach bench. `manifestLink.tsx` is doing its
+>     job correctly — it swaps to `/coach.webmanifest` under `/coach` — so the
+>     defect is the athlete manifest's own `start_url`, not the swapper.
+>
+> **COPIED FORWARD, NOT RE-RUN TONIGHT** — treat these as of `eb11f97`, which is
+> one documentation-only commit behind the tip, so they should still hold:
+> the web and mobile suites (757/2 and 496), the ten checks, CI on the tip, and
+> the four still-open functional items below (`publish_athlete_weekly_plan`'s
+> missing writer predicate, `coach_week_plans.coach_user_id` on INSERT only,
+> `get_athlete_week_plan` projecting `entries`/`decisions` a coach week lacks,
+> and nothing being able to set an assignment to `revoked`). None of those four
+> was touched, so none of them is fixed.
+>
+> ---
+>
 > **AUTHORITATIVE CHECKPOINT — 14 August 2026. Everything below is MERGED to
-> `main` at `eb11f97`. No branch is ahead, no PR is open.**
+> `main` at `eb11f97`. No branch is ahead, no PR is open.** *(the block above is
+> a later verification pass over this one; where they disagree on a NUMBER, the
+> block above measured it)*
 >
 > The work was done on `claude/the-coach-brain` — the owner named that branch,
 > and it is where any continuation belongs. It was merged fast-forward, twice,
