@@ -1817,6 +1817,88 @@ try {
     if (!wasRefused(out)) throw new Error("widening the action list opened it — 'skipped' was accepted");
   });
 
+  check('END: the ATHLETE can leave, without their coach\u2019s permission', () => {
+    /* The gap this closes: nothing in the system could set an assignment to
+       'revoked'. That is half a consent model — an athlete consents by
+       redeeming an invite, and consent you cannot withdraw is enrolment. */
+    if (rosterCount(COACH_1, NEWBIE) !== '1') throw new Error('setup: NEWBIE should be on COACH_1 roster');
+    const out = asAthlete(NEWBIE, refusalProbe(`perform public.end_coach_relationship('${ORG_1}', '${NEWBIE}')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`the athlete could not leave: ${lastLine(out)}`);
+
+    const state = lastLine(asOwnerSqlOut(
+      `select status || '|' || (revoked_at is not null)::text from public.coach_athlete_assignments
+        where organization_id = '${ORG_1}' and coach_user_id = '${COACH_1}' and athlete_user_id = '${NEWBIE}';`));
+    if (state !== 'revoked|true') throw new Error(`assignment is '${state}' — status and stamp must move together`);
+
+    /* And it actually ENDS the reads, which is the whole point. */
+    const authorised = lastLine(asAthlete(COACH_1, `select public.coaches_athlete('${ORG_1}', '${NEWBIE}');`));
+    if (authorised !== 'f') throw new Error('the relationship ended on paper but the coach can still read them');
+  });
+
+  check('END: no new week can be published to someone who left', () => {
+    const out = asAthlete(COACH_1, refusalProbe(
+      `perform public.publish_coach_week('${ORG_1}', '${NEWBIE}', '${MONDAY}', ${weekBody('after-leaving')}, 'end:1')`));
+    if (!wasRefused(out)) throw new Error('a coach published to an athlete who had left');
+  });
+
+  check('END: leaving does NOT delete the week already published — the athlete does that', () => {
+    /* Deliberate, and stated in the migration: a coach owns the week they
+       published, deleting it would leave the athlete with nothing (there is no
+       Coordinator to recompute one), and `athlete_plans_delete` already lets
+       them clear it themselves. Leaving and erasing are different acts. */
+    asOwnerSql(`insert into public.athlete_weekly_plans (user_id, week_start, schema_version, revision, writer, plan, client_generated_at)
+                values ('${NEWBIE}', '${MONDAY}', 1, 1, 'coach', '{"label":"left-behind"}'::jsonb, now())
+                on conflict (user_id, week_start) do update set writer = 'coach', plan = excluded.plan;`);
+    const still = lastLine(asAthlete(NEWBIE,
+      `select count(*) from public.athlete_weekly_plans where user_id = '${NEWBIE}' and week_start = '${MONDAY}';`));
+    if (still !== '1') throw new Error('the published week vanished when the relationship ended');
+
+    /* The erasure path the migration points at, proved rather than asserted. */
+    asAthlete(NEWBIE, `delete from public.athlete_weekly_plans where user_id = '${NEWBIE}' and week_start = '${MONDAY}';`);
+    const gone = lastLine(asAthlete(NEWBIE,
+      `select count(*) from public.athlete_weekly_plans where user_id = '${NEWBIE}' and week_start = '${MONDAY}';`));
+    if (gone !== '0') throw new Error('the athlete cannot clear their own week');
+  });
+
+  check('END: a THIRD party cannot end someone else\u2019s relationship', () => {
+    /* COACH_3 is a legitimate, active ORG_1 coach — the within-tenant boundary
+       that gets forgotten. This is a two-party relationship and nobody else
+       gets to end it. */
+    const out = asAthlete(COACH_3, refusalProbe(`perform public.end_coach_relationship('${ORG_1}', '${ATHLETE_A}')`));
+    if (!wasRefused(out)) throw new Error('an unrelated coach ended a relationship that was not theirs');
+    const alive = lastLine(asAthlete(COACH_1, `select public.coaches_athlete('${ORG_1}', '${ATHLETE_A}');`));
+    if (alive !== 't') throw new Error('the refused call ended the relationship anyway');
+  });
+
+  check('END: the COACH can end it too, and ending twice is refused not silent', () => {
+    const out = asAthlete(COACH_1, refusalProbe(`perform public.end_coach_relationship('${ORG_1}', '${ATHLETE_A}')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`the coach could not end it: ${lastLine(out)}`);
+    /* A second call must REFUSE rather than report success over nothing —
+       "already ended" and "ended just now" are different facts. */
+    const again = asAthlete(COACH_1, refusalProbe(`perform public.end_coach_relationship('${ORG_1}', '${ATHLETE_A}')`));
+    if (!wasRefused(again)) throw new Error('ending an already-ended relationship reported success');
+  });
+
+  check('END: the athlete keeps their organisation membership, so other coaches survive', () => {
+    /* Revoking the membership as well would evict them from every OTHER coach
+       in the organisation — one relationship ending would silently end the
+       rest. */
+    const membership = lastLine(asOwnerSqlOut(
+      `select status from public.organization_memberships where organization_id = '${ORG_1}' and user_id = '${ATHLETE_A}';`));
+    if (membership !== 'active') throw new Error(`membership became '${membership}' — ending ONE relationship must not evict them`);
+
+    /* PUT THE ROSTER BACK. These checks ended COACH_1 <-> ATHLETE_A, and later
+       checks assert that OTHER coaches cannot reach ATHLETE_A. Those would
+       still pass with the relationship gone — but for the wrong reason, which
+       is how a deny test quietly stops proving anything. One shared database,
+       run in order, so state has to be left as it was found. */
+    asOwnerSql(`update public.coach_athlete_assignments
+                   set status = 'active', revoked_at = null
+                 where organization_id = '${ORG_1}' and coach_user_id = '${COACH_1}' and athlete_user_id = '${ATHLETE_A}';`);
+    const back = lastLine(asAthlete(COACH_1, `select public.coaches_athlete('${ORG_1}', '${ATHLETE_A}');`));
+    if (back !== 't') throw new Error('failed to restore the roster for the checks that follow');
+  });
+
   check('SELF: a coach can put THEMSELF on their own roster, and publish to it', () => {
     /* The owner is currently the only athlete, so "write my own week" is the
        first real use of this feature. Until 14 August a `coach_athlete_distinct`

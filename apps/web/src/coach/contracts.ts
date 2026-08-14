@@ -468,8 +468,23 @@ export interface CoachWorkspaceRepository {
    *  own redemption does that. */
   createCoachInvite?(organizationId: string): Promise<CoachInvite>;
   /** Kills an unredeemed code. Never unlinks an athlete who already spent
-   *  one; ending a relationship is a different act. */
+   *  one; ending a relationship is a different act — see below, which is that
+   *  act and did not exist until 14 August 2026. */
   revokeCoachInvite?(inviteId: string): Promise<CoachInvite>;
+  /**
+   * Ends an active coaching relationship.
+   *
+   * Callable by EITHER party server-side — the coach, because a roster has to
+   * be manageable, and the athlete, because otherwise leaving requires the
+   * permission of the person you are leaving. This bench only ever calls it as
+   * the coach; the athlete's half is theirs to invoke from their own session.
+   *
+   * It does NOT delete the week already published. A coach owns the week they
+   * published, there is no Coordinator left to recompute a replacement, and
+   * the athlete can clear their own row. No NEW week can arrive, because
+   * `publish_coach_week` re-checks the relationship on every call.
+   */
+  endCoachRelationship?(organizationId: string, athleteUserId: string): Promise<void>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

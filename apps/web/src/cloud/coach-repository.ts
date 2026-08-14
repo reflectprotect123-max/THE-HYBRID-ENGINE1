@@ -463,6 +463,30 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
     return inviteFromRow(row);
   }
 
+  /**
+   * End a coaching relationship. See the interface for who may call it and
+   * what it deliberately leaves alone.
+   *
+   * The server refuses with ONE message whether the relationship does not
+   * exist or is not the caller's to end, so this cannot be used to probe who
+   * is on whose roster — and this method does not try to improve on that
+   * wording, for the same reason.
+   */
+  async endCoachRelationship(organizationId: string, athleteUserId: string): Promise<void> {
+    if (!this.client) throw new Error('Ending a coaching relationship needs a connection.');
+    const { data, error } = await this.client.rpc('end_coach_relationship', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: athleteUserId,
+    });
+    if (error) throw error;
+    /* Same rule as the invite commands: a command that came back empty wrote
+       nothing, and reporting success for a relationship that is still live is
+       the failure a coach cannot see from the screen. */
+    if (!(Array.isArray(data) ? data[0] : data)) {
+      throw new Error('The relationship was not ended. Nothing has changed — try again.');
+    }
+  }
+
   async listProgramTemplates(): Promise<readonly ProgramTemplate[]> {
     if (!this.client) return [];
     const { data, error } = await this.client
