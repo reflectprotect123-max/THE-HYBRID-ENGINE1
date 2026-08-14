@@ -234,6 +234,58 @@ export interface AthleteWeekSummary {
 }
 
 /**
+ * One day of a coach-authored week: a date and zero or more sessions.
+ *
+ * The sessions are engine `Workout`s — the same records the day builder
+ * already writes (`library/day-workout.ts`), so nothing downstream needs a
+ * second idea of what a session is. A day holds a LIST because it genuinely
+ * can: a mixed day is stored as a strength record and its conditioning
+ * sibling.
+ */
+export interface CoachWeekDay {
+  /** YYYY-MM-DD. */
+  date: string;
+  sessions: readonly Workout[];
+}
+
+/**
+ * The week a coach publishes — `publish_coach_week`'s `p_body`, exactly.
+ *
+ * The migration constrains it to a JSON object and nothing further, so the
+ * shape is defined here and in `coach-week.ts`, which owns every rule about
+ * it. `schema` and `weekStart` are carried inside the body rather than left
+ * to context because this body is written into TWO rows — the immutable
+ * version, and `athlete_weekly_plans.plan`, which the athlete's own device
+ * reads — and the second one is read a long way from here.
+ *
+ * `days` is always seven entries, Monday first, empty ones included: a rest
+ * day that is present and empty is a coaching decision, and a missing one is
+ * indistinguishable from data lost in transit.
+ */
+export interface CoachWeekBody {
+  schema: 'coach-week/1';
+  weekStart: string;
+  days: readonly CoachWeekDay[];
+}
+
+/**
+ * A coach week plan and its latest version, as the server holds them.
+ *
+ * `version` is the OPTIMISTIC LOCK, not decoration — it goes straight back
+ * into `publish_coach_week`'s `p_base_version`, which is what makes a second
+ * coach publishing the same week fail loudly instead of silently overwriting.
+ * Zero means "no version yet", which is also the first publish's `null`.
+ */
+export interface CoachWeekPlan {
+  weekStart: string;
+  status: 'draft' | 'published';
+  version: number;
+  /** The latest published body, or null when nothing has been published. */
+  body: CoachWeekBody | null;
+  publishedAt: string | null;
+}
+
+/**
  * An organisation the SIGNED-IN coach may mint invites into — that is, one
  * where they hold an active `owner` or `coach` membership.
  *
@@ -319,6 +371,38 @@ export interface CoachWorkspaceRepository {
   publishWorkoutDraft?(clientId: string, workoutId: string, baseVersion: number, preferredStartDate: string, preferredWeekdays: number[]): Promise<void>;
 
   getAthleteWeekSummary?(clientId: string, weekStart: string): Promise<AthleteWeekSummary | null>;
+
+  /* --- The coach's own authored week ------------------------------------- */
+
+  /**
+   * The coach-authored week for (athlete, weekStart) and its LATEST version,
+   * or null when this coach has never published one.
+   *
+   * Null is a fact, not a failure — it is what a week nobody has written looks
+   * like, and it is the state every new week starts in.
+   */
+  getCoachWeek?(clientId: string, weekStart: string): Promise<CoachWeekPlan | null>;
+  /**
+   * Publish, through `publish_coach_week` and nothing else.
+   *
+   * THIS IS THE ONE CROSS-USER WRITE on the bench: it replaces the athlete's
+   * own `athlete_weekly_plans` row with `writer = 'coach'`. Everything that
+   * makes that safe is server-side — the coach↔athlete check, the row lock,
+   * the revision step, the receipt — and this method exists to make sure there
+   * is exactly one way to reach it.
+   *
+   * `baseVersion` is the version this edit started from; null opts out of the
+   * optimistic lock, which is correct for a first publish and a deliberate
+   * choice for anything else. A stale value REFUSES rather than overwriting,
+   * and that refusal must reach the coach — see `publishFailureMessage`.
+   */
+  publishCoachWeek?(
+    clientId: string,
+    weekStart: string,
+    body: CoachWeekBody,
+    baseVersion: number | null,
+    idempotencyKey: string,
+  ): Promise<CoachWeekPlan>;
 
   /* --- Getting an athlete ONTO the roster -------------------------------- */
 

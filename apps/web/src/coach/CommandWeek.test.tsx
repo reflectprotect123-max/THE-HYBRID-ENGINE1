@@ -15,6 +15,10 @@ function renderWeek(over: Partial<React.ComponentProps<typeof CommandWeek>> = {}
     today: THURSDAY,
     readable: true,
     athleteName: 'Alex Morgan',
+    /* The week builder's address. Added 13 August 2026 with
+       `/coach/week/:athleteId/:weekStart` — this panel is its one door. */
+    athleteId: 'engine-local',
+    weekStart: MONDAY,
     ...over,
   };
   render(<MemoryRouter><CommandWeek {...props} /></MemoryRouter>);
@@ -85,6 +89,12 @@ describe('CommandWeek', () => {
     renderWeek();
     expect(screen.getByText(/nothing scheduled or logged this week/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /open the library/i })).toHaveAttribute('href', '/coach/library');
+    /* An athlete with nothing this week is exactly the athlete a coach came
+       here to program, so the builder's door is open in the empty state too —
+       and `coach-routes.test.tsx` fails if this is the only link that reaches
+       `/coach/week/:athleteId/:weekStart`. */
+    expect(screen.getByRole('link', { name: /build the week/i }))
+      .toHaveAttribute('href', `/coach/week/engine-local/${MONDAY}`);
   });
 
   /*

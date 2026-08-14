@@ -340,7 +340,13 @@ console.log('Coach surface contract\n');
 {
   const routerFile = 'apps/web/src/coach/index.tsx';
   const router = code(resolve(ROOT, routerFile));
-  const gatedPaths = ['author', 'readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'build/:id', 'planner/:id'];
+  /* `week/:athleteId/:weekStart` joined on 13 August 2026 with the week
+     builder. It reads the athlete's published week from the repository rather
+     than a local store, but it also reads `useDb()` for the exercise
+     catalogue it offers while authoring, and it is the screen that PUBLISHES
+     into an athlete's own record — so the gate that decides which athlete the
+     bench is pointed at is exactly as load-bearing here as anywhere else. */
+  const gatedPaths = ['author', 'readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'build/:id', 'planner/:id', 'week/:athleteId/:weekStart'];
   const ungatedRoutes = gatedPaths.filter((path) => {
     // The route line itself, e.g. `<Route path="author" element={<ClientDetailGate ...`
     const line = new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*element=\\{<ClientDetailGate\\b`);

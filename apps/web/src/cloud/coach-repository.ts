@@ -10,6 +10,8 @@ import type {
   ClientSummary,
   CoachInvite,
   CoachOrganization,
+  CoachWeekBody,
+  CoachWeekPlan,
   CoachWorkspaceRepository,
   CoachWorkspaceSettings,
   ProgramAssignmentDraft,
@@ -17,6 +19,7 @@ import type {
   TrainingDomain,
 } from '../coach/contracts';
 import { validateProgramAssignmentDraft } from '../coach/contracts';
+import { coachWeekBodyFrom } from '../coach/coach-week';
 import { sessionsFromBody } from '../coach/program-body';
 import { COACH_CLIENT_FIXTURES } from '../coach/mock-fixtures';
 import { supabaseClient } from './sync';
@@ -720,6 +723,96 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
       entries: (result.plan?.entries ?? []) as AthleteWeekSummary['entries'],
       decisions: (result.plan?.decisions ?? []) as AthleteWeekSummary['decisions'],
       sessions: (result.sessions ?? []) as AthleteWeekSummary['sessions'],
+    };
+  }
+
+  /**
+   * The coach's authored week for one athlete, with its latest version.
+   *
+   * A plain SELECT rather than an RPC, because the migration grants exactly
+   * that and nothing more: `coach_week_plans_read` and
+   * `coach_week_versions_read` let the two parties in the relationship read,
+   * and every client role is revoked INSERT, UPDATE and DELETE. A read needs
+   * no command; a WRITE has no path except `publish_coach_week`.
+   *
+   * Null means no week has been authored. RLS FILTERS rather than raising, so
+   * a week this coach may not read comes back as no row — the same answer, and
+   * the right one: there is nothing here for them.
+   */
+  async getCoachWeek(clientId: string, weekStart: string): Promise<CoachWeekPlan | null> {
+    if (!this.client) return null;
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client
+      .from('coach_week_plans')
+      .select('status, week_start, coach_week_plan_versions(version, body, published_at)')
+      .eq('organization_id', organizationId)
+      .eq('athlete_user_id', clientId)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const row = data as {
+      status: 'draft' | 'published';
+      coach_week_plan_versions: { version: number; body: unknown; published_at: string }[] | null;
+    };
+    /* The HIGHEST version, chosen here rather than trusted from the order the
+       embed happened to return. `publish_coach_week` numbers them and the
+       unique constraint keeps them distinct, so max is unambiguous. */
+    const latest = (row.coach_week_plan_versions ?? []).reduce<{ version: number; body: unknown; published_at: string } | null>(
+      (best, v) => (best === null || v.version > best.version ? v : best),
+      null,
+    );
+    return {
+      weekStart,
+      status: row.status,
+      version: latest?.version ?? 0,
+      body: latest ? coachWeekBodyFrom(latest.body, weekStart) : null,
+      publishedAt: latest?.published_at ?? null,
+    };
+  }
+
+  /**
+   * The publish. One RPC, one transaction, and the only cross-user write in
+   * this file.
+   *
+   * Nothing is validated here that the server does not validate again — the
+   * Monday, the relationship, the base version and the idempotency key are all
+   * re-checked inside `publish_coach_week`, which is where they have to be
+   * checked, because this class is not an authorisation boundary.
+   *
+   * An empty response is treated as a FAILURE, like every other command here.
+   * The function raises rather than returning null, so this is the second lock
+   * on the same door — and the door it guards is a coach closing the tab
+   * believing an athlete has a week.
+   */
+  async publishCoachWeek(
+    clientId: string,
+    weekStart: string,
+    body: CoachWeekBody,
+    baseVersion: number | null,
+    idempotencyKey: string,
+  ): Promise<CoachWeekPlan> {
+    if (!this.client) throw new Error('Publishing a week needs a connection.');
+    const organizationId = await this.orgIdFor(clientId);
+    const { data, error } = await this.client.rpc('publish_coach_week', {
+      p_organization_id: organizationId,
+      p_athlete_user_id: clientId,
+      p_week_start: weekStart,
+      p_body: body,
+      p_idempotency_key: idempotencyKey,
+      p_base_version: baseVersion,
+    });
+    if (error) throw error;
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { version: number; body: unknown; published_at: string }
+      | null;
+    if (!row) throw new Error('The week was not published. Nothing has changed — try again.');
+    return {
+      weekStart,
+      status: 'published',
+      version: row.version,
+      body: coachWeekBodyFrom(row.body, weekStart),
+      publishedAt: row.published_at,
     };
   }
 

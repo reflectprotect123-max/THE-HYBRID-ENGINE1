@@ -32,7 +32,7 @@ const STATUS_WORD: Record<WeekDay['entries'][number]['status'], string> = {
   scheduled: 'scheduled',
 };
 
-export function CommandWeek({ days, today, readable, athleteName }: {
+export function CommandWeek({ days, today, readable, athleteName, athleteId, weekStart }: {
   days: readonly WeekDay[];
   /** YYYY-MM-DD. Marked in the row so the coach can find their place. */
   today: string;
@@ -40,6 +40,20 @@ export function CommandWeek({ days, today, readable, athleteName }: {
    *  contract, not a failure, and stated as one. */
   readable: boolean;
   athleteName: string;
+  /**
+   * Who and when, for `/coach/week/:athleteId/:weekStart` — the week BUILDER,
+   * and this panel's one door to it. Addressed by ATHLETE rather than by
+   * "whoever is selected", because the builder re-reads the id from the URL
+   * and refuses when the two disagree.
+   *
+   * The link is rendered in the EMPTY branch too, deliberately: an athlete
+   * with nothing this week is precisely the athlete a coach opened this screen
+   * to program. It is NOT rendered in the unreadable branch — see that branch
+   * for why that state stays link-free.
+   */
+  athleteId: string;
+  /** The Monday this panel is showing. */
+  weekStart: string;
 }) {
   const tally = weekTally(days);
   const strip = useRef<HTMLDivElement>(null);
@@ -77,6 +91,15 @@ export function CommandWeek({ days, today, readable, athleteName }: {
        stage still does not touch. */
     <section className="mt-6" aria-labelledby="command-week-heading">
       <p className="rd-section-label" id="command-week-heading">This week</p>
+      {/* Not in the unreadable branch below — a bench that cannot read this
+          athlete at all is not the place to offer to publish into their
+          record, and that branch is deliberately link-free for a related
+          reason of its own. */}
+      {readable && (
+        <p className="lib-detail-cta-row">
+          <Link to={`/coach/week/${athleteId}/${weekStart}`} className="lib-cta ghost">Build the week</Link>
+        </p>
+      )}
 
       {!readable ? (
         /*

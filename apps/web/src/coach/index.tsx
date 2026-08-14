@@ -12,6 +12,7 @@ import { CoachCommandCenter } from './CoachCommandCenter';
 import { ArcCoachFrame } from './ArcCoachFrame';
 import { CoachLibrary } from './CoachLibrary';
 import { CoachSettings } from './CoachSettings';
+import { CoachWeekBuilder } from './CoachWeekBuilder';
 import { ClientDetailGate } from './ClientDetailGate';
 import { Planner } from './authoring/Planner';
 import { GuidedBuilder } from './authoring/guided/GuidedBuilder';
@@ -102,6 +103,16 @@ export default function Coach() {
             */}
             <Route path="progression" element={<ClientDetailGate tool="Decisions" layer3Ready><CoachProgression /></ClientDetailGate>} />
             <Route path="review/:weekStart" element={<ClientDetailGate tool="Week review" layer3Ready><WeekReview /></ClientDetailGate>} />
+            {/*
+              The week builder — step 3 of the coach-publishes-the-week design.
+              `layer3Ready`, and not as a formality: a ROSTER athlete is the
+              entire point of this screen. `publish_coach_week` writes into a
+              real athlete's own weekly-plan row through a coach↔athlete
+              relationship the server checks, so there is nothing here for the
+              signed-in account's own local training — the screen says so and
+              turns Publish off rather than pretending.
+            */}
+            <Route path="week/:athleteId/:weekStart" element={<ClientDetailGate tool="Week builder" layer3Ready><CoachWeekBuilder /></ClientDetailGate>} />
             <Route path="legacy" element={<ClientDetailGate tool="Program bench"><CoachShell /></ClientDetailGate>} />
             <Route path="build/:id" element={<ClientDetailGate tool="Workout builder"><GuidedBuilder /></ClientDetailGate>} />
             <Route path="planner/:id" element={<ClientDetailGate tool="Planner"><Planner /></ClientDetailGate>} />

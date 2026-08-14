@@ -209,6 +209,25 @@ const COACH_SHOTS = [
    * fixture to reach it with.
    */
   ['26-coach-roster-plan', '/coach/roster-plan/w1', null],
+  /*
+   * The week builder (13 August 2026), joining in the same commit that adds
+   * the route — the standing rule for anything new under `/coach`.
+   *
+   * Addressed at `engine-local`, the signed-in coach's OWN entry, because it
+   * is the only client this seed contains: `listClients()` resolves to
+   * `ENGINE_LOCAL` alone against the `[]` REST stub above. That is a real
+   * state of the screen and not a not-found — the seven day columns, the day
+   * editors and the publish row all render — but it is honest to say what it
+   * does NOT prove: Publish is deliberately off for a non-roster entry (there
+   * is no coach↔athlete relationship for the server to check), so the publish
+   * CONFIRMATION and the published/completed day states stay unproven at these
+   * widths until there is a roster fixture. `CoachWeekBuilder.test.tsx` drives
+   * both directly.
+   *
+   * `.lib-sub` is `display: none` below 760px and `innerText` reflects that,
+   * so no pattern here may name text inside it.
+   */
+  ['27-coach-week', `/coach/week/engine-local/${THIS_MONDAY}`, [/week builder/i, /Publish the week/i, /\bMon\b/i, /\bSun\b/i]],
 ];
 
 /*

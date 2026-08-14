@@ -14,6 +14,8 @@ import type {
   ClientSummary,
   CoachInvite,
   CoachOrganization,
+  CoachWeekBody,
+  CoachWeekPlan,
   CoachWorkspaceRepository,
   CoachWorkspaceSettings,
   ProgramAssignmentDraft,
@@ -181,6 +183,41 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
 
   async getAthleteWeekSummary(): Promise<AthleteWeekSummary | null> {
     return this.weekSummary;
+  }
+
+  /* The coach's own authored week. `publishedWeeks` is RECORDED rather than
+     echoed for the same reason `saveAssignmentDraft` is: `publishCoachWeek`
+     is the only path to the bench's one cross-user write, and a test that
+     cannot see what it sent cannot tell a publish from a no-op that returned
+     its own argument. */
+  coachWeek: CoachWeekPlan | null = null;
+  coachWeekError: unknown = null;
+  publishedWeeks: { clientId: string; weekStart: string; body: CoachWeekBody; baseVersion: number | null; idempotencyKey: string }[] = [];
+  publishError: unknown = null;
+
+  async getCoachWeek(): Promise<CoachWeekPlan | null> {
+    if (this.coachWeekError) throw this.coachWeekError;
+    return this.coachWeek;
+  }
+
+  async publishCoachWeek(
+    clientId: string,
+    weekStart: string,
+    body: CoachWeekBody,
+    baseVersion: number | null,
+    idempotencyKey: string,
+  ): Promise<CoachWeekPlan> {
+    this.publishedWeeks.push({ clientId, weekStart, body, baseVersion, idempotencyKey });
+    if (this.publishError) throw this.publishError;
+    const published: CoachWeekPlan = {
+      weekStart,
+      status: 'published',
+      version: (baseVersion ?? 0) + 1,
+      body,
+      publishedAt: new Date().toISOString(),
+    };
+    this.coachWeek = published;
+    return published;
   }
 
   /* Invites. Defaults are the state a brand-new coach is really in — no

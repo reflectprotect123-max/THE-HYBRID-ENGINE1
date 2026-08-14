@@ -265,6 +265,8 @@ export function CoachCommandCenter() {
         today={today()}
         readable={weekReadable}
         athleteName={selectedClient.name}
+        athleteId={selectedClient.id}
+        weekStart={weekStart}
       />
     </div>
   );

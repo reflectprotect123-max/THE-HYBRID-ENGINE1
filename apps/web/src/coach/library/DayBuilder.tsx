@@ -26,9 +26,10 @@ const ChevronLeft = () => (
 /**
  * The coach's authoring screen for one session, in two modes.
  *
- * ONE component rather than two, so the half that matters — coach instructions
- * and the blocks — is built and fixed once. `mode` decides only what wraps it:
- * a date, a published status and Publish, or neither and Save to library.
+ * ONE component rather than three, so the half that matters — coach
+ * instructions and the blocks — is built and fixed once. `mode` decides only
+ * what wraps it: a date, a published status and Publish; a date and a Done
+ * button; or neither and Save to library.
  *
  * THE HONESTY RULE. `publishWorkoutDraft` takes a PREFERRED start date and
  * PREFERRED weekdays and routes through the same Coordinator-placement path as
@@ -37,6 +38,16 @@ const ChevronLeft = () => (
  * already refuses to blur this — it labels its day toggles "PREFERRED DAYS ·
  * INPUT, NOT PLACEMENT" — and the Calendar may not contradict its sibling
  * screen. The dated mode says so, in words, every time.
+ *
+ * `week` MODE IS THE ONE PLACE THAT NOTE WOULD BE FALSE, which is why it is a
+ * mode rather than a flag on `dated`. It edits one day of a week the coach
+ * PUBLISHES with `publish_coach_week` — a command that writes dated sessions
+ * straight into the athlete's own weekly-plan row with `writer = 'coach'`, no
+ * Coordinator in the path (see the coach-publishes-the-week design, and
+ * CoachWeekBuilder.tsx). There the day IS the placement, so repeating "the
+ * Coordinator resolves where this lands" would be the inaccurate half. It also
+ * does not publish anything by itself: this editor hands the day back to the
+ * week, and the week is published once, as a whole.
  */
 export function DayBuilder({
   mode,
@@ -48,7 +59,7 @@ export function DayBuilder({
   onSave,
   onBack,
 }: {
-  mode: 'dated' | 'library';
+  mode: 'dated' | 'library' | 'week';
   date?: string;
   published: boolean;
   entries: CatalogueEntry[];
@@ -60,7 +71,8 @@ export function DayBuilder({
    * initialiser), so there is no later arrival to wait for.
    */
   initialValue?: DayBuilderValue;
-  onPublish: (value: DayBuilderValue) => void;
+  /** Only `dated` mode has a Publish button, so only `dated` mode needs this. */
+  onPublish?: (value: DayBuilderValue) => void;
   onSave: (value: DayBuilderValue) => void;
   onBack: () => void;
 }) {
@@ -69,6 +81,7 @@ export function DayBuilder({
 
   const value: DayBuilderValue = { instructions, blocks };
   const dated = mode === 'dated' && !!date;
+  const weekly = mode === 'week' && !!date;
 
   function addBlock() {
     setBlocks((prev) => [
@@ -82,20 +95,40 @@ export function DayBuilder({
       <div className="cb-head">
         <button type="button" className="rd-back" onClick={onBack}>
           <ChevronLeft />
-          {dated ? 'Back to calendar' : 'Back to library'}
+          {dated ? 'Back to calendar' : weekly ? 'Back to the week' : 'Back to library'}
         </button>
         <div className="cb-head-actions">
           {dated ? (
-            <button type="button" className="lib-cta" onClick={() => onPublish(value)}>
+            <button type="button" className="lib-cta" onClick={() => onPublish?.(value)}>
               Publish session
             </button>
           ) : (
             <button type="button" className="lib-cta" onClick={() => onSave(value)}>
-              Save to library
+              {weekly ? 'Save this day' : 'Save to library'}
             </button>
           )}
         </div>
       </div>
+
+      {weekly && (
+        <>
+          <h2 className="cb-title">{formatTitle(date)}</h2>
+          <div className="cb-meta">
+            <span>{date}</span>
+            <span className={`cb-status${published ? ' published' : ''}`}>
+              <span className="dot" />
+              {published ? 'Published' : 'Not published'}
+            </span>
+          </div>
+          {/* No "preferred day" note here, deliberately — see this component's
+              header. A week published by `publish_coach_week` places its
+              sessions on the dates the coach chose. */}
+          <p className="cb-note">
+            This day lands on <strong>{date}</strong> when the week is published. Saving it here
+            changes the week you are building; it sends nothing on its own.
+          </p>
+        </>
+      )}
 
       {dated && (
         <>
