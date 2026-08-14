@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { resolveSession } from '@hybrid/auto-coach';
 import { mondayOf } from '@hybrid/coordinator-adapter';
@@ -70,7 +70,7 @@ const WEEKDAY = (date: string): string =>
 
 export function ArcCoachWeekCard({ week }: { week: CoachWeek }) {
   const { athleteState } = useDb();
-  const { coachWeekAttribution } = useSync();
+  const { coachWeekAttribution, reportHeldSessions } = useSync();
   const policy = usePolicy();
   const today = ymd(new Date());
 
@@ -109,6 +109,33 @@ export function ArcCoachWeekCard({ week }: { week: CoachWeek }) {
         .filter((x) => x.resolution.state === 'safety_stop'),
     [todaysSessions, policy, athleteState],
   );
+
+  /*
+   * THE COACH-FACING HALF, and the one place that knows the session, the day
+   * and the reason code at the same time — which is exactly where the seam
+   * comment below predicted it would go.
+   *
+   * Fires off the computed holds rather than recomputing anything: the verdict
+   * above is auto-coach's, unchanged, and this only reports it. Reporting is
+   * idempotent per session per day inside `pushHeldSessions`, so a re-render,
+   * a remount or a second foreground on the same afternoon does not file a
+   * second hold.
+   *
+   * Not awaited and never surfaced. Nobody pressed a button, so a failure has
+   * no tap to report to — and an unsent hold stays unmarked, so the next
+   * render tries again. A hold that never arrives reads to the coach as
+   * "ignored me", which is the outcome this whole path exists to prevent.
+   */
+  useEffect(() => {
+    if (heldToday.length === 0) return;
+    void reportHeldSessions(
+      heldToday.map(({ session, resolution }) => ({
+        workoutId: session.id,
+        sessionDate: today,
+        reasonCodes: resolution.reasonCodes,
+      })),
+    );
+  }, [heldToday, today, reportHeldSessions]);
 
   const by = coachWeekAttribution?.coachName;
 
@@ -159,24 +186,11 @@ export function ArcCoachWeekCard({ week }: { week: CoachWeek }) {
           ))}
           <T className="mt-1 text-3 text-dim">{resolution.athleteMessage}</T>
           {/*
-            SEAM — THE COACH-FACING HALF DOES NOT EXIST YET.
-
-            The design doc requires that a held session is reported BOTH ways:
-            "the athlete sees why, and so does the coach", and its build order
-            makes that step 5, after this one. Nothing carries it today. There
-            is no table for it (`decision_receipts` runs coach -> athlete and is
-            written only by SECURITY DEFINER coach commands; no athlete-side
-            equivalent exists), no RPC an athlete client is granted, and no
-            surface on the bench that reads one. So this device tells the
-            ATHLETE and stops.
-
-            Deliberately NOT worked around. The plausible-looking hack — writing
-            a `record_athlete_event` row and hoping the bench grows a reader —
-            would put a half-built reporting path in the tree that looks
-            finished from here and is invisible from the coach's side, which is
-            worse than the honest gap. When step 5 lands, the write goes here:
-            it is the one place that knows the session, the day and the reason
-            code at the same time.
+            The coach-facing half is no longer a seam — see the effect above,
+            which reports these holds through `push_autocoach_receipt`. The
+            comment that stood here described the gap and predicted where the
+            write would go; it went exactly there, one level up, where the
+            session, the day and the reason code are all in scope at once.
           */}
         </View>
       ))}

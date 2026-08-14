@@ -35,6 +35,7 @@ import {
   type PendingAssignment,
 } from './arc-assignments';
 import { clearArcNameCache } from './arc-roster';
+import { pushHeldSessions, type HeldSessionReport } from './arc-held-receipt';
 import { coachWeekFromNamespace, readCoachWeekAttribution, type CoachWeekAttribution } from './arc-coach-week';
 import { useNutrition } from '../store/nutrition';
 import '../product'; // build-config guard
@@ -89,6 +90,17 @@ interface SyncCtx {
    * whenever the best-effort read did not land — a name is not worth a banner.
    */
   coachWeekAttribution: CoachWeekAttribution | null;
+  /**
+   * Tell the coach that the safety layer stopped one of their sessions.
+   *
+   * Lives here rather than in the card because the card has no organisation id
+   * and no Supabase client, and should not grow either — the same reason
+   * accept/decline are here. Best-effort and non-throwing, UNLIKE those two:
+   * nobody pressed a button, so there is no tap to report a failure to, and
+   * `pushHeldSessions` leaves an unsent hold unmarked so the next attempt
+   * retries it.
+   */
+  reportHeldSessions: (reports: readonly HeldSessionReport[]) => Promise<void>;
 }
 
 const Ctx = createContext<SyncCtx | null>(null);
@@ -745,6 +757,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
            has already succeeded and `reconcile` reports its own failures. */
         if (inFlight.current) rerunRequested.current = true;
         else void reconcile();
+      },
+      /* Best-effort and non-throwing on purpose: nobody pressed a button, so
+         there is no tap to report a failure to. `pushHeldSessions` leaves an
+         unsent hold unmarked, so the next render retries it rather than losing
+         it — and a lost hold reads to the coach as "ignored me", which is the
+         one outcome this whole path exists to prevent. */
+      reportHeldSessions: async (reports: readonly HeldSessionReport[]) => {
+        if (!client || !arcOrgRef.current || reports.length === 0) return;
+        try {
+          await pushHeldSessions(client, arcOrgRef.current, reports);
+        } catch {
+          /* silent — see above */
+        }
       },
       declineAssignment: async (assignmentId: string) => {
         if (!client || !arcOrgRef.current) throw new Error('No coaching relationship is available right now.');
