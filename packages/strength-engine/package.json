@@ -12,7 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@hybrid/coordinator": "workspace:*",
     "@hybrid/engine": "workspace:*",
     "@hybrid/shared-core": "workspace:*"
   },

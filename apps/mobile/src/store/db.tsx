@@ -16,7 +16,6 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { deriveAthleteState, summarizeTrainingFacts, type AthleteStateSnapshot, type TrainingFact } from '@hybrid/whole-athlete-state';
-import { buildWeeklyPlan, type WeeklyPlan } from '@hybrid/coordinator-adapter';
 import type { ProductId } from '@hybrid/product-scope';
 import { storage } from './storage';
 import { splitActiveSession, trainingScope, useDiscipline } from '../discipline';
@@ -72,7 +71,6 @@ interface DbCtx {
   hr: HrContext;
   activeSession: Session | null;
   athleteState: AthleteStateSnapshot;
-  weeklyPlan: WeeklyPlan;
 }
 
 const Ctx = createContext<DbCtx | null>(null);
@@ -221,7 +219,6 @@ export function DbProvider({ children }: { children: ReactNode }) {
         today,
         recentTraining: summarizeTrainingFacts(facts),
       });
-      const weeklyPlan = buildWeeklyPlan(db, athleteState, today);
       const live = db.sessions.find((s) => s.status === 'active') || null;
       const { activeSession, foreignActiveSession } = splitActiveSession(live, world);
       const discipline = trainingScope(world);
@@ -243,7 +240,6 @@ export function DbProvider({ children }: { children: ReactNode }) {
         activeSession,
         foreignActiveSession,
         athleteState,
-        weeklyPlan,
       };
     },
     [db, world, update, updateSession, saveFailed, dataRecovered, whoop],

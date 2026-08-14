@@ -785,11 +785,15 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
   }
 
   /**
-   * Entries, decisions and session SUMMARIES only — this is deliberately NOT
-   * `getAthleteWeek`. That method promises a full `AthleteWeekProjection`
-   * (real `Session[]` with block/set detail); this backend tier does not
-   * return that, and fabricating empty blocks to satisfy the richer type
-   * would misrepresent what is actually known.
+   * Entries, decisions and session SUMMARIES only.
+   *
+   * This comment used to contrast it with `getAthleteWeek`, which promised a
+   * full `AthleteWeekProjection` with real `Session[]` block/set detail; the
+   * point was that this tier does not return that, and fabricating empty
+   * blocks to satisfy the richer type would misrepresent what is known.
+   * `getAthleteWeek` was deleted on 14 August 2026 with the Coordinator, so
+   * this is now the ONLY athlete-week read — the caution stands on its own
+   * rather than as a contrast: what comes back here is summaries.
    */
   async getAthleteWeekSummary(clientId: string, weekStart: string): Promise<AthleteWeekSummary | null> {
     if (!this.client) return null;

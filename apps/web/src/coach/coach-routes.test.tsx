@@ -265,13 +265,13 @@ describe('coach route reachability', () => {
     // Every derivation above is a regex over source. If any of them silently
     // stops matching, the walk reports everything reachable from an empty
     // graph and this file becomes the fourth decorative guard on the branch.
-    expect(declaredPaths).toEqual(expect.arrayContaining(['progression', 'legacy', 'review/:weekStart']));
-    // Was 12 until 14 August 2026, when `author`, `build/:id`,
-    // `planner/:id` and `roster-plan/:workoutId` were deleted along with
-    // CoachAuthoring, GuidedBuilder, Planner and RosterPlanner. Lowered
-    // deliberately, with the reason, rather than left as a floor no
-    // longer tied to anything.
-    expect(declaredPaths.length).toBeGreaterThanOrEqual(11);
+    expect(declaredPaths).toEqual(expect.arrayContaining(['progression', 'legacy']));
+    // Was 12; then 11, when `author`, `build/:id`, `planner/:id` and
+    // `roster-plan/:workoutId` went with the old authoring chain on 14 August
+    // 2026; now 10, after `review/:weekStart` went with the Coordinator the
+    // same day. Lowered deliberately each time, with the reason, rather than
+    // left as a floor no longer tied to anything.
+    expect(declaredPaths.length).toBeGreaterThanOrEqual(10);
     expect(componentsFor('')).toContain('CoachCommandCenter');
     expect(componentsFor('legacy')).toContain('CoachShell');
     expect([...layoutFiles].some((f) => f.endsWith('/ArcCoachFrame.tsx'))).toBe(true);
@@ -279,20 +279,24 @@ describe('coach route reachability', () => {
   });
 
   /*
-   * The three routes the owner deleted from the rail on 11 August 2026, and
-   * which nothing else links to. They are reachable BY ADDRESS only, and that
-   * is the decision, not a regression:
+   * The routes the owner deleted from the rail on 11 August 2026, and which
+   * nothing else links to. They are reachable BY ADDRESS only, and that is the
+   * decision, not a regression:
    *
    *   progression      — the only mount of RosterProgressionActions, so the
    *                      only roster approve/decline in the app. The route
    *                      stays so the capability stays.
    *   legacy           — the pre-redesign Program bench (CoachShell).
-   *   review/:weekStart — the planned-versus-actual ledger.
+   *
+   * There were three. `review/:weekStart`, the planned-versus-actual ledger,
+   * is not unlinked now — it is DELETED, with the Coordinator whose decisions
+   * it rendered (14 August 2026). It comes OFF this list rather than staying
+   * on it, because an entry here asserts the route still exists.
    *
    * They are listed here rather than exempted silently, so that deleting a
    * route outright, or quietly re-linking one, both change this file.
    */
-  const ORPHANED_BY_DECISION = ['progression', 'legacy', 'review/:weekStart'];
+  const ORPHANED_BY_DECISION = ['progression', 'legacy'];
 
   it('still declares every orphaned-by-decision route, so no capability was deleted with its link', () => {
     expect(declaredPaths).toEqual(expect.arrayContaining(ORPHANED_BY_DECISION));

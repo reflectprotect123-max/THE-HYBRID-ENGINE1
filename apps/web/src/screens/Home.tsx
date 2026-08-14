@@ -116,7 +116,7 @@ export function plannedForToday(
 
 export function Home() {
   const nav = useNavigate();
-  const { db, whoop, activeSession, sessions, update, athleteState, weeklyPlan } = useDb();
+  const { db, whoop, activeSession, sessions, update, athleteState } = useDb();
 
   const today = ymd(new Date());
   const rec = todayRecovery(whoop);
@@ -269,33 +269,12 @@ export function Home() {
       </div>
       <WeekStrip workouts={db.workouts} sessions={sessions} today={today} onOpenDay={openDay} />
 
-      {/* Reference, not an instruction — and on most days it restates the
-          strip above and today's card, so it opens closed. The count in the
-          summary is the part worth seeing without tapping. */}
-      <Disclosure
-        className="mt-1"
-        summary="Coordinated week"
-        meta={
-          <>
-            {weeklyPlan.entries.length} scheduled
-            {weeklyPlan.decisions.filter((d) => d.action === 'dropped').length
-              ? ` · ${weeklyPlan.decisions.filter((d) => d.action === 'dropped').length} held back`
-              : ''}
-          </>
-        }
-      >
-        <ul className="flex flex-col gap-0.5">
-          {weeklyPlan.entries.slice(0, 4).map((entry) => (
-            <li key={entry.id} className="flex items-center justify-between gap-1 text-3">
-              <span className="truncate text-muted">{entry.title}</span>
-              <span className="num shrink-0 text-dim">{entry.date}</span>
-            </li>
-          ))}
-        </ul>
-        {!weeklyPlan.entries.length ? (
-          <p className="text-3 text-muted">No automatic session was placed for this week.</p>
-        ) : null}
-      </Disclosure>
+      {/* A "Coordinated week" disclosure stood here until 14 August 2026,
+          listing the Coordinator's scheduled entries and how many it held
+          back. The Coordinator is deleted. This screen is part of the parked
+          athlete web app (see CLAUDE.md) and is not reachable, so it is
+          trimmed rather than given a replacement — restoring the athlete app
+          means deciding what belongs here, not un-commenting this. */}
 
       {/* Cause, then consequence, then the setting that governs future
           consequences — CheckInCard is the input, SessionReceipt is what the

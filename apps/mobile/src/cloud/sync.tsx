@@ -2,17 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, type AppStateStatus } from 'react-native';
 import { createClient, type Session as AuthSession, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { SUPABASE } from '@hybrid/config';
-import {
-  applyPull,
-  buildMergedSyncNamespace,
-  buildPushState,
-  cloudFp,
-  mergeEngines,
-  sanitizeDB,
-  ymd,
-  type EngineDB,
-} from '@hybrid/engine';
-import { mondayOf } from '@hybrid/coordinator-adapter';
+import { applyPull, buildMergedSyncNamespace, buildPushState, cloudFp, type EngineDB, mergeEngines, mondayOf, sanitizeDB, ymd } from '@hybrid/engine';
 import type { EcosystemSyncNamespace } from '@hybrid/shared-core';
 import { emptyNutritionDB, mergeNutrition, sanitizeNutritionDB, type NutritionDB } from '@hybrid/nutrition-core';
 import { useDb } from '../store/db';

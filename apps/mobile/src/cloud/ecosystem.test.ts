@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { mondayOf } from '@hybrid/coordinator-adapter';
-import { ymd } from '@hybrid/engine';
+import { mondayOf, ymd } from '@hybrid/engine';
 import { pullEcosystem } from './ecosystem';
 
 /*

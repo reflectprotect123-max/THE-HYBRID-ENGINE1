@@ -1,6 +1,5 @@
 import { screen } from '@testing-library/react-native';
-import { mondayOf } from '@hybrid/coordinator-adapter';
-import { ymd, type EngineDB } from '@hybrid/engine';
+import { type EngineDB, mondayOf, ymd } from '@hybrid/engine';
 import { renderScreen, seed } from '../../test/harness';
 import { NutritionProvider } from '../store/nutrition';
 import { SyncProvider } from '../cloud/sync';
@@ -164,18 +163,36 @@ describe("a coach's published week", () => {
   });
 });
 
+/*
+ * REWRITTEN 14 August 2026, when the Coordinator was deleted.
+ *
+ * These two asserted the two halves of one rule: a coach's published week
+ * REPLACES the Coordinator's card rather than sitting beside it, and an
+ * athlete nobody coaches still gets the Coordinator's. The first half is
+ * unchanged and still the point — Home must never show two answers to "what
+ * am I doing this week".
+ *
+ * The second half no longer has a Coordinator to fall back to. It is kept,
+ * inverted, because the FALLBACK IS THE PART THAT CHANGED and a deleted test
+ * would leave that silent: an uncoached athlete is now told no week has been
+ * published, which is a real screen state someone could regress into showing
+ * a blank card or a spinner.
+ */
 describe('Home shows ONE week', () => {
-  it('replaces the Coordinated-week card when a coach has published', () => {
+  it('replaces the empty-week card when a coach has published', () => {
     seed(coachWeekDb());
     renderHome();
     expect(screen.getByText(/Your coach.s week/)).toBeTruthy();
-    expect(screen.queryByText('Coordinated week')).toBeNull();
+    expect(screen.queryByText(/No week has been published/)).toBeNull();
   });
 
-  it('keeps the Coordinator’s week for an athlete nobody coaches', () => {
+  it('says so plainly for an athlete nobody coaches, rather than falling back', () => {
     seed({ workouts: [], sessions: [], settings: {} });
     renderHome();
-    expect(screen.getByText('Coordinated week')).toBeTruthy();
+    expect(screen.getByText(/No week has been published for you/)).toBeTruthy();
     expect(screen.queryByText(/Your coach.s week/)).toBeNull();
+    /* The Coordinator's card said "Coordinated week" here. Nothing may
+       reintroduce it: there is no Coordinator to compute one. */
+    expect(screen.queryByText('Coordinated week')).toBeNull();
   });
 });

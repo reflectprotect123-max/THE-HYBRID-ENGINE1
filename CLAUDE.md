@@ -1,8 +1,9 @@
 # Claude Code operating contract
 
 This repository is THE Hybrid System. It is a pnpm monorepo with two product
-build profiles, shared athlete contracts, specialist domain engines, and a
-deterministic Coordinator.
+build profiles, shared athlete contracts and specialist domain engines. It had
+a deterministic Coordinator until 14 August 2026; see "The Coordinator is
+deleted" below.
 
 Read the **authoritative checkpoint at the top of `handoff.md`** before making
 changes. It records the current local rebuild commit, the fact that GitHub's
@@ -18,17 +19,19 @@ records; do not follow a stale statement that the rebuild has not started.
 - `@hybrid/strength-engine` owns lifting progression and Strength proposals.
 - `@hybrid/conditioning-engine` owns modalities, intervals and Conditioning
   progression.
-- `@hybrid/coordinator` owns weekly conflict resolution and chooses the final
-  weekly plan **for an athlete with no coach**. See "Who owns the week" below;
-  this line read "is the only layer allowed to choose the final weekly plan"
-  until 14 August 2026 and was enforced by a database constraint.
-- `@hybrid/coordinator-adapter` is the app projection from existing workouts to
-  Coordinator proposals.
+- `@hybrid/coordinator` and `@hybrid/coordinator-adapter` are **DELETED**
+  (14 August 2026). This line read "owns weekly conflict resolution and
+  chooses the final weekly plan for an athlete with no coach", and before
+  that "is the only layer allowed to choose the final weekly plan", enforced
+  by a database constraint. Nothing arbitrates a week now. See "The
+  Coordinator is deleted" below.
 - `@hybrid/product-scope` owns the product identities and their capability
   lists. It is a fact table, not a decision layer.
 - `@hybrid/auto-coach` owns the autonomy policy and the session resolver. It
   applies whole-athlete-state constraints to one session; it never programs a
-  week and never overrides the Coordinator.
+  week. ("and never overrides the Coordinator" ended when the Coordinator did;
+  the first half is the load-bearing half and is unchanged — this layer decides
+  about ONE SESSION, never a week.)
 - `@hybrid/nutrition-core` owns the nutrition data model, its sanitiser and
   its merge. Data only — it decides nothing.
 - `@hybrid/nutrition-adapter` is the one projection from the athlete's
@@ -47,8 +50,10 @@ to protect does not. One owner per decision domain, still:
 - Nutrition prescription — targets, adaptive calories, macro splits — will
   live in `@hybrid/nutrition-engine` and nowhere else. Do not scatter macro
   maths into screens or into the training engines.
-- The Coordinator arbitrates TRAINING. It never resolves macros, and nutrition
-  never edits a weekly plan.
+- Nutrition never edits a weekly plan. (This read "the Coordinator arbitrates
+  TRAINING. It never resolves macros, and nutrition never edits a weekly plan."
+  The Coordinator is deleted; the half that constrains NUTRITION is the half
+  that still binds, and it binds against the coach's week now.)
 - `@hybrid/whole-athlete-state` may read nutrition FACTS — energy
   availability, adherence — as context that shapes constraints. It must not
   read a nutrition target as an instruction.
@@ -219,7 +224,7 @@ discovered later.
 | Concern | Who decides |
 |---|---|
 | Which sessions, in which order, on which days | **The coach**, for a coached athlete. |
-| The same, for an athlete with no coach | **The Coordinator**, exactly as before. Untouched, and a check proves it. |
+| The same, for an athlete with no coach | **Nobody.** The Coordinator answered this until 14 August 2026; it is deleted. An uncoached athlete has no planned week, and their phone says so. |
 | Whether today's session runs at all, given pain or illness | **The safety layer. Unchanged.** |
 
 **Taking the WEEK from the Coordinator did not take the SESSION from the
@@ -241,9 +246,11 @@ Three consequences that are easy to get wrong, each already paid for once:
   statement, changes nothing, and reports success. The coach is told it landed
   and the athlete never sees it.
 - **`athlete_weekly_plans` is `primary key (user_id, week_start)`** — one row
-  per week, so a coach publish REPLACES the coordinator's. Nothing is lost:
-  the stored row is a published artefact and the Coordinator recomputes the
-  week on device, offline. The fallback was never the row.
+  per week, so a coach publish REPLACES whatever was there. This bullet used to
+  add "nothing is lost: the Coordinator recomputes the week on device, offline.
+  The fallback was never the row." **There is no fallback now**, on device or
+  in the row. Replacing a coach week with another coach week is still safe;
+  there is simply nothing underneath it any more.
 - **The merge rule is scoped to ONE week** (`chooseWeeklyPlan`, shared-core).
   A coach owns the week they published, not every week forever — otherwise an
   athlete leaving a roster could never reclaim their own weeks, because no
@@ -254,7 +261,8 @@ Three consequences that are easy to get wrong, each already paid for once:
 The legacy `app_state` JSON row remains a migration bridge. The public
 cross-app boundary is the migration in
 `supabase/migrations/20260804_fitness_ecosystem_contracts.sql`: RLS-owned core,
-domain snapshots, idempotent events, and Coordinator-only weekly plans. Apply
+domain snapshots, idempotent events, and weekly plans (whose writer constraint
+admitted only the Coordinator when this was written). Apply
 it in staging before enabling `VITE_HYBRID_ECOSYSTEM_SYNC=1` or
 `EXPO_PUBLIC_HYBRID_ECOSYSTEM_SYNC=1`.
 
@@ -342,6 +350,68 @@ the list, not by raising the budget.
 `apps/web/src/coach/authoring/` no longer exists — see the next section. The
 crossings were retired by the MOVE, not by the directory, so nothing above is
 weakened by the destination being gone a day later.
+
+## The Coordinator is deleted (14 August 2026)
+
+The owner is rebuilding the engine from the ground up and asked for the
+Coordinator and everything it does to go. It did. **Nothing in this repository
+arbitrates a week any more.**
+
+Deleted outright: `packages/coordinator` (the reconciler, its types, its
+tests), `packages/coordinator-adapter`, the proposal boundary in
+`@hybrid/strength-engine` and `@hybrid/conditioning-engine`
+(`workoutToStrengthProposal`, `strengthProposals`, `conditioningToProposal`
+and their option types), `weeklyPlan` from BOTH app stores, and on the bench
+`ResolutionPreview`, `WeekReview`, `week-review.ts`, `diff.ts`,
+`bench-store`'s `SlimPlan`/`slimPlan`/`setReviewBaseline`,
+`AthleteWeekProjection`, `getAthleteWeek` and the `useSelectedAthleteWeek`
+seam. The route `/coach/review/:weekStart` went with them.
+
+**What survives, and why each one had to.**
+
+- **`mondayOf` moved to `@hybrid/engine`** (`month.ts`). It is arithmetic on a
+  date, not arbitration, and the COACH's week is keyed on a Monday too —
+  `arc-coach-week`, `ecosystem.ts`, `sync.tsx` and `ArcCoachWeekCard` all call
+  it. Do not confuse it with `coach-week.ts`'s `weekStartOfLocalDate`, which
+  answers the LOCAL question; both exist on purpose.
+- **The safety layer is untouched.** `@hybrid/auto-coach` resolves ONE session
+  against pain and illness, and always did — it never programmed a week, so
+  deleting the thing that did takes nothing from it.
+- **The Whoop/Concept2 cards and the today-auto-coach panel** were salvaged out
+  of `ResolutionPreview` into `AthleteSignals.tsx`. They never read a weekly
+  plan; losing them would have been collateral.
+- **The database was NOT changed.** `athlete_weekly_plans`, its
+  `writer in ('coordinator','coach')` constraint, `publish_coach_week` and
+  `get_athlete_week_plan` all still exist exactly as applied. Rows written by
+  the Coordinator are still readable, which is why `AthleteWeekSummary` still
+  declares a `decisions` shape — it describes what a row may CONTAIN, not what
+  anything now produces.
+
+**The consequence, stated plainly: an athlete with no coach has no planned
+week.** Mobile Home says "No week has been published for you" instead of
+falling back. That is the accepted price, not an oversight — the fallback used
+to be the Coordinator recomputing on device, and there is no fallback now.
+
+**Three checks were REPOINTED rather than deleted**, because their principles
+outlived the layer:
+
+- `coach-contract` rule 2 now reads as "nothing mints a `writer: 'coordinator'`
+  weekly plan" — the value would be a lie about provenance.
+- Rule 3 followed the nutrition/training boundary from the Coordinator to
+  `@hybrid/auto-coach`, which is the layer that now decides about a session.
+- Rule 4 followed the safety reason codes to `@hybrid/whole-athlete-state`
+  (`pain_hold_active`, `illness_flag_active`), which is where CLAUDE.md already
+  says pain and illness belong. `dropped_interference` was NOT carried over: it
+  was a scheduling verdict only the Coordinator could reach, and requiring a
+  code nothing can emit is how a check starts failing for being right.
+
+One thing worth knowing about how `screens.mjs` behaved here. Deleting the
+route did NOT fail `21-coach-review` — the shot PASSED, against the catch-all
+redirect to `/coach`, because its only content pattern was `/Week/i` and the
+Command Center contains the word "Week". A screenshot of a different screen
+filed under the deleted route's name. That is the exact failure the file's own
+header warns about, and it is why a pattern list must name text ONLY the
+intended screen shows.
 
 ## The old authoring chain is deleted (14 August 2026)
 

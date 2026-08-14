@@ -6,7 +6,6 @@ import { useCoachWorkspace } from './CoachWorkspaceContext';
 import { useDesktopView, useViewportMetaApplies } from './useDesktopView';
 
 export function ArcCoachFrame() {
-  const { weeklyPlan } = useDb();
   const ledger = useProgressionLedger();
   const location = useLocation();
   const { selectedClient } = useCoachWorkspace();
@@ -14,9 +13,12 @@ export function ArcCoachFrame() {
   const canSwitchViewport = useViewportMetaApplies();
   const decided = new Set(ledger.decisions.map((decision) => decision.proposalId));
   const pending = ledger.proposals.filter((proposal) => !decided.has(proposal.id)).length;
-  const weekExceptions = weeklyPlan.decisions.filter((decision) => decision.action === 'dropped').length;
-  const commandCount = pending + weekExceptions;
-  const inLibrary = location.pathname.includes('/library') || location.pathname.includes('/author') || location.pathname.includes('/build/') || location.pathname.includes('/planner/');
+  /* Was `pending + weekExceptions`, where the second half counted the
+     Coordinator's dropped decisions. The Coordinator is deleted (14 August
+     2026), so the only thing left to badge is undecided progression
+     proposals — which is what the number now means, exactly. */
+  const commandCount = pending;
+  const inLibrary = location.pathname.includes('/library');
   const inSettings = location.pathname.includes('/settings');
 
   /*

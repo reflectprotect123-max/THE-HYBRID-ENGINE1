@@ -22,7 +22,6 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@hybrid/auto-coach": "workspace:*",
     "@hybrid/config": "workspace:*",
-    "@hybrid/coordinator-adapter": "workspace:*",
     "@hybrid/design": "workspace:*",
     "@hybrid/engine": "workspace:*",
     "@hybrid/guided-flow": "workspace:*",

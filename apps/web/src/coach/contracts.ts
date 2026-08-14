@@ -1,5 +1,4 @@
 import type { Session, Workout } from '@hybrid/engine';
-import type { WeeklyPlan } from '@hybrid/coordinator-adapter';
 
 /**
  * Where a client's data comes from, and therefore what may be shown.
@@ -147,29 +146,17 @@ export interface CoachWorkspaceSettings {
   };
 }
 
-/**
- * One athlete's week, as the server is willing to describe it.
- *
- * The week review needs a resolved plan and the sessions inside the window —
- * `buildWeekReview(plan, sessions, interventions)` takes exactly that and is
- * already athlete-agnostic, so nothing in the projection layer changes.
- *
- * `interventions` is deliberately ABSENT. The auto-coach ledger is device-local
- * and never syncs (`AGENTS.md`), so for a remote athlete there is no source for
- * it. Passing the COACH's own ledger would attribute the coach's interventions
- * to the athlete — precisely the bug layer 3 exists to remove. The caller
- * passes an empty list and the screen says so.
+/*
+ * `AthleteWeekProjection` was here until 14 August 2026. It carried a
+ * `WeeklyPlan` plus the sessions in the window, for `buildWeekReview` to
+ * reconcile into a planned-versus-actual ledger. The Coordinator, that
+ * ledger and the screen that rendered it are all deleted, and nothing else
+ * ever referenced this type.
  */
-export interface AthleteWeekProjection {
-  weeklyPlan: WeeklyPlan;
-  sessions: Session[];
-  /** Nutrition adherence, the only nutrition the week review reads. */
-  nutrition: { loggedDays: number; windowDays: number } | null;
-}
 
 /*
  * Layer 3 read/write surfaces — deliberately SEPARATE types from the local,
- * self-coach shapes (`ProgressionProposal`, `WeeklyPlan`, `Session`,
+ * self-coach shapes (`ProgressionProposal`, `Session`,
  * `TrendSeries`) rather than a forced fit into them.
  *
  * The backend was built to return LESS than the local demo data does, on
@@ -272,13 +259,25 @@ export interface AthleteWorkoutDraft {
 /**
  * Entries, decisions and session SUMMARIES for one athlete's week — never
  * block/set detail. `sessions[].name` may be absent; nothing here is a
- * reconciled ledger the way `buildWeekReview` produces for the self-coach
- * screen, because that reconciliation needs richer session identity
+ * reconciled ledger the way the deleted `buildWeekReview` produced for the
+ * self-coach screen, because that reconciliation needed richer session identity
  * (`workoutId`, full block data) than this tier is willing to return.
  */
 export interface AthleteWeekSummary {
   entries: readonly { proposalId: string; domain: TrainingDomain; date: string; status: string; title: string }[];
-  decisions: WeeklyPlan['decisions'];
+  /* Self-defined since 14 August 2026. This was `WeeklyPlan['decisions']`,
+     borrowed from `@hybrid/coordinator`. That package is deleted, but the
+     SERVER still returns a decisions array from `get_athlete_week_plan` — the
+     database was not changed — so the shape has to keep existing here. It is
+     written out rather than re-pointed at another package's type, because
+     nothing computes these any more: this describes what a row may still
+     CONTAIN, not what anything now produces. */
+  decisions: readonly {
+    proposalId: string;
+    action: 'scheduled' | 'dropped';
+    reasonCode: string;
+    explanation: string;
+  }[];
   sessions: readonly { id: string; kind: TrainingDomain; date: string; status: string; name: string | null }[];
 }
 
@@ -380,7 +379,10 @@ export interface CoachWorkspaceRepository {
    * readable. Null is a FACT, not a failure — a `roster-summary` client has an
    * authorised summary and no readable detail yet.
    */
-  getAthleteWeek?(clientId: string, weekStart: string): Promise<AthleteWeekProjection | null>;
+  /* `getAthleteWeek` was removed on 14 August 2026 with
+     `AthleteWeekProjection` and the week-review screen it fed.
+     `getAthleteWeekSummary` below is the roster week read that survives —
+     the Command Center and the week builder both use it. */
   listProgramTemplates(): Promise<readonly ProgramTemplate[]>;
   saveAssignmentDraft(draft: ProgramAssignmentDraft): Promise<ProgramAssignmentDraft>;
   getSettings(): Promise<CoachWorkspaceSettings>;

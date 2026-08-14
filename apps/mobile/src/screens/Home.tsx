@@ -98,7 +98,7 @@ export function plannedForToday(
 
 export function HomeScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { hr, whoop, activeSession, update, athleteState, weeklyPlan, workouts, sessions } = useDb();
+  const { hr, whoop, activeSession, update, athleteState, workouts, sessions } = useDb();
   const { color } = useTheme();
 
   const today = ymd(new Date());
@@ -210,36 +210,32 @@ export function HomeScreen() {
 
         A coach who has published this week owns it outright — that is the
         authority decision in
-        docs/superpowers/specs/2026-08-13-coach-publishes-the-week-design.md,
-        and the Coordinator card is REPLACED rather than pushed below it.
-        Showing both would put two answers to "what am I doing this week" on
-        one screen and leave the athlete to referee between their coach and
-        their app, which is exactly the ambiguity that decision removed.
+        docs/superpowers/specs/2026-08-13-coach-publishes-the-week-design.md.
 
-        The Coordinator itself is untouched and still runs — `weeklyPlan` above
-        is still computed on every render — so an athlete who leaves a roster
-        has their own week back on the next render with nothing to restore.
-        The fallback was never a stored row; the fallback is the Coordinator.
+        THIS USED TO HAVE A FALLBACK, AND IT NO LONGER DOES (14 August 2026).
+        The comment here said "the Coordinator itself is untouched and still
+        runs, so an athlete who leaves a roster has their own week back on the
+        next render with nothing to restore. The fallback was never a stored
+        row; the fallback is the Coordinator." The Coordinator is deleted, so
+        there is no fallback of any kind: a week exists on this screen when a
+        coach published one, and otherwise it does not.
+
+        That is the accepted consequence of the deletion, stated on the screen
+        rather than left as a blank space — an athlete with no coach and no
+        published week is told what is true, not shown an empty card that
+        reads like a loading state.
       */}
       {coachWeek ? (
         <ArcCoachWeekCard week={coachWeek} />
       ) : (
         <>
-          <SectionHead title="Coordinated week" />
+          <SectionHead title="This week" />
           <Card>
-            <T className="text-3 text-dim">
-              Coordinator plan · {weeklyPlan.entries.length} scheduled
-              {weeklyPlan.decisions.filter((d) => d.action === 'dropped').length
-                ? ` · ${weeklyPlan.decisions.filter((d) => d.action === 'dropped').length} held back`
-                : ''}
+            <T className="text-3 text-muted">No week has been published for you.</T>
+            <T className="mt-0.5 text-3 text-dim">
+              Sessions you start yourself are still logged and still count — this card is
+              only about a week someone planned ahead.
             </T>
-            {weeklyPlan.entries.slice(0, 4).map((entry) => (
-              <View key={entry.id} className="mt-0.5 flex-row justify-between gap-1">
-                <T className="flex-1 text-3 text-muted" numberOfLines={1}>{entry.title}</T>
-                <T num className="text-3 text-dim">{entry.date}</T>
-              </View>
-            ))}
-            {!weeklyPlan.entries.length ? <T className="mt-1 text-3 text-muted">No automatic session was placed for this week.</T> : null}
           </Card>
         </>
       )}

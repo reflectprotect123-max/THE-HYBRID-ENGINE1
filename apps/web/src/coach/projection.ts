@@ -1,5 +1,5 @@
 import type { Block, CondBlock, Session, StrengthBlock, Workout } from '@hybrid/engine';
-import { mondayOf } from '@hybrid/coordinator-adapter';
+import { mondayOf } from '@hybrid/engine';
 
 /**
  * Pure projections from the existing store shapes onto the program grid.

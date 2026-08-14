@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from 'react';
-import type { WeeklyPlan } from '@hybrid/coordinator-adapter';
 
 /**
  * Coach-bench persistence, additive by construction: its own localStorage
@@ -18,39 +17,29 @@ export interface LedgerEntry {
   at: number;
 }
 
-export interface SlimEntry {
-  proposalId: string;
-  date: string;
-  title: string;
-  domain: 'strength' | 'conditioning';
-  locked: boolean;
-}
-
-export interface SlimDrop {
-  proposalId: string;
-  reasonCode: string;
-  explanation: string;
-}
-
-export interface SlimPlan {
-  weekStart: string;
-  entries: SlimEntry[];
-  drops: SlimDrop[];
-}
+/*
+ * `SlimEntry`, `SlimDrop` and `SlimPlan` were here until 14 August 2026 — the
+ * bench's copy of the Coordinator's resolved week, kept so `diffPlans` could
+ * show a coach what had changed since they last looked. The Coordinator is
+ * deleted, nothing writes a plan for the bench to diff, and `diff.ts` went
+ * with them.
+ *
+ * `ledger` and `acks` STAY. A ledger entry's `who` still admits
+ * `'coordinator'` because entries WRITTEN by it are still in coaches'
+ * localStorage and must keep rendering; nothing writes a new one.
+ */
 
 export interface BenchState {
   version: 1;
   ledger: LedgerEntry[];
   /** decision acknowledgments, keyed `${weekStart}:${proposalId}:${reasonCode}` */
   acks: Record<string, { at: number }>;
-  /** the plan as of the coach's last review — the diff baseline */
-  lastPlan: SlimPlan | null;
   /** onboarding steps the coach chose to skip, keyed by step id */
   skips: Record<string, number>;
 }
 
 const KEY = 'hybrid-coach-bench-v1';
-const empty = (): BenchState => ({ version: 1, ledger: [], acks: {}, lastPlan: null, skips: {} });
+const empty = (): BenchState => ({ version: 1, ledger: [], acks: {}, skips: {} });
 
 let state: BenchState = load();
 const listeners = new Set<() => void>();
@@ -105,12 +94,6 @@ export function acknowledge(weekStart: string, proposalId: string, reasonCode: s
   });
 }
 
-export function setReviewBaseline(plan: SlimPlan): void {
-  mutate((d) => {
-    d.lastPlan = plan;
-  });
-}
-
 export function toggleSkip(stepId: string): void {
   mutate((d) => {
     if (d.skips[stepId]) delete d.skips[stepId];
@@ -118,19 +101,3 @@ export function toggleSkip(stepId: string): void {
   });
 }
 
-/** Project the Coordinator's plan onto the slim shape the bench stores. */
-export function slimPlan(plan: WeeklyPlan): SlimPlan {
-  return {
-    weekStart: plan.weekStart,
-    entries: plan.entries.map((e) => ({
-      proposalId: e.proposalId ?? e.id,
-      date: e.date,
-      title: e.title,
-      domain: e.domain,
-      locked: e.locked,
-    })),
-    drops: plan.decisions
-      .filter((d) => d.action === 'dropped')
-      .map((d) => ({ proposalId: d.proposalId, reasonCode: d.reasonCode, explanation: d.explanation })),
-  };
-}

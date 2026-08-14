@@ -1,8 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { resolveSession } from '@hybrid/auto-coach';
-import { mondayOf } from '@hybrid/coordinator-adapter';
-import { ymd } from '@hybrid/engine';
+import { mondayOf, ymd } from '@hybrid/engine';
 import {
   coachSessionAsWorkout,
   coachWeekFromNamespace,

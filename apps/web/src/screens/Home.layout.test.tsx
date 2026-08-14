@@ -131,6 +131,12 @@ describe("Home's order", () => {
     expect(mode).toBeInTheDocument();
     expect(mode).not.toBeVisible();
 
-    expect(screen.getByText(/Coordinated week/i)).toBeInTheDocument();
+    /* The "Coordinated week" disclosure was asserted here until 14 August
+       2026. It listed the Coordinator's entries, and the Coordinator is
+       deleted — so the assertion is inverted rather than dropped, because the
+       rule this test protects is about what Home spends a screen on, and a
+       section quietly reappearing open is exactly the drift it exists to
+       catch. */
+    expect(screen.queryByText(/Coordinated week/i)).toBeNull();
   });
 });

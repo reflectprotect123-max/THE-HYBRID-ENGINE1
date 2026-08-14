@@ -26,11 +26,36 @@ function iso(d: Date): string {
 }
 
 /**
+ * The Monday of the week containing `date`, as `YYYY-MM-DD`.
+ *
+ * REHOMED FROM `@hybrid/coordinator-adapter` on 14 August 2026, when the
+ * Coordinator was deleted. It never belonged to the Coordinator in the first
+ * place — it is arithmetic on a date, not arbitration — and it outlived it
+ * because the COACH's week is keyed on a Monday too: `arc-coach-week`,
+ * `ecosystem.ts`, `sync.tsx` and `ArcCoachWeekCard` all call it, and none of
+ * them ever asked the Coordinator for anything.
+ *
+ * UTC, deliberately, for the reason `monthGrid` gives below. Note this is NOT
+ * the same function as `apps/web/src/coach/coach-week.ts`'s
+ * `weekStartOfLocalDate`, which answers the LOCAL question — "which week is
+ * the coach in right now" — and exists because formatting a local date through
+ * `toISOString()` converts to UTC first and hands back the previous day
+ * anywhere east of Greenwich. Two questions, two functions; do not collapse
+ * them.
+ */
+export function mondayOf(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() - day + 1);
+  return iso(d);
+}
+
+/**
  * The month as whole Monday-first weeks, including the neighbouring days that
  * fill the first and last rows — the mockup renders those dimmed rather than
  * leaving holes in the grid.
  *
- * UTC, like `mondayOf` in @hybrid/coordinator-adapter. A local-time grid shifts
+ * UTC, like `mondayOf` above. A local-time grid shifts
  * a day for every coach west of Greenwich for part of each day, and that is a
  * bug only reproducible by the person least able to debug it.
  */

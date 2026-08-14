@@ -8,7 +8,6 @@ import type {
   AthleteNutritionWindow,
   AthleteProgressionProposal,
   AthleteTrendSnapshot,
-  AthleteWeekProjection,
   AthleteWeekSummary,
   AthleteWorkoutDraft,
   ClientSummary,
@@ -83,7 +82,6 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   templates: readonly ProgramTemplate[] = [];
   templatesError = false;
   settings: CoachWorkspaceSettings = DEFAULT_COACH_SETTINGS;
-  athleteWeek: AthleteWeekProjection | null = null;
   progressionProposals: readonly AthleteProgressionProposal[] = [];
   decidedProposals: { clientId: string; proposalId: string; decision: 'approved' | 'declined' }[] = [];
   trendSnapshots: Partial<Record<AthleteTrendSnapshot['kind'], AthleteTrendSnapshot | null>> = {};
@@ -103,9 +101,6 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
     return this.clients;
   }
 
-  async getAthleteWeek(): Promise<AthleteWeekProjection | null> {
-    return this.athleteWeek;
-  }
 
   async listProgramTemplates(): Promise<readonly ProgramTemplate[]> {
     if (this.templatesError) throw new Error('simulated listProgramTemplates failure');

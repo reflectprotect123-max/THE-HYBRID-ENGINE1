@@ -12,7 +12,7 @@ import { NutritionPanel } from './NutritionPanel';
 import { OnboardingPanel, useOnboarding } from './OnboardingPanel';
 import { PolicyInspector } from './PolicyInspector';
 import { ProgramGrid } from './ProgramGrid';
-import { ResolutionPreview } from './ResolutionPreview';
+import { AthleteSignals } from './AthleteSignals';
 import { Simulate } from './Simulate';
 
 /*
@@ -21,7 +21,7 @@ import { Simulate } from './Simulate';
  * beats navigation — nothing in here routes away from the week.
  */
 export function CoachShell() {
-  const { dataRecovered, weeklyPlan } = useDb();
+  const { dataRecovered } = useDb();
   const [horizon, setHorizon] = useState<4 | 8 | 12>(8);
   const [showPreview, setShowPreview] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -79,12 +79,9 @@ export function CoachShell() {
         >
           Nutrition
         </button>
-        <Link
-          to={`/coach/review/${weeklyPlan.weekStart}`}
-          className="rounded-full bg-gold px-1 py-0.5 text-[11px] font-medium text-bg outline outline-1 outline-gold-line"
-        >
-          Review week
-        </Link>
+        {/* "Review week" linked to /coach/review/:weekStart, keyed on the
+            Coordinator's own weekStart. Both the route and the screen were
+            deleted with the Coordinator on 14 August 2026. */}
         <div className="ml-auto flex items-center gap-1" role="group" aria-label="Weeks shown">
           {([4, 8, 12] as const).map((h) => (
             <button
@@ -128,7 +125,7 @@ export function CoachShell() {
         </main>
         {showPreview && (
           <aside className="sticky top-[41px] hidden w-[340px] shrink-0 border-l border-line lg:block">
-            <ResolutionPreview />
+            <AthleteSignals />
           </aside>
         )}
       </div>

@@ -25,7 +25,6 @@ import {
   type Workout,
 } from '@hybrid/engine';
 import { deriveAthleteState, summarizeTrainingFacts, type AthleteStateSnapshot, type TrainingFact } from '@hybrid/whole-athlete-state';
-import { buildWeeklyPlan, type WeeklyPlan } from '@hybrid/coordinator-adapter';
 
 /*
  * The single owner of engine state.
@@ -59,7 +58,6 @@ interface DbCtx {
   sessions: Session[];
   settings: Settings;
   athleteState: AthleteStateSnapshot;
-  weeklyPlan: WeeklyPlan;
 }
 
 const Ctx = createContext<DbCtx | null>(null);
@@ -207,7 +205,6 @@ export function DbProvider({ children }: { children: ReactNode }) {
       today,
       recentTraining: summarizeTrainingFacts(facts),
     });
-    const weeklyPlan = buildWeeklyPlan(db, athleteState, today);
     return {
       db,
       update,
@@ -222,7 +219,6 @@ export function DbProvider({ children }: { children: ReactNode }) {
       sessions: db.sessions,
       settings: db.settings,
       athleteState,
-      weeklyPlan,
     };
   }, [db, update, updateSession, saveFailed, dataRecovered, whoop]);
 

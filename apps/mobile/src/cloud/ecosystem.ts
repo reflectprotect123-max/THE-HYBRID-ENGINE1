@@ -1,14 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import {
-  applyProductSyncNamespace,
-  buildMergedSyncNamespace,
-  readNutritionPartition,
-  SYNCED_SNAPSHOT_DOMAINS,
-  withNutritionPartition,
-  ymd,
-  type EngineDB,
-} from '@hybrid/engine';
-import { mondayOf } from '@hybrid/coordinator-adapter';
+import { applyProductSyncNamespace, buildMergedSyncNamespace, type EngineDB, mondayOf, readNutritionPartition, SYNCED_SNAPSHOT_DOMAINS, withNutritionPartition, ymd } from '@hybrid/engine';
 import {
   emptyEcosystemNamespace,
   sanitizeEcosystemNamespace,

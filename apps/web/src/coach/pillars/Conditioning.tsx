@@ -1,14 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  condEfforts,
-  conMaxHr,
-  hrMaxBandSeconds,
-  type Concept2Result,
-  type Downsampled,
-  type HrMaxBand,
-  type ProgressState,
-} from '@hybrid/engine';
-import { mondayOf } from '@hybrid/coordinator-adapter';
+import { type Concept2Result, condEfforts, conMaxHr, type Downsampled, type HrMaxBand, hrMaxBandSeconds, mondayOf, type ProgressState } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { useConcept2 } from '../../cloud/concept2';
 import { PillarBack } from './PillarBack';

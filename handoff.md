@@ -50,6 +50,45 @@
 >     job correctly — it swaps to `/coach.webmanifest` under `/coach` — so the
 >     defect is the athlete manifest's own `start_url`, not the swapper.
 >
+> **THE COORDINATOR IS DELETED.** The owner is rebuilding the engine from the
+> ground up and asked for the Coordinator and everything it does to go.
+> **Nothing in this repository arbitrates a week any more.** `@hybrid/coordinator`
+> and `@hybrid/coordinator-adapter` are gone, with the proposal boundary in both
+> specialist engines, `weeklyPlan` in both app stores, and on the bench
+> `ResolutionPreview`, `WeekReview`, `week-review.ts`, `diff.ts`,
+> `AthleteWeekProjection`, `getAthleteWeek`, the `useSelectedAthleteWeek` seam
+> and the `/coach/review/:weekStart` route. Full record in CLAUDE.md's "The
+> Coordinator is deleted".
+>
+> **The consequence to know before anything else: an athlete with no coach has
+> no planned week.** Mobile Home now says "No week has been published for you"
+> rather than falling back — the fallback WAS the Coordinator recomputing on
+> device, and there is none now. Accepted price, not an oversight.
+>
+> Three things deliberately survived: `mondayOf` moved to `@hybrid/engine`
+> (the coach's week is keyed on a Monday too); the safety layer is untouched,
+> because `@hybrid/auto-coach` only ever resolved ONE session; and the Whoop /
+> Concept2 cards and today-auto-coach panel were salvaged out of
+> `ResolutionPreview` into `AthleteSignals.tsx`.
+>
+> **THE DATABASE WAS NOT TOUCHED.** `athlete_weekly_plans`, its
+> `writer in ('coordinator','coach')` constraint, `publish_coach_week` and
+> `get_athlete_week_plan` are exactly as applied. Narrowing the writer
+> constraint is a separate, applied-artefact decision and is still open.
+>
+> Gates after this cut, all re-run: `pnpm run typecheck` clean across all
+> projects; `apps/web` 714 passing / 2 skipped across 90 files; `apps/mobile`
+> 496 across 48 suites; `lane-contract`, `reachability`, `css-state-classes`,
+> `docs`, `coach-contract`, `ecosystem-contract` green; `screens.mjs` 22 of 22;
+> `web-touch.mjs` green.
+>
+> One finding worth carrying forward: deleting `review/:weekStart` did NOT fail
+> its screenshot. `21-coach-review` PASSED against the catch-all redirect,
+> because its only content pattern was `/Week/i` and the Command Center
+> contains "Week". A shot of a different screen under the deleted route's name
+> — the exact failure `screens.mjs`'s own header warns about. It was found by
+> reading the output, not by a gate.
+>
 > **THE OLD AUTHORING CHAIN IS DELETED.** The owner opened `/coach/author`,
 > followed it into the builder and asked for all of it to be deleted. Four
 > routes and their screens are gone — `author`/`CoachAuthoring`,

@@ -198,8 +198,8 @@ const COACH_SHOTS = [
    * nothing.
    *
    * FOUR SHOTS WERE DELETED HERE ON 14 AUGUST 2026, with the routes they
-   * addressed: `19-coach-author`, `24-coach-build`, `25-coach-planner` and
-   * `26-coach-roster-plan`. CoachAuthoring, GuidedBuilder, Planner and
+   * addressed: `19-coach-author`, `24-coach-build`, `25-coach-planner`,
+   * `26-coach-roster-plan` and `21-coach-review`. CoachAuthoring, GuidedBuilder, Planner and
    * RosterPlanner are gone; the addresses now hit the catch-all redirect to
    * /coach, so keeping the shots would have produced four more pictures of the
    * Command Center under names claiming otherwise. Deleting a shot with its
@@ -209,7 +209,18 @@ const COACH_SHOTS = [
    * names so a filename in an old review still means what it meant.
    */
   ['20-coach-progression', '/coach/progression', [/Progression queue/i, /Lift trends/i]],
-  ['21-coach-review', `/coach/review/${THIS_MONDAY}`, [/Week/i]],
+  /*
+   * `21-coach-review` was here until 14 August 2026, when `review/:weekStart`
+   * was deleted with the Coordinator. It is worth recording HOW it went,
+   * because it did not fail first — it PASSED against the catch-all redirect
+   * to /coach, whose Command Center contains the word "Week", so both the
+   * overflow check and `assertContent`'s /Week/i were satisfied by a picture
+   * of an entirely different screen filed under the review route's name.
+   *
+   * That is the exact failure this file's header warns about, met in
+   * practice. A pattern list is only proof when it names text ONLY the
+   * intended screen shows; `/Week/i` never did.
+   */
   ['22-coach-legacy', '/coach/legacy', [/Program/i]],
   ['23-coach-day', `/coach/day/${TODAY}`, [/Session/i]],
   /*

@@ -76,11 +76,22 @@ console.log('Coach surface contract\n');
 }
 
 /* ---------------------------------------------------------------------------
- * 2. The Coordinator is the only writer of a weekly plan.
+ * 2. Nothing mints a `writer: 'coordinator'` weekly plan.
  *
- * A coach steers INPUTS. Anything that mints a WeeklyPlan outside the
- * coordinator package is hand-placing sessions, which this architecture does
- * not permit.
+ * This rule read "the Coordinator is the only writer of a weekly plan — a
+ * coach steers INPUTS, and anything that mints a WeeklyPlan outside the
+ * coordinator package is hand-placing sessions". Two things happened to it.
+ * On 13 August 2026 the coach became a legitimate second writer
+ * (`writer in ('coordinator','coach')`). On 14 August the Coordinator was
+ * DELETED, so the exempt package no longer exists and nothing computes a
+ * coordinator week at all.
+ *
+ * The scan is unchanged and still worth running: `writer: 'coordinator'` in
+ * app code would now be a lie about provenance, claiming an author that
+ * cannot have written it. Reading the value back off a server row is fine and
+ * is not what this matches — see the TYPE-annotation note below, which is why
+ * `apps/mobile/src/cloud/ecosystem.ts`'s `planRow.writer || 'coordinator'`
+ * default is not an offender.
  * ------------------------------------------------------------------------- */
 {
   const offenders = [];
@@ -105,22 +116,29 @@ console.log('Coach surface contract\n');
 }
 
 /* ---------------------------------------------------------------------------
- * 3. The Coordinator arbitrates TRAINING only.
+ * 3. The layer that decides training reads nutrition as CONTEXT, never direct.
  *
- * Nutrition informs training through whole-athlete-state as CONTEXT. A
- * nutrition import inside the coordinator means a macro target is being allowed
- * to influence a training decision directly.
+ * This pointed at `packages/coordinator/src` — a nutrition import inside the
+ * Coordinator meant a macro target was influencing a training decision
+ * directly. The Coordinator was deleted on 14 August 2026, and the rule is
+ * REPOINTED rather than dropped, because the principle is CLAUDE.md's and
+ * survives the layer: nutrition informs training through
+ * whole-athlete-state as context, and `@hybrid/auto-coach` is now the layer
+ * that decides what happens to a session.
+ *
+ * Deleting this instead would have retired a nutrition/training boundary on
+ * the grounds that one of the two layers it guarded moved.
  * ------------------------------------------------------------------------- */
 {
-  const offenders = sourceFiles('packages/coordinator/src').filter((f) =>
+  const offenders = sourceFiles('packages/auto-coach/src').filter((f) =>
     /(?:from|import)\s*\(?\s*['"]@hybrid\/nutrition/.test(code(f)),
   );
   if (offenders.length) {
     fail(
-      'the coordinator does not import nutrition',
+      'the session resolver does not import nutrition',
       `${offenders.map((f) => relative(ROOT, f)).join(', ')} imports a nutrition package.`,
     );
-  } else pass('the coordinator does not import nutrition');
+  } else pass('the session resolver does not import nutrition');
 }
 
 /* ---------------------------------------------------------------------------
@@ -130,13 +148,31 @@ console.log('Coach surface contract\n');
  * distinguishable from "there was no room this week". Collapsing them into a
  * generic drop is how a safety event becomes invisible in a review surface.
  * ------------------------------------------------------------------------- */
+/*
+ * REPOINTED 14 August 2026. This read `packages/coordinator/src/types.ts` for
+ * `dropped_pain_safety` / `dropped_illness_safety` / `dropped_interference`.
+ * That file is deleted with the Coordinator.
+ *
+ * The property is not: pain and illness still have their OWN codes, distinct
+ * from capacity, and they are emitted by `@hybrid/whole-athlete-state`, which
+ * is where CLAUDE.md says recovery, pain and illness logic belongs. So the
+ * check follows the codes to the layer that still produces them.
+ *
+ * `dropped_interference` is deliberately NOT in the list any more. It was a
+ * scheduling verdict — two sessions too close together — which only the
+ * Coordinator ever reached. Requiring it here would be requiring a code
+ * nothing can emit, which is how a check starts failing for being right.
+ */
 {
-  const types = read(resolve(ROOT, 'packages/coordinator/src/types.ts'));
-  const required = ['dropped_pain_safety', 'dropped_illness_safety', 'dropped_interference'];
-  const missing = required.filter((c) => !types.includes(c));
+  const state = read(resolve(ROOT, 'packages/whole-athlete-state/src/state.ts'));
+  const safety = ['pain_hold_active', 'illness_flag_active'];
+  const capacity = ['low_readiness', 'recovery_debt_high'];
+  const missing = [...safety, ...capacity].filter((c) => !state.includes(c));
   if (missing.length) {
-    fail('safety and interference reason codes exist and are distinct', `Missing: ${missing.join(', ')}.`);
-  } else pass('safety and interference reason codes exist and are distinct');
+    fail('safety codes exist and stay distinct from capacity codes', `Missing: ${missing.join(', ')}.`);
+  } else if (safety.some((c) => capacity.includes(c))) {
+    fail('safety codes exist and stay distinct from capacity codes', 'A safety code is also a capacity code.');
+  } else pass('safety codes exist and stay distinct from capacity codes');
 }
 
 /* ---------------------------------------------------------------------------
@@ -286,9 +322,10 @@ console.log('Coach surface contract\n');
    * routes themselves below — the addresses are gone, so referencing them at
    * all is now the defect, prefixed or not.
    */
+  /* `ResolutionPreview.tsx` was the third entry until 14 August 2026; it was
+     deleted with the Coordinator whose decisions it rendered. */
   const coachDoorways = [
     'apps/web/src/coach/CoachLibrary.tsx',
-    'apps/web/src/coach/ResolutionPreview.tsx',
     'apps/web/src/coach/SessionDrawer.tsx',
   ];
   const offenders = coachDoorways.filter((file) => /[`'"]\/(?:build|planner)\//.test(code(resolve(ROOT, file))));
@@ -370,11 +407,13 @@ console.log('Coach surface contract\n');
      catalogue it offers while authoring, and it is the screen that PUBLISHES
      into an athlete's own record — so the gate that decides which athlete the
      bench is pointed at is exactly as load-bearing here as anywhere else. */
-  /* `author`, `build/:id` and `planner/:id` were in this list until 14 August
-     2026. They are not exempted — the routes are deleted, and rule 8 above
-     fails if any of them is declared again. A path listed here that no
-     longer exists would report an ungated route forever. */
-  const gatedPaths = ['readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'week/:athleteId/:weekStart'];
+  /* `author`, `build/:id`, `planner/:id` and `review/:weekStart` were in this
+     list until 14 August 2026 — the first three deleted with the old authoring
+     chain, the last with the Coordinator. They are not exempted; the routes
+     are gone, and rule 8 above fails if the authoring four are declared again.
+     A path listed here that no longer exists would report an ungated route
+     forever. */
+  const gatedPaths = ['readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'legacy', 'week/:athleteId/:weekStart'];
   const ungatedRoutes = gatedPaths.filter((path) => {
     // The route line itself, e.g. `<Route path="author" element={<ClientDetailGate ...`
     const line = new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*element=\\{<ClientDetailGate\\b`);

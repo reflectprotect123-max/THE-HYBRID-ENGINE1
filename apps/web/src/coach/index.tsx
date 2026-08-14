@@ -5,7 +5,6 @@ import { Strength } from './pillars/Strength';
 import { Conditioning } from './pillars/Conditioning';
 import { Nutrition } from './pillars/Nutrition';
 import { DayBuilderRoute } from './library/DayBuilderRoute';
-import { WeekReview } from './WeekReview';
 import { CoachProgression } from './CoachProgression';
 import { CoachCommandCenter } from './CoachCommandCenter';
 import { ArcCoachFrame } from './ArcCoachFrame';
@@ -33,7 +32,7 @@ export default function Coach() {
             <Route path="library" element={<CoachLibrary />} />
             <Route path="settings" element={<CoachSettings />} />
             {/*
-              progression / review have a real layer-3 backend now
+              progression has a real layer-3 backend now
               (docs/ARC_LAYER3_DESIGN.md) and each screen branches internally
               on selectedClient.source to render its own roster view —
               `layer3Ready` lets a roster client through the gate for exactly
@@ -74,8 +73,7 @@ export default function Coach() {
               four main tiles of the dashboard dead ends.
 
               Each pillar now branches on `selectedClient.source`, exactly as
-              `CoachProgression`, `WeekReview` and `CoachAuthoring` already
-              did. The roster view is deliberately SMALLER than the self view
+              `CoachProgression` already did. The roster view is deliberately SMALLER than the self view
               — it shows the aggregated series the athlete shared and never
               the raw sessions, HR traces or safety flags behind them, which
               the roster tier does not carry. Each screen says so on itself
@@ -103,7 +101,14 @@ export default function Coach() {
               CoachProgression.tsx's own header comment.
             */}
             <Route path="progression" element={<ClientDetailGate tool="Decisions" layer3Ready><CoachProgression /></ClientDetailGate>} />
-            <Route path="review/:weekStart" element={<ClientDetailGate tool="Week review" layer3Ready><WeekReview /></ClientDetailGate>} />
+            {/*
+              `review/:weekStart` and `WeekReview` were deleted with the
+              Coordinator on 14 August 2026. The ledger it rendered was
+              planned-versus-actual against a `WeeklyPlan`'s entries and
+              decisions — a comparison with nothing on the "planned" side once
+              nothing resolves a week. A coach-week equivalent, read against
+              `CoachWeekBody`, would be new work rather than a restoration.
+            */}
             {/*
               The week builder — step 3 of the coach-publishes-the-week design.
               `layer3Ready`, and not as a formality: a ROSTER athlete is the
