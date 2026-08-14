@@ -27,15 +27,9 @@ importers:
       '@expo-google-fonts/inter':
         specifier: ^0.4.2
         version: 0.4.2
-      '@hybrid/auto-coach':
-        specifier: workspace:*
-        version: link:../../packages/auto-coach
       '@hybrid/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@hybrid/coordinator-adapter':
-        specifier: workspace:*
-        version: link:../../packages/coordinator-adapter
       '@hybrid/design':
         specifier: workspace:*
         version: link:../../packages/design
@@ -184,15 +178,9 @@ importers:
 
   apps/web:
     dependencies:
-      '@hybrid/auto-coach':
-        specifier: workspace:*
-        version: link:../../packages/auto-coach
       '@hybrid/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@hybrid/coordinator-adapter':
-        specifier: workspace:*
-        version: link:../../packages/coordinator-adapter
       '@hybrid/design':
         specifier: workspace:*
         version: link:../../packages/design
@@ -289,30 +277,8 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
-  packages/auto-coach:
-    dependencies:
-      '@hybrid/engine':
-        specifier: workspace:*
-        version: link:../engine
-      '@hybrid/shared-core':
-        specifier: workspace:*
-        version: link:../shared-core
-      '@hybrid/whole-athlete-state':
-        specifier: workspace:*
-        version: link:../whole-athlete-state
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
-
   packages/conditioning-engine:
     dependencies:
-      '@hybrid/coordinator':
-        specifier: workspace:*
-        version: link:../coordinator
       '@hybrid/engine':
         specifier: workspace:*
         version: link:../engine
@@ -332,50 +298,6 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-
-  packages/coordinator:
-    dependencies:
-      '@hybrid/shared-core':
-        specifier: workspace:*
-        version: link:../shared-core
-      '@hybrid/whole-athlete-state':
-        specifier: workspace:*
-        version: link:../whole-athlete-state
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
-
-  packages/coordinator-adapter:
-    dependencies:
-      '@hybrid/conditioning-engine':
-        specifier: workspace:*
-        version: link:../conditioning-engine
-      '@hybrid/coordinator':
-        specifier: workspace:*
-        version: link:../coordinator
-      '@hybrid/engine':
-        specifier: workspace:*
-        version: link:../engine
-      '@hybrid/shared-core':
-        specifier: workspace:*
-        version: link:../shared-core
-      '@hybrid/strength-engine':
-        specifier: workspace:*
-        version: link:../strength-engine
-      '@hybrid/whole-athlete-state':
-        specifier: workspace:*
-        version: link:../whole-athlete-state
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
   packages/design:
     dependencies:
@@ -500,9 +422,6 @@ importers:
 
   packages/strength-engine:
     dependencies:
-      '@hybrid/coordinator':
-        specifier: workspace:*
-        version: link:../coordinator
       '@hybrid/engine':
         specifier: workspace:*
         version: link:../engine

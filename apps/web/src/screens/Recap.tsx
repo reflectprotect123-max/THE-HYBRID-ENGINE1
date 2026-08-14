@@ -17,7 +17,6 @@ import {
   type StrengthBlock,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { PostSessionFeedback } from '../autocoach/PostSessionFeedback';
 import { IS_SCOPED_BUILD } from '../product';
 import { Button, Card, Kicker, ScreenTitle, SectionHead, Stat, cx } from '../ui';
 
@@ -99,7 +98,9 @@ export function Recap() {
       ) : null}
 
       <SectionHead title="How did it go?" />
-      <PostSessionFeedback sessionId={s.id} kind={s.kind} />
+      {/* `PostSessionFeedback` stood here until 14 August 2026 — it fed the
+          auto-coach's next resolution, and went with it. Parked screen —
+          trimmed, not redesigned. */}
 
       {/* The one thing this session changed about the next one. The logger says
           it a set at a time and it scrolls away; here it is the standing

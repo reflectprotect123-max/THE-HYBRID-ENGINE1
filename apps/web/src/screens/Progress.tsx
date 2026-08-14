@@ -18,7 +18,6 @@ import {
   type ZoneKey,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
-import { WeeklySummary } from '../autocoach/WeeklySummaryPanel';
 import { Card, Empty, Kicker, ScreenTitle, SectionHead } from '../ui';
 
 /*
@@ -145,7 +144,9 @@ export function Progress() {
           moved here from Home, which is "what do I do today," not "how did
           this week actually go." */}
       <SectionHead title="This week" />
-      <WeeklySummary />
+      {/* `WeeklySummary` (the auto-coach weekly panel) rendered here until
+          14 August 2026 and went with `@hybrid/auto-coach`. Parked screen —
+          trimmed, not redesigned. */}
 
       {weeks.some((w) => w.value > 0) ? (
         <>

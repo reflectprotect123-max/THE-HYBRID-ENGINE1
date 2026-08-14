@@ -7,13 +7,10 @@ import { IS_SCOPED_BUILD } from '../product';
 import { coachAllowed } from './guard';
 import { CoachNotAuthorized } from './CoachNotAuthorized';
 import { CoachSignIn } from './CoachSignIn';
-import { DecisionTrace } from './DecisionTrace';
 import { NutritionPanel } from './NutritionPanel';
 import { OnboardingPanel, useOnboarding } from './OnboardingPanel';
-import { PolicyInspector } from './PolicyInspector';
 import { ProgramGrid } from './ProgramGrid';
 import { AthleteSignals } from './AthleteSignals';
-import { Simulate } from './Simulate';
 
 /*
  * The bench is one screen on purpose: the grid is the workspace and the
@@ -25,9 +22,6 @@ export function CoachShell() {
   const [horizon, setHorizon] = useState<4 | 8 | 12>(8);
   const [showPreview, setShowPreview] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showPolicyInspector, setShowPolicyInspector] = useState(false);
-  const [showSimulate, setShowSimulate] = useState(false);
-  const [showTrace, setShowTrace] = useState(false);
   const [showNutrition, setShowNutrition] = useState(false);
   const onboarding = useOnboarding();
 
@@ -53,25 +47,13 @@ export function CoachShell() {
             Athlete setup {onboarding.done}/{onboarding.total}
           </button>
         )}
-        <button
-          onClick={() => setShowPolicyInspector(true)}
-          className="rounded-full bg-gold-wash px-1 py-0.5 text-[11px] tabular-nums text-gold2 outline outline-1 outline-gold-line"
-        >
-          Auto-Coached policy
-        </button>
-        <button
-          onClick={() => setShowSimulate(true)}
-          className="rounded-full bg-gold-wash px-1 py-0.5 text-[11px] tabular-nums text-gold2 outline outline-1 outline-gold-line"
-        >
-          Simulate
-        </button>
-        <button
-          onClick={() => setShowTrace(true)}
-          className="rounded-full bg-gold-wash px-1 py-0.5 text-[11px] tabular-nums text-gold2 outline outline-1 outline-gold-line"
-          title="Why today's session resolved the way it did"
-        >
-          Why today
-        </button>
+        {/* "Auto-Coached policy", "Simulate" and "Why today" stood here until
+            14 August 2026. All three opened overlays over `@hybrid/auto-coach`
+            — the autonomy policy, a what-if run of the resolver, and the trace
+            explaining how today's session resolved — and all three went with
+            it. Nothing replaced them: they answered questions about a layer
+            that no longer decides anything. This header is three controls
+            lighter and that is the whole change to it. */}
         <button
           onClick={() => setShowNutrition(true)}
           className="rounded-full bg-gold-wash px-1 py-0.5 text-[11px] tabular-nums text-gold2 outline outline-1 outline-gold-line"
@@ -130,9 +112,6 @@ export function CoachShell() {
         )}
       </div>
       {showOnboarding && <OnboardingPanel onClose={() => setShowOnboarding(false)} />}
-      {showPolicyInspector && <PolicyInspector onClose={() => setShowPolicyInspector(false)} />}
-      {showSimulate && <Simulate onClose={() => setShowSimulate(false)} />}
-      {showTrace && <DecisionTrace onClose={() => setShowTrace(false)} />}
       {showNutrition && <NutritionPanel onClose={() => setShowNutrition(false)} />}
     </div>
   );

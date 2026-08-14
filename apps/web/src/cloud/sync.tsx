@@ -16,7 +16,6 @@ import {
 } from './ecosystem';
 import { PRODUCT_ID } from '../product';
 import { useProgressionLedger } from '../store/progression';
-import { getLedgerEntries } from '../store/ledger';
 import {
   acceptAssignment as acceptAssignmentRpc,
   applyPendingArcDecisions,
@@ -24,7 +23,6 @@ import {
   getMyArcOrgId,
   listPendingAssignments,
   materializeAcceptedAssignments,
-  pushAutocoachReceipts,
   pushProgressionProposals,
   type PendingAssignment,
 } from './arc-athlete-sync';
@@ -354,7 +352,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           const decided = new Set(ledgerRef.current.decisions.map((d) => d.proposalId));
           const pending = ledgerRef.current.proposals.filter((p) => !decided.has(p.id));
           await pushProgressionProposals(client, orgId, pending);
-          await pushAutocoachReceipts(client, orgId, getLedgerEntries());
           setPendingAssignments(await listPendingAssignments(client, user.id));
 
           const existingWorkoutIds = new Set(dbRef.current.workouts.map((w) => w.id));

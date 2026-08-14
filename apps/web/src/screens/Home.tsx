@@ -16,11 +16,6 @@ import {
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { IS_SCOPED_BUILD, PRODUCT_ID } from '../product';
-import { ArcAssignmentCard } from '../autocoach/ArcAssignmentCard';
-import { CheckInCard } from '../autocoach/CheckInCard';
-import { ModeSwitcher } from '../autocoach/ModeSwitcher';
-import { SessionReceipt } from '../autocoach/SessionReceipt';
-import { useLedger, type LedgerEntry } from '../store/ledger';
 import { NutritionCard } from './nutrition/NutritionCard';
 import { resolveDayTarget, sessionFrom } from '../lib/session';
 import { Button, Card, Disclosure, Empty, Kicker, Ring, ScreenTitle, SectionHead, Stat, cx } from '../ui';
@@ -71,47 +66,22 @@ export function showZonesCard(productId: string, isScopedBuild: boolean) {
 }
 
 /**
- * What is planned for today, with an Auto-Coached fork REPLACING the session
- * it was forked from rather than sitting next to it.
+ * What is planned for today.
  *
- * A recurring template matches today through `days`; approving a receipt for
- * it writes a one-off copy dated today (applyResolution.ts's ForkPlan) rather
- * than mutating the template, so a plain date-or-weekday filter matched both
- * and showed two cards for one session — with "Start today's session"
- * attached to whichever came first, usually the UN-adjusted original. That
- * silently undoes the approval the athlete just gave.
+ * A plain date-or-weekday filter since 14 August 2026. It took the auto-coach
+ * LEDGER as a second argument and subtracted "superseded" workouts, which was
+ * not incidental: approving an Auto-Coached adjustment for a recurring
+ * template wrote a one-off forked copy dated today rather than mutating the
+ * template, so a plain filter matched BOTH and showed the session twice, with
+ * "Start today's session" on whichever came first — usually the un-adjusted
+ * original, silently undoing the approval just given. A fork carried no
+ * back-pointer, so the ledger entry was the only link.
  *
- * A fork carries no back-pointer to its source (a forked Workout is an
- * ordinary dated workout), so the link is the ledger entry that created it:
- * `workoutId` is the source, `forkedWorkoutId` the copy. The ledger is
- * newest-first, so the first entry naming a source is that source's current
- * state — an `undone` entry means the fork was reversed and the original is
- * today's session again.
+ * `@hybrid/auto-coach` is deleted, so nothing forks a workout and there is no
+ * ledger. The subtraction is gone because the case it corrected cannot occur.
  */
-export function plannedForToday(
-  workouts: Workout[],
-  ledger: Pick<LedgerEntry, 'date' | 'action' | 'workoutId' | 'wasForked' | 'forkedWorkoutId'>[],
-  today: string,
-  dow: number,
-): Workout[] {
-  const superseded = new Set<string>();
-  const seen = new Set<string>();
-  for (const e of ledger) {
-    if (e.date !== today || seen.has(e.workoutId)) continue;
-    seen.add(e.workoutId);
-    if (
-      e.action === 'applied' &&
-      e.wasForked &&
-      e.forkedWorkoutId &&
-      workouts.some((w) => w.id === e.forkedWorkoutId)
-    ) {
-      superseded.add(e.workoutId);
-    }
-  }
-  return workouts.filter(
-    (w) =>
-      ((w.dates || []).includes(today) || (w.days || []).includes(dow)) && !superseded.has(w.id),
-  );
+export function plannedForToday(workouts: Workout[], today: string, dow: number): Workout[] {
+  return workouts.filter((w) => (w.dates || []).includes(today) || (w.days || []).includes(dow));
 }
 
 export function Home() {
@@ -128,10 +98,9 @@ export function Home() {
   const gap = useMemo(() => rpeGapInfo(sessions), [sessions]);
 
   const dow = new Date().getDay();
-  const ledger = useLedger();
   const planned = useMemo(
-    () => plannedForToday(db.workouts, ledger, today, dow),
-    [db.workouts, ledger, today, dow],
+    () => plannedForToday(db.workouts, today, dow),
+    [db.workouts, today, dow],
   );
   // The live session already has its own card — repeating its workout under
   // "Today's plan" would offer Start for work that is mid-flight.
@@ -254,10 +223,6 @@ export function Home() {
         </>
       )}
 
-      {/* Renders nothing for the overwhelming majority of accounts, which
-          have no coaching relationship at all — see ArcAssignmentCard.tsx. */}
-      <ArcAssignmentCard />
-
       {/* The week at a glance, BELOW today's answer. The strip and the
           Coordinator's plan are the same subject at two resolutions, so they
           sit together rather than with a section between them. */}
@@ -276,29 +241,16 @@ export function Home() {
           trimmed rather than given a replacement — restoring the athlete app
           means deciding what belongs here, not un-commenting this. */}
 
-      {/* Cause, then consequence, then the setting that governs future
-          consequences — CheckInCard is the input, SessionReceipt is what the
-          system read from it today, ModeSwitcher is how much say it gets.
-          Reordered from a flat stack so the narrative reads top to bottom.
+      {/* The whole auto-coached block stood here until 14 August 2026:
+          ArcAssignmentCard above, then Check-in / SessionReceipt /
+          ModeSwitcher — cause, consequence, and the setting that governed
+          future consequences, in that order so the narrative read top to
+          bottom. `@hybrid/auto-coach` is deleted, so all four are gone.
 
-          The third one is now behind a disclosure. All three were open at
-          once, and the mode was stated TWICE on the way down: the receipt
-          leads with an "Auto-coached · Shadow" chip and explains what shadow
-          means, then ModeSwitcher restated the same mode and the same sentence
-          under its own heading. Between them they took more of the screen than
-          today's training did.
-
-          Collapsed, not moved: this is still the only place in the app the
-          mode can be changed, so it has to stay reachable from the screen that
-          explains why you would want to. The receipt above already answers
-          "which mode am I in" — this answers "change it", which is a different
-          and much rarer question. */}
-      <SectionHead title="Check-in" />
-      <CheckInCard />
-      <SessionReceipt />
-      <Disclosure summary="Change auto-coached mode">
-        <ModeSwitcher />
-      </Disclosure>
+          Nothing replaced them. This screen is part of the PARKED athlete web
+          app (see CLAUDE.md), so it is trimmed rather than redesigned —
+          restoring the athlete app means deciding what belongs here, not
+          un-commenting this. */}
 
       <SectionHead title="Readiness" />
       <Card>

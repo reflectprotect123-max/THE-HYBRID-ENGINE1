@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ResolutionOperation } from '@hybrid/auto-coach';
 import {
   applyServerProgression,
   pushReadinessTrendSnapshot,
   readinessTrendSnapshotInput,
   sanitizeAssignedWorkoutBody,
-  sanitizeReceiptOperations,
   structurallyEqual,
   trendSnapshotInputs,
 } from './arc-athlete-sync';
@@ -87,43 +85,19 @@ describe('applyServerProgression', () => {
   });
 });
 
-describe('sanitizeReceiptOperations', () => {
-  const op = (over: Partial<ResolutionOperation> = {}): ResolutionOperation => ({
-    type: 'cap_intensity' as const,
-    targetPath: 'blocks[0].exercises[1]',
-    before: 'Bulgarian Split Squat above @7',
-    after: 'Bulgarian Split Squat capped @7',
-    reasonCode: 'low_readiness',
-    materiality: 'material' as const,
-    reversible: true as const,
-    ...over,
-  });
-
-  it('drops before/after — the exercise-name leak this function exists to close', () => {
-    const [out] = sanitizeReceiptOperations([op()]);
-    expect(out).not.toHaveProperty('before');
-    expect(out).not.toHaveProperty('after');
-  });
-
-  it('keeps type, targetPath, reasonCode and materiality — what a coach is actually entitled to', () => {
-    const [out] = sanitizeReceiptOperations([op()]);
-    expect(out).toEqual({
-      type: 'cap_intensity',
-      targetPath: 'blocks[0].exercises[1]',
-      reasonCode: 'low_readiness',
-      materiality: 'material',
-    });
-  });
-
-  it('maps every operation in the array, preserving order', () => {
-    const out = sanitizeReceiptOperations([op({ type: 'rest_or_pause' }), op({ type: 'hold_progression' })]);
-    expect(out.map((o) => o.type)).toEqual(['rest_or_pause', 'hold_progression']);
-  });
-
-  it('returns an empty array for an empty input', () => {
-    expect(sanitizeReceiptOperations([])).toEqual([]);
-  });
-});
+/*
+ * `sanitizeReceiptOperations` had four cases here until 14 August 2026, and
+ * what they pinned is worth naming even though the function is gone with
+ * `@hybrid/auto-coach`: that `before`/`after` were DROPPED, because the
+ * `cap_intensity` branch interpolated the exercise name into both, and a
+ * roster coach reading them would have learned block/set detail from a
+ * self-authored workout — the tier every roster read withholds. The others
+ * pinned what survived (`type`, `targetPath`, `reasonCode`, `materiality`),
+ * that order was preserved, and that an empty array stayed empty.
+ *
+ * Nothing pushes a receipt now. If anything ever does, that first case is the
+ * rule to rebuild first — see the note in arc-athlete-sync.ts.
+ */
 
 describe('sanitizeAssignedWorkoutBody', () => {
   it('carries kind, name and blocks through from a well-shaped body', () => {

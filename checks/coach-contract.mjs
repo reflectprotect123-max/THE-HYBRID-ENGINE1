@@ -27,9 +27,26 @@ const fail = (name, detail) => {
 };
 const pass = (name) => console.log(`  PASS — ${name}`);
 
+/* A directory named here and missing on disk is a FAILURE, not a crash.
+ *
+ * `apps/web/src/autocoach` was listed below and deleted on 14 August 2026 with
+ * `@hybrid/auto-coach`, and the bare `readdirSync` threw ENOENT — which killed
+ * the process before `process.exit(failures ? 1 : 0)`, so the check reported
+ * nothing at all rather than reporting a problem. This file has been bitten by
+ * that exact shape before. A scan directory that has vanished is now a named
+ * failure, so the message says which list to update. */
+const MISSING_DIRS = [];
 const walk = (dir) => {
   const out = [];
-  for (const entry of readdirSync(dir)) {
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    MISSING_DIRS.push(relative(ROOT, dir));
+    return out;
+  }
+  for (const entry of entries) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) out.push(...walk(full));
     else if (/\.tsx?$/.test(full)) out.push(full);
@@ -42,6 +59,11 @@ const read = (f) => readFileSync(f, 'utf8');
    raw source reports the documentation as a violation. Strip comments first. */
 const code = (f) => read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const sourceFiles = (dir) => walk(resolve(ROOT, dir)).filter((f) => !/\.test\.tsx?$/.test(f));
+
+/* The coach surface's own directories. `apps/web/src/autocoach` was here until
+   14 August 2026 and went with `@hybrid/auto-coach` — the whole folder, not
+   just its auto-coach parts. */
+const SCAN_DIRS = ['apps/web/src/coach'];
 
 console.log('Coach surface contract\n');
 
@@ -56,7 +78,7 @@ console.log('Coach surface contract\n');
  * ------------------------------------------------------------------------- */
 {
   const offenders = [];
-  for (const dir of ['apps/web/src/coach', 'apps/web/src/autocoach']) {
+  for (const dir of SCAN_DIRS) {
     for (const f of sourceFiles(dir)) {
       const src = code(f);
       if (/\bclient\s*\.\s*from\s*\(|\bsupabase\w*\s*\.\s*from\s*\(|\.rpc\s*\(/.test(src)) {
@@ -118,27 +140,38 @@ console.log('Coach surface contract\n');
 /* ---------------------------------------------------------------------------
  * 3. The layer that decides training reads nutrition as CONTEXT, never direct.
  *
- * This pointed at `packages/coordinator/src` — a nutrition import inside the
- * Coordinator meant a macro target was influencing a training decision
- * directly. The Coordinator was deleted on 14 August 2026, and the rule is
- * REPOINTED rather than dropped, because the principle is CLAUDE.md's and
- * survives the layer: nutrition informs training through
- * whole-athlete-state as context, and `@hybrid/auto-coach` is now the layer
- * that decides what happens to a session.
+ * REPOINTED TWICE, on the same day, and the second move is the interesting one.
  *
- * Deleting this instead would have retired a nutrition/training boundary on
- * the grounds that one of the two layers it guarded moved.
+ * It began at `packages/coordinator/src`: a nutrition import inside the
+ * Coordinator meant a macro target was influencing a training decision
+ * directly. The Coordinator was deleted on 14 August 2026 and the rule moved to
+ * `packages/auto-coach/src`, the layer that then decided what happened to a
+ * session. `@hybrid/auto-coach` was deleted hours later, so it has moved again
+ * — to `packages/whole-athlete-state/src`.
+ *
+ * That is not a third-choice landing spot. Nothing arbitrates a week and
+ * nothing resolves a session any more, so whole-athlete-state is the LAST
+ * layer that interprets an athlete's context into anything training-shaped,
+ * and CLAUDE.md names it directly: it "may read nutrition FACTS — energy
+ * availability, adherence — as context that shapes constraints. It must not
+ * read a nutrition target as an instruction."
+ *
+ * The assertion is meaningful there rather than tautological: the package's
+ * only `@hybrid` dependency is `shared-core`, so nutrition reaches it as DATA
+ * inside a snapshot and never as a package it can call. Adding a nutrition
+ * import would be precisely the shortcut this has guarded against under three
+ * different owners.
  * ------------------------------------------------------------------------- */
 {
-  const offenders = sourceFiles('packages/auto-coach/src').filter((f) =>
+  const offenders = sourceFiles('packages/whole-athlete-state/src').filter((f) =>
     /(?:from|import)\s*\(?\s*['"]@hybrid\/nutrition/.test(code(f)),
   );
   if (offenders.length) {
     fail(
-      'the session resolver does not import nutrition',
+      'the layer that interprets context does not import nutrition',
       `${offenders.map((f) => relative(ROOT, f)).join(', ')} imports a nutrition package.`,
     );
-  } else pass('the session resolver does not import nutrition');
+  } else pass('the layer that interprets context does not import nutrition');
 }
 
 /* ---------------------------------------------------------------------------
@@ -210,7 +243,7 @@ console.log('Coach surface contract\n');
  * ------------------------------------------------------------------------- */
 {
   const offenders = [];
-  for (const dir of ['apps/web/src/coach', 'apps/web/src/autocoach']) {
+  for (const dir of SCAN_DIRS) {
     for (const f of sourceFiles(dir)) {
       /* Only TOP-LEVEL record arrays. Splicing a set out of a workout being
          authored is editing content; the workout is the record. What must
@@ -457,6 +490,19 @@ console.log('Coach surface contract\n');
     );
   } else pass("CoachCommandCenter's local-only sections stay behind isLocalClient");
 }
+
+/* Reported LAST, so it names every missing directory in one go rather than the
+   first one — and reported at all, which is the whole point. A scan list
+   pointing at a deleted folder used to take the process down before it could
+   say so. */
+if (MISSING_DIRS.length) {
+  fail(
+    'every scanned directory exists',
+    `${[...new Set(MISSING_DIRS)].join(', ')} is listed for scanning and is not on disk. ` +
+      'Update SCAN_DIRS (or the rule that names it) in the same commit that deleted it — ' +
+      'a scan of nothing passes every rule below it.',
+  );
+} else pass('every scanned directory exists');
 
 console.log(
   failures ? `\n${failures} FAILURE(S)` : '\nAll coach contract checks passed.',

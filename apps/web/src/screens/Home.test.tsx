@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Workout } from '@hybrid/engine';
-import type { LedgerEntry } from '../store/ledger';
 import { plannedForToday, showZonesCard } from './Home';
 
 describe('showZonesCard', () => {
@@ -18,68 +17,51 @@ describe('showZonesCard', () => {
 });
 
 /*
- * Approving an Auto-Coached proposal for a RECURRING session writes a one-off
- * fork dated today rather than mutating the template. Both then matched the
- * planned-today filter — the fork by `dates`, the original still by `days` —
- * so "Today's plan" showed the session twice and "Start today's session"
- * attached to the first card, the un-adjusted original.
+ * WHAT THIS SECTION USED TO COVER, and why almost all of it is gone.
+ *
+ * `plannedForToday` took the auto-coach ledger as a second argument.
+ * Approving an Auto-Coached proposal for a RECURRING session wrote a one-off
+ * fork dated today rather than mutating the template, so both matched this
+ * filter — the fork by `dates`, the original still by `days` — and "Today's
+ * plan" showed the session twice, with "Start today's session" on the first
+ * card, the un-adjusted original. Five of the six cases were about that one
+ * interaction.
+ *
+ * `@hybrid/auto-coach` was deleted on 14 August 2026, so nothing forks a
+ * workout and there is no ledger. Those cases are unreachable rather than
+ * weakened — there is no second argument to pass. What remains is the filter
+ * itself, which was always the load-bearing half.
  */
 const TODAY = '2026-08-10';
 const DOW = new Date(`${TODAY}T00:00:00Z`).getUTCDay(); // Monday = 1
 
-const recurring = { id: 'w-1', name: 'Heavy Lower', kind: 'strength', blocks: [], days: [DOW] } as unknown as Workout;
-const fork = { id: 'w-fork', name: 'Heavy Lower', kind: 'strength', blocks: [], dates: [TODAY] } as unknown as Workout;
-const other = { id: 'w-2', name: 'Zone 2', kind: 'conditioning', blocks: [], days: [DOW] } as unknown as Workout;
-
-function entry(over: Partial<LedgerEntry> = {}): LedgerEntry {
-  return {
-    id: 'l-1',
-    at: 1,
-    date: TODAY,
-    workoutId: 'w-1',
-    action: 'applied',
-    wasForked: true,
-    forkedWorkoutId: 'w-fork',
-    operations: [],
-    reasonCodes: [],
-    ...over,
-  } as LedgerEntry;
-}
+const workout = (over: Record<string, unknown>): Workout =>
+  ({ name: 'Session', kind: 'strength', blocks: [], ...over } as unknown as Workout);
 
 describe('plannedForToday', () => {
-  it('lists both a dated and a recurring session when nothing has been forked', () => {
-    expect(plannedForToday([recurring, other], [], TODAY, DOW).map((w) => w.id)).toEqual(['w-1', 'w-2']);
+  it('takes a session dated today, and one recurring on today’s weekday', () => {
+    const dated = workout({ id: 'w-dated', dates: [TODAY] });
+    const recurring = workout({ id: 'w-recurring', days: [DOW] });
+    expect(plannedForToday([dated, recurring], TODAY, DOW).map((w) => w.id)).toEqual([
+      'w-dated',
+      'w-recurring',
+    ]);
   });
 
-  it('shows only the fork, not the original, once today has been forked from it', () => {
-    const out = plannedForToday([recurring, fork, other], [entry()], TODAY, DOW);
-    expect(out.map((w) => w.id)).toEqual(['w-fork', 'w-2']);
+  it('leaves out another day’s session, by either route', () => {
+    const otherDate = workout({ id: 'w-yesterday', dates: ['2026-08-09'] });
+    const otherDay = workout({ id: 'w-tomorrow', days: [(DOW + 1) % 7] });
+    expect(plannedForToday([otherDate, otherDay], TODAY, DOW)).toEqual([]);
   });
 
-  it('brings the original back when the fork was undone', () => {
-    // recordUndo prepends an `undone` copy; the fork itself is deleted.
-    const out = plannedForToday(
-      [recurring, other],
-      [entry({ id: 'l-2', action: 'undone' }), entry()],
-      TODAY,
-      DOW,
-    );
-    expect(out.map((w) => w.id)).toEqual(['w-1', 'w-2']);
+  it('lists a session once when it matches BOTH ways', () => {
+    /* One session, not two. The ledger version built a Set and a careless
+       rewrite could double it. */
+    const both = workout({ id: 'w-both', dates: [TODAY], days: [DOW] });
+    expect(plannedForToday([both], TODAY, DOW).map((w) => w.id)).toEqual(['w-both']);
   });
 
-  it('ignores a fork entry from another date', () => {
-    const out = plannedForToday([recurring, fork], [entry({ date: '2026-08-09' })], TODAY, DOW);
-    expect(out.map((w) => w.id)).toEqual(['w-1', 'w-fork']);
-  });
-
-  it('keeps the original when the ledger names a fork that no longer exists', () => {
-    const out = plannedForToday([recurring], [entry()], TODAY, DOW);
-    expect(out.map((w) => w.id)).toEqual(['w-1']);
-  });
-
-  it('leaves an in-place (unforked) apply alone — there is no second card to drop', () => {
-    const dated = { id: 'w-1', name: 'Heavy Lower', kind: 'strength', blocks: [], dates: [TODAY] } as unknown as Workout;
-    const out = plannedForToday([dated], [entry({ wasForked: false, forkedWorkoutId: undefined })], TODAY, DOW);
-    expect(out.map((w) => w.id)).toEqual(['w-1']);
+  it('survives a workout with neither field', () => {
+    expect(plannedForToday([workout({ id: 'w-none' })], TODAY, DOW)).toEqual([]);
   });
 });

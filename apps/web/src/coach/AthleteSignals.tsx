@@ -2,26 +2,31 @@ import { useDb } from '../store/db';
 import { useWhoop } from '../cloud/whoop';
 import { useConcept2 } from '../cloud/concept2';
 import { cx } from '../ui';
-import { resolveSession } from '@hybrid/auto-coach';
-import { usePolicy } from '../store/policy';
 import { AthleteStatus } from './AthleteStatus';
 
 /*
  * The signed-in athlete's own signals, in one place: what the wearables are
- * saying, what the athlete's state reads, and what today's session resolves to
- * through the auto-coach.
+ * saying, and what the athlete's state reads.
+ *
+ * There were THREE panels. The third — today's session resolved through the
+ * auto-coach — went with `@hybrid/auto-coach` on 14 August 2026. It showed the
+ * coach the athlete's shadow receipt with the policy state visible, and it is
+ * not replaced: nothing resolves a session now, so there is no verdict to
+ * show. What is left reads wearables and `athleteState`, neither of which the
+ * deleted layer owned.
  *
  * SALVAGED FROM `ResolutionPreview.tsx`, 14 August 2026. That file was the
  * Coordinator's trust surface — signal / inference / action over a
  * `WeeklyPlan`'s entries and decisions — and it was deleted with the
  * Coordinator. These three panels were the part of it that never read a
- * weekly plan at all: they read Whoop, Concept2, `athleteState` and
- * `resolveSession`, none of which the Coordinator owned. Losing them would
- * have been collateral, so they moved instead of dying.
+ * weekly plan at all: they read Whoop, Concept2 and `athleteState`, none of
+ * which the Coordinator owned. Losing them would have been collateral, so they
+ * moved instead of dying. Two of the three have now outlived a second
+ * deletion.
  *
  * Read-only by construction, exactly as the original was: every value here is
- * one `useDb`/`useWhoop`/`useConcept2`/`resolveSession` already derives.
- * Rendering this cannot change anything.
+ * one `useDb`/`useWhoop`/`useConcept2` already derives. Rendering this cannot
+ * change anything.
  */
 
 function BandChip({ band }: { band: string }) {
@@ -124,66 +129,12 @@ function IntegrationCards() {
   );
 }
 
-/* Today's session through the auto-coach resolver, coach's eyes: what the
-   athlete's shadow receipt says, with the policy state visible. Read-only —
-   the coach pauses or narrows the policy with the athlete, not silently. */
-function TodayAutoCoach() {
-  const { workouts, athleteState } = useDb();
-  const policy = usePolicy();
-  const today = new Date().toISOString().slice(0, 10);
-  const wd = new Date(`${today}T00:00:00Z`).getUTCDay();
-  const workout =
-    workouts.find((w) => w.dates?.includes(today)) ??
-    workouts.find((w) => w.days?.includes(wd)) ??
-    null;
-  if (!workout) return null;
-  const r = resolveSession({ workout, policy, state: athleteState });
-  const ops = r.operations.filter((o) => o.type !== 'keep_as_planned');
-  // Nothing to review recedes to reference weight; a safety stop is the one
-  // thing on this whole rail that should look like it needs a human — same
-  // border-bad/40 treatment the athlete's own receipt uses for the identical
-  // state, so the two surfaces agree on what "urgent" looks like.
-  const needsEyes = ops.length > 0 || r.state === 'safety_stop' || r.state === 'uncertain';
-  return (
-    <section
-      className={cx(
-        'mt-1 rounded border p-1',
-        r.state === 'safety_stop'
-          ? 'border-bad/40 bg-panel'
-          : needsEyes
-            ? 'border-line bg-panel'
-            : 'border-line bg-panel3',
-      )}
-    >
-      <h3 className="text-[10px] uppercase tracking-wider text-dim">
-        Today — auto-coached ({policy.status === 'paused' ? 'paused' : policy.mode})
-      </h3>
-      <p className={cx('mt-0.5 text-[11px]', r.state === 'safety_stop' ? 'text-bad' : 'text-muted')}>
-        {r.athleteMessage}
-      </p>
-      {ops.length > 0 && (
-        <ul className="mt-0.5 space-y-[1px]">
-          {ops.map((o, i) => (
-            <li key={i} className="text-[11px] tabular-nums">
-              <span className="text-dim line-through">{o.before}</span>
-              <span className="text-muted"> → </span>
-              <span className="text-gold2">{o.after}</span>
-              <span className="ml-1 text-[9px] uppercase text-dim">{o.reasonCode}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-/** The three panels together, in the order the old rail showed them. */
+/** Both panels together, in the order the old rail showed them. */
 export function AthleteSignals() {
   return (
     <div className="space-y-1">
       <IntegrationCards />
       <AthleteStatus />
-      <TodayAutoCoach />
     </div>
   );
 }

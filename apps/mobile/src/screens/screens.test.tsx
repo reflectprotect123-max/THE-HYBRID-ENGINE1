@@ -52,29 +52,12 @@ jest.mock('@react-navigation/native', () => ({
   useNavigation: jest.fn(),
 }));
 
-/* Home now mounts SessionReceipt (auto-coach). These smoke tests are about
-   every screen rendering SOMETHING, not about auto-coach's own decisions —
-   pin resolveSession to a quiet 'normal' resolution with no operations so
-   Home's smoke coverage exercises the "nothing to review, card recedes"
-   path instead of depending on whatever the real resolver makes of the
-   fixture data. auto-coach's own decision logic has its own tests. */
-jest.mock('@hybrid/auto-coach', () => ({
-  ...jest.requireActual('@hybrid/auto-coach'),
-  resolveSession: jest.fn(() => ({
-    schemaVersion: 1,
-    state: 'normal',
-    originalWorkoutId: '',
-    resolvedWorkout: { id: '', name: '', kind: 'strength', blocks: [] },
-    operations: [],
-    signals: [],
-    inferences: [],
-    reasonCodes: [],
-    confidence: 'low',
-    requiresConfirmation: false,
-    autoApplyAllowed: false,
-    athleteMessage: '',
-  })),
-}));
+/* The `@hybrid/auto-coach` mock stood here until 14 August 2026. Home mounted
+   SessionReceipt, and these smoke tests are about every screen rendering
+   SOMETHING rather than about auto-coach's decisions, so `resolveSession` was
+   pinned to a quiet 'normal' resolution. The package is deleted, Home mounts
+   no receipt, and there is nothing left to pin. */
+
 const realUseNavigation = jest.requireActual('@react-navigation/native').useNavigation;
 beforeEach(() => {
   (useNavigation as jest.Mock).mockImplementation(realUseNavigation);

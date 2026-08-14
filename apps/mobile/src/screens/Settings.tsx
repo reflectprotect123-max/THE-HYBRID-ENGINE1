@@ -18,7 +18,6 @@ import {
 } from '@hybrid/engine';
 import { useTheme } from '@hybrid/design';
 import { WorldSwitch } from '../ui/WorldSwitch';
-import { ModeSwitcher } from '../autocoach/ModeSwitcher';
 import { useDb } from '../store/db';
 import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
@@ -146,7 +145,6 @@ export function SettingsScreen() {
       <LabelScanCard />
 
       <SectionHead title="Auto-Coached" />
-      <ModeSwitcher />
     </ScrollView>
   );
 }

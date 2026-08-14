@@ -13,7 +13,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@hybrid/auto-coach": "workspace:*",
     "@hybrid/config": "workspace:*",
     "@hybrid/design": "workspace:*",
     "@hybrid/engine": "workspace:*",

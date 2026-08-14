@@ -27,11 +27,12 @@ records; do not follow a stale statement that the rebuild has not started.
   Coordinator is deleted" below.
 - `@hybrid/product-scope` owns the product identities and their capability
   lists. It is a fact table, not a decision layer.
-- `@hybrid/auto-coach` owns the autonomy policy and the session resolver. It
-  applies whole-athlete-state constraints to one session; it never programs a
-  week. ("and never overrides the Coordinator" ended when the Coordinator did;
-  the first half is the load-bearing half and is unchanged — this layer decides
-  about ONE SESSION, never a week.)
+- `@hybrid/auto-coach` is **DELETED** (14 August 2026). This line read "owns
+  the autonomy policy and the session resolver. It applies whole-athlete-state
+  constraints to one session; it never programs a week", and before that
+  carried "and never overrides the Coordinator", which ended when the
+  Coordinator did. Nothing resolves a session now, and nothing holds one. See
+  "The auto-coach is deleted" below.
 - `@hybrid/nutrition-core` owns the nutrition data model, its sanitiser and
   its merge. Data only — it decides nothing.
 - `@hybrid/nutrition-adapter` is the one projection from the athlete's
@@ -225,19 +226,28 @@ discovered later.
 |---|---|
 | Which sessions, in which order, on which days | **The coach**, for a coached athlete. |
 | The same, for an athlete with no coach | **Nobody.** The Coordinator answered this until 14 August 2026; it is deleted. An uncoached athlete has no planned week, and their phone says so. |
-| Whether today's session runs at all, given pain or illness | **The safety layer. Unchanged.** |
+| Whether today's session runs at all, given pain or illness | **The athlete.** Nothing else. See below. |
 
-**Taking the WEEK from the Coordinator did not take the SESSION from the
-safety resolver, and must not.** `@hybrid/auto-coach` "applies
-whole-athlete-state constraints to one session; it never programs a week" —
-a different layer at a different granularity. A pain or illness flag still
-holds a coach's session. Removing that would be an injury-safety change
-wearing a scheduling change's clothes, and it was never asked for.
+**That third row said "The safety layer. Unchanged." for one day.** The
+paragraph beneath it read: "Taking the WEEK from the Coordinator did not take
+the SESSION from the safety resolver, and must not… A pain or illness flag
+still holds a coach's session. Removing that would be an injury-safety change
+wearing a scheduling change's clothes, and it was never asked for."
 
-A held session is not a silent hole: the athlete is told why, and the coach
-must be told which session and that it was a safety flag rather than a skipped
-workout. A coach who cannot tell "held for injury" from "ignored me" will stop
-trusting the system inside a week.
+It was asked for, later the same day, and knowingly. The owner was told in
+plain terms that deleting `@hybrid/auto-coach` deletes the pain and illness
+stop, was offered the option of keeping the ~10-line hard-constraint check and
+moving it into `@hybrid/whole-athlete-state`, and chose to delete all of it.
+So the warning above is kept rather than erased — it is accurate about what was
+given up, and the decision reads as a decision only if the argument against it
+is still legible.
+
+The paragraph that followed is also worth keeping, because it describes a
+promise the system no longer makes: "A held session is not a silent hole: the
+athlete is told why, and the coach must be told which session and that it was a
+safety flag rather than a skipped workout." Nothing is held, so nothing is
+reported. A coach seeing a missed session cannot tell injury from indifference,
+because the system no longer knows either.
 
 Three consequences that are easy to get wrong, each already paid for once:
 
@@ -374,12 +384,14 @@ seam. The route `/coach/review/:weekStart` went with them.
   `arc-coach-week`, `ecosystem.ts`, `sync.tsx` and `ArcCoachWeekCard` all call
   it. Do not confuse it with `coach-week.ts`'s `weekStartOfLocalDate`, which
   answers the LOCAL question; both exist on purpose.
-- **The safety layer is untouched.** `@hybrid/auto-coach` resolves ONE session
-  against pain and illness, and always did — it never programmed a week, so
-  deleting the thing that did takes nothing from it.
-- **The Whoop/Concept2 cards and the today-auto-coach panel** were salvaged out
-  of `ResolutionPreview` into `AthleteSignals.tsx`. They never read a weekly
-  plan; losing them would have been collateral.
+- **The safety layer is untouched.** This said `@hybrid/auto-coach` "resolves
+  ONE session against pain and illness, and always did — it never programmed a
+  week, so deleting the thing that did takes nothing from it." True of the
+  Coordinator's deletion, and overtaken hours later by the auto-coach's own.
+- **The Whoop/Concept2 cards** were salvaged out of `ResolutionPreview` into
+  `AthleteSignals.tsx`. They never read a weekly plan; losing them would have
+  been collateral. The third panel salvaged with them — today's session
+  resolved through the auto-coach — did not outlive that layer.
 - **The database was NOT changed.** `athlete_weekly_plans`, its
   `writer in ('coordinator','coach')` constraint, `publish_coach_week` and
   `get_athlete_week_plan` all still exist exactly as applied. Rows written by
@@ -398,7 +410,10 @@ outlived the layer:
 - `coach-contract` rule 2 now reads as "nothing mints a `writer: 'coordinator'`
   weekly plan" — the value would be a lie about provenance.
 - Rule 3 followed the nutrition/training boundary from the Coordinator to
-  `@hybrid/auto-coach`, which is the layer that now decides about a session.
+  `@hybrid/auto-coach`, and then — the same day, when that went too — to
+  `@hybrid/whole-athlete-state`, the last layer that interprets context into
+  anything training-shaped. Its only `@hybrid` dependency is `shared-core`, so
+  nutrition reaches it as DATA and never as a package it can call.
 - Rule 4 followed the safety reason codes to `@hybrid/whole-athlete-state`
   (`pain_hold_active`, `illness_flag_active`), which is where CLAUDE.md already
   says pain and illness belong. `dropped_interference` was NOT carried over: it
@@ -412,6 +427,77 @@ Command Center contains the word "Week". A screenshot of a different screen
 filed under the deleted route's name. That is the exact failure the file's own
 header warns about, and it is why a pattern list must name text ONLY the
 intended screen shows.
+
+## The auto-coach is deleted (14 August 2026)
+
+The owner asked for `@hybrid/auto-coach` to go the way of the Coordinator.
+**Nothing adapts a session now, and nothing stops one.**
+
+**THE SAFETY STOP WENT WITH IT, DELIBERATELY.** This is the part to read before
+changing anything here. `resolveSession` did two jobs that happened to share a
+package: it ADAPTED a session (RPE caps, swaps, volume trims, proposals,
+receipts, shadow mode, the ledger) and it STOPPED one when
+whole-athlete-state raised a hard constraint — pain or illness. The owner was
+told, before any code was touched, that deleting the package deletes the stop;
+was offered the alternative of keeping the ~10-line hard-constraint check and
+moving it into `@hybrid/whole-athlete-state`, which already produces the flags;
+and chose to delete all of it.
+
+So the rule that stood here for one day — "a pain or illness flag still holds a
+coach's session… removing that would be an injury-safety change wearing a
+scheduling change's clothes" — is not quietly gone. It is quoted in "Who owns
+the week" above, with the decision that overrode it. **The flags are still
+raised** (`pain_hold_active`, `illness_flag_active` in
+`@hybrid/whole-athlete-state`). Nothing consumes them.
+
+Deleted outright: `packages/auto-coach` (the resolver, its types, its golden
+vectors); `apps/web/src/autocoach/` entire; `apps/web/src/store/policy.ts` and
+`ledger.ts`; on the bench `Simulate`, `DecisionTrace`, `trace.ts`,
+`ExceptionHistory`, `PolicyInspector` and their tests; on mobile
+`autocoach/{policy,ledger,consent,pendingProposal,applyResolution,SessionReceipt,ModeSwitcher}`;
+and `apps/mobile/src/cloud/arc-held-receipt.ts`.
+
+**What survives, and why each one had to.**
+
+- **`ArcCoachWeekCard` and `ArcAssignmentCard` stay.** They render the COACH's
+  week and a coach's assignment. Neither was ever auto-coach; they sat in the
+  same directory. The week card lost its held-session panel and its closing
+  line no longer promises that a flag stops a session — a card that keeps
+  promising a stop nothing performs is the worst available state.
+- **`AthleteSignals` keeps two of its three panels.** Whoop/Concept2 and
+  `AthleteStatus` read wearables and `athleteState`. The third resolved today's
+  session and could not outlive the resolver. That file has now survived two
+  deletions; see its header.
+- **`plannedForToday` lost its ledger argument, in both apps.** It subtracted
+  "superseded" workouts because approving an adjustment for a recurring
+  template wrote a one-off FORK dated today, and a plain filter matched both —
+  showing the session twice with Start on the un-adjusted original. Nothing
+  forks a workout now, so the correction is gone with the case it corrected.
+- **The database was NOT changed.** `push_autocoach_receipt` still exists and
+  still accepts `'applied'`, `'undone'` and `'held'`. Nothing calls it. Rows
+  already written stay readable.
+- **The receipt sanitiser's RULE is written down** in `arc-athlete-sync.ts`
+  even though the function is gone: `before`/`after` carried interpolated
+  exercise NAMES, so they were dropped rather than pattern-stripped. If
+  anything pushes a receipt again, rebuild that first.
+
+**Two checks moved rather than dying.** `coach-contract` rule 3 followed the
+nutrition/training boundary from the Coordinator to auto-coach and then to
+`@hybrid/whole-athlete-state` — twice in one day, and the third home is the
+stable one, because that package is now the last layer that interprets context
+into anything training-shaped. And the file gained a guard it should always
+have had: a scan directory listed and missing is now a named FAILURE, because
+`apps/web/src/autocoach` disappearing made `readdirSync` throw ENOENT and kill
+the process before it could report anything — the same crash-instead-of-fail
+shape this repository has now hit three times.
+
+**One repair that was not ours.** Deleting the Coordinator left
+`@hybrid/strength-engine` and `@hybrid/conditioning-engine` with NO test files,
+and `vitest run` exits 1 on "No test files found" — so `pnpm run test` died at
+the first of them and never reached the rest. Fixed with real tests over what
+those packages still own, not with `--passWithNoTests`: that flag would make
+"a test that stops being collected does not fail, it silently disappears"
+permanently true of both.
 
 ## The old authoring chain is deleted (14 August 2026)
 
@@ -464,9 +550,10 @@ EVERY test is colocated — there are no exceptions, including the coach bench
 and the `SB_E2E`-gated live backend round trip, which sits with the sync
 provider it drives.
 
-`test/` still exists in three projects and holds only things that are NOT
-tests: fixtures and golden vectors (`packages/engine/test/golden`,
-`packages/auto-coach/test/fixtures`, `packages/nutrition-engine/test/fixtures`).
+`test/` still exists and holds only things that are NOT tests: fixtures and
+golden vectors (`packages/engine/test/golden`,
+`packages/nutrition-engine/test/fixtures`, and `apps/mobile/test`'s harness and
+mocks). `packages/auto-coach/test/fixtures` was a fourth until 14 August 2026.
 If you find a `*.test.ts` under `test/`, it is in the wrong place.
 
 Both trees are collected — `include`/`testMatch` name `src/**` AND `test/**` in

@@ -1,9 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LiftState, ProgressState, Settings, Workout } from '@hybrid/engine';
-import type { ResolutionOperation } from '@hybrid/auto-coach';
 import type { ProgressionProposal } from '../lib/progression';
 import type { TrendSeries, HardBudget } from '../coach/trends';
-import type { LedgerEntry } from '../store/ledger';
 
 /*
  * The BACKEND -> ATHLETE half of the ARC loop.
@@ -451,86 +449,25 @@ export async function materializeAcceptedAssignments(
   return result;
 }
 
-const PUSHED_AUTOCOACH_KEY = 'hybrid-arc-pushed-autocoach-v1';
-
-function loadPushedAutocoachIds(): Set<string> {
-  try {
-    const raw = JSON.parse(localStorage.getItem(PUSHED_AUTOCOACH_KEY) ?? '[]') as unknown;
-    return new Set(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function savePushedAutocoachIds(ids: Set<string>): void {
-  try {
-    localStorage.setItem(PUSHED_AUTOCOACH_KEY, JSON.stringify([...ids].slice(-500)));
-  } catch {
-    /* Worst case: an already-pushed entry gets pushed again next sync —
-       push_autocoach_receipt is idempotent on (org, athlete, client_entry_id),
-       so a retry replays rather than duplicates. */
-  }
-}
-
-/**
- * The sanitiser that keeps an auto-coach receipt on the SUMMARY tier.
+/*
+ * `sanitizeReceiptOperations` and `pushAutocoachReceipts` stood here until
+ * 14 August 2026, and what they protected is worth keeping written down even
+ * though both are gone with `@hybrid/auto-coach`.
  *
- * `ResolutionOperation.before`/`after` are the only free-text-bearing fields
- * on the shape, and they really do carry raw workout content: `resolve.ts`'s
- * `cap_intensity` branch interpolates the exercise NAME into both
- * (`` `${ex.name} above @${policy.rpeCap}` ``). Auto-coach runs on
- * self-authored sessions too, so a roster coach reading those strings would
- * learn exercise names from a workout they never authored — block/set detail,
- * which is exactly the tier `get_athlete_week_plan` and every other roster
- * read deliberately withhold. Dropped rather than pattern-stripped: a
- * denylist would have to be re-audited every time a new operation type is
- * written, and the next one to interpolate content would leak silently.
+ * A receipt's `ResolutionOperation.before`/`after` were the only free-text
+ * fields on the shape, and they really did carry raw workout content — the
+ * `cap_intensity` branch interpolated the exercise NAME into both. Auto-coach
+ * ran on self-authored sessions too, so a roster coach reading those strings
+ * would have learned exercise names from a workout they never authored:
+ * block/set detail, the exact tier every roster read deliberately withholds.
+ * The fix was to DROP the pair rather than pattern-strip them, because a
+ * denylist needs re-auditing every time a new operation type is written and
+ * the next one to interpolate content would have leaked silently.
  *
- * What survives is what a coach actually needs and is already entitled to:
- * WHAT changed (`type`), WHERE structurally (`targetPath` is block/exercise
- * INDICES, never content), WHY (`reasonCode` — the same closed constraint
- * vocabulary `has_safety_flag` already exposes) and HOW MUCH (`materiality`).
+ * If anything ever pushes a receipt again, that is the rule to re-apply:
+ * send `type`, `targetPath` (indices, never content), `reasonCode` and
+ * `materiality`, and nothing else.
+ *
+ * The server side is untouched — `push_autocoach_receipt` still exists and
+ * still accepts 'applied', 'undone' and 'held'. Nothing calls it now.
  */
-export function sanitizeReceiptOperations(operations: readonly ResolutionOperation[]): Record<string, unknown>[] {
-  return operations.map((op) => ({
-    type: op.type,
-    targetPath: op.targetPath,
-    reasonCode: op.reasonCode,
-    materiality: op.materiality,
-  }));
-}
-
-/**
- * Best-effort, same reasoning as pushProgressionProposals/pushTrendSnapshots:
- * an athlete with no coach refuses every call, silently. Tracks which
- * `LedgerEntry.id`s have already been pushed so a long-lived session does not
- * re-send the same ~30 entries every sync — the RPC's own idempotency makes
- * that safe either way, this only saves the network round trips.
- */
-export async function pushAutocoachReceipts(client: SupabaseClient, orgId: string, entries: readonly LedgerEntry[]): Promise<void> {
-  const pushed = loadPushedAutocoachIds();
-  const fresh = entries.filter((e) => !pushed.has(e.id));
-  if (fresh.length === 0) return;
-
-  for (const entry of fresh) {
-    try {
-      await client.rpc('push_autocoach_receipt', {
-        p_organization_id: orgId,
-        p_client_entry_id: entry.id,
-        p_occurred_at: new Date(entry.at).toISOString(),
-        p_session_date: entry.date,
-        p_workout_id: entry.workoutId,
-        p_action: entry.action,
-        p_was_forked: entry.wasForked,
-        p_operations: sanitizeReceiptOperations(entry.operations),
-        p_reason_codes: entry.reasonCodes,
-      });
-      pushed.add(entry.id);
-    } catch {
-      /* Best-effort — the local ledger this entry already lives in is the
-         source of truth regardless of whether the push succeeded. Left out
-         of `pushed` so the next sync retries it. */
-    }
-  }
-  savePushedAutocoachIds(pushed);
-}

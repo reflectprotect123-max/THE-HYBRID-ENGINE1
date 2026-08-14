@@ -123,20 +123,23 @@ describe("Home's order", () => {
     expect(body.indexOf('Upper A')).toBeLessThan(body.indexOf('This week'));
   });
 
-  it('collapses the reference sections instead of stacking them open', () => {
+  it('does not stack the deleted reference sections back open', () => {
     renderHome();
 
-    // Present and reachable — but not spending a screen to say so.
-    const mode = screen.getByRole('button', { name: /Turn on Assisted/i });
-    expect(mode).toBeInTheDocument();
-    expect(mode).not.toBeVisible();
+    /* This asserted a COLLAPSED mode switcher ("Turn on Assisted", present but
+       not visible) and, before 14 August 2026, a collapsed "Coordinated week"
+       disclosure. Both of the things it watched are now deleted rather than
+       collapsed — the Coordinator first, then `@hybrid/auto-coach` with the
+       mode switcher inside it.
 
-    /* The "Coordinated week" disclosure was asserted here until 14 August
-       2026. It listed the Coordinator's entries, and the Coordinator is
-       deleted — so the assertion is inverted rather than dropped, because the
-       rule this test protects is about what Home spends a screen on, and a
-       section quietly reappearing open is exactly the drift it exists to
-       catch. */
+       The assertions are INVERTED rather than dropped, twice over now, because
+       the rule this test protects is about what Home spends a screen on. A
+       section that quietly reappears — restored by a revert, or re-added by
+       someone who did not know why it went — is exactly the drift it exists to
+       catch, and that is a live risk precisely because these were deletions
+       rather than design decisions about layout. */
+    expect(screen.queryByRole('button', { name: /Turn on Assisted/i })).toBeNull();
     expect(screen.queryByText(/Coordinated week/i)).toBeNull();
+    expect(screen.queryByText(/auto-coached mode/i)).toBeNull();
   });
 });

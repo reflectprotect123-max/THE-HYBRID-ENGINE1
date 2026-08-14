@@ -31,7 +31,7 @@ The fastest way into this repo. Find the symptom, go to the file.
 | Web deploy doesn't reach an installed app | `apps/web/src/UpdateBanner.tsx`; check with `node checks/pwa-update.mjs` |
 | WHOOP connect or sync fails | `netlify/functions/whoop-*`; check with `node checks/whoop-contract.mjs` |
 | A screen renders blank / title-only | The screen in `apps/web/src/screens/`. That class of bug has bitten before |
-| Auto-Coached changed nothing despite an active constraint | The coach bench's **Why today** panel, or `apps/web/src/coach/trace.ts` → `buildDecisionTrace` for the outcome rules |
+| A session ran despite an active pain or illness flag | Nothing holds a session as of 14 August 2026 — `@hybrid/auto-coach` was deleted, safety stop included. `@hybrid/whole-athlete-state` still RAISES the flag (`pain_hold_active`, `illness_flag_active`); no layer acts on it. See CLAUDE.md, "The auto-coach is deleted" |
 
 ### Nutrition
 

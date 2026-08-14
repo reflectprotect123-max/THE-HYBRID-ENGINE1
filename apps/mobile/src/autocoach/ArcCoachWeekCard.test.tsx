@@ -3,19 +3,25 @@ import { type EngineDB, mondayOf, ymd } from '@hybrid/engine';
 import { renderScreen, seed } from '../../test/harness';
 import { NutritionProvider } from '../store/nutrition';
 import { SyncProvider } from '../cloud/sync';
-import { resetPolicyForTests } from './policy';
 import { ArcCoachWeekCard, useCoachWeek } from './ArcCoachWeekCard';
 import { HomeScreen } from '../screens/Home';
 
 /*
  * What the athlete sees when their coach has published their week.
  *
- * These assert the four rules the design doc puts on this surface, and they
- * are deliberately NOT tests of the safety resolver — that has its own, in
- * @hybrid/auto-coach. `resolveSession` is real here on purpose: the point of
- * the held-session test is that a pain flag seeded in the athlete's own core
- * reaches the athlete's eyes THROUGH the untouched safety layer, and a mocked
- * resolver would prove only that this file can render a string.
+ * These assert the rules the design doc puts on this surface.
+ *
+ * Two of them are GONE as of 14 August 2026, with `@hybrid/auto-coach`. They
+ * asserted that a pain flag seeded in the athlete's own core reached the
+ * athlete's eyes through the safety layer ("says WHY a session is held") and
+ * that a FUTURE day carried no verdict, because today's flags are not
+ * Thursday's. `resolveSession` was deliberately real in both, so they proved
+ * the whole chain rather than that this file can render a string.
+ *
+ * They are not replaced. Nothing holds a session now, so there is no "why" to
+ * say and no verdict to withhold from a future day. The pain-hold case that
+ * remains below asserts the new truth directly: the flag is still in the
+ * athlete's core, and the card says nothing about it.
  */
 
 const MONDAY = mondayOf(ymd(new Date()));
@@ -80,8 +86,6 @@ const renderHome = () =>
     </NutritionProvider>,
   );
 
-beforeEach(() => resetPolicyForTests());
-
 describe("a coach's published week", () => {
   it('renders as the athlete’s week, attributed to a coach rather than to the app', () => {
     seed(coachWeekDb());
@@ -111,11 +115,16 @@ describe("a coach's published week", () => {
     expect(screen.getByText(/You can still\s+train anything else you like/)).toBeTruthy();
   });
 
-  it('says WHY a session is held, rather than dropping it silently', () => {
-    // A real pain hold in the athlete's own shared core. Nothing in this file
-    // decides anything about it: whole-athlete-state turns it into a hard
-    // constraint, @hybrid/auto-coach's resolver turns that into a safety_stop,
-    // and the card prints the words those layers chose.
+  it('says NOTHING about a live pain hold — nothing stops a session any more', () => {
+    /* The same seed the deleted "says WHY a session is held" case used: a real
+       pain hold in the athlete's own shared core, which whole-athlete-state
+       still turns into a hard constraint. Until 14 August 2026 the card printed
+       "Held today — Squat + carries" and the reason beneath it.
+
+       The owner deleted `@hybrid/auto-coach` including the safety stop, having
+       been told that is what it meant. This asserts the consequence rather than
+       leaving it to be discovered on a phone: the session is listed as an
+       ordinary session, and the hold is invisible here. */
     seed(
       coachWeekDb({
         core: {
@@ -124,42 +133,20 @@ describe("a coach's published week", () => {
       } as unknown as Partial<EngineDB>),
     );
     renderCard();
-    expect(screen.getByText(/Held today — Squat \+ carries/)).toBeTruthy();
-    expect(screen.getByText(/Pain hold: left knee/)).toBeTruthy();
+    expect(screen.getByText('Squat + carries')).toBeTruthy();
+    expect(screen.queryByText(/Held today/)).toBeNull();
+    expect(screen.queryByText(/Pain hold/)).toBeNull();
   });
 
-  it('says nothing about a FUTURE day, because today’s flags are not Thursday’s', () => {
-    const later = new Date();
-    later.setDate(later.getDate() + 3);
-    seed(
-      coachWeekDb({
-        core: {
-          safety: { painHold: { active: true, areas: ['left knee'], updatedAt: Date.now() } },
-        },
-        ecosystem: {
-          schemaVersion: 1,
-          partitions: {
-            weeklyPlan: {
-              schemaVersion: 1,
-              domain: 'coordinator',
-              revision: 4,
-              updatedAt: Date.now(),
-              writer: 'coach',
-              data: {
-                weekStart: MONDAY,
-                plan: {
-                  days: [{ date: ymd(later), sessions: [{ name: 'Later session', blocks: [] }] }],
-                },
-              },
-            },
-          },
-          events: [],
-        },
-      } as unknown as Partial<EngineDB>),
-    );
+  it('no longer promises that a flag stops a session', () => {
+    /* The closing line said "a pain or illness flag still stops a session,
+       whoever planned it." That was true when written and is not now, and a
+       card that keeps promising a stop nothing performs is the worst of the
+       available states. */
+    seed(coachWeekDb());
     renderCard();
-    expect(screen.getByText('Later session')).toBeTruthy();
-    expect(screen.queryByText(/Held today/)).toBeNull();
+    expect(screen.queryByText(/pain or illness flag still stops/)).toBeNull();
+    expect(screen.getByText(/you decide whether a session runs today/)).toBeTruthy();
   });
 });
 
