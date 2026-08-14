@@ -1,7 +1,171 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 14 August 2026. Everything below is MERGED to
+> `main` at `eb11f97`. No branch is ahead, no PR is open.**
+>
+> The work was done on `claude/the-coach-brain` — the owner named that branch,
+> and it is where any continuation belongs. It was merged fast-forward, twice,
+> so `main` and the branch are the same commit. Supersedes the 13 August
+> checkpoint that follows, which stays as history; where the two disagree, this
+> one wins. In particular: 13 August said "one branch, 66 commits ahead, not
+> merged". That is finished. It merged at `77fc4cb` and again at `eb11f97`.
+>
+> **1. A COACH CAN PUBLISH A WEEK, AND IT LANDS ON THE ATHLETE'S PHONE.** This
+> is the TrainHeroic shape the owner asked for: program a week on the bench,
+> press Publish, it becomes that athlete's week. Six steps, all shipped.
+>
+> The change is not really a feature, it is an AUTHORITY change, and the whole
+> of it is one line of SQL. `athlete_weekly_plans` carried
+>
+>     constraint athlete_plan_writer check (writer = 'coordinator'),
+>
+> which is a database refusal, not a convention — nothing but the Coordinator
+> could physically write a week. The owner chose "coach wins outright" over two
+> softer options, so `20260813_arc_coach_week_publish.sql` widens it to
+> `in ('coordinator', 'coach')` and adds `publish_coach_week`. Design:
+> `docs/superpowers/specs/2026-08-13-coach-publishes-the-week-design.md`.
+> CLAUDE.md's "Who owns the week" section is the rule of record.
+>
+> Three things about it that are easy to get wrong and are already paid for:
+> a coach publish must step PAST the current revision or it succeeds while
+> changing nothing; `primary key (user_id, week_start)` means a coach publish
+> REPLACES the coordinator's row, and that is safe because the Coordinator
+> recomputes on device rather than reading the row back; and the merge rule is
+> scoped to ONE week, or an athlete leaving a roster could never reclaim their
+> own weeks.
+>
+> **The safety layer was not taken with it.** A pain or illness flag still
+> holds a coach's session, the athlete is told why, and the coach is told which
+> session and that it was a flag rather than a skipped workout. That last half
+> is `apps/mobile/src/cloud/arc-held-receipt.ts` plus
+> `20260814_arc_held_session_receipt.sql`.
+>
+> **2. SELF-COACHING: THE OWNER CAN WRITE THEIR OWN WEEKS.** Everything needed
+> already existed; the only thing in the way was that a person could not get
+> onto their own roster. `coach_athlete_distinct` forbade it, for a real
+> reason — `listClients` would return the same person twice, once local and
+> once from the server. That is a UI invariant, so it moved to the UI:
+> `listClients` folds a self-row into the engine-local entry, and
+> `20260814_arc_self_coaching.sql` drops the constraint. It relaxes nothing
+> about anyone else's data, and the invite flow is still the only way a row
+> appears.
+>
+> **THAT MIGRATION IS NOT APPLIED YET.** It is the one outstanding action, and
+> it is the owner's to take. Apply it, then: mint an invite → redeem it as
+> yourself → build a week → publish → open the phone.
+>
+> **3. THREE ADVERSARIAL REVIEWS RAN OVER THE WHOLE BRANCH**, and they are the
+> most useful thing in this checkpoint. They were not re-runs of the suites —
+> they were told to find what the suites could not. Everything below was
+> confirmed in code before it was touched.
+>
+> Fixed:
+>
+> - **`mondayOf` was timezone-broken on three coach screens**, and it shut the
+>   only door to the week builder for every coach at UTC+. Correct arithmetic,
+>   then `toISOString()` to format it — which converts to UTC first, so local
+>   midnight read back as the previous day. Executed: London, Berlin and
+>   Sydney all returned a SUNDAY for the week of 19 August; Los Angeles was
+>   right. `isMonday` then correctly refused it, so the owner met "A week has
+>   to start on a Monday" every single time. One shared
+>   `weekStartOfLocalDate` in `coach-week.ts` — the file that already carried
+>   a comment warning about exactly this, two functions above where it would
+>   have been caught.
+> - **`20260814_arc_self_coaching.sql` claimed to change one branch and
+>   changed six.** It was retyped instead of copied, and the retyping dropped
+>   `revoked_at = null` from the membership upsert. The target table asserts
+>   `(status = 'revoked') = (revoked_at is not null)`, so a previously-revoked
+>   athlete could never rejoin — the whole redemption aborted. No check caught
+>   it because every redeem check uses an athlete who is new or has never been
+>   revoked, the only input that never reaches the line. Fixed before the owner
+>   applied it, so nothing downstream needs repair.
+> - **`check:ecosystem` PASSED the invariant this branch deliberately
+>   deleted** — it printed "weekly plans have a Coordinator-only writer
+>   invariant" against a database where that constraint no longer exists,
+>   because it only read the frozen `20260804` file. It now asserts the
+>   widening as well, in the shape the nutrition widening already models.
+>
+> Still open, recorded here rather than lost — none of these is load-bearing
+> for the owner's own use, which is why they were not taken tonight:
+>
+> - `publish_athlete_weekly_plan` was never given a writer predicate, so a
+>   device write at a higher revision could replace a coach's week and report
+>   success. **Latent by accident, not design**: `git grep` shows NO client
+>   has ever called it. The moment anyone wires the Coordinator's week to the
+>   server, this becomes live.
+> - `coach_week_plans.coach_user_id` is written on INSERT only, so a second
+>   coach republishing a week leaves the athlete told the FIRST coach sent it.
+> - `get_athlete_week_plan` projects `entries`/`decisions`, which a coach-week
+>   body does not have, so WeekReview says "Nothing was placed this week" for a
+>   week that was just published.
+> - Nothing can set `coach_athlete_assignments.status = 'revoked'`, so the
+>   "athlete leaves a roster" scenario several comments are built around
+>   cannot currently happen at all.
+> - Stale prose: CLAUDE.md's shot count says thirty (it is 32), its `test/`
+>   count says three projects (four), `20260813` and CLAUDE.md disagree by a
+>   day on when the writer constraint widened, and the PWA manifest still
+>   advertises the parked athlete app with a `start_url` that redirects.
+>
+> **4. THREE DECISIONS WERE TAKEN ON THE OWNER'S BEHALF.** Asked to choose,
+> they said "i dont know". Each had a safe side; the safe side was taken and is
+> written down here so it can be reversed deliberately.
+>
+> - **A paused Auto-Coached no longer silences a pain or illness stop.** The
+>   policy gate sat above the hard-safety gate in `resolveSession`, so pausing
+>   switched off the injury stop as well as the adjustments — the athlete was
+>   told "Today runs exactly as planned" over a live pain flag, and no held
+>   receipt reached the coach. This was DELIBERATE: golden vector
+>   `08-policy-paused-with-constraints.ts` asserted it. It is now reversed, and
+>   the fixture quotes its own old expectation rather than pretending it never
+>   held one. Pausing still switches off everything below the gate.
+> - **The week builder refuses to publish a week it could not read.** A failed
+>   read left seven empty editors AND a `base` of 0, which sends a null base
+>   version — the value that disables the optimistic lock. The one guard
+>   against overwriting something you never saw was off in exactly the state
+>   that needs it.
+> - **The phone pulls the week that governs TODAY, not the newest week.**
+>   `order desc limit 1` was correct only while nothing wrote ahead. Publish
+>   next week on a Thursday and this week's coach plan silently vanished from
+>   Home until Monday; edit the older week afterwards and the bench reported
+>   success while the phone never saw it.
+>
+> **5. TWO DEAD ENDS FOUND ON A REAL PHONE, which every gate had passed.** The
+> owner could not add an exercise to a block.
+>
+> - `ExercisePicker` renders `<div className="cb-picker">` and the phone
+>   stylesheet says `.cb-picker { display: none }` with
+>   `.cb-picker.picker-open { display: block }`. `picker-open` appeared in the
+>   CSS and NOWHERE in `apps/web/src`. Tapping "+ Add exercise from library"
+>   unmounted the reveal button and mounted a picker the stylesheet hid: an
+>   empty block with nothing left to tap.
+> - On Android, `Training.tsx`'s Start refuses when ANY session is live but the
+>   screen lists only the current world's, so a session left running in the
+>   other world made Start silently inert — and the logger then said "Start one
+>   from Training", pointing back at the button that had just refused.
+>
+> **`checks/css-state-classes.mjs` is the durable half**: it fails when
+> something the app RENDERS is `display: none` with no modifier any string in
+> the source applies. Read its header before writing another gate — its FIRST
+> version was itself decorative, passing with the bug reintroduced because the
+> comment explaining the bug and the test naming the class both satisfied its
+> token scan. Ten gates missed this originally, each for a reason worth
+> knowing: jsdom applies no stylesheet, the 420px check fails on OVERFLOW and a
+> hidden element has no width, and desktop review never enters the media query.
+>
+> **State of the gates at `eb11f97`:** `pnpm run typecheck` clean;
+> `apps/web` 757 passing / 2 skipped across 98 files; `apps/mobile` 496 across
+> 48 suites; ten checks green — `css-state-classes`, `ecosystem-contract`,
+> `coach-contract`, `lane-contract`, `reachability`, `migrations-apply`
+> (168 behaviour checks against a real Postgres), `pentest`, `docs`, `screens`,
+> `web-touch`. CI green on the tip. The OTA published successfully; the last
+> APK is versionCode 32 / runtimeVersion 4, and nothing since is native, so no
+> new APK is required.
+>
+> ---
+>
 > **AUTHORITATIVE CHECKPOINT — 13 August 2026. One branch, 66 commits ahead of
-> `main`, not merged and no PR open.**
+> `main`, not merged and no PR open.** *(superseded by the block above — it
+> merged; see point 1)*
 >
 > The branch is `claude/handoff-md-review-z00wqf`. Everything below in this
 > block happened on it. Supersedes the 11 August checkpoint that follows, which
