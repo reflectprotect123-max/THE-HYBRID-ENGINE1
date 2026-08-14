@@ -462,6 +462,62 @@ export function mergeEcosystemNamespaces(
     const bb = b as T & { revision: number; updatedAt: number; writer: string };
     return bb.revision > aa.revision || (bb.revision === aa.revision && (bb.updatedAt > aa.updatedAt || (bb.updatedAt === aa.updatedAt && bb.writer >= aa.writer))) ? b : a;
   };
+
+  /*
+   * The weekly plan does not use the rule above alone, and this is the only
+   * partition that does not.
+   *
+   * From 4 August until 13 August `athlete_weekly_plans.writer` was
+   * `check (writer = 'coordinator')` — the athlete's own device was the only
+   * thing that could write a week, so revision ordering was the whole story
+   * here. A coach can now publish a week, and the owner's decision (13 August)
+   * is that it WINS for the week it covers.
+   *
+   * Revision alone gets that wrong on a real device, not in theory: the
+   * Coordinator recomputes the week locally on every reconcile and writes it
+   * with an incrementing revision of its own. Coach publishes at 51, device
+   * recomputes at 52, plain revision hands the week back and the coach's
+   * session disappears — with nothing anywhere reporting that it did.
+   *
+   * SCOPED TO ONE WEEK, deliberately. A coach owns the week they published,
+   * not every week forever. If the rule ignored `weekStart`, an athlete who
+   * left a roster could never reclaim their own weeks, because no newer coach
+   * write would ever arrive to be beaten. Comparing the week first means the
+   * fallback needs no unlink event and no special case: the next week the
+   * device computes is simply a later week, and it wins on the ordinary rule.
+   */
+  const weekStartOf = (x: unknown): string | null => {
+    const data = (x as { data?: unknown } | undefined)?.data;
+    const ws = (data as { weekStart?: unknown } | undefined)?.weekStart;
+    return typeof ws === 'string' && ws ? ws : null;
+  };
+  const chooseWeeklyPlan = <T>(a: T | undefined, b: T | undefined): T | undefined => {
+    if (!a) return b;
+    if (!b) return a;
+    const aw = weekStartOf(a);
+    const bw = weekStartOf(b);
+    // A week we cannot identify: nothing to arbitrate on, so the ordinary
+    // rule applies untouched.
+    if (aw === null || bw === null) return choosePartition(a, b);
+    /*
+     * DIFFERENT WEEKS: the later week wins, and revision is not consulted.
+     *
+     * Comparing revisions across two different weeks is meaningless — each row
+     * carries its own sequence, so a long-lived week can sit at revision 99
+     * while next week's first write is revision 1. Falling through to the
+     * ordinary rule here handed a stale week to an athlete purely because it
+     * had been rewritten more often, which is how the "leaving a roster"
+     * fallback silently failed to work. This partition holds THE athlete's
+     * current week (the pull takes `order by week_start desc limit 1`), so
+     * "which week is this" is the question, and later is the answer.
+     */
+    if (aw !== bw) return aw > bw ? a : b;
+    const aIsCoach = (a as { writer?: string }).writer === 'coach';
+    const bIsCoach = (b as { writer?: string }).writer === 'coach';
+    if (aIsCoach !== bIsCoach) return aIsCoach ? a : b;
+    // Both coach-written, or both device-written: newest publish wins.
+    return choosePartition(a, b);
+  };
   return {
     schemaVersion: SYNC_ENVELOPE_SCHEMA_VERSION,
     core: mergeSharedCore(local.core, remote.core),
@@ -470,7 +526,7 @@ export function mergeEcosystemNamespaces(
       strength: choosePartition(local.partitions.strength, remote.partitions.strength),
       conditioning: choosePartition(local.partitions.conditioning, remote.partitions.conditioning),
       athleteState: choosePartition(local.partitions.athleteState, remote.partitions.athleteState),
-      weeklyPlan: choosePartition(local.partitions.weeklyPlan, remote.partitions.weeklyPlan),
+      weeklyPlan: chooseWeeklyPlan(local.partitions.weeklyPlan, remote.partitions.weeklyPlan),
       nutrition: choosePartition(local.partitions.nutrition, remote.partitions.nutrition),
     },
     events: capBy([...local.events, ...remote.events], (x) => x.idempotencyKey, (x) => x.occurredAt, 2000),

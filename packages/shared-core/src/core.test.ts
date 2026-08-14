@@ -205,3 +205,86 @@ describe('shared-core merge is safe under real two-device traffic', () => {
     expect(mergeSharedCore(b, a).events).toHaveLength(2);
   });
 });
+
+/*
+ * WHOSE WEEK IS IT — the coach publish precedence rule.
+ *
+ * From 4 August until 13 August, `athlete_weekly_plans.writer` was
+ * `check (writer = 'coordinator')`: only the athlete's own device could ever
+ * write a week, so `choosePartition`'s revision-then-time-then-writer ordering
+ * was the whole story and the writer tiebreak never fired on this partition.
+ *
+ * A coach can now publish a week, and the owner's decision is that it WINS.
+ * That makes revision the wrong sole ordering, for a reason that only shows up
+ * on a real device: the Coordinator recomputes the week locally, every
+ * reconcile, and writes it with an incrementing revision of its own. A coach
+ * publishes at revision 51; the device recomputes at 52; the plain revision
+ * rule hands the week back to the device and the coach's session vanishes.
+ *
+ * These tests fail against the pre-fix merge.
+ */
+describe('a coach-published week beats the local Coordinator', () => {
+  const week = (writer: string, revision: number, weekStart: string, label: string, updatedAt = 100) => ({
+    schemaVersion: 1 as const,
+    /* `domain` stays 'coordinator' even for a coach-published week: it names
+       the PARTITION this snapshot belongs to, not who wrote it. Who wrote it
+       is `writer`, which is the whole point of these tests. */
+    domain: 'coordinator' as const,
+    revision,
+    updatedAt,
+    writer,
+    data: { weekStart, plan: { label } },
+  });
+
+  it('keeps the coach week even when the device has a HIGHER revision', () => {
+    const local = emptyEcosystemNamespace();
+    const remote = emptyEcosystemNamespace();
+    local.partitions.weeklyPlan = week('coordinator', 52, '2026-08-17', 'device');
+    remote.partitions.weeklyPlan = week('coach', 51, '2026-08-17', 'coach');
+    const out = mergeEcosystemNamespaces(local, remote);
+    expect((out.partitions.weeklyPlan?.data as { plan: { label: string } }).plan.label).toBe('coach');
+  });
+
+  it('keeps the coach week when it arrives on either side of the merge', () => {
+    const a = emptyEcosystemNamespace();
+    const b = emptyEcosystemNamespace();
+    a.partitions.weeklyPlan = week('coach', 1, '2026-08-17', 'coach');
+    b.partitions.weeklyPlan = week('coordinator', 99, '2026-08-17', 'device');
+    const out = mergeEcosystemNamespaces(a, b);
+    expect((out.partitions.weeklyPlan?.data as { plan: { label: string } }).plan.label).toBe('coach');
+  });
+
+  it('prefers the NEWER coach publish when both sides are coach-written', () => {
+    const local = emptyEcosystemNamespace();
+    const remote = emptyEcosystemNamespace();
+    local.partitions.weeklyPlan = week('coach', 3, '2026-08-17', 'old');
+    remote.partitions.weeklyPlan = week('coach', 4, '2026-08-17', 'new');
+    const out = mergeEcosystemNamespaces(local, remote);
+    expect((out.partitions.weeklyPlan?.data as { plan: { label: string } }).plan.label).toBe('new');
+  });
+
+  /*
+   * The clean fallback, and the reason the rule is scoped to a single week
+   * rather than applied globally. A coach owns the week they published. They
+   * do not own every week forever — otherwise an athlete who leaves a roster
+   * could never get their own weeks back, because no coach write would ever
+   * arrive to be beaten.
+   */
+  it('lets the Coordinator own a LATER week — a coach owns the week they published, not the future', () => {
+    const local = emptyEcosystemNamespace();
+    const remote = emptyEcosystemNamespace();
+    local.partitions.weeklyPlan = week('coordinator', 1, '2026-08-24', 'next week, self-coached');
+    remote.partitions.weeklyPlan = week('coach', 99, '2026-08-17', 'last week, coached');
+    const out = mergeEcosystemNamespaces(local, remote);
+    expect((out.partitions.weeklyPlan?.data as { plan: { label: string } }).plan.label).toBe('next week, self-coached');
+  });
+
+  it('leaves every other partition on the plain revision rule', () => {
+    const local = emptyEcosystemNamespace();
+    const remote = emptyEcosystemNamespace();
+    local.partitions.strength = { schemaVersion: 1, domain: 'strength', revision: 9, updatedAt: 1, writer: 'coordinator', data: { x: 'local' } };
+    remote.partitions.strength = { schemaVersion: 1, domain: 'strength', revision: 2, updatedAt: 99, writer: 'coach', data: { x: 'remote' } };
+    const out = mergeEcosystemNamespaces(local, remote);
+    expect(out.partitions.strength?.data).toEqual({ x: 'local' });
+  });
+});
