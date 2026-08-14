@@ -1717,6 +1717,35 @@ try {
     if (!wasRefused(out)) throw new Error("widening the action list opened it — 'skipped' was accepted");
   });
 
+  check('SELF: a coach can put THEMSELF on their own roster, and publish to it', () => {
+    /* The owner is currently the only athlete, so "write my own week" is the
+       first real use of this feature. Until 14 August a `coach_athlete_distinct`
+       constraint and an explicit refusal in `redeem_coach_invite` blocked it. */
+    asAthlete(COACH_1, `select public.create_coach_invite('${ORG_1}');`);
+    const code = inviteCode(COACH_1);
+    const out = asAthlete(COACH_1, refusalProbe(`perform public.redeem_coach_invite('${code}')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`self-redemption was refused: ${lastLine(out)}`);
+    if (rosterCount(COACH_1, COACH_1) !== '1') throw new Error('the coach is not on their own roster');
+
+    const pub = asAthlete(COACH_1, refusalProbe(
+      `perform public.publish_coach_week('${ORG_1}', '${COACH_1}', '2026-08-24', ${weekBody('my own week')}, 'self:1')`));
+    if (!pub.includes('ACCEPTED')) throw new Error(`a self-publish was refused: ${lastLine(pub)}`);
+    const writer = lastLine(asOwnerSqlOut(
+      `select writer from public.athlete_weekly_plans where user_id = '${COACH_1}' and week_start = '2026-08-24';`));
+    if (writer !== 'coach') throw new Error(`the self-published week is written by '${writer}'`);
+  });
+
+  check('SELF: it authorises nothing about anybody else', () => {
+    /* The whole risk of dropping that constraint is that it quietly widens
+       something. It does not: coaches_athlete still needs an active assignment
+       and active memberships on BOTH sides, so COACH_3 — a real ORG_1 coach —
+       still cannot reach ATHLETE_A, and self-coaching gave COACH_1 nothing new
+       about anyone but themselves. */
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.publish_coach_week('${ORG_1}', '${ATHLETE_A}', '2026-08-24', ${weekBody('nope')}, 'self:2')`));
+    if (!wasRefused(out)) throw new Error('dropping the self-coaching guard widened access to other athletes');
+  });
+
   check('WEEK: a self-coached athlete is untouched — coordinator still writes', () => {
     const out = asAthlete(ATHLETE_B, refusalProbe(
       `perform public.publish_athlete_weekly_plan('${MONDAY}', 1, 1, now(), '{}'::jsonb)`));
