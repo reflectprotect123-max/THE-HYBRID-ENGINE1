@@ -121,6 +121,61 @@ if (!paths.size || !symbolCount) {
   problems.push(`parsed nothing (${paths.size} paths, ${symbolCount} symbols) — the README format changed`);
 }
 
+/* ---------------------------------------------------------------------------
+ * COUNTED CLAIMS IN CLAUDE.md.
+ *
+ * A number in prose is the most reliably wrong thing in this repository, and
+ * the shot count has now gone stale TWICE the same way: a `/coach` route was
+ * deleted, `checks/screens.mjs` dropped a shot, and the sentence saying how
+ * many there are did not follow. "Thirty" survived the authoring chain's
+ * deletion; "24" survived the Coordinator taking `review/:weekStart`. Both
+ * times CLAUDE.md — the file every session reads first — confidently stated a
+ * number the tree disagreed with.
+ *
+ * So the claim is now derived rather than remembered. This counts the entries
+ * in `COACH_SHOTS` and asserts CLAUDE.md's sentence matches, doubling for the
+ * two widths the check shoots at.
+ *
+ * Deliberately narrow: it verifies ONE claim, by parsing the one array that
+ * decides it. A general "find every number in the docs" check would be either
+ * unmaintainable or full of exceptions, and this file's own header is about
+ * what a rotted map costs. If another counted claim starts drifting, add it
+ * here the same way — anchored to the code that determines it.
+ * ------------------------------------------------------------------------ */
+const claudeMd = readFileSync(resolve(ROOT, 'CLAUDE.md'), 'utf8');
+const screensJs = readFileSync(resolve(ROOT, 'checks/screens.mjs'), 'utf8');
+
+const shotsStart = screensJs.indexOf('const COACH_SHOTS = [');
+if (shotsStart === -1) {
+  problems.push('checks/screens.mjs no longer declares COACH_SHOTS — this check cannot see the routes any more');
+} else {
+  /* Bracket-match rather than regex to the closing `];`, so a nested array in
+     a pattern list cannot end the block early. */
+  let depth = 0;
+  let end = -1;
+  for (let i = shotsStart + 'const COACH_SHOTS = '.length; i < screensJs.length; i += 1) {
+    if (screensJs[i] === '[') depth += 1;
+    else if (screensJs[i] === ']') {
+      depth -= 1;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+  const block = end === -1 ? '' : screensJs.slice(shotsStart, end);
+  const routes = (block.match(/^\s*\[\s*'/gm) || []).length;
+  const stated = claudeMd.match(/\*\*(?:Eleven|\w+) routes, (\d+) shots, all green\.\*\*/);
+
+  if (!routes) {
+    problems.push('parsed zero routes out of COACH_SHOTS — the declaration format changed');
+  } else if (!stated) {
+    problems.push('CLAUDE.md no longer states the shot count in the form "N routes, M shots, all green" — this check cannot verify it');
+  } else if (Number(stated[1]) !== routes * 2) {
+    problems.push(
+      `CLAUDE.md says ${stated[1]} shots; COACH_SHOTS has ${routes} routes × 2 widths = ${routes * 2}. ` +
+        'A route was added or deleted and the sentence did not follow — this is the third time.',
+    );
+  }
+}
+
 if (problems.length) {
   console.error('README is out of date:');
   for (const p of problems) console.error('  ' + p);

@@ -132,19 +132,23 @@ once, can catch its regression.
   check proves it.
   **Stage 4 (13 August 2026) closes the set.** `checks/screens.mjs` now
   shoots EVERY `/coach` route at **both** widths — 1440px first, then 420px:
-  the seven above plus `progression`, `review/:weekStart`, `legacy`,
-  `day/:date` and `week/:athleteId/:weekStart`. **24 shots, all green.** The
+  the seven above plus `progression`, `legacy`, `day/:date` and
+  `week/:athleteId/:weekStart`. **Eleven routes, 22 shots, all green.** The
   parameterised ones are addressed with values the seed really contains — a
   route pointed at a missing id renders a not-found state, which has no
   overflow and would pass while proving nothing.
 
-  This read "the seven above plus `author`, `progression`,
-  `review/:weekStart`, `legacy`, `day/:date`, `build/:id`, `planner/:id` and
-  `roster-plan/:workoutId`. Thirty shots" until 14 August 2026, when
-  `author`, `build/:id`, `planner/:id` and `roster-plan/:workoutId` were
-  deleted along with the screens behind them (see "The old authoring chain is
-  deleted" below). Four routes fewer, four shots fewer, and the claim itself
-  is unchanged: EVERY declared `/coach` route is shot at both widths.
+  THE COUNT HAS BEEN WRONG TWICE, AND BOTH TIMES THE SAME WAY: a route was
+  deleted and the number was not. It read "…`build/:id`, `planner/:id` and
+  `roster-plan/:workoutId`. Thirty shots" until the old authoring chain went
+  (four routes fewer), then "24 shots" until `review/:weekStart` went with the
+  Coordinator on 14 August 2026 — the check dropped to eleven routes and the
+  sentence did not follow. It is 22 now, and the way to check is
+  `node checks/screens.mjs`, whose last line reports the number it actually
+  wrote. Quote that rather than this paragraph.
+
+  The claim itself has survived both corrections unchanged: EVERY declared
+  `/coach` route is shot at both widths.
 
   **The 1440px pass is new, and its absence was the real hole.** This section
   has asserted since 11 August that 1440px is "the default review width for
