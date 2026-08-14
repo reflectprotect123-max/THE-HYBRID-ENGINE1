@@ -18,8 +18,10 @@ records; do not follow a stale statement that the rebuild has not started.
 - `@hybrid/strength-engine` owns lifting progression and Strength proposals.
 - `@hybrid/conditioning-engine` owns modalities, intervals and Conditioning
   progression.
-- `@hybrid/coordinator` owns weekly conflict resolution and is the only layer
-  allowed to choose the final weekly plan.
+- `@hybrid/coordinator` owns weekly conflict resolution and chooses the final
+  weekly plan **for an athlete with no coach**. See "Who owns the week" below;
+  this line read "is the only layer allowed to choose the final weekly plan"
+  until 14 August 2026 and was enforced by a database constraint.
 - `@hybrid/coordinator-adapter` is the app projection from existing workouts to
   Coordinator proposals.
 - `@hybrid/product-scope` owns the product identities and their capability
@@ -183,6 +185,61 @@ once, can catch its regression.
   The planner behind it stays unproven at phone width until there is a roster
   fixture to reach it with. That is written in `checks/screens.mjs` beside
   the shot as well, so the next reader finds it there rather than here.
+
+## Who owns the week (amended 14 August 2026)
+
+This section exists because the sentence it replaces was not a convention. It
+was a `check` constraint, and the database physically refused anything else:
+
+```sql
+-- 20260804_fitness_ecosystem_contracts.sql, until 14 August 2026
+constraint athlete_plan_writer check (writer = 'coordinator'),
+```
+
+The owner asked for the TrainHeroic shape — a coach programs a week, presses
+Publish, and it appears on the athlete's phone as their week — and chose
+"coach wins outright" over two softer options. So the constraint widened to
+`in ('coordinator', 'coach')` and `publish_coach_week` writes a coach's week
+into an athlete's own row. Design:
+`docs/superpowers/specs/2026-08-13-coach-publishes-the-week-design.md`.
+
+**There are now two regimes, and the athlete's device has to know which it is
+in.** That is a real increase in the number of states this system can hold,
+and it is the accepted price of the product, recorded here rather than
+discovered later.
+
+| Concern | Who decides |
+|---|---|
+| Which sessions, in which order, on which days | **The coach**, for a coached athlete. |
+| The same, for an athlete with no coach | **The Coordinator**, exactly as before. Untouched, and a check proves it. |
+| Whether today's session runs at all, given pain or illness | **The safety layer. Unchanged.** |
+
+**Taking the WEEK from the Coordinator did not take the SESSION from the
+safety resolver, and must not.** `@hybrid/auto-coach` "applies
+whole-athlete-state constraints to one session; it never programs a week" —
+a different layer at a different granularity. A pain or illness flag still
+holds a coach's session. Removing that would be an injury-safety change
+wearing a scheduling change's clothes, and it was never asked for.
+
+A held session is not a silent hole: the athlete is told why, and the coach
+must be told which session and that it was a safety flag rather than a skipped
+workout. A coach who cannot tell "held for injury" from "ignored me" will stop
+trusting the system inside a week.
+
+Three consequences that are easy to get wrong, each already paid for once:
+
+- **A coach publish must step PAST the current revision.** The upsert only
+  wins `where revision < excluded.revision`, so a stale revision succeeds as a
+  statement, changes nothing, and reports success. The coach is told it landed
+  and the athlete never sees it.
+- **`athlete_weekly_plans` is `primary key (user_id, week_start)`** — one row
+  per week, so a coach publish REPLACES the coordinator's. Nothing is lost:
+  the stored row is a published artefact and the Coordinator recomputes the
+  week on device, offline. The fallback was never the row.
+- **The merge rule is scoped to ONE week** (`chooseWeeklyPlan`, shared-core).
+  A coach owns the week they published, not every week forever — otherwise an
+  athlete leaving a roster could never reclaim their own weeks, because no
+  newer coach write would arrive to be beaten.
 
 ## Storage and release rules
 
