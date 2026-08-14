@@ -54,12 +54,38 @@ const walk = (d, out = []) => {
   return out;
 };
 
+/*
+ * Metro's PLATFORM EXTENSIONS, which this resolver used to be blind to.
+ *
+ * `apps/mobile/index.js` imports `./src/root` extensionless, and says so in a
+ * comment: Metro resolves that to `root.tsx` for native and `root.web.tsx` for
+ * web. BOTH are real entry points — the `.web` one is what the parity harness
+ * builds and serves as a static site, through a gated CI check. A resolver that
+ * returns only the first match therefore reports a file as unreachable that a
+ * shipping build reaches every time.
+ *
+ * That is what this check did, and nobody saw it: reachability sits late in the
+ * CI job and had been SKIPPED behind an earlier failure for days.
+ *
+ * Fixed by resolving to EVERY variant rather than the first, which is closer to
+ * what the bundler actually does. The alternative — two allowlist entries —
+ * would have recorded working code as dead, and this file's own header calls
+ * ALLOWED "a ratchet": it is for files that are genuinely unreachable and
+ * should be, not for gaps in the walker.
+ */
+const PLATFORMS = ['', '.web', '.native', '.ios', '.android'];
+
 const resolveImport = (from, spec) => {
-  if (!spec.startsWith('.')) return null;
+  if (!spec.startsWith('.')) return [];
   const base = resolve(dirname(from), spec);
-  for (const e of EXT) if (existsSync(base + e)) return base + e;
-  for (const e of EXT) if (existsSync(join(base, 'index' + e))) return join(base, 'index' + e);
-  return null;
+  const hits = [];
+  for (const p of PLATFORMS) for (const e of EXT) if (existsSync(base + p + e)) hits.push(base + p + e);
+  if (hits.length) return hits;
+  for (const p of PLATFORMS) for (const e of EXT) {
+    const idx = join(base, `index${p}${e}`);
+    if (existsSync(idx)) hits.push(idx);
+  }
+  return hits;
 };
 
 const importsOf = (f) => {
@@ -68,7 +94,7 @@ const importsOf = (f) => {
   let m;
   const src = readFileSync(f, 'utf8');
   while ((m = re.exec(src))) specs.push(m[1]);
-  return specs.map((s) => resolveImport(f, s)).filter(Boolean);
+  return specs.flatMap((s) => resolveImport(f, s));
 };
 
 const isTest = (f) => /\.(test|spec)\.[jt]sx?$/.test(f);
