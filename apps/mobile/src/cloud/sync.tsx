@@ -9,8 +9,10 @@ import {
   cloudFp,
   mergeEngines,
   sanitizeDB,
+  ymd,
   type EngineDB,
 } from '@hybrid/engine';
+import { mondayOf } from '@hybrid/coordinator-adapter';
 import type { EcosystemSyncNamespace } from '@hybrid/shared-core';
 import { emptyNutritionDB, mergeNutrition, sanitizeNutritionDB, type NutritionDB } from '@hybrid/nutrition-core';
 import { useDb } from '../store/db';
@@ -33,6 +35,7 @@ import {
   type PendingAssignment,
 } from './arc-assignments';
 import { clearArcNameCache } from './arc-roster';
+import { coachWeekFromNamespace, readCoachWeekAttribution, type CoachWeekAttribution } from './arc-coach-week';
 import { useNutrition } from '../store/nutrition';
 import '../product'; // build-config guard
 
@@ -72,6 +75,20 @@ interface SyncCtx {
   pendingAssignments: readonly PendingAssignment[];
   acceptAssignment: (assignmentId: string) => Promise<void>;
   declineAssignment: (assignmentId: string) => Promise<void>;
+  /**
+   * Who published the coach-written week this device currently holds, or null.
+   *
+   * ATTRIBUTION ONLY. The week itself never travels through here — it arrives
+   * in `EngineDB.ecosystem.partitions.weeklyPlan` through the ordinary
+   * ecosystem pull and is read straight off the store by whoever renders it
+   * (`coachWeekFromNamespace`). Routing the week through the sync context as
+   * well would give it two carriers that could disagree, and the store is the
+   * one that survives being offline.
+   *
+   * Null for every athlete with no coach, which is most of them, and null
+   * whenever the best-effort read did not land — a name is not worth a banner.
+   */
+  coachWeekAttribution: CoachWeekAttribution | null;
 }
 
 const Ctx = createContext<SyncCtx | null>(null);
@@ -150,6 +167,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState('');
   const [syncedAt, setSyncedAt] = useState(0);
   const [pendingAssignments, setPendingAssignments] = useState<readonly PendingAssignment[]>([]);
+  const [coachWeekAttribution, setCoachWeekAttribution] = useState<CoachWeekAttribution | null>(null);
   /* The org the accept/decline RPCs are addressed to. A ref, not state:
      `reconcile` learns it and the accept handler needs the current value
      without either re-rendering the tree or re-creating the callback. */
@@ -528,11 +546,37 @@ export function SyncProvider({ children }: { children: ReactNode }) {
               }
             });
           }
+
+          /*
+           * Attribute a coach-published week, if this device is holding one.
+           *
+           * Asked only when the store ALREADY holds a coach-written week for
+           * the current Monday. The week is the fact; the name is decoration
+           * on top of it, so there is no reason to query `coach_week_plans`
+           * for an athlete whose week nobody published — and doing so on every
+           * foreground would be a round trip per sync for the common case of
+           * nothing to say.
+           *
+           * `mondayOf(ymd(new Date()))` is the phone's local convention, the
+           * same one Home and Training use to decide what "today" is. Server
+           * `week_start` values are calendar dates and `mondayOf` is date
+           * arithmetic in UTC, so no instant is being compared to a date.
+           */
+          const weekStart = mondayOf(ymd(new Date()));
+          const week = coachWeekFromNamespace(dbRef.current.ecosystem, weekStart);
+          setCoachWeekAttribution(
+            week ? await readCoachWeekAttribution(client, user.id, weekStart) : null,
+          );
         } else {
           setPendingAssignments([]);
+          setCoachWeekAttribution(null);
         }
       } catch {
-        /* Best-effort — see above. Nothing here may fail the training sync. */
+        /* Best-effort — see above. Nothing here may fail the training sync.
+           A failed attribution read leaves the previous answer standing rather
+           than blanking it: the WEEK is still on screen either way, and
+           flickering the coach's name off on one bad foreground is worse than
+           showing the name it was published under a minute ago. */
       }
 
       // A refused push has already said so through `error`. Stamping the clock
@@ -667,6 +711,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         // athlete's, and Settings would show it to whoever signs in next.
         clearArcNameCache();
         setPendingAssignments([]);
+        // The coach who published the last week is the PREVIOUS athlete's
+        // coach. Their name must not survive into the next account's card.
+        setCoachWeekAttribution(null);
       },
       syncNow: reconcile,
       pendingAssignments,
@@ -704,8 +751,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         await declineAssignmentRpc(client, arcOrgRef.current, assignmentId);
         setPendingAssignments((current) => current.filter((a) => a.id !== assignmentId));
       },
+      coachWeekAttribution,
     }),
-    [user, busy, error, syncedAt, reconcile, pendingAssignments],
+    [user, busy, error, syncedAt, reconcile, pendingAssignments, coachWeekAttribution],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -37,18 +37,38 @@ import { clearArcOrgCache } from './arc-assignments';
  */
 
 /*
- * The athlete's own display name, or null for "no row".
+ * Display names, by user id, or null for "no row".
  *
  * Module-level, in memory only, exactly like arc-assignments.ts's org cache and
  * for the same reasons: it is allowed to die with the JS context, and a name
  * published to a coach has no business outliving a sign-out in MMKV. `null` is
  * a real answer and is cached; a FAILED read is not, or one blip would show a
  * blank field to an athlete who has a name and invite them to retype it.
+ *
+ * A MAP rather than the single slot this started as (13 August 2026). The
+ * athlete's own name was the only one the phone had a use for until a coach
+ * could publish a week — attributing that week needs the COACH's name, read
+ * the same way from the same table, and this repo's rule is one path per
+ * question. One slot keyed on "the current user id" cannot hold two people, so
+ * it became a map rather than a second cache growing next to it. Small and
+ * unbounded is fine: it holds the accounts one athlete's phone asks about in
+ * one JS context — themselves, and their coach.
  */
-let nameCache: { userId: string; displayName: string | null } | null = null;
+const nameCache = new Map<string, string | null>();
 
-export async function getMyDisplayName(client: SupabaseClient, userId: string): Promise<string | null> {
-  if (nameCache && nameCache.userId === userId) return nameCache.displayName;
+/**
+ * Any account's display name. Best-effort: absence, a refusal and a network
+ * blip all come back null, and the caller must render that as "no name" rather
+ * than as an error.
+ *
+ * `athlete_profiles_read` decides what this can actually see, and it is
+ * narrower than the signature: self, or an athlete THIS caller coaches. An
+ * athlete asking for their coach's name matches neither and gets null — see
+ * the long note in ./arc-coach-week.ts, which is the caller that hits it.
+ */
+export async function getDisplayName(client: SupabaseClient, userId: string): Promise<string | null> {
+  const cached = nameCache.get(userId);
+  if (cached !== undefined) return cached;
   const { data, error } = await client
     .from('athlete_profiles')
     .select('display_name')
@@ -56,14 +76,28 @@ export async function getMyDisplayName(client: SupabaseClient, userId: string): 
     .maybeSingle();
   if (error) return null;
   const displayName = data ? ((data as { display_name: string }).display_name ?? null) : null;
-  nameCache = { userId, displayName };
+  nameCache.set(userId, displayName);
   return displayName;
 }
 
+/**
+ * The athlete's own name. Kept as its own name because "mine" is a different
+ * question from "theirs" at every call site that asks it, and Settings only
+ * ever asks for mine.
+ *
+ * An ALIAS, not a wrapper. `async function f() { return g() }` costs two extra
+ * microtask ticks over calling `g` directly, and Settings' name field is
+ * settled inside an `act()` that flushes a bounded number of them — wrapping
+ * this made a passing test fail for a reason that had nothing to do with
+ * names. One binding, one promise.
+ */
+export const getMyDisplayName = getDisplayName;
+
 /** Sign-out must forget it — the next account on this device is not the same
- *  athlete. Called from SyncProvider's signOut alongside clearArcOrgCache. */
+ *  athlete, and is very probably not coached by the same person either. Called
+ *  from SyncProvider's signOut alongside clearArcOrgCache. */
 export function clearArcNameCache(): void {
-  nameCache = null;
+  nameCache.clear();
 }
 
 /**
@@ -114,12 +148,12 @@ export async function setMyDisplayName(
   const stored = data && typeof data === 'object'
     ? ((data as { display_name?: unknown }).display_name as string | undefined) ?? null
     : null;
-  nameCache = { userId, displayName: stored };
+  nameCache.set(userId, stored);
   return stored;
 }
 
 /** Test seam: the cache above is process-wide, so a suite has to be able to put
  *  it back. Mirrors resetArcAssignmentsForTests. */
 export function resetArcRosterForTests(): void {
-  nameCache = null;
+  nameCache.clear();
 }

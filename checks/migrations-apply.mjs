@@ -1667,6 +1667,23 @@ try {
     if (other !== '0') throw new Error("an athlete read another athlete's week");
   });
 
+  check('WEEK: the athlete can see WHO published it — the name read goes both ways', () => {
+    /* Found while building the Android card, not by reading: the original
+       name policy was `self or someone I coach`, both branches pointing the
+       same way down the relationship, so an athlete reading their COACH's row
+       was refused. A week arriving from an unnameable "your coach" is
+       unverifiable — who put this session in my week is the one thing an
+       athlete should be able to check. */
+    asAthlete(COACH_1, `select public.set_athlete_display_name('Sam Coach');`);
+    const seen = lastLine(asAthlete(ATHLETE_A,
+      `select display_name from public.athlete_profiles where user_id = '${COACH_1}';`));
+    if (seen !== 'Sam Coach') throw new Error(`the athlete cannot see their own coach's name (got '${seen}')`);
+    /* And no wider than that: a coach two steps away is still nobody. */
+    const stranger = lastLine(asAthlete(ATHLETE_B,
+      `select count(*) from public.athlete_profiles where user_id = '${COACH_1}';`));
+    if (stranger !== '0') throw new Error('an unrelated athlete could read a coach profile');
+  });
+
   check('WEEK: a self-coached athlete is untouched — coordinator still writes', () => {
     const out = asAthlete(ATHLETE_B, refusalProbe(
       `perform public.publish_athlete_weekly_plan('${MONDAY}', 1, 1, now(), '{}'::jsonb)`));

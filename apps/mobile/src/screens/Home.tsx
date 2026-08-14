@@ -23,6 +23,7 @@ import { useDb } from '../store/db';
 import { ForeignSessionNotice } from './ForeignSession';
 import { resolveDayTarget, sessionFrom } from '../store/session';
 import { ArcAssignmentCard } from '../autocoach/ArcAssignmentCard';
+import { ArcCoachWeekCard, useCoachWeek } from '../autocoach/ArcCoachWeekCard';
 import { SessionReceipt } from '../autocoach/SessionReceipt';
 import { useLedger, type LedgerEntry } from '../autocoach/ledger';
 import { Btn, Card, Empty, Kicker, Link, Ring, Screen, SectionHead, T, Tap, Title, zoneNeon } from '../ui';
@@ -112,6 +113,10 @@ export function HomeScreen() {
 
   const dow = new Date().getDay();
   const ledger = useLedger();
+  /* Null for every athlete whose week nobody published, which is most of them
+     — and cheap to ask, because it is a read of a partition already in the
+     store rather than a query. */
+  const coachWeek = useCoachWeek();
   const planned = useMemo(
     () => plannedForToday(workouts, ledger, today, dow),
     [workouts, ledger, today, dow],
@@ -200,22 +205,44 @@ export function HomeScreen() {
       </View>
       <WeekStrip workouts={workouts} sessions={sessions} today={today} onOpenDay={openDay} />
 
-      <SectionHead title="Coordinated week" />
-      <Card>
-        <T className="text-3 text-dim">
-          Coordinator plan · {weeklyPlan.entries.length} scheduled
-          {weeklyPlan.decisions.filter((d) => d.action === 'dropped').length
-            ? ` · ${weeklyPlan.decisions.filter((d) => d.action === 'dropped').length} held back`
-            : ''}
-        </T>
-        {weeklyPlan.entries.slice(0, 4).map((entry) => (
-          <View key={entry.id} className="mt-0.5 flex-row justify-between gap-1">
-            <T className="flex-1 text-3 text-muted" numberOfLines={1}>{entry.title}</T>
-            <T num className="text-3 text-dim">{entry.date}</T>
-          </View>
-        ))}
-        {!weeklyPlan.entries.length ? <T className="mt-1 text-3 text-muted">No automatic session was placed for this week.</T> : null}
-      </Card>
+      {/*
+        ONE week, never two.
+
+        A coach who has published this week owns it outright — that is the
+        authority decision in
+        docs/superpowers/specs/2026-08-13-coach-publishes-the-week-design.md,
+        and the Coordinator card is REPLACED rather than pushed below it.
+        Showing both would put two answers to "what am I doing this week" on
+        one screen and leave the athlete to referee between their coach and
+        their app, which is exactly the ambiguity that decision removed.
+
+        The Coordinator itself is untouched and still runs — `weeklyPlan` above
+        is still computed on every render — so an athlete who leaves a roster
+        has their own week back on the next render with nothing to restore.
+        The fallback was never a stored row; the fallback is the Coordinator.
+      */}
+      {coachWeek ? (
+        <ArcCoachWeekCard week={coachWeek} />
+      ) : (
+        <>
+          <SectionHead title="Coordinated week" />
+          <Card>
+            <T className="text-3 text-dim">
+              Coordinator plan · {weeklyPlan.entries.length} scheduled
+              {weeklyPlan.decisions.filter((d) => d.action === 'dropped').length
+                ? ` · ${weeklyPlan.decisions.filter((d) => d.action === 'dropped').length} held back`
+                : ''}
+            </T>
+            {weeklyPlan.entries.slice(0, 4).map((entry) => (
+              <View key={entry.id} className="mt-0.5 flex-row justify-between gap-1">
+                <T className="flex-1 text-3 text-muted" numberOfLines={1}>{entry.title}</T>
+                <T num className="text-3 text-dim">{entry.date}</T>
+              </View>
+            ))}
+            {!weeklyPlan.entries.length ? <T className="mt-1 text-3 text-muted">No automatic session was placed for this week.</T> : null}
+          </Card>
+        </>
+      )}
 
       {activeSession ? (
         <SessionCard tone="raised" className="mt-2">
