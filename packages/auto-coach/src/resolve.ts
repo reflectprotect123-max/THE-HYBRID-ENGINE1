@@ -60,22 +60,34 @@ export function resolveSession(input: ResolveInput): AutoCoachResolution {
     signals,
   };
 
-  if (policy.status !== 'active') {
-    return {
-      ...base,
-      state: 'normal',
-      operations: [],
-      inferences: ['Auto-Coached is paused — nothing is evaluated or applied.'],
-      reasonCodes: ['policy_paused'],
-      confidence: 'high',
-      requiresConfirmation: false,
-      autoApplyAllowed: false,
-      athleteMessage: 'Auto-Coached is paused. Today runs exactly as planned.',
-      abstentionReason: 'policy_not_active',
-    };
-  }
-
-  /* -- stage: hard safety, before anything readiness-shaped --------------- */
+  /* -- stage: hard safety, before anything readiness-shaped, and BEFORE the
+   *    policy gate ------------------------------------------------------
+   *
+   * The order of these two blocks is the whole rule, so it is written down
+   * rather than left to be inferred from the line numbers.
+   *
+   * Until 14 August 2026 the policy gate came FIRST, which meant a paused
+   * Auto-Coached returned `state: 'normal'` and this filter was never reached.
+   * Pausing therefore switched off the injury stop as well as the adjustments
+   * — the athlete was told "Today runs exactly as planned" over a live pain or
+   * illness flag, no hold was shown, and no held receipt was reported to their
+   * coach. `08-policy-paused-with-constraints.ts` encoded that as intended
+   * behaviour, so this is a deliberate reversal of a deliberate decision.
+   *
+   * It is reversed because pausing and safety are not the same question.
+   * Pausing says "stop adapting my sessions", which is an autonomy preference
+   * and entirely the athlete's to set. A hard constraint says "this session
+   * should not run", which per CLAUDE.md is a safety flag and not an ordinary
+   * readiness penalty. The Pause control is a small unlabelled toggle; nothing
+   * about tapping it is consent to disable an injury stop, and an athlete who
+   * paused it months ago has certainly not consented today.
+   *
+   * The scope of what pausing still switches off is unchanged: everything
+   * below this block. No cap, no swap, no volume change, no proposal. Only
+   * `hard` constraints — currently pain and illness alone — cross the line,
+   * and they arrive already decided by whole-athlete-state. This layer does
+   * not evaluate anything to reach them; it stops.
+   */
   const domainOf = workout.kind ?? 'strength';
   const applies = (c: StateConstraint): boolean => c.domain === 'both' || c.domain === domainOf;
   const hard = state.constraints.filter((c) => c.hard && applies(c));
@@ -101,6 +113,27 @@ export function resolveSession(input: ResolveInput): AutoCoachResolution {
         'A safety flag is active. This cannot be resolved as a readiness question — the session is ' +
         'not being adapted as normal training. Review the flag with your coach, and if a symptom is ' +
         'severe, new, or worsening, contact an appropriate qualified professional.',
+    };
+  }
+
+  /* -- stage: the policy gate ---------------------------------------------
+   *
+   * Below the safety stop above, deliberately. Everything from here down is
+   * adaptation — capping, swapping, trimming, proposing — and a paused athlete
+   * has asked for none of it.
+   */
+  if (policy.status !== 'active') {
+    return {
+      ...base,
+      state: 'normal',
+      operations: [],
+      inferences: ['Auto-Coached is paused — nothing is evaluated or applied.'],
+      reasonCodes: ['policy_paused'],
+      confidence: 'high',
+      requiresConfirmation: false,
+      autoApplyAllowed: false,
+      athleteMessage: 'Auto-Coached is paused. Today runs exactly as planned.',
+      abstentionReason: 'policy_not_active',
     };
   }
 

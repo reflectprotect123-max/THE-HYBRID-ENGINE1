@@ -241,6 +241,32 @@ describe('CoachWeekBuilder', () => {
     expect(screen.getAllByRole('button', { name: /^Edit / })).toHaveLength(7);
   });
 
+  it('REFUSES to publish while the week is unread — the empty screen is not the week', async () => {
+    /* A failed read leaves seven empty editors AND makes `base` 0, which sends
+       a null base version and switches the optimistic lock off. So the state
+       that most needs the lock is the one that had none: publish here and a
+       real week is replaced by an empty one, reported as a success. */
+    const repository = rosterRepository();
+    repository.coachWeekError = new Error('boom');
+    const publish = vi.spyOn(repository, 'publishCoachWeek');
+    await renderBuilder(repository);
+
+    const button = screen.getByRole('button', { name: /Publish/ });
+    expect(button).toBeDisabled();
+    /* Clicking a disabled button is a no-op in the DOM, which is the point:
+       this asserts the guard is on the BUTTON and not only in the copy. */
+    fireEvent.click(button);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('publishes normally once the week reads — the refusal above is about the failure, not the screen', async () => {
+    const repository = rosterRepository();
+    repository.coachWeek = publishedWeek();
+    await renderBuilder(repository);
+
+    expect(screen.getByRole('button', { name: /Publish/ })).not.toBeDisabled();
+  });
+
   it('shows a held day as a HOLD, never as one the athlete ignored', async () => {
     const repository = rosterRepository();
     repository.coachWeek = publishedWeek();

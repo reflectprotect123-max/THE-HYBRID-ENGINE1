@@ -253,6 +253,56 @@ describe('policy lifecycle', () => {
     expect(r.operations).toEqual([]);
     expect(r.abstentionReason).toBe('policy_not_active');
   });
+
+  /* The pair below is the rule stated as two halves. Read them together: the
+     first says pausing suppresses adaptation, the second says it does not
+     suppress a safety stop. Either one alone is misleading. */
+  it('a paused policy still stops a session a HARD constraint has held', () => {
+    const r = resolveSession({
+      workout: strengthWorkout(),
+      policy: policy({ status: 'paused' }),
+      state: snapshot({
+        constraints: [
+          constraint({}),
+          constraint({ code: 'pain_hold_active', hard: true, reason: 'Pain', adjustment: 'Stop' }),
+        ],
+      }),
+    });
+    expect(r.state).toBe('safety_stop');
+    expect(r.reasonCodes).toEqual(['pain_hold_active']);
+    expect(r.abstentionReason).toBeUndefined();
+    /* The soft constraint alongside it is still suppressed — pausing switches
+       off everything readiness-shaped, which is the whole of what it was ever
+       for. Only the hard one crosses. */
+    expect(r.reasonCodes).not.toContain('low_readiness');
+  });
+
+  it('holds an illness flag while paused too, not only pain', () => {
+    const r = resolveSession({
+      workout: strengthWorkout(),
+      policy: policy({ status: 'paused' }),
+      state: snapshot({
+        constraints: [constraint({ code: 'illness_flag_active', hard: true, reason: 'Illness', adjustment: 'Stop' })],
+      }),
+    });
+    expect(r.state).toBe('safety_stop');
+    expect(r.reasonCodes).toEqual(['illness_flag_active']);
+  });
+
+  /* A paused athlete's hold must reach the coach, or a held session reads as
+     a session they ignored. The producer keys off exactly this field, so this
+     asserts the seam rather than trusting it. */
+  it('the held state a paused athlete produces is the one the receipt reports', () => {
+    const r = resolveSession({
+      workout: strengthWorkout(),
+      policy: policy({ status: 'paused' }),
+      state: snapshot({
+        constraints: [constraint({ code: 'pain_hold_active', hard: true, reason: 'Pain', adjustment: 'Stop' })],
+      }),
+    });
+    expect(r.state).toBe('safety_stop');
+    expect(r.operations.map((o) => o.type)).toEqual(['rest_or_pause']);
+  });
 });
 
 describe('receipt quality', () => {

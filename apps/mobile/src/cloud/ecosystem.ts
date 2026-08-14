@@ -5,8 +5,10 @@ import {
   readNutritionPartition,
   SYNCED_SNAPSHOT_DOMAINS,
   withNutritionPartition,
+  ymd,
   type EngineDB,
 } from '@hybrid/engine';
+import { mondayOf } from '@hybrid/coordinator-adapter';
 import {
   emptyEcosystemNamespace,
   sanitizeEcosystemNamespace,
@@ -51,7 +53,32 @@ export async function pullEcosystem(client: SupabaseClient, userId: string): Pro
   const [coreResult, domainResult, planResult] = await Promise.all([
     client.from('athlete_core').select('schema_version,revision,writer,state,client_updated_at').eq('user_id', userId).maybeSingle(),
     client.from('athlete_domain_snapshots').select('domain,schema_version,revision,writer,snapshot,client_updated_at').eq('user_id', userId).in('domain', [...SYNCED_SNAPSHOT_DOMAINS]),
-    client.from('athlete_weekly_plans').select('week_start,schema_version,revision,writer,plan,client_generated_at').eq('user_id', userId).order('week_start', { ascending: false }).limit(1),
+    /* THE WEEK THAT GOVERNS TODAY, not the newest week on record.
+     *
+     * This read was `order('week_start', desc).limit(1)` until 14 August 2026,
+     * which was right while only the Coordinator could write a week — it never
+     * wrote ahead, so newest and current were the same row. A coach programming
+     * in advance breaks that equivalence, and the consequences were both silent:
+     *
+     *   - Publish Thursday of week 2 for week 3, and the device's single
+     *     weeklyPlan partition becomes week 3. `useCoachWeek` asks for the
+     *     Monday of TODAY, gets a mismatch, and returns null — so the athlete's
+     *     coach week vanishes from Home for the rest of week 2 and reappears on
+     *     Monday. Nothing tells them, and nothing tells the coach.
+     *   - Correct a mistake in week 2 after week 3 exists, and the server
+     *     accepts it, returns a new version, and tells the coach "Published."
+     *     The device is still pulling week 3. The edit never lands.
+     *
+     * The device holds ONE weekly plan and renders exactly one week, so asking
+     * for that week is not a narrowing — it is the query matching the store.
+     * A week published ahead simply arrives when it becomes current, which is
+     * what the athlete's phone would show either way.
+     *
+     * Local, not UTC: this must agree with `ArcCoachWeekCard`'s
+     * `mondayOf(ymd(new Date()))`, and `ymd` reads local components. An athlete
+     * in Sydney asking for a UTC week would be a day out for most of their day.
+     */
+    client.from('athlete_weekly_plans').select('week_start,schema_version,revision,writer,plan,client_generated_at').eq('user_id', userId).eq('week_start', mondayOf(ymd(new Date()))).limit(1),
   ]);
   if (coreResult.error) throw coreResult.error;
   if (domainResult.error) throw domainResult.error;

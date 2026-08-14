@@ -208,7 +208,16 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
     [receipts, plan?.body, weekStart],
   );
 
-  const canPublish = coached && Boolean(repository.publishCoachWeek);
+  /* `!loadFailed` is load-bearing and was missing until 14 August 2026. When
+     the read fails, `plan` stays null, so the seven editors are empty AND
+     `base` computes to 0 — which sends `p_base_version = null`, the value that
+     tells `publish_coach_week` to skip the optimistic-lock comparison
+     entirely. The one guard that exists to catch "you are publishing over
+     something you never saw" was disabled in precisely the state that needs
+     it: a coach could press Publish on a failed read and replace a real week
+     with seven empty days, and be told "Published. Version 4." The warning
+     below said so in words; words are not a guard. */
+  const canPublish = coached && Boolean(repository.publishCoachWeek) && !loadFailed;
 
   async function publish() {
     if (!repository.publishCoachWeek) return;
@@ -287,8 +296,8 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
       {loadFailed && (
         <p className="st-warning" role="status">
           The published week could not be read, so what you see below is empty rather than
-          out of date. Publishing from here would overwrite whatever is actually stored — reload
-          before you do.
+          out of date. Publishing is turned off until it loads — reload the page. Publishing
+          from here would replace a real week with an empty one.
         </p>
       )}
 
