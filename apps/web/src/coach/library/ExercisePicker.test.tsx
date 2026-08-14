@@ -119,4 +119,33 @@ describe('ExercisePicker', () => {
     fireEvent.click(screen.getByRole('button', { name: /^done$/i }));
     expect(props.onDone).toHaveBeenCalled();
   });
+
+  /*
+   * A PHONE bug, caught on a real phone and not by any check here.
+   *
+   * `coach-redesign.css`'s phone block hides the picker until it is asked for:
+   *
+   *     .cb-picker { display: none; }
+   *     .cb-picker.picker-open { display: block; }
+   *
+   * The mockup toggled `picker-open` by hand; this component was ported from
+   * it and never applied the class — a search across the whole of
+   * `apps/web/src` found `picker-open` in the stylesheet and NOWHERE else. So
+   * on a phone, tapping "+ Add exercise from library" removed the reveal
+   * button (it renders only while closed) and mounted a picker the stylesheet
+   * hid. The block went empty with nothing left to tap: a coach could add a
+   * block and then never put anything in it. Desktop was fine, because none
+   * of those rules apply above the breakpoint — which is why every review
+   * missed it.
+   *
+   * jsdom does not apply the stylesheet, so this asserts the CLASS rather
+   * than the computed display. That is the honest limit of a unit test here,
+   * and it is still the assertion that would have failed.
+   */
+  it('carries picker-open, without which the phone stylesheet hides it entirely', () => {
+    renderPicker();
+    const picker = document.querySelector('.cb-picker');
+    expect(picker).not.toBeNull();
+    expect(picker).toHaveClass('picker-open');
+  });
 });

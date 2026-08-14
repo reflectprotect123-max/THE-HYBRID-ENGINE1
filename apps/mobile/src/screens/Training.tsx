@@ -27,6 +27,7 @@ import {
 import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { sessionFrom } from '../store/session';
 import { useDb } from '../store/db';
+import { ForeignSessionNotice } from './ForeignSession';
 import { useRest } from '../store/rest';
 import { Btn, Card, Empty, Kicker, Ltr, SectionHead, T, Tap, Title } from '../ui';
 import type { RootStackParams } from '../App';
@@ -90,6 +91,22 @@ export function TrainingScreen() {
       <ScrollView className="flex-1 bg-bg" contentContainerStyle={pad}>
         <Kicker>Training</Kicker>
         <Title>Start a session</Title>
+        {/* THE DEAD END THIS CLOSES (14 August 2026).
+
+            `start()` refuses when ANY session is live, but this screen only
+            SHOWS the ones in the current world — so a session left running in
+            the other world made every Start button on this screen do nothing
+            at all. No session, no message, no change on screen. The athlete's
+            next stop is the logger, which says "No live session. Start one
+            from Training", pointing them back at the button that just
+            silently refused them.
+
+            The guard is right: two live sessions leave the second invisible
+            and unfinishable. What was missing is that a refusal has to be
+            VISIBLE. Home has carried this notice since the day
+            `foreignActiveSession` existed; Training never did, and Training
+            is where Start lives. */}
+        <ForeignSessionNotice />
         {candidates.length ? (
           candidates.map((w) => (
             <View key={w.id} className="mt-1 flex-row items-center rounded-lg border border-line bg-panel p-2">

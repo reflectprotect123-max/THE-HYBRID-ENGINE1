@@ -37,8 +37,30 @@ export function ExercisePicker({
     setActiveTags([]);
   }
 
+  /*
+   * `picker-open` is not decoration. Reported from a phone, 14 August 2026:
+   * tapping "+ Add exercise from library" made the block go EMPTY — no
+   * picker, and no button to get back, so a coach on a phone could add a
+   * block and then add nothing to it, forever.
+   *
+   * The phone stylesheet hides the picker until it is asked for:
+   *
+   *     .cb-picker { display: none; }
+   *     .cb-picker.picker-open { display: block; }
+   *
+   * The mockup toggled that class by hand. This component was ported from it
+   * and never applied it — a search for `picker-open` across the whole of
+   * `apps/web/src` returned the CSS and nothing else. On desktop the rules do
+   * not apply, so the screen worked everywhere it was reviewed.
+   *
+   * It is HARD-CODED rather than driven by a prop because in React this
+   * component only exists while the picker is open — `BlockEditor` renders it
+   * behind `pickerOpen &&`. Mounted IS open, so a prop could only ever be
+   * `true`, and a second source of truth for one boolean is how this drifted
+   * apart in the first place.
+   */
   return (
-    <div className="cb-picker">
+    <div className="cb-picker picker-open">
       <input
         type="text"
         className="cb-picker-search"

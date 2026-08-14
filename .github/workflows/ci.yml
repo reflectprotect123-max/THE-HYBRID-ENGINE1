@@ -146,6 +146,16 @@ jobs:
       - name: Reachability (no unreachable source files)
         run: node checks/reachability.mjs
 
+      # A CSS state class the app never applies. Added after a coach on a
+      # phone tapped "+ Add exercise from library" and the block went EMPTY:
+      # the picker mounted, the phone stylesheet hid it (`.cb-picker` is
+      # display:none until `.picker-open`), and no code ever wrote that class.
+      # Every other gate passed it — jsdom applies no stylesheet, the 420px
+      # screenshot check fails on OVERFLOW and a hidden element has no width,
+      # and desktop review never reaches the media query at all.
+      - name: CSS state classes (nothing rendered is unreachable)
+        run: node checks/css-state-classes.mjs
+
       # Suites that need no network and no secrets. emit-contract used to lead
       # this list; it string-pinned the vanilla app.js and round-tripped the
       # vanilla coach emit.js through a browser. Both are deleted, and

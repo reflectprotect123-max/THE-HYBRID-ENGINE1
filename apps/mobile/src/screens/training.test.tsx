@@ -10,6 +10,8 @@
  * pressing Start finds it, so that is what this does.
  */
 import { fireEvent, screen } from '@testing-library/react-native';
+import { ymd, type Session } from '@hybrid/engine';
+import { setDiscipline } from '../discipline';
 import { liftWorkout, renderScreen, seed } from '../../test/harness';
 import { TrainingScreen } from './Training';
 
@@ -74,5 +76,51 @@ describe('Training', () => {
     expect(screen.getByText('Nothing scheduled for today')).toBeTruthy();
     expect(screen.getByText('Everything else')).toBeTruthy();
     expect(screen.getByText('Lower')).toBeTruthy();
+  });
+});
+
+describe('Training — a session live in the OTHER world', () => {
+  /*
+   * The dead end this covers, reported from a real phone on 14 August 2026.
+   *
+   * `start()` refuses when ANY session is active, but this screen only lists
+   * the current world's. So a conditioning session left running made every
+   * Start button on the strength Training screen do nothing whatsoever — no
+   * session, no message, no visible change. The athlete's next move is the
+   * logger, which says "No live session. Start one from Training", sending
+   * them back to the button that had just silently refused them. A loop with
+   * no exit and no explanation anywhere in it.
+   */
+  const liveConditioning = (): Session => ({
+    id: 'cond-live',
+    kind: 'conditioning',
+    date: ymd(new Date()),
+    name: 'Intervals',
+    status: 'active',
+    blocks: [],
+    startedAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  it('says so, rather than leaving Start silently inert', () => {
+    setDiscipline('strength');
+    seed({ workouts: [liftWorkout()], sessions: [liveConditioning()] });
+    renderScreen(<TrainingScreen />);
+
+    /* The screen is still the start list — the conditioning session is not in
+       this world and must not be rendered as if it were. */
+    expect(screen.getByText('Start a session')).toBeTruthy();
+    /* …but the refusal about to happen is now VISIBLE, with a way to it. */
+    expect(screen.getByText('Session in progress in Conditioning')).toBeTruthy();
+  });
+
+  it('the notice is absent when nothing is live elsewhere', () => {
+    /* Otherwise the test above would pass on a component that always renders
+       the banner, which would be its own lie. */
+    setDiscipline('strength');
+    seed({ workouts: [liftWorkout()] });
+    renderScreen(<TrainingScreen />);
+
+    expect(screen.queryByText(/Session in progress in/)).toBeNull();
   });
 });
