@@ -33,7 +33,8 @@ vi.stubGlobal('fetch', async () => new Response('{}', { status: 200, headers: { 
 
 /*
  * The pillar screens read the SIGNED-IN athlete's own stores, exactly like
- * legacy/build/planner. Without ClientDetailGate a coach would see their own
+ * `legacy` (and like `build`/`planner`, until those were deleted on 14 August
+ * 2026). Without ClientDetailGate a coach would see their own
  * records under a roster client's name — the failure ClientDetailGate.tsx's
  * own header comment exists to prevent. Asserted statically because the
  * router is a lazy chunk, matching how checks/coach-contract.mjs proves the
@@ -197,7 +198,7 @@ describe('coach route reachability', () => {
 
   /** `/coach/...` targets a human can click or be pushed to, from one file.
    *  `${…}` and `?query` are normalised away, so
-   *  `` `/coach/build/${workout.id}?returnTo=…` `` matches `build/:id`. */
+   *  `` `/coach/day/${date}?pick=1` `` matches `day/:date`. */
   function linksIn(files: Iterable<string>): string[] {
     const out: string[] = [];
     for (const file of files) {
@@ -265,7 +266,12 @@ describe('coach route reachability', () => {
     // stops matching, the walk reports everything reachable from an empty
     // graph and this file becomes the fourth decorative guard on the branch.
     expect(declaredPaths).toEqual(expect.arrayContaining(['progression', 'legacy', 'review/:weekStart']));
-    expect(declaredPaths.length).toBeGreaterThanOrEqual(12);
+    // Was 12 until 14 August 2026, when `author`, `build/:id`,
+    // `planner/:id` and `roster-plan/:workoutId` were deleted along with
+    // CoachAuthoring, GuidedBuilder, Planner and RosterPlanner. Lowered
+    // deliberately, with the reason, rather than left as a floor no
+    // longer tied to anything.
+    expect(declaredPaths.length).toBeGreaterThanOrEqual(11);
     expect(componentsFor('')).toContain('CoachCommandCenter');
     expect(componentsFor('legacy')).toContain('CoachShell');
     expect([...layoutFiles].some((f) => f.endsWith('/ArcCoachFrame.tsx'))).toBe(true);

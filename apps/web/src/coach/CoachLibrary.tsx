@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
 import { useDb } from '../store/db';
 import type { AthleteWeekSummary, ProgramTemplate } from './contracts';
@@ -123,47 +123,19 @@ export function CoachLibrary() {
       {tab === 'calendar' ? <CalendarTab clientId={selectedClient?.id ?? null} repository={repository} /> : null}
 
       {/*
-        The session builder's one inbound link, and it belongs DOWN HERE.
+        THE "Open the session builder" LINK IS GONE (14 August 2026).
 
-        `/coach/author` is the only door to `/coach/build/:id`,
-        `/coach/planner/:id` and `/coach/roster-plan/:workoutId`, so deleting
-        this link orphans four routes — caught by coach-routes.test.tsx's
-        graph walk, not by eye. That is why it exists.
-        It used to sit in the header as a filled brass button, above the
-        Library's own content. At phone width that made it the largest, first
-        thing on the screen: the Library's primary action was to LEAVE the
-        Library. Worse, where it leads is the one coach route still in the
-        pre-redesign styling, so the trip read as being dumped in a different,
-        older app. Reported from a real phone, 13 August 2026.
-        Kept reachable, demoted to what it is — a way out, after the thing you
-        came for.
+        It was the Library's one inbound link to `/coach/author`, which was in
+        turn the only door to `/coach/build/:id`, `/coach/planner/:id` and
+        `/coach/roster-plan/:workoutId`. All four routes and the four screens
+        behind them were deleted, so the link now had nowhere to lead.
+
+        Its removal is not a loss of reach: the Library IS the way into
+        authoring now. A calendar day opens `DayBuilder` at `/coach/day/:date`
+        (see `CalendarTab` above), which is the one authoring surface left.
+        If a second door is ever wanted, it points there — not back at a
+        builder chain that no longer exists.
       */}
-      {/*
-        `inline-flex min-h-11 items-center` is load-bearing, not styling.
-
-        This was a bare inline `<a>`, and `min-height` DOES NOT APPLY to a
-        non-replaced inline box — so `coach-redesign.css`'s
-        `@media (pointer: coarse) { a { min-height: 44px } }` silently did
-        nothing to it and it stayed 14px tall on a phone. `checks/web-touch.mjs`
-        caught it the moment that check was repointed at the coach bench.
-
-        WCAG 2.5.8's inline exception does not cover it either: it is not a link
-        inside a sentence, it is alone in its own paragraph. And per the comment
-        above, it is the Library's ONLY inbound link to `/coach/author` — which
-        is the only door to build, planner and roster-plan. A 14px target to
-        reach the entire builder chain.
-
-        Introduced 13 August by demoting this from a brass button to a text
-        link, which was right for its PROMINENCE and wrong for its HIT AREA.
-      */}
-      <p className="px-3 pb-6 text-xs sm:px-4">
-        <Link
-          to="/coach/author"
-          className="inline-flex min-h-11 items-center text-muted underline underline-offset-2 hover:text-text"
-        >
-          Open the session builder
-        </Link>
-      </p>
     </main>
   );
 }

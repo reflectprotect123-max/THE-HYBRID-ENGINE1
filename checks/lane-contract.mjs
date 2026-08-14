@@ -78,6 +78,14 @@ const LANES = [
  * the coach to reach into, both crossings disappeared on their own. The
  * rule is now absolute: the athlete and the coach import nothing of each
  * other's, full stop.
+ *
+ * POSTSCRIPT, 14 August 2026: `apps/web/src/coach/authoring/` is itself gone.
+ * `Planner` and `GuidedBuilder` were deleted outright, a day after moving in,
+ * along with `CoachAuthoring` and `RosterPlanner`. This changes nothing about
+ * the rule or the empty list — the crossings were already retired by the move,
+ * and a deleted file cannot cross a lane. Noted because the paragraph above
+ * describes a directory a reader will no longer find, and the PATH is not the
+ * point of it; the ratchet is.
  */
 const ALLOWED = [];
 

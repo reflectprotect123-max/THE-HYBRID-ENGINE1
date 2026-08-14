@@ -126,12 +126,19 @@ once, can catch its regression.
   check proves it.
   **Stage 4 (13 August 2026) closes the set.** `checks/screens.mjs` now
   shoots EVERY `/coach` route at **both** widths — 1440px first, then 420px:
-  the seven above plus `author`, `progression`, `review/:weekStart`,
-  `legacy`, `day/:date`, `build/:id`, `planner/:id` and
-  `roster-plan/:workoutId`. Thirty shots, all green. The parameterised ones
-  are addressed with values the seed really contains — a route pointed at a
-  missing id renders a not-found state, which has no overflow and would pass
-  while proving nothing.
+  the seven above plus `progression`, `review/:weekStart`, `legacy`,
+  `day/:date` and `week/:athleteId/:weekStart`. **24 shots, all green.** The
+  parameterised ones are addressed with values the seed really contains — a
+  route pointed at a missing id renders a not-found state, which has no
+  overflow and would pass while proving nothing.
+
+  This read "the seven above plus `author`, `progression`,
+  `review/:weekStart`, `legacy`, `day/:date`, `build/:id`, `planner/:id` and
+  `roster-plan/:workoutId`. Thirty shots" until 14 August 2026, when
+  `author`, `build/:id`, `planner/:id` and `roster-plan/:workoutId` were
+  deleted along with the screens behind them (see "The old authoring chain is
+  deleted" below). Four routes fewer, four shots fewer, and the claim itself
+  is unchanged: EVERY declared `/coach` route is shot at both widths.
 
   **The 1440px pass is new, and its absence was the real hole.** This section
   has asserted since 11 August that 1440px is "the default review width for
@@ -179,12 +186,13 @@ once, can catch its regression.
   commit that adds it. The coverage list above is now a claim about the whole
   bench, and a route that ships without a shot silently makes it false.
 
-  One honest limit on that claim. `roster-plan/:workoutId` is gated
-  `layer3Ready` and the seed signs in a local account with no roster, so what
-  that shot proves usable at 420px is the GATE, not `RosterPlanner` itself.
-  The planner behind it stays unproven at phone width until there is a roster
-  fixture to reach it with. That is written in `checks/screens.mjs` beside
-  the shot as well, so the next reader finds it there rather than here.
+  The one honest limit that used to sit here is retired, by deletion rather
+  than by proof. It read: `roster-plan/:workoutId` is gated `layer3Ready` and
+  the seed has no roster, so the shot proved the GATE and not `RosterPlanner`,
+  which stayed unproven at phone width. `RosterPlanner` was deleted on
+  14 August 2026, so there is no longer an unproven screen behind that gate —
+  or a gate. Recorded rather than silently dropped: this is the caveat being
+  removed with the thing it described, not a claim that it was ever met.
 
 ## Who owns the week (amended 14 August 2026)
 
@@ -330,6 +338,50 @@ routes (`/log/:bi/:ei`, `/planner/:id`, `/build/:id`) came out of
 into them. Both crossings closed the same way the comment in
 `checks/lane-contract.mjs` always said the list would end: by deletion from
 the list, not by raising the budget.
+
+`apps/web/src/coach/authoring/` no longer exists — see the next section. The
+crossings were retired by the MOVE, not by the directory, so nothing above is
+weakened by the destination being gone a day later.
+
+## The old authoring chain is deleted (14 August 2026)
+
+The owner opened `/coach/author`, followed it into the builder, and asked for
+all of it to be deleted. Four routes and the screens behind them are gone:
+
+| Route | Screen | Why it went |
+|---|---|---|
+| `/coach/author` | `CoachAuthoring` | The self-coach half told a coach to "Build the inputs. Let the Coordinator build the week" — the regime a coach publishing a week replaced. |
+| `/coach/build/:id` | `GuidedBuilder` + 7 step components | The wizard the owner was dropped into. |
+| `/coach/planner/:id` | `Planner` + 4 block cards | The local-only "full editor". |
+| `/coach/roster-plan/:workoutId` | `RosterPlanner` | Wrapped `Planner`, so it could not outlive it. |
+
+Gone with them: `authoring.ts`, `authoring-store.ts`, `save-coalescer.ts` and
+their tests, and three inbound links — the Library's "Open the session
+builder", `SessionDrawer`'s "Full editor" and `ResolutionPreview`'s "Adjust
+proposal".
+
+**`library/DayBuilder` is the one authoring surface now**, reached from a
+Library calendar day (`/coach/day/:date`) and from the week builder. Do not
+add a second one without deciding which is canonical — two builders is the
+state this deletion ended.
+
+**What this cost, recorded rather than discovered later:**
+
+- **The roster draft path lost its editor.** `save_workout_draft` and
+  `publish_workout_draft` still exist server-side and in the repository
+  interface; nothing in the UI calls them. A roster client's draft cannot be
+  authored until `DayBuilder` is wired in `RosterPlanner`'s place. This was
+  the explicit blast radius of the owner's choice, taken deliberately.
+- **`checks/web-touch.mjs` stopped walking.** It drove `/coach/build/w1` four
+  clicks deep, because a wizard hides its smallest tap target behind a click
+  path. It now measures `/coach/day/:date` flat. Nothing walks into a
+  deep-path control any more; if `DayBuilder` grows one, that check is where
+  it gets caught.
+- **`coach-contract` rule 8 inverted.** It asserted the router still declared
+  `build/:id` and `planner/:id`, so a route could not be deleted out from
+  under a doorway. It now fails if any of the four is declared again — the
+  components are gone, and a route without a screen is the hole that rule was
+  always about.
 
 ## Where a test goes
 

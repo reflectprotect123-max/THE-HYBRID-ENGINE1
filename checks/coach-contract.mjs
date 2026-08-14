@@ -274,15 +274,37 @@ console.log('Coach surface contract\n');
  * must remain under /coach. The single-file artifact also guards its hash.
  * ------------------------------------------------------------------------- */
 {
+  /*
+   * These three linked ONWARD into the builder chain — `CoachAuthoring` into
+   * `/coach/build/:id` and `/coach/planner/:id`, the other two into
+   * `/coach/planner/:id` from the legacy bench. The rule was that a root-level
+   * `/build/` or `/planner/` here is an athlete-lane address; the `/coach`
+   * prefix is what kept them home.
+   *
+   * 14 August 2026: `CoachAuthoring.tsx` is deleted and both onward links were
+   * removed from the other two. The doorway rule is kept and INVERTED for the
+   * routes themselves below — the addresses are gone, so referencing them at
+   * all is now the defect, prefixed or not.
+   */
   const coachDoorways = [
-    'apps/web/src/coach/CoachAuthoring.tsx',
+    'apps/web/src/coach/CoachLibrary.tsx',
     'apps/web/src/coach/ResolutionPreview.tsx',
     'apps/web/src/coach/SessionDrawer.tsx',
   ];
   const offenders = coachDoorways.filter((file) => /[`'"]\/(?:build|planner)\//.test(code(resolve(ROOT, file))));
   const coachRouter = code(resolve(ROOT, 'apps/web/src/coach/index.tsx'));
   const generator = read(resolve(ROOT, 'tooling/build-single-html.mjs'));
-  if (!coachRouter.includes('path="planner/:id"') || !coachRouter.includes('path="build/:id"')) offenders.push('apps/web/src/coach/index.tsx');
+  /*
+   * This asserted the OPPOSITE until 14 August 2026 — that the router still
+   * declared `build/:id` and `planner/:id`, so nobody could delete a route and
+   * leave a doorway pointing at a hole. The screens behind them (GuidedBuilder,
+   * Planner, CoachAuthoring, RosterPlanner) are now deleted deliberately, so
+   * the assertion flips rather than being dropped: re-declaring any of the four
+   * routes fails here, because the components they mounted no longer exist and
+   * a route without a screen is the hole this rule was always about.
+   */
+  const deletedRoutes = ['path="author"', 'path="build/:id"', 'path="planner/:id"', 'path="roster-plan/:workoutId"'];
+  if (deletedRoutes.some((decl) => coachRouter.includes(decl))) offenders.push('apps/web/src/coach/index.tsx');
   if (!generator.includes("location.hash.startsWith('#/coach')")) offenders.push('tooling/build-single-html.mjs');
   const athleteRoutes = /[`'"]\/(?:training|library|conditioning|history|progress|exercise|calendar|day|recap|nutrition|settings|log)(?:\/|[`'"])/;
   /*
@@ -307,12 +329,14 @@ console.log('Coach surface contract\n');
  * 9. A roster client's screen never shows the SIGNED-IN account's own
  *    training data as if it were theirs.
  *
- * `useDb()` / `useNutrition()` / the progression and authoring ledgers are the
- * signed-in account's own local stores — correct only while `engine-local` is
- * selected. Every route that reads them behind `/coach/author`,
- * `/readiness`, `/strength`, `/conditioning`, `/nutrition`, `/progression`,
- * `/review/:weekStart`, `/legacy`, `/build/:id` and `/planner/:id` must be
- * wrapped in `ClientDetailGate`, which blocks instead of merely disclosing
+ * `useDb()` / `useNutrition()` / the progression ledger are the signed-in
+ * account's own local stores — correct only while `engine-local` is
+ * selected. Every route that reads them behind `/readiness`, `/strength`,
+ * `/conditioning`, `/nutrition`, `/progression`, `/review/:weekStart` and
+ * `/legacy` must be wrapped in `ClientDetailGate`, which blocks instead of
+ * merely disclosing. (`/coach/author`, `/build/:id` and `/planner/:id` were on
+ * this list until 14 August 2026, when the routes and the authoring ledger
+ * behind them were deleted.)
  * (see ClientDetailGate.tsx's own header comment for why a disclosure
  * banner a coach can act past is not a guard).
  *
@@ -346,7 +370,11 @@ console.log('Coach surface contract\n');
      catalogue it offers while authoring, and it is the screen that PUBLISHES
      into an athlete's own record — so the gate that decides which athlete the
      bench is pointed at is exactly as load-bearing here as anywhere else. */
-  const gatedPaths = ['author', 'readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'build/:id', 'planner/:id', 'week/:athleteId/:weekStart'];
+  /* `author`, `build/:id` and `planner/:id` were in this list until 14 August
+     2026. They are not exempted — the routes are deleted, and rule 8 above
+     fails if any of them is declared again. A path listed here that no
+     longer exists would report an ungated route forever. */
+  const gatedPaths = ['readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'review/:weekStart', 'legacy', 'week/:athleteId/:weekStart'];
   const ungatedRoutes = gatedPaths.filter((path) => {
     // The route line itself, e.g. `<Route path="author" element={<ClientDetailGate ...`
     const line = new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*element=\\{<ClientDetailGate\\b`);

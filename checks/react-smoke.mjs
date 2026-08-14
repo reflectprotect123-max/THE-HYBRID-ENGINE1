@@ -142,22 +142,22 @@ page.on('console', (m) => {
  *
  *  - AUTHORING — the Library minting a session, the guided builder's steps,
  *    block-kind exclusion, the plan editor, Duplicate, and the folders.
- *    Fifteen scenarios. These screens were not deleted; they moved
- *    across the lane into the bench's own code at
- *    `apps/web/src/coach/authoring/` (`Planner.tsx`, `guided/GuidedBuilder.tsx`
- *    and their step components), where they are reachable at `/coach/build/:id`
- *    and `/coach/planner/:id`. `checks/screens.mjs` shoots both routes at
- *    1440px and 420px, `apps/web/src/coach/CoachAuthoring.test.tsx` and the
- *    `coach/library/*` colocated tests cover the bench's authoring surface, and
- *    folder grouping is pinned by `packages/engine/src/folders.test.ts`.
+ *    Fifteen scenarios. This entry said the screens "were not deleted; they
+ *    moved across the lane" into `apps/web/src/coach/authoring/`, reachable at
+ *    `/coach/build/:id` and `/coach/planner/:id`.
  *
- *    Honestly: a screenshot plus unit tests is not the same as driving the
- *    guided builder end to end in a browser, which is what these fifteen did.
- *    Nothing currently walks the coach's builder from "＋ New session" to a
- *    finished workout in Chromium. That is a real gap, it is named here rather
- *    than papered over, and the place to close it is a NEW coach-bundle
- *    section below — not a resurrection of these, which drove athlete routes
- *    that no longer exist.
+ *    THEY ARE DELETED NOW (14 August 2026). `Planner`, `GuidedBuilder` and
+ *    their step components are gone, with `CoachAuthoring` and `RosterPlanner`
+ *    and all four routes. `library/DayBuilder` is the one authoring surface
+ *    left; the `coach/library/*` colocated tests cover it, and folder grouping
+ *    is still pinned by `packages/engine/src/folders.test.ts`.
+ *
+ *    Honestly: that leaves nothing driving a coach's session build end to end
+ *    in Chromium — the gap this entry already named, now wider, because the
+ *    screenshots of the two builder routes went with the routes. It is named
+ *    here rather than papered over, and the place to close it is a NEW
+ *    coach-bundle section below, aimed at DayBuilder — not a resurrection of
+ *    these fifteen, which drove athlete routes that no longer exist either.
  *
  *  - NUTRITION ON THE WEB — the Home fuel card, the food log, the
  *    separate-storage-key invariant and the deletion tombstone. Six scenarios.

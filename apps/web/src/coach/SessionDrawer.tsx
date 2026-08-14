@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   CON_EFFORT_KEYS,
   isCond,
@@ -85,7 +84,9 @@ function ReadBlock({ block }: { block: Block }) {
 }
 
 /* Compact editing controls — coach density, not the athlete's touch targets.
-   The full athlete Planner remains one click away for anything deeper. */
+   These ARE the editor now: the "Full editor" escape hatch to `Planner` went
+   with the old authoring chain on 14 August 2026, so anything deeper happens
+   here or in `library/DayBuilder`. */
 function EditCond({
   block,
   onChange,
@@ -251,7 +252,6 @@ export function SessionDrawer({
   onClose: () => void;
 }) {
   const { workouts, sessions, update } = useDb();
-  const nav = useNavigate();
   const [renaming, setRenaming] = useState<string | null>(null);
   const dirty = useRef(false);
 
@@ -411,13 +411,12 @@ export function SessionDrawer({
               <button onClick={removeFromDate} className="hover:text-bad">
                 {recurring ? 'Delete workout (all occurrences)' : 'Remove from this day'}
               </button>
+              {/* "Full editor" opened `/coach/planner/:id`, deleted with the
+                  rest of the old authoring chain on 14 August 2026. This
+                  drawer edits blocks inline and saves as you type, so the
+                  button was an escape hatch to a second editor rather than the
+                  only way to do the work. */}
               <span className="ml-auto">Edits save as you type.</span>
-              <button
-                onClick={() => nav(`/coach/planner/${item.id}?returnTo=${encodeURIComponent('/coach/legacy')}`)}
-                className="rounded bg-gold-wash px-1 py-0.5 text-[11px] text-gold2 outline outline-1 outline-gold-line"
-              >
-                Full editor
-              </button>
             </>
           ) : (
             'Logged history is evidence — it is not editable from the bench.'

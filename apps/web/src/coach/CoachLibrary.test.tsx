@@ -126,13 +126,20 @@ describe('CoachLibrary', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/the Coordinator still resolves the week/i);
   });
 
-  it('keeps one link to the session builder, which is the only door to the whole builder chain', async () => {
-    // /coach/author is the only route linking on to /coach/build/:id,
-    // /coach/planner/:id and /coach/roster-plan/:workoutId. Deleting the
-    // Programs tab orphaned all four; this link is what un-orphaned them.
+  it('no longer links to the deleted session builder', async () => {
+    // The inverse of the test that stood here until 14 August 2026, and it is
+    // kept rather than deleted for a reason. That test asserted this link was
+    // present BECAUSE /coach/author was the only door to /coach/build/:id,
+    // /coach/planner/:id and /coach/roster-plan/:workoutId — deleting the link
+    // orphaned four routes. All four routes and the screens behind them are
+    // now gone, so the link would lead to the catch-all redirect instead.
+    // Asserting its ABSENCE stops it being reinstated by muscle memory.
     const repo = new FakeCoachWorkspaceRepository();
     await renderLibrary(repo);
-    expect(screen.getByRole('link', { name: /session builder/i })).toHaveAttribute('href', '/coach/author');
+    expect(screen.queryByRole('link', { name: /session builder/i })).toBeNull();
+    for (const dead of ['/coach/author', '/coach/build/', '/coach/planner/', '/coach/roster-plan/']) {
+      expect(document.body.innerHTML).not.toContain(dead);
+    }
   });
 
   it('keeps a client picker, because the calendar needs a client to read', async () => {

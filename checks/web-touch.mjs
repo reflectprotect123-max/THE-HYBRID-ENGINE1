@@ -32,10 +32,12 @@
  *     the ANDROID app now, and `checks/mobile-touch.mjs` measures its targets.
  *     Nothing measures the parked athlete WEB screens, and nothing should:
  *     they are unreachable.
- *   - `/build/w1` — NOT lost. The guided builder moved to
- *     `apps/web/src/coach/authoring/guided/` and is reachable at
- *     `/coach/build/:id`, so the deep click path below is the same flow, driven
- *     the same way, at its new address.
+ *   - `/build/w1` — LOST, as of 14 August 2026. This entry read "NOT lost —
+ *     the guided builder moved to `apps/web/src/coach/authoring/guided/` and is
+ *     reachable at `/coach/build/:id`". `GuidedBuilder` has since been deleted
+ *     outright, so there is no guided builder at any address to drive. See the
+ *     note above `ROUTES` for what replaced it and what that swap does not
+ *     carry over.
  *   - `/calendar` — the athlete month grid is gone; the coach Library's
  *     calendar is the month grid that ships, so the "must NOT reach" half of
  *     the rule is asserted against `.cal-grid` instead (see the bottom of this
@@ -123,8 +125,29 @@ const seed = buildSeed();
  *   - `/coach/library`       the calendar and its per-day controls.
  *   - `/coach/settings`      the densest form on the bench: rows of selects and
  *                            toggles, and `select` is in the selector.
- *   - `/coach/build/w1`      the guided builder, walked into (below).
+ *   - `/coach/day/<today>`   `DayBuilder` — the session authoring surface, and
+ *                            the replacement for `/coach/build/w1` (below).
+ *
+ * WHAT CHANGED ON 14 AUGUST 2026, and what it cost.
+ *
+ * `/coach/build/w1` was the guided builder, and this check did not merely
+ * measure it — it WALKED it: Lift → movement name → Next → Next → the reps
+ * step, because a wizard shows one question at a time and the smallest target
+ * on the bench lived at the end of that path. `GuidedBuilder` is deleted, so
+ * both the route and the walk are gone.
+ *
+ * `/coach/day/:date` takes its place in the flat measurement, and that is an
+ * honest swap for the SURFACE but not for the DEPTH. Nothing here now walks
+ * into a control that only exists after several clicks. That is a real
+ * narrowing of this check, named rather than quietly absorbed: if DayBuilder
+ * grows a multi-step path with a target at the end of it, this is the file
+ * that should learn to walk again.
  */
+/* A date the seed's calendar actually has. `DayBuilder` renders its editor for
+   any well-formed date, but pointing it at a garbled one would render a
+   not-found state — which has no controls, and would trip the per-route
+   assertion below for the wrong reason. */
+const TODAY = new Date().toISOString().slice(0, 10);
 const ROUTES = [
   '/coach',
   '/coach/readiness',
@@ -133,8 +156,14 @@ const ROUTES = [
   '/coach/nutrition',
   '/coach/library',
   '/coach/settings',
-  '/coach/build/w1',
+  `/coach/day/${TODAY}`,
 ];
+/* `label:has(input[type="checkbox"])` is still in the selector even though the
+   click path that justified it is gone (see above). A native checkbox is
+   deliberately excluded from the 44px minimum — a stretched checkbox looks
+   broken — so the ROW it sits in has to carry the target. Measuring the
+   checkbox itself would only ever report 13px and confirm its own exclusion;
+   the label is what a thumb actually hits, wherever one appears. */
 const SELECTOR = 'button, a, [role="button"], select, label:has(input[type="checkbox"])';
 
 /*
@@ -197,24 +226,6 @@ async function heights({ hasTouch }) {
     const found = await visible();
     perRoute.push([route, found.length, loading]);
     hs.push(...found);
-    /* The wizard shows one question at a time, so its later screens exist only
-       at the end of a click path — and that is the point of walking it: the one
-       control the coarse-pointer rule cannot save lives down there. A native
-       checkbox is deliberately excluded from the 44px minimum (a stretched
-       checkbox looks broken), so the ROW it sits in has to carry the target,
-       which is why the selector also measures a `<label>` wrapping a checkbox.
-       Measuring the checkbox itself would only ever report 13px and confirm its
-       own exclusion; the label is what a thumb actually hits. */
-    if (route.includes('/build/')) {
-      await page.click('button:has-text("Lift")');
-      await page.fill('input[aria-label="movement name"]', 'Back Squat');
-      await page.click('button:has-text("Next")'); // → sets
-      await page.click('button:has-text("Next")'); // → reps
-      await page.waitForSelector('label:has(input[type="checkbox"])');
-      const deep = await visible();
-      perRoute.push([route + ' (reps step)', deep.length, false]);
-      hs.push(...deep);
-    }
   }
   await ctx.close();
   return { hs, coarse, perRoute };

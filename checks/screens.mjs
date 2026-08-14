@@ -117,10 +117,15 @@ const SHOTS = [];
  * This began as stage 1's five — the Command Center launcher and the four
  * pillars — with a note here saying `/coach/library` and `/coach/settings`
  * would "join once their own stage lands". They did (stages 3a and 2), and
- * stage 4 (13 August 2026) closes the set: `author`, `progression`,
+ * stage 4 (13 August 2026) closed the set: `author`, `progression`,
  * `review/:weekStart`, `legacy`, `day/:date`, `build/:id`, `planner/:id` and
  * `roster-plan/:workoutId`. The spec calls stage 4 "a verification-and-repair
  * pass, not net-new work", and this table is the verification half.
+ *
+ * Four of those routes were deleted on 14 August 2026 and their shots went
+ * with them; see the note above the stage-4 block below. The claim this table
+ * makes is unchanged — EVERY declared `/coach` route is shot, at both widths.
+ * It is the route list that got shorter, not the coverage.
  *
  * The third element is a list of patterns that must ALL match the rendered
  * page's text for the shot to count as real — see `assertContent` below for
@@ -141,10 +146,10 @@ const SHOTS = [];
  * alarm about the check, not a fact about the screen.
  */
 /* Addresses for the parameterised coach routes, computed rather than
- * hardcoded so they stay valid tomorrow. `w1` is a workout `_seed.mjs`
- * actually creates; a date-shaped route pointed at nothing renders a
- * not-found state, which has no overflow and would pass while proving
- * nothing. */
+ * hardcoded so they stay valid tomorrow. A date-shaped route pointed at
+ * nothing renders a not-found state, which has no overflow and would pass
+ * while proving nothing. (`w1`, a workout `_seed.mjs` creates, was needed by
+ * the build/planner/roster-plan shots and is no longer referenced here.) */
 const TODAY = new Date().toISOString().slice(0, 10);
 const THIS_MONDAY = (() => {
   const d = new Date();
@@ -162,16 +167,19 @@ const COACH_SHOTS = [
   // put Programs back beside it. The Calendar tab is still what OPENS, so the
   // patterns stay calendar-first: the day-of-week row proves the month grid
   // actually mounted rather than the page shell rendering around an empty
-  // panel, and the session-builder link is the Library's only door to
-  // /coach/author — deleting it orphans the whole builder chain (see
-  // coach-routes.test.tsx).
+  // panel.
+  // The `session builder` pattern was removed on 14 August 2026 with the link
+  // it matched. It used to be the Library's only door to /coach/author, and
+  // that route — with build/:id, planner/:id and roster-plan/:workoutId — is
+  // deleted. The Library reaches authoring through a calendar day now
+  // (/coach/day/:date), which `23-coach-day` already shoots.
   // `Programs` is a TAB LABEL and would render whether or not the panel behind
   // it works, so it is deliberately NOT the proof that stage 3b shipped —
   // that is `ProgramsTab.test.tsx`'s job, driving the panel directly. An
   // assertion on chrome passes dishonestly, which is worse than no assertion.
   // (`.cal-dow` is `text-transform: uppercase`, and `innerText` reflects the
   // transform — hence the /i, exactly as the note above this table warns.)
-  ['17-coach-library', '/coach/library', [/\bMon\b/i, /\bSun\b/i, /session builder/i, /Programs/i]],
+  ['17-coach-library', '/coach/library', [/\bMon\b/i, /\bSun\b/i, /Programs/i]],
   // Stage 2, 13 August 2026. The last /coach route to arrive here.
   // The patterns name text ONLY this screen shows, and deliberately reach
   // INSIDE the active panel rather than stopping at the tab column: the tab
@@ -181,34 +189,29 @@ const COACH_SHOTS = [
   ['18-coach-settings', '/coach/settings', [/Training week begins/i, /Default load unit/i, /Data . sync/i]],
 
   /*
-   * Stage 4. The eight routes stages 1-3 left unshot.
+   * Stage 4. The routes stages 1-3 left unshot.
    *
    * The parameterised ones are addressed with values this seed actually
-   * contains — `w1` is a seeded workout, `TODAY` and `THIS_MONDAY` are
-   * computed below — because a route shot with an id that resolves to
-   * nothing renders a not-found state, and a not-found state has no
-   * horizontal overflow. It would pass, and prove nothing.
+   * contains — `TODAY` and `THIS_MONDAY` are computed below — because a route
+   * shot with an id that resolves to nothing renders a not-found state, and a
+   * not-found state has no horizontal overflow. It would pass, and prove
+   * nothing.
    *
-   * `roster-plan/:workoutId` is the one exception and is documented where it
-   * sits, below.
+   * FOUR SHOTS WERE DELETED HERE ON 14 AUGUST 2026, with the routes they
+   * addressed: `19-coach-author`, `24-coach-build`, `25-coach-planner` and
+   * `26-coach-roster-plan`. CoachAuthoring, GuidedBuilder, Planner and
+   * RosterPlanner are gone; the addresses now hit the catch-all redirect to
+   * /coach, so keeping the shots would have produced four more pictures of the
+   * Command Center under names claiming otherwise. Deleting a shot with its
+   * screen is correct; deleting one that still has a screen is not.
+   *
+   * The numbering is deliberately NOT resequenced — `20`-`23` keep their
+   * names so a filename in an old review still means what it meant.
    */
-  ['19-coach-author', '/coach/author', [/Authoring/i]],
   ['20-coach-progression', '/coach/progression', [/Progression queue/i, /Lift trends/i]],
   ['21-coach-review', `/coach/review/${THIS_MONDAY}`, [/Week/i]],
   ['22-coach-legacy', '/coach/legacy', [/Program/i]],
   ['23-coach-day', `/coach/day/${TODAY}`, [/Session/i]],
-  ['24-coach-build', '/coach/build/w1', [/What are we doing/i]],
-  ['25-coach-planner', '/coach/planner/w1', [/Plan editor/i]],
-  /*
-   * `roster-plan` is gated `layer3Ready` and addresses a ROSTER workout. This
-   * seed signs in a local account with no roster, so what renders here is the
-   * gate, not the planner. That is worth shooting anyway — the gate is what a
-   * coach in this state actually sees, and it must be usable at 420px like
-   * anything else — but it must not be mistaken for coverage of RosterPlanner
-   * itself, which stays unproven at phone width until there is a roster
-   * fixture to reach it with.
-   */
-  ['26-coach-roster-plan', '/coach/roster-plan/w1', null],
   /*
    * The week builder (13 August 2026), joining in the same commit that adds
    * the route — the standing rule for anything new under `/coach`.

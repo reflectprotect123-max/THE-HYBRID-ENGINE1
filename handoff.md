@@ -50,6 +50,28 @@
 >     job correctly — it swaps to `/coach.webmanifest` under `/coach` — so the
 >     defect is the athlete manifest's own `start_url`, not the swapper.
 >
+> **THE OLD AUTHORING CHAIN IS DELETED.** The owner opened `/coach/author`,
+> followed it into the builder and asked for all of it to be deleted. Four
+> routes and their screens are gone — `author`/`CoachAuthoring`,
+> `build/:id`/`GuidedBuilder`, `planner/:id`/`Planner`,
+> `roster-plan/:workoutId`/`RosterPlanner` — with `authoring.ts`,
+> `authoring-store.ts`, `save-coalescer.ts`, their tests, and three inbound
+> links. `library/DayBuilder` is the one authoring surface left. Full record,
+> including what it cost, in CLAUDE.md's "The old authoring chain is deleted".
+>
+> Two consequences worth reading before touching the bench again: the roster
+> draft path (`save_workout_draft` / `publish_workout_draft`) still exists
+> server-side but has NO editor in the UI, and `checks/web-touch.mjs` no longer
+> walks a click path to a deep control, because the wizard that had one is
+> gone. Both were the accepted price of the owner's choice, not oversights.
+>
+> Gates after the deletion, all re-run: `pnpm run typecheck` clean;
+> `apps/web` 737 passing / 2 skipped across 94 files (down from 757/98 — the
+> deleted screens took their colocated tests with them); `check:lanes`,
+> `check:ecosystem`, `coach-contract`, `reachability`, `css-state-classes`,
+> `docs` all green; `checks/screens.mjs` 24 of 24 shots; `checks/web-touch.mjs`
+> all green with `/coach/day/:date` in place of `/coach/build/w1`.
+>
 > **COPIED FORWARD, NOT RE-RUN TONIGHT** — treat these as of `eb11f97`, which is
 > one documentation-only commit behind the tip, so they should still hold:
 > the web and mobile suites (757/2 and 496), the ten checks, CI on the tip, and

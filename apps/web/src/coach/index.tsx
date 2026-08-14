@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { CoachAccess, CoachShell } from './CoachShell';
-import { CoachAuthoring } from './CoachAuthoring';
 import { Readiness } from './pillars/Readiness';
 import { Strength } from './pillars/Strength';
 import { Conditioning } from './pillars/Conditioning';
@@ -14,9 +13,6 @@ import { CoachLibrary } from './CoachLibrary';
 import { CoachSettings } from './CoachSettings';
 import { CoachWeekBuilder } from './CoachWeekBuilder';
 import { ClientDetailGate } from './ClientDetailGate';
-import { Planner } from './authoring/Planner';
-import { GuidedBuilder } from './authoring/guided/GuidedBuilder';
-import { RosterPlanner } from './RosterPlanner';
 import { CoachWorkspaceProvider } from './CoachWorkspaceContext';
 /* The live repository. Imported, not constructed here — this file is under
    coach/, which coach-contract rule 1 forbids from touching Supabase, and the
@@ -37,7 +33,7 @@ export default function Coach() {
             <Route path="library" element={<CoachLibrary />} />
             <Route path="settings" element={<CoachSettings />} />
             {/*
-              author / progression / review have a real layer-3 backend now
+              progression / review have a real layer-3 backend now
               (docs/ARC_LAYER3_DESIGN.md) and each screen branches internally
               on selectedClient.source to render its own roster view —
               `layer3Ready` lets a roster client through the gate for exactly
@@ -45,20 +41,25 @@ export default function Coach() {
 
               Stage-1 coach redesign (11 August 2026): `nutrition` now points
               at the Nutrition pillar, which reads local stores only
-              (`useNutrition()`), so it drops `layer3Ready` and joins
-              legacy / build / planner below — a roster client is BLOCKED
-              here rather than shown a summary. Accepted, owner-approved
-              capability loss for Stage 1 (task-6 brief); restoring roster
-              nutrition through the pillar is future work, not a defect to
-              silently fix.
+              (`useNutrition()`), so it drops `layer3Ready` and joins `legacy`
+              below — a roster client is BLOCKED here rather than shown a
+              summary. Accepted, owner-approved capability loss for Stage 1
+              (task-6 brief); restoring roster nutrition through the pillar is
+              future work, not a defect to silently fix.
 
-              legacy / build / planner still only ever read and write the
-              SIGNED-IN account's own local stores (useDb / EngineDB) — there
-              is no backend behind them for a roster client, so
-              ClientDetailGate keeps blocking rather than merely disclosing.
-              See ClientDetailGate.tsx.
+              `legacy` still only ever reads and writes the SIGNED-IN account's
+              own local stores (useDb / EngineDB) — there is no backend behind
+              it for a roster client, so ClientDetailGate keeps blocking rather
+              than merely disclosing. See ClientDetailGate.tsx.
+
+              THE OLD AUTHORING CHAIN IS GONE (14 August 2026). `author`,
+              `build/:id`, `planner/:id` and `roster-plan/:workoutId` were
+              deleted with the screens behind them — `CoachAuthoring`,
+              `GuidedBuilder`, `Planner` and `RosterPlanner`. `DayBuilder`
+              under `library/` is the one authoring surface now, reached from
+              the Library calendar (`day/:date`) and from the week builder.
+              Do not re-add a second one without deciding which is canonical.
             */}
-            <Route path="author" element={<ClientDetailGate tool="Authoring" layer3Ready><CoachAuthoring /></ClientDetailGate>} />
             {/*
               PILLAR GAP CLOSED, 13 August 2026.
 
@@ -114,16 +115,6 @@ export default function Coach() {
             */}
             <Route path="week/:athleteId/:weekStart" element={<ClientDetailGate tool="Week builder" layer3Ready><CoachWeekBuilder /></ClientDetailGate>} />
             <Route path="legacy" element={<ClientDetailGate tool="Program bench"><CoachShell /></ClientDetailGate>} />
-            <Route path="build/:id" element={<ClientDetailGate tool="Workout builder"><GuidedBuilder /></ClientDetailGate>} />
-            <Route path="planner/:id" element={<ClientDetailGate tool="Planner"><Planner /></ClientDetailGate>} />
-            {/*
-              A roster client's draft has a real backend
-              (save_workout_draft/publish_workout_draft) so this one gets
-              layer3Ready — unlike build/:id and planner/:id above, which
-              stay local-only. RosterPlanner reads/writes the draft through
-              the same repository, never local `EngineDB`.
-            */}
-            <Route path="roster-plan/:workoutId" element={<ClientDetailGate tool="Workout builder" layer3Ready><RosterPlanner /></ClientDetailGate>} />
           </Route>
           <Route path="*" element={<Navigate to="/coach" replace />} />
         </Routes>

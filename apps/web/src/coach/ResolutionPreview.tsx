@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useDb } from '../store/db';
 import { useWhoop } from '../cloud/whoop';
 import { useConcept2 } from '../cloud/concept2';
@@ -198,7 +197,6 @@ function TodayAutoCoach() {
 export function ResolutionPreview() {
   const { weeklyPlan, athleteState, workouts } = useDb();
   const bench = useBench();
-  const nav = useNavigate();
   const { readiness, dataQuality, constraints, illness } = athleteState;
   const scheduled = weeklyPlan.entries;
   const drops = weeklyPlan.decisions.filter((d) => d.action === 'dropped');
@@ -371,15 +369,13 @@ export function ResolutionPreview() {
                       >
                         Acknowledge
                       </button>
-                      {editable && (
-                        <button
-                          className="rounded bg-gold-wash px-1 py-[1px] text-[11px] text-gold2 outline outline-1 outline-gold-line focus-visible:outline-2 focus-visible:outline-gold2 focus-visible:outline-offset-2"
-                          onClick={() => nav(`/coach/planner/${d.proposalId}?returnTo=${encodeURIComponent('/coach/legacy')}`)}
-                          title="Edit the proposal so it can resolve differently — the Coordinator re-runs on save"
-                        >
-                          Adjust proposal
-                        </button>
-                      )}
+                      {/* "Adjust proposal" opened `/coach/planner/:id`, deleted
+                          with the rest of the old authoring chain on 14 August
+                          2026. Acknowledging a drop is unaffected — that is
+                          this panel's own action and the one that records to
+                          the ledger. The note below still says a proposal can
+                          be adjusted; it is adjusted where the session is
+                          edited now, not from here. */}
                     </span>
                   )}
                 </div>
