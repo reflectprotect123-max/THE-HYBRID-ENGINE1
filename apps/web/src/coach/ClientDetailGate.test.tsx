@@ -47,6 +47,18 @@ describe('clientDetailGateVerdict', () => {
     expect(clientDetailGateVerdict(client({ source: 'synthetic-fixture' }), true)).toBe('fixture');
   });
 
+  it('allows the SELF-COACHED entry on every route, gated or not', () => {
+    /* 14 August 2026: a coach may be their own athlete, and `listClients`
+       folds that roster row into the `engine-local` entry rather than adding
+       a second one. This gate keys on `source`, which the fold deliberately
+       leaves alone — so the answer is already right, and this pins it rather
+       than assuming it. It is right for the reason the gate exists: the local
+       stores behind it ARE this person's own training. */
+    const own = client({ source: 'engine-local', id: 'engine-local', selfCoaching: { organizationId: 'org-9', athleteUserId: 'u-1' } });
+    expect(clientDetailGateVerdict(own, false)).toBe('allow');
+    expect(clientDetailGateVerdict(own, true)).toBe('allow');
+  });
+
   it('blocks a synthetic fixture, with its own distinct verdict', () => {
     // Distinct from 'roster' because the two are different facts: one is a
     // real person whose detail is not built yet, the other is not a person.

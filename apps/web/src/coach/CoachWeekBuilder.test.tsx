@@ -327,6 +327,71 @@ describe('CoachWeekBuilder', () => {
     expect(screen.queryByText(/^Held · /)).not.toBeInTheDocument();
   });
 
+  /*
+   * A COACH WHO IS THEIR OWN ATHLETE (14 August 2026).
+   *
+   * `20260814_arc_self_coaching.sql` lets the owner redeem their own invite,
+   * and `listClients` folds that roster row into the `engine-local` entry
+   * rather than appending a second one. The fold is only worth anything if the
+   * folded entry can actually publish — otherwise the owner is told, about
+   * their own account, that they are "not an athlete on your roster", which is
+   * now false.
+   *
+   * The trap this covers is the id. The folded entry keeps `id:
+   * 'engine-local'` because that is the bench's selection key; the id the
+   * commands are keyed on is the real user id inside `selfCoaching`. Sending
+   * the wrong one fails every call with "not on your roster" while the
+   * relationship really exists — and it would look exactly like the refusal
+   * below, which is correct for a client that has no relationship at all.
+   */
+  const SELF_USER = 'aaaaaaaa-0000-0000-0000-000000000000';
+
+  function selfCoachedRepository(): FakeCoachWorkspaceRepository {
+    const repository = new FakeCoachWorkspaceRepository();
+    repository.clients = COACH_CLIENT_FIXTURES
+      .filter((c) => c.source === 'engine-local')
+      .map((c) => ({ ...c, selfCoaching: { organizationId: 'org-9', athleteUserId: SELF_USER } }));
+    return repository;
+  }
+
+  it('publishes for a self-coached engine-local entry, addressed by the REAL user id', async () => {
+    const repository = selfCoachedRepository();
+    await renderBuilder(repository, 'engine-local');
+
+    expect(screen.getByRole('button', { name: 'Publish the week' })).toBeEnabled();
+    expect(screen.queryByText(/not an athlete on your roster/)).not.toBeInTheDocument();
+
+    await publishWithConfirmation();
+
+    expect(repository.publishedWeeks).toHaveLength(1);
+    /* The user id, never the selection key. `engine-local` matches no
+       `athlete_user_id` and the server would refuse it. */
+    expect(repository.publishedWeeks[0].clientId).toBe(SELF_USER);
+    expect(repository.publishedWeeks[0].clientId).not.toBe('engine-local');
+    expect(repository.publishedWeeks[0].weekStart).toBe(MONDAY);
+  });
+
+  it('reads the self-coached week and its receipts with the same real id', async () => {
+    const repository = selfCoachedRepository();
+    const week = vi.spyOn(repository, 'getCoachWeek');
+    const receipts = vi.spyOn(repository, 'listAutocoachReceipts');
+    await renderBuilder(repository, 'engine-local');
+
+    expect(week).toHaveBeenCalledWith(SELF_USER, MONDAY);
+    expect(receipts).toHaveBeenCalledWith(SELF_USER);
+  });
+
+  it('says the week is the coach’s own, rather than talking about someone else’s phone', async () => {
+    await renderBuilder(selfCoachedRepository(), 'engine-local');
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Your week' })).toBeInTheDocument();
+    expect(screen.getByText(/becomes your own week on your phone/)).toBeInTheDocument();
+    /* A real publish into a real record, said plainly — and NOT in the
+       failure voice, because nothing here is refused or degraded. */
+    const note = screen.getByText(/takes this week off the Coordinator/);
+    expect(note).not.toHaveClass('st-warning');
+  });
+
   it('opens the day builder for one day and takes its edit back into the week', async () => {
     const repository = rosterRepository();
     await renderBuilder(repository);

@@ -43,6 +43,48 @@ export interface ClientSummary {
   };
   conditioningMinutes: Record<IntensityBand, number>;
   attention: { level: 'safety' | 'decision' | 'reconcile'; label: string } | null;
+  /**
+   * The coaching relationship the signed-in coach holds WITH THEMSELVES, when
+   * they have redeemed their own invite (`20260814_arc_self_coaching.sql`).
+   *
+   * Present ONLY on the folded `engine-local` entry, and null everywhere else.
+   * A self-assignment used to be impossible — a `check` constraint refused it —
+   * and the comment on that constraint named exactly what would break without
+   * it: "the bench's 'own data' mode and its 'client' mode become the same
+   * query". They do not become the same query, because `listClients` folds the
+   * self roster row INTO this entry rather than appending a second one. This
+   * field is what the row contributes on the way in.
+   *
+   * `athleteUserId` is the load-bearing half. The entry's `id` stays the
+   * literal `engine-local` — it is a selection key the whole bench and
+   * `localStorage` are written against — so it is NOT a user id and cannot be
+   * sent to a command. Every coach command is keyed on the real one.
+   *
+   * `organizationId` records WHICH relationship this is. It is deliberately
+   * NOT sent to `publish_coach_week` or any other command: the repository's
+   * preamble forbids a client-supplied organisation id, and every RPC derives
+   * it server-side from the same assignment row. It is here so the entry can
+   * name the relationship it is asserting rather than assert one with no
+   * evidence attached.
+   */
+  selfCoaching?: { organizationId: string; athleteUserId: string } | null;
+}
+
+/**
+ * The athlete a coach COMMAND should be addressed to, or null when this entry
+ * has no coaching relationship behind it and no command may be sent at all.
+ *
+ * One function rather than a `source === 'roster-summary'` test repeated per
+ * screen, because since 14 August 2026 that test has two right answers: a
+ * roster client, and the coach themselves once they are on their own roster.
+ * A screen that keeps asking the old question refuses the owner access to
+ * their own week and calls it "not on your roster", which is now false.
+ */
+export function coachingTargetOf(client: ClientSummary | null): { athleteUserId: string } | null {
+  if (!client) return null;
+  if (client.selfCoaching) return { athleteUserId: client.selfCoaching.athleteUserId };
+  if (client.source === 'roster-summary') return { athleteUserId: client.id };
+  return null;
 }
 
 export type ProgressionModel =

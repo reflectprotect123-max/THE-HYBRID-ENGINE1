@@ -26,6 +26,14 @@ import type { ClientSummary } from './contracts';
  * behind this gate that writes to THAT client's record — only ever to the
  * signed-in coach's own, under their name.
  *
+ * That sentence became literal on 14 August 2026: a coach may now be their
+ * own athlete, and `listClients` folds the resulting roster row into the
+ * `engine-local` entry rather than appending a second one. Nothing here
+ * changed, and that is the point — the fold leaves `source` alone, so the
+ * self-coached entry is allowed through exactly as before, on gated and
+ * ungated routes alike. It is the one case where "the local stores are not
+ * this client's data" is false, because they are.
+ *
  * `tool` names the route in the gate's own copy ("Decisions", "Nutrition",
  * ...) so the message reads as a fact about THIS screen, not a generic
  * refusal copy-pasted five times.

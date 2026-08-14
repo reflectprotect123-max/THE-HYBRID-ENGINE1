@@ -251,6 +251,98 @@ describe('an athlete’s name', () => {
   });
 });
 
+/*
+ * A COACH WHO IS THEIR OWN ATHLETE (14 August 2026).
+ *
+ * `20260814_arc_self_coaching.sql` dropped `coach_athlete_distinct`, and that
+ * constraint's comment named the exact cost these tests buy back: without it
+ * "the bench's 'own data' mode and its 'client' mode become the same query".
+ * `listClients` used to return `[...ENGINE_LOCAL, ...rows]` unconditionally,
+ * so a self-row put the signed-in user in the list TWICE — once read from
+ * local stores, once from the server, with nothing on screen saying which was
+ * which. Every assertion below is about that not happening.
+ */
+describe('a coach who is their own athlete', () => {
+  const SELF = 'coach-1'; // the id `clientWith` signs in as
+  const selfRoster = (rows: unknown[]) => ({
+    select: () => ({ eq: () => ({ eq: async () => ({ data: rows, error: null }) }) }),
+  });
+
+  it('folds a self-row into the engine-local entry instead of listing them twice', async () => {
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_assignments: selfRoster([
+        { athlete_user_id: SELF, organization_id: 'org-9' },
+        { athlete_user_id: ATHLETE, organization_id: 'org-9' },
+      ]),
+      athlete_profiles: profilesTable([]),
+    }) as never);
+
+    const clients = await repo.listClients();
+
+    /* One entry per PERSON. Two people here, so two entries — the roster row
+       for the coach themselves must not become a third. */
+    expect(clients).toHaveLength(2);
+    expect(clients.filter((c) => c.source === 'engine-local')).toHaveLength(1);
+    /* And specifically not under their own user id, which is what a second
+       entry would have been keyed on. */
+    expect(clients.some((c) => c.id === SELF)).toBe(false);
+  });
+
+  it('keeps the folded entry engine-local, because your own detail IS local', async () => {
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_assignments: selfRoster([{ athlete_user_id: SELF, organization_id: 'org-9' }]),
+      athlete_profiles: profilesTable([]),
+    }) as never);
+
+    const own = (await repo.listClients()).find((c) => c.source === 'engine-local')!;
+
+    /* Promoting yourself to `roster-summary` would make every detail screen
+       refuse or fall back to a server projection of data this device is
+       sitting on top of — your own bench, made worse, to satisfy a label. */
+    expect(own.source).toBe('engine-local');
+    /* The selection key the whole bench and localStorage are written against
+       is UNCHANGED. It is not a user id and never was. */
+    expect(own.id).toBe('engine-local');
+    /* What the row actually contributes: the relationship. `athleteUserId` is
+       the id every coach command is keyed on — `id` above matches no
+       `athlete_user_id` and would fail all of them. */
+    expect(own.selfCoaching).toEqual({ organizationId: 'org-9', athleteUserId: SELF });
+  });
+
+  it('carries no selfCoaching when the coach is not on their own roster', async () => {
+    // The default state. Nothing about this migration is automatic — the
+    // invite still has to be minted and redeemed deliberately.
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_assignments: selfRoster([{ athlete_user_id: ATHLETE, organization_id: 'org-1' }]),
+      athlete_profiles: profilesTable([]),
+    }) as never);
+    const own = (await repo.listClients()).find((c) => c.source === 'engine-local')!;
+    expect(own.selfCoaching ?? null).toBeNull();
+  });
+
+  it('asks the server for no summary and no name for the self-row', async () => {
+    /* The fold happens BEFORE either read, so the coach's own card cannot end
+       up carrying a server projection of the same person the local stores
+       already describe — two answers to one question on one card is the
+       confusion the dropped constraint existed to prevent, rebuilt inside a
+       single entry. */
+    const rpc = vi.fn(async () => ({ data: null, error: null }));
+    const names = vi.fn(async () => ({ data: [], error: null }));
+    const repo = new SupabaseCoachWorkspaceRepository(tableClient({
+      coach_athlete_assignments: selfRoster([{ athlete_user_id: SELF, organization_id: 'org-9' }]),
+      athlete_profiles: { select: () => ({ in: names }) },
+    }, rpc) as never);
+
+    const own = (await repo.listClients()).find((c) => c.source === 'engine-local')!;
+
+    expect(rpc).not.toHaveBeenCalled();
+    expect(names).not.toHaveBeenCalled();
+    /* The fixture's own figures, untouched — `engine-local` means the local
+       stores are this entry's truth. */
+    expect(own.name).toBe('Alex Morgan');
+  });
+});
+
 describe('athlete invites', () => {
   const inviteRow = (over: Record<string, unknown> = {}) => ({
     id: 'invite-1',

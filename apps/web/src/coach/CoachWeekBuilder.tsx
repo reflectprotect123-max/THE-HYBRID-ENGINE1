@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { buildCatalogue } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { useCoachWorkspace } from './CoachWorkspaceContext';
+import { coachingTargetOf } from './contracts';
 import type { AthleteAutocoachReceipt, AthleteWeekSummary, ClientSummary, CoachWeekPlan } from './contracts';
 import { DayBuilder, type DayBuilderValue } from './library/DayBuilder';
 import {
@@ -122,19 +123,35 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
   const [failed, setFailed] = useState(false);
 
   /*
-   * Only a ROSTER athlete has a published week to read. `publish_coach_week`
-   * and every projection behind it are keyed on a coach↔athlete relationship,
-   * and the signed-in coach's own `engine-local` entry is not one — asking
-   * anyway would produce "that athlete is not on your roster" dressed as a
-   * load failure, which reads as breakage rather than as the fact it is.
+   * Only an athlete this account actually COACHES has a published week to
+   * read. `publish_coach_week` and every projection behind it are keyed on a
+   * coach↔athlete relationship; an entry without one is not asked at all,
+   * because asking anyway would produce "that athlete is not on your roster"
+   * dressed as a load failure, which reads as breakage rather than as the fact
+   * it is.
+   *
+   * That used to be spelled `athlete.source === 'roster-summary'`, and since
+   * 14 August 2026 it has a SECOND right answer: the coach themselves, once
+   * they have redeemed their own invite. `coachingTargetOf` is the one place
+   * that question is asked, and it returns the id the commands are keyed on —
+   * which for the folded self entry is NOT `athlete.id`. `athlete.id` is
+   * `engine-local` there, a selection key that matches no `athlete_user_id`;
+   * sending it would fail every call with "not on your roster" while the
+   * relationship really exists.
    */
-  const roster = athlete.source === 'roster-summary';
+  const target = coachingTargetOf(athlete);
+  const coached = target !== null;
+  const targetId = target?.athleteUserId ?? athlete.id;
+  /* The coach is looking at their OWN week. Worth saying on the screen: the
+     copy below is written in the third person about an athlete's phone, and
+     for this entry that phone is theirs. */
+  const self = athlete.selfCoaching != null;
 
   useEffect(() => {
-    if (!roster) return;
+    if (!coached) return;
     let active = true;
     setLoadFailed(false);
-    (repository.getCoachWeek?.(athlete.id, weekStart) ?? Promise.resolve(null))
+    (repository.getCoachWeek?.(targetId, weekStart) ?? Promise.resolve(null))
       .then((value) => {
         if (!active) return;
         setPlan(value);
@@ -145,18 +162,18 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
       })
       .catch(() => { if (active) setLoadFailed(true); });
     return () => { active = false; };
-  }, [repository, athlete.id, weekStart, roster]);
+  }, [repository, targetId, weekStart, coached]);
 
   useEffect(() => {
-    if (!roster) return;
+    if (!coached) return;
     let active = true;
-    (repository.getAthleteWeekSummary?.(athlete.id, weekStart) ?? Promise.resolve(null))
+    (repository.getAthleteWeekSummary?.(targetId, weekStart) ?? Promise.resolve(null))
       .then((value) => { if (active) setSummary(value); })
       /* A summary that will not load costs the completion column and nothing
          else. It must not blank the week the coach is building. */
       .catch(() => { if (active) setSummary(null); });
     return () => { active = false; };
-  }, [repository, athlete.id, weekStart, roster]);
+  }, [repository, targetId, weekStart, coached]);
 
   /*
    * The held report. Not filtered by week here — `heldDaysFromReceipts` does
@@ -172,13 +189,13 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
    * degrade to the state the day had before this feature existed.
    */
   useEffect(() => {
-    if (!roster) return;
+    if (!coached) return;
     let active = true;
-    (repository.listAutocoachReceipts?.(athlete.id) ?? Promise.resolve(null))
+    (repository.listAutocoachReceipts?.(targetId) ?? Promise.resolve(null))
       .then((value) => { if (active) setReceipts(value); })
       .catch(() => { if (active) setReceipts(null); });
     return () => { active = false; };
-  }, [repository, athlete.id, roster]);
+  }, [repository, targetId, coached]);
 
   const publishedDays = plan?.body?.days ?? [];
 
@@ -191,7 +208,7 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
     [receipts, plan?.body, weekStart],
   );
 
-  const canPublish = roster && Boolean(repository.publishCoachWeek);
+  const canPublish = coached && Boolean(repository.publishCoachWeek);
 
   async function publish() {
     if (!repository.publishCoachWeek) return;
@@ -201,7 +218,8 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
     const base = plan?.version ?? 0;
     try {
       const published = await repository.publishCoachWeek(
-        athlete.id,
+        /* The real user id, never `athlete.id` — see `targetId` above. */
+        targetId,
         weekStart,
         body,
         /* Null on a FIRST publish only. After that the version this edit
@@ -213,7 +231,7 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
       setPlan(published);
       setDays(daysFromWeekBody(published.body, weekStart));
       setFailed(false);
-      setMessage(`Published to ${athlete.name}. Version ${published.version}.`);
+      setMessage(`Published to ${self ? 'yourself' : athlete.name}. Version ${published.version}.`);
     } catch (error) {
       setFailed(true);
       setMessage(publishFailureMessage(error));
@@ -251,10 +269,17 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
     <main className="rd-content">
       <div className="lib-header">
         <p className="lib-eyebrow">ARC · week builder</p>
-        <h1 className="lib-title">{athlete.name}&rsquo;s week</h1>
+        <h1 className="lib-title">{self ? 'Your week' : `${athlete.name}’s week`}</h1>
+        {/* The same two facts either way — who it lands on, and that the safety
+            layer still outranks it. Written in the person it is true of, so a
+            coach publishing to THEMSELVES is not told about "their phone" as
+            if it were somebody else's. */}
         <p className="lib-sub">
-          {formatWeekRange(weekStart)}. What you publish here becomes {athlete.name}&rsquo;s week on
-          their phone — the Coordinator does not rearrange it. A pain or illness flag can still
+          {formatWeekRange(weekStart)}.{' '}
+          {self
+            ? 'What you publish here becomes your own week on your phone'
+            : `What you publish here becomes ${athlete.name}’s week on their phone`}
+          {' '}— the Coordinator does not rearrange it. A pain or illness flag can still
           hold a single session on the day, and you are told when it does.
         </p>
       </div>
@@ -267,7 +292,21 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
         </p>
       )}
 
-      {!roster && (
+      {/* Publishing to YOURSELF is a real publish and is said so — the same
+          replacement, into your own record, with the same consequence for the
+          Coordinator. It is not a warning and does not wear `.st-warning`:
+          nothing is refused here and nothing is degraded. */}
+      {self && (
+        <div className="rd-panel">
+          <p className="rd-panel-note">
+            This is your own account. Publishing writes your own weekly plan and takes this week
+            off the Coordinator, exactly as it would for anyone else you coach — the week you
+            build here is the week your phone shows you.
+          </p>
+        </div>
+      )}
+
+      {!coached && (
         <div className="rd-panel">
           <p className="st-warning">
             {athlete.name} is {athlete.source === 'engine-local' ? 'your own account' : 'a demonstration fixture'},
@@ -277,6 +316,9 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
             You can build a week here to see the shape of it, and Publish is off: a week is
             published into a real athlete&rsquo;s own record, through a coaching relationship
             the server checks. There is no such relationship for this entry.
+            {athlete.source === 'engine-local'
+              ? ' You can coach yourself — mint an invite in Settings and redeem it — but nothing here does that for you.'
+              : ''}
           </p>
         </div>
       )}
@@ -379,8 +421,9 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
         <section className="st-panel active" aria-labelledby="publish-confirm">
           <h2 className="rd-section-label" id="publish-confirm">Publish this week?</h2>
           <p className="rd-panel-note">
-            {athlete.name} will see these seven days — {formatWeekRange(weekStart)} — as their week,
-            replacing whatever their own Coordinator had planned for it.
+            {self ? 'You' : athlete.name} will see these seven days — {formatWeekRange(weekStart)} —
+            as {self ? 'your' : 'their'} week, replacing whatever {self ? 'your' : 'their'} own
+            Coordinator had planned for it.
             {plan && plan.version > 0
               ? ` This replaces version ${plan.version}, which they may already have trained from.`
               : ' Nothing has been published for this week before.'}

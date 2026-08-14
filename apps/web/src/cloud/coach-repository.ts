@@ -82,6 +82,22 @@ import { supabaseClient } from './sync';
  * by `redeem_coach_invite`, called from the ATHLETE's session with their own
  * `auth.uid()`. This file holds only the coach's half; there is deliberately
  * no method here that attaches an athlete by id.
+ *
+ * A COACH MAY NOW BE THEIR OWN ATHLETE (14 August 2026)
+ *
+ * `20260814_arc_self_coaching.sql` dropped `coach_athlete_distinct` so the
+ * owner can publish a week to themselves. That constraint's comment named the
+ * cost precisely: without it "the bench's 'own data' mode and its 'client'
+ * mode become the same query and the truth boundary the handoff protects
+ * disappears" — because `listClients` returned `[...ENGINE_LOCAL, ...rows]`,
+ * and a self-row would put the signed-in user in that list TWICE, once read
+ * from local stores and once from the server, with nothing on screen saying
+ * which was which.
+ *
+ * It is paid for HERE, in `listClients`, and this is the file the migration
+ * points at: a self-row is FOLDED INTO the `engine-local` entry rather than
+ * appended as a second one. See `foldSelfRow` below for what it does and does
+ * not carry across.
  */
 
 const initialsOf = (name: string): string =>
@@ -109,6 +125,54 @@ const NO_MINUTES: ClientSummary['conditioningMinutes'] = { easy: 0, moderate: 0,
  * The repository may import the fixtures; the SCREENS may not, and do not.
  */
 const ENGINE_LOCAL = COACH_CLIENT_FIXTURES.filter((c) => c.source === 'engine-local');
+
+/**
+ * Fold the signed-in coach's OWN roster row into their `engine-local` entry.
+ *
+ * WHY THE FOLDED ENTRY STAYS `engine-local`, WHICH IS THE WHOLE DECISION.
+ *
+ * `source` is not a label, it is the answer to "where does this person's
+ * detail come from" — `contracts.ts` says so, and every gate in the bench is
+ * written against it. For yourself, the honest answer is still LOCAL: the
+ * detail screens read the stores on this device, that is your real training,
+ * and it works offline. Promoting yourself to `roster-summary` would make
+ * every one of those screens refuse or degrade to a server projection of data
+ * you are sitting on top of — your own bench, made worse, to satisfy a label.
+ *
+ * The reverse reading fails for a reason worth stating: `roster-summary`
+ * exists because "the detail screens read local stores and would show the
+ * coach their OWN training under this person's name". When the person IS the
+ * coach that sentence stops being a warning and becomes a description of
+ * correct behaviour. The hazard the state guards against cannot occur here.
+ *
+ * WHAT THE ROW CONTRIBUTES: the relationship, and only the relationship.
+ *
+ * Not the server's completion counts, and not its safety flag. Those describe
+ * the same person the local stores already describe, and taking both would put
+ * two answers to one question on one card — which is the exact confusion the
+ * dropped constraint existed to prevent, rebuilt inside a single entry instead
+ * of across two of them. The local stores win for an `engine-local` entry
+ * because that is what `engine-local` MEANS.
+ *
+ * MORE THAN ONE SELF-ROW is possible — a coach who owns two organisations can
+ * redeem their own invite in each. The FIRST is taken, deterministically,
+ * because the alternative is either a second duplicate entry (the bug this
+ * function exists to prevent) or a refusal to self-coach at all. It is a real
+ * limit: `orgIdFor` resolves the organisation server-side with `maybeSingle()`
+ * and would raise on two matching rows, so publishing from a two-organisation
+ * self-assignment fails loudly rather than silently picking one. Loudly is the
+ * right failure and nothing here pretends otherwise.
+ */
+function foldSelfRow(entry: ClientSummary, row: AssignmentRow): ClientSummary {
+  return {
+    ...entry,
+    /* `id` is UNCHANGED and must stay `engine-local`: it is the selection key
+       the bench, `localStorage` and `selectClient('engine-local')` are written
+       against, not an identifier of a person. The real user id travels in
+       `selfCoaching`, which is where a command reads it from. */
+    selfCoaching: { organizationId: row.organization_id, athleteUserId: row.athlete_user_id },
+  };
+}
 
 const SETTINGS_DEFAULTS: CoachWorkspaceSettings = {
   weekStartsOn: 'monday',
@@ -222,7 +286,18 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
     if (error) throw error;
 
     const monday = weekStart(new Date());
-    const rows = (data ?? []) as AssignmentRow[];
+    const all = (data ?? []) as AssignmentRow[];
+
+    /* The signed-in coach's own row is separated BEFORE anything else touches
+       the list, so it cannot become a client of its own further down: no name
+       lookup, no summary call, and no second entry in the returned array. It
+       is folded into `engine-local` instead. */
+    const selfRow = all.find((row) => row.athlete_user_id === session.user.id) ?? null;
+    const rows = all.filter((row) => row.athlete_user_id !== session.user.id);
+    const own = selfRow
+      ? ENGINE_LOCAL.map((entry) => foldSelfRow(entry, selfRow))
+      : ENGINE_LOCAL;
+
     const names = await this.displayNames(rows.map((row) => row.athlete_user_id));
 
     /* One projection call per client, in parallel. Each is authorised
@@ -243,7 +318,7 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
       }
     }));
 
-    return [...ENGINE_LOCAL, ...rows.map((row, i) => {
+    return [...own, ...rows.map((row, i) => {
       const s = summaries[i];
       /* The athlete's OWN name, if they published one. `athlete_profiles` is
          set by the athlete and read through the coaching relationship; a row
@@ -483,7 +558,15 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
   /** Every layer-3 RPC takes (organisation, athlete), and the UI only knows
    *  the athlete. Resolved once, from the coach's own active assignment row
    *  — the RPCs re-check it server-side regardless, same as
-   *  saveAssignmentDraft above; this is only about not sending a guess. */
+   *  saveAssignmentDraft above; this is only about not sending a guess.
+   *
+   *  A SELF-COACHED coach resolves through here unchanged, and that is why
+   *  `ClientSummary.selfCoaching.organizationId` is never sent from a screen:
+   *  the organisation is derived from the same row the fold read it from,
+   *  server-side, on every call. `clientId` must be the real user id — the
+   *  folded entry keeps `id: 'engine-local'`, which is a selection key and
+   *  matches no `athlete_user_id`, so a caller that passes it gets the honest
+   *  "not on your roster" rather than a wrong organisation. */
   private async orgIdFor(clientId: string): Promise<string> {
     if (!this.client) throw new Error('This needs a connection.');
     const { data: session } = await this.client.auth.getUser();
