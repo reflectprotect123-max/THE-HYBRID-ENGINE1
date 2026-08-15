@@ -84,7 +84,32 @@ const un = (v: unknown) => (v === '__undefined__' ? undefined : v);
 const nanOk = (v: unknown) => (v === null ? NaN : v);
 
 describe('constants still mean what they meant', () => {
-  it('autoregulation', () => expect(AUTOREG).toEqual(constV.AUTOREG));
+  /*
+   * `toMatchObject`, NOT `toEqual`, and the difference is deliberate.
+   *
+   * This vector was harvested from the vanilla `app.js` and means "every
+   * constant the original app had still means what it meant". Every key in it
+   * must still be present and still hold its value — that is what
+   * `toMatchObject` enforces, so deleting or retuning one of the originals
+   * still fails loudly.
+   *
+   * What it now permits is an ADDITION. `AUTOREG.deloadPct` was added on
+   * 15 August 2026 and the vanilla app had no counterpart to it — a deload was
+   * not something that app did. Asserting exact equality would have made every
+   * new constant a parity failure, which is how a golden vector stops meaning
+   * "we still match" and starts meaning "we have not changed anything", two
+   * very different claims.
+   *
+   * Additions are pinned separately, below, so they cannot drift unwatched.
+   */
+  it('autoregulation — every constant the vanilla app had', () => expect(AUTOREG).toMatchObject(constV.AUTOREG));
+
+  it('autoregulation — the constants added since, pinned on their own', () => {
+    /* 10% off after two consecutive missed sessions. The reasoning and its
+       evidence live on the constant itself; this is here so a silent retune
+       is impossible. */
+    expect(AUTOREG.deloadPct).toBe(0.1);
+  });
   it('max load clamp', () => expect(MAX_KG).toBe(constV.MAX_KG));
   it('re-zoning magnitudes', () => expect(REZONE_PROVISIONAL).toEqual(constV.REZONE_PROVISIONAL));
   it('effort table', () => expect(CON_EFFORTS).toEqual(constV.CON_EFFORTS));

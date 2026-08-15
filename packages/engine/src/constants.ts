@@ -21,6 +21,31 @@ export const AUTOREG = {
   missedFloorRpe: 10.5,
   plateIncrement: 2.5,
   stepKg: 2.5,
+  /**
+   * How much load comes OFF after consecutive missed sessions, as a fraction.
+   *
+   * A FRACTION AND NOT A PLATE, unlike `stepKg` beside it, and the difference
+   * is the point. `stepKg` was doing both jobs until 15 August 2026, so a
+   * deload was 2.5 kg whatever the lift: 1.8% off a failed 140 kg squat, which
+   * is not a deload by any definition anyone uses. The athlete would have
+   * failed it a third time.
+   *
+   * 10% is where practice converges after two or three consecutive misses —
+   * Starting Strength, StrongLifts and Wendler all land there, and planned
+   * deload weeks run wider still at 10–40% load with 30–50% volume. We are not
+   * aware of a trial comparing deload MAGNITUDES head to head, so this is a
+   * well-attested convention rather than a finding, and it is written down as
+   * one. See docs/research/2026-08-15-load-increment-sizing-brief.md.
+   *
+   * WHY THE PROGRESSION STEP IS NOT CHANGED IN THE SAME BREATH. The ACSM
+   * position stand recommends 2–10% per increase, and a flat 2.5 kg sits
+   * inside that band for any working weight between about 25 kg and 125 kg —
+   * which is most lifters on most lifts. It is only clearly too small above
+   * ~125 kg. That is a real gap and a narrower one, and the evidence question
+   * behind it is out for review; the deload is wrong at every weight above
+   * about 25 kg and did not need to wait.
+   */
+  deloadPct: 0.1,
 } as const;
 
 /** Nothing loadable on a barbell goes above this. Guards Infinity/overflow. */
