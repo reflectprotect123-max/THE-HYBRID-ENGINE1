@@ -1,9 +1,0 @@
-{
-  "name": "hybrid-conditioning-site",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Deploy config for the branded conditioning athlete site. Netlify's monorepo picker only offers a base directory that looks like a project, so this file exists to make deploy/conditioning selectable. It is NOT a pnpm workspace member: pnpm-workspace.yaml globs packages/* and apps/* only, so `pnpm -r` never sees it and it ships no code.",
-  "scripts": {
-    "build": "cd ../.. && pnpm run build:conditioning-site"
-  }
-}

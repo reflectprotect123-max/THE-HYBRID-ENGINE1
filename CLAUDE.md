@@ -348,14 +348,36 @@ and never went through the logger.
   ONLY athlete client — that sentence was true for two days — and it is still
   Android-only; `eas.json` has no iOS profile.
 
-**Deployment.** `deploy/conditioning/netlify.toml` exists because Netlify reads
-one `netlify.toml` per site, at that site's base directory, and the repository
-root's builds the coach workspace. Set a site's base to `deploy/conditioning`
-and it publishes `apps/web/dist-conditioning`, assembled by
-`pnpm run build:conditioning-site`. Its `publish` and `functions` paths climb
-back to the repository root with `../../`, which is the price of that rule and
-the first thing to check if a deploy reports a missing directory or zero
-functions.
+**Deployment: two sites, ONE `netlify.toml`, chosen by an environment
+variable.**
+
+```
+HYBRID_SITE unset (or 'coach')   the coach workspace — the existing site sets
+                                 nothing and is byte-for-byte unchanged
+HYBRID_SITE=conditioning         the branded athlete app, plus the lab at /lab
+```
+
+`scripts/deploy-site.mjs` reads it and assembles either site into
+`apps/web/dist`. It FAILS on an unrecognised value rather than defaulting: a
+typo'd `HYBRID_SITE` silently publishing the coach workspace to the athlete's
+domain is the worst outcome available here, and a default-on-unknown produces
+exactly that.
+
+**The obvious design was tried first and does not work.** A second
+`netlify.toml` under `deploy/conditioning/`, selected by that site's base
+directory, is Netlify's own documented monorepo pattern. It was implemented
+and then deleted, because it could not be SELECTED: the base-directory picker
+refuses a folder that does not look like a project, and adding a `package.json`
+to make it look like one did not persuade it either. Do not reintroduce it
+without first confirming the picker has changed — a deploy configuration you
+cannot choose in the UI is not a deploy configuration.
+
+The consequence that will surprise someone: `publish` is a static string in
+`netlify.toml` and cannot branch, so BOTH sites write to `apps/web/dist`.
+Running `pnpm run deploy:conditioning` locally therefore overwrites the coach
+build, and `checks/deploy-smoke.mjs` reads that directory — rebuild with
+`pnpm run deploy:coach` before trusting it. `--emptyOutDir` keeps the two from
+layering.
 
 That site shares `netlify/functions` with the coach site, which is what makes
 WHOOP and Concept2 work on it — the client half ships with the app and does
