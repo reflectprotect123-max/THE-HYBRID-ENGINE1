@@ -10,12 +10,28 @@
  * found by building the publish directory and driving it in a browser.
  *
  * Run: node scripts/build-site.mjs   (after `pnpm run build`)
+ *
+ * TWO SITES ASSEMBLE THROUGH HERE (15 August 2026).
+ *
+ * The coach dashboard publishes `apps/web/dist`, and the branded conditioning
+ * athlete build publishes `apps/web/dist-conditioning`. Both need every copy
+ * below — the same fonts and icons the built HTML preloads, the same
+ * `_headers` (miss it and the CSP silently disappears while the site keeps
+ * working), the same SPA fallback in `_redirects`, the same service-worker
+ * tombstone.
+ *
+ * `HYBRID_PUBLISH` names which one, relative to the repository root. It is an
+ * env var rather than a second positional argument because argv[2] already
+ * means the root and is passed by `build:artifact`; adding a second meaning to
+ * the same slot is how a build script starts assembling the wrong directory
+ * silently.
  */
 import { cp, mkdir, readFile, rm, writeFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const root = resolve(process.cwd(), process.argv[2] || '.');
-const OUT = resolve(root, 'apps/web/dist');
+const PUBLISH = process.env.HYBRID_PUBLISH || 'apps/web/dist';
+const OUT = resolve(root, PUBLISH);
 const p = (...s) => resolve(root, ...s);
 
 const exists = async (f) => {
@@ -30,11 +46,11 @@ const exists = async (f) => {
 const say = (m) => console.log('  ' + m);
 
 if (!(await exists(OUT))) {
-  console.error('apps/web/dist is missing — run `pnpm run build` first.');
+  console.error(`${PUBLISH} is missing — run the matching build first.`);
   process.exit(1);
 }
 
-console.log('Assembling the site into apps/web/dist:\n');
+console.log(`Assembling the site into ${PUBLISH}:\n`);
 
 /* ---- a stale /coach/ from a build before the coach app was removed ----
    Nothing copies into it anymore, but a leftover directory from a previous

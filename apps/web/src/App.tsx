@@ -82,48 +82,117 @@ export function App() {
                   one origin. Renders nothing. */}
               <ManifestLink />
               {/*
-                THE ATHLETE WEB APP IS PARKED (13 August 2026).
+                THE ATHLETE WEB APP IS PARKED ON THE DASHBOARD BUILD, AND LIVE
+                ON A BRANDED ONE (15 August 2026).
 
-                The owner asked for it to stop being reachable in a browser,
-                without deleting it: "hide it somewhere, and if we ever need
-                it again we can pull it out." So every athlete route is gone
-                from this tree and every address that is not `/coach` lands on
-                the bench. Web is the coach workspace now; the athlete is the
-                Android app.
+                On 13 August the owner asked for the athlete app to stop being
+                reachable in a browser, without deleting it: "hide it
+                somewhere, and if we ever need it again we can pull it out."
+                Every athlete route came out of this tree and every address
+                that was not `/coach` landed on the bench.
 
-                NOTHING WAS DELETED. `src/screens/` is untouched on disk and
-                its colocated tests still run — that is deliberate, and it is
-                what makes "pull it out" a real option rather than a hope: the
-                screens are still proven to work, so restoring them is
-                re-adding routes here, not repairing a year of drift.
+                It has been pulled out — for ONE build, not for the site the
+                owner was talking about. The unscoped dashboard build is what
+                deploys to the coach domain, and it still parks everything:
+                that half of the branch below is unchanged, ToCoach and all.
+                What changed is that a BRANDED build (`VITE_HYBRID_PRODUCT=
+                conditioning`, deployed to its own site) mounts the athlete app
+                again, because the owner asked for a conditioning product a
+                phone can open. The gate is `IS_SCOPED_BUILD` rather than a new
+                flag on purpose — the branded/unscoped split already existed,
+                already scopes the nav (`navTabs`), already sends `/coach` back
+                to `/` (`CoachAccess`), and already namespaces sync
+                (`PRODUCT_ID`). A second flag would have been a second answer
+                to the same question.
 
-                The honest cost, stated because it is the whole downside of
-                parking rather than deleting: those screens are now dead code.
-                Nothing imports them, `tsc` still checks them, and they will
-                drift out of step with the packages beneath them. If the
-                answer is ever "we are not bringing it back", delete them —
-                git history keeps them either way, exactly as it kept
-                `apps/mobile` between commit 8628060 and its return.
+                "STRENGTH IS LEFT ALONE, NOTHING TOUCHES THAT AT ALL" is the
+                owner's instruction and it is enforced by the product scope
+                rather than by this file: on a conditioning build `navTabs`
+                yields Home / Cond / Library / Progress / Settings, with no
+                Train tab, and `/training` is reachable only by typing it. The
+                strength LOGGER is not restored — it was deleted on 13 August
+                (`8c4a505`) and Android has since grown a newer round-major
+                one, so bringing the old one back would ship two diverging
+                logging surfaces. A conditioning session has its own runner
+                (`screens/Conditioning.tsx`) and never needed it.
 
-                `useDiscipline()`'s nutrition fork went with it. That world was
-                athlete-facing too, and a `/nutrition/*` address that renders
-                nothing is worse than one that goes somewhere.
+                This route tree is `8950284^`'s, restored verbatim rather than
+                retyped. Retyping a known-good block from memory has introduced
+                a real defect twice in this repository already.
               */}
-              <Routes>
-                <Route
-                  path="/coach/*"
-                  element={
-                    <Suspense fallback={null}>
-                      <Coach />
-                    </Suspense>
-                  }
-                />
-                {/* Every other address, including `/`, the old athlete paths
-                    and the nutrition world. A parked app should not 404 — a
-                    bookmarked `/training` belongs to someone who will now be
-                    shown the surface that does exist. */}
-                <Route path="*" element={<ToCoach />} />
-              </Routes>
+              {IS_SCOPED_BUILD ? (
+                <>
+                  {/* Both worlds ship in every build and only one mounts at a
+                      time — `world` is a runtime view preference
+                      (`discipline.ts`), not a build profile. Each fork owns its
+                      own <Routes>, so they can never collide on a path. */}
+                  {world === 'training' && (
+                    <Routes>
+                      <Route
+                        path="/coach/*"
+                        element={
+                          <Suspense fallback={null}>
+                            <Coach />
+                          </Suspense>
+                        }
+                      />
+                      <Route element={<Shell />}>
+                        {/* The bare address is the ATHLETE's on a branded
+                            build, and `ATHLETE_HOME` is `/` here, so Home
+                            renders directly rather than redirecting. */}
+                        <Route path="/" element={<Home />} />
+                        {/* Home's own path, identical on all three builds. */}
+                        <Route path="/home" element={<Home />} />
+                        <Route path="/training" element={<Training />} />
+                        <Route path="/library" element={<Library />} />
+                        <Route path="/conditioning" element={<Conditioning />} />
+                        <Route path="/history" element={<History />} />
+                        <Route path="/progress" element={<Progress />} />
+                        <Route path="/exercise" element={<Exercise />} />
+                        <Route path="/exercise/:name" element={<Exercise />} />
+                        <Route path="/calendar" element={<Calendar />} />
+                        <Route path="/day/:date" element={<Day />} />
+                        <Route path="/recap/:id" element={<Recap />} />
+                        <Route path="/nutrition" element={<FoodLog />} />
+                        <Route path="/settings" element={<Settings />} />
+                        {/* `ATHLETE_HOME`, not `/`. They agree on this build,
+                            but naming it directly is still right: it is the
+                            single source of truth for "send the athlete home"
+                            and does not depend on what `/` happens to mean. */}
+                        <Route path="*" element={<Navigate to={ATHLETE_HOME} replace />} />
+                      </Route>
+                    </Routes>
+                  )}
+                  {world === 'nutrition' && (
+                    <Routes>
+                      <Route element={<Shell />}>
+                        <Route path="/nutrition/log" element={<FoodLog />} />
+                        <Route path="/nutrition/food" element={<NutritionFood />} />
+                        <Route path="/nutrition/weight" element={<NutritionWeight />} />
+                        <Route path="/nutrition/coach" element={<NutritionCoach />} />
+                        <Route path="/nutrition/settings" element={<NutritionSettings />} />
+                        <Route path="*" element={<Navigate to="/nutrition/log" replace />} />
+                      </Route>
+                    </Routes>
+                  )}
+                </>
+              ) : (
+                <Routes>
+                  <Route
+                    path="/coach/*"
+                    element={
+                      <Suspense fallback={null}>
+                        <Coach />
+                      </Suspense>
+                    }
+                  />
+                  {/* Every other address, including `/`, the old athlete paths
+                      and the nutrition world. A parked app should not 404 — a
+                      bookmarked `/training` belongs to someone who will now be
+                      shown the surface that does exist. */}
+                  <Route path="*" element={<ToCoach />} />
+                </Routes>
+              )}
             </Router>
           </RestProvider>
           </Concept2Provider>

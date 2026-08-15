@@ -14,7 +14,17 @@ import react from '@vitejs/plugin-react';
  * it: workspace packages resolve their imports from their real path, so two
  * copies of React can end up in one bundle if any dependency carries its own.
  */
+/*
+ * `base` is a build input because the lab is published two ways: as its own
+ * Netlify site at the origin root, and as a subdirectory of the conditioning
+ * site at `/lab/`. Vite writes ABSOLUTE asset URLs into index.html, so a build
+ * made for the root and copied into `/lab/` asks the server for `/assets/...`
+ * — which on the conditioning site is a real directory belonging to a
+ * different app. The page would load someone else's bundle rather than 404,
+ * which is why this is set rather than left to a rewrite rule.
+ */
 export default defineConfig({
+  base: process.env.HYBRID_LAB_BASE || '/',
   resolve: {
     dedupe: ['react', 'react-dom'],
   },

@@ -27,7 +27,10 @@
     "check:parity-visual": "node checks/parity-visual.mjs",
     "check:parity-harness": "node checks/parity-harness.mjs",
     "//check:parity-mobile": "The mobile side of both gates, end to end: exports apps/mobile's parity harness, serves it, and drives it. One command, so the gate is runnable by anyone rather than only on the machine that hand-started a server.",
-    "check:parity-mobile": "node checks/parity-behaviour.mjs --target=harness && node checks/parity-visual.mjs --target=harness"
+    "check:parity-mobile": "node checks/parity-behaviour.mjs --target=harness && node checks/parity-visual.mjs --target=harness",
+    "build:conditioning": "pnpm -r --filter \"./packages/*\" build && pnpm --filter @hybrid/web build:conditioning",
+    "build:conditioning-site": "pnpm run build:conditioning && HYBRID_LAB_BASE=/lab/ pnpm --filter @hybrid/lab build && HYBRID_PUBLISH=apps/web/dist-conditioning node scripts/build-site.mjs && HYBRID_PUBLISH=apps/web/dist-conditioning node scripts/build-lab.mjs",
+    "dev:lab": "pnpm --filter @hybrid/lab dev"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9"

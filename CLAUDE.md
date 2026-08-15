@@ -285,35 +285,85 @@ it in staging before enabling `VITE_HYBRID_ECOSYSTEM_SYNC=1` or
 Never remove the legacy read path until old mobile builds have aged out and a
 rollback rehearsal proves that no domain can overwrite another domain.
 
-## The athlete web app is PARKED, not deleted (13 August 2026)
+## The athlete web app is PARKED on the coach site, and LIVE as its own product (amended 15 August 2026)
 
-The owner asked for the athlete app to stop being reachable in a browser:
-"I don't want the athlete's app to be seen again — hide it somewhere, and if
-we ever need it again we can pull it out." So `apps/web` serves the coach
-workspace and nothing else. `/` and every parked address redirect to `/coach`.
+This section read "PARKED, not deleted" for two days. On 13 August the owner
+asked for the athlete app to stop being reachable in a browser: "I don't want
+the athlete's app to be seen again — hide it somewhere, and if we ever need it
+again we can pull it out." Every athlete route came out of `App.tsx` and every
+address that was not `/coach` redirected to the bench.
 
-- **Nothing was deleted.** `apps/web/src/screens/` is untouched and its
-  colocated tests still run. That is what makes "pull it out" real rather
-  than hopeful: the screens are still PROVEN to work, so restoring them is
-  re-adding routes in `App.tsx`, not repairing a year of drift.
-- **They are dead code, and that is the accepted cost.** Nothing imports
-  them, `tsc` still checks them, and they will drift out of step with the
-  packages beneath them. If the answer ever becomes "we are not bringing it
-  back", delete them — git history keeps them either way, exactly as it kept
-  `apps/mobile` between commit `8628060` and its return.
-- The nutrition/MacroTrack WEB world is parked with them. It was athlete
-  facing too, and it lives in the Android app.
-- `checks/screens.mjs`'s athlete `SHOTS` list is empty for the same reason a
-  check is ever deleted: those addresses now redirect, so shooting them would
-  produce nine identical pictures of the coach bench under athlete filenames.
-- The coach rail's "Athlete app" link is GONE. It existed because `/`
-  redirected to the bench and a coach would otherwise be stuck; it would now
-  point at a route that bounces straight back. **Restoring the athlete app
-  means restoring that link too**, or the coach is stuck again for exactly the
-  original reason.
-- The ANDROID app is the athlete product and is untouched. It is the only
-  athlete client now, and it is Android-only — `eas.json` has no iOS profile.
-  That is a distribution consequence of this decision, not an oversight.
+**It has been pulled out — for ONE build.** The un-parking is scoped, not a
+reversal, and the distinction is the whole content of this amendment:
+
+- The **unscoped dashboard build** — the one that deploys to the coach domain —
+  is UNCHANGED. `/` and every athlete address still redirect to `/coach`.
+  The sentence the owner asked for still holds on the site they were talking
+  about.
+- A **branded build** (`VITE_HYBRID_PRODUCT=conditioning`) mounts the athlete
+  app again, and deploys to its own separate site.
+
+The gate is `IS_SCOPED_BUILD`, deliberately not a new flag. That split already
+existed and already answered this question in four places — `navTabs` scopes
+the tab bar, `CoachAccess` sends `/coach` back to `/`, `ManifestLink` chooses
+which app is offered for install, and `PRODUCT_ID` namespaces sync. A second
+flag would have been a second answer to one question.
+
+**"Strength is left alone, nothing touches that at all"** is the owner's
+instruction for the branded conditioning build, and it is enforced by the
+product scope rather than by a route list: `navTabs` yields
+Home / Cond / Library / Progress / Settings — no Train tab. `/training` still
+RESOLVES if typed, and `checks/screens.mjs` shoots it, because a screen that
+can only be reached awkwardly can still overflow a phone. What the tab bar does
+about it is `checks/react-smoke.mjs`'s claim, which fails if a Train tab ever
+reaches a conditioning build.
+
+The strength LOGGER is **not** restored. It was deleted on 13 August
+(`8c4a505`) and `apps/mobile` has since grown a newer round-major one, so
+restoring it would ship two diverging logging surfaces. Conditioning has its
+own runner (`screens/Conditioning.tsx`, with the BLE strap and the GPS tracker)
+and never went through the logger.
+
+- **Nothing was deleted, and that is what made this possible.**
+  `apps/web/src/screens/` was untouched and its colocated tests kept running,
+  so the un-parking was re-adding routes rather than repairing a year of
+  drift. The route tree was restored VERBATIM from `8950284^` rather than
+  retyped — retyping a known-good block from memory has introduced a real
+  defect twice in this repository.
+- **They are no longer dead code on every build**, which retires the accepted
+  cost this section used to record. They are still dead on the dashboard
+  build, and `tsc` still checks them either way.
+- The nutrition/MacroTrack WEB world came back with them, under
+  `useDiscipline()`'s nutrition fork.
+- `checks/screens.mjs`'s athlete `SHOTS` list is **restored — nine shots** —
+  and it is pointed at a conditioning bundle built by that run, NOT at
+  `apps/web/dist`. Point it back and all nine silently become pictures of the
+  coach sign-in again, which is the exact failure that emptied the list.
+- The coach rail's "Athlete app" link is still GONE, and should stay gone. It
+  existed because `/` redirected to the bench; on the dashboard build it would
+  now point at a route that bounces straight back, and the athlete app is a
+  DIFFERENT SITE rather than a different path. This is the one item from the
+  original section that the un-parking does not retire.
+- The ANDROID app is the athlete product and is untouched. It is no longer the
+  ONLY athlete client — that sentence was true for two days — and it is still
+  Android-only; `eas.json` has no iOS profile.
+
+**Deployment.** `deploy/conditioning/netlify.toml` exists because Netlify reads
+one `netlify.toml` per site, at that site's base directory, and the repository
+root's builds the coach workspace. Set a site's base to `deploy/conditioning`
+and it publishes `apps/web/dist-conditioning`, assembled by
+`pnpm run build:conditioning-site`. Its `publish` and `functions` paths climb
+back to the repository root with `../../`, which is the price of that rule and
+the first thing to check if a deploy reports a missing directory or zero
+functions.
+
+That site shares `netlify/functions` with the coach site, which is what makes
+WHOOP and Concept2 work on it — the client half ships with the app and does
+nothing until those answer. It needs its own `APP_BASE_URL` (the coach site's
+value would return an athlete to the wrong origin), its own
+`APP_SESSION_SECRET`, and the provider credentials; and this origin's callback
+must be REGISTERED with WHOOP and Concept2, which is not a Netlify setting and
+cannot be diagnosed from inside this repository.
 
 ## The athlete and the coach never face each other
 

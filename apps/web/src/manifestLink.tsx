@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { IS_SCOPED_BUILD } from './product';
 
 /*
  * Which app the browser is being offered to install.
@@ -20,22 +21,30 @@ import { useLocation } from 'react-router-dom';
  * icon whose `start_url: '/home'` opens a redirect to the bench. A real app,
  * reached the long way, under the wrong name.
  *
- * The coach manifest is now offered unconditionally. There is no route this
- * app serves that is not the bench.
+ * RESTORED, BY BUILD RATHER THAN BY ROUTE (15 August 2026). The paragraph
+ * above kept its warning — "restoring the athlete app means restoring the swap
+ * here as well as the routes" — and this is that restoration, in the shape the
+ * un-parking actually took.
  *
- * The athlete manifest is NOT deleted, for the same reason the athlete screens
- * are not: parked means restorable. `vite.config.ts` still emits it, and the
- * service worker's precache scope still depends on it. Restoring the athlete
- * app means restoring the swap here as well as the routes — and the nested
- * scopes above are the design to restore, not to reinvent.
+ * The athlete app came back on the BRANDED builds only
+ * (`VITE_HYBRID_PRODUCT=conditioning`, its own site); the unscoped dashboard
+ * build still parks everything and is still nothing but the bench. So the
+ * question "which app is this?" is now answered by the BUILD, not the path,
+ * and a per-route swap would be answering a question this origin no longer
+ * asks: on a branded build `/coach` redirects to `/` (`CoachAccess`), so
+ * offering the coach manifest there would install an icon that opens a
+ * redirect — precisely the bug this file's own history records, mirrored.
+ *
+ * `pathname` stays a dependency even though neither branch reads it. A static
+ * <link> cannot follow a route change in a single-page app, and re-running the
+ * effect per navigation is what guarantees the href survives one; the two
+ * branches simply agree with themselves across every route.
  *
  * This lives in neutral ground, not under coach/ — it is about the document,
  * and putting DOM-manifest logic in the coach lane would be a crossing the lane
  * contract would rightly complain about.
  */
 
-/* Kept, unused, and deliberately so — see the header. Deleting it would make
-   restoring the athlete app a rediscovery rather than a re-wiring. */
 export const ATHLETE_MANIFEST = '/manifest.webmanifest';
 const COACH_MANIFEST = '/coach.webmanifest';
 
@@ -45,11 +54,7 @@ export function ManifestLink() {
   useEffect(() => {
     const el = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (!el) return;
-    /* `pathname` is still a dependency, and the swap is still per-navigation
-       rather than per-load, because this is a single-page app and a static
-       <link> could not follow a route change. What changed is that every route
-       now wants the same answer. */
-    const want = COACH_MANIFEST;
+    const want = IS_SCOPED_BUILD ? ATHLETE_MANIFEST : COACH_MANIFEST;
     /* Only when it actually differs. Rewriting the href re-fetches the manifest
        and re-arms the install prompt, so doing it on every navigation would
        throw away a prompt the athlete had not answered yet. */
