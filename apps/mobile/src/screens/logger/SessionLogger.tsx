@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isCond, isText, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useSession, type Action, type SessionView } from '@hybrid/session-authoring';
+import type { LoadContext } from '@hybrid/engine';
 import { Tap } from '../../ui';
 import { useLoggerHost, useWakeLock } from './bridge';
+import { useDb } from '../../store/db';
 import { BlockStrip } from './BlockStrip';
 import { BlockScreen } from './BlockScreen';
 import { RestTakeover } from './RestTakeover';
@@ -40,8 +42,27 @@ export function useLoggerBridge(
   startRest: (seconds: number) => void,
   stopRest: () => void,
   addRest: (seconds: number) => void,
+  /*
+   * THE HISTORY THE WEIGHT FIELD OPENS FROM, and until 15 August 2026 it was
+   * not passed at all.
+   *
+   * `useSession` prices a set through `@hybrid/engine`'s `openingLoadFor`,
+   * whose ladder is: what happened today, then a percentage a coach authored,
+   * then the weight banked by the last session, eased for this morning's
+   * recovery. Only the FIRST of those can be read off the session in hand.
+   * Without this the other three rungs were unreachable and every exercise
+   * opened at zero — `liftAdapt` had been writing a number after every session
+   * that nothing ever read back.
+   *
+   * An ARGUMENT and not a `useDb()` call inside this function, matching the
+   * five callables above it: everything this bridge needs arrives from its
+   * caller, so it can be driven directly from a test without standing up the
+   * whole provider tree. That is what the tests below do, and it is what lets
+   * them assert on the number the field opens at.
+   */
+  load: LoadContext = {},
 ): { view: SessionView; dispatch: (action: Action) => void; session: Session } {
-  const { dispatch, session, ...view } = useSession(initial);
+  const { dispatch, session, ...view } = useSession(initial, load);
 
   // Persist: write-through on change. `reduce` returns the SAME session
   // reference when an action changes nothing, `setDraft` included, so a draft
@@ -128,12 +149,24 @@ function RunningSession({ session: initialSession }: { session: Session }) {
    */
   const insets = useSafeAreaInsets();
   const { updateSession, startRest, stopRest, addRest } = useLoggerHost();
+  /*
+   * `db.sessions` is the WHOLE log rather than a slice: `prescribedKg` resolves
+   * an authored percentage against the same e1RM the Progress chart reads, and
+   * handing it a window would make the same percentage mean different things on
+   * different screens.
+   */
+  const { db, whoop } = useDb();
+  const load = useMemo(
+    () => ({ sessions: db.sessions, settings: db.settings, whoop }),
+    [db.sessions, db.settings, whoop],
+  );
   const { view, dispatch, session } = useLoggerBridge(
     initialSession,
     updateSession,
     startRest,
     stopRest,
     addRest,
+    load,
   );
   useWakeLock();
 

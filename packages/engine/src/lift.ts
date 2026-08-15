@@ -1,10 +1,10 @@
 import { AUTOREG, RECOVERY_BANDS } from './constants';
 import { isWarmup, loadPctOf } from './autoreg';
-import { foldNextOpener, incrementFor } from './fold';
+import { foldFromExercise, foldNextOpener, incrementFor } from './fold';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
-import { blockExercises, exBest, isLiftMode, isWarmupBlock } from './session';
-import type { AnySet, Block, LiftState, LoggedSet, Session, Settings, WhoopSample } from './types';
+import { blockExercises, exBest, exLogFor, isLiftMode, isWarmupBlock } from './session';
+import type { AnySet, Block, Exercise, LiftState, LoggedSet, Session, Settings, WhoopSample } from './types';
 
 /*
  * Strength progression ACROSS sessions.
@@ -181,10 +181,10 @@ export function liftAdapt(
  * truth for one number is exactly how the logger's hint and its box came to
  * disagree. So:
  *
- *   1. What happened TODAY wins. `prefillPrimary` scans back to an earlier set
- *      of the same exercise first, and that scan is untouched: a percentage is
- *      a plan, a set you already did is a fact. Autoregulation keeps working
- *      inside a %-authored exercise exactly as it does anywhere else.
+ *   1. What happened TODAY wins. `openingLoadFor` asks the fold first, and the
+ *      fold reads this session's own logged sets: a percentage is a plan, a set
+ *      you already did is a fact. Autoregulation keeps working inside a
+ *      %-authored exercise exactly as it does anywhere else.
  *   2. Failing that, an authored percentage beats the earned weight. Somebody
  *      wrote it for THIS set; `liftProgress` is what the app inferred. It is
  *      the same precedence the rep target in `t` already has — what you did
@@ -295,4 +295,139 @@ export function sessionOpeners(
   );
 
   return out;
+}
+
+/**
+ * Everything a load decision needs from outside the exercise itself.
+ *
+ * All three are optional and each absence has a defined meaning rather than
+ * being an error: no `sessions` means no history to take a percentage of, no
+ * `settings` means nothing has been earned yet, no `whoop` means no recovery
+ * reading to ease against. A caller that passes nothing gets the fold alone,
+ * which is exactly the behaviour that existed before this function.
+ */
+export interface LoadContext {
+  sessions?: Session[];
+  settings?: Settings;
+  whoop?: WhoopSample | null;
+}
+
+/**
+ * WHAT TO PUT IN THE WEIGHT FIELD, for one set, in one place.
+ *
+ * This is the precedence rule `prescribedKg` documents, finally applied. It
+ * existed as `logger.ts`'s `prefillPrimary` until 15 August 2026, when the web
+ * logger it belonged to was deleted — which left `prescribedKg` and
+ * `nextWorkingWeight` with no caller that put their answer in front of anybody.
+ * The phone's `openDraft` asked the fold and nothing else, so every exercise
+ * opened at zero and the entire banked progression was invisible to the one
+ * screen an athlete actually uses. `liftAdapt` had been writing to a drawer
+ * nobody opened.
+ *
+ * The ladder, in order, each step outranking the next for a reason:
+ *
+ *   1. THE FOLD, when it has something to say. It prices from this session's
+ *      own logged sets, so it is the only step that knows what just happened.
+ *      A set you have already done is a fact; everything below is a plan.
+ *   2. AN AUTHORED PERCENTAGE. Somebody wrote it for THIS set; the earned
+ *      weight is what the app inferred from the last one. Same precedence the
+ *      rep target already has — what you did last time never overrides the
+ *      reps you were asked for, and load is not a special case.
+ *   3. THE EARNED WEIGHT, eased for today's recovery. What last session
+ *      decided you should be on.
+ *   4. ZERO, which is the honest answer for a movement with no history and no
+ *      prescription. A guess under a barbell is worse than a blank field.
+ *
+ * WHY STEP 1 TESTS `kg > 0` RATHER THAN NULLNESS. `foldExercise` answers for
+ * the first set of an untouched exercise too, and its answer there is
+ * `{ kg: 0, message: 'bodyweight' }` — the opener is read off set 1's recorded
+ * weight, which has not been entered yet. Treating any non-null fold as an
+ * answer is precisely the bug this fixes: it made the fold win with a zero and
+ * hid every step below it. A genuinely bodyweight movement falls through the
+ * remaining steps and lands on 0 anyway, because `liftAdapt` never banks one
+ * (`foldNextOpener` returns null when the opener is not positive), so nothing
+ * is lost by letting it fall.
+ *
+ * Warm-ups are the caller's business, not this function's: it is asked about a
+ * set and answers about that set. The one contamination guard that MUST stay
+ * with the caller is that a warm-up must never be opened at the working
+ * weight — see `openDraft`, which asks only for working sets.
+ */
+export interface OpeningLoad {
+  kg: number;
+  /**
+   * The one line shown beside the number, and part of the contract rather than
+   * decoration — the parity gate asserts on it, because a weight with no
+   * reason attached is what athletes override.
+   *
+   * IT MUST AGREE WITH `kg`. Before this function existed the screen took its
+   * number from one place and its line from another: an untouched exercise
+   * showed "bodyweight", which was at least consistent with the 0 in the field,
+   * and the moment the field started opening at the banked weight the two
+   * would have contradicted each other on the same card. Both come from here
+   * now, decided together, so they cannot drift.
+   */
+  message: string;
+  /** Which rung answered. Exposed so a surface can style the fold's own word
+   *  differently from a fallback without re-deriving which one it got. */
+  source: 'fold' | 'prescribed' | 'earned' | 'none';
+}
+
+export function openingLoadFor(
+  ex: { name?: string; mode?: string; inc?: number; sets: LoggedSet[] },
+  si: number,
+  ctx: LoadContext = {},
+): OpeningLoad {
+  const st = ex.sets[si];
+  if (!st) return { kg: 0, message: '', source: 'none' };
+
+  const folded = foldFromExercise(ex as Exercise<LoggedSet>, incrementFor(ex as Exercise<LoggedSet>));
+  if (folded && folded.kg > 0) return { kg: folded.kg, message: folded.message, source: 'fold' };
+
+  if (!isLiftMode(ex.mode)) {
+    // No load axis at all. The fold's own word still stands if it had one —
+    // a timed piece that somehow logged a weight is not overridden here.
+    return { kg: 0, message: folded ? folded.message : '', source: folded ? 'fold' : 'none' };
+  }
+
+  const name = ex.name ?? '';
+
+  const asked = prescribedKg(name, st.t, ctx.sessions ?? []);
+  if (asked > 0) {
+    const pct = loadPctOf(st.t);
+    return { kg: asked, message: `${pct}% of your best — as written`, source: 'prescribed' };
+  }
+
+  const earned = nextWorkingWeight(name, ctx.settings, ctx.whoop);
+  if (earned) {
+    return {
+      kg: earned.kg,
+      // `nextWorkingWeight` composes the eased reason itself, and it is the
+      // only layer that knows the recovery figure. Passed through verbatim.
+      message: earned.note || 'what you earned last time',
+      source: 'earned',
+    };
+  }
+
+  /*
+   * NOTHING TO OFFER — and two different reasons for it, which the athlete
+   * needs told apart.
+   *
+   * Passing the fold's word through here was wrong and was live for one edit:
+   * it says 'bodyweight' for any exercise whose opener is not positive, which
+   * on an untouched barbell lift means "nobody has typed a weight yet", not
+   * "this movement has no load". Printing that over an empty field on the
+   * first ever squat is a claim the app cannot support.
+   *
+   * History is what separates them. A movement logged before, with reps and no
+   * load, really is being trained at bodyweight — chin-ups, press-ups — and
+   * should keep saying so every session. A movement never logged at all is
+   * simply new.
+   */
+  const trained = exLogFor(name, ctx.sessions ?? []).length > 0;
+  return {
+    kg: 0,
+    message: trained ? 'bodyweight' : 'first time on this — put something on the bar',
+    source: 'none',
+  };
 }

@@ -1,4 +1,4 @@
-import { foldFromExercise, incrementFor, repFloorOf, type LoggedSet, type StrengthBlock } from '@hybrid/engine';
+import { openingLoadFor, repFloorOf, type LoadContext, type LoggedSet, type StrengthBlock } from '@hybrid/engine';
 import type { QueueItem } from './queue';
 
 /** What the athlete is entering for the set in front of them. */
@@ -17,14 +17,27 @@ export interface Draft {
  * the ordinary case is one tap; a `max` set opens at zero, because counting
  * them is the entire point of it and a prefilled number would be answered for
  * the athlete.
+ *
+ * `ctx` CARRIES THE HISTORY THE FOLD CANNOT SEE, and this file used to have
+ * none. It asked `foldFromExercise` alone, which prices from THIS session's
+ * own sets — so the first set of every exercise opened at 0, because the
+ * opener is read off a weight nobody has entered yet. The banked weight
+ * `liftAdapt` writes after every session, and any percentage a coach authored,
+ * both existed and neither reached the field. `openingLoadFor` is the engine
+ * function that owns the whole ladder; this asks it and renders the answer.
+ *
+ * It stays OPTIONAL because the shape of the answer does not change without
+ * it — no context simply means the fold alone, which is what this did before.
+ * A caller that forgets to pass it gets the old behaviour rather than a crash,
+ * so the guard against forgetting is a test on the phone's own screen, not a
+ * required argument here.
  */
-export function openDraft(block: StrengthBlock<LoggedSet>, item: QueueItem): Draft {
+export function openDraft(block: StrengthBlock<LoggedSet>, item: QueueItem, ctx: LoadContext = {}): Draft {
   const ex = block.exercises[item.exerciseIndex];
   const st = ex.sets[item.setIndex];
-  const folded = foldFromExercise(ex, incrementFor(ex));
   const isMax = /max/i.test(st.t || '');
   return {
-    kg: folded ? folded.kg : 0,
+    kg: openingLoadFor(ex, item.setIndex, ctx).kg,
     reps: isMax ? 0 : repFloorOf(st.t),
     felt: null,
   };

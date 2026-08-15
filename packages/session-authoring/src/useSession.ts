@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import type { Session } from '@hybrid/engine';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import type { LoadContext, Session } from '@hybrid/engine';
 import { initialRun, reduce, type Action, type RunState } from './machine';
 import { sessionView, type SessionView } from './view';
 
@@ -31,17 +31,32 @@ interface State {
  * which is exactly what strict mode's double-invocation is designed to prove
  * safe.
  */
-export function useSession(initial: Session) {
-  const [state, setState] = useState<State>(() => ({ session: initial, run: initialRun(initial) }));
+export function useSession(initial: Session, ctx: LoadContext = {}) {
+  const [state, setState] = useState<State>(() => ({ session: initial, run: initialRun(initial, ctx) }));
+
+  /*
+   * `ctx` is read through a ref, not closed over by `dispatch`.
+   *
+   * It is the athlete's history — sessions, banked weights, today's recovery —
+   * and the caller rebuilds that object on most renders. Putting it in the
+   * dependency array would give `dispatch` a new identity every time, and
+   * every screen holding it in a `useCallback` would re-render with it. Held
+   * in a ref, `dispatch` stays stable for the life of the hook and still reads
+   * the CURRENT history whenever an action fires, which is what matters: the
+   * weight offered for the next set has to reflect the recovery reading that
+   * arrived mid-session, not the one that was there when the screen mounted.
+   */
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
 
   const dispatch = useCallback((action: Action) => {
     setState((prev) => {
-      const { session, run } = reduce(prev.session, prev.run, action);
+      const { session, run } = reduce(prev.session, prev.run, action, ctxRef.current);
       return { session, run };
     });
   }, []);
 
-  const view: SessionView = useMemo(() => sessionView(state.session, state.run), [state]);
+  const view: SessionView = useMemo(() => sessionView(state.session, state.run, ctx), [state, ctx]);
   // `session` is exposed alongside the view because an app has to persist the
   // session; the alternative is a second state machine mirroring this one in
   // the screen. `SessionView` has no `session` key of its own, so this spread

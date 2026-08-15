@@ -1,13 +1,13 @@
 import {
   e1rmOf,
-  foldFromExercise,
-  incrementFor,
   isCond,
   isText,
   isWarmup,
   isWarmupBlock,
+  openingLoadFor,
   saneKg,
   type AnySet,
+  type LoadContext,
   type Block,
   type LoggedSet,
   type Session,
@@ -227,15 +227,20 @@ function bestE1rm(session: Session): number | null {
  * `draft` all go null once `session.status` says 'completed', even if the
  * run state underneath was not itself reset.
  *
+ * `ctx` is the athlete's history, and it reaches only one thing here: the
+ * coaching line beside the live set, which has to be decided by the same
+ * ladder that decided that set's weight. Everything else in the view is read
+ * off the session in hand.
+ *
  * A prep block's live piece never becomes `hot`. `hot` is the coaching
- * rule's word on a set (`foldFromExercise`, `@hybrid/engine`), and a piece
+ * rule's word on a set (`openingLoadFor`, `@hybrid/engine`), and a piece
  * has nothing for the fold to judge — warming up with an empty bar must
  * never teach the progression that your bench went to 20kg. The block still
  * needs to know which piece is live, for `rounds`' own `status`, so that
  * comes from `nextPiece` (queue.ts's mirror of `nextUp`, scoped to prep
  * blocks) rather than from `nextUp`/`hot` at all.
  */
-export function sessionView(session: Session, run: RunState): SessionView {
+export function sessionView(session: Session, run: RunState, ctx: LoadContext = {}): SessionView {
   const finished = session.status === 'completed';
   const blocks = session.blocks.map((b) => ({ id: b.id, title: blockTitle(b), progress: blockProgress(b) }));
 
@@ -249,17 +254,30 @@ export function sessionView(session: Session, run: RunState): SessionView {
   let hot: HotSet | null = null;
   if (liveItem && strengthBlock && !prep) {
     const ex = strengthBlock.exercises[liveItem.exerciseIndex];
-    const folded = foldFromExercise(ex, incrementFor(ex));
-    if (folded) {
-      const st = ex.sets[liveItem.setIndex];
-      hot = {
-        exerciseIndex: liveItem.exerciseIndex,
-        setIndex: liveItem.setIndex,
-        exerciseName: ex.name,
-        message: folded.message,
-        planned: plannedOf(st),
-      };
-    }
+    /*
+     * THE SAME LADDER THE DRAFT'S WEIGHT CAME FROM, asked once more for its
+     * word rather than re-derived here.
+     *
+     * This read `foldFromExercise` directly until 15 August 2026, which was
+     * correct only while `openDraft` did too. The moment the weight field
+     * started opening at a banked or prescribed number, a line saying
+     * "bodyweight" would have been sitting beside 120kg — the exact
+     * two-numbers-contradicting-each-other-on-one-card failure this codebase
+     * has paid for before. `openingLoadFor` decides both together.
+     *
+     * Null message means there is nothing to say, not that there is no set:
+     * `hot` still renders, because the athlete still has a set in front of
+     * them.
+     */
+    const opening = openingLoadFor(ex, liveItem.setIndex, ctx);
+    const st = ex.sets[liveItem.setIndex];
+    hot = {
+      exerciseIndex: liveItem.exerciseIndex,
+      setIndex: liveItem.setIndex,
+      exerciseName: ex.name,
+      message: opening.message,
+      planned: plannedOf(st),
+    };
   }
 
   return {

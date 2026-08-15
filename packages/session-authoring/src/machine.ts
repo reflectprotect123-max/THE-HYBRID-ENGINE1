@@ -1,4 +1,4 @@
-import { isCond, isText, isWarmupBlock, repFloorOf, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
+import { isCond, isText, isWarmupBlock, repFloorOf, type LoadContext, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { openDraft, applyDraft, draftReady, type Draft } from './draft';
 import { blockQueue, nextPiece, nextUp, type QueueItem } from './queue';
 import { rotateBlock } from './rotate';
@@ -42,16 +42,23 @@ function strengthBlockAt(session: Session, blockIndex: number): StrengthBlock<Lo
 }
 
 /** Draft open for the current item of the current block, or null if there is none owed. */
-function draftFor(session: Session, blockIndex: number): Draft | null {
+function draftFor(session: Session, blockIndex: number, ctx: LoadContext): Draft | null {
   const block = strengthBlockAt(session, blockIndex);
   if (!block) return null;
   const item = nextUp(block);
-  return item ? openDraft(block, item) : null;
+  return item ? openDraft(block, item, ctx) : null;
 }
 
-/** The first block, with its first owed set drafted and no rest running. */
-export function initialRun(session: Session): RunState {
-  return { blockIndex: 0, draft: draftFor(session, 0), rest: null };
+/**
+ * The first block, with its first owed set drafted and no rest running.
+ *
+ * `ctx` is the athlete's history — banked weights, past sessions, today's
+ * recovery. It is passed through to `openDraft` untouched; this file reads
+ * none of it and decides nothing from it. Optional, and its absence means the
+ * fold alone: see `openDraft` for why that default is the safe one.
+ */
+export function initialRun(session: Session, ctx: LoadContext = {}): RunState {
+  return { blockIndex: 0, draft: draftFor(session, 0, ctx), rest: null };
 }
 
 /** Rebuild the session with one block replaced. */
@@ -62,7 +69,12 @@ function withBlock(session: Session, blockIndex: number, block: StrengthBlock<Lo
   };
 }
 
-export function reduce(session: Session, run: RunState, action: Action): { session: Session; run: RunState } {
+export function reduce(
+  session: Session,
+  run: RunState,
+  action: Action,
+  ctx: LoadContext = {},
+): { session: Session; run: RunState } {
   switch (action.type) {
     case 'setDraft': {
       if (!run.draft) return { session, run };
@@ -78,7 +90,7 @@ export function reduce(session: Session, run: RunState, action: Action): { sessi
       const nextSession = withBlock(session, run.blockIndex, logged);
       const rest = restAfter(logged, item);
       const nextItem = nextUp(logged);
-      const draft = nextItem ? openDraft(logged, nextItem) : null;
+      const draft = nextItem ? openDraft(logged, nextItem, ctx) : null;
       return { session: nextSession, run: { ...run, draft, rest } };
     }
 
@@ -135,7 +147,7 @@ export function reduce(session: Session, run: RunState, action: Action): { sessi
       if (!block) return { session, run };
       const rotated = rotateBlock(block);
       const nextSession = withBlock(session, idx, rotated);
-      const draft = idx === run.blockIndex ? draftFor(nextSession, run.blockIndex) : run.draft;
+      const draft = idx === run.blockIndex ? draftFor(nextSession, run.blockIndex, ctx) : run.draft;
       return { session: nextSession, run: { ...run, draft } };
     }
 
@@ -149,7 +161,7 @@ export function reduce(session: Session, run: RunState, action: Action): { sessi
       const item = nextUp(block);
       if (!item) return { session, run };
       const following = itemAfter(block, item);
-      const draft = following ? openDraft(block, following) : null;
+      const draft = following ? openDraft(block, following, ctx) : null;
       return { session, run: { ...run, draft } };
     }
 
@@ -173,7 +185,7 @@ export function reduce(session: Session, run: RunState, action: Action): { sessi
 
     case 'goToBlock': {
       if (action.index < 0 || action.index >= session.blocks.length) return { session, run };
-      return { session, run: { ...run, blockIndex: action.index, draft: draftFor(session, action.index), rest: null } };
+      return { session, run: { ...run, blockIndex: action.index, draft: draftFor(session, action.index, ctx), rest: null } };
     }
 
     case 'tick': {
