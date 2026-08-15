@@ -653,12 +653,17 @@ the same commit that does the install.
 2. Work in a dedicated Git worktree for a phase; see `docs/WORKTREES.md`.
 3. Keep decision logic pure and add a test before changing a rule.
 4. Run `pnpm run typecheck`, focused Vitest tests, `pnpm run check:ecosystem`,
-   and the relevant web/mobile build before handoff. Note that FOURTEEN of the
-   checks under `checks/` run neither in CI nor in `pnpm run verify` —
-   `coach-contract`, `pentest`, `screens`, `supabase-contract`, `supabase-auth`,
-   `whoop-contract`, `concept2-contract`, `contrast`, `mobile-touch`, the three
-   parity gates, `pwa-update` and `whoop-deployment-smoke`. They only run when
-   someone remembers, which is a known weakness rather than a design.
+   and the relevant web/mobile build before handoff. CI runs EVERY check under
+   `checks/` except the three parity gates, which need an Expo export of the
+   mobile harness — those are `pnpm run check:parity-mobile`, by hand.
+
+   That was not true until 15 August 2026: `screens`, `pwa-update` and
+   `mobile-touch` ran nowhere, and wiring them in immediately caught two live
+   defects — two raw `<Pressable>` in the mobile logger under the touch
+   minimum, and a service worker publishing updates to nobody after
+   `UpdateBanner` was deleted. A check that exists and does not run is worth
+   very little; if you add one, add it to `.github/workflows/ci.yml` in the
+   same commit.
 5. Never run production migrations, EAS submissions, Netlify deploys, or
    destructive data operations without an explicit approval and rollback plan.
 

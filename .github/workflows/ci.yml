@@ -1,7 +1,15 @@
 name: CI
 
-# One job that runs exactly what `pnpm run verify` runs locally, plus the three
-# legacy suites that need no network. Each phase is its own step so a failure is
+# One job that runs exactly what `pnpm run verify` runs locally, plus every
+# other check that needs no network and no secrets.
+#
+# As of 15 August 2026 that is EVERY check under `checks/` except the three
+# parity gates, which need an Expo export of the mobile harness and are run
+# with `pnpm run check:parity-mobile`. Four checks were added that day —
+# screens, pwa-update, mobile-touch and (already present) the contract loop —
+# and TWO of them failed immediately on real defects that had been invisible
+# for want of anyone running them. If a check exists and is not here, say why
+# in a comment rather than leaving the gap silent. Each phase is its own step so a failure is
 # legible in the Actions UI, but every step invokes the SAME package.json script
 # a human would — CI and a laptop cannot drift apart without someone editing
 # package.json.
@@ -138,6 +146,34 @@ jobs:
       - name: Web touch targets (both pointer emulations)
         run: node checks/web-touch.mjs
 
+      # Screenshots every /coach route at 1440px AND 420px and FAILS on
+      # horizontal overflow. CLAUDE.md has claimed phone support for the whole
+      # bench since 11 August; this is the only thing that can catch a
+      # regression in it, and it ran nowhere until 15 August 2026.
+      - name: Coach screens (both widths, no horizontal overflow)
+        run: |
+          set -o pipefail
+          node checks/screens.mjs 2>&1 | tee "$RUNNER_TEMP/screens.log"
+          if grep -qiE 'screenshots need a browser' "$RUNNER_TEMP/screens.log"; then
+            echo "::error::screens.mjs found no browser, so no route was actually shot."
+            exit 1
+          fi
+
+      # The whole update loop: builds TWO real bundles, serves the second under
+      # a page running the first, and asserts the new version is announced,
+      # does NOT swap itself in unasked, and does swap when asked.
+      #
+      # It ran nowhere until 15 August 2026, and on the day it was wired in it
+      # caught a live regression: deleting UpdateBanner with the athlete
+      # surface left serviceWorker.ts publishing a waiting worker to nobody, so
+      # no deploy would ever have reached an installed bench. That is the exact
+      # defect this check was written for, reintroduced and then caught.
+      #
+      # It rewrites a source file and restores it in a `finally`. Last, so a
+      # crash cannot leave a marker in the tree for another step to build.
+      - name: PWA update loop (two real builds, Chromium)
+        run: node checks/pwa-update.mjs
+
       # Reachability walks the import graph from each app's entry point. Dead
       # code with a passing test is the dangerous kind — the suite goes green
       # and nothing calls it, which is how "Foreground GPS tracking" got marked
@@ -182,6 +218,13 @@ jobs:
       # endpoint) — rather than demanding machinery that was never part of
       # this provider's contract.
       #
+      # mobile-touch was NAMED in this comment and absent from the loop below
+      # until 15 August 2026 — the documentation asserted a coverage that did
+      # not exist, which is worse than an honest gap. Adding it immediately
+      # failed: two raw <Pressable> had entered with the round-major logger
+      # (RestTakeover and SessionLogger), both under the touch minimum and with
+      # no press feedback. That is the whole argument for this step.
+      #
       # mobile-touch and contrast guard two things a UI audit found and nothing
       # else can see: that every tappable in the phone app goes through <Tap>
       # (which is what makes touch targets reach 48dp and give feedback), and
@@ -205,7 +248,7 @@ jobs:
       - name: Contract + security suites (no network)
         run: |
           set -o pipefail
-          for check in pentest supabase-contract ecosystem-contract coach-contract whoop-contract concept2-contract whoop-deployment-smoke supabase-auth contrast; do
+          for check in pentest supabase-contract ecosystem-contract coach-contract whoop-contract concept2-contract whoop-deployment-smoke supabase-auth contrast mobile-touch; do
             echo "::group::checks/$check.mjs"
             node "checks/$check.mjs" 2>&1 | tee "$RUNNER_TEMP/$check.log"
             echo "::endgroup::"

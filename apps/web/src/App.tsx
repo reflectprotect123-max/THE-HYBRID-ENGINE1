@@ -6,6 +6,7 @@ import { SyncProvider } from './cloud/sync';
 import { WhoopProvider } from './cloud/whoop';
 import { Concept2Provider } from './cloud/concept2';
 import { SaveAlert } from './components/SaveAlert';
+import { UpdateBanner } from './UpdateBanner';
 import { ManifestLink } from './manifestLink';
 import { startServiceWorker } from './serviceWorker';
 
@@ -47,9 +48,14 @@ const Coach = lazy(() => import('./coach'));
  * `NutritionProvider` STAYS, and is the one thing here that looks athlete-
  * shaped but is not: the coach bench's Nutrition pillar reads the athlete's
  * nutrition slice through it (six call sites under `coach/`). `RestProvider`
- * and `UpdateBanner` did NOT stay — nothing under `coach/` referenced either,
- * and they existed for a rest timer and an install banner on a screen that no
- * longer exists.
+ * did NOT stay — nothing under `coach/` referenced it and it existed for a rest
+ * timer on a screen that no longer exists.
+ *
+ * `UpdateBanner` was deleted with them and RESTORED hours later. Nothing under
+ * `coach/` imports it either, and that was the mistake: it does not subscribe
+ * to a SCREEN, it subscribes to the service worker. Without it a downloaded
+ * update waits forever and no deploy reaches an installed bench — the exact
+ * bug it was written for, reintroduced by removing it.
  *
  * Provider order matters: Sync and WHOOP both read the DB, and Sync writes to
  * it on a pull, so DbProvider has to be outermost.
@@ -61,6 +67,13 @@ export function App() {
       {/* Above the router: a failed write has to reach every screen, including
           the coach bench, which sits outside any shell. */}
       <SaveAlert />
+      {/* Also above the router. The PWA is `registerType: 'prompt'`, so a
+          downloaded worker waits to be activated — and with nothing subscribed
+          to `serviceWorker.ts`'s waiting-worker event, no deploy ever reaches
+          an installed bench. That is not theoretical: deleting this component
+          with the athlete surface reintroduced exactly that bug for a few
+          hours on 15 August 2026. `checks/pwa-update.mjs` proves the loop. */}
+      <UpdateBanner />
       {/* A SIBLING store, not a branch of the engine one: it holds no
           EngineDB and DbProvider holds no NutritionDB. It sits above
           SyncProvider only because SyncProvider reads both. */}

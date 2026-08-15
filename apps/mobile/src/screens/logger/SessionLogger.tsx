@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isCond, isText, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useSession, type Action, type SessionView } from '@hybrid/session-authoring';
+import { Tap } from '../../ui';
 import { useLoggerHost, useWakeLock } from './bridge';
 import { BlockStrip } from './BlockStrip';
 import { BlockScreen } from './BlockScreen';
@@ -106,9 +107,9 @@ function NoLiveSession({ onLeave }: { onLeave?: () => void }) {
       <Text style={st.emptyTitle}>No live session</Text>
       <Text style={st.emptyBody}>Start one from Training.</Text>
       {onLeave ? (
-        <Pressable accessibilityRole="button" onPress={onLeave} style={[st.cta, st.ctaOn, { paddingHorizontal: 16 }]}>
+        <Tap onPress={onLeave} style={[st.cta, st.ctaOn, { paddingHorizontal: 16 }]}>
           <Text style={st.ctaInkOn}>Go to Training</Text>
-        </Pressable>
+        </Tap>
       ) : null}
     </View>
   );

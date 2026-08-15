@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { Tap } from '../../ui';
 import type { Action, BlockView, HotSet, RestState } from '@hybrid/session-authoring';
 import { Dial } from './Dial';
 import { RIPPLE, pressed } from './press';
@@ -125,7 +126,14 @@ export function RestTakeover({
             <Text style={st.ghostInk}>+15</Text>
           </Pressable>
         ) : null}
-        <Pressable testID="rest-go" accessibilityRole="button" android_ripple={RIPPLE} onPress={leave} style={pressed(st.takeoverCta)}>
+        {/* `Tap`, not a raw Pressable: it supplies the 48dp hit slop, the
+            Android ripple and the iOS opacity step itself, so `RIPPLE` and
+            `pressed()` are not passed here — doing both would double the
+            feedback and `pressed()` returns a function `Tap`'s style prop does
+            not take. This was one of two raw Pressables that slipped in with
+            the round-major logger; `checks/mobile-touch.mjs` catches them and
+            had never been wired into CI. */}
+        <Tap testID="rest-go" onPress={leave} style={st.takeoverCta}>
           <Text style={st.takeoverCtaInk}>
             {rest.kind === 'block' ? (nextBlock ? 'Go' : 'Finish') : rest.left > 0 ? 'Skip' : 'Lift'}
           </Text>
@@ -134,7 +142,7 @@ export function RestTakeover({
               glyph would land in the element's text and the behaviour gate
               reads that text. */}
           <Chevron />
-        </Pressable>
+        </Tap>
       </View>
     </View>
   );

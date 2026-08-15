@@ -28,8 +28,23 @@ import { launchChromium } from './_chromium.mjs';
 
 const TMP = process.env.PWA_TMP || join(tmpdir(), 'pwa-update-check');
 const MARKER = 'PWA UPDATE CHECK V2';
-const SCREEN = 'apps/web/src/screens/Library.tsx';
-const TITLE = '<ScreenTitle>Your library</ScreenTitle>';
+/*
+ * A COACH file, not an athlete one (15 August 2026). This pointed at
+ * `apps/web/src/screens/Library.tsx` until the athlete web surface was deleted,
+ * at which point the check did not fail — it CRASHED, ENOENT, before it could
+ * report anything. That is the crash-instead-of-fail shape this repository has
+ * now hit four times, and the reason it went unnoticed for a whole cut is that
+ * this check runs in neither CI nor `pnpm run verify`.
+ *
+ * `CoachSignIn` and not `ArcCoachFrame`, which was tried first and times out:
+ * `CoachAccess` fails CLOSED in a production build, so an unauthenticated page
+ * — which is all this harness is — never renders the frame at all. The sign-in
+ * screen IS what a visitor sees, so its copy is the string that is guaranteed
+ * to be on screen, and this check is about the service worker rather than
+ * about any particular screen's content.
+ */
+const SCREEN = 'apps/web/src/coach/CoachSignIn.tsx';
+const TITLE = '<p className="mb-3 text-xs text-muted">Sign in with your account to continue.</p>';
 
 /*
  * Two real builds, so the precache manifest carries genuine revision hashes.
@@ -58,7 +73,10 @@ await rm(TMP, { recursive: true, force: true }).catch(() => {});
 try {
   build();
   await cp('apps/web/dist', `${TMP}/v1`, { recursive: true });
-  await writeFile(SCREEN, original.replace(TITLE, `<ScreenTitle>${MARKER}</ScreenTitle>`));
+  /* Same ELEMENT, different text. Replacing the tag as well as the copy would
+     make v2 differ structurally, and a build failure would then look like a
+     worker that never updated. */
+  await writeFile(SCREEN, original.replace(TITLE, `<p className="mb-3 text-xs text-muted">${MARKER}</p>`));
   build();
   await cp('apps/web/dist', `${TMP}/v2`, { recursive: true });
 } finally {

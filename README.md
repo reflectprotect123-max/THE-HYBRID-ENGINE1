@@ -264,9 +264,10 @@ An environment variable read by one script, with `publish` fixed and the
 BUILD branching, is the approach that worked.
 
 Deploy through Netlify Git, the CLI, or the API so `netlify/functions` is
-included. A drag-and-drop upload publishes the UI and does not auto-update on a
-push; it can carry functions only if the dropped folder brings its own
-`netlify.toml` and `netlify/functions`.
+included. A static drag-and-drop upload publishes the UI but
+does not activate server functions — WHOOP and Concept2 connect would then fail
+with nothing in the app able to explain why — and it does not auto-update when
+you push.
 
 The web app is `registerType: 'prompt'`: a new version installs and waits. The
 banner that offered the reload lived in the athlete Shell and was deleted with
