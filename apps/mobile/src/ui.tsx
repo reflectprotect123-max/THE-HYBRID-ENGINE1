@@ -11,7 +11,7 @@ import {
   type ViewProps,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTheme } from '@hybrid/design';
 import { color as fallbackColor } from '@hybrid/design';
 
@@ -163,6 +163,57 @@ export function SectionHead({ title, right }: { title: string; right?: ReactNode
  * two means one number for both platforms and no per-platform branching.
  */
 const MIN_TAP = 48;
+
+/**
+ * A SectionHead that hides its own cards until you ask for them.
+ *
+ * Settings had grown into one unbroken column: the three numbers that drive the
+ * whole HR model sat above eight cards of maintenance and disclosure, and
+ * reaching any of them meant scrolling past all of it. The content is not
+ * wrong — a phone that keeps something has to say so somewhere plain — but
+ * "always visible" and "available" are not the same requirement, and only the
+ * second one is real.
+ *
+ * CLOSED BY DEFAULT, which is the whole point: a fold that opens itself is a
+ * heading with extra steps. `open` exists for the rare section that has earned
+ * the space, not as a way to walk this back one call site at a time.
+ *
+ * The glyph is the affordance, so it carries `accessibilityState.expanded`
+ * rather than changing the label — a screen reader announces the same section
+ * by the same name whichever way it is sitting.
+ */
+export function Fold({
+  title,
+  children,
+  open: initiallyOpen = false,
+}: {
+  title: string;
+  children: ReactNode;
+  open?: boolean;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
+  return (
+    <View>
+      <Tap
+        box={{ h: 32 }}
+        onPress={() => setOpen((o) => !o)}
+        label={title}
+        accessibilityState={{ expanded: open }}
+        className="mt-3 mb-1 flex-row items-center justify-between gap-1"
+      >
+        <T w="semi" className="text-2 uppercase" style={{ letterSpacing: 1.6, color: 'rgba(224,188,135,.8)' }}>
+          {title}
+        </T>
+        {/* A caret rather than +/−: the same glyph rotated reads as one control
+            in two states, where two different glyphs read as two controls. */}
+        <T className="text-4 text-dim" style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
+          ›
+        </T>
+      </Tap>
+      {open ? children : null}
+    </View>
+  );
+}
 
 /**
  * Every tappable thing in the app.
