@@ -1,0 +1,258 @@
+/*
+ * A single deliberate look, painted explicitly rather than inherited: this is
+ * an instrument panel, not a document, and it commits to one dark theme on
+ * purpose. Every colour below is a token so a second theme stays possible
+ * without hunting literals.
+ */
+:root {
+  --ink: #e8edf2;
+  --ink-dim: #8b98a6;
+  --ink-faint: #5b6672;
+  --ground: #0d1116;
+  --panel: #151b23;
+  --panel-2: #1c242e;
+  --line: #263140;
+  --accent: #4dd6a8;
+  --accent-dim: #2a7f65;
+  --warn: #e0a340;
+  --bad: #e0685f;
+  --work: #4dd6a8;
+  --rest: #4a90d9;
+  --warm: #8b7fd4;
+  --cool: #5b6672;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 64px;
+}
+
+/* --- masthead ------------------------------------------------------------ */
+
+.masthead { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+.masthead h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.masthead p { margin: 0; color: var(--ink-dim); font-size: 13px; max-width: 62ch; }
+
+/* --- tabs ---------------------------------------------------------------- */
+
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 20px; }
+.tab {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 36px;
+}
+.tab:hover { color: var(--ink); border-color: var(--accent-dim); }
+.tab[aria-selected='true'] {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: #06110d;
+  font-weight: 600;
+}
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --- panels and controls -------------------------------------------------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.panel > h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.panel > .hint { margin: 0 0 14px; color: var(--ink-dim); font-size: 13px; max-width: 70ch; }
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field > label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+.field select,
+.field input {
+  appearance: none;
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  min-height: 40px;
+}
+.field select:focus-visible,
+.field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #06110d;
+  font: inherit;
+  font-weight: 650;
+  font-size: 14px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* --- data ---------------------------------------------------------------- */
+
+.scroller { overflow-x: auto; }
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+table.data th,
+table.data td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+table.data th:first-child,
+table.data td:first-child { text-align: left; }
+table.data th {
+  color: var(--ink-faint);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+table.data tr.moved td { color: var(--accent); }
+table.data tr.here td { background: var(--panel-2); }
+
+.readout {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.readout .k { color: var(--ink-faint); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink-dim);
+}
+.chip.pass { border-color: var(--accent-dim); color: var(--accent); }
+.chip.fail { border-color: var(--bad); color: var(--bad); }
+
+.verdict { font-size: 15px; font-weight: 650; margin: 0 0 10px; }
+.verdict.up { color: var(--accent); }
+.verdict.down { color: var(--bad); }
+.verdict.flat { color: var(--ink-dim); }
+
+/* --- phase strip ---------------------------------------------------------- */
+
+.phases { display: flex; flex-direction: column; gap: 3px; }
+.phase-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--line);
+}
+.phase-row.k-warm { border-left-color: var(--warm); }
+.phase-row.k-work,
+.phase-row.k-work2 { border-left-color: var(--work); }
+.phase-row.k-rest { border-left-color: var(--rest); }
+.phase-row.k-cool { border-left-color: var(--cool); }
+.phase-row .dur { color: var(--ink-dim); }
+.phase-row .kind { color: var(--ink-faint); font-size: 11px; }
+
+/* --- the clock ------------------------------------------------------------ */
+
+.clock { text-align: center; padding: 22px 0 12px; }
+.clock .now { font-size: 15px; color: var(--ink-dim); margin-bottom: 4px; }
+.clock .big {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(56px, 22vw, 104px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.clock .big.work { color: var(--work); }
+.clock .big.rest { color: var(--rest); }
+.clock .big.warm { color: var(--warm); }
+.clock .big.cool { color: var(--cool); }
+.clock .sub { color: var(--ink-faint); font-family: var(--mono); font-size: 13px; margin-top: 6px; }
+
+.bar { height: 5px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin: 14px 0; }
+.bar > i { display: block; height: 100%; background: var(--accent); transition: width 0.25s linear; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar > i { transition: none; }
+}
+
+.note {
+  color: var(--ink-dim);
+  font-size: 13px;
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+  margin: 14px 0 0;
+  max-width: 70ch;
+}
+.note strong { color: var(--warn); font-weight: 600; }

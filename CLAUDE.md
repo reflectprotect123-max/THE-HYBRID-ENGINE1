@@ -545,6 +545,68 @@ state this deletion ended.
   components are gone, and a route without a screen is the hole that rule was
   always about.
 
+## `apps/lab` is a bench, not a product (15 August 2026)
+
+There are three apps now. `apps/web` is the coach workspace, `apps/mobile` is
+the Android athlete app, and `apps/lab` is a **conditioning bench** — a screen
+onto `@hybrid/engine`'s conditioning decisions, built because the owner could
+not see whether conditioning progression moved and neither could anyone else.
+
+It ships to nobody. It has no athlete, no coach, no roster, no Supabase, no
+service worker and no stored state of any kind. Everything on screen is
+computed from a synthetic rig — a format, a modality, an earned level and a
+recovery number — pushed through the real engine.
+
+**The rule that keeps it worth having: the lab computes nothing itself.**
+Every number comes from `conPrescription`, `CON_FORMATS[...].build`,
+`paramsFor`, `conAdapt` or `cardioCompletionFor`. `src/rig.ts` is the single
+seam and every panel goes through it, so four panels cannot drift into four
+different answers for one input. A lab that reimplemented the maths would agree
+with itself and disagree with the phone, which is worse than having no lab.
+
+The Adapt panel is the one deliberate exception, and it is fenced. It restates
+`conAdapt`'s gates in English so a person can read WHY a session earned nothing
+— a mirror, which normally drifts and is then believed. It is allowed because
+it never feeds the verdict (that comes from `conAdapt` itself) and because
+`gates.test.ts` asserts across eleven session shapes that "every gate passed"
+means exactly "conAdapt returned delta 1". Change a threshold in the engine
+without changing the panel and that test fails.
+
+**What the lab was built to make visible**, recorded because it is the thing
+worth knowing about conditioning:
+
+- Conditioning progression is REAL, unlike strength's. `conAdapt` earns levels
+  0→20 and `conPrescription` spends them on rotating levers — `+1 round`, then
+  `+5s work`, then `−5s rest`. Contrast `liftProgress`, which stores
+  `{kg, at, reps}` and reads back only `kg`, so a `10,8,6` → `9,7,5` wave moves
+  no weight at all.
+- It is nevertheless invisible without a chest strap. `conAdapt` returns at
+  `if (zoned <= 0) return none;` — a session with no zone seconds earns
+  nothing AND is not counted as a miss. Most sessions are strapless, so most
+  sessions are invisible to progression. That is the honest answer to "why
+  doesn't conditioning ever move", and the Adapt panel says so on screen.
+- Only `steady`, `intervals` and `tempo` progress at all. `custom` is the
+  athlete's own numbers by definition and `free` has no target to miss.
+
+**Deployment is its own Netlify site**, configured with base directory
+`apps/lab` so Netlify reads `apps/lab/netlify.toml` and never the root one. The
+coach site is untouched by it. The lab deliberately declares no `[functions]`
+block: the WHOOP and Concept2 functions at the repository root belong to the
+athlete product, and publishing a second unowned copy of an OAuth surface for
+an app with no accounts would be a real exposure for no gain.
+
+**It is outside the check suite on purpose.** `checks/screens.mjs` shoots
+`/coach` routes, `checks/reachability.mjs` names `apps/web` and `apps/mobile`,
+and `checks/lane-contract.mjs` walks `apps/web/src`. None of them mention the
+lab, and none should: those checks protect shipped surfaces and a bench is
+allowed to be half-finished. What it does NOT get to skip is `pnpm -r
+typecheck` and `pnpm -r test`, both of which it passes — and note it must keep
+at least one test file forever, because `vitest run` exits 1 on "no test files
+found" and would take the whole recursive suite down with it.
+
+If a format invented here is promoted into the Android app, it stops being a
+lab format and picks up every rule in this file that applies to shipped code.
+
 ## Where a test goes
 
 Tests are COLOCATED: `src/lift.ts` is tested by `src/lift.test.ts`, in the same

@@ -22,6 +22,37 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
+  apps/lab:
+    dependencies:
+      '@hybrid/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.0
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.0
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^5.0.2
+        version: 5.2.0(vite@7.3.6(@types/node@26.1.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0))
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.1.5
+        version: 7.3.6(@types/node@26.1.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
   apps/mobile:
     dependencies:
       '@expo-google-fonts/inter':
