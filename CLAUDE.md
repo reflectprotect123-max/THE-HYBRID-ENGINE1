@@ -660,12 +660,22 @@ worth knowing about conditioning:
 - Only `steady`, `intervals` and `tempo` progress at all. `custom` is the
   athlete's own numbers by definition and `free` has no target to miss.
 
-**Deployment is its own Netlify site**, configured with base directory
-`apps/lab` so Netlify reads `apps/lab/netlify.toml` and never the root one. The
-coach site is untouched by it. The lab deliberately declares no `[functions]`
-block: the WHOOP and Concept2 functions at the repository root belong to the
-athlete product, and publishing a second unowned copy of an OAuth surface for
-an app with no accounts would be a real exposure for no gain.
+**The lab has NO Netlify site of its own.** It ships inside the conditioning
+site at `/lab`, folded in by `scripts/build-lab.mjs`.
+
+It briefly had one — `apps/lab/netlify.toml`, base directory `apps/lab` — and
+that file was deleted on 15 August 2026 for a reason worth recording, because
+the obvious instinct is to add it back. A `netlify.toml` in a subdirectory
+makes Netlify's monorepo detection offer that folder as a selectable PROJECT
+when you link a repository. So the lab started appearing in the site-creation
+picker beside the real apps, and picking it silently produced a site serving
+the bench and nothing else. A config file that only exists to be misselected
+costs more than it provides.
+
+The lab still declares no `[functions]` of any kind, which now falls out of
+sharing the athlete site's config rather than needing its own rule: the WHOOP
+and Concept2 functions belong to the athlete product, and the bench has no
+accounts to attach them to.
 
 **It is outside the check suite on purpose.** `checks/screens.mjs` shoots
 `/coach` routes, `checks/reachability.mjs` names `apps/web` and `apps/mobile`,
