@@ -1,6 +1,110 @@
 # Claude Handoff — THE Hybrid System
 
-> **AUTHORITATIVE CHECKPOINT — 14 August 2026, end of day. `main` is at
+> **AUTHORITATIVE CHECKPOINT — 15 August 2026, end of day. `main` is at
+> `aca52e8` plus a README/handoff commit. Everything below this block is
+> history; where it disagrees with this block, this block wins.**
+>
+> **THE ATHLETE APP IS BACK, ON ITS OWN SITE, AS A CONDITIONING PRODUCT.** The
+> owner asked for a conditioning app a phone can open, with strength left
+> alone: *"the papaya, strength is left alone, nothing touches that at all."*
+>
+> Nothing new was built for it. The athlete web app was PARKED on 13 August,
+> not deleted, and `screens/Conditioning.tsx` still carried the whole session
+> runner — BLE strap, GPS tracker, real phases, results banked through
+> `pushCondHistory` into `conAdapt`. So the work was re-adding routes, gated on
+> `IS_SCOPED_BUILD`, with the route tree restored VERBATIM from `8950284^`.
+>
+> - The unscoped **dashboard build is unchanged**: `/` and every athlete
+>   address still redirect to `/coach`. The 13 August decision still holds on
+>   the site it was made about.
+> - A **branded build** (`VITE_HYBRID_PRODUCT=conditioning`) serves the athlete
+>   app. `navTabs` yields Home / Cond / Library / Progress / Settings — **no
+>   Train tab**, enforced by the product scope rather than a route list, and
+>   asserted by `checks/react-smoke.mjs` rather than by a comment.
+> - The strength **logger was NOT restored**. It was deleted in `8c4a505` and
+>   `apps/mobile` has since grown a newer round-major one; restoring the old
+>   one would ship two diverging logging surfaces.
+>
+> **`apps/lab` IS NEW — a bench onto the engine's conditioning decisions.** It
+> exists because nobody could see whether conditioning progression moved. Four
+> panels, all fed through one seam (`apps/lab/src/rig.ts`), and what it makes
+> visible is the answer to a question that had been asked all week:
+>
+> > Conditioning progression is REAL, unlike strength's — levels 0→20, spent on
+> > rotating levers. But `conAdapt` returns at `if (zoned <= 0) return none;`,
+> > so a session with no heart-rate zone seconds earns nothing AND is not
+> > counted as a miss. Most sessions are strapless. Most sessions are therefore
+> > invisible to progression.
+>
+> Contrast strength, still unfixed: `liftProgress` stores `{kg, at, reps}` and
+> reads back only `kg`, so a `10,8,6` → `9,7,5` wave moves no weight at all.
+> That work is parked with the coach-brain session, along with
+> `docs/research/2026-08-14-set-type-load-rules-brief.md`.
+>
+> **DEPLOYMENT NOW SWITCHES ON AN ENVIRONMENT VARIABLE, AND THE ROUTE THERE IS
+> WORTH KNOWING BEFORE YOU "IMPROVE" IT.**
+>
+> ```
+> HYBRID_SITE unset (or 'coach')   the coach workspace
+> HYBRID_SITE=conditioning         the branded athlete app, plus the lab at /lab
+> ```
+>
+> The obvious design — a second `netlify.toml` under `deploy/conditioning/`,
+> selected by that site's base directory — is Netlify's own documented monorepo
+> pattern. It was implemented, it was correct, and **it could not be
+> SELECTED**: the base-directory picker refuses a folder that does not look
+> like a project, and adding a `package.json` to make it look like one did not
+> persuade it either. It is deleted. Do not reintroduce it without first
+> confirming the picker has changed.
+>
+> The same detection cost an hour twice more: `apps/lab/netlify.toml` and
+> `packages/conditioning-engine` were both being OFFERED as sites during setup,
+> and picking the lab silently produced a site serving the bench alone. The lab
+> config is deleted for that reason; the lab ships inside the athlete site at
+> `/lab`, folded in by `scripts/build-lab.mjs`.
+>
+> `scripts/deploy-site.mjs` FAILS on an unrecognised `HYBRID_SITE` rather than
+> defaulting — a typo silently publishing the coach workspace to the athlete's
+> domain is the worst outcome on offer. Verified: `HYBRID_SITE=condtioning`
+> exits 1.
+>
+> **WHAT IS NOT DONE, and it is all on the Netlify side rather than in this
+> repository:**
+>
+> - **The athlete site is not live yet.** A site called `hybrid logger` is
+>   linked to this repo and building, but it was last seen serving the COACH
+>   app — meaning `HYBRID_SITE=conditioning` had not yet reached a build. The
+>   fix is that variable plus a redeploy; the definitive check is the build log
+>   line `=== Building the CONDITIONING site ===`.
+> - **`papaya-cheesecake-059e06` is a dead end.** Its build log shows it
+>   cloning `hgit.services-prod.nsvcs.net/...` — Netlify's own internal git,
+>   from the original ZIP drag-and-drop — not GitHub. That is why "Link
+>   repository" kept refusing: it was already linked, to the wrong thing. It
+>   deploys an empty repo in six seconds. Either relink it or abandon it.
+> - **WHOOP on the athlete site needs its own everything**: `APP_BASE_URL`
+>   (the coach site's value would return an athlete to the wrong origin),
+>   `APP_SESSION_SECRET`, the two WHOOP keys, the two Concept2 keys,
+>   `SUPABASE_URL` and `SUPABASE_JWT_SECRET` — **and that origin's callback
+>   registered at WHOOP itself**, which is not a Netlify setting and cannot be
+>   diagnosed from inside this repository.
+> - A built, drag-and-drop-ready ZIP of the conditioning site was handed to the
+>   owner as a stopgap. It does not auto-update on a push.
+>
+> **THE REAL LOOP IS STILL UNRUN** — mint an invite → redeem it as yourself →
+> build a week → Publish → check the phone. All three migrations ARE applied
+> now, which was the blocker the 14 August checkpoint recorded.
+>
+> **The README was rewritten** and had rotted badly: it called `apps/web` "the
+> only app", listed the Coordinator packages as live, and documented `/log/:bi/:ei`
+> and `/planner/:id` as current routes. `checks/docs.mjs` passes on it — 55
+> paths and 39 symbols.
+>
+> **One lesson from today worth carrying**: three separate times, a config file
+> whose only purpose was to be found by a tool ended up being found by the
+> WRONG tool. A `netlify.toml` in a subdirectory is not inert — it advertises
+> that directory as a deployable project.
+
+> **PREVIOUS CHECKPOINT — 14 August 2026, end of day. `main` is at
 > `50ab9a0`. THREE LAYERS WERE DELETED after the two blocks below were
 > written, so both are now history rather than current state.**
 >
