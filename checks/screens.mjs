@@ -53,6 +53,7 @@
  * Run: node checks/screens.mjs [outDir]     (after `pnpm run build`)
  */
 import { createServer } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { readFile, mkdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
@@ -94,21 +95,50 @@ function serve(port, dir = 'apps/web/dist') {
 
 
 /*
- * EMPTY since 13 August 2026, when the athlete web app was parked (App.tsx).
+ * RESTORED 15 August 2026, against the BRANDED CONDITIONING BUNDLE.
  *
- * These were nine athlete screens — Home, Training, Library, Conditioning,
- * History, Progress, Calendar, Settings and the nutrition world. Every one of
- * those addresses now redirects to `/coach`, so shooting them would produce
- * nine identical pictures of the coach bench under athlete filenames: a check
- * that passes while proving nothing, which is the exact failure mode this
- * file's header warns about twice.
+ * This list was emptied on 13 August when the athlete web app was parked:
+ * every address below redirected to `/coach`, so shooting them produced
+ * identical pictures of the coach bench under athlete filenames — a check that
+ * passes while proving nothing, the exact failure this file's header warns
+ * about twice. The note left here said "if the athlete app is ever unparked,
+ * restore this list from git", and this is that restoration.
  *
- * The SCREENS still exist in `src/screens/` and their colocated tests still
- * run. If the athlete app is ever unparked, restore this list from git — it
- * is the same nine labels and paths, and they will work again the moment the
- * routes do.
+ * IT SHOOTS A DIFFERENT BUNDLE THAN IT USED TO, and that is the load-bearing
+ * detail. The un-parking was for branded builds only — the unscoped dashboard
+ * bundle in `apps/web/dist` still redirects every one of these addresses. So
+ * `serve(PORT, ...)` below is pointed at a conditioning build made for this
+ * run. Point it back at `apps/web/dist` and all nine shots silently become
+ * pictures of the coach sign-in again.
+ *
+ * `/`, not `/home`: the note that used to sit here said "`/home`, not `/`,
+ * because the unscoped dashboard build this shoots sends `/` to the coach
+ * bench". On a branded build `ATHLETE_HOME` IS `/`, and `/` is the address an
+ * athlete actually opens. Both render Home; the canonical one is shot.
+ *
+ * `/training` is shot even though a conditioning build has no Train TAB. The
+ * route still resolves if typed, and a screen that renders only when reached
+ * the awkward way is still a screen that can overflow a phone. What the tab
+ * bar does about it is `checks/react-smoke.mjs`'s claim, not this file's.
  */
-const SHOTS = [];
+const SHOTS = [
+  // [label, path]
+  ['01-home', '/', null],
+  ['02-training', '/training', null],
+  ['03-library', '/library', null],
+  ['04-conditioning', '/conditioning', null],
+  ['05-history', '/history', null],
+  ['06-progress', '/progress', null],
+  ['07-calendar', '/calendar', null],
+  ['08-settings', '/settings', null],
+  // The third world's web surface. Home (01) carries the nutrition card above
+  // it, so the two are judged together.
+  ['09-nutrition', '/nutrition', null],
+];
+
+/* The bundle the athlete shots above are taken against. Built by this run —
+   see `SHOTS`' header for why `apps/web/dist` cannot be used. */
+const ATHLETE_DIR = 'apps/web/dist-conditioning-shots';
 
 /*
  * Every `/coach` route, at the same 420px phone viewport as every athlete
@@ -289,7 +319,15 @@ async function overflowWidth(page) {
 }
 
 const PORT = 4519;
-const server = await serve(PORT);
+
+console.log('\nBuilding a branded conditioning bundle for the athlete shots (VITE_HYBRID_PRODUCT=conditioning)…');
+execFileSync(
+  'pnpm',
+  ['--filter', '@hybrid/web', 'exec', 'vite', 'build', '--outDir', 'dist-conditioning-shots', '--emptyOutDir'],
+  { cwd: root, env: { ...process.env, VITE_HYBRID_PRODUCT: 'conditioning' }, stdio: 'inherit' },
+);
+
+const server = await serve(PORT, ATHLETE_DIR);
 const base = 'http://127.0.0.1:' + PORT;
 
 await rm(OUT, { recursive: true, force: true });
