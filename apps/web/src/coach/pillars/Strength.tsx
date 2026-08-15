@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react';
 import type { Session } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { PillarBack } from './PillarBack';
-import { useCoachWorkspace } from '../CoachWorkspaceContext';
+import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
 import { useRosterTrend } from './useRosterTrend';
 import { RosterTrendPanel } from './RosterTrendPanel';
 import { useProgressionLedger } from '../../store/progression';
 import type { ProgressionDirection, StrengthProgressionProposal } from '../../lib/progression';
-import { ProgressionActions } from '../progression-actions';
-import { liftTrends, liftTrendSummary, weeklyHardBudget, type HardBudget, type TrendSeries } from '../trends';
+import { ProgressionActions } from '../components/progression-actions';
+import { liftTrends, liftTrendSummary, weeklyHardBudget, type HardBudget, type TrendSeries } from '../data/trends';
 import '../coach-redesign.css';
 
 /*

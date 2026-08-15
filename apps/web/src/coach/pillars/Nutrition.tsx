@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNutrition } from '../../store/nutrition';
 import { PillarBack } from './PillarBack';
-import { useCoachWorkspace } from '../CoachWorkspaceContext';
-import { weekStartOfLocalDate } from '../coach-week';
-import type { AthleteNutritionSummary, AthleteNutritionWindow } from '../contracts';
-import { buildCoachNutritionReview, type NutritionReviewException } from '../nutrition-review';
+import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
+import { weekStartOfLocalDate } from '../data/coach-week';
+import type { AthleteNutritionSummary, AthleteNutritionWindow } from '../data/contracts';
+import { buildCoachNutritionReview, type NutritionReviewException } from '../data/nutrition-review';
 import '../coach-redesign.css';
 
 /*

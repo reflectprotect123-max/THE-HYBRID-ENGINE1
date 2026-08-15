@@ -3,13 +3,13 @@ import { type Concept2Result, condEfforts, conMaxHr, type Downsampled, type HrMa
 import { useDb } from '../../store/db';
 import { useConcept2 } from '../../cloud/concept2';
 import { PillarBack } from './PillarBack';
-import { useCoachWorkspace } from '../CoachWorkspaceContext';
+import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
 import { useRosterTrend } from './useRosterTrend';
 import { RosterTrendPanel } from './RosterTrendPanel';
 import { useProgressionLedger } from '../../store/progression';
 import type { ConditioningProgressionProposal, ProgressionDirection } from '../../lib/progression';
-import { ProgressionActions } from '../progression-actions';
-import { ergTrend, type TrendSeries } from '../trends';
+import { ProgressionActions } from '../components/progression-actions';
+import { ergTrend, type TrendSeries } from '../data/trends';
 import '../coach-redesign.css';
 
 /*

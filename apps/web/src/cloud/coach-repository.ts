@@ -17,11 +17,11 @@ import type {
   ProgramAssignmentDraft,
   ProgramTemplate,
   TrainingDomain,
-} from '../coach/contracts';
-import { validateProgramAssignmentDraft } from '../coach/contracts';
-import { coachWeekBodyFrom } from '../coach/coach-week';
-import { sessionsFromBody } from '../coach/program-body';
-import { COACH_CLIENT_FIXTURES } from '../coach/mock-fixtures';
+} from '../coach/data/contracts';
+import { validateProgramAssignmentDraft } from '../coach/data/contracts';
+import { coachWeekBodyFrom } from '../coach/data/coach-week';
+import { sessionsFromBody } from '../coach/data/program-body';
+import { COACH_CLIENT_FIXTURES } from '../coach/testing/mock-fixtures';
 import { supabaseClient } from './sync';
 
 /*

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LiftState, ProgressState, Settings, Workout } from '@hybrid/engine';
 import type { ProgressionProposal } from '../lib/progression';
-import type { TrendSeries, HardBudget } from '../coach/trends';
+import type { TrendSeries, HardBudget } from '../coach/data/trends';
 
 /*
  * The BACKEND -> ATHLETE half of the ARC loop.

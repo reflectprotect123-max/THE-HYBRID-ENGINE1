@@ -34,7 +34,7 @@ const APPS = [
 
 const ALLOWED = [
   {
-    file: 'apps/web/src/coach/coach-test-harness.tsx',
+    file: 'apps/web/src/coach/testing/coach-test-harness.tsx',
     why: 'Test infrastructure. Unreachable from main.tsx is CORRECT — it exists '
        + 'for the coach suites and must never ship in the entry graph. Retires '
        + 'only if the harness moves under a test/ directory the walk skips.',

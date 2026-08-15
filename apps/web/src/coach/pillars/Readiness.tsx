@@ -3,8 +3,8 @@ import { FN } from '@hybrid/config';
 import type { StateConstraint } from '@hybrid/whole-athlete-state';
 import { useDb } from '../../store/db';
 import { PillarBack } from './PillarBack';
-import { useCoachWorkspace } from '../CoachWorkspaceContext';
-import { AthleteStatus } from '../AthleteStatus';
+import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
+import { AthleteStatus } from '../components/AthleteStatus';
 import '../coach-redesign.css';
 
 /*

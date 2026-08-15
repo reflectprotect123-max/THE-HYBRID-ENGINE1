@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useCoachWorkspace } from '../CoachWorkspaceContext';
-import type { AthleteTrendSnapshot } from '../contracts';
+import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
+import type { AthleteTrendSnapshot } from '../data/contracts';
 
 /*
  * The one way a pillar screen reads a ROSTER athlete's trends.

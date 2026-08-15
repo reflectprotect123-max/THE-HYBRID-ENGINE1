@@ -1,18 +1,18 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { CoachAccess } from './CoachAccess';
+import { CoachAccess } from './access/CoachAccess';
 import { Readiness } from './pillars/Readiness';
 import { Strength } from './pillars/Strength';
 import { Conditioning } from './pillars/Conditioning';
 import { Nutrition } from './pillars/Nutrition';
 import { DayBuilderRoute } from './library/DayBuilderRoute';
-import { CoachProgression } from './CoachProgression';
-import { CoachCommandCenter } from './CoachCommandCenter';
-import { ArcCoachFrame } from './ArcCoachFrame';
-import { CoachLibrary } from './CoachLibrary';
-import { CoachSettings } from './CoachSettings';
-import { CoachWeekBuilder } from './CoachWeekBuilder';
-import { ClientDetailGate } from './ClientDetailGate';
-import { CoachWorkspaceProvider } from './CoachWorkspaceContext';
+import { CoachProgression } from './screens/CoachProgression';
+import { CoachCommandCenter } from './screens/CoachCommandCenter';
+import { ArcCoachFrame } from './frame/ArcCoachFrame';
+import { CoachLibrary } from './screens/CoachLibrary';
+import { CoachSettings } from './screens/CoachSettings';
+import { CoachWeekBuilder } from './screens/CoachWeekBuilder';
+import { ClientDetailGate } from './access/ClientDetailGate';
+import { CoachWorkspaceProvider } from './data/CoachWorkspaceContext';
 /* The live repository. Imported, not constructed here — this file is under
    coach/, which coach-contract rule 1 forbids from touching Supabase, and the
    implementation lives in cloud/ for exactly that reason. */

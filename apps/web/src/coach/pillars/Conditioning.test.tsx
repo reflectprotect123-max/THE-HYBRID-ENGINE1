@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LS_KEY, type CondResult, type Session } from '@hybrid/engine';
 import { DbProvider } from '../../store/db';
 import { Conditioning } from './Conditioning';
-import { CoachWorkspaceProvider } from '../CoachWorkspaceContext';
-import { FakeCoachWorkspaceRepository } from '../coach-test-harness';
+import { CoachWorkspaceProvider } from '../data/CoachWorkspaceContext';
+import { FakeCoachWorkspaceRepository } from '../testing/coach-test-harness';
 
 /*
  * `Conditioning` calls `useConcept2()` unconditionally, matching its real

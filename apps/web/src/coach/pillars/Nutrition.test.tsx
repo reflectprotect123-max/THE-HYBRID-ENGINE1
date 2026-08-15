@@ -20,8 +20,8 @@ import {
 import { DbProvider } from '../../store/db';
 import { NutritionProvider, useNutrition } from '../../store/nutrition';
 import { Nutrition } from './Nutrition';
-import { CoachWorkspaceProvider } from '../CoachWorkspaceContext';
-import { FakeCoachWorkspaceRepository } from '../coach-test-harness';
+import { CoachWorkspaceProvider } from '../data/CoachWorkspaceContext';
+import { FakeCoachWorkspaceRepository } from '../testing/coach-test-harness';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);

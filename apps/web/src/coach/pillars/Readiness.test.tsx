@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../../store/db';
 import { Readiness } from './Readiness';
-import { CoachWorkspaceProvider } from '../CoachWorkspaceContext';
-import { FakeCoachWorkspaceRepository } from '../coach-test-harness';
+import { CoachWorkspaceProvider } from '../data/CoachWorkspaceContext';
+import { FakeCoachWorkspaceRepository } from '../testing/coach-test-harness';
 
 /*
  * Wrapped in `CoachWorkspaceProvider` since 13 August 2026, when the pillar

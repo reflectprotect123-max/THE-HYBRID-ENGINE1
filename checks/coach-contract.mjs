@@ -240,7 +240,13 @@ console.log('Coach surface contract\n');
     // Contract paths are repository paths, not host-OS paths. Normalising here
     // keeps the allowlist check identical on Windows and POSIX runners.
     const rel = relative(ROOT, f).replaceAll('\\', '/');
-    if (!/coach\/(guard|CoachAccess)\.tsx?$/.test(rel)) offenders.push(rel);
+    // `coach/access/` since 15 August 2026, when the flat coach directory was
+    // sorted into buckets. The two files this exempts are the guard itself and
+    // the component that renders its verdict, and they now live together —
+    // which is the point of the bucket. Anchored on the directory rather than
+    // loosened to a bare filename: a `guard.ts` appearing anywhere else under
+    // coach/ is exactly what this rule exists to catch.
+    if (!/coach\/access\/(guard|CoachAccess)\.tsx?$/.test(rel)) offenders.push(rel);
   }
   if (offenders.length) {
     fail(
@@ -379,7 +385,7 @@ console.log('Coach surface contract\n');
      `ResolutionPreview.tsx` the third before that. Both were deleted with the
      surfaces they belonged to. A doorway that no longer exists cannot point
      anywhere, so it leaves the list rather than being read from disk. */
-  const coachDoorways = ['apps/web/src/coach/CoachLibrary.tsx'];
+  const coachDoorways = ['apps/web/src/coach/screens/CoachLibrary.tsx'];
   const offenders = coachDoorways.filter((file) => /[`'"]\/(?:build|planner)\//.test(code(resolve(ROOT, file))));
   const coachRouter = code(resolve(ROOT, 'apps/web/src/coach/index.tsx'));
   /*
@@ -417,7 +423,7 @@ console.log('Coach surface contract\n');
    * and its whole job is to hand that account back to the athlete app —
    * `navigate('/training')` there is the correct exit, not an accidental one.
    */
-  const exempt = new Set(['apps/web/src/coach/CoachNotAuthorized.tsx']);
+  const exempt = new Set(['apps/web/src/coach/access/CoachNotAuthorized.tsx']);
   for (const file of sourceFiles('apps/web/src/coach')) {
     const rel = relative(ROOT, file);
     if (exempt.has(rel)) continue;
@@ -496,7 +502,7 @@ console.log('Coach surface contract\n');
     );
   } else pass("every coach detail route is behind ClientDetailGate");
 
-  const ccFile = 'apps/web/src/coach/CoachCommandCenter.tsx';
+  const ccFile = 'apps/web/src/coach/screens/CoachCommandCenter.tsx';
   const cc = code(resolve(ROOT, ccFile));
   const GUARD = 'isLocalClient';
   const riskyMarkers = ['athleteState.readiness.band', 'nutritionReview.exceptions'];

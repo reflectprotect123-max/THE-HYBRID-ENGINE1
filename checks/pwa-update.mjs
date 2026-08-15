@@ -43,7 +43,7 @@ const MARKER = 'PWA UPDATE CHECK V2';
  * to be on screen, and this check is about the service worker rather than
  * about any particular screen's content.
  */
-const SCREEN = 'apps/web/src/coach/CoachSignIn.tsx';
+const SCREEN = 'apps/web/src/coach/access/CoachSignIn.tsx';
 const TITLE = '<p className="mb-3 text-xs text-muted">Sign in with your account to continue.</p>';
 
 /*

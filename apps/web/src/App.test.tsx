@@ -21,7 +21,7 @@ import { App } from './App';
 /* Vitest runs with DEV true, and the guard lets every account through in dev —
    so the denied path has to be asked for explicitly here. */
 let mockAllowed = false;
-vi.mock('./coach/guard', () => ({ coachAllowed: () => mockAllowed }));
+vi.mock('./coach/access/guard', () => ({ coachAllowed: () => mockAllowed }));
 
 vi.mock('./cloud/sync', async () => {
   const actual = await vi.importActual<typeof import('./cloud/sync')>('./cloud/sync');

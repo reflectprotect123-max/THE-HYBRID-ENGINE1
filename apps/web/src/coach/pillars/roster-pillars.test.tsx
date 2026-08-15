@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { ReactElement } from 'react';
 import { DbProvider } from '../../store/db';
 import { NutritionProvider } from '../../store/nutrition';
-import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from '../coach-test-harness';
+import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from '../testing/coach-test-harness';
 import { Strength } from './Strength';
 import { Conditioning } from './Conditioning';
 import { Nutrition } from './Nutrition';

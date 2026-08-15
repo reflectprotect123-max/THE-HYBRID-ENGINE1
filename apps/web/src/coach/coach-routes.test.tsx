@@ -9,12 +9,12 @@ import { DbProvider } from '../store/db';
 import { NutritionProvider } from '../store/nutrition';
 import { WhoopProvider } from '../cloud/whoop';
 import { Concept2Provider } from '../cloud/concept2';
-import { ArcCoachFrame } from './ArcCoachFrame';
-import { ClientDetailGate } from './ClientDetailGate';
-import { CoachProgression } from './CoachProgression';
+import { ArcCoachFrame } from './frame/ArcCoachFrame';
+import { ClientDetailGate } from './access/ClientDetailGate';
+import { CoachProgression } from './screens/CoachProgression';
 import { resetProgressionLedgerForTests } from '../store/progression';
-import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './coach-test-harness';
-import type { AthleteProgressionProposal } from './contracts';
+import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from './testing/coach-test-harness';
+import type { AthleteProgressionProposal } from './data/contracts';
 
 /* Same stub AthleteStatus.test.tsx uses, character for character, and for the
    same reason: the real `SyncProvider` constructs a Supabase client. Nothing
@@ -171,8 +171,18 @@ describe('coach route reachability', () => {
     return null;
   }
 
+  /*
+   * Every directory a routed component can live in. This was `coachDir` and
+   * `pillars/` until 15 August 2026, when the 31 flat files under `coach/`
+   * were sorted into buckets — at which point every routed screen resolved to
+   * null and the whole reachability suite failed with "declared but no chain
+   * of links reaches it", which reads like a broken app rather than a moved
+   * file. Listed rather than globbed so a NEW bucket is a deliberate edit.
+   */
+  const COMPONENT_DIRS = ['', 'screens', 'pillars', 'access', 'frame', 'components', 'library'];
+
   function fileForComponent(name: string): string | null {
-    const direct = [join(coachDir, `${name}.tsx`), join(coachDir, 'pillars', `${name}.tsx`)];
+    const direct = COMPONENT_DIRS.map((d) => join(coachDir, d, `${name}.tsx`));
     return direct.find((f) => existsSync(f)) ?? null;
   }
 

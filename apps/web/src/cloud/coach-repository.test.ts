@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SupabaseCoachWorkspaceRepository } from './coach-repository';
-import type { ProgramAssignmentDraft } from '../coach/contracts';
+import type { ProgramAssignmentDraft } from '../coach/data/contracts';
 
 /*
  * These test the GUARANTEES, not the plumbing.

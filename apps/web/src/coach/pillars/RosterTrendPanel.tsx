@@ -1,4 +1,4 @@
-import type { TrendSeries } from '../trends';
+import type { TrendSeries } from '../data/trends';
 import type { RosterTrendState } from './useRosterTrend';
 
 /*
