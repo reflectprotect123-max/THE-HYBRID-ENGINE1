@@ -1,9 +1,69 @@
 # Claude Handoff — THE Hybrid System
 
 > **AUTHORITATIVE CHECKPOINT — 15 August 2026, END OF DAY. `main` is at
-> `033551b`. SCOPE WAS CUT TO TWO PRODUCTS, every check was put into CI, and
-> the coach directory was sorted. Where any block below disagrees with this
-> one, this one wins.**
+> `6a3ead0`. SCOPE WAS CUT TO TWO PRODUCTS, every check was put into CI, the
+> coach directory was sorted, and the backend was audited end to end. Where any
+> block below disagrees with this one, this one wins.**
+>
+> ## START HERE: THE BACKEND AUDIT, AND WHAT IS LEFT
+>
+> **43 tables, 42 functions, and NOT ONE broken reference** — every RPC the
+> client calls exists in the schema, verified by diffing every
+> `create or replace function` against every `.rpc('…')` call site. The gaps
+> are not missing SQL. They are missing BUTTONS, and one missing bootstrap.
+>
+> ### DONE TODAY — `create_organization`, and it was blocking everything
+>
+> `public.organizations` had a SELECT policy since 20260808 and **no INSERT
+> policy for anybody, no RPC, no seed row and no UI**. Nine coach tables hang
+> off `organization_id`, so with no organisation there was no roster, no
+> invite, no published week. `redeem_coach_invite` inserts a MEMBERSHIP into an
+> org that must already exist; `create_coach_invite` requires you to already be
+> its owner. Neither could make the first row. A chicken with no egg.
+>
+> `supabase/migrations/20260815_arc_create_organization.sql` is the cure and
+> **the owner must APPLY it** — it is the only unapplied migration. Then the
+> bench's Settings → Coaches & access grows a name field and a Create
+> organisation button where the dead end used to be.
+>
+> An RPC rather than an INSERT policy on purpose: the org and the caller's
+> owner membership are ONE fact, and a client that created the org then failed
+> before the membership would leave a row belonging to nobody, unreachable for
+> ever, because every read path goes through `organization_memberships`.
+>
+> ### STILL TO WIRE — three, in priority order
+>
+> **1. Consent controls have no UI at all.**
+> `set_nutrition_read_grant` and `set_readiness_read_grant` are defined,
+> granted and called by nothing. The coach bench READS an athlete's nutrition
+> and readiness through grants the athlete has no way to give or revoke. That
+> is a consent model that exists only in the database. The controls belong on
+> ANDROID — that is where the athlete is.
+>
+> **2. `end_coach_relationship` has no button.** The migration is applied and
+> `coach-repository.ts` has the method; nothing calls it. Needs one on the
+> coach's roster AND one on mobile — the RPC deliberately lets either party
+> end it, because leaving must not require the permission of the person you
+> are leaving.
+>
+> **3. `request_session_detail` has no UI**, so a coach cannot ask to see one
+> session in detail. And `save_workout_draft` lost its editor when
+> `RosterPlanner` was deleted on 14 August; it needs `DayBuilder` wired in its
+> place. Both are recorded in CLAUDE.md as the known blast radius of that
+> deletion.
+>
+> ### CORRECTLY ORPHANED — do not "fix" these
+>
+> `push_autocoach_receipt` and `publish_athlete_weekly_plan` are called by
+> nothing because the auto-coach and the Coordinator are deleted. Rows already
+> written stay readable. Wiring them back would mint provenance that is a lie.
+>
+> ### THE LOOP, and exactly where it stops
+>
+> Apply the migration → redeploy → create an organisation → create an invite →
+> redeem it as yourself → build a week → Publish → check the phone. The first
+> three steps did not exist before today.
+>
 >
 > **The two products are `apps/mobile` (the Android athlete app) and
 > `apps/web` (the coach workspace).** One engine, one Supabase project, one
