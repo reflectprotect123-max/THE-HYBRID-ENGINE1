@@ -13,11 +13,14 @@ import { CATALOGUE_TAGS, filterCatalogue, tagCounts, type CatalogueEntry } from 
  */
 export function ExercisePicker({
   entries,
+  open,
   onPick,
   onNewExercise,
   onDone,
 }: {
   entries: CatalogueEntry[];
+  /** Whether the PHONE should show it. Desktop shows it either way — see below. */
+  open: boolean;
   onPick: (name: string) => void;
   onNewExercise: (name: string) => void;
   onDone: () => void;
@@ -38,29 +41,36 @@ export function ExercisePicker({
   }
 
   /*
-   * `picker-open` is not decoration. Reported from a phone, 14 August 2026:
-   * tapping "+ Add exercise from library" made the block go EMPTY — no
-   * picker, and no button to get back, so a coach on a phone could add a
-   * block and then add nothing to it, forever.
+   * `picker-open` is not decoration, and it has now been got wrong in BOTH
+   * directions. The history is the useful part.
    *
+   * Reported from a phone, 14 August 2026: tapping "+ Add exercise from
+   * library" made the block go EMPTY — no picker, and no button back — so a
+   * coach on a phone could add a block and then add nothing to it, forever.
    * The phone stylesheet hides the picker until it is asked for:
    *
    *     .cb-picker { display: none; }
    *     .cb-picker.picker-open { display: block; }
    *
-   * The mockup toggled that class by hand. This component was ported from it
-   * and never applied it — a search for `picker-open` across the whole of
-   * `apps/web/src` returned the CSS and nothing else. On desktop the rules do
-   * not apply, so the screen worked everywhere it was reviewed.
+   * The class was never applied. That fix hard-coded it, reasoning that "in
+   * React this component only exists while the picker is open, so a prop could
+   * only ever be true". The reasoning was sound and the CONSEQUENCE was not:
+   * it left `BlockEditor` mounting the picker behind `pickerOpen &&`, and the
+   * only control that sets `pickerOpen` is `.cb-picker-reveal`, which is
+   * `display: none` outside the phone media query.
    *
-   * It is HARD-CODED rather than driven by a prop because in React this
-   * component only exists while the picker is open — `BlockEditor` renders it
-   * behind `pickerOpen &&`. Mounted IS open, so a prop could only ever be
-   * `true`, and a second source of truth for one boolean is how this drifted
-   * apart in the first place.
+   * So on DESKTOP there was no way to add an exercise at all. Reported from a
+   * 1440px screen, 16 August 2026 — the width this workspace is composed at.
+   * The block rendered its heading, its kind, and nothing else.
+   *
+   * `open` is a prop again, and the picker is ALWAYS mounted. Visibility
+   * belongs to the stylesheet, which already had it right: desktop shows the
+   * picker because nothing hides it, and the phone shows it only with this
+   * class. React deciding whether the element exists is what put those two
+   * out of step, twice.
    */
   return (
-    <div className="cb-picker picker-open">
+    <div className={`cb-picker${open ? ' picker-open' : ''}`}>
       <input
         type="text"
         className="cb-picker-search"

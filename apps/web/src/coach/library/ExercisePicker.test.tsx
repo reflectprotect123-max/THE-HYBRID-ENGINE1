@@ -20,6 +20,10 @@ const entries: CatalogueEntry[] = [
 function renderPicker(over: Partial<Parameters<typeof ExercisePicker>[0]> = {}) {
   const props = {
     entries,
+    // Open by default here: these cases are about what the picker DOES, and
+    // the closed state is a CSS class rather than a different component. The
+    // class itself is asserted below.
+    open: true,
     onPick: vi.fn(),
     onNewExercise: vi.fn(),
     onDone: vi.fn(),
@@ -147,5 +151,42 @@ describe('ExercisePicker', () => {
     const picker = document.querySelector('.cb-picker');
     expect(picker).not.toBeNull();
     expect(picker).toHaveClass('picker-open');
+  });
+});
+
+/*
+ * THE CLASS THAT DECIDES WHETHER A PHONE CAN SEE THIS, and the reason the
+ * picker is always mounted.
+ *
+ * This has been wrong in both directions now. On 14 August a phone tapped
+ * "+ Add exercise from library" and got an empty block, because the class was
+ * never applied. The fix hard-coded it and left `BlockEditor` mounting the
+ * picker only when `pickerOpen` — and the only control that sets `pickerOpen`
+ * is the reveal button, which is `display: none` outside the phone media
+ * query. So from 14 August until 16 August there was no way to add an exercise
+ * at DESKTOP width at all, on the screen this workspace is composed at.
+ *
+ * jsdom applies no stylesheet, so neither of those failures is visible to a
+ * rendering assertion about what is on screen. What IS assertable is the
+ * contract the stylesheet depends on: the element exists, and it carries the
+ * class exactly when it is open.
+ */
+describe('ExercisePicker — the open class', () => {
+  const pickerEl = () => document.querySelector('.cb-picker');
+
+  it('is mounted whether or not it is open, so CSS can decide', () => {
+    renderPicker({ open: false });
+    expect(pickerEl()).not.toBeNull();
+  });
+
+  it('carries picker-open only when open', () => {
+    const { unmount } = render(
+      <ExercisePicker entries={entries} open={false} onPick={vi.fn()} onNewExercise={vi.fn()} onDone={vi.fn()} />,
+    );
+    expect(pickerEl()?.className).toBe('cb-picker');
+    unmount();
+
+    render(<ExercisePicker entries={entries} open onPick={vi.fn()} onNewExercise={vi.fn()} onDone={vi.fn()} />);
+    expect(pickerEl()?.className).toBe('cb-picker picker-open');
   });
 });

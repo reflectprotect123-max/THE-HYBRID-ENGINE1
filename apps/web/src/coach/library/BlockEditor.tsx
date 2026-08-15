@@ -221,22 +221,35 @@ export function BlockEditor({
               ))}
             </ol>
 
+            {/*
+              * The reveal button is a PHONE control — `.cb-picker-reveal` is
+              * `display: none` until the phone media query turns it on. It is
+              * still rendered here at every width because hiding it is the
+              * stylesheet's job, and on desktop it costs nothing.
+              */}
             {!pickerOpen && (
               <button type="button" className="cb-picker-reveal" onClick={() => setPickerOpen(true)}>
                 + Add exercise from library
               </button>
             )}
 
-            {pickerOpen && (
-              <ExercisePicker
-                entries={entries}
-                onPick={addExercise}
-                onNewExercise={(name) => {
-                  if (name) addExercise(name);
-                }}
-                onDone={() => setPickerOpen(false)}
-              />
-            )}
+            {/*
+              * ALWAYS MOUNTED, visibility decided in CSS. This was behind
+              * `pickerOpen &&` until 16 August 2026, and `pickerOpen` can only
+              * be set by the reveal button above — which does not exist at
+              * desktop width. The result was a block a coach could not put a
+              * single exercise into on the 1440px screen this workspace is
+              * composed at.
+              */}
+            <ExercisePicker
+              entries={entries}
+              open={pickerOpen}
+              onPick={addExercise}
+              onNewExercise={(name) => {
+                if (name) addExercise(name);
+              }}
+              onDone={() => setPickerOpen(false)}
+            />
           </div>
         </div>
       )}

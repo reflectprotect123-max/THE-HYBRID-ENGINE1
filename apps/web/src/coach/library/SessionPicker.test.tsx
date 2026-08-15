@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LS_KEY } from '@hybrid/engine';
@@ -70,10 +70,17 @@ describe('SessionPicker', () => {
       fireEvent.click(screen.getByRole('button', { name: /Heavy Pull/ }));
     });
 
-    // The builder, seeded: the picked session's exercise is on screen and the
-    // empty-day message is not.
+    // The builder, seeded: the picked session's exercise is IN THE BLOCK and
+    // the empty-day message is gone.
+    //
+    // Scoped to `.cb-block-items` since 16 August 2026. The exercise picker is
+    // mounted at every width now — it has to be, or a coach on a desktop
+    // cannot add anything — and it lists 'Deadlift' as something you COULD
+    // add. An unscoped query matches the offer as well as the fact, and would
+    // pass against a day the picked session never reached.
     expect(screen.queryByText(/nothing on this day yet/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Deadlift')).toBeInTheDocument();
+    const items = document.querySelector('.cb-block-items') as HTMLElement;
+    expect(within(items).getByText('Deadlift')).toBeInTheDocument();
   });
 
   it('copies rather than links — saving the day leaves the original session alone', async () => {
