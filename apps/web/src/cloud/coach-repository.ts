@@ -400,6 +400,24 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
    * `create_coach_invite` would refuse it server-side. Offering a choice the
    * server will reject is a worse screen than not offering it.
    */
+  /**
+   * The one way an organisation comes into existence.
+   *
+   * An RPC rather than an insert, because the org and the caller's owner
+   * membership are ONE fact: a client that created the org and then failed
+   * before the membership would leave a row belonging to nobody, unreachable
+   * for ever because every read path goes through `organization_memberships`.
+   * The function commits both or neither.
+   */
+  async createOrganization(name: string): Promise<CoachOrganization> {
+    if (!this.client) throw new Error('not connected');
+    const { data, error } = await this.client.rpc('create_organization', { p_name: name });
+    if (error) throw error;
+    const row = (Array.isArray(data) ? data[0] : data) as { id: string; name: string } | null;
+    if (!row) throw new Error('the organisation was not returned');
+    return { id: row.id, name: row.name, role: 'owner' };
+  }
+
   async listCoachOrganizations(): Promise<readonly CoachOrganization[]> {
     if (!this.client) return [];
     const { data: session } = await this.client.auth.getUser();

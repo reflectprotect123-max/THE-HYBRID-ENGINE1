@@ -102,7 +102,10 @@ describe('CoachSettings', () => {
       visibleLibraries: { strength: true, conditioning: true, beginnerFoundations: true },
     });
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Workspace preferences saved in the replaceable demo repository.',
+      /* Said "in the replaceable demo repository" until 15 August 2026 — copy
+         left over from before the bench was wired to Supabase, which read to a
+         coach as "none of this is real". */
+      'Workspace preferences saved.',
     );
     // The success voice: `.st-save-note` is the only class in the stylesheet
     // painted with `--color-ok`.
@@ -294,5 +297,46 @@ describe('CoachSettings · athlete invites', () => {
 
     expect(screen.getByText('Could not be loaded')).toBeInTheDocument();
     expect(screen.queryByText('None created')).not.toBeInTheDocument();
+  });
+
+  /*
+   * THE BOOTSTRAP. Until 15 August 2026 a coach with no organisation was
+   * permanently stuck — the warning told them the truth and offered no cure,
+   * because nothing in the product could create the row every other coach
+   * table hangs off. These two pin the cure and the honesty of the state it
+   * replaces.
+   */
+  describe('with no organisation', () => {
+    it('offers a way out rather than only naming the problem', async () => {
+      const repo = new FakeCoachWorkspaceRepository();
+      repo.organizations = [];
+      await renderSettings(repo);
+      openAccess();
+      expect(screen.getByText(/not an owner or coach of any organisation/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /create organisation/i })).toBeInTheDocument();
+    });
+
+    it('creates one, and the coach owns it', async () => {
+      const repo = new FakeCoachWorkspaceRepository();
+      repo.organizations = [];
+      await renderSettings(repo);
+      openAccess();
+      fireEvent.change(screen.getByLabelText('organisation name'), { target: { value: 'Hybrid HQ' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /create organisation/i }));
+      });
+      expect(repo.createdOrganizations).toEqual(['Hybrid HQ']);
+      expect(screen.getByText(/Hybrid HQ created\. You own it/i)).toBeInTheDocument();
+    });
+
+    it('will not create an unnamed one — the button stays disabled', async () => {
+      const repo = new FakeCoachWorkspaceRepository();
+      repo.organizations = [];
+      await renderSettings(repo);
+      openAccess();
+      expect(screen.getByRole('button', { name: /create organisation/i })).toBeDisabled();
+      fireEvent.change(screen.getByLabelText('organisation name'), { target: { value: '   ' } });
+      expect(screen.getByRole('button', { name: /create organisation/i })).toBeDisabled();
+    });
   });
 });

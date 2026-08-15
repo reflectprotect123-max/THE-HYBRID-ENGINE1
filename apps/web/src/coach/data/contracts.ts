@@ -460,6 +460,15 @@ export interface CoachWorkspaceRepository {
   /** Organisations the signed-in coach can mint invites into. Empty means
    *  "you are not a coach anywhere yet", which is a fact and not a failure. */
   listCoachOrganizations?(): Promise<readonly CoachOrganization[]>;
+  /**
+   * Create an organisation owned by the caller.
+   *
+   * The bootstrap. Until 15 August 2026 nothing could make one — the table has
+   * no INSERT policy for any role — so a new coach was permanently stuck with
+   * "you are not an owner or coach of any organisation" and no cure. Every
+   * roster, invite and published week hangs off the row this creates.
+   */
+  createOrganization?(name: string): Promise<CoachOrganization>;
   /** Every invite this coach has minted, newest first — spent, expired and
    *  revoked ones included, because a coach chasing an athlete who says "it
    *  didn't work" needs to see WHICH of those happened. */

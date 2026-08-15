@@ -140,6 +140,38 @@ export function CoachSettings() {
     return () => { active = false; };
   }, [repository]);
 
+  /*
+   * The bootstrap. Until 15 August 2026 a coach with no organisation was
+   * permanently stuck: the warning below told them the truth and offered no
+   * cure, because nothing in the product — no RPC, no policy, no screen —
+   * could create the row every other coach table hangs off.
+   *
+   * Deliberately NOT automatic on first load. Creating an organisation is an
+   * act with a name attached, and silently minting "Your organisation" the
+   * first time someone opens Settings makes an object nobody chose.
+   */
+  const [orgName, setOrgName] = useState('');
+  const [orgBusy, setOrgBusy] = useState(false);
+
+  const createOrganization = async () => {
+    const make = repository.createOrganization?.bind(repository);
+    if (!make || !orgName.trim()) return;
+    setOrgBusy(true);
+    try {
+      const org = await make(orgName.trim());
+      setOrganizations((current) => [...current, org]);
+      setOrganizationId(org.id);
+      setOrgName('');
+      setInviteFailed(false);
+      setInviteMessage(`${org.name} created. You own it — now create an invite.`);
+    } catch (cause) {
+      setInviteFailed(true);
+      setInviteMessage(cause instanceof Error ? cause.message : 'The organisation could not be created.');
+    } finally {
+      setOrgBusy(false);
+    }
+  };
+
   const createInvite = async () => {
     const mint = repository.createCoachInvite?.bind(repository);
     if (!mint || !selectedOrganization) return;
@@ -194,7 +226,11 @@ export function CoachSettings() {
       visibleLibraries: { strength: library.strength, conditioning: library.conditioning, beginnerFoundations: library.beginner },
     });
     setLoadFailed(false);
-    setMessage('Workspace preferences saved in the replaceable demo repository.');
+    /* Said "saved in the replaceable demo repository" until 15 August 2026,
+       which was left over from before the bench was wired to Supabase and read
+       to a coach as "none of this is real". `coach/index.tsx` has passed
+       `supabaseCoachWorkspaceRepository` since layer 3. */
+    setMessage('Workspace preferences saved.');
   };
 
   return (
@@ -278,7 +314,33 @@ export function CoachSettings() {
               ))}
               {invites.length > 6 ? <ReadOnlyRow label="Older invites" value={`${invites.length - 6} not shown`} /> : null}
               {invitesSettled && !invitesError && organizations.length === 0 ? (
-                <p className="st-warning">You are not an owner or coach of any organisation, so there is nothing to invite an athlete into.</p>
+                <>
+                  <p className="st-warning">
+                    You are not an owner or coach of any organisation, so there is nothing to invite an
+                    athlete into. Create one and you own it.
+                  </p>
+                  <div className="st-row">
+                    <input
+                      className="st-input"
+                      aria-label="organisation name"
+                      placeholder="Organisation name"
+                      value={orgName}
+                      maxLength={120}
+                      disabled={orgBusy || !repository.createOrganization}
+                      onChange={(e) => setOrgName(e.target.value)}
+                    />
+                    <span className="st-row-value">
+                      <button
+                        type="button"
+                        className="cb-add-btn"
+                        disabled={orgBusy || !orgName.trim() || !repository.createOrganization}
+                        onClick={createOrganization}
+                      >
+                        Create organisation
+                      </button>
+                    </span>
+                  </div>
+                </>
               ) : null}
               <div className="st-save-row">
                 <button

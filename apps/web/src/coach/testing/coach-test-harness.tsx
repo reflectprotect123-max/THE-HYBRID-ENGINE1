@@ -229,8 +229,19 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
   mintedFor: string[] = [];
   revokedInvites: string[] = [];
 
+  createdOrganizations: string[] = [];
+
   async listCoachOrganizations(): Promise<readonly CoachOrganization[]> {
     return this.organizations;
+  }
+
+  /* Appends, so a test can assert the screen goes from "you own nothing" to
+     owning one without re-rendering. */
+  async createOrganization(name: string): Promise<CoachOrganization> {
+    this.createdOrganizations.push(name);
+    const org: CoachOrganization = { id: `org-${this.createdOrganizations.length}`, name, role: 'owner' };
+    this.organizations = [...this.organizations, org];
+    return org;
   }
 
   async listCoachInvites(): Promise<readonly CoachInvite[]> {
