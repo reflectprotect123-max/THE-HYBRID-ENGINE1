@@ -11,6 +11,13 @@
 # Set the site's base directory to `deploy/conditioning` and everything below
 # applies. The coach site keeps the root config and is untouched by any of it.
 #
+# `package.json` sits beside this file for a UI reason rather than a build one:
+# Netlify's monorepo picker only offers a base directory that looks like a
+# project, and a folder holding one .toml is not offered at all — the field
+# simply refuses the path. It is deliberately NOT a pnpm workspace member
+# (`pnpm-workspace.yaml` globs `packages/*` and `apps/*` only, verified), so
+# `pnpm -r typecheck` and `pnpm -r test` never see it and it ships no code.
+#
 # WHAT THIS SITE IS
 #
 # The athlete app, built as the branded conditioning product
