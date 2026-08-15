@@ -12,6 +12,38 @@
 > `create or replace function` against every `.rpc('…')` call site. The gaps
 > are not missing SQL. They are missing BUTTONS, and one missing bootstrap.
 >
+> ### PROVEN ON PRODUCTION, not just in a test
+>
+> Organisation created ✓ · invite code minted ✓. Both were impossible this
+> morning. Three fixes in a row got there, and the ORDER matters because each
+> one exposed the next:
+>
+> **1. `create_organization`** — the bootstrap. Details below.
+>
+> **2. The bench was swallowing every backend error.** Every failure path read
+> `cause instanceof Error ? cause.message : '…could not be created.'`, and a
+> supabase-js failure is a PLAIN OBJECT, not an Error — so the test was false
+> every time and the fallback always won. A permission denial, a constraint
+> violation and a dropped connection all printed the same sentence. Fixed in
+> `coach/data/failure.ts`, which reads message → details → hint and appends the
+> Postgres code; `failure.test.ts` asserts `cause instanceof Error === false`
+> on a real supabase error shape so it cannot come back quietly.
+>
+> **3. `gen_random_bytes(integer) does not exist (42883)`** — visible only
+> BECAUSE of fix 2, one click later. `create_coach_invite` mints its code with
+> pgcrypto and pins `search_path = public`. Supabase installs extensions into
+> the `extensions` schema; a bare local Postgres installs them into `public`.
+> So `checks/migrations-apply.mjs` passed against an environment that differs
+> from production in exactly one undocumented detail, and the first real invite
+> failed. Widened to `public, extensions`, which resolves in both.
+>
+> **The lesson, because it will recur with a different extension**: a check
+> that spins up its own Postgres tests the schema, not the platform. Where
+> Supabase puts extensions is now written into
+> `20260815_arc_pgcrypto_search_path.sql`.
+>
+> **BOTH 15 AUGUST MIGRATIONS ARE APPLIED.** Nothing is outstanding.
+>
 > ### DONE TODAY — `create_organization`, and it was blocking everything
 >
 > `public.organizations` had a SELECT policy since 20260808 and **no INSERT
@@ -21,10 +53,9 @@
 > org that must already exist; `create_coach_invite` requires you to already be
 > its owner. Neither could make the first row. A chicken with no egg.
 >
-> `supabase/migrations/20260815_arc_create_organization.sql` is the cure and
-> **the owner must APPLY it** — it is the only unapplied migration. Then the
-> bench's Settings → Coaches & access grows a name field and a Create
-> organisation button where the dead end used to be.
+> `supabase/migrations/20260815_arc_create_organization.sql` is the cure,
+> applied and confirmed working. The bench's Settings → Coaches & access grew a
+> name field and a Create organisation button where the dead end used to be.
 >
 > An RPC rather than an INSERT policy on purpose: the org and the caller's
 > owner membership are ONE fact, and a client that created the org then failed
