@@ -494,6 +494,43 @@ export interface CoachWorkspaceRepository {
    * `publish_coach_week` re-checks the relationship on every call.
    */
   endCoachRelationship?(organizationId: string, athleteUserId: string): Promise<void>;
+  /**
+   * The live coaching relationships this coach holds, as relationships rather
+   * than as a roster.
+   *
+   * A separate read from `listClients`, deliberately. `ClientSummary` is the
+   * shape the WORKSPACE is written against — a person with a week, a
+   * completion count and an attention flag, whose `id` is a selection key that
+   * `engine-local` also answers to. This is the other question: which links
+   * exist, and in which organisation, so that one can be ended. It carries the
+   * organisation id because `end_coach_relationship` needs one and
+   * `ClientSummary` deliberately does not have one to give.
+   *
+   * The signed-in coach's own self-coaching row is included. A coach who
+   * redeemed their own invite can un-redeem it, and folding that row away here
+   * the way `listClients` folds it into `engine-local` would leave the only
+   * relationship they can definitely end as the one they cannot reach.
+   */
+  listCoachRelationships?(): Promise<readonly CoachRelationship[]>;
+}
+
+/**
+ * One live coach↔athlete link, named well enough for a coach to know who they
+ * are about to remove.
+ *
+ * `name` follows the same rule as everywhere else on this bench: the athlete's
+ * own published display name, or an id-shaped placeholder. Nothing derives a
+ * person's name from an email address or a uuid, because a placeholder that
+ * looks like a name is a fabricated person.
+ */
+export interface CoachRelationship {
+  organizationId: string;
+  athleteUserId: string;
+  name: string;
+  /** True for the coach's own self-coaching row. The screen says so rather
+   *  than offering "End coaching" against what looks like a stranger with the
+   *  coach's own name. */
+  isSelf: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

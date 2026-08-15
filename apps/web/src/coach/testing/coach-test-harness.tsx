@@ -13,6 +13,7 @@ import type {
   ClientSummary,
   CoachInvite,
   CoachOrganization,
+  CoachRelationship,
   CoachWeekBody,
   CoachWeekPlan,
   CoachWorkspaceRepository,
@@ -262,6 +263,26 @@ export class FakeCoachWorkspaceRepository implements CoachWorkspaceRepository {
     };
     this.invites = [invite, ...this.invites];
     return invite;
+  }
+
+  /* Relationships. Separate from `clients` on purpose, exactly as the
+     repository keeps them separate: the roster the workspace renders and the
+     links a coach can END are two different questions, and a fake that
+     conflated them would let a screen pass while asking the wrong one. */
+  relationships: readonly CoachRelationship[] = [];
+  listRelationshipsError: string | null = null;
+  endRelationshipError: string | null = null;
+  endedRelationships: { organizationId: string; athleteUserId: string }[] = [];
+
+  async listCoachRelationships(): Promise<readonly CoachRelationship[]> {
+    if (this.listRelationshipsError) throw new Error(this.listRelationshipsError);
+    return this.relationships;
+  }
+
+  async endCoachRelationship(organizationId: string, athleteUserId: string): Promise<void> {
+    if (this.endRelationshipError) throw new Error(this.endRelationshipError);
+    this.endedRelationships.push({ organizationId, athleteUserId });
+    this.relationships = this.relationships.filter((link) => link.athleteUserId !== athleteUserId);
   }
 
   async revokeCoachInvite(inviteId: string): Promise<CoachInvite> {

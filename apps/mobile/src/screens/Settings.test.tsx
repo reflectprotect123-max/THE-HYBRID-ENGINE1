@@ -25,6 +25,7 @@ import { NutritionProvider } from '../store/nutrition';
 import { LS_KEY, type EngineDB } from '@hybrid/engine';
 import { storage } from '../store/storage';
 import { resetArcRosterForTests } from '../cloud/arc-roster';
+import { resetArcAssignmentsForTests } from '../cloud/arc-assignments';
 
 const persisted = (): EngineDB => JSON.parse(storage.getItem(LS_KEY) || '{}');
 
@@ -81,15 +82,32 @@ jest.mock('../cloud/sync', () => {
 
 const SIGNED_IN = { id: 'u-1', email: 'athlete@example.com' };
 
-/** Minimal PostgREST/RPC double: one canned `athlete_profiles` row and one
- *  canned RPC answer, with every call recorded. */
-function fakeSupabase(options: { profile?: { display_name: string } | null; rpc?: { data?: unknown; error?: unknown } } = {}) {
+/** Minimal PostgREST/RPC double: one canned `athlete_profiles` row, optional
+ *  canned rows for any other table, and one canned RPC answer, with every call
+ *  recorded.
+ *
+ *  `tables` exists for the consent card, which reads three tables the name card
+ *  never touched. A table with no entry answers `athlete_profiles`' row, which
+ *  is what every test written before it assumed — and for
+ *  `coach_athlete_assignments` that shape has no `organization_id`, so those
+ *  tests keep rendering the no-coach case they were written against. */
+function fakeSupabase(
+  options: {
+    profile?: { display_name: string } | null;
+    tables?: Record<string, { data?: unknown; error?: unknown }>;
+    rpc?: { data?: unknown; error?: unknown };
+  } = {},
+) {
   const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
   const client = {
-    from() {
+    from(table: string) {
       const self: Record<string, unknown> = {};
-      for (const m of ['select', 'eq']) self[m] = () => self;
-      self.maybeSingle = () => Promise.resolve({ data: options.profile ?? null, error: null });
+      // `limit` is in the chain because readMyCoachLink takes exactly one
+      // assignment row; leaving it out makes the whole screen throw.
+      for (const m of ['select', 'eq', 'limit']) self[m] = () => self;
+      const canned = options.tables?.[table];
+      self.maybeSingle = () =>
+        Promise.resolve(canned ? { data: canned.data ?? null, error: canned.error ?? null } : { data: options.profile ?? null, error: null });
       return self;
     },
     rpc(fn: string, args: Record<string, unknown>) {
@@ -401,5 +419,221 @@ describe('RecoveryCard resync', () => {
     // Day 1's real reading must survive untouched.
     const day1Entry = db.core?.recovery.find((r) => r.date === '2026-08-09' && r.source === 'manual');
     expect(day1Entry?.sleepHours).toBe(5.5);
+  });
+});
+
+/*
+ * WHAT YOUR COACH CAN SEE — the consent card, wired 15 August 2026.
+ *
+ * The rules worth failing a build over: an uncoached athlete is shown NOTHING
+ * (there is no consent to express about a relationship that does not exist), a
+ * failed write does not move the state on screen, and leaving is a control the
+ * athlete can reach without their coach's agreement.
+ */
+describe('What your coach can see — the read grants', () => {
+  const LINKED = {
+    coach_athlete_assignments: { data: { organization_id: 'org-1', coach_user_id: 'coach-1' } },
+    athlete_profiles: { data: { display_name: 'Coach Ada' } },
+  };
+
+  beforeEach(() => {
+    resetArcRosterForTests();
+    resetArcAssignmentsForTests();
+    mockSupabaseClient = null;
+    mockSyncOverride = null;
+    seed({});
+  });
+  afterEach(() => {
+    mockSyncOverride = null;
+  });
+
+  it('shows nothing at all to an athlete with no coach', async () => {
+    const { client } = fakeSupabase({ profile: null });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.queryByText('What your coach can see')).toBeNull());
+    expect(screen.queryByText('End the link with my coach')).toBeNull();
+  });
+
+  it('names the coach, and starts from NOT SHARED when there is no grant row', async () => {
+    const { client } = fakeSupabase({ tables: LINKED });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByText(/You are coached by Coach Ada\./)).toBeTruthy());
+    // Two rows, both off. Absence of a grant row is absence of a grant.
+    expect(screen.getAllByText('Not shared. Your coach cannot see this.')).toHaveLength(2);
+    expect(screen.getByLabelText('share Nutrition')).toBeTruthy();
+    expect(screen.getByLabelText('share Readiness')).toBeTruthy();
+  });
+
+  it('reads a REVOKED row as not shared — the RPCs stamp, they do not delete', async () => {
+    const { client } = fakeSupabase({
+      tables: {
+        ...LINKED,
+        nutrition_read_grants: { data: { revoked_at: '2026-08-14T09:00:00Z' } },
+        readiness_read_grants: { data: { revoked_at: null } },
+      },
+    });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByLabelText('share Nutrition')).toBeTruthy());
+    expect(screen.getByLabelText('stop sharing Readiness')).toBeTruthy();
+  });
+
+  it('grants nutrition with no athlete id in the call, and says what is true now', async () => {
+    const { client, rpcCalls } = fakeSupabase({ tables: LINKED, rpc: { data: { revoked_at: null } } });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByLabelText('share Nutrition')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('share Nutrition'));
+    });
+
+    expect(rpcCalls).toEqual([
+      { fn: 'set_nutrition_read_grant', args: { p_organization_id: 'org-1', p_granted_to: 'coach-1', p_grant: true } },
+    ]);
+    expect(screen.getByText('Saved. Your coach can see this from now on.')).toBeTruthy();
+    expect(screen.getByLabelText('stop sharing Nutrition')).toBeTruthy();
+  });
+
+  it('REVOKES readiness — taking it back is the same one press as giving it', async () => {
+    const { client, rpcCalls } = fakeSupabase({
+      tables: { ...LINKED, readiness_read_grants: { data: { revoked_at: null } } },
+      rpc: { data: { revoked_at: '2026-08-15T12:00:00Z' } },
+    });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByLabelText('stop sharing Readiness')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('stop sharing Readiness'));
+    });
+
+    expect(rpcCalls).toEqual([
+      { fn: 'set_readiness_read_grant', args: { p_organization_id: 'org-1', p_granted_to: 'coach-1', p_grant: false } },
+    ]);
+    expect(screen.getByText('Saved. Your coach can no longer see this.')).toBeTruthy();
+    expect(screen.getByLabelText('share Readiness')).toBeTruthy();
+  });
+
+  /*
+   * The one that matters most. A control that flips on screen and fails at the
+   * server tells an athlete their food diary is private when it is not.
+   */
+  it('does NOT move the switch when the server refuses', async () => {
+    const { client } = fakeSupabase({
+      tables: { ...LINKED, nutrition_read_grants: { data: { revoked_at: null } } },
+      rpc: { error: { message: 'not permitted' } },
+    });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByLabelText('stop sharing Nutrition')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('stop sharing Nutrition'));
+    });
+
+    expect(screen.getByText(/Nothing changed\./)).toBeTruthy();
+    // Still shared, because the server still says so.
+    expect(screen.getByLabelText('stop sharing Nutrition')).toBeTruthy();
+  });
+
+  it('says plainly that a pain or illness flag is not one of these switches', async () => {
+    const { client } = fakeSupabase({ tables: LINKED });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN };
+    renderSettings();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('A pain or illness flag is always visible to your coach. It is a safety signal, not a data share.'),
+      ).toBeTruthy(),
+    );
+  });
+});
+
+describe('Ending the link — from the athlete’s own phone', () => {
+  const LINKED = {
+    coach_athlete_assignments: { data: { organization_id: 'org-1', coach_user_id: 'coach-1' } },
+    athlete_profiles: { data: { display_name: 'Coach Ada' } },
+  };
+
+  beforeEach(() => {
+    resetArcRosterForTests();
+    resetArcAssignmentsForTests();
+    mockSupabaseClient = null;
+    mockSyncOverride = null;
+    seed({});
+  });
+  afterEach(() => {
+    mockSyncOverride = null;
+  });
+
+  it('confirms first, and states what happens to a week the coach already published', async () => {
+    const { client } = fakeSupabase({ tables: LINKED, rpc: { data: { id: 'a-1' } } });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN, syncNow: jest.fn(() => Promise.resolve()) };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByText('End the link with my coach')).toBeTruthy());
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    fireEvent.press(screen.getByText('End the link with my coach'));
+
+    const [title, body] = alertSpy.mock.calls[0] as [string, string, AlertButton[]];
+    expect(title).toBe('Stop being coached by Coach Ada?');
+    expect(body).toMatch(/stays on this phone until the week is over/);
+    alertSpy.mockRestore();
+  });
+
+  it('ends it as the athlete, and the card goes with the relationship', async () => {
+    const { client, rpcCalls } = fakeSupabase({ tables: LINKED, rpc: { data: { id: 'a-1', status: 'revoked' } } });
+    const syncNow = jest.fn(() => Promise.resolve());
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN, syncNow };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByText('End the link with my coach')).toBeTruthy());
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    fireEvent.press(screen.getByText('End the link with my coach'));
+    const [, , buttons] = alertSpy.mock.calls[0] as [string, string, AlertButton[]];
+    await act(async () => {
+      buttons.find((b) => b.text === 'End it')!.onPress!();
+    });
+    alertSpy.mockRestore();
+
+    expect(rpcCalls).toContainEqual({
+      fn: 'end_coach_relationship',
+      args: { p_organization_id: 'org-1', p_athlete_user_id: SIGNED_IN.id },
+    });
+    expect(syncNow).toHaveBeenCalled();
+  });
+
+  it('says the athlete is STILL LINKED when the server refuses', async () => {
+    const { client } = fakeSupabase({ tables: LINKED, rpc: { error: { message: 'no active coaching relationship to end' } } });
+    mockSupabaseClient = client;
+    mockSyncOverride = { enabled: true, user: SIGNED_IN, syncNow: jest.fn(() => Promise.resolve()) };
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByText('End the link with my coach')).toBeTruthy());
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    fireEvent.press(screen.getByText('End the link with my coach'));
+    const [, , buttons] = alertSpy.mock.calls[0] as [string, string, AlertButton[]];
+    await act(async () => {
+      buttons.find((b) => b.text === 'End it')!.onPress!();
+    });
+    alertSpy.mockRestore();
+
+    expect(screen.getByText(/You are still linked\./)).toBeTruthy();
+    expect(screen.getByText('End the link with my coach')).toBeTruthy();
   });
 });
