@@ -1935,6 +1935,139 @@ try {
     if (planRow(ATHLETE_B, 'writer') !== 'coordinator') throw new Error('a self-coached week stopped being coordinator-written');
   });
 
+  /* ---------------------------------------------------------------------
+   * ARC bootstrap — one person, no organisation, to a week on a phone.
+   *
+   * EVERY SCENARIO ABOVE STARTS FROM A SEEDED ORGANISATION, written by the
+   * table owner. That is an honest model of the server-side command layer, but
+   * it means the suite never once exercised the step a real first user has to
+   * take: there is no org, and `public.organizations` has no INSERT policy for
+   * any role, deliberately. Until 15 August 2026 there was no way past that at
+   * all, and the bench said so on Settings — accurately, with no cure.
+   *
+   * This block runs the chain a new coach actually runs, in order, through the
+   * client role only:
+   *
+   *   create_organization -> create_coach_invite -> redeem_coach_invite
+   *     -> publish_coach_week -> get_athlete_week_plan
+   *
+   * Nothing here is seeded as the owner. If any link needs a privilege a real
+   * signed-in user does not have, this fails.
+   * ------------------------------------------------------------------- */
+  console.log('\nARC bootstrap — from no organisation to a published week, as a client:\n');
+
+  const FOUNDER = 'f0f0f0f0-0001-0001-0001-f0f0f0f0f0f0';
+  asOwnerSql(`insert into auth.users (id) values ('${FOUNDER}') on conflict do nothing;`);
+
+  /* Deliberately no `set_config` of the JWT claims: an anonymous caller has no
+     `sub`, and the grant is what must stop them, not a null check in the body. */
+  const asAnon = (sql) => runSql(`set role anon;\n${sql}`);
+
+  /* `get_athlete_week_plan` returns a PROJECTION, not the stored row — it
+     rebuilds `plan` out of `entries` and `decisions` and drops everything else.
+     So the body published here has to be entry-shaped, or the read-back would
+     assert over a plan the function correctly emptied and prove nothing. */
+  const BOOT_WEEK = `'${JSON.stringify({
+    entries: [{ proposalId: 'boot-1', domain: 'strength', date: '2026-08-17', status: 'planned', title: 'Squat day' }],
+  }).replace(/'/g, "''")}'::jsonb`;
+
+  const orgCount = () => lastLine(asOwnerSqlOut('select count(*) from public.organizations;'));
+  const founderOrg = () => lastLine(asOwnerSqlOut(
+    `select organization_id from public.organization_memberships
+      where user_id = '${FOUNDER}' and role = 'owner' and status = 'active';`));
+
+  check('BOOTSTRAP: create_organization writes the org and the owner membership together', () => {
+    const out = asAthlete(FOUNDER, refusalProbe(`perform public.create_organization('Founder Barbell')`));
+    if (!out.includes('ACCEPTED')) throw new Error(`a signed-in user could not create an organisation: ${lastLine(out)}`);
+
+    const org = founderOrg();
+    if (!/^[0-9a-f-]{36}$/.test(org)) {
+      throw new Error('the organisation exists with no owner membership — an orphan nothing can ever reach');
+    }
+    const row = lastLine(asOwnerSqlOut(
+      `select name || '/' || created_by from public.organizations where id = '${org}';`));
+    if (row !== `Founder Barbell/${FOUNDER}`) throw new Error(`the organisation row is wrong: ${row}`);
+  });
+
+  check('BOOTSTRAP: a blank name is refused, and leaves no half-made organisation', () => {
+    /* The pair commits together or not at all — that is the entire reason this
+       is an RPC and not an INSERT policy, so the rollback is the assertion. */
+    const before = orgCount();
+    const out = asAthlete(FOUNDER, refusalProbe(`perform public.create_organization('   ')`));
+    if (!wasRefused(out)) throw new Error('an organisation was created with a blank name');
+    if (orgCount() !== before) throw new Error('the refused call left a row behind');
+  });
+
+  check('BOOTSTRAP: anon cannot create an organisation', () => {
+    /* `alter default privileges` in the prelude grants anon table access, the
+       way a Supabase project does, so the EXECUTE revoke in the migration is
+       the only thing standing here. */
+    const out = asAnon(refusalProbe(`perform public.create_organization('Anonymous Barbell')`));
+    if (!wasRefused(out)) throw new Error('an unauthenticated caller created an organisation');
+  });
+
+  check('BOOTSTRAP: create_coach_invite can still see pgcrypto wherever it lives', () => {
+    /* THE ONE PRODUCTION FAILURE THIS SUITE COULD NOT HAVE CAUGHT, asserted in
+       the only form that works in both environments.
+       `gen_random_bytes(integer) does not exist (42883)` on the first real
+       invite: the function is `security definer set search_path = public`, and
+       Supabase installs pgcrypto into `extensions` while a bare local Postgres
+       — this cluster — installs it into `public`. So calling the function
+       proves nothing here; it passes either way. What can be checked anywhere
+       is the pin itself. */
+    const cfg = lastLine(asOwnerSqlOut(
+      `select coalesce(array_to_string(proconfig, ' '), '') from pg_proc
+        where proname = 'create_coach_invite' and pronamespace = 'public'::regnamespace;`));
+    if (!/search_path=/.test(cfg)) {
+      throw new Error('create_coach_invite has no pinned search_path — a definer function must always pin one');
+    }
+    if (!/\bextensions\b/.test(cfg)) {
+      throw new Error(`the pin excludes the extensions schema, so gen_random_bytes is unreachable on Supabase: ${cfg}`);
+    }
+    if (!/\bpublic\b/.test(cfg)) {
+      throw new Error(`the pin excludes public, so the function cannot see its own tables: ${cfg}`);
+    }
+  });
+
+  check('BOOTSTRAP: the founder invites themself and publishes their own week', () => {
+    const org = founderOrg();
+    const mint = asAthlete(FOUNDER, refusalProbe(`perform public.create_coach_invite('${org}')`));
+    if (!mint.includes('ACCEPTED')) throw new Error(`the founder could not mint an invite: ${lastLine(mint)}`);
+
+    const code = inviteCode(FOUNDER);
+    const redeem = asAthlete(FOUNDER, refusalProbe(`perform public.redeem_coach_invite('${code}')`));
+    if (!redeem.includes('ACCEPTED')) throw new Error(`the founder could not redeem their own code: ${lastLine(redeem)}`);
+    if (rosterCount(FOUNDER, FOUNDER) !== '1') throw new Error('redeeming put nobody on the roster');
+
+    const pub = asAthlete(FOUNDER, refusalProbe(
+      `perform public.publish_coach_week('${org}', '${FOUNDER}', '${MONDAY}', ${BOOT_WEEK}, 'boot:1')`));
+    if (!pub.includes('ACCEPTED')) throw new Error(`the founder could not publish to themself: ${lastLine(pub)}`);
+  });
+
+  check('BOOTSTRAP: the published week reads back through get_athlete_week_plan', () => {
+    /* The last link, and the one that decides whether a phone sees anything.
+       Asserting on the BODY rather than on a row count: the write path and the
+       read path agreeing that a row exists is not the same as the athlete
+       getting the week the coach actually sent. */
+    const org = founderOrg();
+    const title = lastLine(asAthlete(FOUNDER,
+      `select result->'plan'->'entries'->0->>'title'
+         from public.get_athlete_week_plan('${org}', '${FOUNDER}', date '${MONDAY}') as result;`));
+    if (title !== 'Squat day') throw new Error(`the week did not read back — got '${title}'`);
+  });
+
+  check('BOOTSTRAP: the founder’s organisation is invisible to everyone else', () => {
+    /* A new tenancy boundary is created by every bootstrap, and it is created
+       by the client rather than by a seed — so it gets the same deny the
+       seeded orgs get. */
+    const out = asAthlete(COACH_3, refusalProbe(
+      `perform public.publish_coach_week('${founderOrg()}', '${FOUNDER}', '${MONDAY}', ${weekBody('intruder')}, 'boot:x')`));
+    if (!wasRefused(out)) throw new Error('an unrelated coach reached into a freshly bootstrapped organisation');
+    const seen = lastLine(asAthlete(COACH_3,
+      `select count(*) from public.organizations where id = '${founderOrg()}';`));
+    if (seen !== '0') throw new Error('an unrelated coach can read the new organisation');
+  });
+
 } finally {
   try { asOwner(`pg_ctl -D ${dir}/data stop -m immediate`); } catch { /* already down */ }
   rmSync(dir, { recursive: true, force: true });
