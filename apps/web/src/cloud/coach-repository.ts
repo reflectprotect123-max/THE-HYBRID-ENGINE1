@@ -10,6 +10,7 @@ import type {
   ClientSummary,
   CoachInvite,
   CoachOrganization,
+  CoachRelationship,
   CoachWeekBody,
   CoachWeekPlan,
   CoachWorkspaceRepository,
@@ -490,6 +491,42 @@ export class SupabaseCoachWorkspaceRepository implements CoachWorkspaceRepositor
    * is on whose roster — and this method does not try to improve on that
    * wording, for the same reason.
    */
+  /**
+   * The coach's live relationships, for the one screen that ends them.
+   *
+   * The same `coach_athlete_assignments` read as `listClients`, and NOT a
+   * refactor of it into something shared. `listClients` folds the coach's own
+   * row into `engine-local`, drops the organisation id, and fans out one
+   * summary RPC per athlete; a settings row needs the opposite of all three.
+   * Two small honest queries beat one query with a mode flag.
+   *
+   * An empty array for an unauthenticated or unconfigured build, matching
+   * `listClients` — the bench is usable signed-out and must not throw there. A
+   * query error IS thrown, because "you coach nobody" and "the list could not
+   * be read" are different facts and the screen says so.
+   */
+  async listCoachRelationships(): Promise<readonly CoachRelationship[]> {
+    if (!this.client) return [];
+    const { data: session } = await this.client.auth.getUser();
+    if (!session?.user) return [];
+
+    const { data, error } = await this.client
+      .from('coach_athlete_assignments')
+      .select('athlete_user_id, organization_id')
+      .eq('coach_user_id', session.user.id)
+      .eq('status', 'active');
+    if (error) throw error;
+
+    const rows = (data ?? []) as AssignmentRow[];
+    const names = await this.displayNames(rows.map((row) => row.athlete_user_id));
+    return rows.map((row) => ({
+      organizationId: row.organization_id,
+      athleteUserId: row.athlete_user_id,
+      name: names.get(row.athlete_user_id) ?? `Athlete ${row.athlete_user_id.slice(0, 8)}`,
+      isSelf: row.athlete_user_id === session.user.id,
+    }));
+  }
+
   async endCoachRelationship(organizationId: string, athleteUserId: string): Promise<void> {
     if (!this.client) throw new Error('Ending a coaching relationship needs a connection.');
     const { data, error } = await this.client.rpc('end_coach_relationship', {

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
-import type { ClientSummary, CoachInvite, CoachOrganization } from '../data/contracts';
+import type { ClientSummary, CoachInvite, CoachOrganization, CoachRelationship } from '../data/contracts';
 import { failureMessage } from '../data/failure';
 import '../coach-redesign.css';
 
@@ -120,6 +120,29 @@ export function CoachSettings() {
   const [inviteFailed, setInviteFailed] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
 
+  /*
+   * THE ROSTER, AND ENDING A RELATIONSHIP ON IT.
+   *
+   * `end_coach_relationship` was applied on 14 August 2026 and
+   * `coach-repository.ts` grew the method the same day; until 15 August
+   * NOTHING CALLED IT from either side. A migration whose whole subject is
+   * that "leaving must not require the permission of the person you are
+   * leaving" spent a day reachable by nobody at all.
+   *
+   * `confirmingId` is a two-step press rather than a `window.confirm`. This is
+   * destructive and irreversible from this screen — re-linking needs a fresh
+   * invite and the athlete's own redemption — and a native dialog is the one
+   * control on this bench that cannot be styled, cannot be tested without
+   * stubbing a global, and is trained into muscle memory to be dismissed.
+   */
+  const [relationships, setRelationships] = useState<readonly CoachRelationship[]>([]);
+  const [relationshipsSettled, setRelationshipsSettled] = useState(false);
+  const [relationshipsError, setRelationshipsError] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const [rosterMessage, setRosterMessage] = useState('');
+  const [rosterFailed, setRosterFailed] = useState(false);
+
   const clientCount = describeClients(clients, clientsError, clientsLoading);
   const now = Date.now();
   const selectedOrganization = organizations.find((org) => org.id === organizationId) ?? organizations[0] ?? null;
@@ -138,6 +161,25 @@ export function CoachSettings() {
       })
       .catch(() => { if (active) setInvitesError('Athlete invites could not be loaded.'); })
       .finally(() => { if (active) setInvitesSettled(true); });
+    return () => { active = false; };
+  }, [repository]);
+
+  /*
+   * The relationships themselves, loaded SEPARATELY from the invites above.
+   *
+   * One `Promise.all` for both would make a failed roster read blank the
+   * invite block and vice versa, which is the class of lie this screen has
+   * been rewritten twice to stop telling: two facts, two settles, two error
+   * states. They share a panel, not a fetch.
+   */
+  useEffect(() => {
+    let active = true;
+    setRelationshipsSettled(false);
+    const list = repository.listCoachRelationships?.bind(repository);
+    (list ? list() : Promise.resolve([]))
+      .then((rows) => { if (active) setRelationships(rows); })
+      .catch(() => { if (active) setRelationshipsError('Your roster could not be loaded.'); })
+      .finally(() => { if (active) setRelationshipsSettled(true); });
     return () => { active = false; };
   }, [repository]);
 
@@ -204,6 +246,27 @@ export function CoachSettings() {
       setInviteMessage(failureMessage(cause, 'The invite could not be revoked.'));
     } finally {
       setInviteBusy(false);
+    }
+  };
+
+  const endRelationship = async (link: CoachRelationship) => {
+    const end = repository.endCoachRelationship?.bind(repository);
+    if (!end) return;
+    setRosterBusy(true);
+    try {
+      await end(link.organizationId, link.athleteUserId);
+      setRelationships((current) => current.filter((item) => item.athleteUserId !== link.athleteUserId));
+      setConfirmingId(null);
+      setRosterFailed(false);
+      /* Says what did NOT happen, because that is the half a coach will
+         otherwise assume wrongly in either direction: the athlete keeps the
+         week already published, and no new one can reach them. */
+      setRosterMessage(`${link.name} is no longer on your roster. The week you already published stays on their phone until it is over; nothing new can be sent.`);
+    } catch (cause) {
+      setRosterFailed(true);
+      setRosterMessage(failureMessage(cause, 'The relationship was not ended.'));
+    } finally {
+      setRosterBusy(false);
     }
   };
 
@@ -278,6 +341,53 @@ export function CoachSettings() {
               <ReadOnlyRow label="Assistant coaches" value="0 invited" />
               <ReadOnlyRow label="Symptom reports" value="Visible to organisation coaches" />
               <ReadOnlyRow label="Private coach notes" value="Coach-only" />
+
+              {/*
+                THE ROSTER. Ending a relationship is the coach's half of a
+                two-sided act — the athlete has the same control on their own
+                phone, and neither needs the other's agreement.
+
+                What a coach can see WITHOUT the athlete granting anything is
+                stated here rather than left to be inferred: the training
+                summary comes with the relationship, nutrition and readiness do
+                not, and the athlete alone decides those. A coach who thinks a
+                missing nutrition panel is a bug goes looking for one.
+              */}
+              <ReadOnlyRow
+                label="Athletes you coach"
+                detail="Nutrition and readiness are the athlete's to grant from their own phone; training is not, and comes with the relationship."
+                value={relationshipsError ?? (relationshipsSettled ? `${relationships.length} active` : 'Loading…')}
+                alert={Boolean(relationshipsError)}
+              />
+              {relationships.map((link) => (
+                <div className="st-row" key={link.athleteUserId}>
+                  <RowText
+                    label={link.name}
+                    detail={link.isSelf ? 'You, on your own roster' : `In ${organizations.find((org) => org.id === link.organizationId)?.name ?? 'your organisation'}`}
+                  />
+                  <span className="st-row-value">
+                    {repository.endCoachRelationship
+                      ? (confirmingId === link.athleteUserId
+                          ? (
+                            <>
+                              <button type="button" className="cb-add-btn" disabled={rosterBusy} onClick={() => endRelationship(link)}>
+                                {`Yes — end coaching ${link.name}`}
+                              </button>
+                              <button type="button" className="cb-add-btn ghost" disabled={rosterBusy} onClick={() => setConfirmingId(null)}>
+                                Keep
+                              </button>
+                            </>
+                          )
+                          : <button type="button" className="cb-add-btn ghost" disabled={rosterBusy} onClick={() => setConfirmingId(link.athleteUserId)}>{`End coaching, ${link.name}`}</button>)
+                      : null}
+                  </span>
+                </div>
+              ))}
+              {rosterMessage
+                ? (rosterFailed
+                    ? <p className="st-warning" role="status">{rosterMessage}</p>
+                    : <p className="st-save-note show" role="status">{rosterMessage}</p>)
+                : null}
 
               {/*
                 The invite block. Everything below states, in the screen's own

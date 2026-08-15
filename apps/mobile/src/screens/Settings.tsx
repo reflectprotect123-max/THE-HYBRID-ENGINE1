@@ -29,7 +29,16 @@ import { startFresh, startFreshCounts } from '../store/startFresh';
 import { Btn, Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
 import { humanizeError } from '../errors';
 import { supabaseClient } from '../cloud/sync';
-import { getMyDisplayName, redeemCoachInvite, setMyDisplayName } from '../cloud/arc-roster';
+import { getDisplayName, getMyDisplayName, redeemCoachInvite, setMyDisplayName } from '../cloud/arc-roster';
+import {
+  leaveMyCoach,
+  readMyCoachLink,
+  readMyReadGrants,
+  setReadGrant,
+  type CoachLink,
+  type GrantKind,
+  type ReadGrants,
+} from '../cloud/arc-consent';
 
 /*
  * Declared at MODULE scope, not inside SettingsScreen.
@@ -74,6 +83,15 @@ export function SettingsScreen() {
   const { db, hr, whoop, update, saveFailed, dataRecovered } = useDb();
   const profile = db.settings.profile || {};
   const zones = useMemo(() => conZones(hr), [hr]);
+  /*
+   * Redeeming a code and leaving a coach both change whether there IS a
+   * relationship, and the card that renders the consent controls is a SIBLING
+   * of the card that changes it. Settings is a bottom tab and stays mounted
+   * for the life of the app, so without this counter an athlete who links a
+   * coach sees no consent controls until a cold start — and one who leaves
+   * goes on being offered them.
+   */
+  const [linkVersion, setLinkVersion] = useState(0);
 
   const set = (patch: Partial<Profile>) =>
     update((draft) => {
@@ -114,9 +132,12 @@ export function SettingsScreen() {
       <Field label="Resting HR" hint="With this, zones use Karvonen instead of percent-of-max." value={profile.restingHr} onChange={(v) => set({ restingHr: v })} />
 
       <CloudCard />
-      {/* Both halves of the athlete's consent, and both directly under the
-          sign-in card because both require an account and say so. */}
-      <CoachLinkCard />
+      {/* Every half of the athlete's consent, together, directly under the
+          sign-in card because all of them require an account and say so.
+          CoachConsentCard renders NOTHING without a coach, so an uncoached
+          athlete still sees only the two cards that were here before it. */}
+      <CoachLinkCard onLinked={() => setLinkVersion((v) => v + 1)} />
+      <CoachConsentCard version={linkVersion} onLeft={() => setLinkVersion((v) => v + 1)} />
       <AthleteNameCard />
       <WhoopCard />
       <RecoveryCard />
@@ -676,7 +697,7 @@ function CloudCard() {
  * codes when they have found a real one. This card must not be cleverer than
  * that: it says the code did not work and never which part, never how close.
  */
-function CoachLinkCard() {
+function CoachLinkCard({ onLinked }: { onLinked: () => void }) {
   const { enabled, user, syncNow } = useSync();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -700,6 +721,10 @@ function CoachLinkCard() {
          already succeeded and the sync reports its own failures on the cloud
          card above. */
       void syncNow();
+      /* The consent card below is a sibling and has already decided there is
+         no coach. Telling it to look again is what puts the two grants and the
+         Leave control on screen now rather than after a cold start. */
+      onLinked();
     } catch (e) {
       /* humanizeError's 'invite' context is the single sentence for every
          refusal the server makes. A network failure resolves ahead of it and
@@ -749,8 +774,15 @@ function CoachLinkCard() {
                 {msg.text}
               </T>
             ) : null}
+            {/* "Only your coach can end the link" stood here until
+                `end_coach_relationship` was wired on the phone (15 August
+                2026). It was true when written — nothing could set
+                `status = 'revoked'` at all — and the migration that fixed it
+                says why either party has to be able to: leaving must not
+                require the permission of the person you are leaving. */}
             <T className="mt-1 text-3 text-dim">
-              A linked coach can see your training, and can send you sessions. Only your coach can end the link.
+              A linked coach can see your training, and can send you sessions. You choose what else they see, and you
+              can end the link yourself at any time.
             </T>
           </>
         ) : (
@@ -758,6 +790,232 @@ function CoachLinkCard() {
             Sign in above first — the link is made against your account, so there is nothing to link a code to until then.
           </T>
         )}
+      </Card>
+    </View>
+  );
+}
+
+/*
+ * One consent, its state, and the control that changes it.
+ *
+ * The BUTTON says what pressing it does; the line under it says what is true
+ * now. Those are two different sentences and a single toggle glyph tries to be
+ * both — on a control whose whole job is to tell an athlete who can see their
+ * food diary, the ambiguity is the failure.
+ */
+function GrantRow({
+  title,
+  detail,
+  granted,
+  busy,
+  onChange,
+}: {
+  title: string;
+  detail: string;
+  granted: boolean;
+  busy: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <View className="mt-1.5">
+      <View className="flex-row items-center">
+        <View className="flex-1 pr-1">
+          <T w="med" className="text-4 text-text">{title}</T>
+          <T className="mt-0.5 text-3 text-dim">{detail}</T>
+        </View>
+        <Btn
+          variant={granted ? 'ghost' : 'brass'}
+          disabled={busy}
+          onPress={() => onChange(!granted)}
+          label={granted ? `stop sharing ${title}` : `share ${title}`}
+        >
+          {granted ? 'Stop' : 'Share'}
+        </Btn>
+      </View>
+      <T className={`mt-0.5 text-3 ${granted ? 'text-ok' : 'text-muted'}`}>
+        {granted ? 'Shared with your coach now.' : 'Not shared. Your coach cannot see this.'}
+      </T>
+    </View>
+  );
+}
+
+/*
+ * WHAT ELSE YOUR COACH CAN SEE — the athlete's half of the read grants, and
+ * the athlete's half of ending the relationship.
+ *
+ * `set_nutrition_read_grant` (20260808), `set_readiness_read_grant` (20260810)
+ * and `end_coach_relationship` (20260814) were all defined, granted and tested
+ * server-side, and until this card NOTHING CALLED ANY OF THEM. The bench reads
+ * a nutrition window and a readiness trend through grants the athlete could
+ * not give; the migration that let either party end a coaching link could only
+ * ever be reached by the coach. A control the person it belongs to cannot
+ * reach is not a consent model.
+ *
+ * It renders NOTHING for an athlete with no coach. There is no consent to
+ * express about a relationship that does not exist, and an uncoached athlete —
+ * most of them — should not be shown a panel of dead switches explaining a
+ * product they are not in.
+ *
+ * The training SUMMARY is not on this card, and must not be added to it. A
+ * coach who coaches you can see completed-versus-planned without any grant
+ * (`get_athlete_training_summary` is gated on the relationship alone); that is
+ * what the relationship IS, and it is what the copy here says plainly rather
+ * than implying these two switches cover everything.
+ */
+function CoachConsentCard({ version, onLeft }: { version: number; onLeft: () => void }) {
+  const { enabled, user, syncNow } = useSync();
+  const [link, setLink] = useState<CoachLink | null>(null);
+  const [coachName, setCoachName] = useState<string | null>(null);
+  const [grants, setGrants] = useState<ReadGrants>({ nutrition: false, readiness: false });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+
+  /* Re-read on every account change AND on `version`, which the sibling cards
+     bump when a link is made or ended. The grants themselves are deliberately
+     NOT cached in the cloud module: a stale "shared" is a claim about who can
+     see this athlete's food diary, and being wrong about that is the one thing
+     this card exists to prevent. */
+  useEffect(() => {
+    if (!supabaseClient || !user) {
+      setLink(null);
+      setCoachName(null);
+      setGrants({ nutrition: false, readiness: false });
+      return;
+    }
+    let alive = true;
+    void (async () => {
+      const client = supabaseClient;
+      const found = await readMyCoachLink(client, user.id);
+      if (!alive) return;
+      setLink(found);
+      if (!found) {
+        setCoachName(null);
+        setGrants({ nutrition: false, readiness: false });
+        return;
+      }
+      /* Both best-effort, and the name is allowed to be missing: a coach who
+         has published no display name stays nameless rather than being given
+         one derived from an id. `is_my_coach` (20260814) is what makes this
+         read possible from the athlete's side at all. */
+      const [name, current] = await Promise.all([
+        getDisplayName(client, found.coachUserId),
+        readMyReadGrants(client, user.id, found),
+      ]);
+      if (!alive) return;
+      setCoachName(name);
+      setGrants(current);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user, version]);
+
+  if (!enabled || !user || !link) return null;
+
+  const change = async (kind: GrantKind, next: boolean) => {
+    if (!supabaseClient) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const stored = await setReadGrant(supabaseClient, link, kind, next);
+      setGrants((prev) => ({ ...prev, [kind]: stored }));
+      setMsg({
+        tone: 'ok',
+        text: stored
+          ? 'Saved. Your coach can see this from now on.'
+          : 'Saved. Your coach can no longer see this.',
+      });
+    } catch (e) {
+      /* The state on screen is NOT moved on a failure. A switch that flips
+         optimistically and then fails silently is a phone telling an athlete
+         their data is private when the server disagrees. */
+      setMsg({ tone: 'bad', text: humanizeError(e, 'read grant') + ' Nothing changed.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const leave = () => {
+    Alert.alert(
+      coachName ? `Stop being coached by ${coachName}?` : 'End the link with your coach?',
+      'They stop seeing your training immediately and cannot send you anything new. A week they already published stays on this phone until the week is over — you can clear it yourself from your calendar.',
+      [
+        { text: 'Keep the link', style: 'cancel' },
+        {
+          text: 'End it',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              if (!supabaseClient) return;
+              setBusy(true);
+              setMsg(null);
+              try {
+                await leaveMyCoach(supabaseClient, link, user.id);
+                setLink(null);
+                setCoachName(null);
+                setGrants({ nutrition: false, readiness: false });
+                /* The card is about to unmount itself, so the confirmation has
+                   to be somewhere that survives it. `onLeft` re-reads the link
+                   from the server, which is also the check that it really is
+                   gone rather than the phone assuming so. */
+                onLeft();
+                void syncNow();
+              } catch (e) {
+                setMsg({ tone: 'bad', text: humanizeError(e, 'end coaching') + ' You are still linked.' });
+              } finally {
+                setBusy(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  return (
+    <View>
+      <SectionHead title="What your coach can see" />
+      <Card>
+        <T className="text-4 text-muted">
+          {coachName ? `You are coached by ${coachName}.` : 'You are linked to a coach.'} They can already see whether
+          you did the sessions they planned. Everything below is yours to give and yours to take back.
+        </T>
+        <GrantRow
+          title="Nutrition"
+          detail="Your logged days, calories and macros, and how your weight is trending."
+          granted={grants.nutrition}
+          busy={busy}
+          onChange={(next) => void change('nutrition', next)}
+        />
+        <GrantRow
+          title="Readiness"
+          detail="Your check-ins and recovery trend — sleep, soreness, life stress."
+          granted={grants.readiness}
+          busy={busy}
+          onChange={(next) => void change('readiness', next)}
+        />
+        {msg ? (
+          <T
+            accessibilityLiveRegion={msg.tone === 'bad' ? 'assertive' : 'polite'}
+            className={`mt-1 text-3 ${msg.tone === 'ok' ? 'text-ok' : 'text-bad'}`}
+          >
+            {msg.text}
+          </T>
+        ) : null}
+        {/* Pain and illness are NOT on this card and are not a grant. They are
+            safety flags a coach sees because they coach you, and hiding one
+            behind consent would mean a coach could plan a week around an
+            injury the system knew about and did not mention. */}
+        <T className="mt-1.5 text-3 text-dim">
+          A pain or illness flag is always visible to your coach. It is a safety signal, not a data share.
+        </T>
+        <Btn className="mt-1.5" onPress={leave} disabled={busy} label="end the link with my coach">
+          {busy ? 'Working…' : 'End the link with my coach'}
+        </Btn>
+        <T className="mt-1 text-3 text-dim">
+          You can do this yourself — it does not need your coach&apos;s agreement. A week they already published stays
+          until it is over.
+        </T>
       </Card>
     </View>
   );

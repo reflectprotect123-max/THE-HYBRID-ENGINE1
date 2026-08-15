@@ -340,3 +340,111 @@ describe('CoachSettings · athlete invites', () => {
     });
   });
 });
+
+/*
+ * ENDING A COACHING RELATIONSHIP — the coach's half, wired 15 August 2026.
+ *
+ * `end_coach_relationship` was applied on 14 August and the repository grew
+ * its method the same day; nothing called it from either side until now. The
+ * rules worth failing a build over: the tenant and the athlete both reach the
+ * command, one press does not end anything, and the screen states what the
+ * command deliberately does NOT do to the week already published.
+ */
+describe('CoachSettings · ending a coaching relationship', () => {
+  const openAccess = () => fireEvent.click(screen.getByRole('button', { name: 'Coaches & access' }));
+
+  const withRoster = () => {
+    const repo = new FakeCoachWorkspaceRepository();
+    repo.organizations = [{ id: 'org-1', name: 'Hybrid Barbell', role: 'coach' }];
+    repo.relationships = [
+      { organizationId: 'org-1', athleteUserId: 'athlete-1', name: 'Sam Okoye', isSelf: false },
+      { organizationId: 'org-1', athleteUserId: 'coach-1', name: 'Ada Lovelace', isSelf: true },
+    ];
+    return repo;
+  };
+
+  it('lists the live relationships and says what comes with one without a grant', async () => {
+    await renderSettings(withRoster());
+    openAccess();
+
+    expect(screen.getByText('2 active')).toBeInTheDocument();
+    expect(screen.getByText('Sam Okoye')).toBeInTheDocument();
+    // The coach's own self-coaching row is shown rather than folded away: it
+    // is a relationship, and it can be ended.
+    expect(screen.getByText('You, on your own roster')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Nutrition and readiness are the athlete's to grant from their own phone/),
+    ).toBeInTheDocument();
+  });
+
+  it('does NOT end anything on the first press — it asks', async () => {
+    const repo = withRoster();
+    await renderSettings(repo);
+    openAccess();
+
+    fireEvent.click(screen.getByRole('button', { name: 'End coaching, Sam Okoye' }));
+    await act(async () => {});
+
+    expect(repo.endedRelationships).toEqual([]);
+    expect(screen.getByRole('button', { name: 'Yes — end coaching Sam Okoye' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep' })).toBeInTheDocument();
+  });
+
+  it('backs out cleanly, leaving the row exactly as it was', async () => {
+    const repo = withRoster();
+    await renderSettings(repo);
+    openAccess();
+
+    fireEvent.click(screen.getByRole('button', { name: 'End coaching, Sam Okoye' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+
+    expect(repo.endedRelationships).toEqual([]);
+    expect(screen.getByRole('button', { name: 'End coaching, Sam Okoye' })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('ends it on confirmation, and says what happens to the week already published', async () => {
+    const repo = withRoster();
+    await renderSettings(repo);
+    openAccess();
+
+    fireEvent.click(screen.getByRole('button', { name: 'End coaching, Sam Okoye' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes — end coaching Sam Okoye' }));
+    await act(async () => {});
+
+    expect(repo.endedRelationships).toEqual([{ organizationId: 'org-1', athleteUserId: 'athlete-1' }]);
+    expect(screen.queryByText('Sam Okoye')).not.toBeInTheDocument();
+    expect(screen.getByText('1 active')).toBeInTheDocument();
+    /* The half a coach would otherwise assume wrongly in either direction. The
+       migration is explicit that the published week survives, and a screen
+       that stays quiet about it lets a coach believe they revoked it. */
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Sam Okoye is no longer on your roster. The week you already published stays on their phone until it is over; nothing new can be sent.',
+    );
+    expect(screen.getByRole('status')).toHaveClass('st-save-note');
+  });
+
+  it('reports a refused end in the warning voice, and keeps the athlete on the roster', async () => {
+    const repo = withRoster();
+    repo.endRelationshipError = 'no active coaching relationship to end';
+    await renderSettings(repo);
+    openAccess();
+
+    fireEvent.click(screen.getByRole('button', { name: 'End coaching, Sam Okoye' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes — end coaching Sam Okoye' }));
+    await act(async () => {});
+
+    expect(screen.getByRole('status')).toHaveClass('st-warning');
+    expect(screen.getByText('Sam Okoye')).toBeInTheDocument();
+  });
+
+  it('says the roster could not be loaded rather than showing none', async () => {
+    const repo = withRoster();
+    repo.listRelationshipsError = 'permission denied';
+    await renderSettings(repo);
+    openAccess();
+
+    expect(screen.getByText('Your roster could not be loaded.')).toBeInTheDocument();
+    expect(screen.queryByText('0 active')).not.toBeInTheDocument();
+  });
+});

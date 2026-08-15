@@ -12,6 +12,38 @@
 > `create or replace function` against every `.rpc('…')` call site. The gaps
 > are not missing SQL. They are missing BUTTONS, and one missing bootstrap.
 >
+> ### PROVEN ON PRODUCTION, not just in a test
+>
+> Organisation created ✓ · invite code minted ✓. Both were impossible this
+> morning. Three fixes in a row got there, and the ORDER matters because each
+> one exposed the next:
+>
+> **1. `create_organization`** — the bootstrap. Details below.
+>
+> **2. The bench was swallowing every backend error.** Every failure path read
+> `cause instanceof Error ? cause.message : '…could not be created.'`, and a
+> supabase-js failure is a PLAIN OBJECT, not an Error — so the test was false
+> every time and the fallback always won. A permission denial, a constraint
+> violation and a dropped connection all printed the same sentence. Fixed in
+> `coach/data/failure.ts`, which reads message → details → hint and appends the
+> Postgres code; `failure.test.ts` asserts `cause instanceof Error === false`
+> on a real supabase error shape so it cannot come back quietly.
+>
+> **3. `gen_random_bytes(integer) does not exist (42883)`** — visible only
+> BECAUSE of fix 2, one click later. `create_coach_invite` mints its code with
+> pgcrypto and pins `search_path = public`. Supabase installs extensions into
+> the `extensions` schema; a bare local Postgres installs them into `public`.
+> So `checks/migrations-apply.mjs` passed against an environment that differs
+> from production in exactly one undocumented detail, and the first real invite
+> failed. Widened to `public, extensions`, which resolves in both.
+>
+> **The lesson, because it will recur with a different extension**: a check
+> that spins up its own Postgres tests the schema, not the platform. Where
+> Supabase puts extensions is now written into
+> `20260815_arc_pgcrypto_search_path.sql`.
+>
+> **BOTH 15 AUGUST MIGRATIONS ARE APPLIED.** Nothing is outstanding.
+>
 > ### DONE TODAY — `create_organization`, and it was blocking everything
 >
 > `public.organizations` had a SELECT policy since 20260808 and **no INSERT
@@ -21,36 +53,47 @@
 > org that must already exist; `create_coach_invite` requires you to already be
 > its owner. Neither could make the first row. A chicken with no egg.
 >
-> `supabase/migrations/20260815_arc_create_organization.sql` is the cure and
-> **the owner must APPLY it** — it is the only unapplied migration. Then the
-> bench's Settings → Coaches & access grows a name field and a Create
-> organisation button where the dead end used to be.
+> `supabase/migrations/20260815_arc_create_organization.sql` is the cure,
+> applied and confirmed working. The bench's Settings → Coaches & access grew a
+> name field and a Create organisation button where the dead end used to be.
 >
 > An RPC rather than an INSERT policy on purpose: the org and the caller's
 > owner membership are ONE fact, and a client that created the org then failed
 > before the membership would leave a row belonging to nobody, unreachable for
 > ever, because every read path goes through `organization_memberships`.
 >
-> ### STILL TO WIRE — three, in priority order
+> ### WIRED — 1 and 2, both sides (15 August 2026)
 >
-> **1. Consent controls have no UI at all.**
-> `set_nutrition_read_grant` and `set_readiness_read_grant` are defined,
-> granted and called by nothing. The coach bench READS an athlete's nutrition
-> and readiness through grants the athlete has no way to give or revoke. That
-> is a consent model that exists only in the database. The controls belong on
-> ANDROID — that is where the athlete is.
+> **1. Consent controls exist, on the phone.**
+> `apps/mobile/src/cloud/arc-consent.ts` + `CoachConsentCard` in Settings.
+> `set_nutrition_read_grant` and `set_readiness_read_grant` are now callable by
+> the only person entitled to call them — both RPCs derive the granting athlete
+> from `auth.uid()`, so the phone is the ONLY surface where the caller can be
+> the athlete, and the module must never grow a parameter for whose data is
+> shared. Nothing is cached: a stale "shared" is a false claim about who can
+> see this athlete's food diary. A failed write does NOT move the control, and
+> the card reports what the SERVER stored rather than what was asked for.
 >
-> **2. `end_coach_relationship` has no button.** The migration is applied and
-> `coach-repository.ts` has the method; nothing calls it. Needs one on the
-> coach's roster AND one on mobile — the RPC deliberately lets either party
-> end it, because leaving must not require the permission of the person you
-> are leaving.
+> The card renders nothing for an athlete with no coach, and it says two things
+> the switches would otherwise let a reader infer wrongly: the training summary
+> comes with the relationship and is not a grant, and a pain or illness flag is
+> always visible because it is a safety signal.
+>
+> **2. `end_coach_relationship` has a button on BOTH sides.** On the phone,
+> under the consent card; on the bench, in Settings → Coaches & access, as a
+> two-step press per roster row (the coach's own self-coaching row included —
+> it is a relationship and can be ended). Both say what the RPC deliberately
+> does not do: a week already published stays until it is over, and no new one
+> can arrive. The coach's half reads `listCoachRelationships`, a second small
+> query rather than a mode flag on `listClients` — that one folds the coach's
+> own row into `engine-local` and drops the organisation id, which is exactly
+> what this command needs.
 >
 > **3. `request_session_detail` has no UI**, so a coach cannot ask to see one
 > session in detail. And `save_workout_draft` lost its editor when
 > `RosterPlanner` was deleted on 14 August; it needs `DayBuilder` wired in its
 > place. Both are recorded in CLAUDE.md as the known blast radius of that
-> deletion.
+> deletion. **This is the only one of the three still open.**
 >
 > ### CORRECTLY ORPHANED — do not "fix" these
 >
