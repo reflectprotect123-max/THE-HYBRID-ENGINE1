@@ -258,12 +258,22 @@ export function decideStrengthProgression(
     // is scored at effective RPE 10.5 whatever the athlete rated it, the
     // back-off applies in full, and the exercise LOCKS — no later easy set
     // raises the load again. That walked-down number is what the field is
-    // prefilled with. A flat `stepKg` off what was LIFTED can therefore be
-    // more weight than is already on offer — the deload has to be measured
-    // against the earned number, never past it.
+    // prefilled with, so the deload has to be measured against the EARNED
+    // number and never past it: `Math.min` is what makes this a cut rather
+    // than an accidental increase.
+    //
+    // A PROPORTION OF THE LOAD, NOT A PLATE. This subtracted a flat
+    // `AUTOREG.stepKg` until 15 August 2026 — 2.5 kg off a failed 140 kg
+    // squat, or 1.8%, which is close enough to nothing that the athlete
+    // would simply fail it again. `deloadPct` documents where 10% comes from
+    // and how well evidenced it is.
     const shownKg = earnedKgFrom(name, last) ?? kg;
+    const cut = kg * (1 - AUTOREG.deloadPct);
     const load = roundToIncrement(
-      Math.max(AUTOREG.stepKg, Math.min(kg - AUTOREG.stepKg, shownKg)),
+      // The floor is one plate, so a deload can never propose zero or a
+      // negative weight — the same floor `nextWorkingWeight`'s recovery ease
+      // already uses.
+      Math.max(AUTOREG.stepKg, Math.min(cut, shownKg)),
       AUTOREG.plateIncrement,
     );
     if (load < shownKg) {
@@ -271,7 +281,7 @@ export function decideStrengthProgression(
         action: 'deload',
         confidence: 'high',
         reasonCodes: ['consistently_missed'],
-        note: `Missed the last 2 sessions — try ${load}kg next time.`,
+        note: `Missed the last 2 sessions — take 10% off and try ${load}kg next time.`,
         safetyState: 'approved',
         dataLimitations: [],
         prescription: { load },

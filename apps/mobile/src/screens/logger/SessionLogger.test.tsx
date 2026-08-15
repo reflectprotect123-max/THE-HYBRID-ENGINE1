@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
 import { act, render, renderHook } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import type { LoggedSet, Session, StrengthBlock } from '@hybrid/engine';
+import { DbProvider } from '../../store/db';
+import type { LoadContext, LoggedSet, Session, StrengthBlock } from '@hybrid/engine';
 
 /* `mock`-prefixed so jest's factory hoisting lets the module factory below
    close over them — every other name is out of scope at hoist time. */
@@ -56,8 +57,20 @@ const activeSession = (blocks: StrengthBlock<LoggedSet>[]): Session => ({
 const FRAME = { x: 0, y: 0, width: 390, height: 844 };
 const INSETS = { top: 47, left: 0, right: 0, bottom: 34 };
 
+/*
+ * `DbProvider` is here because `RunningSession` now reads the store for the
+ * athlete's history — the sessions, banked weights and recovery reading the
+ * weight field opens from. It takes them from `useDb` and hands them DOWN to
+ * `useLoggerBridge` as an argument rather than the bridge reaching for them
+ * itself, which is what keeps the hook tests below able to drive the bridge
+ * directly with a history of their own choosing.
+ */
 const mount = (ui: ReactElement) =>
-  render(<SafeAreaProvider initialMetrics={{ frame: FRAME, insets: INSETS }}>{ui}</SafeAreaProvider>);
+  render(
+    <SafeAreaProvider initialMetrics={{ frame: FRAME, insets: INSETS }}>
+      <DbProvider>{ui}</DbProvider>
+    </SafeAreaProvider>,
+  );
 
 beforeEach(() => {
   mockHost.activeSession = null;
@@ -102,16 +115,18 @@ describe('SessionLogger', () => {
   });
 });
 
-describe('useLoggerBridge', () => {
-  function setup(session: Session) {
-    const updateSession = jest.fn();
-    const startRest = jest.fn();
-    const stopRest = jest.fn();
-    const addRest = jest.fn();
-    const hook = renderHook(() => useLoggerBridge(session, updateSession, startRest, stopRest, addRest));
-    return { ...hook, updateSession, startRest, stopRest, addRest };
-  }
+/** Drive the bridge directly, with the five host callables stubbed and the
+ *  load context under the test's control. */
+function setup(session: Session, load: LoadContext = {}) {
+  const updateSession = jest.fn();
+  const startRest = jest.fn();
+  const stopRest = jest.fn();
+  const addRest = jest.fn();
+  const hook = renderHook(() => useLoggerBridge(session, updateSession, startRest, stopRest, addRest, load));
+  return { ...hook, updateSession, startRest, stopRest, addRest };
+}
 
+describe('useLoggerBridge', () => {
   function log(result: { current: { dispatch: (a: never) => void } }) {
     act(() => {
       result.current.dispatch({ type: 'setDraft', patch: { felt: 8 } } as never);
@@ -219,5 +234,67 @@ describe('useLoggerBridge', () => {
       result.current.dispatch({ type: 'tick' });
     });
     expect(addRest).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * THE WEIGHT FIELD OPENS AT THE WEIGHT THE LAST SESSION EARNED.
+ *
+ * The regression these exist to catch is not a wrong number — it is a
+ * FORGOTTEN ARGUMENT. `load` is optional on both `useLoggerBridge` and
+ * `useSession`, deliberately: its absence means "the fold alone", which is a
+ * defined answer rather than a crash. That is the right default and it is also
+ * exactly how this broke in the first place. Nothing about the types would
+ * have complained; the field just quietly read zero, and `liftAdapt` went on
+ * banking a number after every session that nothing read back.
+ *
+ * So the guard has to be here, at the screen, asserting on the number an
+ * athlete would actually see. A type cannot catch this and neither can a test
+ * inside the engine, where every rung of the ladder already passes.
+ */
+describe('useLoggerBridge — the weight the athlete is offered', () => {
+  const squat = (sets: LoggedSet[]): Session =>
+    activeSession([{ id: 'b1', exercises: [{ id: 'e0', name: 'Squat', mode: 'reps_kg', sets, rest: 120 }] }]);
+
+  const banked = (kg: number): LoadContext => ({
+    settings: { liftProgress: { squat: { kg, at: 1000, reps: 5 } } },
+  });
+
+  it('opens at the banked weight, not at zero', () => {
+    const { result } = setup(squat([workingSet(), workingSet()]), banked(120));
+    expect(result.current.view.draft?.kg).toBe(120);
+  });
+
+  it('opens at ZERO with no history — the state this task found and fixed', () => {
+    /* Kept as a positive assertion rather than deleted, because it is the
+       behaviour a caller that forgets `load` still gets. If this ever starts
+       returning a number, something is guessing. */
+    const { result } = setup(squat([workingSet(), workingSet()]));
+    expect(result.current.view.draft?.kg).toBe(0);
+  });
+
+  it('eases the offer on a red morning, and does not spend the banked weight doing it', () => {
+    /* `nextWorkingWeight` owns the gate; this proves it survives the trip
+       through two packages to the screen. One step off 120, and the athlete
+       can still type over it. */
+    const red = { ...banked(120), whoop: { recoveryScore: 20, at: Date.now() } as never };
+    const { result } = setup(squat([workingSet(), workingSet()]), red);
+    expect(result.current.view.draft?.kg).toBe(117.5);
+  });
+
+  it('lets TODAY outrank the bank once a set is logged', () => {
+    /* The first set is logged at a rating, so the fold has something to say
+       and it must win — a set you have already done is a fact, the banked
+       weight is an inference from last week. */
+    const { result } = setup(squat([workingSet(), workingSet()]), banked(120));
+    act(() => {
+      result.current.dispatch({ type: 'setDraft', patch: { kg: 100, reps: 8, felt: 6 } });
+    });
+    act(() => {
+      result.current.dispatch({ type: 'logSet' });
+    });
+    const next = result.current.view.draft?.kg ?? 0;
+    expect(next).toBeGreaterThan(100);
+    expect(next).not.toBe(120);
   });
 });

@@ -12,8 +12,7 @@
  * and how the recovery gate behaves.
  */
 import { describe, expect, it } from 'vitest';
-import { liftAdapt, liftMoves, nextWorkingWeight, prescribedKg, sessionOpeners } from './lift';
-import { prefillPrimary } from './logger';
+import { liftAdapt, liftMoves, nextWorkingWeight, openingLoadFor, prescribedKg, sessionOpeners } from './lift';
 import type { Exercise, LoggedSet, Session } from './types';
 
 const ex = (name: string, sets: LoggedSet[], mode: Exercise['mode'] = 'reps_kg'): Exercise<LoggedSet> => ({
@@ -261,9 +260,21 @@ describe('what a library session opens at', () => {
  *
  * Two things can decide a load — a percentage somebody authored for the set,
  * and the absolute weight banked in `liftProgress` — and the danger the rule
- * exists to remove is them disagreeing silently. `prescribedKg` owns the rule;
- * these cases pin the ladder end to end, through `prefillPrimary`, because the
- * rule is only worth anything at the point a number reaches the athlete.
+ * exists to remove is them disagreeing silently.
+ *
+ * THESE CASES USED TO RUN THROUGH `prefillPrimary`, deliberately, "because the
+ * rule is only worth anything at the point a number reaches the athlete".
+ * `prefillPrimary` was the WEB logger's, and it was deleted on 15 August 2026
+ * — which leaves `prescribedKg` and `nextWorkingWeight` with no caller that
+ * puts their answer in front of anybody. `openDraft` in
+ * `@hybrid/session-authoring` opens the phone's entry field from
+ * `foldFromExercise` alone, which prices off THIS session's opener and knows
+ * nothing about an authored percentage or a banked weight.
+ *
+ * `openingLoadFor` is that caller, added the same day (task #168). The
+ * sentence above is true again rather than an indictment: the ladder below is
+ * tested at the unit it lives in, AND at the function that carries it to the
+ * phone's weight field. See the `openingLoadFor` block at the end of this file.
  */
 describe('prescribedKg — an authored % of e1RM, and what it outranks', () => {
   // 100kg x 5 → epley 100 x (1 + 5/30) = 116.67 e1RM. 80% of that is 93.33,
@@ -284,45 +295,26 @@ describe('prescribedKg — an authored % of e1RM, and what it outranks', () => {
     expect(prescribedKg('Front squat', '5 @80%', history)).toBe(0);
   });
 
-  it('RULE 2: an authored percentage beats the earned weight', () => {
+  it('RULE 2: an authored percentage OUTRANKS the earned weight', () => {
     // liftProgress says 140. The coach wrote 80%, which is 92.5. What somebody
     // wrote for THIS set wins over what the app inferred from the last one.
     const settings = { liftProgress: { 'back squat': { kg: 140, at: 1000, reps: 5 } } };
-    const today = ex('Back squat', [{ t: '5 @80%', rpe: '8' } as LoggedSet]);
-    expect(prefillPrimary(today, 0, history, { settings })).toBe('92.5');
-    // And with no percentage authored, the earned weight is still what shows —
-    // rule 3, today's behaviour, unchanged.
-    const plain = ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]);
-    expect(prefillPrimary(plain, 0, history, { settings })).toBe('140');
+    expect(prescribedKg('Back squat', '5 @80%', history)).toBe(92.5);
+    expect(nextWorkingWeight('Back squat', settings)!.kg).toBe(140);
+
+    // And with no percentage authored there is nothing to outrank it with, so
+    // the earned weight stands alone — rule 3.
+    expect(prescribedKg('Back squat', '5', history)).toBe(0);
   });
 
-  it('RULE 1: a set already done TODAY beats the authored percentage', () => {
-    // A percentage is a plan; a set you have already done is a fact. The
-    // in-exercise scan runs first and is untouched, so autoregulation still
-    // works inside a %-authored exercise.
-    const settings = { liftProgress: { 'back squat': { kg: 140, at: 1000, reps: 5 } } };
-    const today = ex('Back squat', [
-      { t: '5 @80%', rpe: '8', aVal: '105', aVal2: '5', done: true } as LoggedSet,
-      { t: '5 @80%', rpe: '8' } as LoggedSet,
-    ]);
-    // Unrated, so it repeats what was actually lifted rather than the plan.
-    expect(prefillPrimary(today, 1, history, { settings })).toBe('105');
-
-    // Rated easier, it autoregulates off what was lifted — still not off the %.
-    const rated = ex('Back squat', [
-      { t: '5 @80%', rpe: '8', aVal: '105', aVal2: '5', felt: '7', done: true } as LoggedSet,
-      { t: '5 @80%', rpe: '8' } as LoggedSet,
-    ]);
-    expect(prefillPrimary(rated, 1, history, { settings })).toBe('107.5');
-  });
-
-  it('never resolves a percentage onto a warm-up', () => {
-    // Same contamination guard as everywhere else: a warm-up prefilled from a
-    // working prescription is the thing `same` exists to stop.
-    const today = ex('Back squat', [{ t: 'W5 @80%', rpe: '' } as LoggedSet]);
-    expect(prefillPrimary(today, 0, history, {})).toBe('');
+  it('RULE 3: with no e1RM to take a percentage OF, it declines rather than guesses', () => {
+    /* Returning 0 is what lets a caller fall through to the earned weight. A
+       first session has nothing to take a percentage of, and putting a guess
+       under a barbell on no evidence is the failure this avoids. */
+    expect(prescribedKg('Back squat', '5 @80%', [])).toBe(0);
   });
 });
+
 
 const sessionWith = (sets: LoggedSet[]): Session => ({
   id: 's1', date: '2026-08-12', status: 'completed',
@@ -424,5 +416,138 @@ describe('a ramped exercise', () => {
     expect(m.delta).toBe(-5);
     expect(liftAdapt(ramp(['8', '8', '8'], ['5', '5', '3']), {}).liftProgress['back squat'])
       .toEqual({ kg: 95, at: expect.any(Number), reps: 5 });
+  });
+});
+
+/*
+ * THE LADDER, at the function that actually reaches the athlete.
+ *
+ * Everything above tests a rung. These test the ORDER, which is the part that
+ * was missing: `prescribedKg` and `nextWorkingWeight` were both correct and
+ * both unreachable, and the bug was never in either of them — it was that
+ * `openDraft` asked the fold and stopped.
+ */
+describe('openingLoadFor — what the weight field opens at', () => {
+  const history = [
+    session([ex('Back squat', [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true } as LoggedSet])]),
+  ];
+  const earned140 = { liftProgress: { 'back squat': { kg: 140, at: 1000, reps: 5 } } };
+
+  it('THE BUG: an untouched exercise no longer opens at zero', () => {
+    /* This is the whole task. `foldFromExercise` answers for set 0 of an
+       untouched exercise with `{ kg: 0, message: 'bodyweight' }`, because the
+       opener is read off a weight nobody has entered yet — so a caller that
+       treated any non-null fold as the answer got 0 every time and never
+       reached the banked weight below it. */
+    const fresh = ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]);
+    expect(openingLoadFor(fresh, 0).kg).toBe(0);
+    expect(openingLoadFor(fresh, 0, { settings: earned140 }).kg).toBe(140);
+  });
+
+  it('RULE 1: a set already done TODAY beats everything below it', () => {
+    /* The fold prices from this session's own logged sets. A percentage is a
+       plan and the earned weight is an inference; a set you already did is a
+       fact, and autoregulation has to keep working inside a %-authored
+       exercise exactly as it does anywhere else. */
+    const rated = ex('Back squat', [
+      { t: '5 @80%', rpe: '8', aVal: '105', aVal2: '5', felt: '7', done: true } as LoggedSet,
+      { t: '5 @80%', rpe: '8' } as LoggedSet,
+    ]);
+    const kg = openingLoadFor(rated, 1, { sessions: history, settings: earned140 }).kg;
+    expect(kg).toBeGreaterThan(105);
+    // Not the percentage (92.5) and not the banked weight (140).
+    expect(kg).not.toBe(92.5);
+    expect(kg).not.toBe(140);
+  });
+
+  it('RULE 2: an authored percentage beats the earned weight', () => {
+    const asked = ex('Back squat', [{ t: '5 @80%', rpe: '8' } as LoggedSet]);
+    expect(openingLoadFor(asked, 0, { sessions: history, settings: earned140 }).kg).toBe(92.5);
+  });
+
+  it('RULE 3: with no percentage authored, the earned weight stands', () => {
+    const plain = ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]);
+    expect(openingLoadFor(plain, 0, { sessions: history, settings: earned140 }).kg).toBe(140);
+  });
+
+  it('RULE 3: the earned weight arrives EASED on a red morning', () => {
+    /* `nextWorkingWeight` owns the gate and this function must not re-apply or
+       bypass it — the number the field opens at is the eased one, and the
+       athlete can still type over it. */
+    const plain = ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]);
+    const red = { recoveryScore: 20, at: Date.now() } as never;
+    expect(openingLoadFor(plain, 0, { settings: earned140, whoop: red }).kg).toBe(137.5);
+  });
+
+  it('RULE 4: a movement with no history and no prescription opens blank, not guessed', () => {
+    const unknown = ex('Zercher squat', [{ t: '5', rpe: '8' } as LoggedSet]);
+    expect(openingLoadFor(unknown, 0, { sessions: history, settings: earned140 }).kg).toBe(0);
+  });
+
+  it('asks nothing of a non-lift mode — reps and seconds have no load axis', () => {
+    /* A percentage and a banked weight are both meaningless for a plank. The
+       fold still runs first, so a timed exercise that somehow logged a load
+       is not overridden. */
+    const held = ex('Plank', [{ t: '60', rpe: '7' } as LoggedSet], 'seconds');
+    expect(openingLoadFor(held, 0, { sessions: history, settings: earned140 }).kg).toBe(0);
+  });
+
+  it('the LINE agrees with the number, at every rung', () => {
+    /*
+     * THE DEFECT THIS FIELD EXISTS TO PREVENT, and it is not hypothetical —
+     * it was live for the length of one edit while this task was being
+     * written. `view.ts` composed the coaching line from `foldFromExercise`
+     * directly, so an untouched exercise said "bodyweight". That was at least
+     * CONSISTENT while the field also opened at 0. The moment the field
+     * started opening at the banked weight, the screen would have shown
+     * "bodyweight" beside 140kg — two numbers contradicting each other on one
+     * card, which is the failure this codebase has already paid for once in
+     * the logger's hint.
+     *
+     * So both come out of one call now, and every rung's line is asserted
+     * against its own rung.
+     */
+    const fresh = ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]);
+    expect(openingLoadFor(fresh, 0, { settings: earned140 })).toEqual({
+      kg: 140,
+      message: 'what you earned last time',
+      source: 'earned',
+    });
+
+    const asked = ex('Back squat', [{ t: '5 @80%', rpe: '8' } as LoggedSet]);
+    expect(openingLoadFor(asked, 0, { sessions: history, settings: earned140 })).toEqual({
+      kg: 92.5,
+      message: '80% of your best — as written',
+      source: 'prescribed',
+    });
+
+    const unknown = ex('Zercher squat', [{ t: '5', rpe: '8' } as LoggedSet]);
+    const none = openingLoadFor(unknown, 0, { sessions: history, settings: earned140 });
+    expect(none.kg).toBe(0);
+    expect(none.source).toBe('none');
+    // NOT the fold's 'bodyweight'. It says that for any exercise whose opener
+    // is not positive, which on an untouched barbell lift means "nobody has
+    // typed a weight yet" — a different fact, and one the athlete needs told
+    // apart from a movement that genuinely carries no load.
+    expect(none.message).toBe('first time on this — put something on the bar');
+
+    // The other half of that split: logged before, with reps and no load, is
+    // a bodyweight movement and should go on saying so.
+    const chins = [session([ex('Chin-up', [{ t: '8', rpe: '8', aVal2: '8', felt: '8', done: true } as LoggedSet])])];
+    const bw = openingLoadFor(ex('Chin-up', [{ t: '8', rpe: '8' } as LoggedSet]), 0, { sessions: chins });
+    expect(bw.kg).toBe(0);
+    expect(bw.message).toBe('bodyweight');
+
+    const red = { recoveryScore: 20, at: Date.now() } as never;
+    const eased = openingLoadFor(fresh, 0, { settings: earned140, whoop: red });
+    expect(eased.kg).toBe(137.5);
+    // `nextWorkingWeight` composes this itself — it is the only layer that
+    // holds the recovery figure, so the line is passed through, not rebuilt.
+    expect(eased.message).toBe('eased for 20% recovery');
+  });
+
+  it('answers 0 for a set index that does not exist rather than throwing', () => {
+    expect(openingLoadFor(ex('Back squat', []), 0, { settings: earned140 }).kg).toBe(0);
+    expect(openingLoadFor(ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]), 9, { settings: earned140 }).kg).toBe(0);
   });
 });

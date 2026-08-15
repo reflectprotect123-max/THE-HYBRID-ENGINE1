@@ -48,6 +48,17 @@ const renderSettings = () =>
   );
 
 /*
+ * Open one of the folded sections.
+ *
+ * The maintenance sections are collapsed on arrival, so anything below a
+ * heading has to be asked for before it is on screen. Going through the
+ * heading's own accessibility label rather than reaching past it is the point:
+ * a test that could still find the restore box without this would mean the
+ * fold was not actually hiding anything.
+ */
+const openFold = (title: string) => fireEvent.press(screen.getByLabelText(title));
+
+/*
  * THE ATHLETE'S HALF OF THE COACHING LINK, on the screen.
  *
  * Both controls are Supabase-shaped, and the harness has no Supabase client at
@@ -310,6 +321,7 @@ describe('Backup restore', () => {
   it('keeps core safety flags (pain hold, illness) after a full restore, not just workouts/sessions/settings', () => {
     seed({});
     renderSettings();
+    openFold('Your data');
 
     const backup = {
       workouts: [],
@@ -344,6 +356,7 @@ describe('Backup restore', () => {
   it('still restores workouts/sessions/settings for a backup with no core at all', () => {
     seed({});
     renderSettings();
+    openFold('Your data');
 
     const backup = { workouts: [], sessions: [], settings: { profile: { age: '31' } } };
     fireEvent.changeText(screen.getByLabelText('backup JSON'), JSON.stringify(backup));
@@ -635,5 +648,59 @@ describe('Ending the link — from the athlete’s own phone', () => {
 
     expect(screen.getByText(/You are still linked\./)).toBeTruthy();
     expect(screen.getByText('End the link with my coach')).toBeTruthy();
+  });
+});
+
+/*
+ * WHAT SETTINGS SHOWS BEFORE YOU ASK IT FOR ANYTHING.
+ *
+ * The screen had grown into one column: the three numbers that drive the whole
+ * HR model, then eight cards of maintenance and disclosure below them. Folding
+ * the maintenance sections is only worth anything if they are actually CLOSED
+ * on arrival, and that is the half a screenshot cannot prove — a fold that
+ * quietly defaults to open still renders every word and still passes any test
+ * that merely looks for the heading.
+ */
+describe('Settings folds its maintenance sections', () => {
+  beforeEach(() => {
+    mockSupabaseClient = null;
+    mockSyncOverride = null;
+    seed({});
+  });
+
+  it('shows the headings but none of their contents until they are pressed', () => {
+    renderSettings();
+
+    expect(screen.getByLabelText('Your data')).toBeTruthy();
+    expect(screen.getByLabelText('Start fresh')).toBeTruthy();
+    expect(screen.queryByText('Export a backup')).toBeNull();
+    expect(screen.queryByLabelText('backup JSON')).toBeNull();
+    expect(screen.queryByText(/Deletes every session in your library/)).toBeNull();
+
+    openFold('Start fresh');
+    expect(screen.getByText(/Deletes every session in your library/)).toBeTruthy();
+    /* Opening one must not open the others — they are separate folds, and a
+       shared piece of state would make every heading a master switch. */
+    expect(screen.queryByText('Export a backup')).toBeNull();
+  });
+
+  it('closes again on a second press, so the fold is a toggle and not a reveal', () => {
+    renderSettings();
+
+    openFold('Your data');
+    expect(screen.getByText('Export a backup')).toBeTruthy();
+    openFold('Your data');
+    expect(screen.queryByText('Export a backup')).toBeNull();
+  });
+
+  it('no longer offers the label-scan corpus at all', () => {
+    /* Deleted rather than folded: the phone stopped recording label scans, so
+       a section offering to export and clear them would be describing a store
+       that can only ever be empty. */
+    renderSettings();
+    openFold('Your data');
+    openFold('Start fresh');
+    expect(screen.queryByText('Export label scans')).toBeNull();
+    expect(screen.queryByText('Clear label scans')).toBeNull();
   });
 });

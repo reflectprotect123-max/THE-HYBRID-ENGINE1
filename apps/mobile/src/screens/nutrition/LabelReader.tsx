@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { isEmptyLabel, parseLabelLines, parseLabelText, type OcrLine, type ParsedNutritionLabel } from '@hybrid/nutrition-core';
+import { isEmptyLabel, parseLabelLines, parseLabelText, type ParsedNutritionLabel } from '@hybrid/nutrition-core';
 import { recogniseLabel, toOcrLines, type LabelRecogniser } from '../../native/labelOcr';
 import { Btn, Card, Input, Kicker, Screen, T, Title } from '../../ui';
 
@@ -37,14 +37,8 @@ import { Btn, Card, Input, Kicker, Screen, T, Title } from '../../ui';
  */
 
 interface Props {
-  /**
-   * Hand the read values to Create-a-food, pre-filled.
-   *
-   * `lines` is present only for a PHOTOGRAPHED panel and carries the
-   * recogniser's own output. A typed panel has no OCR pass to learn anything
-   * about, so it hands nothing over.
-   */
-  onUse: (parsed: ParsedNutritionLabel, lines?: OcrLine[]) => void;
+  /** Hand the read values to Create-a-food, pre-filled. */
+  onUse: (parsed: ParsedNutritionLabel) => void;
   onCancel: () => void;
   /** Injected by tests; the screen defaults to the real on-device recogniser. */
   recognise?: LabelRecogniser;
@@ -55,10 +49,8 @@ type Phase =
   | { kind: 'typing' }
   | { kind: 'camera' }
   | { kind: 'reading' }
-  /** A photograph that parsed. Shown for confirmation; nothing is written yet.
-   *  The lines are kept beside the parse so a confirmed scan can be recorded
-   *  against what the recogniser actually produced, not against a re-read. */
-  | { kind: 'read'; parsed: ParsedNutritionLabel; lines: OcrLine[] }
+  /** A photograph that parsed. Shown for confirmation; nothing is written yet. */
+  | { kind: 'read'; parsed: ParsedNutritionLabel }
   | { kind: 'unreadable'; reason: string };
 
 /**
@@ -113,7 +105,7 @@ export function LabelReaderScreen({ onUse, onCancel, recognise = recogniseLabel 
         setPhase({ kind: 'unreadable', reason: NO_ROWS });
         return;
       }
-      setPhase({ kind: 'read', parsed, lines });
+      setPhase({ kind: 'read', parsed });
     } catch {
       /* Every way this throws — a camera the OS took away, a native module a
          runtime-3 APK does not have, an image ML Kit could not decode — is the
@@ -245,7 +237,7 @@ export function LabelReaderScreen({ onUse, onCancel, recognise = recogniseLabel 
             correct one.
           </T>
         </Card>
-        <ReadOut parsed={phase.parsed} onUse={() => onUse(phase.parsed, phase.lines)}>
+        <ReadOut parsed={phase.parsed} onUse={() => onUse(phase.parsed)}>
           <View className="min-w-0 flex-1">
             <Btn onPress={toCamera} className="w-full">
               Photo again

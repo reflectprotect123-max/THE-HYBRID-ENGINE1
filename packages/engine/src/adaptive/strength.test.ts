@@ -163,7 +163,9 @@ describe('decideStrengthProgression — deload', () => {
     // 20kg missed: the fold scores the miss at effective RPE 10.5 — a −2.5
     // deviation at 2.5%/point for a 5-rep floor is 6.25%, 1.25kg — which
     // rounds back to 20. The field still shows 20, so there IS a deload left
-    // to offer.
+    // to offer. Ten percent off 20 is 18, which rounds to 17.5 at the plate
+    // increment — the same answer the flat step gave here, because at this
+    // weight one plate and one tenth are within a rounding step of each other.
     const s = (id: string, at: number) => sessionWith(id, at, set('20', '3', '8', '5', '8'));
     const sessions = [s('s0', 1000), s('s1', 2000), s('s2', 3000)];
     const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
@@ -174,19 +176,44 @@ describe('decideStrengthProgression — deload', () => {
 
   it('never proposes MORE weight than the misses have already taken off', () => {
     /*
-     * The second bug this pins, with the reviewer's own worked example: 100kg
-     * missed banks 95 for next time, 95kg missed banks 90. A flat
-     * `last.kg - stepKg` off what was lifted is 92.5 — MORE than the 90 the
-     * field is showing, on a card whose other line reads "earned 90kg last
-     * time". A deload that adds weight is not a deload.
+     * The clamp, with the reviewer's own worked example: 100kg missed banks 95
+     * for next time, 95kg missed banks 90. `Math.min(cut, shownKg)` is what
+     * keeps a deload a CUT — without it, an arithmetic that lands above the
+     * number the field is already showing would add weight on a card whose
+     * other line reads "earned 90kg last time".
+     *
+     * THE ANSWER CHANGED WHEN THE DELOAD BECAME A PROPORTION (15 August 2026)
+     * and the change is the whole improvement. A flat 2.5kg off 95 is 92.5,
+     * ABOVE the 90 already earned, so the clamp bit and the honest output was
+     * "hold — the weight has already come down". Ten percent off 95 is 85.5,
+     * which rounds to 85 and is genuinely below 90, so there is a real cut
+     * left to offer and it is offered.
+     *
+     * That is the difference between the two constants stated as a number:
+     * the fold's own per-session correction is about 6.25%, so a 2.5kg deload
+     * was almost always redundant by the time it fired. Two consecutive misses
+     * are supposed to go DEEPER than one session's autoregulation did.
      */
     const s = (id: string, at: number, kg: string) => sessionWith(id, at, set(kg, '3', '8', '5', '8'));
     const sessions = [s('s0', 1000, '100'), s('s1', 2000, '100'), s('s2', 3000, '95')];
     const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
-    expect(out.action).toBe('hold');
-    expect(out.prescription).toBeUndefined();
-    expect(out.reasonCodes).toEqual(['already_at_earned_load']);
-    expect(out.note).toContain('90kg');
+    expect(out.action).toBe('deload');
+    expect(out.prescription).toEqual({ load: 85 });
+    expect(out.reasonCodes).toEqual(['consistently_missed']);
+  });
+
+  it('the cut is measured off what was LIFTED, so the fold is not double-counted', () => {
+    /*
+     * 100kg missed. The fold has already banked ~93.75 for next time; the
+     * deload proposes 90, which is ten percent off the hundred that was
+     * actually lifted — not ten percent off the already-reduced number, which
+     * would compound one miss into a 16% cut.
+     */
+    const s = (id: string, at: number) => sessionWith(id, at, set('100', '3', '8', '5', '8'));
+    const sessions = [s('s0', 1000), s('s1', 2000), s('s2', 3000)];
+    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
+    expect(out.action).toBe('deload');
+    expect(out.prescription).toEqual({ load: 90 });
   });
 
   it('never suggests a load below AUTOREG.stepKg — at the floor there is nothing left to offer', () => {
@@ -487,13 +514,25 @@ describe('decideStrengthProgression — decision table', () => {
                 expect(out.action).toBe('hold');
                 expect(out.dataLimitations).toContain('no_load_to_deload');
               } else {
+                /*
+                 * Ten percent off what was LIFTED, floored at one plate,
+                 * clamped so it can never land above what the misses have
+                 * already taken off, and rounded to the plate increment.
+                 * Restated here rather than imported so a change to
+                 * `AUTOREG.deloadPct` fails this table loudly instead of
+                 * quietly agreeing with itself.
+                 */
                 const earned = EARNED_AFTER_MISS[kg];
-                const offer = Math.max(2.5, Math.min(Number(kg) - 2.5, earned));
+                const cut = Number(kg) * 0.9;
+                const offer = Math.round(Math.max(2.5, Math.min(cut, earned)) / 2.5) * 2.5;
                 if (offer < earned) {
                   expect(out.action).toBe('deload');
                   expect(out.prescription?.load).toBeCloseTo(offer);
                 } else {
-                  // The in-session drop was already bigger than a plate step.
+                  // The in-session drop had already reached the tenth, so
+                  // there is nothing left to cut. At 20kg the fold's 6.25%
+                  // rounds away entirely and 10% is 18 → 17.5, which is why
+                  // the light case still gets a real offer.
                   expect(out.action).toBe('hold');
                   expect(out.prescription).toBeUndefined();
                   expect(out.reasonCodes).toEqual(['already_at_earned_load']);

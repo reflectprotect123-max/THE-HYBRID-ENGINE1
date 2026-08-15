@@ -1,28 +1,5 @@
-import { deviationFelt, loadPctOf, repFloorOf, repTopOf } from './autoreg';
+import { loadPctOf, repFloorOf, repTopOf } from './autoreg';
 
-describe('deviationFelt — the sets table\'s two-target rating', () => {
-  it('reads one RPE point either side of what the set was asked for', () => {
-    // Easier than asked reads BELOW the centre, which is what sends load up.
-    expect(deviationFelt({ rpe: '8' }, 'easier')).toBe(7);
-    expect(deviationFelt({ rpe: '8' }, 'harder')).toBe(9);
-  });
-
-  it('reads against a RANGE target by its centre, not by either end', () => {
-    // rpeCenterOf('7-9') is 8, so this must land on the same 7/9 as a flat 8.
-    expect(deviationFelt({ rpe: '7-9' }, 'easier')).toBe(7);
-    expect(deviationFelt({ rpe: '7-9' }, 'harder')).toBe(9);
-  });
-
-  it('falls back to the global centre when the set carries no target', () => {
-    expect(deviationFelt({ rpe: '' }, 'easier')).toBe(7.5);
-    expect(deviationFelt(null, 'harder')).toBe(9.5);
-  });
-
-  it('stays on the 1-10 scale', () => {
-    expect(deviationFelt({ rpe: '10' }, 'harder')).toBe(10);
-    expect(deviationFelt({ rpe: '1' }, 'easier')).toBe(1);
-  });
-});
 
 describe('loadPctOf — a load authored as a percentage of e1RM', () => {
   it('reads a percentage written behind an @, with or without a rep target', () => {

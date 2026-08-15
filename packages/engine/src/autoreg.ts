@@ -45,42 +45,6 @@ export function verdictForRpe(rpe: number, center?: number | null): string {
   return 'max effort';
 }
 
-/** Which way a set went against what was asked for. */
-export type Deviation = 'easier' | 'harder';
-
-/**
- * What "easier / harder than asked" is worth as a rating.
- *
- * The sets table logs a set in ONE tap and asks nothing, because being made to
- * dial in a number after every set is what the table exists to stop. The rating
- * it does offer is two targets, and this is the rule behind them: one RPE point
- * either side of what THIS set was asked for, which the fold's walk
- * (`walkLogs` in fold.ts) reads as a full one-point deviation — exactly the
- * threshold at which it moves load. Easier than asked reads BELOW the centre,
- * so the weight goes up.
- *
- * A rating rather than a load delta, because `felt` is the field the rest of
- * the engine already runs on — `liftMoves` banks from it, `prefillPrimary`
- * reads it, `strengthExposuresFor` judges on-target from it. Writing a load
- * delta instead would be a second answer to a question that already has one.
- *
- * Note what is deliberately NOT here: a value for "as prescribed". A tick on
- * its own leaves `felt` unwritten, and every one of those readers treats an
- * unwritten `felt` as no evidence — the weight holds and nothing is banked.
- * Filling in the centre instead would read as evidence the athlete never gave:
- * `verdictForRpe` scores centre-against-centre as 'right on target', so a
- * session of plain ticks would manufacture an on-target streak and
- * `decideStrengthProgression` would offer load off the back of it. That is the
- * trap `lift.ts` documents, arrived at from the other side.
- */
-export function deviationFelt(st: Pick<AnySet, 'rpe'> | null | undefined, dir: Deviation): number {
-  const center = rpeCenterOf(st);
-  const felt = dir === 'easier' ? center - 1 : center + 1;
-  // The scale is 1–10. A 'harder' against a centre of 10 would otherwise
-  // produce an 11, and a number off the end of the scale is not a rating
-  // anyone could have given — `verdictForRpe` already gives a 10 its own band.
-  return Math.max(1, Math.min(10, Math.round(felt * 10) / 10));
-}
 
 /**
  * A load written into the target as a percentage of the athlete's e1RM:

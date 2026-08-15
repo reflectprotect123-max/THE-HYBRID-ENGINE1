@@ -23,10 +23,9 @@ import { useSync } from '../cloud/sync';
 import { useWhoop } from '../cloud/whoop';
 import { useConcept2 } from '../cloud/concept2';
 import { isPersistent } from '../store/storage';
-import { SCAN_CORPUS_CAP, clearScanCorpus, exportScanCorpus, scanCorpusStats } from '../store/scanCorpus';
 import { parseBackup } from '../store/restore';
 import { startFresh, startFreshCounts } from '../store/startFresh';
-import { Btn, Card, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
+import { Btn, Card, Fold, Input, Kicker, SectionHead, T, Tap, Title } from '../ui';
 import { humanizeError } from '../errors';
 import { supabaseClient } from '../cloud/sync';
 import { getDisplayName, getMyDisplayName, redeemCoachInvite, setMyDisplayName } from '../cloud/arc-roster';
@@ -143,7 +142,7 @@ export function SettingsScreen() {
       <RecoveryCard />
       <Concept2Card />
 
-      <SectionHead title="What that produces" />
+      <Fold title="What that produces">
       <Card>
         <T num className="text-4 text-muted">
           Max {conMaxHr(profile)} · resting {restingHr(profile, whoop) ?? '—'} ·{' '}
@@ -158,27 +157,18 @@ export function SettingsScreen() {
           </View>
         ))}
       </Card>
+      </Fold>
 
       <BackupCard db={db} />
       {/* After the backup card on purpose: "export a backup first" is only
-          useful advice if the export is the thing you just scrolled past. */}
+          useful advice if the export is the thing you just scrolled past. And
+          both are folds, so that ordering only holds once they are open —
+          which is the only time the advice is being read. */}
       <StartFreshCard />
-      <LabelScanCard />
-
-      <SectionHead title="Auto-Coached" />
     </ScrollView>
   );
 }
 
-/*
- * The label-reader corpus: what it is, and the two things that can be done
- * with it.
- *
- * It sits here rather than in the nutrition world because this is where the
- * app already tells the truth about what is on the device and offers the share
- * sheet to get it off. The reader's own screen says "nothing uploaded"; that
- * line stays true only while there is somewhere plain that says what IS kept.
- */
 /**
  * Clear the training content and start over.
  *
@@ -223,8 +213,7 @@ function StartFreshCard() {
     );
 
   return (
-    <View>
-      <SectionHead title="Start fresh" />
+    <Fold title="Start fresh">
       <Card>
         <T className="text-3 text-muted">
           Deletes every session in your library and every logged session, and stops them coming back from the cloud.
@@ -252,88 +241,7 @@ function StartFreshCard() {
           </>
         )}
       </Card>
-    </View>
-  );
-}
-
-function LabelScanCard() {
-  /* Read on mount and after each action, never during render. Settings is a
-     TAB and stays mounted under the logger, so parsing the corpus on every
-     render would re-parse hundreds of kilobytes on every keystroke of every
-     field above — the same trap the backup card's comment describes. */
-  const [stats, setStats] = useState(() => scanCorpusStats());
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState('');
-
-  const share = async () => {
-    setBusy(true);
-    setMsg('');
-    try {
-      const json = exportScanCorpus();
-      await Share.share({
-        message: json,
-        title: `hybrid-label-scans-${new Date().toISOString().slice(0, 10)}.json`,
-      });
-      setMsg(`${Math.round(json.length / 1024)} kB sent.`);
-    } catch (e) {
-      setMsg('Export failed: ' + humanizeError(e, 'label scans'));
-    } finally {
-      setBusy(false);
-      setStats(scanCorpusStats());
-    }
-  };
-
-  const clear = () =>
-    // Deleting evidence that only exists because it was captured as it
-    // happened: it cannot be re-created, so it gets the destructive confirm.
-    Alert.alert('Delete the recorded label scans?', 'The scans themselves cannot be recovered. Your foods and your log are not touched.', [
-      { text: 'Keep', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          clearScanCorpus();
-          setStats(scanCorpusStats());
-          setMsg('Label scans cleared.');
-        },
-      },
-    ]);
-
-  return (
-    <View>
-      <SectionHead title="Label scans" />
-      <Card>
-        <T className="text-3 text-muted">
-          When you photograph a nutrition panel, this phone keeps what the reader saw and the numbers you confirmed, so
-          the reader can be improved from real labels instead of guesses. It stays on this phone, it is never uploaded,
-          and nothing in the app reads it back — it changes no food, no target and no training.
-        </T>
-        <T num className="mt-1.5 text-4 text-muted">
-          {stats.count === 0
-            ? 'No label scans recorded yet.'
-            : `${stats.count} of ${SCAN_CORPUS_CAP} scans kept · ${Math.round(stats.bytes / 1024)} kB`}
-        </T>
-        <Tap box={{ h: 42 }}
-          onPress={() => void share()}
-          disabled={busy || stats.count === 0}
-          className={`mt-1.5 items-center rounded-md border border-line2 bg-panel2 py-1.5 ${busy || stats.count === 0 ? 'opacity-40' : ''}`}
-        >
-          <T w="med" className="text-4 text-text">{busy ? 'Exporting…' : 'Export label scans'}</T>
-        </Tap>
-        <Tap box={{ h: 42 }}
-          onPress={clear}
-          disabled={stats.count === 0}
-          label="delete recorded label scans"
-          className={`mt-1 items-center rounded-md border border-line2 bg-panel2 py-1.5 ${stats.count === 0 ? 'opacity-40' : ''}`}
-        >
-          <T w="med" className="text-4 text-text">Clear label scans</T>
-        </Tap>
-        {msg ? <T className="mt-1 text-3 text-muted">{msg}</T> : null}
-        <T className="mt-1 text-3 text-dim">
-          Only the {SCAN_CORPUS_CAP} most recent are kept; older ones are dropped so this can never fill the phone.
-        </T>
-      </Card>
-    </View>
+    </Fold>
   );
 }
 
@@ -489,8 +397,7 @@ function BackupCard({ db }: { db: EngineDB }) {
   };
 
   return (
-    <View>
-      <SectionHead title="Your data" />
+    <Fold title="Your data">
       <Card>
         <T num className="text-4 text-muted">
           {db.workouts.length} sessions in the library · {db.sessions.length} logged
@@ -508,7 +415,7 @@ function BackupCard({ db }: { db: EngineDB }) {
         </T>
         <RestoreSection />
       </Card>
-    </View>
+    </Fold>
   );
 }
 

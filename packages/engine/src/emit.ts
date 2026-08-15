@@ -135,87 +135,21 @@ export function newCondBlock(
   };
 }
 
-export function newWorkout(
-  name: string,
-  blocks: (StrengthBlock<PlannedSet> | CondBlock)[],
-  extra?: Record<string, unknown>,
-): Workout<PlannedSet> {
-  const w = {
-    id: eid(),
-    name: s(name) || 'Session',
-    blocks: blocks || [],
-    updatedAt: Date.now(),
-  } as Workout<PlannedSet>;
-  if (extra && typeof extra === 'object') Object.assign(w, extra);
-  return w;
-}
-
-/**
- * Map a coach column set (measure labels) to a per-exercise mode.
+/*
+ * WHAT THIS FILE NO LONGER DOES, and what to restore if the need returns.
  *
- * The athlete app has 6 modes; the coach editor has ~19 measure column types.
- * Weight present → reps_kg (weight is the target load); Time → seconds; Reps
- * only → reps; nothing quantifiable → completion. Unsupported coach measures
- * (distance, %, calories, height) fall back to the nearest mode and are
- * preserved on the snapshot for a future athlete-app update.
+ * `newWorkout`, `measureToMode`, `lbToKg` and `assertWorkout` were deleted on
+ * 15 August 2026 with the rest of the unreferenced engine surface. All four
+ * belonged to a coach IMPORT path — a coach editor with ~19 measure columns
+ * feeding athlete-shape workouts through a validator — and that path was never
+ * built. Nothing called any of them.
+ *
+ * `assertWorkout` is the one worth naming, because deleting a validator reads
+ * worse than it is. It threw on an out-of-whitelist enum and on any set
+ * carrying a LOGGER-owned field (`aVal`, `aVal2`, `felt`, `done`, `note`) — the
+ * rule stated in the header above, which is that a coach's target must never be
+ * able to masquerade as a logged result. That rule still holds and is still
+ * written down here; what is gone is an unused function that enforced it on a
+ * path with no traffic. If coach-published workouts ever need validating on the
+ * way in, restore it from git rather than writing a second one.
  */
-export function measureToMode(cols: string[] = []): ModeKey {
-  const has = (pfx: string) => cols.some((c) => String(c).indexOf(pfx) === 0);
-  if (has('Weight')) return 'reps_kg';
-  if (has('Time')) return 'seconds';
-  if (cols.indexOf('Reps') >= 0) return 'reps';
-  return 'completion';
-}
-
-export function lbToKg(lb: unknown): number | '' {
-  const n = parseFloat(String(lb));
-  return Number.isFinite(n) ? Math.round(n * LB_TO_KG * 10) / 10 : '';
-}
-
-/**
- * Validate an athlete-shape workout before it is stored or assigned. Throws on
- * any out-of-whitelist enum, or any set carrying a logger-owned field.
- */
-export function assertWorkout<T extends { blocks?: unknown }>(w: T): T {
-  if (!w || typeof w !== 'object') throw new Error('emit: workout must be an object');
-  if (!Array.isArray(w.blocks)) throw new Error('emit: workout.blocks must be an array');
-
-  (w.blocks as unknown[]).forEach((b0, bi) => {
-    if (!b0 || typeof b0 !== 'object') throw new Error('emit: block ' + bi + ' is not an object');
-    // Validating UNTRUSTED input, so read the block through an index signature
-    // rather than the discriminated union — the whole point is that the shape
-    // may not match, and narrowing on a lie would skip the check.
-    const b = b0 as Record<string, unknown>;
-
-    if (b.kind === 'conditioning') {
-      if (!(COND_FORMATS as string[]).includes(b.condFmt as string)) {
-        throw new Error('emit: block ' + bi + ' bad condFmt "' + b.condFmt + '"');
-      }
-      if (!(ZONES as string[]).includes(b.targetZone as string)) {
-        throw new Error('emit: block ' + bi + ' bad targetZone "' + b.targetZone + '"');
-      }
-      if (b.effort != null && !((b.effort as string) in EFFORTS)) {
-        throw new Error('emit: block ' + bi + ' bad effort "' + b.effort + '"');
-      }
-      return;
-    }
-
-    ((b.exercises as Exercise<PlannedSet>[]) || []).forEach((e, ei) => {
-      if (!(MODE_KEYS as string[]).includes(e.mode)) {
-        throw new Error('emit: ' + bi + '/' + ei + ' bad mode "' + e.mode + '"');
-      }
-      (e.sets || []).forEach((st, si) => {
-        if (!st || typeof st !== 'object') {
-          throw new Error('emit: set ' + bi + '/' + ei + '/' + si + ' is not an object');
-        }
-        FORBIDDEN_SET_KEYS.forEach((k) => {
-          if (Object.prototype.hasOwnProperty.call(st, k)) {
-            throw new Error('emit: set ' + bi + '/' + ei + '/' + si + ' carries logger field "' + k + '"');
-          }
-        });
-      });
-    });
-  });
-
-  return w;
-}

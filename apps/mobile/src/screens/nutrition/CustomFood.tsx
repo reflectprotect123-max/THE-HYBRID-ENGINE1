@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { uid } from '@hybrid/engine';
 import type { CustomFood } from '@hybrid/nutrition-core';
-import type { LabelFormValues } from '../../store/scanCorpus';
 import { useNutrition } from '../../store/nutrition';
 import { Btn, Card, Chip, Kicker, Screen, T, Title } from '../../ui';
 import { NumField, TextField, macro, positiveQty } from './fields';
@@ -53,15 +52,6 @@ interface Props {
   editId?: string;
   /** Values carried in from the scanner or the label reader. */
   prefill?: CustomFoodPrefill;
-  /**
-   * A CREATED food's fields as they arrived and as they were saved.
-   *
-   * The `before` half is the point: it is what the athlete was actually
-   * looking at when they pressed save, which is the only thing a proposal can
-   * honestly be scored against. Never fired for an edit — editing a food months
-   * later says nothing about the read that created it.
-   */
-  onSaved?: (before: LabelFormValues, after: LabelFormValues) => void;
   onDone: (message: string) => void;
   onCancel: () => void;
 }
@@ -69,7 +59,7 @@ interface Props {
 /** A prefilled number, or blank. Never "0" — a missing macro is not zero. */
 const initial = (n: number | null | undefined): string => (n == null ? '' : String(Math.round(n * 10) / 10));
 
-export function CustomFoodScreen({ editId, prefill, onSaved, onDone, onCancel }: Props) {
+export function CustomFoodScreen({ editId, prefill, onDone, onCancel }: Props) {
   const { nutrition, update } = useNutrition();
   const existing = editId ? nutrition.customFoods.find((f) => f.id === editId) : undefined;
 
@@ -82,12 +72,6 @@ export function CustomFoodScreen({ editId, prefill, onSaved, onDone, onCancel }:
   const [carbsG, setCarbs] = useState(existing ? String(existing.carbsG) : initial(prefill?.carbsG));
   const [fatG, setFat] = useState(existing ? String(existing.fatG) : initial(prefill?.fatG));
   const [error, setError] = useState('');
-  /* Captured on the FIRST render and never again — `useRef`'s initial argument
-     is only read once, so these stay the values the prefill put on screen even
-     after every one of them has been typed over. Recomputing from `prefill` at
-     save time would miss the screen's own defaults (a blank unit shows as "g"),
-     and reading the live state would compare the athlete's answer to itself. */
-  const shown = useRef<LabelFormValues>({ calories, proteinG, carbsG, fatG, servingQty, servingUnit });
   /* The barcode is carried, not shown as an editable field: it came off a
      scanner and a typo in it would silently attach this food to a different
      product's code. It is only ever set when creating. */
@@ -152,9 +136,6 @@ export function CustomFoodScreen({ editId, prefill, onSaved, onDone, onCancel }:
       };
       n.customFoods.push(created);
     });
-    // After the write, so a rejected save never reports a confirmation that
-    // did not happen; only for a create, which is the only path a prefill has.
-    if (!existing) onSaved?.(shown.current, { calories, proteinG, carbsG, fatG, servingQty, servingUnit });
     onDone(existing ? `${trimmedName} updated.` : `${trimmedName} saved. Search for it to log it.`);
   };
 

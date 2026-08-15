@@ -45,10 +45,8 @@ import {
   rpeCenterOf,
   rxLine,
   saneKg,
-  sanNumStr,
   sanitizeDB,
   sessionRpe,
-  sessionScore,
   sessionVolume,
   verdictForRpe,
 } from './index';
@@ -59,7 +57,6 @@ import type { Downsampled, EngineDB, Exercise, LoggedSet, Profile, Session } fro
 import epleyV from '../test/golden/epley.json';
 import roundV from '../test/golden/roundToIncrement.json';
 import saneKgV from '../test/golden/saneKg.json';
-import sanNumStrV from '../test/golden/sanNumStr.json';
 import verdictV from '../test/golden/verdictForRpe.json';
 import foldV from '../test/golden/foldExercise.json';
 import centerV from '../test/golden/rpeCenterOf.json';
@@ -75,7 +72,6 @@ import recBandV from '../test/golden/recoveryBand.json';
 import hrrV from '../test/golden/conHrr.json';
 import volV from '../test/golden/sessionVolume.json';
 import srpeV from '../test/golden/sessionRpe.json';
-import scoreV from '../test/golden/sessionScore.json';
 import prV from '../test/golden/detectPRs.json';
 import rxV from '../test/golden/rxLine.json';
 import sanV from '../test/golden/sanitizeDB.json';
@@ -88,7 +84,32 @@ const un = (v: unknown) => (v === '__undefined__' ? undefined : v);
 const nanOk = (v: unknown) => (v === null ? NaN : v);
 
 describe('constants still mean what they meant', () => {
-  it('autoregulation', () => expect(AUTOREG).toEqual(constV.AUTOREG));
+  /*
+   * `toMatchObject`, NOT `toEqual`, and the difference is deliberate.
+   *
+   * This vector was harvested from the vanilla `app.js` and means "every
+   * constant the original app had still means what it meant". Every key in it
+   * must still be present and still hold its value — that is what
+   * `toMatchObject` enforces, so deleting or retuning one of the originals
+   * still fails loudly.
+   *
+   * What it now permits is an ADDITION. `AUTOREG.deloadPct` was added on
+   * 15 August 2026 and the vanilla app had no counterpart to it — a deload was
+   * not something that app did. Asserting exact equality would have made every
+   * new constant a parity failure, which is how a golden vector stops meaning
+   * "we still match" and starts meaning "we have not changed anything", two
+   * very different claims.
+   *
+   * Additions are pinned separately, below, so they cannot drift unwatched.
+   */
+  it('autoregulation — every constant the vanilla app had', () => expect(AUTOREG).toMatchObject(constV.AUTOREG));
+
+  it('autoregulation — the constants added since, pinned on their own', () => {
+    /* 10% off after two consecutive missed sessions. The reasoning and its
+       evidence live on the constant itself; this is here so a silent retune
+       is impossible. */
+    expect(AUTOREG.deloadPct).toBe(0.1);
+  });
   it('max load clamp', () => expect(MAX_KG).toBe(constV.MAX_KG));
   it('re-zoning magnitudes', () => expect(REZONE_PROVISIONAL).toEqual(constV.REZONE_PROVISIONAL));
   it('effort table', () => expect(CON_EFFORTS).toEqual(constV.CON_EFFORTS));
@@ -110,9 +131,7 @@ describe('numeric helpers', () => {
   it('saneKg', () => {
     for (const v of saneKgV) expect(saneKg(un(v.in)), JSON.stringify(v)).toBe(v.out);
   });
-  it('sanNumStr', () => {
-    for (const v of sanNumStrV) expect(sanNumStr(v.in), JSON.stringify(v)).toBe(v.out);
-  });
+
 });
 
 describe('autoregulation', () => {
@@ -295,9 +314,7 @@ describe('session maths', () => {
   it('sessionRpe', () => {
     srpeV.forEach((v, i) => expect(sessionRpe(sessions[i]), v.id).toEqual(v.out));
   });
-  it('sessionScore counts a finished conditioning block as work', () => {
-    scoreV.forEach((v, i) => expect(sessionScore(sessions[i]), v.id).toBe(v.out));
-  });
+
   it('detectPRs ignores warm-ups', () => {
     prV.forEach((v, i) => expect(detectPRs(sessions[i], []), v.id).toEqual(v.out));
   });
