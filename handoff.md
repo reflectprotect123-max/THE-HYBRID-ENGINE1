@@ -1,7 +1,7 @@
 # Claude Handoff — THE Hybrid System
 
 > **AUTHORITATIVE CHECKPOINT — 15 August 2026, END OF DAY. `main` is at
-> `6a3ead0`. SCOPE WAS CUT TO TWO PRODUCTS, every check was put into CI, the
+> `8f715eb`. SCOPE WAS CUT TO TWO PRODUCTS, every check was put into CI, the
 > coach directory was sorted, and the backend was audited end to end. Where any
 > block below disagrees with this one, this one wins.**
 >
@@ -58,11 +58,51 @@
 > nothing because the auto-coach and the Coordinator are deleted. Rows already
 > written stay readable. Wiring them back would mint provenance that is a lie.
 >
-> ### THE LOOP, and exactly where it stops
+> ### THE LOOP — RUNNING. Three steps in, four to go.
 >
-> Apply the migration → redeploy → create an organisation → create an invite →
-> redeem it as yourself → build a week → Publish → check the phone. The first
-> three steps did not exist before today.
+> ```
+> apply migrations   DONE   all three of today's are applied
+> create an org      DONE   the owner made one on the live bench
+> create an invite   DONE   a real code minted, first time it has ever worked
+> redeem it          next   as yourself, on the phone
+> build a week       -
+> Publish            -
+> check the phone    -
+> ```
+>
+> **Nothing had ever got past step 2 before today**, because nothing could
+> create an organisation. Two defects stood between step 2 and step 3 and both
+> are fixed:
+>
+> **1. Every backend error on the bench was swallowed.** The code read
+> `cause instanceof Error ? cause.message : 'The invite could not be created.'`
+> — and a supabase-js failure is a PLAIN OBJECT, not an Error, so that test was
+> false every single time and the fallback always won. A permission denial, a
+> constraint violation and a dropped connection all printed the same sentence.
+> Worse than printing nothing: it looks considered, so nobody opens the network
+> tab. `coach/data/failure.ts` reads message → details → hint and appends the
+> Postgres code; `failure.test.ts` pins `cause instanceof Error === false` on a
+> real supabase shape so it cannot come back quietly.
+>
+> **2. `create_coach_invite` could not see pgcrypto.**
+> `function gen_random_bytes(integer) does not exist (42883)` — the function is
+> `security definer set search_path = public`, and Supabase installs pgcrypto
+> into the `extensions` schema. Fixed by widening the pin to
+> `public, extensions` (20260815_arc_pgcrypto_search_path.sql, applied).
+>
+> **AND THE REASON EVERY CHECK MISSED IT, which will happen again with another
+> extension.** `20260813` runs `create extension if not exists pgcrypto`. On
+> the bare local Postgres `checks/migrations-apply.mjs` spins up, that installs
+> it into `public` and every assertion passes. On Supabase it is ALREADY
+> installed elsewhere, so `if not exists` does nothing. Same SQL, two outcomes,
+> decided by where somebody else installed an extension. The check was not
+> decorative — it faithfully tested an environment that differs from production
+> in one detail nobody had written down.
+>
+> **The second defect was only diagnosable because the first was fixed an hour
+> earlier.** That is the whole lesson: a generic error message is not a small
+> thing, it is the difference between a five-minute fix and an unfalsifiable
+> guess.
 >
 >
 > **The two products are `apps/mobile` (the Android athlete app) and
