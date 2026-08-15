@@ -146,6 +146,36 @@ describe('Nutrition pillar', () => {
     expect(screen.getByRole('link', { name: /Command Center/ })).toHaveAttribute('href', '/coach');
   });
 
+  /*
+   * MOVED HERE 14 August 2026, from `checks/react-smoke.mjs`.
+   *
+   * Two smoke scenarios drove `/coach/legacy` and asserted that the coach's
+   * read-only nutrition modal had zero inputs and could not change the
+   * athlete's stored slice — "a bench that can rewrite an athlete's calories
+   * is not read-only". That modal was `NutritionPanel`, deleted with
+   * `CoachShell` and the legacy route.
+   *
+   * This pillar is the coach's nutrition surface now, and it inherits the
+   * rule: CLAUDE.md makes nutrition a FACT surface on the bench, and this
+   * file's own header says it "never writes to the athlete's diary". Nothing
+   * asserted it. The guarantee moves rather than dying with the screen that
+   * used to carry it.
+   */
+  it('cannot write the athlete’s food log — no input of any kind', () => {
+    const { container } = renderPillar();
+    expect(container.querySelectorAll('input, textarea, select')).toHaveLength(0);
+  });
+
+  it('leaves the athlete’s nutrition slice byte-identical after rendering', async () => {
+    /* The other half of the deleted pair. Read-only by construction is the
+       claim; this proves the render itself does not write, which a component
+       that lazily "normalises" storage on mount would break silently. */
+    const before = JSON.stringify(localStorage);
+    renderPillar();
+    await act(async () => {});
+    expect(JSON.stringify(localStorage)).toBe(before);
+  });
+
   it('reports unlogged days as unlogged, not as zero-calorie days', async () => {
     renderPillar();
     await act(async () => {});

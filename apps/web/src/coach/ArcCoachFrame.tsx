@@ -167,7 +167,11 @@ export function ArcCoachFrame() {
         */}
         <details className="mt-5 hidden border-t border-line pt-2 text-[11px] text-muted lg:block">
           <summary className="cursor-pointer select-none text-[9px] uppercase tracking-wider text-dim">How ARC decides</summary>
-          <p className="mt-1">Strength and Conditioning propose. The Coordinator resolves. Nutrition remains context.</p>
+          {/* Said "Strength and Conditioning propose. The Coordinator resolves."
+              until 14 August 2026. The Coordinator is deleted and nothing
+              arbitrates a week — a header telling a coach otherwise is the
+              worst kind of stale, because it describes authority. */}
+          <p className="mt-1">You write the week. Strength and Conditioning inform it. Nutrition remains context.</p>
         </details>
         {(location.pathname.includes('/build/') || location.pathname.includes('/planner/')) && (
           <div className="mt-1.5 rounded-md border border-gold-line bg-gold-wash p-1.5 text-[11px] text-muted">

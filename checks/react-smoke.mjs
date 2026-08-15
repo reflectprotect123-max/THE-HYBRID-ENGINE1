@@ -329,44 +329,44 @@ await coachPage.addInitScript(
 );
 
 /*
- * `/coach` is now the ARC command centre; the shell that owns the read-only
- * nutrition modal this section exercises moved to `/coach/legacy`. Both sit
- * behind the same `CoachAccess` allowlist, so driving the legacy route still
- * proves the bench opens for an allowlisted user and redirects everyone else.
+ * WHAT THIS SECTION USED TO DO, and why two thirds of it is gone.
+ *
+ * It drove `/coach/legacy` — the old `CoachShell` bench — and opened its
+ * read-only nutrition modal, asserting the modal declared itself read-only,
+ * showed the athlete's real calories and macros, said "none set" rather than
+ * faking a target, carried its six sections, stated that nutrition "never
+ * schedules or edits a week", contained ZERO inputs, and did not change the
+ * stored nutrition slice when opened and closed.
+ *
+ * The route and `NutritionPanel` were deleted on 14 August 2026. The two
+ * modal scenarios went with their subject, but the guarantee they protected
+ * did NOT: "a bench that can rewrite an athlete's calories is not read-only"
+ * now lives as two colocated tests on `pillars/Nutrition.test.tsx`, which is
+ * the coach's nutrition surface today. Named here so the coverage is
+ * followable rather than merely absent.
+ *
+ * What remains is the part that was never about nutrition: that the bench
+ * opens for an allowlisted user at all. `/coach` proves the same
+ * `CoachAccess` gate the legacy route did, and it is the address a coach
+ * actually uses.
  */
 await t('the coach bench opens at all with an allowlisted session', async () => {
-  await coachPage.goto(coachBase + '/coach/legacy', { waitUntil: 'networkidle' });
-  await coachPage.waitForSelector('button:has-text("Nutrition")');
-  assert(/\/coach\/legacy$/.test(coachPage.url()), 'the bench redirected away despite an allowlisted user: ' + coachPage.url());
-});
-
-await t("the bench's nutrition panel shows the athlete's day, and says it is read-only", async () => {
-  await coachPage.click('button:has-text("Nutrition")');
-  await coachPage.waitForSelector('[role="dialog"][aria-label="Athlete nutrition"]');
-  const panel = await coachPage.textContent('[role="dialog"][aria-label="Athlete nutrition"]');
-  assert(/read-only/.test(panel), 'the panel does not declare itself read-only');
-  assert(/620/.test(panel), "the athlete's logged calories are missing from the bench: " + panel.slice(0, 400));
-  assert(/45P 60C 18F/.test(panel), 'the macro line is missing or reshaped: ' + panel.slice(0, 400));
-  // Absent, not zeroed — the same rule the athlete's own card follows.
-  assert(/none set/.test(panel), 'a bench with no accepted check-in must not show a target');
-  for (const section of ['Today', 'Adherence', 'Program', 'Expenditure', 'Weekly check-in', 'Effect on training']) {
-    assert(panel.includes(section), 'the ' + section + ' section is missing from the nutrition panel');
-  }
-  // The wall, stated on the screen a coach actually reads.
-  assert(/never schedules or edits a week/.test(panel), 'the panel no longer states that nutrition cannot edit training');
-});
-
-await t('the bench cannot write the athlete\'s food log', async () => {
-  const panel = coachPage.locator('[role="dialog"][aria-label="Athlete nutrition"]');
-  // Read-only by construction: the panel imports no writer at all, so there is
-  // nothing to type into and nothing to submit.
-  const inputs = await panel.locator('input, textarea, select').count();
-  assert(inputs === 0, 'the nutrition panel grew ' + inputs + ' input(s) — a bench that can rewrite an athlete\'s calories is not read-only');
-  const before = await coachPage.evaluate((k) => localStorage.getItem(k), NUTRITION_KEY);
-  await panel.locator('button:has-text("Close")').click();
-  await coachPage.waitForSelector('[role="dialog"][aria-label="Athlete nutrition"]', { state: 'detached' });
-  const after = await coachPage.evaluate((k) => localStorage.getItem(k), NUTRITION_KEY);
-  assert(before === after, 'opening and closing the panel changed the athlete\'s nutrition slice');
+  await coachPage.goto(coachBase + '/coach', { waitUntil: 'networkidle' });
+  /* A tile label from the Command Center itself. 'Coach workspace' looked like
+     the stabler anchor — it is ArcCoachFrame's heading, on every /coach route —
+     but it renders three times (desktop rail, phone bar, hidden label) and the
+     first match is the one hidden at desktop width, so the wait never resolved
+     visible. A tile is unambiguous and is the thing this scenario is really
+     claiming rendered. */
+  /* The RAIL, not a Command Center tile. This scenario claims one thing —
+     the bench opened for an allowlisted user — and the rail is what proves it.
+     The tiles need `CoachWorkspaceProvider` to finish loading, and with no
+     backend in the smoke environment it never does: the page sits on
+     "Loading coach workspace…" indefinitely. Worth knowing separately; it is
+     not what this scenario is about, and waiting on it made the check assert
+     backend availability by accident. */
+  await coachPage.waitForSelector('a:has-text("Library")');
+  assert(/\/coach$/.test(coachPage.url()), 'the bench redirected away despite an allowlisted user: ' + coachPage.url());
 });
 
 await t('no uncaught page errors on the coach bench', async () => {
