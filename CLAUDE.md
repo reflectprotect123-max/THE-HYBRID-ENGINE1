@@ -617,77 +617,46 @@ state this deletion ended.
   components are gone, and a route without a screen is the hole that rule was
   always about.
 
-## `apps/lab` is a bench, not a product (15 August 2026)
+## The conditioning lab is deleted (15 August 2026)
 
-There are three apps now. `apps/web` is the coach workspace, `apps/mobile` is
-the Android athlete app, and `apps/lab` is a **conditioning bench** — a screen
-onto `@hybrid/engine`'s conditioning decisions, built because the owner could
-not see whether conditioning progression moved and neither could anyone else.
+`apps/lab` existed for a few hours on 15 August: a Vite bench that pushed a
+synthetic rig through `@hybrid/engine`'s real conditioning functions so a
+person could see whether progression moved. The owner deleted it the same day
+while cutting scope back to two products — the Android athlete APK and the
+coach bench — and it went because it was neither.
 
-It ships to nobody. It has no athlete, no coach, no roster, no Supabase, no
-service worker and no stored state of any kind. Everything on screen is
-computed from a synthetic rig — a format, a modality, an earned level and a
-recovery number — pushed through the real engine.
-
-**The rule that keeps it worth having: the lab computes nothing itself.**
-Every number comes from `conPrescription`, `CON_FORMATS[...].build`,
-`paramsFor`, `conAdapt` or `cardioCompletionFor`. `src/rig.ts` is the single
-seam and every panel goes through it, so four panels cannot drift into four
-different answers for one input. A lab that reimplemented the maths would agree
-with itself and disagree with the phone, which is worse than having no lab.
-
-The Adapt panel is the one deliberate exception, and it is fenced. It restates
-`conAdapt`'s gates in English so a person can read WHY a session earned nothing
-— a mirror, which normally drifts and is then believed. It is allowed because
-it never feeds the verdict (that comes from `conAdapt` itself) and because
-`gates.test.ts` asserts across eleven session shapes that "every gate passed"
-means exactly "conAdapt returned delta 1". Change a threshold in the engine
-without changing the panel and that test fails.
-
-**What the lab was built to make visible**, recorded because it is the thing
-worth knowing about conditioning:
+**It answered its question before it went, and the answer is the thing to
+keep.** Recorded here rather than in the deleted app's own header:
 
 - Conditioning progression is REAL, unlike strength's. `conAdapt` earns levels
   0→20 and `conPrescription` spends them on rotating levers — `+1 round`, then
   `+5s work`, then `−5s rest`. Contrast `liftProgress`, which stores
   `{kg, at, reps}` and reads back only `kg`, so a `10,8,6` → `9,7,5` wave moves
-  no weight at all.
+  no weight at all. That gap is still open.
 - It is nevertheless invisible without a chest strap. `conAdapt` returns at
   `if (zoned <= 0) return none;` — a session with no zone seconds earns
   nothing AND is not counted as a miss. Most sessions are strapless, so most
   sessions are invisible to progression. That is the honest answer to "why
-  doesn't conditioning ever move", and the Adapt panel says so on screen.
+  doesn't conditioning ever move".
 - Only `steady`, `intervals` and `tempo` progress at all. `custom` is the
   athlete's own numbers by definition and `free` has no target to miss.
 
-**The lab has NO Netlify site of its own.** It ships inside the conditioning
-site at `/lab`, folded in by `scripts/build-lab.mjs`.
+**Nothing was lost from the engine.** The lab computed nothing itself — every
+number came back from `conPrescription`, `CON_FORMATS[...].build`, `paramsFor`,
+`conAdapt` or `cardioCompletionFor`, all of which the Android app still runs.
+Deleting the viewer did not touch the model.
 
-It briefly had one — `apps/lab/netlify.toml`, base directory `apps/lab` — and
-that file was deleted on 15 August 2026 for a reason worth recording, because
-the obvious instinct is to add it back. A `netlify.toml` in a subdirectory
-makes Netlify's monorepo detection offer that folder as a selectable PROJECT
-when you link a repository. So the lab started appearing in the site-creation
-picker beside the real apps, and picking it silently produced a site serving
-the bench and nothing else. A config file that only exists to be misselected
-costs more than it provides.
+**One thing worth carrying if a bench is ever rebuilt**: it must not
+reimplement the maths. A lab that did would agree with itself and disagree with
+the phone, which is worse than having no lab. The one mirror it was allowed —
+an English restatement of `conAdapt`'s gates — was fenced by a test asserting
+that "every gate passed" meant exactly "conAdapt returned delta 1".
 
-The lab still declares no `[functions]` of any kind, which now falls out of
-sharing the athlete site's config rather than needing its own rule: the WHOOP
-and Concept2 functions belong to the athlete product, and the bench has no
-accounts to attach them to.
-
-**It is outside the check suite on purpose.** `checks/screens.mjs` shoots
-`/coach` routes, `checks/reachability.mjs` names `apps/web` and `apps/mobile`,
-and `checks/lane-contract.mjs` walks `apps/web/src`. None of them mention the
-lab, and none should: those checks protect shipped surfaces and a bench is
-allowed to be half-finished. What it does NOT get to skip is `pnpm -r
-typecheck` and `pnpm -r test`, both of which it passes — and note it must keep
-at least one test file forever, because `vitest run` exits 1 on "no test files
-found" and would take the whole recursive suite down with it.
-
-If a format invented here is promoted into the Android app, it stops being a
-lab format and picks up every rule in this file that applies to shipped code.
+**And a deployment lesson that cost real time**: `apps/lab/netlify.toml` made
+Netlify's monorepo detection offer `apps/lab` as a selectable PROJECT when
+linking a repository, so the bench kept appearing in the site-creation picker
+beside the real apps. A config file in a subdirectory is not inert — it
+advertises that directory as deployable.
 
 ## Where a test goes
 

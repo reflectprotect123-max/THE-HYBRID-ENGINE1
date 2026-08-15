@@ -7,7 +7,6 @@ one Supabase project.**
 |---|---|---|
 | `apps/mobile` | The athlete product | Android, built with EAS |
 | `apps/web` | Two builds from one source — the **coach workspace** (desktop-first, phone-supported) and a **branded athlete app** | Two Netlify sites |
-| `apps/lab` | A bench onto the conditioning engine. Ships to nobody | Folded into the athlete site at `/lab` |
 
 Three worlds — Strength, Conditioning and Nutrition — one athlete.
 
@@ -31,6 +30,7 @@ The fastest way into this repo. Find the symptom, go to the file.
 | Weight didn't go up / down after a session | `packages/engine/src/lift.ts` → `liftAdapt` |
 | Wrong HR zone, or zones look off | `packages/engine/src/hr.ts` → `conZones` (Tanaka 208 − 0.7×age, or Karvonen when a resting HR is set) |
 | Conditioning got harder/easier unexpectedly | `packages/engine/src/conditioning.ts` → `conAdapt`, `conPrescription` |
+| Conditioning never progresses at all | `packages/engine/src/conditioning.ts` → `conAdapt`. It returns early on zero zone seconds: **no heart-rate data means no level earned AND no miss recorded**, so a strapless session is invisible to progression rather than a failed one. Most sessions are strapless. Which formats can progress at all is `packages/engine/src/constants.ts` → `PROGRESSED_FORMATS` |
 | Rest timer wrong, or no rest between a superset | `packages/engine/src/logger.ts` → `advanceAfterSet`, `ssGroups` |
 | Exercises labelled A1/A2 wrongly | `packages/engine/src/logger.ts` → `sessionLetters` |
 | A session vanished, or a deleted one came back | `packages/engine/src/db.ts` → `mergeEngines`, `mergeSettings`, tombstones in `settings.deletedIds` |
@@ -104,11 +104,6 @@ apps/web            ONE source, TWO deployed builds. Unscoped it is the coach
                     workspace; VITE_HYBRID_PRODUCT=conditioning makes it the
                     branded athlete app. Camera barcode/label scanning, BLE,
                     GPS.
-apps/lab            a bench onto the conditioning engine's decisions. No
-                    athlete, no coach, no storage, no Supabase. It computes
-                    nothing itself — every number comes back from
-                    @hybrid/engine through apps/lab/src/rig.ts.
-
 checks/             executable checks. Not unit tests — these drive real
                     browsers, real crypto and the real schema.
 netlify/functions   the server half: WHOOP and Concept2 OAuth and webhooks.
@@ -198,18 +193,6 @@ number it prints rather than this paragraph.
 `apps/web/src/coach/library/DayBuilder.tsx` is the one authoring surface. Do
 not add a second — two builders is the state the 14 August deletion ended.
 
-### The conditioning lab (`apps/lab`, served at `/lab`)
-
-Four panels, all fed by the real engine through one seam: **Formats** (the
-exact `Phase[]` a session builds), **Progression** (levels 0→20 as a table),
-**Adapt** (a synthetic session through `conAdapt`, with every gate it passed or
-failed named in English), and **Run it** (the real phases on a clock).
-
-It exists to make one thing visible: conditioning progression is real, but
-`conAdapt` returns at `if (zoned <= 0) return none;` — a session with no
-heart-rate zone seconds earns nothing AND is not counted as a miss. Most
-sessions are strapless, so most sessions are invisible to progression.
-
 Home carries the nutrition card above the zone card
 (`apps/web/src/screens/nutrition/NutritionCard.tsx`). The coach bench's
 read-only nutrition surface is the Nutrition pillar
@@ -245,7 +228,6 @@ real camera access for the flows that need hardware:
 ```bash
 pnpm install
 pnpm run dev:web           # apps/web — the coach workspace
-pnpm run dev:lab           # apps/lab — the conditioning bench
 ```
 
 For the branded athlete app rather than the bench, set the product:
@@ -308,7 +290,7 @@ that failed.
 
 ```
 HYBRID_SITE unset (or 'coach')   the coach workspace
-HYBRID_SITE=conditioning         the branded athlete app, plus the lab at /lab
+HYBRID_SITE=conditioning         the branded athlete app
 ```
 
 Set it per site in the Netlify UI. Nothing else needs configuring: no base
@@ -332,9 +314,10 @@ Both write to `apps/web/dist`, so running one overwrites the other, and
 documented monorepo pattern, it was implemented here, and it could not be
 SELECTED: the base-directory picker refuses a folder that does not look like a
 project, and adding a `package.json` to make it look like one did not persuade
-it either. The same detection is why `apps/lab` briefly had a config and no
-longer does — it was being offered as a site of its own and silently deploying
-the bench.
+it either. The same detection also offered `apps/lab` and
+`packages/conditioning-engine` as sites of their own during setup, which is
+worth knowing before adding any config file to a subdirectory: it is not inert,
+it advertises that folder as deployable.
 
 Deploy through Netlify Git, the CLI, or the API so `netlify/functions` is
 included. A drag-and-drop upload publishes the UI and does not auto-update on a

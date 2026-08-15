@@ -15,8 +15,7 @@
  *
  *   HYBRID_SITE unset (or 'coach')   the coach workspace. The existing site
  *                                    sets nothing and is completely unchanged.
- *   HYBRID_SITE=conditioning         the branded athlete app, plus the
- *                                    conditioning lab at /lab.
+ *   HYBRID_SITE=conditioning         the branded athlete app.
  *
  * BOTH ASSEMBLE INTO `apps/web/dist`, and that is what makes one netlify.toml
  * enough: `publish` is a static string in that file and cannot branch, so the
@@ -74,9 +73,7 @@ if (raw === 'coach') {
     ['--filter', '@hybrid/web', 'exec', 'vite', 'build', '--outDir', 'dist', '--emptyOutDir'],
     { VITE_HYBRID_PRODUCT: 'conditioning' },
   );
-  run('pnpm', ['--filter', '@hybrid/lab', 'build'], { HYBRID_LAB_BASE: '/lab/' });
   run('node', ['scripts/build-site.mjs'], { HYBRID_PUBLISH: 'apps/web/dist' });
-  run('node', ['scripts/build-lab.mjs'], { HYBRID_PUBLISH: 'apps/web/dist' });
   run('pnpm', ['run', 'check:csp']);
 }
 

@@ -29,7 +29,6 @@
     "//check:parity-mobile": "The mobile side of both gates, end to end: exports apps/mobile's parity harness, serves it, and drives it. One command, so the gate is runnable by anyone rather than only on the machine that hand-started a server.",
     "check:parity-mobile": "node checks/parity-behaviour.mjs --target=harness && node checks/parity-visual.mjs --target=harness",
     "build:conditioning": "pnpm -r --filter \"./packages/*\" build && pnpm --filter @hybrid/web build:conditioning",
-    "dev:lab": "pnpm --filter @hybrid/lab dev",
     "deploy:coach": "node scripts/deploy-site.mjs",
     "deploy:conditioning": "HYBRID_SITE=conditioning node scripts/deploy-site.mjs"
   },
