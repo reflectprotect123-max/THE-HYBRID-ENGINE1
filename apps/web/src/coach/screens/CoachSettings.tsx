@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
 import type { ClientSummary, CoachInvite, CoachOrganization } from '../data/contracts';
+import { failureMessage } from '../data/failure';
 import '../coach-redesign.css';
 
 /*
@@ -166,7 +167,7 @@ export function CoachSettings() {
       setInviteMessage(`${org.name} created. You own it — now create an invite.`);
     } catch (cause) {
       setInviteFailed(true);
-      setInviteMessage(cause instanceof Error ? cause.message : 'The organisation could not be created.');
+      setInviteMessage(failureMessage(cause, 'The organisation could not be created.'));
     } finally {
       setOrgBusy(false);
     }
@@ -183,7 +184,7 @@ export function CoachSettings() {
       setInviteMessage('Code created. It links nobody until the athlete redeems it.');
     } catch (cause) {
       setInviteFailed(true);
-      setInviteMessage(cause instanceof Error ? cause.message : 'The invite could not be created.');
+      setInviteMessage(failureMessage(cause, 'The invite could not be created.'));
     } finally {
       setInviteBusy(false);
     }
@@ -200,7 +201,7 @@ export function CoachSettings() {
       setInviteMessage('Code revoked. Anyone already on your roster stays there.');
     } catch (cause) {
       setInviteFailed(true);
-      setInviteMessage(cause instanceof Error ? cause.message : 'The invite could not be revoked.');
+      setInviteMessage(failureMessage(cause, 'The invite could not be revoked.'));
     } finally {
       setInviteBusy(false);
     }

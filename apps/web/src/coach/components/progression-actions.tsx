@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDb } from '../../store/db';
 import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
 import type { AthleteProgressionProposal } from '../data/contracts';
+import { failureMessage } from '../data/failure';
 import {
   applyApprovedProposal,
   proposalIsStale,
@@ -81,7 +82,7 @@ export function ProgressionActions({ proposal }: { proposal: ProgressionProposal
         appendProgressionDecision(proposal.id, decision, trimmed, true);
         setMessage(`${proposal.subject}: accepted prescription updated.`);
       } catch (error) {
-        appendProgressionDecision(proposal.id, 'held', trimmed, false, error instanceof Error ? error.message : 'Stale proposal');
+        appendProgressionDecision(proposal.id, 'held', trimmed, false, failureMessage(error, 'Stale proposal'));
         setMessage('The prescription changed after this proposal was created. It was held for a fresh review.');
       }
     } else {
