@@ -1,8 +1,9 @@
 # Claude Handoff — THE Hybrid System
 
-> **AUTHORITATIVE CHECKPOINT — 15 August 2026, LATE. SCOPE WAS CUT TO TWO
-> PRODUCTS and everything outside them was deleted. Where any block below
-> disagrees with this one, this one wins.**
+> **AUTHORITATIVE CHECKPOINT — 15 August 2026, END OF DAY. `main` is at
+> `033551b`. SCOPE WAS CUT TO TWO PRODUCTS, every check was put into CI, and
+> the coach directory was sorted. Where any block below disagrees with this
+> one, this one wins.**
 >
 > **The two products are `apps/mobile` (the Android athlete app) and
 > `apps/web` (the coach workspace).** One engine, one Supabase project, one
@@ -39,13 +40,92 @@
 > widths), web-touch, docs, coach-contract, pentest, supabase-contract,
 > whoop-contract, concept2-contract, migrations-apply.
 >
-> **The known weakness, written down rather than left to be discovered**:
-> FOURTEEN checks under `checks/` run in neither CI nor `pnpm run verify`.
-> They only run when someone remembers. Three of the failures repaired above
-> were found that way today.
+> ---
 >
-> **Still unrun**: the real loop — mint an invite, redeem it as yourself, build
-> a week, Publish, check the phone.
+> ## EVERY CHECK NOW RUNS IN CI, and wiring them in found three defects
+>
+> An earlier version of this block claimed FOURTEEN checks ran nowhere. **That
+> was wrong** — CI already ran nine of them in a loop nobody had read. The real
+> number was four: `screens`, `pwa-update`, `mobile-touch` and the parity
+> gates. Three are now in `.github/workflows/ci.yml`; the parity gates stay
+> behind `pnpm run check:parity-mobile` because they need an Expo export, and
+> that exception is written into the workflow header rather than left silent.
+>
+> Adding them failed immediately, three times, which is the entire argument:
+>
+> 1. **`mobile-touch` FAILED.** Two raw `<Pressable>` had entered with the
+>    round-major logger — `RestTakeover`'s Go/Skip/Lift control and
+>    `SessionLogger`'s "Go to Training" — both under the 48dp minimum and
+>    neither giving press feedback. Both go through `<Tap>` now.
+>
+>    Worse than the defect: `mobile-touch` was NAMED in `ci.yml`'s own comment
+>    as though it ran. The documentation asserted coverage that did not exist.
+>
+> 2. **`pwa-update` CRASHED rather than failed** — ENOENT on a screen deleted
+>    an hour earlier. Fourth time this repository has hit
+>    crash-instead-of-fail. It is repointed at `CoachSignIn`, which is what an
+>    unauthenticated visitor actually sees; `ArcCoachFrame` was tried first and
+>    times out, because `CoachAccess` fails closed and the frame never renders.
+>
+> 3. **And then it caught a live regression from the cut itself.** Deleting
+>    `UpdateBanner` left `serviceWorker.ts` registering, detecting a waiting
+>    worker and publishing it TO NOBODY — so a downloaded update would sit
+>    forever and **no deploy would ever reach an installed bench**. That is the
+>    original defect the banner was written for, reintroduced verbatim.
+>    `UpdateBanner` is restored and mounted above the router.
+>
+> **If you add a check, add it to `ci.yml` in the same commit.** A check that
+> exists and does not run is worth very little.
+>
+> ---
+>
+> ## THE COACH DIRECTORY IS SORTED
+>
+> 31 flat files under `apps/web/src/coach` now sort by role:
+>
+> ```
+> index.tsx  coach-redesign.css      the entry and the stylesheet
+> access/     who may open the bench      5 files
+> frame/      the chrome every route sits in  3
+> screens/    the five routed surfaces
+> components/ shared pieces screens and pillars render   4
+> data/       pure logic + the workspace context         7
+> testing/    the doubles                                3
+> pillars/  library/                unchanged
+> ```
+>
+> `mock-repository` sits in `testing/` even though production imports it for
+> demo mode — that reads correctly as "demo mode uses the test double" rather
+> than hiding it.
+>
+> **Every import was rewritten by script, and FOUR classes of specifier had to
+> be handled — each found by a failure rather than by inspection.** This is the
+> part to know before moving anything else:
+>
+> 1. ordinary `from './x'` imports — fine on the first pass
+> 2. specifiers pointing OUT of `coach/`, which needed one more `../` once the
+>    file sat a level deeper
+> 3. **`vi.mock('../cloud/sync')`** — not an import statement, so the pass
+>    skipped it and ten test files failed with "useSync outside SyncProvider",
+>    which reads like a broken provider rather than a moved file
+> 4. **side-effect imports** — `import './coach-redesign.css'` has no `from`,
+>    and missing it broke the build with an unresolved CSS import
+>
+> Three checks named coach files by path and moved with it.
+> `coach-contract`'s `VITE_COACH_USER_IDS` exemption is re-anchored on
+> `coach/access/` rather than loosened to a bare filename, so a `guard.ts`
+> appearing anywhere else under `coach/` still fails.
+>
+> **It took four rounds of breakage to land**, in a directory with 46 colocated
+> tests and five checks watching it. The rest of the tree is already
+> conventional — `apps/`, `packages/`, `checks/`, `scripts/`, `supabase/`,
+> `netlify/` — and restructuring it would buy nothing for the same risk.
+>
+> ---
+>
+> **Still unrun, and now the only thing between here and a working product
+> loop**: mint an invite, redeem it as yourself, build a week, Publish, check
+> the phone.
 
 > **PREVIOUS CHECKPOINT — 15 August 2026, midday. `main` is at
 > `aca52e8` plus a README/handoff commit. Everything below this block is
