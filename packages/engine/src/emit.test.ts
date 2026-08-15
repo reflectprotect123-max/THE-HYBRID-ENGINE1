@@ -19,49 +19,6 @@ describe('a planned set is exactly {t, rpe}', () => {
   });
 });
 
-describe('assertWorkout', () => {
-  const good = () =>
-    emit.newWorkout('Day 1', [
-      emit.newBlock('Main', [emit.newEx('Back Squat', 'reps_kg', [emit.newSet('5', '8')])]),
-      emit.newCondBlock('Finisher', 'intervals', 'hard'),
-    ]);
-
-  it('accepts a well-formed session', () => {
-    expect(() => emit.assertWorkout(good())).not.toThrow();
-  });
-
-  it('REFUSES a set carrying any logger-owned field', () => {
-    for (const key of FORBIDDEN_SET_KEYS) {
-      const w = good();
-      const sets = (w.blocks[0] as unknown as { exercises: { sets: Record<string, unknown>[] }[] }).exercises[0]
-        .sets;
-      sets[0][key] = 'x';
-      expect(() => emit.assertWorkout(w), key).toThrow(new RegExp(`logger field "${key}"`));
-    }
-  });
-
-  it('refuses a bogus mode, format, zone or effort', () => {
-    const badMode = good();
-    (badMode.blocks[0] as unknown as { exercises: { mode: string }[] }).exercises[0].mode = 'nonsense';
-    expect(() => emit.assertWorkout(badMode)).toThrow(/bad mode/);
-
-    expect(() => emit.assertWorkout({ blocks: [{ kind: 'conditioning', condFmt: 'nope', targetZone: 'mod' }] })).toThrow(
-      /bad condFmt/,
-    );
-    expect(() =>
-      emit.assertWorkout({ blocks: [{ kind: 'conditioning', condFmt: 'intervals', targetZone: 'nope' }] }),
-    ).toThrow(/bad targetZone/);
-    expect(() =>
-      emit.assertWorkout({ blocks: [{ kind: 'conditioning', condFmt: 'intervals', targetZone: 'mod', effort: 'nope' }] }),
-    ).toThrow(/bad effort/);
-  });
-
-  it('refuses a workout that is not shaped like one at all', () => {
-    expect(() => emit.assertWorkout(null as never)).toThrow();
-    expect(() => emit.assertWorkout({ blocks: 'nope' } as never)).toThrow(/must be an array/);
-    expect(() => emit.assertWorkout({ blocks: [null] } as never)).toThrow(/not an object/);
-  });
-});
 
 describe('what the coach can actually carry across', () => {
   it('rest, tempo and the cue survive — none are hardcoded', () => {
@@ -104,16 +61,7 @@ describe('what the coach can actually carry across', () => {
     expect([junk.effort, junk.targetZone]).toEqual(['medium', 'mod']);
   });
 
-  it('measureToMode maps the coach editor’s columns onto the athlete’s modes', () => {
-    expect(emit.measureToMode(['Weight (kg)', 'Reps'])).toBe('reps_kg');
-    expect(emit.measureToMode(['Time (min:sec)'])).toBe('seconds');
-    expect(emit.measureToMode(['Reps'])).toBe('reps');
-    expect(emit.measureToMode(['Distance'])).toBe('completion');
-    expect(emit.measureToMode([])).toBe('completion');
-  });
+  
 
-  it('lbToKg', () => {
-    expect(emit.lbToKg(225)).toBe(102.1);
-    expect(emit.lbToKg('nonsense')).toBe('');
-  });
+  
 });

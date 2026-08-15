@@ -45,10 +45,8 @@ import {
   rpeCenterOf,
   rxLine,
   saneKg,
-  sanNumStr,
   sanitizeDB,
   sessionRpe,
-  sessionScore,
   sessionVolume,
   verdictForRpe,
 } from './index';
@@ -59,7 +57,6 @@ import type { Downsampled, EngineDB, Exercise, LoggedSet, Profile, Session } fro
 import epleyV from '../test/golden/epley.json';
 import roundV from '../test/golden/roundToIncrement.json';
 import saneKgV from '../test/golden/saneKg.json';
-import sanNumStrV from '../test/golden/sanNumStr.json';
 import verdictV from '../test/golden/verdictForRpe.json';
 import foldV from '../test/golden/foldExercise.json';
 import centerV from '../test/golden/rpeCenterOf.json';
@@ -75,7 +72,6 @@ import recBandV from '../test/golden/recoveryBand.json';
 import hrrV from '../test/golden/conHrr.json';
 import volV from '../test/golden/sessionVolume.json';
 import srpeV from '../test/golden/sessionRpe.json';
-import scoreV from '../test/golden/sessionScore.json';
 import prV from '../test/golden/detectPRs.json';
 import rxV from '../test/golden/rxLine.json';
 import sanV from '../test/golden/sanitizeDB.json';
@@ -110,9 +106,7 @@ describe('numeric helpers', () => {
   it('saneKg', () => {
     for (const v of saneKgV) expect(saneKg(un(v.in)), JSON.stringify(v)).toBe(v.out);
   });
-  it('sanNumStr', () => {
-    for (const v of sanNumStrV) expect(sanNumStr(v.in), JSON.stringify(v)).toBe(v.out);
-  });
+
 });
 
 describe('autoregulation', () => {
@@ -295,9 +289,7 @@ describe('session maths', () => {
   it('sessionRpe', () => {
     srpeV.forEach((v, i) => expect(sessionRpe(sessions[i]), v.id).toEqual(v.out));
   });
-  it('sessionScore counts a finished conditioning block as work', () => {
-    scoreV.forEach((v, i) => expect(sessionScore(sessions[i]), v.id).toBe(v.out));
-  });
+
   it('detectPRs ignores warm-ups', () => {
     prV.forEach((v, i) => expect(detectPRs(sessions[i], []), v.id).toEqual(v.out));
   });

@@ -260,8 +260,6 @@ export function nextWorkingWeight(
   };
 }
 
-/** Below this, the day is red. Re-exported so surfaces can explain the gate. */
-export const LIFT_EASE_BELOW = RECOVERY_BANDS.watch;
 
 /**
  * What a library session would open at, movement by movement.

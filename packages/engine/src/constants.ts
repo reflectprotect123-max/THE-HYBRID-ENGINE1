@@ -154,7 +154,6 @@ export const INSIGHTS = {
 } as const;
 
 export const LS_KEY = 'hybrid-engine-v1';
-export const COACH_LS_KEY = 'hybrid-coach-v1';
 
 /**
  * Fields the logger owns. A planned set arriving from the coach carrying any of

@@ -333,11 +333,6 @@ export function loggedWorkCount(s: Session): number {
   return n;
 }
 
-/** How much a session is "worth" — kept for existing consumers of the raw number. */
-export function sessionScore(s: Session): number {
-  return (s.completedAt || s.startedAt || 0) + loggedWorkCount(s) * 1e6;
-}
-
 export function hasLoggedWork(s: Session | null | undefined): boolean {
   return (
     !!s &&
@@ -395,44 +390,6 @@ export function exLogFor(name: string, sessions: Session[]): ExerciseHistoryEntr
     });
 
   return out;
-}
-
-/**
- * What you did on this lift LAST time, set by set — the reference the logger
- * shows above the inputs so you know what you are chasing.
- *
- * Only the most recent completed session counts. "Last time" means one session
- * ago, not a best-ever or a rolling average; if the answer were assembled from
- * several days it would stop being a thing that happened and start being a
- * statistic, which is what Progress is for.
- *
- * The active session is excluded for free — `exLogFor` keeps only sessions with
- * a `completedAt` — so a lift being logged right now never compares against
- * itself, which would otherwise show the set you just did as "last time".
- */
-export function lastTimeSets(name: string, sessions: Session[]): ExerciseHistoryEntry['sets'] {
-  const log = exLogFor(name, sessions);
-  return log.length ? log[log.length - 1].sets : [];
-}
-
-/**
- * Which WORKING set a raw set index is, or -1 for a warm-up.
- *
- * The logger indexes every set on the exercise, warm-ups included; the history
- * record (`exLogFor`) drops warm-ups entirely. Reading last time's set list at
- * the logger's own index therefore lines set 3 of today up against set 1 of last
- * time the moment an exercise starts with two warm-ups — an off-by-two that
- * silently reports the wrong weight to chase, which is worse than reporting
- * nothing. This is the translation between the two.
- *
- * Warm-ups get -1 rather than a neighbour's number because they are not in the
- * record at all: there is no "last time" for a set that was never kept.
- */
-export function workingSetOrdinal(sets: Pick<AnySet, 't'>[], si: number): number {
-  if (si < 0 || si >= sets.length || isWarmup(sets[si])) return -1;
-  let n = 0;
-  for (let i = 0; i < si; i++) if (!isWarmup(sets[i])) n++;
-  return n;
 }
 
 export function exBest(

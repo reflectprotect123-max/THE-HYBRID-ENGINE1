@@ -271,6 +271,34 @@ describe('foldFromExercise', () => {
   it('returns null for an exercise with no working sets at all', () => {
     expect(foldFromExercise(ex([{ t: 'W10', rpe: '5' }]), 2.5)).toBeNull();
   });
+
+  it('prices an UNRATED deviation off the plan, not off the last bar weight', () => {
+    /*
+     * Moved here from `logger.test.ts` when `prefillPrimary` was deleted with
+     * the web logger (15 August 2026). It was always a claim about the fold
+     * rather than about the prefill, and it is the one place the fold
+     * deliberately DIVERGES from what the old screen used to do.
+     *
+     * Set 1: 100 kg for 5 @8, rated 8 — exactly on plan. Set 2: the athlete
+     * jumped to 110 kg and never rated it. Pricing set 3:
+     *
+     * THE OLD RULE was "repeat the nearest earlier weight" — `felt` is
+     * unparseable, so no adjustment ran and set 2's own 110 came straight
+     * back.
+     *
+     * THE FOLD stops at the unrated set, because an unrated set carries no
+     * evidence. Logs hold only set 1: dev = 8 − 8 = 0, so adj is 1, and the
+     * plan's price at the anchor the athlete chose and confirmed is 100.
+     *
+     * 110 was a weight nobody vouched for. The divergence is chosen.
+     */
+    const r = foldFromExercise(ex([
+      { t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true },
+      { t: '5', rpe: '8', aVal: '110', aVal2: '5', done: true },
+      { t: '5', rpe: '8' },
+    ]), 2.5)!;
+    expect(r.kg).toBe(100);
+  });
 });
 
 import { foldNextOpener } from './fold';
@@ -322,25 +350,3 @@ describe('foldNextOpener', () => {
   });
 });
 
-import { openerKgOf } from './fold';
-
-describe('openerKgOf', () => {
-  it('names the weight `foldNextOpener` prices its answer off', () => {
-    // A ramp: 100 then 120, both on target. The opener is the 100 — the same
-    // set `foldNextOpener` anchors on, which is why its answer (a hold at 100)
-    // is only comparable with THIS number and not with the 120.
-    const ramped = ex([doneSet(8), doneSet(8, { aVal: '120' })]);
-    expect(openerKgOf(ramped)).toBe(100);
-    expect(foldNextOpener(ramped, 2.5)!.kg).toBe(100);
-  });
-
-  it('skips warm-ups, exactly as the fold does', () => {
-    // A 40kg warm-up first is not what the exercise opened at.
-    const warmed = ex([doneSet(8, { t: 'W3', aVal: '40', aVal2: '3' }), doneSet(8)]);
-    expect(openerKgOf(warmed)).toBe(100);
-  });
-
-  it('is 0 when there is no working set to read', () => {
-    expect(openerKgOf(ex([]))).toBe(0);
-  });
-});

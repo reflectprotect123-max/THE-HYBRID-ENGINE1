@@ -17,8 +17,6 @@ import {
   duplicateExercise,
   duplicateWorkout,
   fillLinkedSets,
-  lastTimeSets,
-  workingSetOrdinal,
 } from './session';
 import type { Block, CondBlock, Exercise, LoggedSet, PlannedSet, Session, Workout } from './types';
 
@@ -368,95 +366,3 @@ describe('detectPRs scans every block for a lift, not just the first (E3)', () =
   });
 });
 
-/*
- * `lastTimeSets` / `workingSetOrdinal` — the reference the logger shows above
- * the inputs: what you did on this lift last time, set by set.
- *
- * The pair exists because the two sides count sets differently. The logger
- * indexes every set on the exercise, warm-ups included; the history record
- * (`exLogFor`) drops warm-ups entirely. Reading last time's list at the
- * logger's own index therefore lines today's set 3 up against last time's set
- * 1 the moment an exercise opens with two warm-ups — and reporting the wrong
- * weight to chase is worse than reporting none, so the translation is tested
- * rather than assumed.
- */
-const doneSet = (kg: string, reps: string, felt = ''): LoggedSet =>
-  ({ done: true, aVal: kg, aVal2: reps, felt }) as LoggedSet;
-const warmSet = (kg: string, reps: string): LoggedSet =>
-  ({ t: 'W10', done: true, aVal: kg, aVal2: reps }) as LoggedSet;
-
-const squatSession = (id: string, at: string, sets: LoggedSet[]): Session =>
-  ({
-    id,
-    date: at.slice(0, 10),
-    status: 'completed',
-    completedAt: Date.parse(at),
-    blocks: [
-      {
-        id: 'main',
-        heading: 'Main',
-        superset: false,
-        exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg', rest: 180, sets }],
-      },
-    ],
-  }) as unknown as Session;
-
-describe('lastTimeSets', () => {
-  it('returns the sets from the MOST RECENT completed session, not the oldest', () => {
-    const older = squatSession('s1', '2026-01-01T18:00:00Z', [doneSet('100', '8', '7.5')]);
-    const newer = squatSession('s2', '2026-01-08T18:00:00Z', [doneSet('105', '6', '9')]);
-
-    // Passed newest-FIRST on purpose: the answer must come from the session
-    // dates, not from whatever order the caller happened to hand them over.
-    const sets = lastTimeSets('Back Squat', [newer, older]);
-    expect(sets).toHaveLength(1);
-    expect(sets[0]).toMatchObject({ kg: 105, reps: 6, felt: '9' });
-  });
-
-  it('ignores the session being logged right now, which has no completedAt', () => {
-    const done = squatSession('s1', '2026-01-01T18:00:00Z', [doneSet('100', '8')]);
-    const live = {
-      ...squatSession('s2', '2026-01-08T18:00:00Z', [doneSet('140', '1')]),
-      status: 'active',
-      completedAt: undefined,
-    } as unknown as Session;
-
-    // Without this the set just logged would be offered as its own "last time".
-    expect(lastTimeSets('Back Squat', [done, live]).map((s) => s.kg)).toEqual([100]);
-  });
-
-  it('is empty for a lift with no history, rather than throwing', () => {
-    expect(lastTimeSets('Front Squat', [squatSession('s1', '2026-01-01T18:00:00Z', [doneSet('100', '8')])])).toEqual([]);
-    expect(lastTimeSets('Back Squat', [])).toEqual([]);
-  });
-
-  it('drops warm-ups, so the reference is working sets only', () => {
-    const s = squatSession('s1', '2026-01-01T18:00:00Z', [warmSet('60', '10'), doneSet('100', '8')]);
-    expect(lastTimeSets('Back Squat', [s]).map((x) => x.kg)).toEqual([100]);
-  });
-});
-
-describe('workingSetOrdinal', () => {
-  it('counts only working sets, so a warm-up does not shift the reference', () => {
-    const sets = [warmSet('60', '10'), warmSet('80', '5'), doneSet('100', '8'), doneSet('100', '8')];
-    // The bug this prevents: index 2 read straight into last time's list is
-    // set 3, which does not exist — the first WORKING set is ordinal 0.
-    expect(workingSetOrdinal(sets, 2)).toBe(0);
-    expect(workingSetOrdinal(sets, 3)).toBe(1);
-  });
-
-  it('is -1 for a warm-up, which is never in the record at all', () => {
-    const sets = [warmSet('60', '10'), doneSet('100', '8')];
-    expect(workingSetOrdinal(sets, 0)).toBe(-1);
-  });
-
-  it('is -1 out of range rather than guessing', () => {
-    expect(workingSetOrdinal([doneSet('100', '8')], 5)).toBe(-1);
-    expect(workingSetOrdinal([doneSet('100', '8')], -1)).toBe(-1);
-  });
-
-  it('is the identity when nothing is a warm-up', () => {
-    const sets = [doneSet('100', '8'), doneSet('100', '8'), doneSet('100', '6')];
-    expect(sets.map((_, i) => workingSetOrdinal(sets, i))).toEqual([0, 1, 2]);
-  });
-});

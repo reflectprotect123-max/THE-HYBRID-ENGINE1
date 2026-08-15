@@ -1,57 +1,36 @@
-import { isWarmup, repTopOf } from './autoreg';
-import { AUTOREG } from './constants';
-import { foldFromExercise, incrementFor } from './fold';
-import { nextWorkingWeight, prescribedKg } from './lift';
-import { blockExercises, isCond, isLiftMode, isText } from './session';
-import type { AnySet, Block, Exercise, LoggedSet, Session, Settings, WhoopSample } from './types';
+import { blockExercises, isCond, isText } from './session';
+import type { AnySet, Block, Exercise, LoggedSet, Session } from './types';
 
 /*
- * The guided set flow, as logic.
+ * WHAT IS LEFT OF THE OLD GUIDED LOGGER, AND WHY.
  *
- * The stage shows one set at a time; these functions decide which set that is,
- * where the flow goes after a confirm, and what to prefill. They are here
- * rather than in the UI because every one of them is a rule about training,
- * not about rendering — and because the React app and the React Native app must
- * agree on all of them exactly.
+ * This file used to be the whole guided set flow: which set is current, where
+ * the flow goes after a confirm, what to prefill, and how a superset chain is
+ * walked. That flow belonged to the WEB logger, which is deleted — the phone's
+ * round-major logger runs `@hybrid/session-authoring`'s state machine instead,
+ * and takes its load rule straight from `@hybrid/engine`'s `foldExercise`.
+ *
+ * So `curSetIndex`, `nextLoggerLocation`, `targetLine`, `prefillPrimary`,
+ * `prefillSecondary`, `advanceAfterSet`, `ssGroupOf` and the `LogLoc`/
+ * `NamedLoc`/`PrefillCtx` shapes went with it (15 August 2026). Every one of
+ * them had a test and no caller, which is the shape that reads as coverage and
+ * is really just weight: a suite proving that deleted UI's helpers still work.
+ *
+ * THE ONE THING WORTH CARRYING FORWARD, because it was expensive to learn and
+ * is now only in git: `prefillPrimary`'s ladder was ordered, and the order was
+ * the rule. Something already typed outranks any suggestion; this exercise's
+ * own earlier sets outrank history; an authored percentage outranks the earned
+ * weight; and only with nothing earned does it repeat last time. If the phone's
+ * logger ever grows a prefill of its own, that precedence is the thing to copy
+ * — not the function.
+ *
+ * What remains are shape questions about a session that both apps still ask:
+ * is this exercise finished, what letter does it carry, how far through are we.
  */
 
-/** Index of the first unfinished set, or -1 when the exercise is done. */
-export function curSetIndex(ex: Exercise<LoggedSet>): number {
-  return ex.sets.findIndex((st) => !st.done);
-}
-
+/** Is every set of this exercise logged? */
 export function exFinished(ex: Exercise<LoggedSet>): boolean {
   return ex.sets.length > 0 && ex.sets.every((st) => st.done);
-}
-
-export interface LogLoc {
-  bi: number;
-  ei: number;
-}
-
-export interface NamedLoc extends LogLoc {
-  name: string;
-}
-
-/**
- * Where "next exercise" points.
- *
- * It never points at the CURRENT location: the full-screen footer would
- * re-enter the exercise you are already on, and re-entering resets the stage —
- * silently discarding an RPE already dialled in.
- */
-export function nextLoggerLocation(s: Session, bi: number, ei: number): NamedLoc | null {
-  const flat: NamedLoc[] = [];
-  s.blocks.forEach((b, bj) => {
-    if (isCond(b)) return;
-    blockExercises(b).forEach((e, ej) => {
-      if (e.mode !== 'completion' && !exFinished(e)) flat.push({ bi: bj, ei: ej, name: e.name || 'Exercise' });
-    });
-  });
-  if (!flat.length) return null;
-  const rest = flat.filter((x) => x.bi !== bi || x.ei !== ei);
-  if (!rest.length) return null;
-  return rest.find((x) => x.bi > bi || (x.bi === bi && x.ei > ei)) || rest[0];
 }
 
 /**
@@ -82,11 +61,6 @@ export function ssGroups(b: Block<AnySet>): number[][] {
   return groups;
 }
 
-/** The chain containing this exercise — at minimum, itself. */
-export function ssGroupOf(b: Block<AnySet>, ei: number): number[] {
-  return ssGroups(b).find((g) => g.includes(ei)) || [ei];
-}
-
 /**
  * The letter shown on each exercise. A superset chain shares one letter across
  * its members — A1, A2 — which is the whole visual point: they are one unit.
@@ -114,173 +88,6 @@ export function sessionLetters(s: Session): Record<number, string[]> {
   return out;
 }
 
-/** The target line on the stage: "5 @8", "max @9", "W10". */
-export function targetLine(ex: Exercise<LoggedSet>, st: LoggedSet): string {
-  if (ex.mode === 'amrap') return 'max' + (st.rpe ? ' @' + st.rpe : '');
-  const t = st.t === 'max' ? 'max' : st.t || '—';
-  return t + (st.rpe ? ' @' + st.rpe : '');
-}
-
-/**
- * The last session that logged this movement, with its sets left at their
- * ORIGINAL indices — a hole for anything unlogged.
- *
- * Positional, deliberately: set 3 prefills from set 3 of last time. The
- * compacted history `exLogFor` returns has warm-ups and gaps squeezed out, so
- * reading it by index silently walks the athlete onto a heavier set.
- */
-function lastTimeFor(name: string, sessions: Session[]): (LoggedSet | null)[] | null {
-  // `.trim()` matters and was missing: every OTHER place that keys on a
-  // movement name trims first — exLogFor, detectPRs, bestE1rmByLift, liftMoves,
-  // nextWorkingWeight — so a name saved with a trailing space found its earned
-  // weight and its PRs but not its own last session.
-  const key = String(name || '').trim().toLowerCase();
-  const done = sessions
-    .filter((s) => s.status === 'completed' || s.status === 'incomplete')
-    .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
-
-  for (const s of done) {
-    for (const b of s.blocks) {
-      for (const e of blockExercises<LoggedSet>(b)) {
-        if (String(e.name || '').toLowerCase() !== key) continue;
-        const sets = e.sets.map((st) => (st.done && (st.aVal || st.aVal2) ? st : null));
-        if (sets.some(Boolean)) return sets;
-      }
-    }
-  }
-  return null;
-}
-
-/** Where the earned weight comes from. Optional — omit it and nothing changes. */
-export interface PrefillCtx {
-  settings?: Settings;
-  whoop?: WhoopSample | null;
-}
-
-/**
- * What to put in the primary field before the athlete types.
- *
- * ONLY prefills from a set of the same kind. Carrying a 40kg warm-up into the
- * first working set — or a working weight back into a warm-up — is the same
- * contamination the isWarmup guards exist to prevent, just arriving through the
- * prefill instead of through the maths.
- *
- * The order below is the whole rule, and each step outranks the next for a
- * reason: something already typed must never be overwritten by a suggestion;
- * this exercise's own earlier sets are more current than any history; the
- * EARNED weight is what the last session decided you should be on; and only
- * when nothing has been earned does it fall back to repeating last time.
- */
-export function prefillPrimary(
-  ex: Exercise<LoggedSet>,
-  si: number,
-  sessions: Session[] = [],
-  ctx: PrefillCtx = {},
-): string {
-  const st = ex.sets[si];
-  if (!st) return '';
-  if (st.aVal) return st.aVal;
-
-  const warm = isWarmup(st);
-  const same = (x: LoggedSet | null | undefined) => !!x && isWarmup(x) === warm;
-
-  for (let i = si - 1; i >= 0; i--) {
-    const p = ex.sets[i];
-    if (!p.aVal || !same(p)) continue;
-
-    /*
-     * A RATED previous set moves the bar; an unrated one just repeats.
-     *
-     * This is where the app stopped agreeing with itself. The logger prints
-     * "that set was easy — +2.5 kg for Set 3 (132.5 kg)" and then handed the
-     * next set 130, because the only rule that applied here was "repeat what is
-     * on the bar". The recommendation was a sentence, never a number anyone
-     * used: `computeSetAdjustment`'s answer was formatted into the hint and
-     * dropped. Between SESSIONS the same formula was honoured (liftMoves), so
-     * the weight moved once a week and never within a session — while the
-     * screen claimed otherwise both times.
-     *
-     * Reading it here rather than writing the adjusted weight onto the next set
-     * keeps `aVal` meaning one thing: what was actually entered. A suggestion
-     * written into `aVal` would be indistinguishable from a logged value, and
-     * the rule above it — something already typed is never overwritten — would
-     * then be defending the app's own guess.
-     *
-     * `felt` (what it was rated) and not `rpe` (what was asked for): judging a
-     * set against its own target scores everything perfect and the weight never
-     * moves, the same trap `liftMoves` documents. So an unrated set falls
-     * through to repeating, which is exactly today's behaviour — and is why the
-     * parity suite's "yields to an earlier set of the SAME exercise" still
-     * holds, since that fixture's previous set was never rated.
-     */
-    if (isLiftMode(ex.mode) && !warm && p.done) {
-      const folded = foldFromExercise(ex, incrementFor(ex));
-      if (folded && folded.kg > 0) return String(folded.kg);
-    }
-    return p.aVal;
-  }
-
-  if (isLiftMode(ex.mode)) {
-    // Working sets only. A warm-up prefilled from the earned working weight is
-    // the exact contamination the `same` guard exists to stop, and it would
-    // arrive here through the front door.
-    if (!warm) {
-      /*
-       * An authored percentage beats the earned weight, and loses to anything
-       * already done today — the scan above ran first and returned if it found
-       * one. `prescribedKg` documents the whole precedence rule and is the only
-       * place it is decided; this is just where the ladder reads it.
-       *
-       * It returns 0 when there is no e1RM to take a percentage of, which falls
-       * through to the earned weight rather than putting a guess on the bar.
-       */
-      const asked = prescribedKg(ex.name, st.t, sessions);
-      if (asked > 0) return String(asked);
-
-      const w = nextWorkingWeight(ex.name, ctx.settings, ctx.whoop);
-      if (w) return String(w.kg);
-    }
-
-    const last = lastTimeFor(ex.name, sessions);
-    if (last) {
-      const at = last[si];
-      if (at && at.aVal && same(at)) return at.aVal;
-      const ls = last.find((x) => x && x.aVal && same(x));
-      if (ls && ls.aVal) return ls.aVal;
-    }
-    return '';
-  }
-
-  /*
-   * Every non-lift mode renders the primary field as a NUMBER box — reps, or
-   * seconds held. `st.t` is free authored text: '8-10', '20-30s',
-   * '30s/side' are all legal targets, and putting one of them in the box
-   * verbatim meant confirming the set logged that string as the thing the
-   * athlete actually did. `repTopOf` is the parser this screen already uses
-   * everywhere else the same target has to become a number — the seconds
-   * timer arms from it, and `prefillSecondary` below prefills from it — so
-   * the top of a range is what appears, which is what the athlete aims at.
-   */
-  return st.t && st.t !== 'max' ? repTopOf(st.t) : '';
-}
-
-/**
- * Reps field prefill: what was done on an earlier set of this exercise, else
- * the top of the planned target. Reps carry forward because they are the thing
- * an athlete repeats — unlike load, they are not kind-sensitive, so a warm-up's
- * count is a fine starting point for the next set.
- */
-export function prefillSecondary(ex: Exercise<LoggedSet>, si: number): string {
-  const st = ex.sets[si];
-  if (!st) return '';
-  if (st.aVal2) return st.aVal2;
-  for (let i = si - 1; i >= 0; i--) {
-    const p = ex.sets[i];
-    if (p && p.aVal2) return p.aVal2;
-  }
-  return repTopOf(st.t);
-}
-
 /** Completed sets across a whole session, for the top-of-stage progress bar. */
 export function sessionProgress(s: Session): { done: number; total: number; pct: number } {
   let done = 0;
@@ -305,40 +112,4 @@ export function sessionProgress(s: Session): { done: number; total: number; pct:
     });
   });
   return { done, total, pct: total ? Math.round((100 * done) / total) : 0 };
-}
-
-/**
- * Where the flow goes after a confirmed set, and whether rest sits in between.
- *
- * Inside a superset pair the flow moves A→B with NO rest, because that is what
- * makes it a superset. Rest is taken once the pair is complete.
- */
-export function advanceAfterSet(
-  s: Session,
-  bi: number,
-  ei: number,
-): { next: LogLoc | null; restSec: number } {
-  const b = s.blocks[bi];
-  if (!b || isCond(b)) return { next: null, restSec: 0 };
-  const exs = blockExercises(b);
-  const ex = exs[ei];
-  if (!ex) return { next: null, restSec: 0 };
-
-  const group = ssGroupOf(b, ei);
-  if (group.length > 1) {
-    const at = group.indexOf(ei);
-    // Forward through the rest of the chain with NO rest — that is what makes
-    // it a superset.
-    for (let k = at + 1; k < group.length; k++) {
-      if (!exFinished(exs[group[k]])) return { next: { bi, ei: group[k] }, restSec: 0 };
-    }
-    // Chain complete: back to its first unfinished member, and NOW rest.
-    for (let k = 0; k < group.length; k++) {
-      if (!exFinished(exs[group[k]])) return { next: { bi, ei: group[k] }, restSec: Number(ex.rest) || 0 };
-    }
-    return { next: null, restSec: 0 };
-  }
-
-  if (!exFinished(ex)) return { next: { bi, ei }, restSec: Number(ex.rest) || 0 };
-  return { next: null, restSec: 0 };
 }

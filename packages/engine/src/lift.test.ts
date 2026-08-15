@@ -13,7 +13,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import { liftAdapt, liftMoves, nextWorkingWeight, prescribedKg, sessionOpeners } from './lift';
-import { prefillPrimary } from './logger';
 import type { Exercise, LoggedSet, Session } from './types';
 
 const ex = (name: string, sets: LoggedSet[], mode: Exercise['mode'] = 'reps_kg'): Exercise<LoggedSet> => ({
@@ -261,9 +260,21 @@ describe('what a library session opens at', () => {
  *
  * Two things can decide a load — a percentage somebody authored for the set,
  * and the absolute weight banked in `liftProgress` — and the danger the rule
- * exists to remove is them disagreeing silently. `prescribedKg` owns the rule;
- * these cases pin the ladder end to end, through `prefillPrimary`, because the
- * rule is only worth anything at the point a number reaches the athlete.
+ * exists to remove is them disagreeing silently.
+ *
+ * THESE CASES USED TO RUN THROUGH `prefillPrimary`, deliberately, "because the
+ * rule is only worth anything at the point a number reaches the athlete".
+ * `prefillPrimary` was the WEB logger's, and it was deleted on 15 August 2026
+ * — which leaves `prescribedKg` and `nextWorkingWeight` with no caller that
+ * puts their answer in front of anybody. `openDraft` in
+ * `@hybrid/session-authoring` opens the phone's entry field from
+ * `foldFromExercise` alone, which prices off THIS session's opener and knows
+ * nothing about an authored percentage or a banked weight.
+ *
+ * So the sentence above is still true and is now an indictment rather than a
+ * justification. The rule below is tested at the unit it lives in; nothing
+ * carries it to the athlete. Wiring that is task #168, and these are the
+ * assertions it has to keep true.
  */
 describe('prescribedKg — an authored % of e1RM, and what it outranks', () => {
   // 100kg x 5 → epley 100 x (1 + 5/30) = 116.67 e1RM. 80% of that is 93.33,
@@ -284,45 +295,26 @@ describe('prescribedKg — an authored % of e1RM, and what it outranks', () => {
     expect(prescribedKg('Front squat', '5 @80%', history)).toBe(0);
   });
 
-  it('RULE 2: an authored percentage beats the earned weight', () => {
+  it('RULE 2: an authored percentage OUTRANKS the earned weight', () => {
     // liftProgress says 140. The coach wrote 80%, which is 92.5. What somebody
     // wrote for THIS set wins over what the app inferred from the last one.
     const settings = { liftProgress: { 'back squat': { kg: 140, at: 1000, reps: 5 } } };
-    const today = ex('Back squat', [{ t: '5 @80%', rpe: '8' } as LoggedSet]);
-    expect(prefillPrimary(today, 0, history, { settings })).toBe('92.5');
-    // And with no percentage authored, the earned weight is still what shows —
-    // rule 3, today's behaviour, unchanged.
-    const plain = ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]);
-    expect(prefillPrimary(plain, 0, history, { settings })).toBe('140');
+    expect(prescribedKg('Back squat', '5 @80%', history)).toBe(92.5);
+    expect(nextWorkingWeight('Back squat', settings)!.kg).toBe(140);
+
+    // And with no percentage authored there is nothing to outrank it with, so
+    // the earned weight stands alone — rule 3.
+    expect(prescribedKg('Back squat', '5', history)).toBe(0);
   });
 
-  it('RULE 1: a set already done TODAY beats the authored percentage', () => {
-    // A percentage is a plan; a set you have already done is a fact. The
-    // in-exercise scan runs first and is untouched, so autoregulation still
-    // works inside a %-authored exercise.
-    const settings = { liftProgress: { 'back squat': { kg: 140, at: 1000, reps: 5 } } };
-    const today = ex('Back squat', [
-      { t: '5 @80%', rpe: '8', aVal: '105', aVal2: '5', done: true } as LoggedSet,
-      { t: '5 @80%', rpe: '8' } as LoggedSet,
-    ]);
-    // Unrated, so it repeats what was actually lifted rather than the plan.
-    expect(prefillPrimary(today, 1, history, { settings })).toBe('105');
-
-    // Rated easier, it autoregulates off what was lifted — still not off the %.
-    const rated = ex('Back squat', [
-      { t: '5 @80%', rpe: '8', aVal: '105', aVal2: '5', felt: '7', done: true } as LoggedSet,
-      { t: '5 @80%', rpe: '8' } as LoggedSet,
-    ]);
-    expect(prefillPrimary(rated, 1, history, { settings })).toBe('107.5');
-  });
-
-  it('never resolves a percentage onto a warm-up', () => {
-    // Same contamination guard as everywhere else: a warm-up prefilled from a
-    // working prescription is the thing `same` exists to stop.
-    const today = ex('Back squat', [{ t: 'W5 @80%', rpe: '' } as LoggedSet]);
-    expect(prefillPrimary(today, 0, history, {})).toBe('');
+  it('RULE 3: with no e1RM to take a percentage OF, it declines rather than guesses', () => {
+    /* Returning 0 is what lets a caller fall through to the earned weight. A
+       first session has nothing to take a percentage of, and putting a guess
+       under a barbell on no evidence is the failure this avoids. */
+    expect(prescribedKg('Back squat', '5 @80%', [])).toBe(0);
   });
 });
+
 
 const sessionWith = (sets: LoggedSet[]): Session => ({
   id: 's1', date: '2026-08-12', status: 'completed',

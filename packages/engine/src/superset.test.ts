@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advanceAfterSet, sessionLetters, ssGroups } from './logger';
+import { sessionLetters, ssGroups } from './logger';
 import { exLogFor } from './session';
 import type { Exercise, LoggedSet, Session, StrengthBlock } from './types';
 
@@ -64,38 +64,17 @@ describe('ssGroups', () => {
   });
 });
 
-describe('advanceAfterSet with a pair', () => {
-  it('goes straight to the partner with NO rest', () => {
-    // This is the whole point of a superset.
-    const s = sess([block([ex('bench', 2, { ssNext: true }), ex('dip', 2), ex('curl', 2)])]);
-    expect(advanceAfterSet(s, 0, 0)).toEqual({ next: { bi: 0, ei: 1 }, restSec: 0 });
-  });
-
-  it('rests only once the pair is complete, then loops back', () => {
-    const s = sess([block([ex('bench', 2, { ssNext: true }), ex('dip', 2), ex('curl', 2)])]);
-    expect(advanceAfterSet(s, 0, 1)).toEqual({ next: { bi: 0, ei: 0 }, restSec: 90 });
-  });
-
-  it('does not drag the unpaired exercise after it into the chain', () => {
-    // The regression this whole change exists to prevent: 'curl' is a straight
-    // set and must rest on itself, not become part of bench+dip.
-    const s = sess([block([ex('bench', 2, { ssNext: true }), ex('dip', 2), ex('curl', 2)])]);
-    expect(advanceAfterSet(s, 0, 2)).toEqual({ next: { bi: 0, ei: 2 }, restSec: 90 });
-  });
-
-  it('leaves the pair once both are finished', () => {
-    const s = sess([
-      block([done(ex('bench', 2, { ssNext: true })), done(ex('dip', 2)), ex('curl', 2)]),
-    ]);
-    expect(advanceAfterSet(s, 0, 1).next).toBeNull();
-  });
-
-  it('skips a finished partner rather than sending you back to it', () => {
-    const b = block([ex('bench', 2, { ssNext: true }), done(ex('dip', 2)), ex('curl', 2)]);
-    expect(advanceAfterSet(sess([b]), 0, 0)).toEqual({ next: { bi: 0, ei: 0 }, restSec: 90 });
-  });
-});
-
+/*
+ * `advanceAfterSet` was tested here and is gone (15 August 2026). It walked a
+ * superset chain A→B with no rest and rested only once the pair was complete —
+ * the rule that MAKES it a superset — but it belonged to the web guided
+ * logger, and the phone runs `@hybrid/session-authoring`'s queue instead.
+ *
+ * The rule did not go with the function: `queue.ts` owns it now, and its own
+ * tests are where a regression in it gets caught. What remains below is the
+ * part that is still shared — how a chain is READ off a block, and what letter
+ * each exercise carries.
+ */
 describe('sessionLetters', () => {
   it('shares a letter across a pair and numbers within it', () => {
     const s = sess([block([ex('bench', 2, { ssNext: true }), ex('dip', 2), ex('curl', 2)])]);

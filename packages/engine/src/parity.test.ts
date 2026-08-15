@@ -2,13 +2,22 @@
  * Where the port drifted from the vanilla app.
  *
  * The golden vectors pin the functions the harvester could reach; these are the
- * ones it could not — the guided-logger prefills, zone banking, and the merge
- * paths that only run at the edges. Every expectation here was read off the
- * corresponding function in the root `app.js`, which remains the specification
- * and the rollback path.
+ * ones it could not — zone banking, the movement list, and the merge paths that
+ * only run at the edges. Every expectation here was read off the corresponding
+ * function in the root `app.js`, which remains the specification and the
+ * rollback path.
+ *
+ * THE GUIDED-LOGGER PREFILLS WERE THE OTHER HALF, and they went on 15 August
+ * 2026 with `prefillPrimary`/`prefillSecondary` themselves. Worth being plain
+ * about what that costs: this file was pinning the port against the vanilla
+ * app, and eighteen of its assertions were about a screen neither product
+ * ships any more. Parity with `app.js` on code nothing runs is not a safety
+ * net — it is the decorative-guard shape, arrived at by deletion elsewhere
+ * rather than by anyone writing a bad test. The phone's logger is pinned by
+ * its own gate (`pnpm run check:parity-mobile`), against the round-major flow
+ * it actually runs.
  */
 import { describe, expect, it } from 'vitest';
-import { prefillPrimary, prefillSecondary } from './logger';
 import { repFloorOf, repTopOf } from './autoreg';
 import { conZones, zoneSeconds } from './hr';
 import { knownMovements, workoutStats } from './session';
@@ -47,109 +56,6 @@ describe('zone banking counts every beat, as conFinish does', () => {
   });
 });
 
-describe('the guided-logger prefills', () => {
-  const today = ex('Back squat', [
-    { t: 'W10', rpe: '' },
-    { t: '5', rpe: '8' },
-    { t: '5', rpe: '8' },
-  ]);
-  const last = historySession(
-    ex('Back squat', [
-      { t: 'W10', rpe: '', aVal: '40', aVal2: '10', done: true },
-      { t: '5', rpe: '8', aVal: '100', aVal2: '5', done: true },
-      { t: '5', rpe: '8', aVal: '110', aVal2: '5', done: true },
-    ]),
-  );
-
-  it('never carries a working weight into a warm-up', () => {
-    // The whole reason `same()` exists. Reading history through the compacted
-    // exLogFor list drops the warm-ups, so index 0 of "last time" became the
-    // first WORKING set and 100kg landed in the warm-up field.
-    expect(prefillPrimary(today, 0, [last])).toBe('40');
-  });
-
-  it('lines up with the same set index as last time', () => {
-    // Set 2 must prefill from set 2 of last time (100), not from whatever is
-    // second once warm-ups and unlogged sets have been squeezed out (110).
-    expect(prefillPrimary(today, 1, [last])).toBe('100');
-  });
-
-  it('carries the previous set’s reps forward', () => {
-    // app.js glogVal2Prefill walks back through the earlier sets before it
-    // falls back to the plan. Without it, an athlete who did 9 on set 1 is
-    // handed the target again on set 2 instead of what they actually did.
-    const e = ex('Back squat', [
-      { t: '8-10', rpe: '8', aVal2: '9', done: true },
-      { t: '8-10', rpe: '8' },
-    ]);
-    expect(prefillSecondary(e, 1)).toBe('9');
-  });
-
-  it('offers the TOP of a rep range, not the bottom', () => {
-    const e = ex('Back squat', [{ t: '8-10', rpe: '8' }]);
-    expect(prefillSecondary(e, 0)).toBe('10');
-  });
-
-  /* The earned weight sits BETWEEN this exercise's own earlier sets and last
-     time's history. Every neighbour in that order is load-bearing. */
-  describe('the earned working weight', () => {
-    const earned = { liftProgress: { 'back squat': { kg: 105, at: 2000 } } };
-
-    it('outranks repeating what was lifted last time', () => {
-      // The whole point. Without this the app prints "+2.5 kg for next session"
-      // and then offers the same 100 it always did.
-      expect(prefillPrimary(today, 1, [last], { settings: earned })).toBe('105');
-    });
-
-    it('never reaches a warm-up', () => {
-      // A warm-up prefilled from the working weight is the same contamination
-      // `same()` exists to stop, arriving through the front door instead.
-      expect(prefillPrimary(today, 0, [last], { settings: earned })).toBe('40');
-    });
-
-    it('never overwrites a number already typed', () => {
-      const typed = ex('Back squat', [{ t: '5', rpe: '8', aVal: '97.5' }]);
-      expect(prefillPrimary(typed, 0, [last], { settings: earned })).toBe('97.5');
-    });
-
-    it('yields to an earlier set of the SAME exercise', () => {
-      // What is on the bar right now beats what last week decided you'd be on.
-      const mid = ex('Back squat', [
-        { t: '5', rpe: '8', aVal: '102.5', done: true },
-        { t: '5', rpe: '8' },
-      ]);
-      expect(prefillPrimary(mid, 1, [last], { settings: earned })).toBe('102.5');
-    });
-
-    it('falls back to history for a lift that has earned nothing', () => {
-      expect(prefillPrimary(today, 1, [last], { settings: { liftProgress: {} } })).toBe('100');
-    });
-
-    it('finds both history and earned weight through a trailing space', () => {
-      // lastTimeFor lowercased but did not trim, while every OTHER keyer did —
-      // so a name saved as "Back squat " found its PRs and its earned weight
-      // but silently missed its own last session. Before the fix the first
-      // assertion returned '' (no history matched at all), not the wrong
-      // number — which is why nobody noticed.
-      const padded = ex('Back squat ', [{ t: '5', rpe: '8' }]);
-      expect(prefillPrimary(padded, 0, [last]), 'history').toBe('100');
-      expect(prefillPrimary(padded, 0, [], { settings: earned }), 'earned').toBe('105');
-    });
-
-    it('is eased on a red recovery morning, but not on a green one', () => {
-      const red = prefillPrimary(today, 1, [last], {
-        settings: earned,
-        whoop: { recoveryScore: 20 },
-      });
-      const green = prefillPrimary(today, 1, [last], {
-        settings: earned,
-        whoop: { recoveryScore: 80 },
-      });
-      expect(red).toBe('102.5');
-      expect(green).toBe('105');
-    });
-  });
-});
 
 describe('the movement list the Planner offers back', () => {
   const mk = (names: string[], at: number): Session => ({
@@ -381,49 +287,3 @@ describe('merge does not admit holes', () => {
  * formula WAS honoured, so load moved weekly and never within a session — with
  * the screen claiming otherwise both times.
  */
-describe('prefill autoregulates from a rated previous set', () => {
-  const rated = (over: Partial<LoggedSet>): LoggedSet =>
-    ({ t: '5', rpe: '8', done: true, aVal: '100', aVal2: '5', ...over }) as LoggedSet;
-
-  it('adds load after a set rated easier than its target', () => {
-    // Target centre 8, rated 7 → one point under → +2.5% of 100 → 102.5.
-    const ex2 = ex('Back squat', [rated({ felt: '7' }), { t: '5', rpe: '8' }]);
-    expect(prefillPrimary(ex2, 1, [])).toBe('102.5');
-  });
-
-  it('takes load off after a set rated harder than its target', () => {
-    const ex2 = ex('Back squat', [rated({ felt: '9' }), { t: '5', rpe: '8' }]);
-    expect(prefillPrimary(ex2, 1, [])).toBe('97.5');
-  });
-
-  it('holds when the set landed on its target', () => {
-    const ex2 = ex('Back squat', [rated({ felt: '8' }), { t: '5', rpe: '8' }]);
-    expect(prefillPrimary(ex2, 1, [])).toBe('100');
-  });
-
-  it('comes down after a missed rep floor, however modestly it was rated', () => {
-    // 3 reps against a floor of 5 — scored harder than a 10, so it must fall.
-    const ex2 = ex('Back squat', [rated({ felt: '7', aVal2: '3' }), { t: '5', rpe: '8' }]);
-    expect(Number(prefillPrimary(ex2, 1, []))).toBeLessThan(100);
-  });
-
-  it('repeats, and never adjusts, when the previous set was not rated', () => {
-    // The parity rule this had to preserve: an unrated set is today's behaviour.
-    const ex2 = ex('Back squat', [rated({ felt: '' }), { t: '5', rpe: '8' }]);
-    expect(prefillPrimary(ex2, 1, [])).toBe('100');
-  });
-
-  it('never adjusts a warm-up from a working set, or vice versa', () => {
-    const ex2 = ex('Back squat', [
-      { t: 'W10', done: true, aVal: '40', aVal2: '10', felt: '4' } as LoggedSet,
-      { t: 'W10' } as LoggedSet,
-    ]);
-    // Warm-ups are not autoregulated: a 40kg bar rated 4 must not become 45.
-    expect(prefillPrimary(ex2, 1, [])).toBe('40');
-  });
-
-  it('still lets a number already typed win', () => {
-    const ex2 = ex('Back squat', [rated({ felt: '7' }), { t: '5', rpe: '8', aVal: '95' } as LoggedSet]);
-    expect(prefillPrimary(ex2, 1, [])).toBe('95');
-  });
-});

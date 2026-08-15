@@ -31,18 +31,6 @@ export function saneKg(v: unknown): number {
   return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_KG) : 0;
 }
 
-/**
- * Keep what was typed when it is a sane number, drop it when it is not.
- * Empty stays empty — a blank field is a legitimate "did not record this",
- * which is different from a zero.
- */
-export function sanNumStr(v: unknown): string {
-  const raw = String(v == null ? '' : v).trim();
-  if (!raw) return '';
-  const n = parseFloat(raw);
-  if (!Number.isFinite(n)) return '';
-  return String(Math.max(0, Math.min(n, 1e6)));
-}
 
 /** One decimal place, no trailing zero: 8 → "8", 8.5 → "8.5". */
 export function fmtRpe(v: number): string {
