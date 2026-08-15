@@ -13,24 +13,17 @@
     "check:csp": "node -e \"const fs=process.getBuiltinModule('node:fs');let bad=0;for(const f of ['apps/web/dist/index.html'])for(const m of fs.readFileSync(f,'utf8').match(/<script\\\\b[^>]*>/gi)||[])if(!/\\\\ssrc=/i.test(m)){bad++;console.error('INLINE <script> in '+f+': '+m)}if(bad){console.error('The deployed CSP is script-src self with no unsafe-inline, so those '+bad+' inline script(s) would be blocked and the app would render blank in production.');process.exit(1)}console.log('OK - no inline <script> in built HTML')\"",
     "check:ecosystem": "node checks/ecosystem-contract.mjs",
     "check:reachability": "node checks/reachability.mjs",
-    "check:lanes": "node checks/lane-contract.mjs",
     "check:css-state": "node checks/css-state-classes.mjs",
     "smoke": "node checks/react-smoke.mjs",
     "smoke:deploy": "node checks/deploy-smoke.mjs",
-    "verify": "pnpm run typecheck && pnpm run test && pnpm run check:ecosystem && pnpm run check:lanes && pnpm run check:reachability && pnpm run check:css-state && pnpm run build:site && pnpm run check:csp && pnpm run smoke && pnpm run smoke:deploy",
+    "verify": "pnpm run typecheck && pnpm run test && pnpm run check:ecosystem && pnpm run check:reachability && pnpm run check:css-state && pnpm run build:site && pnpm run check:csp && pnpm run smoke && pnpm run smoke:deploy",
     "dev:web": "pnpm --filter @hybrid/web dev",
     "build:site": "pnpm run build && node scripts/build-site.mjs",
-    "build:artifact": "node scripts/build-artifact.mjs hybrid",
-    "build:artifact:conditioning": "node scripts/build-artifact.mjs conditioning",
-    "check:artifact": "node checks/artifact-smoke.mjs",
     "check:parity-behaviour": "node checks/parity-behaviour.mjs",
     "check:parity-visual": "node checks/parity-visual.mjs",
     "check:parity-harness": "node checks/parity-harness.mjs",
     "//check:parity-mobile": "The mobile side of both gates, end to end: exports apps/mobile's parity harness, serves it, and drives it. One command, so the gate is runnable by anyone rather than only on the machine that hand-started a server.",
-    "check:parity-mobile": "node checks/parity-behaviour.mjs --target=harness && node checks/parity-visual.mjs --target=harness",
-    "build:conditioning": "pnpm -r --filter \"./packages/*\" build && pnpm --filter @hybrid/web build:conditioning",
-    "deploy:coach": "node scripts/deploy-site.mjs",
-    "deploy:conditioning": "HYBRID_SITE=conditioning node scripts/deploy-site.mjs"
+    "check:parity-mobile": "node checks/parity-behaviour.mjs --target=harness && node checks/parity-visual.mjs --target=harness"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9"

@@ -118,14 +118,19 @@ describe('activateWaiting', () => {
 });
 
 describe('where registration is called from', () => {
-  it('is App, above the route fork — not a component inside the athlete Shell', () => {
-    // The whole point. `UpdateBanner` renders inside `Shell`, so a call from
-    // there leaves /coach, /log, /planner and /build with no worker and makes
-    // the coach bench uninstallable.
+  it('is App, at module scope, above every route', () => {
+    // The regression this guards: registration used to live inside
+    // `UpdateBanner`, a component rendered by the athlete Shell, which left the
+    // coach bench with no worker and therefore uninstallable.
+    //
+    // The second half of this assertion — that `UpdateBanner.tsx` does not
+    // itself register — is GONE because the file is: the athlete surface was
+    // deleted on 15 August 2026 and the banner went with it. Reading a deleted
+    // file here would throw ENOENT and fail the suite for the wrong reason,
+    // which is the crash-instead-of-fail shape this repository keeps hitting.
+    // What survives is the half that is still checkable and still the point:
+    // registration happens in App, at module scope.
     const app = readFileSync(resolve(__dirname, 'App.tsx'), 'utf8');
-    expect(app).toMatch(/startServiceWorker\(\)/);
-
-    const banner = readFileSync(resolve(__dirname, 'UpdateBanner.tsx'), 'utf8');
-    expect(banner).not.toMatch(/serviceWorker\.register/);
+    expect(app).toMatch(/^startServiceWorker\(\);$/m);
   });
 });

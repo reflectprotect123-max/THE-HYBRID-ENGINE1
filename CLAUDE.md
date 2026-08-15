@@ -1,9 +1,11 @@
 # Claude Code operating contract
 
-This repository is THE Hybrid System. It is a pnpm monorepo with two product
-build profiles, shared athlete contracts and specialist domain engines. It had
-a deterministic Coordinator until 14 August 2026; see "The Coordinator is
-deleted" below.
+This repository is THE Hybrid System. It is a pnpm monorepo holding TWO
+products over one engine and one Supabase project: `apps/mobile`, the Android
+athlete app, and `apps/web`, the coach workspace. Scope was cut to those two on
+15 August 2026 and everything outside them was deleted — see the deletion
+sections below, which are kept rather than tidied away because each records a
+decision and its price.
 
 Read the **authoritative checkpoint at the top of `handoff.md`** before making
 changes. It records the current local rebuild commit, the fact that GitHub's
@@ -16,9 +18,13 @@ records; do not follow a stale statement that the rebuild has not started.
 - `@hybrid/shared-core` owns shared facts and compatibility contracts only.
 - `@hybrid/whole-athlete-state` interprets recovery/life context and emits
   constraints. It is not a diagnosis engine and does not prescribe workouts.
-- `@hybrid/strength-engine` owns lifting progression and Strength proposals.
-- `@hybrid/conditioning-engine` owns modalities, intervals and Conditioning
-  progression.
+- `@hybrid/strength-engine`, `@hybrid/conditioning-engine` and
+  `@hybrid/ai-prescription` are **DELETED** (15 August 2026). The first two
+  owned lifting and conditioning progression until 14 August, when the
+  Coordinator's deletion took their proposal boundaries; what remained was a
+  shell that nothing imported. Lifting and conditioning progression live in
+  `@hybrid/engine` (`lift.ts`, `conditioning.ts`) and always did the
+  arithmetic there.
 - `@hybrid/coordinator` and `@hybrid/coordinator-adapter` are **DELETED**
   (14 August 2026). This line read "owns weekly conflict resolution and
   chooses the final weekly plan for an athlete with no coach", and before
@@ -37,7 +43,7 @@ records; do not follow a stale statement that the rebuild has not started.
   its merge. Data only — it decides nothing.
 - `@hybrid/nutrition-adapter` is the one projection from the athlete's
   `NutritionDB` slice to everything that reads it — the phone app's nutrition
-  world, the web dashboard and food log, and the coach bench. It exports reads
+  world and the coach bench. It exports reads
   only, and it is where the nutrition FACTS that whole-athlete-state is allowed
   to see are separated from the targets it is not.
 
@@ -285,159 +291,88 @@ it in staging before enabling `VITE_HYBRID_ECOSYSTEM_SYNC=1` or
 Never remove the legacy read path until old mobile builds have aged out and a
 rollback rehearsal proves that no domain can overwrite another domain.
 
-## The athlete web app is PARKED on the coach site, and LIVE as its own product (amended 15 August 2026)
+## The athlete web app is DELETED (15 August 2026)
 
-This section read "PARKED, not deleted" for two days. On 13 August the owner
-asked for the athlete app to stop being reachable in a browser: "I don't want
-the athlete's app to be seen again — hide it somewhere, and if we ever need it
-again we can pull it out." Every athlete route came out of `App.tsx` and every
-address that was not `/coach` redirected to the bench.
+This section has moved three times in three days, and the whole path matters
+because each step was a real decision:
 
-**It has been pulled out — for ONE build.** The un-parking is scoped, not a
-reversal, and the distinction is the whole content of this amendment:
+1. **13 August — PARKED.** "I don't want the athlete's app to be seen again —
+   hide it somewhere, and if we ever need it again we can pull it out." Every
+   athlete route came out of `App.tsx`; `src/screens/` stayed on disk.
+2. **15 August, morning — PULLED OUT**, for one build. A branded conditioning
+   product on its own site, gated `IS_SCOPED_BUILD`, with no Train tab.
+3. **15 August, afternoon — DELETED.** The owner cut scope to two products, the
+   Android APK and the coach bench, and everything outside them went.
 
-- The **unscoped dashboard build** — the one that deploys to the coach domain —
-  is UNCHANGED. `/` and every athlete address still redirect to `/coach`.
-  The sentence the owner asked for still holds on the site they were talking
-  about.
-- A **branded build** (`VITE_HYBRID_PRODUCT=conditioning`) mounts the athlete
-  app again, and deploys to its own separate site.
+**What went**: `apps/web/src/screens/` entire (the athlete app AND the whole
+nutrition web world), `src/native/` (BLE heart rate, GPS, wake lock, camera,
+barcode, label OCR — every one used only by those screens), `discipline.ts`,
+the athlete chrome (`BottomNav`, `NutritionBottomNav`, `RestChip`,
+`WorldSwitch`), `UpdateBanner`, `store/rest`, `store/startFresh`,
+`lib/session`, `cloud/catalogue`, and the branded-build machinery added that
+morning (`scripts/deploy-site.mjs`, the conditioning arm of the deploy, the
+athlete shots in `checks/screens.mjs`, the conditioning scenarios in
+`checks/react-smoke.mjs`).
 
-The gate is `IS_SCOPED_BUILD`, deliberately not a new flag. That split already
-existed and already answered this question in four places — `navTabs` scopes
-the tab bar, `CoachAccess` sends `/coach` back to `/`, `ManifestLink` chooses
-which app is offered for install, and `PRODUCT_ID` namespaces sync. A second
-flag would have been a second answer to one question.
+**NOTHING IS LOST, and that is a claim about `apps/mobile`, not about git.**
+Every one of those surfaces exists on Android — that is the athlete product,
+and it always was after 13 August. Git history holds the browser versions the
+same way it held `apps/mobile` between `8628060` and its return.
 
-**"Strength is left alone, nothing touches that at all"** is the owner's
-instruction for the branded conditioning build, and it is enforced by the
-product scope rather than by a route list: `navTabs` yields
-Home / Cond / Library / Progress / Settings — no Train tab. `/training` still
-RESOLVES if typed, and `checks/screens.mjs` shoots it, because a screen that
-can only be reached awkwardly can still overflow a phone. What the tab bar does
-about it is `checks/react-smoke.mjs`'s claim, which fails if a Train tab ever
-reaches a conditioning build.
+**`apps/web` is the coach workspace and nothing else.** `/` and every other
+address redirect to `/coach`, carrying the query string (both OAuth callbacks
+return to `/?integration=…`, and dropping the params makes a cancelled
+authorization indistinguishable from "never connected").
 
-The strength LOGGER is **not** restored. It was deleted on 13 August
-(`8c4a505`) and `apps/mobile` has since grown a newer round-major one, so
-restoring it would ship two diverging logging surfaces. Conditioning has its
-own runner (`screens/Conditioning.tsx`, with the BLE strap and the GPS tracker)
-and never went through the logger.
+**One thing survived that looks athlete-shaped and is not.**
+`NutritionProvider` stays in `App.tsx`: the bench's Nutrition pillar reads the
+athlete's nutrition slice through it, at six call sites under `coach/`.
+`RestProvider` and `UpdateBanner` did NOT stay — nothing under `coach/`
+referenced either.
 
-- **Nothing was deleted, and that is what made this possible.**
-  `apps/web/src/screens/` was untouched and its colocated tests kept running,
-  so the un-parking was re-adding routes rather than repairing a year of
-  drift. The route tree was restored VERBATIM from `8950284^` rather than
-  retyped — retyping a known-good block from memory has introduced a real
-  defect twice in this repository.
-- **They are no longer dead code on every build**, which retires the accepted
-  cost this section used to record. They are still dead on the dashboard
-  build, and `tsc` still checks them either way.
-- The nutrition/MacroTrack WEB world came back with them, under
-  `useDiscipline()`'s nutrition fork.
-- `checks/screens.mjs`'s athlete `SHOTS` list is **restored — nine shots** —
-  and it is pointed at a conditioning bundle built by that run, NOT at
-  `apps/web/dist`. Point it back and all nine silently become pictures of the
-  coach sign-in again, which is the exact failure that emptied the list.
-- The coach rail's "Athlete app" link is still GONE, and should stay gone. It
-  existed because `/` redirected to the bench; on the dashboard build it would
-  now point at a route that bounces straight back, and the athlete app is a
-  DIFFERENT SITE rather than a different path. This is the one item from the
-  original section that the un-parking does not retire.
-- The ANDROID app is the athlete product and is untouched. It is no longer the
-  ONLY athlete client — that sentence was true for two days — and it is still
-  Android-only; `eas.json` has no iOS profile.
+**The coach rail's "Athlete app" link stays GONE.** It existed because `/` once
+redirected to the bench. There is no athlete app on this origin to link to.
 
-**Deployment: two sites, ONE `netlify.toml`, chosen by an environment
-variable.**
+**Deployment is one site again.** `netlify.toml` runs `build:site` inline, as
+it did before the branded build existed. If a second web site is ever wanted,
+read the deployment section of the README first — the subdirectory-`netlify.toml`
+approach is documented by Netlify, was implemented here, and cannot be selected
+in their UI.
 
-```
-HYBRID_SITE unset (or 'coach')   the coach workspace — the existing site sets
-                                 nothing and is byte-for-byte unchanged
-HYBRID_SITE=conditioning         the branded athlete app, plus the lab at /lab
-```
+## The athlete and the coach never faced each other — and now there is only one
 
-`scripts/deploy-site.mjs` reads it and assembles either site into
-`apps/web/dist`. It FAILS on an unrecognised value rather than defaulting: a
-typo'd `HYBRID_SITE` silently publishing the coach workspace to the athlete's
-domain is the worst outcome available here, and a default-on-unknown produces
-exactly that.
+This section enforced a rule with `checks/lane-contract.mjs` (`pnpm run
+check:lanes`): `apps/web`'s athlete lane and coach lane could share the floor —
+`packages/*`, `store/`, `cloud/`, the design system — but never import each
+other. It was a GRAPH check rather than a text scan on purpose, resolving every
+relative import into an edge so it could not pass while the thing it guarded
+was broken.
 
-**The obvious design was tried first and does not work.** A second
-`netlify.toml` under `deploy/conditioning/`, selected by that site's base
-directory, is Netlify's own documented monorepo pattern. It was implemented
-and then deleted, because it could not be SELECTED: the base-directory picker
-refuses a folder that does not look like a project, and adding a `package.json`
-to make it look like one did not persuade it either. Do not reintroduce it
-without first confirming the picker has changed — a deploy configuration you
-cannot choose in the UI is not a deploy configuration.
+**The check is DELETED (15 August 2026), because one of the two lanes is.**
+`apps/web/src/screens/` and the athlete `components/` are gone, so `LANES`
+named a directory that does not exist and the rule asserted nothing. A guard
+that cannot fail is the decorative-guard shape this repository has paid for
+repeatedly; keeping it would have been worse than deleting it.
 
-The consequence that will surprise someone: `publish` is a static string in
-`netlify.toml` and cannot branch, so BOTH sites write to `apps/web/dist`.
-Running `pnpm run deploy:conditioning` locally therefore overwrites the coach
-build, and `checks/deploy-smoke.mjs` reads that directory — rebuild with
-`pnpm run deploy:coach` before trusting it. `--emptyOutDir` keeps the two from
-layering.
-
-That site shares `netlify/functions` with the coach site, which is what makes
-WHOOP and Concept2 work on it — the client half ships with the app and does
-nothing until those answer. It needs its own `APP_BASE_URL` (the coach site's
-value would return an athlete to the wrong origin), its own
-`APP_SESSION_SECRET`, and the provider credentials; and this origin's callback
-must be REGISTERED with WHOOP and Concept2, which is not a Netlify setting and
-cannot be diagnosed from inside this repository.
-
-## The athlete and the coach never face each other
-
-They are one repo, one deploy and one bundle, and they are SUPPOSED to share —
-both stand on `packages/*`, on `store/`, on `cloud/`, on the design system.
-What neither may do is depend on the OTHER. Sharing a floor is collaboration;
-importing each other is a knot that cannot be split later without unpicking
-both surfaces at once.
-
-`checks/lane-contract.mjs` (`pnpm run check:lanes`) enforces it, and it is a
-GRAPH check rather than another text scan on purpose: it resolves every
-relative import under `apps/web/src` into an edge and asserts the property
-directly, so it cannot pass while the thing it guards is broken — the failure
-mode that made five earlier guards decorative.
-
-The rule is now absolute, and `ALLOWED` is empty. It was a ratchet on the way
-here, not a wall: real crossings existed and were listed with the reason each
-one was there and what would retire it — a crossing not on the list failed,
+**The history is kept because it is the useful part.** `ALLOWED` started at
+fourteen crossings and only ever shrank — a crossing not on the list failed,
 and so did a list entry that no longer happened, so a fixed crossing had to be
-deleted from the list rather than leaving budget behind. The list only ever
-shrank. This section stays, empty list and all, because the point of it was
-always to record the path, not just the destination.
+deleted rather than leaving budget behind.
 
-The list started at fourteen crossings. Eleven of them were one shape:
-`autocoach/policy.ts`, `autocoach/ledger.ts`, `coach/progression.ts` and
-`coach/progression-store.ts` were shared code wearing a lane's directory name —
-not violations, misfilings. They now sit where they belong (`store/` for the
-three stores, `lib/progression.ts` for the pure proposal logic) and the
-crossings went with them.
+Eleven of the fourteen were one shape: `autocoach/policy.ts`, `ledger.ts`,
+`coach/progression.ts` and `coach/progression-store.ts` were shared code
+wearing a lane's directory name — misfilings, not violations. They moved to
+`store/` and `lib/progression.ts` and the crossings went with them.
 
-The last two were the genuine case: the bench rendered the athlete's `Planner`
-and `GuidedBuilder`, real shared UI permitted by coach-contract rule 8. The
-plan on record for retiring them was a package extraction — promote both
-screens into a shared authoring package. That is not how it happened. On 13
-August 2026 the owner parked session authoring and logging on athlete web
-entirely: the athlete web app no longer authors or logs a session at all, so
-there was no longer an athlete screen for the coach to reach into, and no
-shared package to extract to either. `Planner`, its `planner/` block cards,
-and `GuidedBuilder` with its step components moved — `git mv`, history
-intact — from `apps/web/src/screens/` into `apps/web/src/coach/authoring/`
-and became the bench's own code, importable without crossing a lane because
-they are no longer on the other side of one. The athlete logger
-(`screens/Logger.tsx` and `screens/logger/`) was deleted outright, and its
-routes (`/log/:bi/:ei`, `/planner/:id`, `/build/:id`) came out of
-`apps/web/src/App.tsx` along with the athlete-side controls that navigated
-into them. Both crossings closed the same way the comment in
-`checks/lane-contract.mjs` always said the list would end: by deletion from
-the list, not by raising the budget.
+The last two were genuine: the bench rendered the athlete's `Planner` and
+`GuidedBuilder`. The plan on record was a package extraction. That is not how
+it ended — on 13 August the owner parked authoring on athlete web, both screens
+`git mv`'d into the bench's own tree, and the crossings closed by deletion from
+the list exactly as the check's own comment always said they would.
 
-`apps/web/src/coach/authoring/` no longer exists — see the next section. The
-crossings were retired by the MOVE, not by the directory, so nothing above is
-weakened by the destination being gone a day later.
+**If a second lane ever returns to `apps/web`, restore the check from git
+before writing the first import across it.** It is easier to keep a ratchet
+than to rebuild one.
 
 ## The Coordinator is deleted (14 August 2026)
 
@@ -718,7 +653,12 @@ the same commit that does the install.
 2. Work in a dedicated Git worktree for a phase; see `docs/WORKTREES.md`.
 3. Keep decision logic pure and add a test before changing a rule.
 4. Run `pnpm run typecheck`, focused Vitest tests, `pnpm run check:ecosystem`,
-   and the relevant web/mobile build before handoff.
+   and the relevant web/mobile build before handoff. Note that FOURTEEN of the
+   checks under `checks/` run neither in CI nor in `pnpm run verify` —
+   `coach-contract`, `pentest`, `screens`, `supabase-contract`, `supabase-auth`,
+   `whoop-contract`, `concept2-contract`, `contrast`, `mobile-touch`, the three
+   parity gates, `pwa-update` and `whoop-deployment-smoke`. They only run when
+   someone remembers, which is a known weakness rather than a design.
 5. Never run production migrations, EAS submissions, Netlify deploys, or
    destructive data operations without an explicit approval and rollback plan.
 
@@ -729,6 +669,6 @@ pnpm install
 pnpm run typecheck
 pnpm run test
 pnpm run check:ecosystem
-pnpm --filter @hybrid/web build:strength
-pnpm --filter @hybrid/web build:conditioning
+pnpm run verify              # everything CI runs, in one command
+pnpm run build:site          # assemble the coach site into apps/web/dist
 ```

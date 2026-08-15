@@ -1,6 +1,53 @@
 # Claude Handoff — THE Hybrid System
 
-> **AUTHORITATIVE CHECKPOINT — 15 August 2026, end of day. `main` is at
+> **AUTHORITATIVE CHECKPOINT — 15 August 2026, LATE. SCOPE WAS CUT TO TWO
+> PRODUCTS and everything outside them was deleted. Where any block below
+> disagrees with this one, this one wins.**
+>
+> **The two products are `apps/mobile` (the Android athlete app) and
+> `apps/web` (the coach workspace).** One engine, one Supabase project, one
+> Netlify site.
+>
+> **Deleted, in one pass:**
+>
+> | What | Why |
+> |---|---|
+> | `apps/lab` | A bench, and neither product |
+> | `apps/web/src/screens/`, `native/`, athlete `components/`, `discipline.ts` | The athlete WEB app. `apps/mobile` carries every one of those surfaces |
+> | `UpdateBanner`, `store/rest`, `store/startFresh`, `lib/session`, `cloud/catalogue` | Unreachable once the screens went — found by `checks/reachability.mjs`, not by guessing |
+> | `packages/strength-engine`, `conditioning-engine`, `ai-prescription` | Imported by nothing. The first two were shells after the Coordinator took their proposal boundaries on 14 August |
+> | The single-HTML artifact chain (5 files, 3 scripts, 1 check) | Built the athlete app as a sandboxed document. Ran in no CI and no deploy |
+> | `checks/lane-contract.mjs` | It guarded athlete↔coach imports. One of the two lanes no longer exists, so it asserted nothing |
+> | `SKILLS.md`, `AGENTS.md`, `DEBUG_ORIENTATION.md`, `HANDOFF-FOR-CODEX.md`, `PRODUCT_NOTES.md`, `design/`, `.superpowers/` | Referenced by nothing. `SKILLS.md` duplicated the canonical `skills.md` |
+> | ~800MB untracked | Two stale git worktrees (746MB), six `dist*` directories, `graphify-out`, screenshot output, an old ZIP |
+>
+> **THREE CHECKS WERE REPOINTED RATHER THAN DELETED**, because their claims
+> outlived the files they named: `coach-contract` rule 7 (performance may
+> propose progression, not apply it) now runs on MOBILE only; `concept2-contract`'s
+> confirm-before-import rule moved to `apps/mobile/src/screens/Settings.tsx`;
+> and `serviceWorker.test.ts` kept the half of its assertion that is still
+> checkable. Each records the narrowing in place rather than pretending nothing
+> changed.
+>
+> **What the cut did NOT touch**: `packages/engine` (including all conditioning
+> progression), the nutrition packages, `netlify/functions`, every migration,
+> and `apps/mobile` entirely.
+>
+> **Verified green after the cut**: `pnpm -r typecheck` (14 packages),
+> `pnpm -r test`, ecosystem, reachability, css-state, `build:site`, csp,
+> react-smoke, deploy-smoke, screens (20 of 20, 0 athlete + 20 coach at both
+> widths), web-touch, docs, coach-contract, pentest, supabase-contract,
+> whoop-contract, concept2-contract, migrations-apply.
+>
+> **The known weakness, written down rather than left to be discovered**:
+> FOURTEEN checks under `checks/` run in neither CI nor `pnpm run verify`.
+> They only run when someone remembers. Three of the failures repaired above
+> were found that way today.
+>
+> **Still unrun**: the real loop — mint an invite, redeem it as yourself, build
+> a week, Publish, check the phone.
+
+> **PREVIOUS CHECKPOINT — 15 August 2026, midday. `main` is at
 > `aca52e8` plus a README/handoff commit. Everything below this block is
 > history; where it disagrees with this block, this block wins.**
 >

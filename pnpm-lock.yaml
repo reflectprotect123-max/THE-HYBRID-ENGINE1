@@ -264,35 +264,6 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
-  packages/ai-prescription:
-    dependencies:
-      '@hybrid/shared-core':
-        specifier: workspace:*
-        version: link:../shared-core
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
-
-  packages/conditioning-engine:
-    dependencies:
-      '@hybrid/engine':
-        specifier: workspace:*
-        version: link:../engine
-      '@hybrid/shared-core':
-        specifier: workspace:*
-        version: link:../shared-core
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
-
   packages/config:
     devDependencies:
       typescript:
@@ -412,22 +383,6 @@ importers:
         version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
   packages/shared-core:
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@26.1.1)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
-
-  packages/strength-engine:
-    dependencies:
-      '@hybrid/engine':
-        specifier: workspace:*
-        version: link:../engine
-      '@hybrid/shared-core':
-        specifier: workspace:*
-        version: link:../shared-core
     devDependencies:
       typescript:
         specifier: ^5.9.3

@@ -1,8 +1,12 @@
 /*
- * Screenshot every screen of the athlete web app, against a realistically
- * populated database — plus the stage-1 `/coach` routes, added in the
- * coach-workspace redesign (11 August 2026) once a phone layout for the
- * coach bench was approved (see CLAUDE.md's "coach workspace" section).
+ * Screenshot every `/coach` route, at both widths, against a realistically
+ * populated database.
+ *
+ * This began life shooting the ATHLETE web app and gained the `/coach` routes
+ * in the coach-workspace redesign (11 August 2026). The athlete half is gone —
+ * those screens were deleted on 15 August when scope was cut to the Android
+ * APK and this bench — so what is left is the coach half, which was always the
+ * part with a phone-support claim to defend.
  *
  * Mostly this is not a test — a screenshot cannot fail except the harness
  * itself, and it exists so a visual change can be judged by looking at it,
@@ -95,50 +99,19 @@ function serve(port, dir = 'apps/web/dist') {
 
 
 /*
- * RESTORED 15 August 2026, against the BRANDED CONDITIONING BUNDLE.
+ * EMPTY, and this time because the screens themselves are DELETED.
  *
- * This list was emptied on 13 August when the athlete web app was parked:
- * every address below redirected to `/coach`, so shooting them produced
- * identical pictures of the coach bench under athlete filenames — a check that
- * passes while proving nothing, the exact failure this file's header warns
- * about twice. The note left here said "if the athlete app is ever unparked,
- * restore this list from git", and this is that restoration.
+ * These were nine athlete screens. They were emptied once before, on 13 August
+ * 2026, when the athlete web app was PARKED — the addresses redirected, so the
+ * shots photographed the coach bench under athlete filenames. They came back on
+ * 15 August against a branded conditioning bundle, and went again hours later
+ * when the owner cut scope to two products: the Android APK and this bench.
  *
- * IT SHOOTS A DIFFERENT BUNDLE THAN IT USED TO, and that is the load-bearing
- * detail. The un-parking was for branded builds only — the unscoped dashboard
- * bundle in `apps/web/dist` still redirects every one of these addresses. So
- * `serve(PORT, ...)` below is pointed at a conditioning build made for this
- * run. Point it back at `apps/web/dist` and all nine shots silently become
- * pictures of the coach sign-in again.
- *
- * `/`, not `/home`: the note that used to sit here said "`/home`, not `/`,
- * because the unscoped dashboard build this shoots sends `/` to the coach
- * bench". On a branded build `ATHLETE_HOME` IS `/`, and `/` is the address an
- * athlete actually opens. Both render Home; the canonical one is shot.
- *
- * `/training` is shot even though a conditioning build has no Train TAB. The
- * route still resolves if typed, and a screen that renders only when reached
- * the awkward way is still a screen that can overflow a phone. What the tab
- * bar does about it is `checks/react-smoke.mjs`'s claim, not this file's.
+ * `apps/web/src/screens/` no longer exists. There is nothing to point a shot
+ * at, in any bundle. The equivalent surfaces are `apps/mobile`'s, and they are
+ * covered by its own colocated tests and the parity gates.
  */
-const SHOTS = [
-  // [label, path]
-  ['01-home', '/', null],
-  ['02-training', '/training', null],
-  ['03-library', '/library', null],
-  ['04-conditioning', '/conditioning', null],
-  ['05-history', '/history', null],
-  ['06-progress', '/progress', null],
-  ['07-calendar', '/calendar', null],
-  ['08-settings', '/settings', null],
-  // The third world's web surface. Home (01) carries the nutrition card above
-  // it, so the two are judged together.
-  ['09-nutrition', '/nutrition', null],
-];
-
-/* The bundle the athlete shots above are taken against. Built by this run —
-   see `SHOTS`' header for why `apps/web/dist` cannot be used. */
-const ATHLETE_DIR = 'apps/web/dist-conditioning-shots';
+const SHOTS = [];
 
 /*
  * Every `/coach` route, at the same 420px phone viewport as every athlete
@@ -319,15 +292,7 @@ async function overflowWidth(page) {
 }
 
 const PORT = 4519;
-
-console.log('\nBuilding a branded conditioning bundle for the athlete shots (VITE_HYBRID_PRODUCT=conditioning)…');
-execFileSync(
-  'pnpm',
-  ['--filter', '@hybrid/web', 'exec', 'vite', 'build', '--outDir', 'dist-conditioning-shots', '--emptyOutDir'],
-  { cwd: root, env: { ...process.env, VITE_HYBRID_PRODUCT: 'conditioning' }, stdio: 'inherit' },
-);
-
-const server = await serve(PORT, ATHLETE_DIR);
+const server = await serve(PORT);
 const base = 'http://127.0.0.1:' + PORT;
 
 await rm(OUT, { recursive: true, force: true });

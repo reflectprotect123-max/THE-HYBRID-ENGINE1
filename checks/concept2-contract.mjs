@@ -109,7 +109,7 @@ async function main() {
     'packages/engine/src/types.ts',
     'packages/engine/src/concept2.ts',
     'apps/web/src/cloud/concept2.tsx',
-    'apps/web/src/screens/Settings.tsx',
+    'apps/mobile/src/screens/Settings.tsx',
     'packages/config/src/index.ts',
     'netlify/functions/_lib/config.mjs',
     'netlify/functions/_lib/concept2.mjs',
@@ -373,8 +373,16 @@ async function main() {
     /concept2RecordId/.test(matcher) && /['"`]c2-['"`]/.test(matcher),
     'an imported record id is a pure function of the provider id, so two devices importing independently merge to one record',
   );
+  /*
+   * MOBILE, not web (15 August 2026). This read the web athlete Settings
+   * screen until that whole surface was deleted; reading it now throws ENOENT
+   * and the rule fails for a missing file rather than a missing confirmation
+   * step. The claim is unchanged and still worth making — an import that
+   * applies without an explicit confirmation can silently duplicate an
+   * athlete's history — and the phone is where an athlete now connects a rower.
+   */
   for (const [label, screen] of [
-    ['web', sources.get('apps/web/src/screens/Settings.tsx') || ''],
+    ['mobile', sources.get('apps/mobile/src/screens/Settings.tsx') || ''],
   ]) {
     check(
       /planConcept2Import/.test(screen) && /applyConcept2Import/.test(screen),

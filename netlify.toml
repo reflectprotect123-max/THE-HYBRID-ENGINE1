@@ -23,30 +23,22 @@
 # installs hand over cleanly on the way IN; coming back relies on the normal
 # service-worker update cycle.
 
-# TWO SITES, ONE CONFIG (15 August 2026).
+# ONE SITE (15 August 2026). This built two for a day — the coach workspace and
+# a branded conditioning athlete app, chosen by a HYBRID_SITE environment
+# variable — and the athlete half was cut when the owner reduced scope to two
+# products, the Android APK and this bench. `scripts/deploy-site.mjs` went with
+# it and the command below is inline again, exactly as it was before.
 #
-# This file is read by BOTH deployed sites — the coach workspace and the
-# branded conditioning athlete app — and the site's own `HYBRID_SITE`
-# environment variable decides which one gets built. Unset means coach, so the
-# existing site's behaviour is byte-for-byte what it was before this comment
-# appeared.
-#
-# The obvious alternative was a second netlify.toml under a subdirectory,
-# selected by that site's base directory. That is Netlify's own documented
-# monorepo pattern, it was implemented, and it could not be USED: the base
-# directory picker refuses a folder that does not look like a project, and
-# adding a package.json to make it look like one did not persuade it either.
-#
-# `publish` cannot branch — it is a static string here — so the branch lives in
-# what gets written to it instead. `scripts/deploy-site.mjs` assembles either
-# site into `apps/web/dist`, and fails loudly on an unrecognised HYBRID_SITE
-# rather than defaulting, because a typo silently publishing the coach
-# workspace to the athlete's domain is the worst outcome on offer.
+# If a second web site is ever wanted, do NOT reach for a second netlify.toml
+# in a subdirectory: that is Netlify's documented monorepo pattern, it was
+# implemented here, and the base-directory picker refuses a folder that does
+# not look like a project. The environment-variable switch is the approach that
+# worked.
 
 [build]
   base = "."
   publish = "apps/web/dist"
-  command = "corepack enable && pnpm install --frozen-lockfile && node scripts/deploy-site.mjs"
+  command = "corepack enable && pnpm install --frozen-lockfile && pnpm run build:site && pnpm run check:csp"
 
 [build.environment]
   NODE_VERSION = "22"

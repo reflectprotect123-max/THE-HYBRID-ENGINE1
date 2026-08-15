@@ -287,14 +287,16 @@ console.log('Coach surface contract\n');
  * ------------------------------------------------------------------------- */
 {
   const targets = [
-    'apps/web/src/screens/Training.tsx',
-    'apps/web/src/screens/Conditioning.tsx',
-    // `apps/web/src/screens/Logger.tsx` was here until 13 August 2026, when
-    // the athlete web logger was DELETED outright (not parked — see the
-    // CLAUDE.md section on the lane crossings). Its absence crashed this whole
-    // file with ENOENT, which is worse than either outcome the check has: rule
-    // 7 stopped being enforced on the two surfaces that still exist, and the
-    // failure looked like a broken tool rather than a broken contract.
+    // THE WEB ENTRIES ARE GONE (15 August 2026). `screens/Training.tsx` and
+    // `screens/Conditioning.tsx` were the original two, and
+    // `screens/Logger.tsx` a third until 13 August. All three are deleted with
+    // the rest of the athlete web surface, so this rule is now enforced on
+    // MOBILE ONLY — which is where an athlete actually completes a set.
+    //
+    // That is a narrowing, and it is recorded rather than glossed: the rule
+    // still means what it meant, but the web half of it can no longer be
+    // violated because the web half of the app does not exist.
+    //
     // The mobile logging surface is where athletes actually train — the same
     // collapse-of-actual-into-prescription rule 7 forbids on web was found
     // here too (2026-08-08) and fixed the same way: delete the write, keep
@@ -380,7 +382,6 @@ console.log('Coach surface contract\n');
   const coachDoorways = ['apps/web/src/coach/CoachLibrary.tsx'];
   const offenders = coachDoorways.filter((file) => /[`'"]\/(?:build|planner)\//.test(code(resolve(ROOT, file))));
   const coachRouter = code(resolve(ROOT, 'apps/web/src/coach/index.tsx'));
-  const generator = read(resolve(ROOT, 'tooling/build-single-html.mjs'));
   /*
    * This asserted the OPPOSITE until 14 August 2026 — that the router still
    * declared `build/:id` and `planner/:id`, so nobody could delete a route and
@@ -396,7 +397,19 @@ console.log('Coach surface contract\n');
      shut once a decision has been made. */
   const deletedRoutes = ['path="author"', 'path="build/:id"', 'path="planner/:id"', 'path="roster-plan/:workoutId"', 'path="legacy"'];
   if (deletedRoutes.some((decl) => coachRouter.includes(decl))) offenders.push('apps/web/src/coach/index.tsx');
-  if (!generator.includes("location.hash.startsWith('#/coach')")) offenders.push('tooling/build-single-html.mjs');
+  /*
+   * The single-HTML artifact generator was the third thing this rule watched,
+   * and it is DELETED (15 August 2026) along with the whole artifact chain —
+   * scripts/build-artifact.mjs, both artifact vite configs, and
+   * checks/artifact-smoke.mjs. It built the ATHLETE app as one sandboxed
+   * document and ran nowhere: not in CI, not in any deploy, only by hand.
+   *
+   * The assertion is removed rather than repointed because there is nothing
+   * left to repoint it AT. Reading a deleted file here is exactly the
+   * crash-instead-of-fail shape this file has already hit three times: `read`
+   * would throw ENOENT and kill the process before `process.exit(failures ? 1
+   * : 0)` could report anything.
+   */
   const athleteRoutes = /[`'"]\/(?:training|library|conditioning|history|progress|exercise|calendar|day|recap|nutrition|settings|log)(?:\/|[`'"])/;
   /*
    * CoachNotAuthorized.tsx is the one deliberate exception, not a leak: it
