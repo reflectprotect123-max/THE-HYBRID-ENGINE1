@@ -436,6 +436,15 @@ export interface Settings {
    */
   mobility?: string[];
   /**
+   * The coach's own exercise library — see `buildCatalogue`.
+   *
+   * Additive, so `mergeSettings` UNIONS it rather than letting one device win:
+   * a movement added on the bench and another added on the phone are both real
+   * edits. Absent means "never set", which falls the picker back to mining
+   * history; an empty array means an emptied library and does not.
+   */
+  movements?: string[];
+  /**
    * User-created folders for organizing Library's Sessions list — see
    * `Workout.folderIds`. A flat list, same shape as `mobility`: nothing here
    * is derived, the app never guesses which folders exist.

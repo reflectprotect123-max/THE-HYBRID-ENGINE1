@@ -261,6 +261,12 @@ export function rxLine(ex: Exercise<AnySet>): string {
  * itself. Absent `now` on a live session simply leaves the last block out
  * rather than inventing a duration for it.
  *
+
+ * An ABANDONED session is the one honest wrinkle: `expireStaleSessions` gives
+ * it `completedAt = startedAt`, so its last segment stops before it started
+ * and clamps to zero. There is no true end time for a session nobody finished,
+ * so any answer there is a guess; zero is the quietest one.
+ *
  * Blocks the athlete never opened are ABSENT rather than zero. Zero would say
  * "they were there and it took no time"; absent says "they were never there",
  * and only one of those is true of a session that ended early.

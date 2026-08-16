@@ -376,6 +376,26 @@ export function mergeSettings(base: Settings = {}, winner: Settings = {}): Setti
     });
   }
 
+  // The coach's exercise library is a UNION too, and for exactly the reason
+  // `mobility` above is: adding a movement on the bench and another on the
+  // phone are both real edits, and `Object.assign` drops whichever side loses.
+  // Found in review on 16 August 2026, before the field had shipped — the
+  // owner had just asked for the derived library emptied so he could rebuild
+  // it by hand, so silently dropping half of what he typed would have been the
+  // worst possible bug in the worst possible place.
+  //
+  // Case-insensitive, matching `addMovement` and `buildCatalogue`: two entries
+  // disagreeing over "Back Squat" and "back squat" are worse than either.
+  if (base.movements || winner.movements) {
+    const seen = new Set<string>();
+    out.movements = [...(base.movements || []), ...(winner.movements || [])].filter((m) => {
+      const k = String(m || '').trim().toLowerCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
   // Earned progression: take the higher level, but the HIGHER miss count too.
   // Taking `miss` from whichever side won on level meant two devices could each
   // bank a miss and neither deload ever fired — progression only ratcheted up.

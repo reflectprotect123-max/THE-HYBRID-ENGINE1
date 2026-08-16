@@ -20,17 +20,23 @@ export interface RunState {
   draft: Draft | null;
   rest: RestState | null;
   /**
-   * Seconds the current set has been open, counted by `tick`.
+   * WHEN the current set was opened, as a wall-clock stamp.
    *
-   * Only EMOM pacing needs it — `Exercise.every` measures from when a set
-   * STARTS, so the rest owed afterwards is the window minus whatever the set
-   * itself used. Plain `rest` ignores it entirely. Reset by every action that
-   * begins a new set: logging one, skipping one, changing block.
+   * Only EMOM pacing reads it: `Exercise.every` measures from when a set
+   * STARTS, so the rest owed afterwards is the window minus however long the
+   * set itself ran. Plain `rest` ignores it entirely.
    *
-   * A `tick` while a rest is running advances the REST, not this, so a long
-   * rest cannot eat the next set's window before that set has begun.
+   * A STAMP, NOT A COUNTER, and it was a counter for about an hour. Counting
+   * seconds meant an interval had to be running, and a JS interval is
+   * throttled or stopped outright while an Android app is backgrounded — so
+   * an athlete who took a call mid-set came back to a window that thought the
+   * set had been shorter than it was, and got a rest that was too long. The
+   * same argument as `Session.blockLog`, one layer down, and the same fix.
+   *
+   * Reset by every action that opens a different set: logging one, skipping
+   * one, changing block.
    */
-  sinceSet: number;
+  setOpenedAt: number;
 }
 
 export type Action =
@@ -64,13 +70,17 @@ function draftFor(session: Session, blockIndex: number, ctx: LoadContext): Draft
 /**
  * The first block, with its first owed set drafted and no rest running.
  *
+ * Stamps the clock, so it is not a pure function — see `RunState.setOpenedAt`.
+ * Only EMOM pacing reads that stamp; a session with no `every` anywhere never
+ * consults it.
+ *
  * `ctx` is the athlete's history — banked weights, past sessions, today's
  * recovery. It is passed through to `openDraft` untouched; this file reads
  * none of it and decides nothing from it. Optional, and its absence means the
  * fold alone: see `openDraft` for why that default is the safe one.
  */
 export function initialRun(session: Session, ctx: LoadContext = {}): RunState {
-  return { blockIndex: 0, draft: draftFor(session, 0, ctx), rest: null, sinceSet: 0 };
+  return { blockIndex: 0, draft: draftFor(session, 0, ctx), rest: null, setOpenedAt: Date.now() };
 }
 
 /** Rebuild the session with one block replaced. */
@@ -100,10 +110,10 @@ export function reduce(
       if (!item) return { session, run };
       const logged = applyDraft(block, item, run.draft);
       const nextSession = withBlock(session, run.blockIndex, logged);
-      const rest = restAfter(logged, item, run.sinceSet);
+      const rest = restAfter(logged, item, Math.round((Date.now() - run.setOpenedAt) / 1000));
       const nextItem = nextUp(logged);
       const draft = nextItem ? openDraft(logged, nextItem, ctx) : null;
-      return { session: nextSession, run: { ...run, draft, rest, sinceSet: 0 } };
+      return { session: nextSession, run: { ...run, draft, rest, setOpenedAt: Date.now() } };
     }
 
     // A prep piece is not a rated set — it never gives a `felt`, and writing
@@ -175,7 +185,7 @@ export function reduce(
       const following = itemAfter(block, item);
       const draft = following ? openDraft(block, following, ctx) : null;
       /* A different set is now open, so its window starts here. */
-      return { session, run: { ...run, draft, sinceSet: 0 } };
+      return { session, run: { ...run, draft, setOpenedAt: Date.now() } };
     }
 
     case 'addSet': {
@@ -222,22 +232,15 @@ export function reduce(
           : { ...session, blockLog: [...(session.blockLog ?? []), { id: target.id, at: Date.now() }] };
       return {
         session: stamped,
-        run: { ...run, blockIndex: action.index, draft: draftFor(stamped, action.index, ctx), rest: null, sinceSet: 0 },
+        run: { ...run, blockIndex: action.index, draft: draftFor(stamped, action.index, ctx), rest: null, setOpenedAt: Date.now() },
       };
     }
 
     case 'tick': {
-      /*
-       * WITH NO REST RUNNING, A TICK IS THE SET'S OWN CLOCK.
-       *
-       * It used to be ignored outright, because the only thing that counted
-       * seconds was a rest. EMOM pacing needs the other half: `Exercise.every`
-       * measures from when a set starts, so `restAfter` has to be told how
-       * much of the window the set consumed. Ticking here and nowhere else
-       * keeps that in one place, and keeps the reducer pure — the caller
-       * decides when a second has passed, exactly as it already did for rest.
-       */
-      if (!run.rest) return { session, run: { ...run, sinceSet: run.sinceSet + 1 } };
+      /* A tick with no rest running is nothing to advance. The set's own
+         elapsed time is read off `setOpenedAt` when it is needed, so nothing
+         has to be counted while the set is open — see that field. */
+      if (!run.rest) return { session, run };
       // A 'set' rest that has already hit zero clears itself on the tick
       // that finds it spent; a 'block' page-turn (total 0) is untouched by
       // `tickRest` and stands until the athlete dismisses it.
@@ -258,7 +261,12 @@ export function reduce(
     }
 
     case 'finish': {
-      // The one impure edge in this package: `finish` stamps wall-clock time.
+      // Wall-clock, and no longer the ONLY impure edge in this package — that
+      // comment was true until 16 August 2026. `initialRun` and `goToBlock`
+      // stamp when a set and a block were entered, and `logSet` reads the
+      // clock to price an EMOM window. All four are the same unavoidable
+      // shape: the moment a thing happened is not derivable from the state it
+      // happened to. Everything else here stays a pure function of its input.
       return { session: { ...session, status: 'completed', completedAt: Date.now() }, run };
     }
 
