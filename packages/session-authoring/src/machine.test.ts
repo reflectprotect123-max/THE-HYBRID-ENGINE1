@@ -204,3 +204,56 @@ describe('finish', () => {
     expect(typeof st.session.completedAt).toBe('number');
   });
 });
+
+describe('the set’s own clock, for EMOM pacing', () => {
+  /*
+   * `sinceSet` is how the reducer knows how much of an `every` window the set
+   * itself consumed. Nothing counted seconds during a set before 16 August
+   * 2026, because plain rest starts when a set ENDS and never needed it.
+   */
+  const pacedSession = (): Session =>
+    ({
+      id: 's',
+      status: 'active',
+      blocks: [
+        {
+          id: 'b',
+          exercises: [
+            {
+              id: 'e0',
+              name: 'Squat',
+              mode: 'reps_kg',
+              every: 150,
+              sets: [{ t: '5', rpe: '8' }, { t: '5', rpe: '8' }],
+            },
+          ],
+        },
+      ],
+    }) as unknown as Session;
+
+  it('advances the SET while nothing is resting', () => {
+    const sess = pacedSession();
+    let st = reduce(sess, initialRun(sess), { type: 'tick' });
+    st = reduce(st.session, st.run, { type: 'tick' });
+    expect(st.run.sinceSet).toBe(2);
+  });
+
+  it('advances the REST instead while a rest is up, so the two never double-count', () => {
+    /* Both clocks are driven by the same action. If a tick moved both, an
+       athlete's rest would burn down at twice the rate the dial promised. */
+    const sess = pacedSession();
+    const run = { ...initialRun(sess), rest: { left: 30, total: 60, kind: 'set' as const } };
+    const st = reduce(sess, run, { type: 'tick' });
+    expect(st.run.rest?.left).toBe(29);
+    expect(st.run.sinceSet).toBe(run.sinceSet);
+  });
+
+  it('spends the counted seconds on the window, then starts the next set at zero', () => {
+    const sess = pacedSession();
+    let st = { session: sess, run: initialRun(sess) };
+    for (let i = 0; i < 40; i++) st = reduce(st.session, st.run, { type: 'tick' });
+    st = reduce(st.session, { ...st.run, draft: { kg: 100, reps: 5, felt: 8 } }, { type: 'logSet' });
+    expect(st.run.rest).toMatchObject({ left: 110, total: 150, paced: true });
+    expect(st.run.sinceSet).toBe(0);
+  });
+});

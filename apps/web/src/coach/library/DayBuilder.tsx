@@ -55,6 +55,7 @@ export function DayBuilder({
   date,
   published,
   entries,
+  onCreateMovement,
   initialValue,
   onPublish,
   onSave,
@@ -64,6 +65,8 @@ export function DayBuilder({
   date?: string;
   published: boolean;
   entries: CatalogueEntry[];
+  /** See `BlockEditor`'s own prop — the coach's library grows through here. */
+  onCreateMovement?: (name: string) => void;
   /**
    * The session already stored for this day, if there is one. Seeds the editor
    * ONCE, on mount — after that the coach's own edits are the truth, and
@@ -218,6 +221,7 @@ export function DayBuilder({
               entries={entries}
               index={i}
               startCollapsed={fromTemplate.includes(b.id)}
+              onCreateMovement={onCreateMovement}
               onChange={(next) => setBlocks((prev) => prev.map((x) => (x.id === b.id ? next : x)))}
               onRemove={() => setBlocks((prev) => prev.filter((x) => x.id !== b.id))}
             />

@@ -253,6 +253,10 @@ function toBlock(block: BlockValue): Block<LoggedSet> {
      * work; they only ran for sessions the athlete had built themselves.
      */
     rest: ex.rest,
+    /* EMOM pacing, absent rather than 0 when the exercise is on plain rest —
+       `restAfter` reads `every > 0` as the switch, so a stored zero would
+       round-trip as noise on every straight exercise ever authored. */
+    ...(ex.every && ex.every > 0 ? { every: ex.every } : {}),
     sets: ex.sets.map((row) => toPlannedSet(row, ex.columnA, ex.columnB)),
   }));
   const minutes = num(block.minutes ?? '');
@@ -411,6 +415,7 @@ export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValu
             columnA: cols.a,
             columnB: cols.b,
             rest: ex.rest ?? DEFAULT_REST_SEC,
+            ...(ex.every && ex.every > 0 ? { every: ex.every } : {}),
             sets,
           };
         });

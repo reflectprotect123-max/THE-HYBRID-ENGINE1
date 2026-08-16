@@ -43,6 +43,7 @@ export function buildCatalogue(
   workouts: Workout[] = [],
   sessions: Session[] = [],
   tagsByMovement: Record<string, string[]> | undefined = undefined,
+  movements: readonly string[] | undefined = undefined,
 ): CatalogueEntry[] {
   // Newest first, so the first spelling seen for a key is the freshest one.
   const src: { blocks: Block<AnySet>[]; at: number }[] = [];
@@ -67,6 +68,46 @@ export function buildCatalogue(
     ),
   );
 
+  /*
+   * A LIBRARY THE COACH OWNS BEATS ONE MINED OUT OF HISTORY.
+   *
+   * Passing `movements` makes that list the library, and it is the mode the
+   * coach bench runs in as of 16 August 2026. The owner asked for the picker
+   * emptied so he could rebuild it from what he actually enters: the derived
+   * list had grown to 166 movements out of every workout and session ever
+   * stored, including spellings nobody would choose again, and there was no
+   * way to remove one — a name only left the picker when the last record
+   * containing it was deleted.
+   *
+   * `uses` is still counted from history, because how often a movement has
+   * been programmed is a fact about the records whether or not the coach has
+   * adopted the name. A movement in the list that has never been used counts
+   * zero, which is a real answer and not a missing one.
+   *
+   * An EMPTY array is a real, meaningful value — "the coach has an empty
+   * library" — and only `undefined` falls back to mining. That distinction is
+   * the whole point: `[]` is what an emptied library looks like, and it must
+   * not silently reinflate to 166.
+   */
+  if (movements) {
+    const seen = new Set<string>();
+    return movements
+      .map((m) => String(m || '').trim())
+      .filter((name) => {
+        if (!name) return false;
+        const key = name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((name) => ({
+        name,
+        tags: tagsByMovement?.[name] ?? [],
+        uses: uses.get(name.toLowerCase()) || 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   return Array.from(spelling.entries())
     .map(([key, name]) => ({
       name,
@@ -74,6 +115,23 @@ export function buildCatalogue(
       uses: uses.get(key) || 0,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The coach's library with `name` added, or unchanged when it is already
+ * there under any spelling.
+ *
+ * Case-insensitive for the same reason `buildCatalogue` de-duplicates that
+ * way: two entries disagreeing about whether it is "Back Squat" or "back
+ * squat" are worse than either alone, and the picker filters on the name.
+ */
+export function addMovement(movements: readonly string[] | undefined, name: string): string[] {
+  const clean = String(name || '').trim();
+  const list = [...(movements ?? [])];
+  if (!clean) return list;
+  if (list.some((m) => m.trim().toLowerCase() === clean.toLowerCase())) return list;
+  list.push(clean);
+  return list;
 }
 
 /** How many catalogue entries carry each offered tag. Zero is a real answer. */

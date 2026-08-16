@@ -276,3 +276,117 @@ describe('BlockEditor — the exercise row', () => {
     expect(next.exercises[0].sets).toHaveLength(4);
   });
 });
+
+describe('a new movement joins the library', () => {
+  it('reports the name so the coach keeps it, not just this block', () => {
+    /* "+ New exercise" put the name in the block and nowhere else until
+       16 August 2026. With the derived library emptied at the owner's request,
+       that would have left a library that could never refill. */
+    const onCreateMovement = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <BlockEditor
+        block={{ id: 'b', category: 'Strength/Power', exercises: [] }}
+        entries={[]}
+        index={0}
+        onCreateMovement={onCreateMovement}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByPlaceholderText(/search the exercise library/i), {
+      target: { value: 'Zercher Squat' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /new exercise/i }));
+    expect(onCreateMovement).toHaveBeenCalledWith('Zercher Squat');
+    expect(onChange).toHaveBeenCalled();
+  });
+
+  it('does neither for an empty name', () => {
+    const onCreateMovement = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <BlockEditor
+        block={{ id: 'b', category: 'Strength/Power', exercises: [] }}
+        entries={[]}
+        index={0}
+        onCreateMovement={onCreateMovement}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /new exercise/i }));
+    expect(onCreateMovement).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('how an exercise is paced', () => {
+  const withExercise = (over: Record<string, unknown> = {}) => {
+    const onChange = vi.fn();
+    render(
+      <BlockEditor
+        block={{
+          id: 'b',
+          category: 'Strength/Power',
+          exercises: [
+            {
+              id: 'e0',
+              name: 'Back Squat',
+              columnA: 'reps',
+              columnB: 'weight_kg',
+              rest: 90,
+              sets: [
+                { id: 's0', a: '5', b: '100' },
+                { id: 's1', a: '5', b: '100' },
+                { id: 's2', a: '5', b: '100' },
+                { id: 's3', a: '5', b: '100' },
+              ],
+              ...over,
+            },
+          ],
+        }}
+        entries={[]}
+        index={0}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />,
+    );
+    /* The collapsed row's own head, not the picker entry with the same name. */
+    fireEvent.click(document.querySelector('.cb-item-head') as HTMLElement);
+    return onChange;
+  };
+
+  it('opens on plain rest, with the label that says when the clock starts', () => {
+    withExercise();
+    expect((screen.getByLabelText('Pacing') as HTMLSelectElement).value).toBe('rest');
+    expect(screen.getByText(/countdown starts when the set ends/i)).toBeInTheDocument();
+  });
+
+  it('switching to Every seeds an interval rather than leaving it at zero', () => {
+    /* A zero `every` is the same as no `every` to `restAfter`, so a mode the
+       coach chose that stored 0 would silently be plain rest. */
+    const onChange = withExercise();
+    fireEvent.change(screen.getByLabelText('Pacing'), { target: { value: 'every' } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exercises: [expect.objectContaining({ every: 150 })],
+      }),
+    );
+  });
+
+  it('says the interval times the set count, which is the X the owner asked for', () => {
+    withExercise({ every: 150 });
+    expect(screen.getByText(/2:30 × 4 sets/i)).toBeInTheDocument();
+  });
+
+  it('switching back to Rest keeps the rest number the coach typed', () => {
+    const onChange = withExercise({ every: 150 });
+    fireEvent.change(screen.getByLabelText('Pacing'), { target: { value: 'rest' } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exercises: [expect.objectContaining({ every: 0, rest: 90 })],
+      }),
+    );
+  });
+});
