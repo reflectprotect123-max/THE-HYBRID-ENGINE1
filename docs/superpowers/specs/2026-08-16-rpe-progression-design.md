@@ -186,14 +186,29 @@ mid-set. Recorded here as a declared gap rather than a silent one.
 > `last_successful_anchor_load` separately. Otherwise a failed session can
 > cause an invisible compound reduction."
 
-This morning's fix removed the compounding by re-deriving the anchor from
-history on every call. This makes it a stored fact:
+**Shipped as documentation and a pinning test, not a storage migration.**
+Written before this stage as three DIFFERENT ideas below, they turned out to
+already be three different reads over `sessions`, not one number wearing
+three names:
 
-- `lastSuccessfulAnchor` — the e1RM from the most recent `successful` exposure
-- `openingLoad` — what the athlete was asked to start at today
-- `effectiveLoad` — what they actually finished at after the fold's corrections
+- `lastSuccessfulAnchor` — `anchorKgFor(exposures)`, the most recent exposure
+  that was actually on target.
+- `openingLoad` — `exposure.kg`, what the set was actually loaded at.
+- `effectiveLoad` — `earnedKgFrom(name, exposure)`, what `lift.ts`'s
+  within-session fold walked the movement to by the end of that session.
 
-`decideStrengthProgression`'s `anchorKgFor` scan is replaced by a read.
+Earlier language here proposed replacing `anchorKgFor`'s scan with a read of
+a persisted fact. That would have been a regression, not a hardening:
+`decideStrengthProgression` recomputes from `sessions` on every call, with no
+persisted streak counter and no settings read — see the "is stateless" test
+group — and a stored anchor is exactly the kind of state a bad session could
+silently drift out of sync with. The re-derive-fresh design already IS the
+protection Stage 4 asks for, proven by Example C passing before this stage
+existed. What this stage adds is a comment naming the invariant explicitly at
+`anchorKgFor`'s call site, and a test — `STAGE 4 — the three load fields stay
+three different numbers` — that pins all three by name in the exact
+100 → 94 → 94 scenario the review's Example C is a defect report about, rather
+than only checking the final `deload` action gets the right number.
 
 ### Stage 5 — calibration after a layoff
 

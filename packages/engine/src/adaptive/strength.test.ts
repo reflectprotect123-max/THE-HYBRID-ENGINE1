@@ -663,6 +663,28 @@ describe('the progression review, applied — 16 August 2026', () => {
     expect(d.note).toContain('100kg');
   });
 
+  it('STAGE 4 — the three load fields stay three different numbers, not one collapsed into another', () => {
+    /* Same scenario as EXAMPLE C, read through the three named quantities
+       directly rather than through the final `deload` action — the design's
+       own ask is that these never collapse, so the test pins them by name. */
+    const sessions = ordered([
+      sess(100, 5, '8'),   // openingLoad 100, effectiveLoad 100 (clean, no walk)
+      sess(94, 3, '10'),   // openingLoad 94, effectiveLoad walked further down
+      sess(94, 3, '10'),
+    ]);
+    const d = decideStrengthProgression('Bench', sessions, { t: '5', rpe: '8' });
+    // lastSuccessfulAnchor is 100 (session 1), not 94 (the missed sessions) —
+    // exactly what the deload note names, and exactly what the review's
+    // Example C is a defect report about when it collapses.
+    expect(d.note).toContain('100kg');
+    expect(d.note).not.toContain('94kg');
+    // The prescribed deload is cut from that 100 kg anchor, not the 94 kg the
+    // within-session fold already walked the last miss down to — a 5% cut of
+    // 94 would land at 89.3, which is the exact compound the design forbids.
+    expect(d.prescription?.load).toBe(95);
+    expect(d.prescription?.load).not.toBeCloseTo(89.3, 0);
+  });
+
   it('HOLDS rather than deloading when no on-target session is on record', () => {
     /* Falling back to the missed weight is the compound this exists to avoid,
        so the honest answer is to change nothing and say why. */

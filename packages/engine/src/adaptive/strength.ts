@@ -198,6 +198,30 @@ function anchorKgFor(exposures: StrengthExposure[]): number | null {
 }
 
 /**
+ * STAGE 4 OF THE RPE PROGRESSION DESIGN, NAMED RATHER THAN NEWLY BUILT.
+ *
+ * The review asks for three load numbers kept separate so a bad session can
+ * never silently compound: `session_opening_load`, `effective_load`, and
+ * `last_successful_anchor_load`. All three already exist as three different
+ * reads over the same exposure list, and Example C below is the proof they
+ * do not collapse into one:
+ *
+ *   openingLoad         — `exposure.kg`, what the set was actually loaded at.
+ *   effectiveLoad        — `earnedKgFrom(name, exposure)`, what `lift.ts`'s
+ *                          within-session fold walked the movement down (or
+ *                          up) to by the end of that same session.
+ *   lastSuccessfulAnchor — `anchorKgFor(exposures)`, the most recent exposure
+ *                          that was actually on target — which is why a
+ *                          deload is cut from 100, not from the 94 a missed
+ *                          set already walked down to.
+ *
+ * No storage migration was needed: each is a fresh read over `sessions` on
+ * every call (`decideStrengthProgression` is stateless — see the tests by
+ * that name), so a bad session's 94 can never quietly become tomorrow's 100.
+ * That was true before this stage; this comment is the stage.
+ */
+
+/**
  * The smallest load step this movement can actually take, in kg.
  *
  * `Exercise.inc` where the exercise declares one — a dumbbell rack moves in 2,
