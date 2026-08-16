@@ -140,7 +140,11 @@ describe('which set decides the next weight', () => {
 describe('banking it', () => {
   it('keys by lowercased name and carries the timestamp', () => {
     const { liftProgress } = liftAdapt(session([ex('Back Squat', [onTarget])]), {});
-    expect(liftProgress['back squat']).toEqual({ kg: 100, at: 5000, reps: 5 });
+    // `e1rm` rides alongside — the anchor `anchorForOpener` derived from this
+    // same opener (100kg @ 5 reps, rpe 8.5), banked so a later session whose
+    // plan changes the rep scheme can re-price it. See lift.ts, stage 1.
+    expect(liftProgress['back squat']).toMatchObject({ kg: 100, at: 5000, reps: 5 });
+    expect(liftProgress['back squat'].e1rm).toBeCloseTo(121.667, 2);
   });
 
   it('leaves a lift alone when this session earned nothing for it', () => {
@@ -414,8 +418,9 @@ describe('a ramped exercise', () => {
     expect(m.reps).toBe(5);
     expect(m.to).toBe(95);
     expect(m.delta).toBe(-5);
-    expect(liftAdapt(ramp(['8', '8', '8'], ['5', '5', '3']), {}).liftProgress['back squat'])
-      .toEqual({ kg: 95, at: expect.any(Number), reps: 5 });
+    const banked = liftAdapt(ramp(['8', '8', '8'], ['5', '5', '3']), {}).liftProgress['back squat'];
+    expect(banked).toMatchObject({ kg: 95, at: expect.any(Number), reps: 5 });
+    expect(banked.e1rm).toBeCloseTo(123.333, 2);
   });
 });
 
@@ -593,5 +598,43 @@ describe('openingLoadFor — what the weight field opens at', () => {
   it('answers 0 for a set index that does not exist rather than throwing', () => {
     expect(openingLoadFor(ex('Back squat', []), 0, { settings: earned140 }).kg).toBe(0);
     expect(openingLoadFor(ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]), 9, { settings: earned140 }).kg).toBe(0);
+  });
+
+  it('THE WAVE, banked from an e1RM rather than a flat kilo — stage 1 of the RPE progression design', () => {
+    /*
+     * The bug this stage exists to fix, in the owner's own words: "what if
+     * one week its 10,8,6 then the next its 9,7,5 or 8,6,4 an or 3 x 5 or
+     * 5/3/1". Before this stage, `liftAdapt` banked only the flat kilo
+     * earned (100kg), so every one of these opened at 100 regardless of the
+     * plan. With an e1RM banked alongside it, each scheme re-prices off the
+     * SAME anchor. Table from docs/superpowers/specs/2026-08-16-rpe-
+     * progression-design.md — computed here through the real functions,
+     * not restated as arithmetic, so a change to `anchorFor`/`plannedKg`
+     * fails this test rather than quietly agreeing with itself.
+     */
+    const earnedFromTenWave = {
+      liftProgress: { 'back squat': { kg: 100, at: 1000, reps: 10, e1rm: 140 } },
+    };
+    const openerFor = (t: string, rpe: string) =>
+      openingLoadFor(ex('Back squat', [{ t, rpe } as LoggedSet]), 0, { settings: earnedFromTenWave }).kg;
+
+    expect(openerFor('10', '8')).toBeCloseTo(100.0, 1);
+    expect(openerFor('9', '8')).toBeCloseTo(102.4, 1);
+    expect(openerFor('8', '8')).toBeCloseTo(105.0, 1);
+    expect(openerFor('5', '8')).toBeCloseTo(113.5, 1); // 3×5
+    expect(openerFor('1', '9')).toBeCloseTo(131.25, 1); // 5/3/1, the single
+  });
+
+  it('a record banked before this stage — no e1RM at all — behaves exactly as it did before it', () => {
+    /* The compatibility assertion the design calls for by name: a session
+       logged before `e1rm` existed takes the untouched `kg` path, whatever
+       today's plan asks for. */
+    const noAnchor = { liftProgress: { 'back squat': { kg: 100, at: 1000, reps: 10 } } };
+    const openerFor = (t: string, rpe: string) =>
+      openingLoadFor(ex('Back squat', [{ t, rpe } as LoggedSet]), 0, { settings: noAnchor }).kg;
+
+    expect(openerFor('10', '8')).toBe(100);
+    expect(openerFor('9', '8')).toBe(100);
+    expect(openerFor('5', '8')).toBe(100);
   });
 });

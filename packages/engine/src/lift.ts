@@ -1,6 +1,7 @@
 import { AUTOREG, RECOVERY_BANDS } from './constants';
-import { isWarmup, loadKgOf, loadPctOf } from './autoreg';
-import { foldFromExercise, foldNextOpener, incrementFor } from './fold';
+import { isWarmup, loadKgOf, loadPctOf, rpeCenterOf } from './autoreg';
+import { anchorForOpener, foldFromExercise, foldNextOpener, incrementFor, plannedKg, targetRepsOf } from './fold';
+import type { PlanTarget } from './fold';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
 import { blockExercises, exBest, exLogFor, isLiftMode, isWarmupBlock } from './session';
@@ -73,6 +74,11 @@ export interface LiftMove {
   verdict: string;
   /** the reps of that same opening set */
   reps: number;
+  /**
+   * the e1RM this opener implies, so `liftAdapt` can bank it alongside the
+   * kilo. Null when there is nothing to price against — a bodyweight move.
+   */
+  e1rm: number | null;
 }
 
 /**
@@ -137,7 +143,8 @@ export function liftMoves(s: Session | null | undefined): LiftMove[] {
       if (!open) return;
       const from = saneKg(open.aVal);
       const reps = parseInt(String(open.aVal2), 10) || 0;
-      out.push({ name, key, from, to: next.kg, delta: Math.round((next.kg - from) * 100) / 100, verdict: next.message, reps });
+      const e1rm = anchorForOpener(ex);
+      out.push({ name, key, from, to: next.kg, delta: Math.round((next.kg - from) * 100) / 100, verdict: next.message, reps, e1rm });
     });
   });
 
@@ -166,7 +173,7 @@ export function liftAdapt(
     // `at` is the authority here and in `mergeSettings`.
     const prev = out[m.key];
     if (prev && prev.at > at) return;
-    out[m.key] = { kg: m.to, at, reps: m.reps };
+    out[m.key] = { kg: m.to, at, reps: m.reps, ...(m.e1rm != null && { e1rm: m.e1rm }) };
   });
 
   return { liftProgress: out };
@@ -235,12 +242,26 @@ export function nextWorkingWeight(
   name: string,
   settings: Settings = {},
   whoop?: WhoopSample | null,
+  /**
+   * Today's set-1 rep target, so a banked e1RM can be re-priced against
+   * whatever the plan asks for today rather than re-offering the flat kilo a
+   * DIFFERENT rep scheme earned. Optional and additive — every existing
+   * caller that omits it gets exactly today's behaviour, and a record with
+   * no banked `e1rm` takes the existing path regardless. See the RPE
+   * progression design, stage 1.
+   */
+  target?: PlanTarget,
 ): WorkingWeight | null {
   const key = String(name || '').trim().toLowerCase();
   if (!key) return null;
 
   const st = settings.liftProgress && settings.liftProgress[key];
-  const earned = st ? saneKg(st.kg) : 0;
+  if (!st) return null;
+  let earned = saneKg(st.kg);
+  if (st.e1rm && st.e1rm > 0 && target && target.reps !== 'max' && target.reps > 0) {
+    const priced = plannedKg(st.e1rm, target);
+    if (priced > 0) earned = priced;
+  }
   if (!earned) return null;
 
   const rec = todayRecovery(whoop);
@@ -442,7 +463,25 @@ export function openingLoadFor(
     return { kg: asked, message: `${pct}% of your best — as written`, source: 'prescribed' };
   }
 
-  const earned = nextWorkingWeight(name, ctx.settings, ctx.whoop);
+  // Today's own set-1 target, so a banked e1RM re-prices against what THIS
+  // plan asks for rather than the scheme that earned it. `st` is `ex.sets[si]`
+  // — this rung's reading of WHICH set that is leans on an invariant it does
+  // not itself enforce, so it is spelled out here rather than assumed:
+  //
+  // `folded` above answers for `logs.length` (how many working sets this
+  // exercise has already completed), not for `si`. This rung is only reached
+  // when `folded` had nothing usable — which, given `st` already passed the
+  // `isWarmup` guard, only happens when `logs.length === 0`: no working set
+  // in the whole exercise is done yet. Both real callers
+  // (`session-authoring`'s `nextUp`, in view.ts and draft.ts) drive `si` from
+  // `firstNotDone` — the earliest incomplete set, in order — so with nothing
+  // done, `si` cannot be anything but the first working set. A caller that
+  // asked about a LATER set while an earlier one sat unentered would break
+  // this; nothing in the codebase does.
+  const earned = nextWorkingWeight(name, ctx.settings, ctx.whoop, {
+    reps: targetRepsOf(st.t),
+    rpe: rpeCenterOf(st),
+  });
   if (earned) {
     return {
       kg: earned.kg,

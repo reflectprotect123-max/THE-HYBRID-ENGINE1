@@ -415,6 +415,11 @@ export interface LiftState {
   at: number;
   /** reps it was earned at, so a changed rep target is visible in the record */
   reps?: number;
+  /** the e1RM implied by the opener this was earned at, so a later session
+   *  whose plan changes the rep scheme can re-price the opener instead of
+   *  re-offering the same kilo regardless of what today asks for — see
+   *  `anchorForOpener` and `plannedKg` in fold.ts */
+  e1rm?: number;
 }
 
 /** A user-named grouping of workouts in Library — organizational only, never

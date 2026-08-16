@@ -565,9 +565,18 @@ keep.** Recorded here rather than in the deleted app's own header:
 
 - Conditioning progression is REAL, unlike strength's. `conAdapt` earns levels
   0→20 and `conPrescription` spends them on rotating levers — `+1 round`, then
-  `+5s work`, then `−5s rest`. Contrast `liftProgress`, which stores
-  `{kg, at, reps}` and reads back only `kg`, so a `10,8,6` → `9,7,5` wave moves
-  no weight at all. That gap is still open.
+  `+5s work`, then `−5s rest`. Contrast `liftProgress`, which stored
+  `{kg, at, reps}` and read back only `kg`, so a `10,8,6` → `9,7,5` wave moved
+  no weight at all. **That gap is CLOSED as of Stage 1 of the RPE progression
+  design, 16 August 2026** (`docs/superpowers/specs/2026-08-16-rpe-
+  progression-design.md`): `LiftState` gained `e1rm?: number`, the e1RM
+  `anchorFor` already computed inside a session and previously discarded
+  between them. `liftAdapt` banks it alongside the flat kilo; `openingLoadFor`
+  re-prices it against whatever today's plan asks for via `plannedKg`, so a
+  scheme change re-derives the opener instead of re-offering the same number
+  regardless of the rep target. A record banked before this change carries no
+  `e1rm` and takes the exact path it always did — this is additive, not a
+  migration.
 - It WAS invisible without a chest strap, and that is FIXED as of 16 August
   2026. The finding stands as the lab reported it: `conAdapt` returns at
   `if (zoned <= 0) return none;`, so a session with no zone seconds earned

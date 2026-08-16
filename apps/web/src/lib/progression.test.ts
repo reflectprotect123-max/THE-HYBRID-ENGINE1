@@ -51,6 +51,22 @@ describe('progression proposals', () => {
     expect(settings.liftProgress?.['back squat'].kg).toBe(100);
   });
 
+  it('carries the e1RM anchor through a coach-approved proposal, not just the kilo', () => {
+    /* `after` is built field-by-field here rather than spread from `move` —
+       see the comment on `after` in progression.ts. That shape is exactly
+       what let `e1rm` go missing silently when stage 1 of the RPE
+       progression design added it to `LiftMove`/`LiftState`: every OTHER
+       write path (`liftAdapt`) picked it up automatically, and this one,
+       reconstructing the object by hand, did not. */
+    const settings: Settings = { liftProgress: { 'back squat': { kg: 100, at: 500, reps: 5 } } };
+    const [proposal] = strengthProgressionProposals(strengthSession(), settings);
+
+    expect(proposal.after.e1rm).toBeCloseTo(123.333, 2);
+
+    const approved = applyApprovedProposal(proposal, settings);
+    expect(approved.liftProgress?.['back squat'].e1rm).toBeCloseTo(123.333, 2);
+  });
+
   it('turns strength progression into review when pain or illness is active', () => {
     const [proposal] = strengthProgressionProposals(strengthSession(), {}, ['Pain hold is active.']);
     expect(proposal.direction).toBe('review');

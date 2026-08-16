@@ -242,7 +242,7 @@ export function foldExercise({ targets, logs, opener, increment }: FoldInput): F
 }
 
 /** A planned set's rep target, read out of its free-text `t`. */
-function targetRepsOf(t: string | undefined): number | 'max' {
+export function targetRepsOf(t: string | undefined): number | 'max' {
   if (/max/i.test(t || '')) return 'max';
   const floor = repFloorOf(t);
   return floor > 0 ? floor : 8;
@@ -337,4 +337,24 @@ export function foldNextOpener(
     message = s.easyRun >= 2 ? 'two easy sets — full correction' : 'one easy set — one jump';
   else message = 'hold — open here again';
   return { kg, message };
+}
+
+/**
+ * The e1RM anchor implied by TODAY's opener, priced against set 1's own
+ * plan — the same read `foldNextOpener` uses, so the two can never disagree
+ * about which set was the opener.
+ *
+ * `liftAdapt` banks this alongside the kilo it earned, so a later session
+ * whose plan changes the rep scheme can re-price the opener instead of
+ * re-offering the same number regardless of what today asks for. See the
+ * RPE progression design, stage 1.
+ *
+ * Null wherever `foldNextOpener` would also be null — no completed working
+ * set, or a non-positive opener (bodyweight).
+ */
+export function anchorForOpener(ex: Exercise<LoggedSet>): number | null {
+  const read = readExercise(ex);
+  if (!read || !read.logs.length) return null;
+  const anchor = anchorFor(read.logs[0].kg, read.targets[0]);
+  return anchor > 0 ? anchor : null;
 }

@@ -73,7 +73,14 @@ export function strengthProgressionProposals(
   const at = session.completedAt || session.updatedAt || Date.now();
   return liftMoves(session).map((move) => {
     const before = settings.liftProgress?.[move.key] ?? null;
-    const after = { kg: safetyReason ? (before?.kg ?? move.from) : move.to, at, reps: move.reps };
+    // On a safety hold nothing actually changed, so the anchor holds too —
+    // same rule as `kg` on the line above. On approve, `move.e1rm` is what
+    // THIS session's opener implies; carried through explicitly because
+    // `LiftState` is rebuilt field-by-field here rather than spread, and a
+    // field this constructor does not name is a field that quietly stops
+    // being banked. See the RPE progression design, stage 1.
+    const e1rm = safetyReason ? before?.e1rm : (move.e1rm ?? undefined);
+    const after: LiftState = { kg: safetyReason ? (before?.kg ?? move.from) : move.to, at, reps: move.reps, ...(e1rm != null && { e1rm }) };
     const direction: ProgressionDirection = safetyReason
       ? 'review'
       : move.delta > 0
