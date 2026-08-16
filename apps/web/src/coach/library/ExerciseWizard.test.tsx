@@ -120,3 +120,57 @@ describe('ExerciseWizard — steps 1 and 2', () => {
     expect(screen.getByRole('button', { name: /Seconds/ })).toHaveClass('on');
   });
 });
+
+function toValues(container = document) {
+  fireEvent.click(screen.getByText('Back Squat'));
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> measure
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> sets
+}
+
+describe('ExerciseWizard — Sets and Values', () => {
+  it('starts Sets at 3 and steps with +/-', () => {
+    renderWizard();
+    toValues();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /one more set/i }));
+    expect(screen.getByText('4')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /one fewer set/i }));
+    fireEvent.click(screen.getByRole('button', { name: /one fewer set/i }));
+    fireEvent.click(screen.getByRole('button', { name: /one fewer set/i }));
+    expect(screen.getByText('1')).toBeInTheDocument(); // floor at 1, not 0
+  });
+
+  it('advancing from Sets to Values shows reps presets for Reps + Weight, plus a weight field', () => {
+    renderWizard();
+    toValues();
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> values
+    expect(screen.getByRole('button', { name: '8' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/weight in kilograms/i)).toBeInTheDocument();
+  });
+
+  it('hides the weight field for Reps only', () => {
+    renderWizard();
+    fireEvent.click(screen.getByText('Back Squat'));
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> measure
+    fireEvent.click(screen.getByRole('button', { name: /Reps only/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> sets
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> values
+    expect(screen.queryByLabelText(/weight in kilograms/i)).not.toBeInTheDocument();
+  });
+
+  it('picking a reps preset sets the shared value and clears the custom box', () => {
+    renderWizard();
+    toValues();
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> values
+    fireEvent.click(screen.getByRole('button', { name: '10' }));
+    expect(screen.getByRole('button', { name: '10' })).toHaveClass('on');
+  });
+
+  it('typing a custom value overrides the presets', () => {
+    renderWizard();
+    toValues();
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> values
+    fireEvent.change(screen.getByLabelText(/custom value/i), { target: { value: '8-12' } });
+    expect(screen.queryAllByRole('button', { name: /^(5|8|10|12|max)$/ }).some((b) => b.classList.contains('on'))).toBe(false);
+  });
+});

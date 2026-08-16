@@ -199,6 +199,66 @@ export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, 
           </div>
         </div>
       )}
+
+      {step === 'sets' && (
+        <div className="cb-wizard-step">
+          <h1>How many sets?</h1>
+          <div className="cb-wizard-stepper-row">
+            <button type="button" aria-label="One fewer set" onClick={() => patch({ sets: Math.max(1, draft.sets - 1) })}>&minus;</button>
+            <span className="num">{draft.sets}</span>
+            <button type="button" aria-label="One more set" onClick={() => patch({ sets: Math.min(20, draft.sets + 1) })}>+</button>
+          </div>
+          <div className="cb-wizard-btn-row">
+            <button type="button" className="cb-wizard-btn" onClick={back}>Back</button>
+            <button type="button" className="cb-wizard-btn cb-wizard-btn-brass" onClick={() => push('values')}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {step === 'values' && (
+        <div className="cb-wizard-step">
+          <h1>{draft.sets} sets of&hellip;</h1>
+          <span className="cb-wizard-field-label">{draft.measure === 'seconds' ? 'Seconds' : draft.measure === 'distance' ? 'Metres' : 'Reps'}</span>
+          <div className="cb-wizard-chip-row">
+            {['5', '8', '10', '12', 'max'].map((r) => (
+              <button
+                key={r}
+                type="button"
+                className={`cb-wizard-chip${draft.a === r ? ' on' : ''}`}
+                onClick={() => patch({ a: r })}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <label className="cb-wizard-sr-only" htmlFor="wizard-values-custom">Custom value</label>
+          <input
+            id="wizard-values-custom"
+            className="cb-wizard-custom-input"
+            placeholder="or a custom value"
+            value={['5', '8', '10', '12', 'max'].includes(draft.a) ? '' : draft.a}
+            onChange={(e) => patch({ a: e.target.value })}
+          />
+          {draft.measure === 'reps_weight' && (
+            <div className="cb-wizard-weight-row">
+              <label className="cb-wizard-sr-only" htmlFor="wizard-values-weight">Weight in kilograms</label>
+              <input
+                id="wizard-values-weight"
+                className="cb-wizard-custom-input"
+                inputMode="decimal"
+                aria-label="Weight in kilograms"
+                value={draft.b}
+                onChange={(e) => patch({ b: e.target.value })}
+              />
+              <span className="cb-wizard-weight-unit">kg</span>
+            </div>
+          )}
+          <div className="cb-wizard-btn-row">
+            <button type="button" className="cb-wizard-btn" onClick={back}>Back</button>
+            <button type="button" className="cb-wizard-btn cb-wizard-btn-brass" onClick={() => push('review')}>Next</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
