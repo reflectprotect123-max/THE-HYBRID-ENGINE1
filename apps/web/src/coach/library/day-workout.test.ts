@@ -206,7 +206,10 @@ describe('workoutToDayBuilder', () => {
     };
     const value = workoutToDayBuilder(w);
     expect(value.blocks[0].exercises[0].name).toBe('Bench');
-    expect(value.blocks[0].exercises[0].sets).toEqual([{ id: 'e0-s0', a: '5', b: '' }]);
+    /* The RPE comes back too, since 16 August 2026. Before the bench could
+       author one it was dropped here, so opening a Planner-authored workout
+       and saving it silently deleted the coach's RPE targets. */
+    expect(value.blocks[0].exercises[0].sets).toEqual([{ id: 'e0-s0', a: '5', b: '', rpe: '8' }]);
     expect(value.blocks[0].exercises[0].columnA).toBe('reps');
     expect(value.blocks[0].exercises[0].columnB).toBe('weight_kg');
     // No `rest` on a workout authored before the field existed: the builder's
@@ -387,5 +390,50 @@ describe('EMOM pacing survives the round trip', () => {
   it('keeps the coach’s rest number alongside it, so switching back loses nothing', () => {
     const back = workoutsToDayBuilder(dayBuilderToWorkouts(dayWith({ every: 150 }), { id: 'w' }));
     expect(back.blocks[0].exercises[0]).toMatchObject({ rest: 90, every: 150 });
+  });
+});
+
+describe('the coach’s target RPE reaches the set', () => {
+  const day = (rpe?: string) => ({
+    instructions: '',
+    blocks: [
+      {
+        id: 'b0',
+        category: 'Strength/Power',
+        exercises: [
+          {
+            id: 'e0',
+            name: 'Back Squat',
+            columnA: 'reps',
+            columnB: 'weight_kg',
+            rest: 90,
+            sets: [{ id: 's0', a: '5', b: '100', ...(rpe === undefined ? {} : { rpe }) }],
+          },
+        ],
+      },
+    ],
+  });
+
+  it('lands in `rpe`, not in `t`, and a RANGE is a valid value', () => {
+    /* `rpeCenterOf` averages every number in the string, so "7-10" is a band
+       centre of 8.5 rather than a parse failure. */
+    const [w] = dayBuilderToWorkouts(day('7-10'), { id: 'w' });
+    const set = (w.blocks?.[0] as { exercises: { sets: { t: string; rpe: string }[] }[] }).exercises[0].sets[0];
+    expect(set).toEqual({ t: '5 @100kg', rpe: '7-10' });
+  });
+
+  it('round-trips, and an unset RPE comes back UNSET rather than empty', () => {
+    /* Empty and absent mean the same thing to `rpeCenterOf` — the 8.5 default
+       — but only one of them survives the identity assertion on this trip. */
+    expect(workoutsToDayBuilder(dayBuilderToWorkouts(day('8'), { id: 'w' })).blocks[0].exercises[0].sets[0].rpe).toBe('8');
+    expect(workoutsToDayBuilder(dayBuilderToWorkouts(day(), { id: 'w' })).blocks[0].exercises[0].sets[0]).not.toHaveProperty('rpe');
+  });
+
+  it('keeps DIFFERENT RPEs per set rather than flattening them', () => {
+    /* The reason it is stored per set and not per exercise. */
+    const value = day('9');
+    value.blocks[0].exercises[0].sets.push({ id: 's1', a: '5', b: '100', rpe: '7' });
+    const back = workoutsToDayBuilder(dayBuilderToWorkouts(value, { id: 'w' }));
+    expect(back.blocks[0].exercises[0].sets.map((s) => s.rpe)).toEqual(['9', '7']);
   });
 });
