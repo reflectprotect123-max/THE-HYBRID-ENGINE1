@@ -134,3 +134,10 @@ per the same guideline's "Success Feedback" rule.
   a block's kind is a `BlockEditor`-level field, chosen elsewhere.
 - No change to conditioning blocks, day-level template application, or the
   block-heading/rest-timer/tempo work already shipped earlier the same day.
+
+**Conditioning is a hard exclusion, not a deferral.** The owner was shown
+that `CondBlockFields` has the same flat-form shape this design set out to
+fix, and asked explicitly that it not be touched — "no conditioning, that's
+perfect as it is, do not touch it ever." Any future work in this file must
+not fold conditioning blocks into the wizard or otherwise restructure
+`CondBlockFields` without new, explicit approval.
