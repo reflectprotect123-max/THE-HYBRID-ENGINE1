@@ -123,3 +123,31 @@ describe('DayBuilder — both modes', () => {
     expect(screen.getByText(/nothing on this day yet/i)).toBeInTheDocument();
   });
 });
+
+describe('starting from a session template', () => {
+  it('offers the templates on an empty day and lays out their sections', () => {
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /hybrid — two strength pieces/i }));
+    expect(screen.getByText('BLOCK 06')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('STRENGTH INTENSITY 1')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('STRENGTH INTENSITY 2')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('FINISHER')).toBeInTheDocument();
+  });
+
+  it('brings no movements with it — the coach still picks every one', () => {
+    /* The whole point of a template, in the owner's words: "then I just need to
+       select exercise / rest timers / rpe". A template that arrived with
+       exercises in it would be a workout, not a shape. */
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /hybrid — one strength piece/i }));
+    expect(screen.queryByRole('button', { name: /remove exercise/i })).not.toBeInTheDocument();
+  });
+
+  it('stops offering templates once the day has anything on it', () => {
+    /* Applying a template APPENDS, so the offer is only unambiguous while the
+       day is empty. See `applyTemplate`. */
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /lift and engine/i }));
+    expect(screen.queryByRole('button', { name: /lift and engine/i })).not.toBeInTheDocument();
+  });
+});

@@ -1,4 +1,4 @@
-import type { Block, CondBlock, CondFmtKey, EffortKey, Exercise, LoggedSet, Modality, ModeKey, Workout } from '@hybrid/engine';
+import type { Block, CondBlock, CondFmtKey, EffortKey, Exercise, LoggedSet, Modality, ModeKey, StrengthBlock, Workout } from '@hybrid/engine';
 import { CON_EFFORTS, isWarmup, loadKgOf, loadPctOf } from '@hybrid/engine';
 import {
   BLOCK_CATEGORIES,
@@ -102,7 +102,11 @@ function toCondBlock(block: BlockValue, note: string): CondBlock {
     // The category, exactly as the strength path stores it, and for the same
     // reason: it is what tells `workoutsToDayBuilder` which of the two
     // conditioning categories this was.
-    heading: block.category,
+    category: block.category,
+    // The name the athlete reads. A template gives a section its own name
+    // ("FINISHER"); without one the category is the name, which is what this
+    // field held on its own before `category` existed.
+    heading: block.heading?.trim() || block.category,
     condFmt: value.fmt as CondFmtKey,
     effort,
     // Kept in lockstep with `effort` — types.ts: "so older read paths still
@@ -251,10 +255,16 @@ function toBlock(block: BlockValue): Block<LoggedSet> {
     rest: ex.rest,
     sets: ex.sets.map((row) => toPlannedSet(row, ex.columnA, ex.columnB)),
   }));
+  const minutes = num(block.minutes ?? '');
   return {
     id: block.id,
-    heading: block.category,
+    category: block.category,
+    heading: block.heading?.trim() || block.category,
     ...(block.category === 'Warm-up' ? { warmup: true } : {}),
+    ...(minutes !== undefined ? { minutes } : {}),
+    // Absent rather than `false`, so a straight block round-trips as the
+    // record it was rather than growing a key on every save.
+    ...(block.superset ? { superset: true } : {}),
     exercises,
   };
 }
@@ -357,11 +367,28 @@ export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValu
       .filter((b) => b !== (instructionsBlock as unknown))
       .map((block) => {
         const heading = (block as { heading?: string }).heading;
+        /*
+         * The category comes from its own field when the block has one, and
+         * from `heading` when it does not — which is every block authored
+         * before `category` existed, and every block authored anywhere but
+         * here. A heading that IS the category is not a section name, so it
+         * opens the name field empty rather than repeating the dropdown.
+         */
+        const stored = (block as { category?: string }).category;
+        /*
+         * ABSENT, NOT EMPTY. `dayBuilderToWorkouts → workoutsToDayBuilder` is
+         * asserted to be an identity, and a block the coach never named would
+         * otherwise come back carrying `heading: ''` it did not go in with.
+         */
+        const named = (category: string) =>
+          heading && heading !== category ? { heading } : {};
         if ((block as { kind?: string }).kind === 'conditioning') {
           const cond = block as CondBlock;
+          const category = isCategory(stored) ? stored : isCategory(heading) ? heading : 'Conditioning';
           return {
             id: cond.id,
-            category: isCategory(heading) ? heading : 'Conditioning',
+            category,
+            ...named(category),
             exercises: [],
             conditioning: {
               fmt: cond.condFmt ?? 'steady',
@@ -387,12 +414,17 @@ export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValu
             sets,
           };
         });
+        // An unrecognised heading is not a category — a workout from the
+        // Planner can say anything. It opens under the default rather than
+        // leaving the dropdown on a value it does not offer.
+        const category = isCategory(stored) ? stored : isCategory(heading) ? heading : BLOCK_CATEGORIES[0];
+        const strength = block as StrengthBlock<LoggedSet>;
         return {
           id: block.id,
-          // An unrecognised heading is not a category — a workout from the
-          // Planner can say anything. It opens under the default rather than
-          // leaving the dropdown on a value it does not offer.
-          category: isCategory(heading) ? heading : BLOCK_CATEGORIES[0],
+          category,
+          ...named(category),
+          ...(strength.minutes === undefined ? {} : { minutes: String(strength.minutes) }),
+          ...(strength.superset ? { superset: true } : {}),
           exercises,
         };
       }),

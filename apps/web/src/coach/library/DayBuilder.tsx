@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CatalogueEntry } from '@hybrid/engine';
 import { BlockEditor, type BlockValue } from './BlockEditor';
+import { SESSION_TEMPLATES, templateToBlocks } from './session-templates';
 
 export interface DayBuilderValue {
   instructions: string;
@@ -83,6 +84,22 @@ export function DayBuilder({
   const dated = mode === 'dated' && !!date;
   const weekly = mode === 'week' && !!date;
 
+  /*
+   * A TEMPLATE APPENDS. It never replaces what is already on the day.
+   *
+   * The alternative — clearing the day first — is one misclick away from
+   * destroying a session a coach has been building, with no undo on this
+   * screen. Appending is recoverable by removing blocks, which is a control
+   * that already exists. The picker is only offered on an EMPTY day anyway,
+   * so in practice the two behave the same; this is what happens when they
+   * do not.
+   */
+  function applyTemplate(id: string) {
+    const template = SESSION_TEMPLATES.find((t) => t.id === id);
+    if (!template) return;
+    setBlocks((prev) => [...prev, ...templateToBlocks(template, prev.length)]);
+  }
+
   function addBlock() {
     setBlocks((prev) => [
       ...prev,
@@ -159,7 +176,32 @@ export function DayBuilder({
 
       <div className="cb-blocks">
         {blocks.length === 0 ? (
-          <p className="cb-note">Nothing on this day yet — add a block to start.</p>
+          /*
+            * The empty day is the only place a template is offered, because it
+            * is the only place it is unambiguous. Once there are blocks, "start
+            * from a template" is a question about what happens to them, and the
+            * answer a coach expects is not one this screen can guess.
+            */
+          <div className="cb-templates">
+            <p className="cb-note">Nothing on this day yet — start from a template, or add a block.</p>
+            <ul className="cb-template-list">
+              {SESSION_TEMPLATES.map((t) => (
+                <li key={t.id}>
+                  <button type="button" className="cb-template" onClick={() => applyTemplate(t.id)}>
+                    <span className="cb-template-name">{t.name}</span>
+                    <span className="cb-template-summary">{t.summary}</span>
+                    <span className="cb-template-sections">
+                      {t.sections.length} sections · {t.sections.reduce((a, s) => a + (Number(s.minutes) || 0), 0)} min
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="cb-note">
+              A template lays out the sections and their minutes. You still choose every movement, its
+              rest and its target RPE.
+            </p>
+          </div>
         ) : (
           blocks.map((b, i) => (
             <BlockEditor

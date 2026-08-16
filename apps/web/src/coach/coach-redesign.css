@@ -535,8 +535,34 @@
      category is Conditioning. */
   .cb-strength-body[hidden], .cb-cond-body[hidden] { display: none; }
   .cb-cond-body { display: flex; flex-direction: column; gap: 14px; }
+  /* The session templates offered on an empty day. Not in the mockup, which
+     draws an empty day as a single line of text. Cards rather than a select,
+     because a template is chosen on what it CONTAINS — the sections and the
+     minutes — and a dropdown can only show its name. */
+  .cb-templates { display: flex; flex-direction: column; gap: 10px; }
+  .cb-template-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .cb-template {
+    display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; cursor: pointer;
+    padding: 11px 13px; border-radius: var(--radius-sm); border: 1px solid var(--color-line2);
+    background: var(--color-well); font: inherit;
+  }
+  .cb-template:hover { border-color: var(--color-gold-line); background: var(--color-gold-wash); }
+  .cb-template:focus-visible { outline: 2px solid var(--color-gold2); outline-offset: 1px; }
+  .cb-template-name { font-size: 13px; font-weight: 700; color: var(--color-text); }
+  .cb-template-summary { font-size: 11px; line-height: 1.4; color: var(--color-dim); }
+  .cb-template-sections { font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--color-gold2); font-variant-numeric: tabular-nums; }
+
   .cb-field-block { display: block; }
   .cb-field-block .cal-field-label { margin-bottom: 6px; }
+  /* Not in the mockup — the mockup has no section name, no minutes and no
+     superset control, which is exactly why a session template could not be
+     authored. Two columns that collapse to one at phone width, with the
+     superset toggle spanning underneath them at both. */
+  .cb-block-meta {
+    display: grid; grid-template-columns: 2fr 1fr; gap: 10px 12px; align-items: end;
+    padding: 12px 14px 0;
+  }
+  .cb-block-meta .cb-opt-toggle { grid-column: 1 / -1; }
   .cb-optional-inline { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--color-dim); }
   .cb-text-input, .cb-cond-grid select {
     width: 100%; font: inherit; font-size: 12px; color: var(--color-text); background: var(--color-well);
@@ -573,7 +599,7 @@
   .cb-cond-zone-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 650; color: var(--color-text); background: var(--color-well); border: 1px solid var(--color-line2); border-radius: var(--radius-pill); padding: 6px 12px; width: fit-content; }
   .cb-cond-zone-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-z-mod); box-shadow: 0 0 8px 1px currentColor; }
   .cb-cond-summary { margin: 0; font-size: 11px; color: var(--color-dim); }
-  @media (max-width: 560px) { .cb-cond-grid { grid-template-columns: repeat(2, 1fr); } .cb-cond-grid3 { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .cb-cond-grid { grid-template-columns: repeat(2, 1fr); } .cb-cond-grid3 { grid-template-columns: 1fr; } .cb-block-meta { grid-template-columns: 1fr; } }
 
   .cb-block-items { list-style: none; margin: 0; padding: 0; }
   .cb-block-items:empty { display: none; }

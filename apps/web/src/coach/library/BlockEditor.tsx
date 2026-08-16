@@ -85,6 +85,16 @@ export const DEFAULT_REST_SEC = 90;
 export interface BlockValue {
   id: string;
   category: string;
+  /**
+   * What the athlete sees this section called — "STRENGTH INTENSITY 1",
+   * "FINISHER". Empty means the category is the name, which is what every
+   * block said before templates existed.
+   */
+  heading?: string;
+  /** Minutes the coach budgets for this section. A string while it is a text input. */
+  minutes?: string;
+  /** Every exercise in the block pairs with the next: a superset or a circuit. */
+  superset?: boolean;
   exercises: BlockExercise[];
   /** Present only for a conditioning category; see `CONDITIONING_CATEGORIES`. */
   conditioning?: CondValue;
@@ -180,10 +190,11 @@ export function BlockEditor({
                switching out drops them. Keeping a stale conditioning value on
                a strength block would round-trip a block the coach can no
                longer see or edit. */
+            const { conditioning: _drop, ...kept } = block;
             onChange(
               CONDITIONING_CATEGORIES.includes(category)
                 ? { ...block, category, conditioning: block.conditioning ?? newCondValue(category) }
-                : { id: block.id, category, exercises: block.exercises },
+                : { ...kept, category },
             );
           }}
         >
@@ -197,6 +208,56 @@ export function BlockEditor({
           <Cross />
         </button>
       </div>
+
+      {/*
+        * WHAT A SECTION IS CALLED, HOW LONG IT GETS, AND WHETHER IT PAIRS.
+        *
+        * All three are fields the engine's `StrengthBlock` has always had and
+        * this screen never authored, which is why a session template could not
+        * be expressed here: "STRENGTH INTENSITY 1 · 15 minutes · superset" had
+        * nowhere to live. The name is separate from the kind — see
+        * `StrengthBlock.category` — so a block can read as a section and still
+        * be a Strength/Power block underneath.
+        */}
+      {expanded && (
+        <div className="cb-block-meta">
+          <label className="cb-field-block">
+            <span className="cal-field-label">
+              Section name <span className="cb-optional-inline">optional</span>
+            </span>
+            <input
+              type="text"
+              className="cb-text-input"
+              placeholder={block.category}
+              value={block.heading ?? ''}
+              onChange={(e) => onChange({ ...block, heading: e.target.value })}
+            />
+          </label>
+          <label className="cb-field-block">
+            <span className="cal-field-label">
+              Minutes <span className="cb-optional-inline">optional</span>
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              className="cb-text-input"
+              placeholder="—"
+              value={block.minutes ?? ''}
+              onChange={(e) => onChange({ ...block, minutes: e.target.value })}
+            />
+          </label>
+          {!isConditioning && (
+            <label className="cb-opt-toggle">
+              <input
+                type="checkbox"
+                checked={!!block.superset}
+                onChange={(e) => onChange({ ...block, superset: e.target.checked })}
+              />
+              Superset — every movement pairs with the next
+            </label>
+          )}
+        </div>
+      )}
 
       {expanded && isConditioning && (
         <div className="cb-block-body-wrap">
