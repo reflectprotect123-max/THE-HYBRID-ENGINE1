@@ -129,9 +129,28 @@ describe('starting from a session template', () => {
     renderDay();
     fireEvent.click(screen.getByRole('button', { name: /hybrid — two strength pieces/i }));
     expect(screen.getByText('BLOCK 06')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('STRENGTH INTENSITY 1')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('STRENGTH INTENSITY 2')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('FINISHER')).toBeInTheDocument();
+    /* The NAME is what each block head says, so six sections are told apart
+       while they are all still closed. */
+    expect(screen.getByText('STRENGTH INTENSITY 1')).toBeInTheDocument();
+    expect(screen.getByText('STRENGTH INTENSITY 2')).toBeInTheDocument();
+    expect(screen.getByText('FINISHER')).toBeInTheDocument();
+  });
+
+  it('lays its sections down CLOSED', () => {
+    /* Six sections each opening onto its own exercise library is a 7,600px
+       page before the coach has chosen a single movement. A block added one at
+       a time still opens expanded — see `BlockEditor`'s `startCollapsed`. */
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /hybrid — two strength pieces/i }));
+    expect(screen.queryByLabelText('Section name')).not.toBeInTheDocument();
+    /* And every one of them can be opened again. The toggle says which way it
+       goes, and until 16 August 2026 the stylesheet hid it above phone width —
+       so a block laid down closed had no visible way back open at all. */
+    const open = screen.getAllByRole('button', { name: /expand block/i });
+    expect(open).toHaveLength(6);
+    fireEvent.click(open[0]);
+    expect(screen.getByDisplayValue('WARM-UP')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /collapse block/i })).toHaveLength(1);
   });
 
   it('brings no movements with it — the coach still picks every one', () => {

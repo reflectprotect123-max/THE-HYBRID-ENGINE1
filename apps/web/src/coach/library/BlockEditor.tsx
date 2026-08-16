@@ -130,16 +130,25 @@ export function BlockEditor({
   block,
   entries,
   index,
+  startCollapsed = false,
   onChange,
   onRemove,
 }: {
   block: BlockValue;
   entries: CatalogueEntry[];
   index: number;
+  /**
+   * Open the block closed. Only the day builder sets this, and only for the
+   * blocks a TEMPLATE just laid down: six sections each opening onto its own
+   * exercise library is a 7,600px page before the coach has chosen anything.
+   * A block added one at a time still opens expanded, because the coach who
+   * pressed Add block is about to fill it in.
+   */
+  startCollapsed?: boolean;
   onChange: (next: BlockValue) => void;
   onRemove: () => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(!startCollapsed);
   const [pickerOpen, setPickerOpen] = useState(false);
   const isConditioning = CONDITIONING_CATEGORIES.includes(block.category);
 
@@ -173,37 +182,23 @@ export function BlockEditor({
         <button
           type="button"
           className="cb-block-collapse"
-          aria-label="Collapse block"
+          aria-label={expanded ? 'Collapse block' : 'Expand block'}
           aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
         >
           <ChevronDown />
         </button>
         <span className="cb-block-eyebrow">BLOCK {String(index + 1).padStart(2, '0')}</span>
-        <select
-          className="rd-select cb-block-type"
-          aria-label="Block kind"
-          value={block.category}
-          onChange={(e) => {
-            const category = e.target.value;
-            /* Switching INTO a conditioning category seeds its defaults;
-               switching out drops them. Keeping a stale conditioning value on
-               a strength block would round-trip a block the coach can no
-               longer see or edit. */
-            const { conditioning: _drop, ...kept } = block;
-            onChange(
-              CONDITIONING_CATEGORIES.includes(category)
-                ? { ...block, category, conditioning: block.conditioning ?? newCondValue(category) }
-                : { ...kept, category },
-            );
-          }}
-        >
-          {BLOCK_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        {/*
+          * THE HEAD CARRIES THE SECTION'S NAME, and it did not until 16 August
+          * 2026 — it carried the kind dropdown, because before templates the
+          * kind was the only thing a block had to say for itself. A six-section
+          * template made the cost obvious at a glance: four blocks in a row all
+          * read "Strength/Power", and the names that told them apart were
+          * buried in a field below the fold of a collapsed block. The kind is
+          * still one control away, in the row underneath.
+          */}
+        <span className="cb-block-name">{block.heading?.trim() || block.category}</span>
         <button type="button" className="cb-block-remove" aria-label="Remove block" onClick={onRemove}>
           <Cross />
         </button>
@@ -234,20 +229,52 @@ export function BlockEditor({
             />
           </label>
           <label className="cb-field-block">
-            <span className="cal-field-label">
-              Minutes <span className="cb-optional-inline">optional</span>
-            </span>
-            <input
-              type="text"
-              inputMode="numeric"
+            <span className="cal-field-label">Kind</span>
+            <select
               className="cb-text-input"
-              placeholder="—"
-              value={block.minutes ?? ''}
-              onChange={(e) => onChange({ ...block, minutes: e.target.value })}
-            />
+              aria-label="Block kind"
+              value={block.category}
+              onChange={(e) => {
+                const category = e.target.value;
+                /* Switching INTO a conditioning category seeds its defaults;
+                   switching out drops them. Keeping a stale conditioning value
+                   on a strength block would round-trip a block the coach can no
+                   longer see or edit. */
+                const { conditioning: _drop, ...kept } = block;
+                onChange(
+                  CONDITIONING_CATEGORIES.includes(category)
+                    ? { ...block, category, conditioning: block.conditioning ?? newCondValue(category) }
+                    : { ...kept, category },
+                );
+              }}
+            >
+              {BLOCK_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </label>
+          {/* A conditioning block keeps its minutes in its OWN fields below,
+              and that is the one the engine reads. Two inputs both labelled
+              Minutes, only one of which is wired, is worse than one. */}
           {!isConditioning && (
-            <label className="cb-opt-toggle">
+            <label className="cb-field-block">
+              <span className="cal-field-label">
+                Minutes <span className="cb-optional-inline">optional</span>
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="cb-text-input"
+                placeholder="—"
+                value={block.minutes ?? ''}
+                onChange={(e) => onChange({ ...block, minutes: e.target.value })}
+              />
+            </label>
+          )}
+          {!isConditioning && (
+            <label className="cb-opt-toggle cb-block-superset">
               <input
                 type="checkbox"
                 checked={!!block.superset}

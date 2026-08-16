@@ -79,6 +79,10 @@ export function DayBuilder({
 }) {
   const [instructions, setInstructions] = useState(initialValue?.instructions ?? '');
   const [blocks, setBlocks] = useState<BlockValue[]>(initialValue?.blocks ?? []);
+  /* The ids a template just laid down, so those blocks open closed — see
+     `BlockEditor`'s `startCollapsed`. Ids rather than an index, because
+     removing a block renumbers every one after it. */
+  const [fromTemplate, setFromTemplate] = useState<readonly string[]>([]);
 
   const value: DayBuilderValue = { instructions, blocks };
   const dated = mode === 'dated' && !!date;
@@ -97,7 +101,11 @@ export function DayBuilder({
   function applyTemplate(id: string) {
     const template = SESSION_TEMPLATES.find((t) => t.id === id);
     if (!template) return;
-    setBlocks((prev) => [...prev, ...templateToBlocks(template, prev.length)]);
+    setBlocks((prev) => {
+      const added = templateToBlocks(template, prev.length);
+      setFromTemplate((ids) => [...ids, ...added.map((b) => b.id)]);
+      return [...prev, ...added];
+    });
   }
 
   function addBlock() {
@@ -209,6 +217,7 @@ export function DayBuilder({
               block={b}
               entries={entries}
               index={i}
+              startCollapsed={fromTemplate.includes(b.id)}
               onChange={(next) => setBlocks((prev) => prev.map((x) => (x.id === b.id ? next : x)))}
               onRemove={() => setBlocks((prev) => prev.filter((x) => x.id !== b.id))}
             />
