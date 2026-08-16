@@ -674,11 +674,22 @@ describe('openingLoadFor — what the weight field opens at', () => {
     const openerFor = (t: string, rpe: string) =>
       openingLoadFor(ex('Back squat', [{ t, rpe } as LoggedSet]), 0, { settings: earnedFromTenWave }).kg;
 
-    expect(openerFor('10', '8')).toBeCloseTo(100.0, 1);
-    expect(openerFor('9', '8')).toBeCloseTo(102.4, 1);
-    expect(openerFor('8', '8')).toBeCloseTo(105.0, 1);
-    expect(openerFor('5', '8')).toBeCloseTo(113.5, 1); // 3×5
-    expect(openerFor('1', '9')).toBeCloseTo(131.25, 1); // 5/3/1, the single
+    /*
+     * ROUNDED TO THE RACK, not the raw division. `plannedKg` is a bare
+     * `anchor / (1 + repsToFailure(...) / EPLEY_DIV)` and was reaching the
+     * athlete unrounded — 102.4390243902439 kg for the 9,7,5 scheme, a number
+     * no plate combination expresses — until `nextWorkingWeight` gained an
+     * `increment` parameter to round it, the same way every OTHER path in
+     * this file already rounds. Found auditing this very stage: the values
+     * below (and the design doc's own table) were originally written from
+     * the unrounded numbers, which `toBeCloseTo(…, 1)`'s tolerance let pass
+     * without ever printing a number nobody could rack.
+     */
+    expect(openerFor('10', '8')).toBe(100);
+    expect(openerFor('9', '8')).toBe(102.5);
+    expect(openerFor('8', '8')).toBe(105);
+    expect(openerFor('5', '8')).toBe(112.5); // 3×5
+    expect(openerFor('1', '9')).toBe(132.5); // 5/3/1, the single
   });
 
   it('a record banked before this stage — no e1RM at all — behaves exactly as it did before it', () => {

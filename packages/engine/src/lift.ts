@@ -261,6 +261,18 @@ export function nextWorkingWeight(
    * progression design, stage 5.
    */
   sessions?: Session[],
+  /**
+   * The exercise's own plate/stack granularity — `Exercise.inc` where it has
+   * one, `AUTOREG.plateIncrement` otherwise, same convention as every other
+   * increment parameter in this file. Only the e1RM re-pricing branch below
+   * needs it: `st.kg` already arrived pre-rounded from `foldNextOpener`
+   * (which always rounds), but `plannedKg` is a bare division and was
+   * offering raw values like 102.43902439… kg — a number no rack has — until
+   * this parameter existed. Omitted, it defaults to the global increment
+   * rather than skipping rounding, so a caller that forgets it still gets a
+   * real number, just not necessarily the exercise's own step.
+   */
+  increment?: number,
 ): WorkingWeight | null {
   const key = String(name || '').trim().toLowerCase();
   if (!key) return null;
@@ -269,7 +281,7 @@ export function nextWorkingWeight(
   if (!st) return null;
   let earned = saneKg(st.kg);
   if (st.e1rm && st.e1rm > 0 && target && target.reps !== 'max' && target.reps > 0) {
-    const priced = plannedKg(st.e1rm, target);
+    const priced = roundToIncrement(plannedKg(st.e1rm, target), increment || AUTOREG.plateIncrement);
     if (priced > 0) earned = priced;
   }
   if (!earned) return null;
@@ -346,7 +358,7 @@ export function sessionOpeners(
       if (!key || seen.has(key)) return;
       seen.add(key);
 
-      const nw = nextWorkingWeight(name, settings, whoop, undefined, sessions);
+      const nw = nextWorkingWeight(name, settings, whoop, undefined, sessions, incrementFor(ex as Exercise<LoggedSet>));
       if (nw) out.push({ name, kg: nw.kg, eased: nw.dailyAdj < 0 });
     }),
   );
@@ -520,6 +532,7 @@ export function openingLoadFor(
     ctx.whoop,
     { reps: targetRepsOf(st.t), rpe: rpeCenterOf(st) },
     ctx.sessions,
+    incrementFor(ex as Exercise<LoggedSet>),
   );
   if (earned) {
     return {

@@ -22,10 +22,18 @@ Run against the real engine functions, the same athlete should open at:
 | Scheme | Correct opener | What the app offers today |
 |---|---|---|
 | 10, 8, 6 | 100.0 kg | 100.0 |
-| 9, 7, 5 | 102.4 kg | 100.0 |
+| 9, 7, 5 | 102.5 kg | 100.0 |
 | 8, 6, 4 | 105.0 kg | 100.0 |
-| 3 × 5 | 113.5 kg | 100.0 |
-| 5/3/1, the single | 131.3 kg | 100.0 |
+| 3 × 5 | 112.5 kg | 100.0 |
+| 5/3/1, the single | 132.5 kg | 100.0 |
+
+*(Corrected after Stage 1 shipped: the right column originally read 102.4 /
+113.5 / 131.3 — the RAW `plannedKg` division, e.g. 102.4390243902439 kg,
+truncated to one decimal as if it were already rack-rounded. It reached the
+athlete's actual weight field the same way, unrounded, until an audit of this
+stage found it and `nextWorkingWeight` gained the `increment` parameter that
+rounds it — see Stage 1's note below and `lift.test.ts`'s golden test for the
+real, verified numbers.)*
 
 **The engine computes the correct column and then throws it away.**
 `anchorFor(100, {reps: 10, rpe: 8})` returns a 140 kg e1RM, and `plannedKg`
@@ -94,6 +102,11 @@ line: `anchorFor(next.kg, set1PlannedTarget)`, where the target is
 **Read.** `openingLoadFor`'s *earned* rung prices
 `plannedKg(e1rm, todaysSet1Target)` when an `e1rm` is banked and today's set 1
 carries a numeric rep target. Otherwise it falls through to `kg`, unchanged.
+**Rounded to the exercise's own increment before it reaches the athlete** —
+`plannedKg` is a bare division and was reaching the weight field raw
+(102.4390243902439 kg for the 9,7,5 scheme in the table below) until
+`nextWorkingWeight` gained an `increment` parameter, found and fixed auditing
+this stage after it shipped.
 
 **Why it composes.** The anchor is derived from the weight the session
 *earned*, so a session that went well raises the anchor and a scheme change
@@ -101,10 +114,15 @@ re-prices it — both at once, with no interaction rule:
 
 ```
 week 1  10,8,6 @100, on target   → earned 100 @10 reps → anchor 140
-week 2  plan says 9,7,5          → plannedKg(140, 9) → 102.4
-week 3  plan says 3×5            → plannedKg(140, 5) → 113.5
-crushed week 1 instead           → earned 102.5 → anchor 143.5 → week 2 = 104.9
+week 2  plan says 9,7,5          → plannedKg(140, 9) → 102.5, rack-rounded
+week 3  plan says 3×5            → plannedKg(140, 5) → 112.5, rack-rounded
+crushed week 1 instead           → earned 102.5 → anchor 143.5 → week 2 ≈ 105, rack-rounded
 ```
+
+*(These are rack-rounded — `nextWorkingWeight` rounds `plannedKg`'s output to
+the exercise's own increment, `AUTOREG.plateIncrement` by default. That
+rounding step was missing when this walkthrough was first written and reached
+the athlete's actual field as a raw division; see §1's table note.)*
 
 **Boundaries.** The anchor is never shown as a 1RM and never called one — it
 is an internal reference. A bodyweight movement has no anchor. `max` sets have
