@@ -1,4 +1,4 @@
-import { COLUMN_TYPES, availableSecondColumns, isColumnPairValid } from '@hybrid/engine';
+import { COLUMN_TYPES, NONE_COLUMN, availableSecondColumns, isColumnPairValid } from '@hybrid/engine';
 
 export interface SetRow {
   id: string;
@@ -76,6 +76,12 @@ export function SetRows({
   onSetsChange: (sets: SetRow[]) => void;
 }) {
   const pairValid = isColumnPairValid(columnA, columnB);
+  // `columnB === ''` is `NONE_COLUMN` chosen deliberately, not "not set yet"
+  // — see its own doc in `@hybrid/engine`'s `setColumns.ts`. A set with no
+  // second measure has one value to enter, not two side by side with the
+  // second one greyed out; the row drops to a single value column and the
+  // grid narrows with it, both here and in the head above it.
+  const single = columnB === '';
 
   function patch(id: string, key: 'a' | 'b', value: string) {
     onSetsChange(sets.map((s) => (s.id === id ? { ...s, [key]: value } : s)));
@@ -105,6 +111,12 @@ export function SetRows({
           </select>
         </div>
 
+        {/*
+          * ALWAYS RENDERED, even when `NONE_COLUMN` is picked — this select IS
+          * the way back to a second measure. What disappears below, per row,
+          * is the now-pointless value input; the control that chose "None"
+          * stays exactly where the coach found it.
+          */}
         <div className="cb-col-head">
           <select
             /* `.conflict` is the stylesheet's own name for a column that
@@ -117,7 +129,7 @@ export function SetRows({
             onChange={(e) => onColumnChange('b', e.target.value)}
           >
             {availableSecondColumns(columnA).map((c) => (
-              <option key={c.value} value={c.value}>
+              <option key={c.value || 'none'} value={c.value}>
                 {c.label}
               </option>
             ))}
@@ -139,7 +151,7 @@ export function SetRows({
 
       <div className="cb-sets-rows">
         {sets.map((s, i) => (
-          <div key={s.id} className="cb-set-row">
+          <div key={s.id} className={`cb-set-row${single ? ' single' : ''}`}>
             {/*
               * THE CHIP IS THE TOGGLE, rather than a fourth control in the row.
               * `.cb-set-row` is a three-column grid — number, value, value —
@@ -169,15 +181,24 @@ export function SetRows({
               aria-label={`Set ${i + 1} ${placeholderFor(columnA)}`}
               onChange={(e) => patch(s.id, 'a', e.target.value)}
             />
-            <input
-              type="text"
-              value={s.b}
-              placeholder={placeholderFor(columnB)}
-              disabled={!pairValid}
-              className={pairValid ? undefined : 'conflict'}
-              aria-label={`Set ${i + 1} ${placeholderFor(columnB)}`}
-              onChange={(e) => patch(s.id, 'b', e.target.value)}
-            />
+            {/*
+              * NOT RENDERED AT ALL when the second column is "None" — a
+              * disabled, greyed-out input for a measure the coach explicitly
+              * said this exercise does not track would ask them to explain an
+              * empty box that can never hold anything. `single` on the row
+              * (above) is what narrows the grid to match — see the CSS.
+              */}
+            {!single && (
+              <input
+                type="text"
+                value={s.b}
+                placeholder={placeholderFor(columnB)}
+                disabled={!pairValid}
+                className={pairValid ? undefined : 'conflict'}
+                aria-label={`Set ${i + 1} ${placeholderFor(columnB)}`}
+                onChange={(e) => patch(s.id, 'b', e.target.value)}
+              />
+            )}
           </div>
         ))}
       </div>

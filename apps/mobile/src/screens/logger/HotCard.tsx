@@ -87,6 +87,15 @@ export function HotCard({
       <Text testID="hot-presc" style={st.hotPresc}>
         {hot.planned.reps} reps @ RPE {hot.planned.rpe}
       </Text>
+      {/* A brand-new, always-absent-until-authored field — no recorded
+          session has ever set `Exercise.tempo`, so this renders nothing in
+          every existing parity scenario and neither baseline needed
+          re-recording. See `HotSet.tempo`'s own doc. */}
+      {hot.tempo ? (
+        <Text testID="hot-tempo" style={st.hotTempo}>
+          tempo {hot.tempo}
+        </Text>
+      ) : null}
       <Text testID="hot-why" style={st.hotWhy}>
         {hot.message}
       </Text>

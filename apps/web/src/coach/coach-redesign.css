@@ -588,7 +588,16 @@
   /* The section's own name is the block's identity in the head. Before this it
      was the kind dropdown, and a six-section template read as four identical
      "Strength/Power" rows. */
-  .cb-block-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cb-block-name {
+    flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--color-text); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+    /* Reset button chrome — this reads as the section's name, and only its
+       cursor and focus ring say it is also the fastest way to rename it. */
+    font-family: inherit; background: none; border: none; padding: 0; margin: 0;
+    text-align: left; cursor: pointer;
+  }
+  .cb-block-name:hover, .cb-block-name:focus-visible { color: var(--color-gold2); }
+  .cb-block-name:focus-visible { outline: 2px solid var(--color-gold2); outline-offset: 2px; }
   .cb-optional-inline { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--color-dim); }
   .cb-text-input, .cb-cond-grid select {
     width: 100%; font: inherit; font-size: 12px; color: var(--color-text); background: var(--color-well);
@@ -674,6 +683,9 @@
   }
   .cb-col-select.conflict { color: var(--color-dim); background-color: var(--color-well); border-color: var(--color-line2); opacity: .7; }
   .cb-set-row { display: grid; grid-template-columns: 24px 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 6px; }
+  /* The second column is "None (optional)" for this exercise — one value cell,
+     not one value cell plus an empty gap where a second one used to be. */
+  .cb-set-row.single { grid-template-columns: 24px 1fr; }
   .cb-set-row .n { display: grid; place-items: center; width: 22px; height: 22px; margin: 0 auto; border-radius: 50%; font-size: 10px; font-weight: 800; color: var(--color-gold2); background: var(--color-gold-wash); border: 1px solid var(--color-gold-line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); font-family: inherit; cursor: pointer; padding: 0; }
   /* A RAMP SET READS AS PREP, not as work. Brass is what this bench uses for
      the things that count — an earned weight, a live set, a published week —

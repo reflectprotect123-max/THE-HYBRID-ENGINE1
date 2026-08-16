@@ -393,6 +393,49 @@ describe('EMOM pacing survives the round trip', () => {
   });
 });
 
+describe('tempo survives the round trip', () => {
+  /* `Exercise.tempo` existed in @hybrid/engine since before this bench did,
+     with no coach-side way to author it until now. Same absent-not-empty
+     convention as `every` above. */
+  const dayWith = (tempo?: string) => ({
+    instructions: '',
+    blocks: [
+      {
+        id: 'b0',
+        category: 'Strength/Power',
+        exercises: [
+          {
+            id: 'e0',
+            name: 'Back Squat',
+            columnA: 'reps',
+            columnB: 'weight_kg',
+            rest: 90,
+            sets: [{ id: 's0', a: '5', b: '100' }],
+            ...(tempo !== undefined ? { tempo } : {}),
+          },
+        ],
+      },
+    ],
+  });
+
+  it('carries a tempo out and back', () => {
+    const back = workoutsToDayBuilder(dayBuilderToWorkouts(dayWith('3-1-1-0'), { id: 'w' }));
+    expect(back.blocks[0].exercises[0].tempo).toBe('3-1-1-0');
+  });
+
+  it('writes no tempo key at all when the coach never gave one', () => {
+    const [w] = dayBuilderToWorkouts(dayWith(undefined), { id: 'w' });
+    const ex = (w.blocks?.[0] as { exercises: unknown[] }).exercises[0];
+    expect(ex).not.toHaveProperty('tempo');
+    expect(workoutsToDayBuilder([w]).blocks[0].exercises[0]).not.toHaveProperty('tempo');
+  });
+
+  it('drops whitespace-only tempo rather than storing it', () => {
+    const [w] = dayBuilderToWorkouts(dayWith('   '), { id: 'w' });
+    expect((w.blocks?.[0] as { exercises: unknown[] }).exercises[0]).not.toHaveProperty('tempo');
+  });
+});
+
 describe('the coach’s target RPE reaches the set', () => {
   const day = (rpe?: string) => ({
     instructions: '',

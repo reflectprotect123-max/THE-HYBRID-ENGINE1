@@ -41,6 +41,27 @@ export function ExercisePicker({
   }
 
   /*
+   * THE BUG THIS CLOSES: neither `onPick` nor `onNewExercise` used to touch
+   * `query`, so after adding "Squat" the search box still read "Squat". A
+   * coach who pressed "+ New exercise" again — reasonably, to add a SECOND
+   * movement to the same block — silently added "Squat" a second time,
+   * because the button reads straight off `query.trim()` and nothing had
+   * changed it. Clearing the query after every successful add is what makes
+   * the field mean "what I am about to add" rather than "what I last added".
+   */
+  function pick(name: string) {
+    setQuery('');
+    onPick(name);
+  }
+
+  function newExercise() {
+    const name = query.trim();
+    if (!name) return;
+    setQuery('');
+    onNewExercise(name);
+  }
+
+  /*
    * `picker-open` is not decoration, and it has now been got wrong in BOTH
    * directions. The history is the useful part.
    *
@@ -123,7 +144,7 @@ export function ExercisePicker({
                 type="button"
                 className="cb-picker-row"
                 data-name={entry.name}
-                onClick={() => onPick(entry.name)}
+                onClick={() => pick(entry.name)}
               >
                 <span className="swatch">{entry.name.charAt(0)}</span>
                 <span className="name">{entry.name}</span>
@@ -148,7 +169,7 @@ export function ExercisePicker({
         >
           + New circuit
         </button>
-        <button type="button" className="cb-new-exercise" onClick={() => onNewExercise(query.trim())}>
+        <button type="button" className="cb-new-exercise" onClick={newExercise}>
           + New exercise
         </button>
         <button type="button" className="cb-picker-done" onClick={onDone}>

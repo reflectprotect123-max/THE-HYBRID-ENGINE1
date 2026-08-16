@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CON_EFFORTS, CON_FORMATS } from '@hybrid/engine';
 import type { CatalogueEntry, CondFmtKey, EffortKey } from '@hybrid/engine';
 import { ExercisePicker } from './ExercisePicker';
@@ -82,6 +82,14 @@ export interface BlockExercise {
    * 16 August 2026 is in.
    */
   every?: number;
+  /**
+   * Free-text eccentric/concentric tempo, "3-1-1-0" or a coach's own words —
+   * `Exercise.tempo` in `@hybrid/engine`, present in the model since before
+   * this bench existed and never authorable from it until now. Never
+   * required: the field the athlete's card reads is empty exactly when the
+   * coach left it that way.
+   */
+  tempo?: string;
   sets: SetRow[];
 }
 
@@ -174,6 +182,20 @@ export function BlockEditor({
   const [expanded, setExpanded] = useState(!startCollapsed);
   const [pickerOpen, setPickerOpen] = useState(false);
   const isConditioning = CONDITIONING_CATEGORIES.includes(block.category);
+  const headingInputRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * EVERY BLOCK'S HEADING IS EDITABLE — the field itself always was (it is
+   * not gated on category, only on `expanded`), but a coach had no way to
+   * REACH it from the collapsed head row except the unlabelled chevron. This
+   * is the second, more direct way in: click the name itself, and land in
+   * the field that renames it rather than just an opened block.
+   */
+  function openHeading() {
+    setExpanded(true);
+    // The field mounts on this same render; focusing it has to wait one tick.
+    requestAnimationFrame(() => headingInputRef.current?.focus());
+  }
 
   function addExercise(name: string) {
     const id = `${block.id}-${block.exercises.length}-${name}`;
@@ -221,7 +243,9 @@ export function BlockEditor({
           * buried in a field below the fold of a collapsed block. The kind is
           * still one control away, in the row underneath.
           */}
-        <span className="cb-block-name">{block.heading?.trim() || block.category}</span>
+        <button type="button" className="cb-block-name" onClick={openHeading} title="Rename this block">
+          {block.heading?.trim() || block.category}
+        </button>
         <button type="button" className="cb-block-remove" aria-label="Remove block" onClick={onRemove}>
           <Cross />
         </button>
@@ -244,6 +268,7 @@ export function BlockEditor({
               Section name <span className="cb-optional-inline">optional</span>
             </span>
             <input
+              ref={headingInputRef}
               type="text"
               className="cb-text-input"
               placeholder={block.category}
@@ -514,13 +539,21 @@ const MODALITY_LABELS: Record<string, string> = {
  *
  *   - `.cb-exp-cues`, a per-exercise instructions box with a 0/500 counter
  *   - `.cb-swaps`, suggested swaps and points of performance
- *   - `.cb-opt-toggle`, an "Optional" checkbox per column
  *
- * `BlockExercise` has nowhere to put any of them — no `cues`, no `swaps`, no
- * per-column optional flag — and `day-workout.ts` would drop them on the way
- * to a `Workout`. A textarea a coach types into that is discarded on save is
- * worse than no textarea, so they wait for the data model rather than
- * arriving as scenery.
+ * `BlockExercise` has nowhere to put either — no `cues`, no `swaps` — and
+ * `day-workout.ts` would drop them on the way to a `Workout`. A textarea a
+ * coach types into that is discarded on save is worse than no textarea, so
+ * they wait for the data model rather than arriving as scenery.
+ *
+ * `.cb-opt-toggle`, an "Optional" checkbox per column, WAS on this list and
+ * is off it now — not ported as its own control, resolved a different way.
+ * A per-column boolean flag would have needed the same new-field-and-
+ * `day-workout.ts`-drop problem as `cues`/`swaps` above. `columnB` already
+ * has a value that means "not tracked" — `NONE_COLUMN` in `@hybrid/engine`'s
+ * `setColumns.ts`, `value: ''`, the exact shape a bodyweight-only exercise's
+ * mode already collapsed to before a coach could ever choose it on purpose.
+ * Picking "None (optional)" for the second column is the "optional" checkbox,
+ * using data the model already had rather than a field it didn't.
  */
 function ExerciseItem({
   exercise,
@@ -638,6 +671,19 @@ function ExerciseItem({
               onChange={(e) =>
                 onPatch({ sets: exercise.sets.map((st) => ({ ...st, rpe: e.target.value })) })
               }
+            />
+          </label>
+          <label className="cb-field-block">
+            <span className="cal-field-label">
+              Tempo <span className="cb-optional-inline">optional</span>
+            </span>
+            <input
+              type="text"
+              className="cb-text-input"
+              placeholder="e.g. 3-1-1-0"
+              aria-label="Tempo"
+              value={exercise.tempo ?? ''}
+              onChange={(e) => onPatch({ tempo: e.target.value })}
             />
           </label>
           {/*

@@ -271,6 +271,9 @@ function toBlock(block: BlockValue): Block<LoggedSet> {
        `restAfter` reads `every > 0` as the switch, so a stored zero would
        round-trip as noise on every straight exercise ever authored. */
     ...(ex.every && ex.every > 0 ? { every: ex.every } : {}),
+    // Absent rather than '', same reason as `every` above — a stored empty
+    // string is noise on every exercise a coach never gave a tempo to.
+    ...(ex.tempo?.trim() ? { tempo: ex.tempo.trim() } : {}),
     sets: ex.sets.map((row) => toPlannedSet(row, ex.columnA, ex.columnB)),
   }));
   const minutes = num(block.minutes ?? '');
@@ -430,6 +433,7 @@ export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValu
             columnB: cols.b,
             rest: ex.rest ?? DEFAULT_REST_SEC,
             ...(ex.every && ex.every > 0 ? { every: ex.every } : {}),
+            ...(ex.tempo?.trim() ? { tempo: ex.tempo } : {}),
             sets,
           };
         });

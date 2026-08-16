@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COLUMN_TYPES, availableSecondColumns, isColumnPairValid } from './setColumns';
+import { COLUMN_TYPES, NONE_COLUMN, availableSecondColumns, isColumnPairValid } from './setColumns';
 
 /*
  * A set row measures two things. Measuring the same thing twice is not a layout
@@ -43,15 +43,23 @@ describe('availableSecondColumns', () => {
     const values = availableSecondColumns('reps').map((c) => c.value);
     expect(values).not.toContain('reps');
     expect(values).toContain('weight_kg');
-    expect(values.length).toBe(COLUMN_TYPES.length - 1);
+    // COLUMN_TYPES minus the one excluded, plus NONE_COLUMN.
+    expect(values.length).toBe(COLUMN_TYPES.length);
   });
 
   it('offers everything when the first column is unset', () => {
-    expect(availableSecondColumns('').length).toBe(COLUMN_TYPES.length);
+    expect(availableSecondColumns('').length).toBe(COLUMN_TYPES.length + 1);
   });
 
   it('offers everything when the first column is not a known measure', () => {
-    expect(availableSecondColumns('nonsense').length).toBe(COLUMN_TYPES.length);
+    expect(availableSecondColumns('nonsense').length).toBe(COLUMN_TYPES.length + 1);
+  });
+
+  it('always leads with NONE_COLUMN, so a coach can drop the second measure entirely', () => {
+    // First column's own dropdown must NEVER see this — a set needs at
+    // least one measure — so it lives only in the second column's list.
+    expect(availableSecondColumns('reps')[0]).toEqual(NONE_COLUMN);
+    expect(COLUMN_TYPES.map((c) => c.value)).not.toContain('');
   });
 });
 

@@ -83,6 +83,9 @@ export interface HotSet {
   message: string;
   /** The authored target for this set. */
   planned: PlannedSetView;
+  /** `Exercise.tempo`, verbatim — "3-1-1-0" or whatever the coach wrote.
+   *  Absent exactly when the coach left it blank; never guessed. */
+  tempo?: string;
 }
 
 export interface SessionView {
@@ -277,6 +280,7 @@ export function sessionView(session: Session, run: RunState, ctx: LoadContext = 
       exerciseName: ex.name,
       message: opening.message,
       planned: plannedOf(st),
+      ...(ex.tempo?.trim() ? { tempo: ex.tempo.trim() } : {}),
     };
   }
 

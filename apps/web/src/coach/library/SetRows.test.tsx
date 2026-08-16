@@ -129,6 +129,32 @@ describe('SetRows', () => {
   });
 });
 
+describe('SetRows — the second column is optional', () => {
+  it('offers "None (optional)" as the first entry in the second dropdown, and never in the first', () => {
+    renderSets();
+    const first = screen.getByLabelText(/first column measures/i);
+    const second = screen.getByLabelText(/second column measures/i);
+    expect(within(first).queryByRole('option', { name: /none/i })).not.toBeInTheDocument();
+    expect(within(second).getByRole('option', { name: 'None (optional)' })).toBeInTheDocument();
+  });
+
+  it('renders one value input per row, not two, once None is chosen', () => {
+    renderSets({ columnB: '' });
+    // number chip does not count as a textbox; one input per row, three rows.
+    expect(screen.getAllByRole('textbox')).toHaveLength(3);
+  });
+
+  it('keeps the second dropdown itself visible and enabled — it is the way back', () => {
+    renderSets({ columnB: '' });
+    expect(screen.getByLabelText(/second column measures/i)).not.toBeDisabled();
+  });
+
+  it('goes back to two value inputs once a real second measure is chosen again', () => {
+    renderSets({ columnB: 'weight_kg' });
+    expect(screen.getAllByRole('textbox')).toHaveLength(6);
+  });
+});
+
 /*
  * MARKING A RAMP SET, at the control a coach actually presses.
  *

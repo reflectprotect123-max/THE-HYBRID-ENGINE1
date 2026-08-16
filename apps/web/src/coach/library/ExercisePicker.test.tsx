@@ -107,6 +107,31 @@ describe('ExercisePicker', () => {
     expect(props.onNewExercise).toHaveBeenCalledWith('Zercher Squat');
   });
 
+  it('THE BUG: clears the search after New exercise, so a second click cannot silently repeat it', () => {
+    /* Reported live: a coach who pressed "+ New exercise" once, then pressed
+       it again to add a SECOND, different movement to the same block, got
+       the FIRST name added twice — the search box still read the old name
+       and the button reads straight off it. */
+    const props = renderPicker();
+    const search = screen.getByPlaceholderText('Search the exercise library') as HTMLInputElement;
+    fireEvent.change(search, { target: { value: 'Squat' } });
+    fireEvent.click(screen.getByRole('button', { name: /new exercise/i }));
+    expect(props.onNewExercise).toHaveBeenNthCalledWith(1, 'Squat');
+    expect(search.value).toBe('');
+    // A second click with nothing retyped must add nothing — not repeat "Squat".
+    fireEvent.click(screen.getByRole('button', { name: /new exercise/i }));
+    expect(props.onNewExercise).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the search after picking an existing movement, for the same reason', () => {
+    const props = renderPicker();
+    const search = screen.getByPlaceholderText('Search the exercise library') as HTMLInputElement;
+    fireEvent.change(search, { target: { value: 'squat' } });
+    fireEvent.click(screen.getByText('Back Squat'));
+    expect(props.onPick).toHaveBeenCalledWith('Back Squat');
+    expect(search.value).toBe('');
+  });
+
   /*
    * Circuit has a tab in the mockup and no definition anywhere in this system
    * (see 2026-08-11-stage3c-sessions-exercises-design.md). Rendering the button

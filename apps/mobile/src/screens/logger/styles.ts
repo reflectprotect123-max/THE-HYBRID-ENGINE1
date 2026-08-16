@@ -162,6 +162,7 @@ function build(color: Palette) {
     card: { borderRadius: 16, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.panel, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 12, marginTop: 6, marginBottom: 0 },
     hotName: { fontFamily: font.semi, fontSize: 17, color: color.text, letterSpacing: -0.17, lineHeight: 26.35 },
     hotPresc: { fontFamily: mono, fontSize: 11, color: color.dim, marginTop: 1, lineHeight: 17.05 },
+    hotTempo: { fontFamily: mono, fontSize: 10.5, color: color.muted, marginTop: 1, lineHeight: 16.275 },
     /* minHeight matches `.hwhy`: the card must not jump when a short coaching
        line is replaced by a long one. */
     hotWhy: { fontFamily: mono, fontSize: 10.5, color: color.gold, marginTop: 6, minHeight: 14, lineHeight: 16.275 },

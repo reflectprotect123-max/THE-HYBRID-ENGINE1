@@ -23,15 +23,31 @@ export const COLUMN_TYPES: readonly ColumnType[] = [
 ] as const;
 
 /**
+ * The second column's own "nothing" — a set that measures only the first
+ * column, reps for a bodyweight movement being the ordinary case. `value: ''`
+ * on purpose: it is what an unauthored `columnB` already reads as everywhere
+ * else in this file (`columnsForMode`'s `{ a: 'reps', b: '' }` for plain
+ * `'reps'`/`'seconds'` modes), so choosing it explicitly and never choosing
+ * it land on the exact same stored shape. `isColumnPairValid` already treats
+ * an empty second column as valid — this gives the coach a way to REACH that
+ * state from the UI rather than only inheriting it from an old workout.
+ */
+export const NONE_COLUMN: ColumnType = { value: '', label: 'None (optional)', placeholder: '' };
+
+/**
  * What the second column may still measure once the first has chosen.
  *
  * An unset or unrecognised first column narrows nothing — there is no
  * duplicate to avoid yet, and silently hiding an option because of a value
  * that is not a measure would be a bug the coach could not explain.
+ *
+ * `NONE_COLUMN` is prepended here, not added to `COLUMN_TYPES` itself,
+ * because a set needs at least ONE measure — the first column's own dropdown
+ * reads `COLUMN_TYPES` directly and must never offer "none".
  */
 export function availableSecondColumns(first: string): ColumnType[] {
-  if (!first) return [...COLUMN_TYPES];
-  return COLUMN_TYPES.filter((c) => c.value !== first);
+  if (!first) return [NONE_COLUMN, ...COLUMN_TYPES];
+  return [NONE_COLUMN, ...COLUMN_TYPES.filter((c) => c.value !== first)];
 }
 
 /**
