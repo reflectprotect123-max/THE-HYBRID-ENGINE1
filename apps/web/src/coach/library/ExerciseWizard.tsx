@@ -83,16 +83,25 @@ interface Draft {
   sets: number;
   a: string;
   b: string;
+  rest: number;
+  every: number;
+  tempo: string;
+  rpe: string;
 }
 
 function initialDraft(initial?: BlockExercise, lastShape?: WizardShape): Draft {
   if (initial) {
+    const rpeValues = new Set(initial.sets.map((s) => (s.rpe ?? '').trim()));
     return {
       name: initial.name,
       measure: measureFor(initial.columnA, initial.columnB),
       sets: initial.sets.length || 3,
       a: initial.sets[0]?.a ?? '',
       b: initial.sets[0]?.b ?? '',
+      rest: initial.rest,
+      every: initial.every ?? 0,
+      tempo: initial.tempo ?? '',
+      rpe: rpeValues.size <= 1 ? [...rpeValues][0] ?? '' : '',
     };
   }
   return {
@@ -101,7 +110,18 @@ function initialDraft(initial?: BlockExercise, lastShape?: WizardShape): Draft {
     sets: lastShape?.sets ?? 3,
     a: lastShape?.a ?? '',
     b: lastShape?.b ?? '',
+    rest: DEFAULT_REST_SEC,
+    every: 0,
+    tempo: '',
+    rpe: '',
   };
+}
+
+function shapeSummary(draft: Draft): string {
+  if (draft.measure === 'reps_weight') return `${draft.sets} × ${draft.a} @ ${draft.b}kg`;
+  if (draft.measure === 'seconds') return `${draft.sets} × ${draft.a}s`;
+  if (draft.measure === 'distance') return `${draft.sets} × ${draft.a}m`;
+  return `${draft.sets} × ${draft.a}`;
 }
 
 /**
@@ -112,7 +132,7 @@ function initialDraft(initial?: BlockExercise, lastShape?: WizardShape): Draft {
  * called yet: there is no Review step to build a `WizardResult` from until
  * Task 4.
  */
-export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, onCancel }: ExerciseWizardProps) {
+export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, onSave, onCancel }: ExerciseWizardProps) {
   const [history, setHistory] = useState<Step[]>(['exercise']);
   const [draft, setDraft] = useState<Draft>(() => initialDraft(initial, lastShape));
 
@@ -132,12 +152,38 @@ export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, 
     else onCancel();
   }
 
+  function goToReview() {
+    setHistory((h) => (h.includes('review') ? h : [...h, 'review']));
+  }
+
+  function commit() {
+    const opt = MEASURES.find((m) => m.key === draft.measure)!;
+    const rowId = (i: number) => `${initial?.id ?? 'new'}-s${i}`;
+    const sets: SetRow[] = Array.from({ length: draft.sets }, (_, i) => ({
+      id: rowId(i), a: draft.a, b: draft.b, ...(draft.rpe ? { rpe: draft.rpe } : {}),
+    }));
+    const result: WizardResult = {
+      ...(initial ? { id: initial.id } : {}),
+      name: draft.name,
+      columnA: opt.columnA,
+      columnB: opt.columnB,
+      rest: draft.rest,
+      ...(draft.every > 0 ? { every: draft.every } : {}),
+      ...(draft.tempo.trim() ? { tempo: draft.tempo.trim() } : {}),
+      sets,
+    };
+    onSave(result, { measure: draft.measure, sets: draft.sets, a: draft.a, b: draft.b });
+  }
+
   return (
     <div className="cb-wizard">
       <div className="cb-wizard-topbar">
         <button type="button" className="cb-wizard-back" onClick={back}>
           &larr; {step === 'exercise' ? 'Back to block' : 'Back'}
         </button>
+        {step !== 'review' && (step !== 'exercise' || draft.name) && (
+          <button type="button" className="cb-wizard-skip" onClick={goToReview}>Skip to review</button>
+        )}
       </div>
       <div className="cb-wizard-progress-track">
         <div className="cb-wizard-progress-fill" style={{ width: `${((idx + 1) / STEP_ORDER.length) * 100}%` }} />
@@ -256,6 +302,36 @@ export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, 
           <div className="cb-wizard-btn-row">
             <button type="button" className="cb-wizard-btn" onClick={back}>Back</button>
             <button type="button" className="cb-wizard-btn cb-wizard-btn-brass" onClick={() => push('review')}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {step === 'review' && (
+        <div className="cb-wizard-step">
+          <h1>Look right?</h1>
+          <div className="cb-wizard-review-card">
+            <div className="cb-wizard-review-head">
+              <span className="ex-name">{draft.name}</span>
+              <span className="ex-shape">{shapeSummary(draft)}</span>
+            </div>
+            <div className="cb-wizard-review-extra">
+              <label className="cell">
+                <span>Rest</span>
+                <input aria-label="Rest in seconds" type="number" min={0} value={draft.rest} onChange={(e) => patch({ rest: Math.max(0, Number(e.target.value) || 0) })} />
+              </label>
+              <label className="cell">
+                <span>Target RPE</span>
+                <input aria-label="Target RPE" placeholder="8, or 7–10" value={draft.rpe} onChange={(e) => patch({ rpe: e.target.value })} />
+              </label>
+              <label className="cell">
+                <span>Tempo</span>
+                <input aria-label="Tempo" placeholder="e.g. 3-1-1-0" value={draft.tempo} onChange={(e) => patch({ tempo: e.target.value })} />
+              </label>
+            </div>
+          </div>
+          <div className="cb-wizard-btn-row">
+            <button type="button" className="cb-wizard-btn" onClick={back}>Back</button>
+            <button type="button" className="cb-wizard-btn cb-wizard-btn-brass" onClick={commit}>Add exercise</button>
           </div>
         </div>
       )}

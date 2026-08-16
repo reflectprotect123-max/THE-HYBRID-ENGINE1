@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { measureFor, MEASURES, fmtEvery, DEFAULT_REST_SEC, DEFAULT_EVERY_SEC, ExerciseWizard } from './ExerciseWizard';
+import type { SetRow } from './SetRows';
 
 describe('measureFor', () => {
   it('reads reps + weight_kg as reps_weight', () => {
@@ -172,5 +173,79 @@ describe('ExerciseWizard — Sets and Values', () => {
     fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> values
     fireEvent.change(screen.getByLabelText(/custom value/i), { target: { value: '8-12' } });
     expect(screen.queryAllByRole('button', { name: /^(5|8|10|12|max)$/ }).some((b) => b.classList.contains('on'))).toBe(false);
+  });
+});
+
+function toReview() {
+  fireEvent.click(screen.getByText('Back Squat'));
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> measure
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> sets
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> values
+  fireEvent.click(screen.getByRole('button', { name: '8' }));
+  fireEvent.change(screen.getByLabelText(/weight in kilograms/i), { target: { value: '100' } });
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> review
+}
+
+describe('ExerciseWizard — Review and commit', () => {
+  it('shows the exercise name and its shape summary', () => {
+    renderWizard();
+    toReview();
+    expect(screen.getByText('Back Squat')).toBeInTheDocument();
+    expect(screen.getByText('3 × 8 @ 100kg')).toBeInTheDocument();
+  });
+
+  it('commits a WizardResult with three identical sets and no id, for a new exercise', () => {
+    const props = renderWizard();
+    toReview();
+    fireEvent.click(screen.getByRole('button', { name: /add exercise/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result, shape] = onSave.mock.calls[0];
+    expect(result.id).toBeUndefined();
+    expect(result.name).toBe('Back Squat');
+    expect(result.columnA).toBe('reps');
+    expect(result.columnB).toBe('weight_kg');
+    expect(result.sets).toHaveLength(3);
+    expect(result.sets.every((s: SetRow) => s.a === '8' && s.b === '100')).toBe(true);
+    expect(shape).toEqual({ measure: 'reps_weight', sets: 3, a: '8', b: '100' });
+  });
+
+  it('carries the rest, target RPE, and tempo optional fields into the result', () => {
+    const props = renderWizard();
+    toReview();
+    fireEvent.change(screen.getByLabelText(/^rest/i), { target: { value: '120' } });
+    fireEvent.change(screen.getByLabelText(/target rpe/i), { target: { value: '8' } });
+    fireEvent.change(screen.getByLabelText(/^tempo/i), { target: { value: '3-1-1-0' } });
+    fireEvent.click(screen.getByRole('button', { name: /add exercise/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect(result.rest).toBe(120);
+    expect(result.tempo).toBe('3-1-1-0');
+    expect(result.sets.every((s: SetRow) => s.rpe === '8')).toBe(true);
+  });
+
+  it('preserves the existing id when committing an edit', () => {
+    const props = renderWizard({
+      initial: { id: 'e7', name: 'Front Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets: [{ id: 'e7-s0', a: '5', b: '80' }] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add exercise/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    expect(onSave.mock.calls[0][0].id).toBe('e7');
+  });
+
+  it('offers Skip to review from Measure onward, not on the Exercise step', () => {
+    renderWizard();
+    expect(screen.queryByRole('button', { name: /skip to review/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Back Squat'));
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    expect(screen.getByText('Look right?')).toBeInTheDocument();
+  });
+
+  it('uses lastShape to default Measure/Sets/Values for a brand-new add', () => {
+    renderWizard({ lastShape: { measure: 'seconds', sets: 5, a: '30', b: '' } });
+    fireEvent.click(screen.getByText('Back Squat'));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    expect(screen.getByText('5 × 30s')).toBeInTheDocument();
   });
 });
