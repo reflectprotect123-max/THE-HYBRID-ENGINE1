@@ -532,3 +532,25 @@ describe('mergeSettings — the coach’s exercise library', () => {
     expect(mergeSettings({ movements: [] }, {}).movements).toEqual([]);
   });
 });
+
+describe('sanitizeDB guards the coach’s library', () => {
+  /* `buildCatalogue` maps over `movements` with no per-value check, so a
+     string or an object crashes the picker outright. Same guard `folders` and
+     `conditioning` already carry. */
+  it('drops a non-array outright', () => {
+    const db = sanitizeDB({ settings: { movements: 'Back Squat' } });
+    expect(db.settings).not.toHaveProperty('movements');
+  });
+
+  it('keeps only real names, trimmed', () => {
+    const db = sanitizeDB({ settings: { movements: ['  Back Squat  ', 7, null, '', { a: 1 }, 'Row Erg'] } });
+    expect(db.settings.movements).toEqual(['Back Squat', 'Row Erg']);
+  });
+
+  it('leaves an EMPTY library empty, and an absent one absent', () => {
+    /* The two are not the same: absent falls the picker back to mining
+       history, empty does not. */
+    expect(sanitizeDB({ settings: { movements: [] } }).settings.movements).toEqual([]);
+    expect(sanitizeDB({ settings: {} }).settings).not.toHaveProperty('movements');
+  });
+});

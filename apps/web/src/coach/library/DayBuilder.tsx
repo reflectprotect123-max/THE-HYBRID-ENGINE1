@@ -105,7 +105,7 @@ export function DayBuilder({
     const template = SESSION_TEMPLATES.find((t) => t.id === id);
     if (!template) return;
     setBlocks((prev) => {
-      const added = templateToBlocks(template, prev.length);
+      const added = templateToBlocks(template, prev.map((b) => b.id));
       setFromTemplate((ids) => [...ids, ...added.map((b) => b.id)]);
       return [...prev, ...added];
     });

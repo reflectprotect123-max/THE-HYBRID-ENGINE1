@@ -122,6 +122,20 @@ export function sanitizeDB(d: unknown): EngineDB {
         .filter((f) => typeof f.id === 'string' && f.id && typeof f.name === 'string')
         .map((f) => ({ id: f.id as string, name: f.name as string }));
     }
+    // The coach's exercise library, guarded the same way and for the same
+    // reason. `buildCatalogue` maps over it with no per-value check, so a
+    // string or an object here — reachable through a backup restore, a hand-
+    // edited blob or a bad merge — crashes the picker outright. Only touch it
+    // when it IS an array, so ABSENT still means "never set" and `[]` still
+    // means an emptied library; those two are not the same and the fallback
+    // to mining history turns on the difference.
+    if (Array.isArray(out.movements)) {
+      out.movements = (out.movements as unknown[])
+        .filter((m): m is string => typeof m === 'string' && !!m.trim())
+        .map((m) => m.trim());
+    } else if (out.movements !== undefined) {
+      delete out.movements;
+    }
     return out as Settings;
   };
 

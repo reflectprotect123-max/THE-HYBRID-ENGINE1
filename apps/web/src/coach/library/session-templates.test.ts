@@ -60,10 +60,23 @@ describe('templateToBlocks', () => {
   });
 
   it('mints ids that cannot collide with blocks already on the day', () => {
-    const first = templateToBlocks(byId('hybrid-1-intensity'), 0);
-    const second = templateToBlocks(byId('hybrid-1-intensity'), first.length);
+    const first = templateToBlocks(byId('hybrid-1-intensity'));
+    const second = templateToBlocks(byId('hybrid-1-intensity'), first.map((b) => b.id));
     const ids = [...first, ...second].map((b) => b.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('skips past ids still on the day after one was REMOVED', () => {
+    /* The case a counter could not survive, and this used to use one: apply
+       six sections, delete one, apply again, and the second pass started at
+       five — colliding with the sixth block from the first pass. Two blocks
+       sharing an id is a React key collision, and it lands the coach's edits
+       in a different block from the one they typed in. */
+    const first = templateToBlocks(byId('hybrid-2-intensity'));
+    const kept = first.filter((_, i) => i !== 2).map((b) => b.id);
+    const second = templateToBlocks(byId('hybrid-2-intensity'), kept);
+    expect(second.some((b) => kept.includes(b.id))).toBe(false);
+    expect(new Set([...kept, ...second.map((b) => b.id)]).size).toBe(kept.length + second.length);
   });
 });
 

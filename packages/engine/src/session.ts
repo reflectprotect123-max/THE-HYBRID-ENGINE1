@@ -272,7 +272,11 @@ export function rxLine(ex: Exercise<AnySet>): string {
  * and only one of those is true of a session that ended early.
  */
 export function blockDurations(s: Session, now?: number): Record<string, number> {
-  const log = s.blockLog ?? [];
+  /* Not `?? []`: a session blob is a trust boundary, and a non-array here —
+     a backup restore, a hand-edited blob, a bad merge — would throw on
+     `forEach` and take the whole recap down. Same guard `sanitizeDB` puts on
+     `folders` and `conditioning`, for the same reason. */
+  const log = Array.isArray(s.blockLog) ? s.blockLog : [];
   const out: Record<string, number> = {};
   const end = s.completedAt ?? now;
   log.forEach((entry, i) => {
