@@ -64,6 +64,12 @@ jobs:
           cache: true
 
       - name: README map still resolves
+        # Resolves every backticked path and symbol in README.md. It was RED on
+        # main from 14 August 2026 to the 16th — the README named six deleted
+        # packages and two deleted exports — and nobody saw it, because it is
+        # CI's first step and `pnpm run verify` does not include it. So a green
+        # local run said nothing about this one. If you add a check to verify,
+        # ask whether it belongs there too.
         run: node checks/docs.mjs
 
       - name: Install workspace

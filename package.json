@@ -16,7 +16,7 @@
     "check:css-state": "node checks/css-state-classes.mjs",
     "smoke": "node checks/react-smoke.mjs",
     "smoke:deploy": "node checks/deploy-smoke.mjs",
-    "verify": "pnpm run typecheck && pnpm run test && pnpm run check:ecosystem && pnpm run check:reachability && pnpm run check:css-state && pnpm run build:site && pnpm run check:csp && pnpm run smoke && pnpm run smoke:deploy",
+    "verify": "node checks/docs.mjs && pnpm run typecheck && pnpm run test && pnpm run check:ecosystem && pnpm run check:reachability && pnpm run check:css-state && pnpm run build:site && pnpm run check:csp && pnpm run smoke && pnpm run smoke:deploy",
     "dev:web": "pnpm --filter @hybrid/web dev",
     "build:site": "pnpm run build && node scripts/build-site.mjs",
     "check:parity-behaviour": "node checks/parity-behaviour.mjs",

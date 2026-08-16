@@ -568,11 +568,25 @@ keep.** Recorded here rather than in the deleted app's own header:
   `+5s work`, then `−5s rest`. Contrast `liftProgress`, which stores
   `{kg, at, reps}` and reads back only `kg`, so a `10,8,6` → `9,7,5` wave moves
   no weight at all. That gap is still open.
-- It is nevertheless invisible without a chest strap. `conAdapt` returns at
-  `if (zoned <= 0) return none;` — a session with no zone seconds earns
-  nothing AND is not counted as a miss. Most sessions are strapless, so most
-  sessions are invisible to progression. That is the honest answer to "why
-  doesn't conditioning ever move".
+- It WAS invisible without a chest strap, and that is FIXED as of 16 August
+  2026. The finding stands as the lab reported it: `conAdapt` returns at
+  `if (zoned <= 0) return none;`, so a session with no zone seconds earned
+  nothing AND was not counted as a miss — and most sessions are strapless, so
+  most sessions were invisible to progression. That was the honest answer to
+  "why doesn't conditioning ever move", and it is the best thing the lab
+  produced before it was deleted.
+
+  The owner's fix, in his words: a strapless session "asks for RPE at the end
+  of the session and adds up to the minutes in that easy/medium/hard areas."
+  `withFeltZones` credits the whole duration to the zone the rated effort
+  names, using the RPE bands `CON_EFFORTS` already carried. A rating is ONE
+  number about a WHOLE session, so it lands in one zone rather than pretending
+  to resolve minute by minute.
+
+  **`zsrc: 'felt'` marks a derived distribution and must not be removed.**
+  Without it, self-reported effort is indistinguishable from a chest-strap
+  trace in every chart and export downstream. Measured data always wins — a
+  record that already has zone seconds is returned untouched.
 - Only `steady`, `intervals` and `tempo` progress at all. `custom` is the
   athlete's own numbers by definition and `free` has no target to miss.
 
@@ -679,6 +693,14 @@ the same commit that does the install.
    add it to `.github/workflows/ci.yml` in the same commit. And if you exclude
    one, the exclusion is a claim that ages — say why in the workflow, and
    expect to be wrong.
+
+   **A check that runs in CI and NOT in `verify` is the same trap from the
+   other side**, found on 16 August 2026. `checks/docs.mjs` is CI's first step
+   and was not in `verify`, so it sat RED on main from 14 August — the README
+   named six deleted packages and two deleted exports — while every local
+   `pnpm run verify` came back green and said nothing. It is in `verify` now.
+   The two lists should agree; where they cannot, the difference is a claim
+   that needs a reason written beside it.
 
    **The visual parity baselines are the APP's own since 16 August 2026, not
    the prototype's.** The app deliberately moved past the prototype — the
