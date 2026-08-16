@@ -148,6 +148,49 @@ function earnedKgFrom(name: string, exposure: StrengthExposure): number | null {
 }
 
 /**
+ * The most recent load the athlete actually SUCCEEDED at — the anchor a deload
+ * is measured from.
+ *
+ * The review the owner commissioned on 16 August 2026 is explicit that a
+ * reduction must not compound with the within-session correction: a session
+ * that opened at 100 kg and was walked down to 94 kg by a missed set is still
+ * anchored at 100. Taking the percentage off 94 charges the athlete twice for
+ * one miss.
+ *
+ * Null when no on-target exposure is on record, which is a real state and not
+ * a zero: the caller holds rather than falling back to the missed weight,
+ * because that fallback IS the compound this exists to avoid.
+ */
+function anchorKgFor(exposures: StrengthExposure[]): number | null {
+  for (let i = exposures.length - 1; i >= 0; i--) {
+    const e = exposures[i];
+    if (e.onTarget && e.kg != null && e.kg > 0) return e.kg;
+  }
+  return null;
+}
+
+/**
+ * The smallest load step this movement can actually take, in kg.
+ *
+ * `Exercise.inc` where the exercise declares one — a dumbbell rack moves in 2,
+ * a stack in whatever the stack says — and the global plate pair otherwise.
+ * Read off the exposure's own session so the rounding matches the equipment
+ * the athlete was really using, rather than assuming a barbell.
+ */
+function incrementFor(name: string, exposure: StrengthExposure): number {
+  const key = String(name || '').trim().toLowerCase();
+  let inc = 0;
+  exposure.source.blocks.forEach((b) => {
+    blockExercises(b).forEach((e) => {
+      if (inc) return;
+      if (String(e.name || '').trim().toLowerCase() !== key) return;
+      if (Number.isFinite(e.inc) && (e.inc as number) > 0) inc = e.inc as number;
+    });
+  });
+  return inc;
+}
+
+/**
  * A new, per-exercise, cross-session decision layered atop `nextWorkingWeight`
  * — never replacing it, never writing to settings. Pure: recomputes from
  * `sessions` on every call, no persisted streak counter. See
@@ -218,7 +261,49 @@ export function decideStrengthProgression(
 
     const kg = last.kg as number;
     const shownKg = earnedKgFrom(name, last) ?? kg;
-    const load = roundToIncrement(kg + AUTOREG.stepKg, AUTOREG.plateIncrement);
+    /*
+     * A PERCENTAGE OF WHAT WAS LIFTED, ROUNDED TO WHAT THE GYM CAN EXPRESS.
+     *
+     * `kg + AUTOREG.stepKg` until 16 August 2026 — a flat 2.5 kg, which is 10%
+     * at 25 kg and 1.4% at 180 kg. The review the owner commissioned is blunt
+     * about that: a global fixed step "silently assigns an aggressive
+     * progression to light exercises and a conservative progression to heavy
+     * ones". See `AUTOREG.progressPct`.
+     *
+     * `increment` is the exercise's own plate/stack granularity where it has
+     * one (`Exercise.inc`) and the global plate pair otherwise, so the target
+     * is rounded to a weight that exists on the rack rather than to a number.
+     */
+    const increment = incrementFor(name, last) || AUTOREG.plateIncrement;
+    const target = kg * (1 + AUTOREG.progressPct);
+    /*
+     * CEIL, NOT ROUND — "the smallest available jump that REACHES the desired
+     * target without exceeding the exercise cap". Rounding to nearest sends a
+     * 25 kg lift's 25.625 kg target back to 25 kg, which is not a progression
+     * at all: it silently proposes the weight the athlete already lifted and
+     * the cap below never gets a chance to speak.
+     */
+    const load = Math.ceil((target - 1e-9) / increment) * increment;
+    /*
+     * OVER THE CAP, HOLD THE LOAD AND PROGRESS REPS. The review's own worked
+     * example: 25 kg, target 0.625 kg, smallest available jump 2.5 kg, which
+     * is 10% — "the correct result is not 27.5 kg disguised as a 2.5%
+     * progression. The engine holds 25 kg, advances the repetition or
+     * RPE-quality target within the planned range, and records that equipment
+     * resolution prevented the target load change."
+     */
+    if (load > shownKg && (load - kg) / kg > AUTOREG.maxJumpPct) {
+      const reps = last.reps + 1;
+      return {
+        action: 'progress_reps',
+        confidence: 'medium',
+        reasonCodes: ['consistently_on_target', 'equipment_resolution_limits_load'],
+        note: `On target the last 2 sessions, but the smallest jump here is ${Math.round(((load - kg) / kg) * 1000) / 10}% — too big a step. Hold ${kg}kg and try ${reps} reps instead.`,
+        safetyState: 'approved',
+        dataLimitations: ['equipment_resolution_limits_load'],
+        prescription: { reps },
+      };
+    }
     if (load > shownKg) {
       return {
         action: 'progress_load',
@@ -265,23 +350,60 @@ export function decideStrengthProgression(
     // A PROPORTION OF THE LOAD, NOT A PLATE. This subtracted a flat
     // `AUTOREG.stepKg` until 15 August 2026 — 2.5 kg off a failed 140 kg
     // squat, or 1.8%, which is close enough to nothing that the athlete
-    // would simply fail it again. `deloadPct` documents where 10% comes from
-    // and how well evidenced it is.
+    // would simply fail it again.
+    //
+    // AND IT IS CUT FROM THE LAST SUCCESSFUL ANCHOR, NOT FROM THE MISS.
+    // This took its percentage off `last.kg` — the weight logged on the
+    // FAILED session, which the within-session fold has already walked down —
+    // so the athlete paid twice for one miss. The review the owner
+    // commissioned names the case exactly:
+    //
+    //   "The session opens at 100 kg. The athlete misses, and the
+    //   within-session rule corrects the effective load to 94 kg. If repeated
+    //   comparable misses later trigger a 5% reactive reduction, the next
+    //   opening load is calculated from the last successful anchor, 100 kg,
+    //   producing 95 kg before equipment rounding. It is not calculated from
+    //   94 kg unless the product explicitly chooses a compounded policy and
+    //   displays it."
+    //
+    // We do not want the compound, so the anchor is the most recent exposure
+    // that was actually ON TARGET. With no such exposure on record there is no
+    // anchor to cut from, and falling back to the missed weight would
+    // reintroduce the compound — so the engine holds and says why.
     const shownKg = earnedKgFrom(name, last) ?? kg;
-    const cut = kg * (1 - AUTOREG.deloadPct);
+    const anchor = anchorKgFor(exposures);
+    if (anchor == null) {
+      return {
+        action: 'hold',
+        confidence: 'low',
+        reasonCodes: ['consistently_missed', 'no_successful_anchor'],
+        note: `Missed the last 2 sessions, and there is no on-target session on record to measure a cut from. Hold at ${shownKg}kg and get one clean session before changing the number.`,
+        safetyState: 'approved',
+        dataLimitations: ['no_successful_anchor'],
+      };
+    }
+    const cut = anchor * (1 - AUTOREG.deloadPct);
     const load = roundToIncrement(
       // The floor is one plate, so a deload can never propose zero or a
       // negative weight — the same floor `nextWorkingWeight`'s recovery ease
       // already uses.
-      Math.max(AUTOREG.stepKg, Math.min(cut, shownKg)),
-      AUTOREG.plateIncrement,
+      //
+      // NO `Math.min(cut, shownKg)` HERE ANY MORE. That clamp existed to stop
+      // an "increase" while the cut was measured off the missed weight, and it
+      // defeats the anchor rule outright: 5% off a 100 kg anchor is 95 kg, and
+      // clamping it to the 94 kg the fold walked down to gives back exactly
+      // the compound this change removes. The next session OPENING above the
+      // weight a within-session correction reached is correct — the walk-down
+      // was a correction inside one session, not a new baseline.
+      Math.max(AUTOREG.stepKg, cut),
+      incrementFor(name, last) || AUTOREG.plateIncrement,
     );
-    if (load < shownKg) {
+    if (load !== shownKg) {
       return {
         action: 'deload',
         confidence: 'high',
         reasonCodes: ['consistently_missed'],
-        note: `Missed the last 2 sessions — take 10% off and try ${load}kg next time.`,
+        note: `Missed the last 2 sessions — ${Math.round(AUTOREG.deloadPct * 100)}% off your last good ${anchor}kg, so try ${load}kg next time.`,
         safetyState: 'approved',
         dataLimitations: [],
         prescription: { load },
@@ -291,7 +413,7 @@ export function decideStrengthProgression(
       action: 'hold',
       confidence: 'high',
       reasonCodes: ['already_at_earned_load'],
-      note: `Missed the last 2 sessions — the weight has already come down to ${shownKg}kg; hold there rather than cutting twice for the same miss.`,
+      note: `Missed the last 2 sessions — ${Math.round(AUTOREG.deloadPct * 100)}% off your last good ${anchor}kg lands exactly where the weight already is, so hold at ${shownKg}kg.`,
       safetyState: 'approved',
       dataLimitations: [],
     };

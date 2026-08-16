@@ -159,61 +159,65 @@ describe('decideStrengthProgression — progression', () => {
 });
 
 describe('decideStrengthProgression — deload', () => {
-  it('suggests a step down when the in-session drop was smaller than a plate step', () => {
-    // 20kg missed: the fold scores the miss at effective RPE 10.5 — a −2.5
-    // deviation at 2.5%/point for a 5-rep floor is 6.25%, 1.25kg — which
-    // rounds back to 20. The field still shows 20, so there IS a deload left
-    // to offer. Ten percent off 20 is 18, which rounds to 17.5 at the plate
-    // increment — the same answer the flat step gave here, because at this
-    // weight one plate and one tenth are within a rounding step of each other.
-    const s = (id: string, at: number) => sessionWith(id, at, set('20', '3', '8', '5', '8'));
-    const sessions = [s('s0', 1000), s('s1', 2000), s('s2', 3000)];
-    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
-    expect(out.action).toBe('deload');
-    expect(out.prescription).toEqual({ load: 17.5 });
-    expect(out.reasonCodes).toEqual(['consistently_missed']);
+  it('a 5% cut on a LIGHT lift is under one plate, so it holds and says so', () => {
+    /*
+     * 20kg with a clean session behind it. 5% of the 20kg anchor is 1kg, which
+     * rounds back to 20 at a 2.5kg plate increment — there is no cut the gym
+     * can express, and the honest output is a hold rather than a fabricated
+     * one. This asserted a 17.5kg deload while `deloadPct` was 10%; at 5% the
+     * arithmetic genuinely does not reach a plate, and pretending otherwise
+     * would be the engine inventing resolution the equipment does not have.
+     */
+    const clean = sessionWith('s0', 1000, set('20', '5', '8', '5', '8'));
+    const miss = (id: string, at: number) => sessionWith(id, at, set('20', '3', '8', '5', '8'));
+    const out = decideStrengthProgression('Bench press', [clean, miss('s1', 2000), miss('s2', 3000)], { t: '5', rpe: '8' });
+    expect(out.action).toBe('hold');
+    expect(out.reasonCodes).toEqual(['already_at_earned_load']);
   });
 
-  it('never proposes MORE weight than the misses have already taken off', () => {
+  it('MAY land above the weight the fold walked down to — that is the anchor rule working', () => {
     /*
-     * The clamp, with the reviewer's own worked example: 100kg missed banks 95
-     * for next time, 95kg missed banks 90. `Math.min(cut, shownKg)` is what
-     * keeps a deload a CUT — without it, an arithmetic that lands above the
-     * number the field is already showing would add weight on a card whose
-     * other line reads "earned 90kg last time".
+     * This test asserted the OPPOSITE until 16 August 2026, under the name
+     * "never proposes MORE weight than the misses have already taken off". The
+     * clamp it pinned — `Math.min(cut, shownKg)` — is exactly the compound the
+     * commissioned review says to avoid:
      *
-     * THE ANSWER CHANGED WHEN THE DELOAD BECAME A PROPORTION (15 August 2026)
-     * and the change is the whole improvement. A flat 2.5kg off 95 is 92.5,
-     * ABOVE the 90 already earned, so the clamp bit and the honest output was
-     * "hold — the weight has already come down". Ten percent off 95 is 85.5,
-     * which rounds to 85 and is genuinely below 90, so there is a real cut
-     * left to offer and it is offered.
+     *   "The session opens at 100 kg… corrected to 94 kg… the next opening
+     *   load is calculated from the last successful anchor, 100 kg, producing
+     *   95 kg… It is not calculated from 94 kg."
      *
-     * That is the difference between the two constants stated as a number:
-     * the fold's own per-session correction is about 6.25%, so a 2.5kg deload
-     * was almost always redundant by the time it fired. Two consecutive misses
-     * are supposed to go DEEPER than one session's autoregulation did.
+     * A within-session correction is a correction inside ONE session, not a
+     * new baseline. So the next session opening above it is right, and the
+     * note says where the number came from so the athlete is not left guessing
+     * why a "deload" reads higher than the last weight on screen.
      */
-    const s = (id: string, at: number, kg: string) => sessionWith(id, at, set(kg, '3', '8', '5', '8'));
-    const sessions = [s('s0', 1000, '100'), s('s1', 2000, '100'), s('s2', 3000, '95')];
-    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
+    const clean = sessionWith('s0', 1000, set('100', '5', '8', '5', '8'));
+    const miss = (id: string, at: number, kg: string) => sessionWith(id, at, set(kg, '3', '8', '5', '8'));
+    const out = decideStrengthProgression(
+      'Bench press',
+      [clean, miss('s1', 2000, '100'), miss('s2', 3000, '92.5')],
+      { t: '5', rpe: '8' },
+    );
     expect(out.action).toBe('deload');
-    expect(out.prescription).toEqual({ load: 85 });
-    expect(out.reasonCodes).toEqual(['consistently_missed']);
+    expect(out.prescription).toEqual({ load: 95 });
+    expect(out.note).toContain('100kg');
   });
 
-  it('the cut is measured off what was LIFTED, so the fold is not double-counted', () => {
+  it('the cut is measured off the last SUCCESSFUL anchor, not off the miss', () => {
     /*
-     * 100kg missed. The fold has already banked ~93.75 for next time; the
-     * deload proposes 90, which is ten percent off the hundred that was
-     * actually lifted — not ten percent off the already-reduced number, which
-     * would compound one miss into a 16% cut.
+     * 100kg clean, then two misses. The fold has already walked the weight
+     * down; the deload is still 5% of the 100kg that was last succeeded at, so
+     * one miss is never charged twice. Measuring off the missed weight — what
+     * this asserted until 16 August 2026 — compounded the two.
      */
-    const s = (id: string, at: number) => sessionWith(id, at, set('100', '3', '8', '5', '8'));
-    const sessions = [s('s0', 1000), s('s1', 2000), s('s2', 3000)];
-    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
-    expect(out.action).toBe('deload');
-    expect(out.prescription).toEqual({ load: 90 });
+    const clean = sessionWith('s0', 1000, set('100', '5', '8', '5', '8'));
+    const miss = (id: string, at: number) => sessionWith(id, at, set('100', '3', '8', '5', '8'));
+    const out = decideStrengthProgression('Bench press', [clean, miss('s1', 2000), miss('s2', 3000)], { t: '5', rpe: '8' });
+    expect(out.action).toBe('hold');
+    /* 5% off 100 is 95, and the fold's own walk already reached 95 — so there
+       is nothing left to add, and the engine says that rather than repeating
+       the number as advice. */
+    expect(out.reasonCodes).toEqual(['already_at_earned_load']);
   });
 
   it('never suggests a load below AUTOREG.stepKg — at the floor there is nothing left to offer', () => {
@@ -359,7 +363,10 @@ describe('decideStrengthProgression — the exposure a session contributes', () 
 
     const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
     expect(out.action).toBe('progress_load');
-    expect(out.prescription).toEqual({ load: 107.5 }); // 107.5, not 102.5
+    /* 2.5% of 105 is 107.625, and the smallest plate step that REACHES it is
+       110. This expected 107.5 — one flat plate — until the review replaced
+       the fixed step with a percentage on 16 August 2026. */
+    expect(out.prescription).toEqual({ load: 110 }); // 107.5, not 102.5
   });
 });
 
@@ -504,10 +511,30 @@ describe('decideStrengthProgression — decision table', () => {
                   expect(out.reasonCodes).toEqual(['already_at_rep_target']);
                 }
               } else {
-                // On target at its own target RPE earns nothing in-session, so
-                // the field still shows what was lifted and +2.5kg is real.
-                expect(out.action).toBe('progress_load');
-                expect(out.prescription?.load).toBeCloseTo(Number(kg) + 2.5);
+                /*
+                 * A PERCENTAGE, CEILED TO THE SMALLEST AVAILABLE JUMP, CAPPED.
+                 * This asserted `Number(kg) + 2.5` until 16 August 2026, when
+                 * the commissioned review replaced the flat plate with 2.5% of
+                 * the last stable load: a fixed step is 10% at 25kg and 1.4%
+                 * at 180kg, so it was aggressive on light lifts and timid on
+                 * heavy ones.
+                 *
+                 * Restated here rather than imported, same as the deload
+                 * below, so a change to `progressPct` or `maxJumpPct` fails
+                 * this table loudly instead of quietly agreeing with itself.
+                 */
+                const load = Math.ceil((Number(kg) * 1.025 - 1e-9) / 2.5) * 2.5;
+                if ((load - Number(kg)) / Number(kg) > 0.05) {
+                  // 20kg: the smallest jump available is 2.5kg, which is
+                  // 12.5%. Over the cap, so the load holds and reps move —
+                  // the review's own Example A, at a different weight.
+                  expect(out.action).toBe('progress_reps');
+                  expect(out.reasonCodes).toContain('equipment_resolution_limits_load');
+                  expect(out.prescription?.load).toBeUndefined();
+                } else {
+                  expect(out.action).toBe('progress_load');
+                  expect(out.prescription?.load).toBeCloseTo(load);
+                }
               }
             } else if (lastMiss && prevMiss) {
               if (!loaded) {
@@ -515,24 +542,30 @@ describe('decideStrengthProgression — decision table', () => {
                 expect(out.dataLimitations).toContain('no_load_to_deload');
               } else {
                 /*
-                 * Ten percent off what was LIFTED, floored at one plate,
-                 * clamped so it can never land above what the misses have
-                 * already taken off, and rounded to the plate increment.
-                 * Restated here rather than imported so a change to
-                 * `AUTOREG.deloadPct` fails this table loudly instead of
-                 * quietly agreeing with itself.
+                 * THE ANCHOR IS AN ON-TARGET SESSION, and every fixture in
+                 * this table is built from `older` — an on-target exposure —
+                 * before the two that decide the outcome. So the anchor is
+                 * always the load itself, and 5% comes off THAT rather than
+                 * off the weight the fold walked down to.
+                 *
+                 * This asserted the opposite until 16 August 2026: ten percent
+                 * off what was LIFTED, clamped to the walked-down number. Both
+                 * halves were wrong. The review names the case — open 100,
+                 * miss, corrected to 94, and the next opening load is 95 from
+                 * the 100 anchor, "not calculated from 94 kg" — and 10% was a
+                 * convention it replaced with 5%.
+                 *
+                 * Restated rather than imported so a change to `deloadPct`
+                 * fails this table loudly instead of agreeing with itself.
                  */
                 const earned = EARNED_AFTER_MISS[kg];
-                const cut = Number(kg) * 0.9;
-                const offer = Math.round(Math.max(2.5, Math.min(cut, earned)) / 2.5) * 2.5;
-                if (offer < earned) {
+                const offer = Math.round(Math.max(2.5, Number(kg) * 0.95) / 2.5) * 2.5;
+                if (offer !== earned) {
                   expect(out.action).toBe('deload');
                   expect(out.prescription?.load).toBeCloseTo(offer);
                 } else {
-                  // The in-session drop had already reached the tenth, so
-                  // there is nothing left to cut. At 20kg the fold's 6.25%
-                  // rounds away entirely and 10% is 18 → 17.5, which is why
-                  // the light case still gets a real offer.
+                  // 100kg: the fold's own walk already reached 95, which is
+                  // exactly where 5% off the anchor lands. Nothing to say.
                   expect(out.action).toBe('hold');
                   expect(out.prescription).toBeUndefined();
                   expect(out.reasonCodes).toEqual(['already_at_earned_load']);
@@ -552,5 +585,107 @@ describe('decideStrengthProgression — decision table', () => {
 describe('decideStrengthProgression is reachable from @hybrid/engine\'s public surface', () => {
   it('is exported from the package index, not just the adaptive module', () => {
     expect(typeof fromIndex).toBe('function');
+  });
+});
+
+describe('the progression review, applied — 16 August 2026', () => {
+  /*
+   * The owner commissioned an evidence review and it came back with locked
+   * numbers and, more usefully, a defect. These cases are its own worked
+   * examples, run against the real function.
+   */
+  const sess = (kg: number, reps: number, felt: string, t = '5', inc?: number): Session =>
+    ({
+      id: `s${kg}-${reps}-${Math.random()}`,
+      status: 'completed',
+      completedAt: 1,
+      blocks: [
+        {
+          id: 'b',
+          exercises: [
+            {
+              id: 'e',
+              name: 'Bench',
+              mode: 'reps_kg',
+              ...(inc ? { inc } : {}),
+              sets: [{ t, rpe: '8', aVal: String(kg), aVal2: String(reps), felt, done: true }],
+            },
+          ],
+        },
+      ],
+    }) as unknown as Session;
+
+  /* Timestamps have to increase or the exposure order is undefined. */
+  const ordered = (list: Session[]): Session[] =>
+    list.map((s, i) => ({ ...s, completedAt: (i + 1) * 1000 }) as Session);
+
+  it('EXAMPLE C — a deload is cut from the last successful anchor, not from the miss', () => {
+    /* The review, verbatim: "The session opens at 100 kg… the within-session
+       rule corrects the effective load to 94 kg… the next opening load is
+       calculated from the last successful anchor, 100 kg, producing 95 kg…
+       It is not calculated from 94 kg."
+
+       Anchoring on the miss charged the athlete twice for one miss. */
+    const sessions = ordered([
+      sess(100, 5, '8'),   // clean — the anchor
+      sess(94, 3, '10'),   // missed, already walked down
+      sess(94, 3, '10'),   // missed again — two in a row, deload owed
+    ]);
+    const d = decideStrengthProgression('Bench', sessions, { t: '5', rpe: '8' });
+    expect(d.action).toBe('deload');
+    expect(d.prescription?.load).toBe(95);
+    expect(d.note).toContain('100kg');
+  });
+
+  it('HOLDS rather than deloading when no on-target session is on record', () => {
+    /* Falling back to the missed weight is the compound this exists to avoid,
+       so the honest answer is to change nothing and say why. */
+    const sessions = ordered([sess(94, 3, '10'), sess(94, 3, '10'), sess(94, 3, '10')]);
+    const d = decideStrengthProgression('Bench', sessions, { t: '5', rpe: '8' });
+    expect(d.action).toBe('hold');
+    expect(d.reasonCodes).toContain('no_successful_anchor');
+    expect(d.prescription).toBeUndefined();
+  });
+
+  it('EXAMPLE B — 60kg takes the 2.5kg step, because 4.17% is under the cap', () => {
+    /* "A 2.5 kg step creates a 4.17% jump, below the configured large-movement
+       cap. The engine can select 62.5 kg." */
+    const sessions = ordered([sess(60, 5, '8'), sess(60, 5, '8'), sess(60, 5, '8')]);
+    const d = decideStrengthProgression('Bench', sessions, { t: '5', rpe: '8' });
+    expect(d.action).toBe('progress_load');
+    expect(d.prescription?.load).toBe(62.5);
+  });
+
+  it('EXAMPLE A — 25kg HOLDS the load and moves reps, because 2.5kg is 10%', () => {
+    /* "The correct result is not 27.5 kg disguised as a 2.5% progression. The
+       engine holds 25 kg, advances the repetition or RPE-quality target, and
+       records that equipment resolution prevented the target load change." */
+    const sessions = ordered([sess(25, 5, '8'), sess(25, 5, '8'), sess(25, 5, '8')]);
+    const d = decideStrengthProgression('Bench', sessions, { t: '5', rpe: '8' });
+    expect(d.action).toBe('progress_reps');
+    expect(d.reasonCodes).toContain('equipment_resolution_limits_load');
+    expect(d.prescription?.load).toBeUndefined();
+    expect(d.note).toContain('25kg');
+  });
+
+  it('uses the EXERCISE’s own increment, so a rack rounds to what the rack has', () => {
+    /* 100kg, 2.5% target = 102.5.
+         barbell (2.5kg pairs) → 102.5 exactly.
+         rack (2kg steps)      → 104, NOT 102. The rule is the smallest jump
+                                 that REACHES the target, and 102 falls short
+                                 of it. 4% is still inside the cap. */
+    const barbell = ordered([sess(100, 5, '8'), sess(100, 5, '8'), sess(100, 5, '8')]);
+    expect(decideStrengthProgression('Bench', barbell, { t: '5', rpe: '8' }).prescription?.load).toBe(102.5);
+
+    const rack = ordered([sess(100, 5, '8', '5', 2), sess(100, 5, '8', '5', 2), sess(100, 5, '8', '5', 2)]);
+    expect(decideStrengthProgression('Bench', rack, { t: '5', rpe: '8' }).prescription?.load).toBe(104);
+  });
+
+  it('scales with the load, which a flat plate never did', () => {
+    /* The review's own numbers for why: 2.5 kg is 10% at 25 kg and about 1.4%
+       at 180 kg, so a fixed step "silently assigns an aggressive progression to
+       light exercises and a conservative progression to heavy ones". */
+    const at180 = ordered([sess(180, 5, '8'), sess(180, 5, '8'), sess(180, 5, '8')]);
+    expect(decideStrengthProgression('Bench', at180, { t: '5', rpe: '8' }).prescription?.load).toBe(185);
   });
 });

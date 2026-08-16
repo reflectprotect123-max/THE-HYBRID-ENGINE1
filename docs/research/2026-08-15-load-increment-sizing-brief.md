@@ -1,5 +1,26 @@
 # Research brief — how big should a load increment be?
 
+> **ANSWERED, 16 August 2026.** The reply is
+> `docs/research/2026-08-16-progression-evidence-answer.md` (120,698 words).
+> Its headline is the answer to Q3, and it is a negative one:
+>
+> > "No convincing experiment was located that randomised comparable trainees
+> > to approximately 2.5%, 5%, and 10% progression increments while holding
+> > exercise, target repetitions, progression trigger, volume, frequency, and
+> > context constant."
+>
+> It also confirms the suspicion behind Q2 — Plotkin compared load progression
+> against REP progression and cannot justify any percentage — and grades the
+> ACSM band as a Category B prescription recommendation downstream of
+> Feigenbaum and Pollock, not a dose-response result.
+>
+> What shipped from it, the same day: `AUTOREG.progressPct` 2.5%,
+> `AUTOREG.maxJumpPct` 5%, `AUTOREG.deloadPct` 10% → 5%, and — the part that
+> was a DEFECT rather than a constant — the deload now measures from the last
+> successful anchor instead of from the weight a missed session had already
+> been walked down to. Q4 asked exactly that question; the answer named the
+> case and we were on the wrong side of it.
+
 **For:** an external deep-research pass (ChatGPT or equivalent) with open web access.
 **Date:** 15 August 2026.
 **Requested by:** THE Hybrid System.

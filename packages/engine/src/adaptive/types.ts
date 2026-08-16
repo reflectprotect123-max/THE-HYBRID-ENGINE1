@@ -64,6 +64,20 @@ export type ReasonCode =
   | 'already_at_rep_target'
   /** The earned/prefilled load already meets or beats the load change. */
   | 'already_at_earned_load'
+  /**
+   * The 2.5% target could not be expressed on the equipment without exceeding
+   * `AUTOREG.maxJumpPct`, so the load HELD and reps moved instead. The review
+   * that set those constants insists this be recorded rather than silently
+   * rounded away — "the correct result is not 27.5 kg disguised as a 2.5%
+   * progression".
+   */
+  | 'equipment_resolution_limits_load'
+  /**
+   * A deload was owed and there is no on-target session on record to measure
+   * it from. Cutting from the missed weight would compound the within-session
+   * correction, so nothing moves — see `anchorKgFor`.
+   */
+  | 'no_successful_anchor'
   | 'mixed_recent_results';
 
 export interface TrainingDecisionExplanation {

@@ -105,10 +105,22 @@ describe('constants still mean what they meant', () => {
   it('autoregulation — every constant the vanilla app had', () => expect(AUTOREG).toMatchObject(constV.AUTOREG));
 
   it('autoregulation — the constants added since, pinned on their own', () => {
-    /* 10% off after two consecutive missed sessions. The reasoning and its
-       evidence live on the constant itself; this is here so a silent retune
-       is impossible. */
-    expect(AUTOREG.deloadPct).toBe(0.1);
+    /* The reasoning and the evidence for each live on the constants
+       themselves; these are here so a silent retune is impossible. This pin
+       did its job on 16 August 2026: `deloadPct` moved from 0.1 to 0.05 on the
+       commissioned review's advice and this test failed loudly, which is
+       exactly what a golden pin is for.
+
+         deloadPct   5% off the last SUCCESSFUL anchor after two consecutive
+                     missed sessions. A product heuristic, not a finding.
+         progressPct 2.5% of the last stable load, ceiled to the smallest
+                     available jump. An engineering default inside the ACSM
+                     band, not a result that 2.5% beats 5% or 10%.
+         maxJumpPct  the largest jump taken when equipment cannot express the
+                     target; over it, the load holds and reps move instead. */
+    expect(AUTOREG.deloadPct).toBe(0.05);
+    expect(AUTOREG.progressPct).toBe(0.025);
+    expect(AUTOREG.maxJumpPct).toBe(0.05);
   });
   it('max load clamp', () => expect(MAX_KG).toBe(constV.MAX_KG));
   it('re-zoning magnitudes', () => expect(REZONE_PROVISIONAL).toEqual(constV.REZONE_PROVISIONAL));

@@ -30,22 +30,66 @@ export const AUTOREG = {
    * is not a deload by any definition anyone uses. The athlete would have
    * failed it a third time.
    *
-   * 10% is where practice converges after two or three consecutive misses —
-   * Starting Strength, StrongLifts and Wendler all land there, and planned
-   * deload weeks run wider still at 10–40% load with 30–50% volume. We are not
-   * aware of a trial comparing deload MAGNITUDES head to head, so this is a
-   * well-attested convention rather than a finding, and it is written down as
-   * one. See docs/research/2026-08-15-load-increment-sizing-brief.md.
+   * IT WAS 10% FOR ONE DAY. That number came from where practice converges —
+   * Starting Strength, StrongLifts, Wendler — and was written down honestly as
+   * a convention rather than a finding, with the evidence question out for
+   * review. The review came back on 16 August 2026
+   * (`docs/research/2026-08-16-progression-evidence-answer.md`) and says 5%:
    *
-   * WHY THE PROGRESSION STEP IS NOT CHANGED IN THE SAME BREATH. The ACSM
-   * position stand recommends 2–10% per increase, and a flat 2.5 kg sits
-   * inside that band for any working weight between about 25 kg and 125 kg —
-   * which is most lifters on most lifts. It is only clearly too small above
-   * ~125 kg. That is a real gap and a narrower one, and the evidence question
-   * behind it is out for review; the deload is wrong at every weight above
-   * about 25 kg and did not need to wait.
+   *   "If a default number is required for the first release, use 5% from the
+   *   last successful opening anchor. Label it `product_heuristic`. Escalate
+   *   toward 7.5–10% only when broader evidence supports it."
+   *
+   * It also confirms what the brief suspected: no trial compares deload
+   * MAGNITUDES head to head, so this is still a heuristic. The change is from
+   * one convention to a more conservative one on advice, not from a guess to a
+   * fact.
+   *
+   * THE ANCHOR MATTERS MORE THAN THE PERCENTAGE, and that was a real defect
+   * rather than a constant being off — see `decideStrengthProgression`.
    */
-  deloadPct: 0.1,
+  deloadPct: 0.05,
+  /**
+   * The cross-session load increase, as a fraction of the last stable opening
+   * load. 2.5%, from the same review that set `deloadPct`:
+   *
+   *   "The engine may use a default progression target of 2.5% of the last
+   *   stable opening load, with equipment-aware rounding and a
+   *   repetition/RPE fallback. That is an engineering default chosen
+   *   conservatively inside the ACSM band. It is not a finding that 2.5%
+   *   beats 5% or 10%."
+   *
+   * The review's central result is NEGATIVE and worth carrying here: no
+   * experiment was found that randomised comparable trainees to ~2.5%, 5% and
+   * 10% while holding exercise, reps, trigger, volume and context constant.
+   * ACSM's 2–10% is a prescription band with Category B support, downstream of
+   * Feigenbaum and Pollock — and Plotkin compared load progression against REP
+   * progression, not increment sizes, so it cannot justify any percentage.
+   *
+   * WHY A PERCENTAGE AT ALL, when a flat 2.5 kg sits inside the ACSM band for
+   * most working weights: because it does not mean the same thing at both
+   * ends. The review puts it plainly — 2.5 kg is 10% at 25 kg, 5% at 50 kg,
+   * 2.5% at 100 kg and about 1.4% at 180 kg. A global "add 2.5 kg" quietly
+   * assigns an aggressive progression to light lifts and a conservative one to
+   * heavy ones.
+   */
+  progressPct: 0.025,
+  /**
+   * The largest jump the engine will take when equipment cannot express the
+   * 2.5% target — a safety cap, not an adaptation claim.
+   *
+   * The review recommends 5% for small-load or upper-body movements and 7.5%
+   * for large lower-body ones. This engine does not classify a movement as
+   * upper or lower, so it takes the CONSERVATIVE half universally rather than
+   * guessing which a lift is. Splitting the two needs a classification that
+   * does not exist yet.
+   *
+   * Over the cap, the engine HOLDS THE LOAD and progresses reps instead — the
+   * review's own worked example: a 25 kg movement whose smallest available
+   * jump is 2.5 kg is a 10% increase, and "the correct result is not 27.5 kg
+   * disguised as a 2.5% progression".
+   */
+  maxJumpPct: 0.05,
 } as const;
 
 /** Nothing loadable on a barbell goes above this. Guards Infinity/overflow. */
