@@ -1,5 +1,5 @@
 import { AUTOREG, RECOVERY_BANDS } from './constants';
-import { isWarmup, loadPctOf } from './autoreg';
+import { isWarmup, loadKgOf, loadPctOf } from './autoreg';
 import { foldFromExercise, foldNextOpener, incrementFor } from './fold';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
@@ -391,6 +391,17 @@ export function openingLoadFor(
   }
 
   const name = ex.name ?? '';
+
+  /*
+   * AN ABSOLUTE LOAD THE COACH WROTE, which outranks everything below it and
+   * needs no history to resolve. `prescribedKg` cannot answer for a movement
+   * with no e1RM yet — a percentage of nothing is nothing — but "100kg" means
+   * a hundred kilos on the athlete's first ever session with a new coach.
+   */
+  const written = loadKgOf(st.t);
+  if (written != null) {
+    return { kg: written, message: 'as your coach wrote it', source: 'prescribed' };
+  }
 
   const asked = prescribedKg(name, st.t, ctx.sessions ?? []);
   if (asked > 0) {

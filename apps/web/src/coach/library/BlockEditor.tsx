@@ -63,8 +63,24 @@ export interface BlockExercise {
   /** What each of the two set columns measures — see `@hybrid/engine`'s COLUMN_TYPES. */
   columnA: string;
   columnB: string;
+  /**
+   * Seconds of rest between these sets, and the reason it exists.
+   *
+   * `restAfter` (@hybrid/session-authoring) reads `Exercise.rest` and returns
+   * null at zero, so a coach's session ran with NO rest timer until this was
+   * authorable — the countdown, the notification and the global rest chip all
+   * existed and none of them ever fired for published work.
+   *
+   * The mockup has no control for this, so it is an addition rather than a
+   * port: `.cb-cond-rest` covers interval rest inside a conditioning block and
+   * nothing covers rest between strength sets.
+   */
+  rest: number;
   sets: SetRow[];
 }
+
+/** Ninety seconds — the same default `newEx` gives an exercise on the phone. */
+export const DEFAULT_REST_SEC = 90;
 
 export interface BlockValue {
   id: string;
@@ -125,7 +141,7 @@ export function BlockEditor({
         ...block.exercises,
         // Reps and kilos: the pair a coach reaches for most, and a valid pair
         // by `isColumnPairValid` so nothing opens already locked.
-        { id, name, columnA: 'reps', columnB: 'weight_kg', sets: newSetRows(id) },
+        { id, name, columnA: 'reps', columnB: 'weight_kg', rest: DEFAULT_REST_SEC, sets: newSetRows(id) },
       ],
     });
   }
@@ -438,6 +454,24 @@ function ExerciseItem({
         * exact mistake that made the picker unreachable at desktop width.
         */}
       <div className="cb-exp">
+        {/*
+          * `.cb-field-block` and `.cb-text-input` are the stylesheet's own
+          * names for a labelled field inside the expanded editor — both were
+          * ported in stage 1 and neither had ever been rendered.
+          */}
+        <label className="cb-field-block">
+          <span className="cal-field-label">Rest between sets (seconds)</span>
+          <input
+            className="cb-text-input"
+            type="number"
+            min={0}
+            step={15}
+            inputMode="numeric"
+            value={exercise.rest}
+            onChange={(e) => onPatch({ rest: Math.max(0, Number(e.target.value) || 0) })}
+          />
+        </label>
+
         <SetRows
           sets={exercise.sets}
           columnA={exercise.columnA}

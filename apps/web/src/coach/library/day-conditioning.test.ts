@@ -29,7 +29,7 @@ function mixedDay(): DayBuilderValue {
         id: 'b0',
         category: 'Strength/Power',
         exercises: [{
-          id: 'e0', name: 'Back squat', columnA: 'reps', columnB: 'weight_kg',
+          id: 'e0', name: 'Back squat', columnA: 'reps', columnB: 'weight_kg', rest: 90,
           sets: [{ id: 'e0-s0', a: '5', b: '100' }],
         }],
       },

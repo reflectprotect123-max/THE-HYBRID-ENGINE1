@@ -31,7 +31,7 @@ function value(): DayBuilderValue {
             id: 'e0',
             name: 'Bike',
             columnA: 'seconds',
-            columnB: '',
+            columnB: '', rest: 90,
             sets: [{ id: 'e0-s0', a: '300', b: '' }],
           },
         ],
@@ -44,7 +44,7 @@ function value(): DayBuilderValue {
             id: 'e1',
             name: 'Back squat',
             columnA: 'reps',
-            columnB: 'weight_kg',
+            columnB: 'weight_kg', rest: 90,
             sets: [
               { id: 'e1-s0', a: '5', b: '100' },
               { id: 'e1-s1', a: '5', b: '105' },
@@ -77,7 +77,7 @@ describe('dayBuilderToWorkouts', () => {
         blocks: [{
           id: 'b0',
           category: 'Cooldown',
-          exercises: [{ id: 'e0', name: 'Row', columnA: 'reps', columnB: 'meters', sets: [{ id: 's0', a: '4', b: '500' }] }],
+          exercises: [{ id: 'e0', name: 'Row', columnA: 'reps', columnB: 'meters', rest: 90, sets: [{ id: 's0', a: '4', b: '500' }] }],
         }],
       },
       { id: 'w1' },
@@ -86,10 +86,42 @@ describe('dayBuilderToWorkouts', () => {
     expect(ex.cols).toEqual({ a: 'reps', b: 'meters' });
   });
 
-  it('puts each set value in the two slots the engine already has for them', () => {
+  it('authors a TARGET, and never touches the fields the athlete logs into', () => {
+    /*
+     * THIS TEST ASSERTED THE BUG until 16 August 2026. It read
+     * "puts each set value in the two slots the engine already has for them"
+     * and expected `[aVal, aVal2]` to hold the coach's numbers — but those two
+     * slots belong to the LOGGER. `emit.ts` says so in as many words: the
+     * athlete's logger, never the coach, writes the actual-result fields, and
+     * a target must never masquerade as a logged result.
+     *
+     * What it cost while it stood: `t` was empty, so `repFloorOf` returned 0
+     * and the reps field opened at zero; `rpe` was empty, so every set was
+     * judged against the 8.5 default centre the coach never chose. The WEIGHT
+     * worked by accident, because the fold takes its opener from `aVal`.
+     */
     const w = one(value(), { id: 'w1' });
-    const squat = (w.blocks[2] as { exercises: { sets: { aVal?: string; aVal2?: string }[] }[] }).exercises[0];
-    expect(squat.sets.map((s) => [s.aVal, s.aVal2])).toEqual([['5', '100'], ['5', '105'], ['3', '110']]);
+    const squat = (w.blocks[2] as { exercises: { sets: { t?: string; aVal?: string; aVal2?: string; done?: boolean }[] }[] })
+      .exercises[0];
+
+    // Reps first, load behind an `@` — the engine's own documented encoding,
+    // because `PlannedSet` is contractually exactly `{ t, rpe }`.
+    expect(squat.sets.map((s) => s.t)).toEqual(['5 @100kg', '5 @105kg', '3 @110kg']);
+
+    for (const set of squat.sets) {
+      expect(set.aVal, 'aVal is the athlete’s').toBeUndefined();
+      expect(set.aVal2, 'aVal2 is the athlete’s').toBeUndefined();
+      expect(set.done, 'nothing is done until the athlete does it').toBeUndefined();
+    }
+  });
+
+  it('carries the rest the coach authored, so the athlete gets a countdown', () => {
+    /* `restAfter` returns null at zero, so before this field existed a coach's
+       session ran with no rest timer at all — the countdown, the notification
+       and the rest chip never fired for published work. */
+    const w = one(value(), { id: 'w1' });
+    const squat = (w.blocks[2] as { exercises: { rest?: number }[] }).exercises[0];
+    expect(squat.rest).toBe(90);
   });
 
   it('names a reps-and-kilos pair as the engine names it', () => {
@@ -152,9 +184,17 @@ describe('workoutToDayBuilder', () => {
     expect(workoutToDayBuilder({ id: 'w1', blocks: [] })).toEqual({ instructions: '', blocks: [] });
   });
 
-  it('reads a workout authored somewhere else without inventing columns for it', () => {
-    // GuidedBuilder and Planner write `t`/`rpe`, never aVal/aVal2 or cols. The
-    // builder must open those too — showing empty cells, not fabricated ones.
+  it('reads a workout authored somewhere else, target and all', () => {
+    /*
+     * The comment this replaces said it best and then settled for less:
+     * "GuidedBuilder and Planner write `t`/`rpe`, never aVal/aVal2 or cols" —
+     * true, and those two were RIGHT while this screen was the odd one out.
+     * It expected `a` and `b` to come back EMPTY for a real target of five
+     * reps, because the reader only knew how to look in the logger's fields.
+     *
+     * Now that `t` is where a target lives on both sides, a session authored
+     * anywhere opens with its numbers in the builder's own cells.
+     */
     const w: Workout = {
       id: 'w1',
       blocks: [{
@@ -165,9 +205,51 @@ describe('workoutToDayBuilder', () => {
     };
     const value = workoutToDayBuilder(w);
     expect(value.blocks[0].exercises[0].name).toBe('Bench');
-    expect(value.blocks[0].exercises[0].sets).toEqual([{ id: 'e0-s0', a: '', b: '' }]);
+    expect(value.blocks[0].exercises[0].sets).toEqual([{ id: 'e0-s0', a: '5', b: '' }]);
     expect(value.blocks[0].exercises[0].columnA).toBe('reps');
     expect(value.blocks[0].exercises[0].columnB).toBe('weight_kg');
+    // No `rest` on a workout authored before the field existed: the builder's
+    // own default rather than a zero, which would mean "no rest at all".
+    expect(value.blocks[0].exercises[0].rest).toBe(90);
+  });
+
+  it('ROUND TRIPS: what a coach types survives a save and a reopen', () => {
+    /*
+     * The property the two tests above could not express between them, and the
+     * one that actually protects a coach's work. Anything `toPlannedSet` can
+     * write and `splitPlannedSet` cannot read back is a field the builder
+     * silently erases the next time the day is saved.
+     */
+    const before = value();
+    const after = workoutToDayBuilder(one(before, { id: 'w1' }));
+
+    const strength = after.blocks.find((b) => b.category === 'Strength/Power')!;
+    expect(strength.exercises[0].sets.map((s) => [s.a, s.b])).toEqual([
+      ['5', '100'],
+      ['5', '105'],
+      ['3', '110'],
+    ]);
+    expect(strength.exercises[0].columnA).toBe('reps');
+    expect(strength.exercises[0].columnB).toBe('weight_kg');
+    expect(strength.exercises[0].rest).toBe(90);
+  });
+
+  it('reads a percentage back as a percentage, not as kilos', () => {
+    const w: Workout = {
+      id: 'w1',
+      blocks: [{
+        id: 'b0',
+        heading: 'Main',
+        exercises: [{
+          id: 'e0',
+          name: 'Squat',
+          mode: 'reps_kg',
+          cols: { a: 'reps', b: 'weight_pct' },
+          sets: [{ t: '5 @80%', rpe: '' }],
+        }],
+      }],
+    };
+    expect(workoutToDayBuilder(w).blocks[0].exercises[0].sets).toEqual([{ id: 'e0-s0', a: '5', b: '80' }]);
   });
 
   it('renders a conditioning block, which has no exercises, as an empty block rather than dropping it', () => {

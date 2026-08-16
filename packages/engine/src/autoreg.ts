@@ -1,4 +1,4 @@
-import { AUTOREG } from './constants';
+import { AUTOREG, MAX_KG } from './constants';
 import type { AnySet } from './types';
 
 /**
@@ -73,6 +73,34 @@ export function loadPctOf(t: string | undefined): number | null {
 }
 
 /**
+ * A load written into the target as ABSOLUTE kilos: "5 @100kg" is five reps at
+ * a hundred kilos.
+ *
+ * The sibling of `loadPctOf` and it rides in `t` for the identical reason: a
+ * planned set's shape is contractual, two suites assert it is exactly
+ * `{t, rpe}`, and there is no third field to put a load in. `@` is required,
+ * reps are written first, and `withoutLoad` strips this chunk before either
+ * rep parser sees the string.
+ *
+ * WHY BOTH EXIST, rather than converting one into the other. A percentage is
+ * relative to an e1RM the app estimates and re-estimates; kilos are what the
+ * coach actually wrote on the plan. Converting a coach's 100kg into a
+ * percentage at authoring time would silently re-price it every time the
+ * athlete's estimate moved, which is precisely what a coach writing an
+ * absolute number is refusing.
+ *
+ * Above `MAX_KG` is refused as a typo rather than honoured, mirroring
+ * `loadPctOf`'s ceiling: nothing loadable on a barbell goes there, and a
+ * slipped keypress would otherwise put a real number in front of someone.
+ */
+export function loadKgOf(t: string | undefined): number | null {
+  const m = String(t || '').match(/@\s*(\d+(?:\.\d+)?)\s*kg/i);
+  if (!m) return null;
+  const kg = Number(m[1]);
+  return kg > 0 && kg <= MAX_KG ? kg : null;
+}
+
+/**
  * The rep floor a target implies. "5" → 5; "8-10" → 8; "max"/"" → 0 (no floor,
  * so nothing can be "missed").
  *
@@ -95,7 +123,11 @@ export function repFloorOf(t: string | undefined): number {
  * target before `loadPctOf` gave it a meaning.
  */
 function withoutLoad(t: string | undefined): string {
-  return String(t || '').replace(/@\s*\d+(?:\.\d+)?\s*%/g, ' ');
+  // BOTH load forms, or the one that is not stripped becomes a rep count.
+  // "@100kg" alone would otherwise read as a rep floor of one hundred, score
+  // every set as a miss, and walk the weight into the floor — the same trap
+  // `loadPctOf` documents for a bare percentage.
+  return String(t || '').replace(/@\s*\d+(?:\.\d+)?\s*(?:%|kg)/gi, ' ');
 }
 
 /**

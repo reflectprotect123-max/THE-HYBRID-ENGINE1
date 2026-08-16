@@ -92,8 +92,16 @@ export function SetRows({
         </div>
       </div>
 
+      {/*
+        * `role="alert"` because this appears in response to a change the coach
+        * just made, and a screen reader would otherwise never mention it — the
+        * second select going quietly disabled is the only other signal, and a
+        * disabled control announces nothing about WHY.
+        */}
       {!pairValid && (
-        <p className="cb-note">Two columns cannot measure the same thing — pick another for the second.</p>
+        <p className="cb-note" role="alert">
+          Two columns cannot measure the same thing — pick another for the second.
+        </p>
       )}
 
       <div className="cb-sets-rows">

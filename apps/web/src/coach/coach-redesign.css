@@ -751,6 +751,16 @@
     button, [role='button'], a, select, .cc-section summary {
       min-height: 44px;
     }
+    /* A LABEL WRAPPING A CHECKBOX IS THE TARGET, and it was missing from the
+       list above — in the mockup too, so this is a repair rather than a port.
+       The checkbox itself is deliberately left at 13px because a stretched
+       native checkbox looks broken; that only works if the row around it is
+       big enough to hit, and the exercise picker's filter chips were 27px.
+       Found by `checks/web-touch.mjs` the moment it learned to walk into the
+       picker on 16 August 2026 — the chips had never been measured. */
+    .cb-filter-chip, .cb-opt-toggle {
+      min-height: 44px;
+    }
   }
 
   /* ---------- phone layout ----------
