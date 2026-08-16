@@ -11,9 +11,25 @@
  * layered on top: which set is judged, what happens when nothing was earned,
  * and how the recovery gate behaves.
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { liftAdapt, liftMoves, nextWorkingWeight, openingLoadFor, prescribedKg, sessionOpeners } from './lift';
 import type { Exercise, LoggedSet, Session } from './types';
+
+/*
+ * Stage 5 of the RPE progression design reads `Date.now()` (inside
+ * `calibrationStateFor`, called from `nextWorkingWeight`/`openingLoadFor`
+ * whenever `ctx.sessions` is supplied) to detect a layoff. Every fixture in
+ * this file predates that stage and uses small synthetic timestamps for
+ * ORDERING only — `completedAt: 5000` means "session five", not a date near
+ * the Unix epoch. Against the REAL wall clock every one of them is decades
+ * old, which would make every history-bearing test a false "back after a
+ * break". Pinning the clock just above the largest synthetic timestamp any
+ * fixture here uses keeps `Date.now()` real-shaped without dragging every
+ * existing case into a layoff gap that was never the point of the test.
+ */
+const FIXED_NOW = 50_000;
+beforeAll(() => vi.useFakeTimers({ now: FIXED_NOW }));
+afterAll(() => vi.useRealTimers());
 
 const ex = (name: string, sets: LoggedSet[], mode: Exercise['mode'] = 'reps_kg'): Exercise<LoggedSet> => ({
   id: 'e-' + name,
@@ -215,6 +231,46 @@ describe('what to offer today', () => {
     const light = { liftProgress: { curl: { kg: 2.5, at: 1 } } };
     expect(nextWorkingWeight('curl', light, { recoveryScore: 10 })?.kg).toBe(2.5);
   });
+});
+
+describe('what to offer after a layoff — Stage 5 of the RPE progression design', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const GAP = 21 * DAY;
+  const goneQuiet = [
+    session(
+      [ex('Back squat', [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true } as LoggedSet])],
+      FIXED_NOW - GAP - DAY,
+    ),
+  ];
+
+  it('offers a reduced weight, not the full earned number, once a movement has gone quiet', () => {
+    // 100kg earned, 10% off (AUTOREG.calibrationReductionPct) → 90, which is
+    // already a plate-clean number so rounding does not obscure the figure.
+    const w = nextWorkingWeight('Back squat', settingsFor(100), undefined, undefined, goneQuiet);
+    expect(w?.kg).toBe(90);
+    expect(w?.earned).toBe(100);
+    expect(w?.note).toBe('back after a break — offering less so today can find where you actually are');
+  });
+
+  it('offers the full weight when the same history has no gap in it', () => {
+    const recent = [
+      session(
+        [ex('Back squat', [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true } as LoggedSet])],
+        FIXED_NOW - DAY,
+      ),
+    ];
+    expect(nextWorkingWeight('Back squat', settingsFor(100), undefined, undefined, recent)?.kg).toBe(100);
+  });
+
+  it('omitting sessions entirely behaves exactly as before this stage', () => {
+    // The 5th parameter is additive — every caller that omits it keeps
+    // today's behaviour, same as `target` before it.
+    expect(nextWorkingWeight('Back squat', settingsFor(100))?.kg).toBe(100);
+  });
+
+  function settingsFor(kg: number) {
+    return { liftProgress: { 'back squat': { kg, at: 1 } } };
+  }
 });
 
 describe('what a library session opens at', () => {

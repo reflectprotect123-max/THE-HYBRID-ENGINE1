@@ -5,6 +5,7 @@ import type { PlanTarget } from './fold';
 import { recoveryBand, todayRecovery } from './hr';
 import { roundToIncrement, saneKg } from './num';
 import { blockExercises, exBest, exLogFor, isLiftMode, isWarmupBlock } from './session';
+import { calibrationStateFor } from './adaptive/exposures';
 import type { AnySet, Block, Exercise, LiftState, LoggedSet, Session, Settings, WhoopSample } from './types';
 
 /*
@@ -251,6 +252,15 @@ export function nextWorkingWeight(
    * progression design, stage 1.
    */
   target?: PlanTarget,
+  /**
+   * The athlete's session history, so a movement that has gone quiet for
+   * `AUTOREG.calibrationGapDays` is not offered its full earned weight on
+   * return. Optional and additive, exactly like `target` above: an omitted
+   * history behaves exactly as before, and `calibrationStateFor` itself
+   * returns `{ calibrating: false }` on an empty list. See the RPE
+   * progression design, stage 5.
+   */
+  sessions?: Session[],
 ): WorkingWeight | null {
   const key = String(name || '').trim().toLowerCase();
   if (!key) return null;
@@ -263,6 +273,28 @@ export function nextWorkingWeight(
     if (priced > 0) earned = priced;
   }
   if (!earned) return null;
+
+  /*
+   * CALIBRATION TAKES PRIORITY AND RETURNS EARLY, rather than layering with
+   * the recovery ease below. Stacking "back after a break" with "eased for
+   * low recovery" is a real combination that could happen, but the design
+   * asks for one honest reduction with one honest reason, not a compounded
+   * cut the athlete has to unpick two sentences to understand. If a
+   * calibration session also lands on a red-recovery day, the calibration cut
+   * alone already asks for meaningfully less than the earned number.
+   */
+  if (sessions && calibrationStateFor(name, sessions).calibrating) {
+    const reduced = roundToIncrement(
+      Math.max(AUTOREG.stepKg, earned * (1 - AUTOREG.calibrationReductionPct)),
+      AUTOREG.plateIncrement,
+    );
+    return {
+      kg: reduced,
+      earned,
+      dailyAdj: Math.round((reduced - earned) * 100) / 100,
+      note: 'back after a break — offering less so today can find where you actually are',
+    };
+  }
 
   const rec = todayRecovery(whoop);
   if (rec == null || recoveryBand(rec) !== 'low') {
@@ -297,6 +329,10 @@ export function sessionOpeners(
   w: { blocks: Block<AnySet>[] } | null | undefined,
   settings: Settings = {},
   whoop?: WhoopSample | null,
+  /** See `nextWorkingWeight`'s own doc — passed straight through so a
+   *  calibrating movement reads the same reduced number here as it does in
+   *  the Logger's own prefill, per this function's own header. */
+  sessions?: Session[],
 ): { name: string; kg: number; eased: boolean }[] {
   if (!w) return [];
   const out: { name: string; kg: number; eased: boolean }[] = [];
@@ -310,7 +346,7 @@ export function sessionOpeners(
       if (!key || seen.has(key)) return;
       seen.add(key);
 
-      const nw = nextWorkingWeight(name, settings, whoop);
+      const nw = nextWorkingWeight(name, settings, whoop, undefined, sessions);
       if (nw) out.push({ name, kg: nw.kg, eased: nw.dailyAdj < 0 });
     }),
   );
@@ -478,10 +514,13 @@ export function openingLoadFor(
   // done, `si` cannot be anything but the first working set. A caller that
   // asked about a LATER set while an earlier one sat unentered would break
   // this; nothing in the codebase does.
-  const earned = nextWorkingWeight(name, ctx.settings, ctx.whoop, {
-    reps: targetRepsOf(st.t),
-    rpe: rpeCenterOf(st),
-  });
+  const earned = nextWorkingWeight(
+    name,
+    ctx.settings,
+    ctx.whoop,
+    { reps: targetRepsOf(st.t), rpe: rpeCenterOf(st) },
+    ctx.sessions,
+  );
   if (earned) {
     return {
       kg: earned.kg,

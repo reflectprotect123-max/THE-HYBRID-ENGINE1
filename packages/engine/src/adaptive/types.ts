@@ -85,7 +85,14 @@ export type ReasonCode =
    * `mixed_recent_results` — but it cannot raise confidence past `low` until
    * it is rated.
    */
-  | 'exposure_not_rated';
+  | 'exposure_not_rated'
+  /**
+   * Stage 5: this movement's exposures cross a layoff gap
+   * (`AUTOREG.calibrationGapDays`) with fewer than two stable exposures
+   * logged since. The session offers a reduced weight to observe, not to
+   * progress or deload — see `calibrationStateFor`.
+   */
+  | 'calibration_active';
 
 export interface TrainingDecisionExplanation {
   action: ProgressionAction;

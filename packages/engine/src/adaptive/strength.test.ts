@@ -1,8 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { decideStrengthProgression } from './strength';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { decideStrengthProgression, calibrationStateFor } from './strength';
 import { decideStrengthProgression as fromIndex } from '../index';
 import { liftMoves } from '../lift';
 import type { LoggedSet, Session } from '../types';
+
+/*
+ * Stage 5 gates `decideStrengthProgression` on `calibrationStateFor`, which
+ * reads `Date.now()` to detect a layoff. Every fixture in this file predates
+ * that stage and uses small synthetic timestamps for ORDERING only — see the
+ * identical note in `../lift.test.ts`, which hit the same issue first.
+ */
+const FIXED_NOW = 50_000;
+beforeAll(() => vi.useFakeTimers({ now: FIXED_NOW }));
+afterAll(() => vi.useRealTimers());
 
 /** A single completed, non-warmup working set with a real target attached. */
 const set = (aVal: string, aVal2: string, felt: string, t: string, rpe: string): LoggedSet =>
@@ -168,6 +178,84 @@ describe('decideStrengthProgression — progression', () => {
     const out = decideStrengthProgression('Pull-up', sessions, { t: 'max', rpe: '8' });
     expect(out.action).toBe('progress_reps');
     expect(out.prescription).toEqual({ reps: 13 });
+  });
+});
+
+describe('calibrationStateFor — Stage 5, the layoff gate', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const GAP = 21 * DAY; // AUTOREG.calibrationGapDays, spelled out so a constant change breaks this loudly
+  const onTarget = (id: string, at: number) => sessionWith(id, at, set('100', '5', '8', '5', '8'));
+
+  it('is not calibrating with no exposures at all', () => {
+    expect(calibrationStateFor('Bench press', [])).toEqual({ calibrating: false });
+  });
+
+  it('is not calibrating when the most recent session is well within the gap', () => {
+    const sessions = [onTarget('s0', FIXED_NOW - 2 * DAY)];
+    expect(calibrationStateFor('Bench press', sessions, FIXED_NOW)).toEqual({ calibrating: false });
+  });
+
+  it('THE COMEBACK ITSELF: nothing logged since a gap that has already opened', () => {
+    const sessions = [onTarget('s0', FIXED_NOW - GAP - DAY)];
+    expect(calibrationStateFor('Bench press', sessions, FIXED_NOW)).toEqual({
+      calibrating: true,
+      reasonCode: 'layoff_gap',
+    });
+  });
+
+  it('does NOT exit after just one comeback session — the date-based exit the design forbids', () => {
+    /* A naive "is the gap still open" check would see the fresh `at` from s1
+       and conclude the layoff is over. It isn't: only one stable exposure has
+       been logged since the gap, and the design is explicit that exit needs
+       two. */
+    const sessions = [onTarget('s0', FIXED_NOW - GAP - DAY), onTarget('s1', FIXED_NOW)];
+    expect(calibrationStateFor('Bench press', sessions, FIXED_NOW)).toEqual({
+      calibrating: true,
+      reasonCode: 'layoff_gap',
+    });
+  });
+
+  it('exits on the SECOND stable comeback exposure, not on elapsed time', () => {
+    const sessions = [
+      onTarget('s0', FIXED_NOW - GAP - 2 * DAY),
+      onTarget('s1', FIXED_NOW - DAY),
+      onTarget('s2', FIXED_NOW),
+    ];
+    expect(calibrationStateFor('Bench press', sessions, FIXED_NOW)).toEqual({ calibrating: false });
+  });
+
+  it('a missed comeback session does not count toward the two stable exposures', () => {
+    const missed = sessionWith('m', FIXED_NOW, set('90', '2', '9', '5', '8'));
+    const sessions = [onTarget('s0', FIXED_NOW - GAP - 2 * DAY), missed, onTarget('s2', FIXED_NOW + DAY)];
+    // Only one on-target exposure since the gap (s2) — still calibrating.
+    expect(calibrationStateFor('Bench press', sessions, FIXED_NOW + DAY)).toEqual({
+      calibrating: true,
+      reasonCode: 'layoff_gap',
+    });
+  });
+});
+
+describe('decideStrengthProgression — Stage 5 calibration gate', () => {
+  it('holds with calibration_active instead of progressing, even with an otherwise clean two-in-a-row streak', () => {
+    /* Same shape as the plain "suggests a load step" case elsewhere in this
+       file — three on-target 100kg sessions — except the whole block sits
+       past a layoff gap. A calibration exposure must never win the
+       two-in-a-row promotion gate; this pins that it does not, ahead of the
+       MIN_EXPOSURES check too. */
+    const DAY = 24 * 60 * 60 * 1000;
+    const GAP = 21 * DAY;
+    const s = (id: string, at: number) => sessionWith(id, at, set('100', '5', '8', '5', '8'));
+    const sessions = [
+      s('s-3', FIXED_NOW - GAP - 3 * DAY),
+      s('s-2', FIXED_NOW - GAP - 2 * DAY),
+      s('s-1', FIXED_NOW - GAP - DAY),
+    ];
+    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
+    expect(out.action).toBe('hold');
+    expect(out.reasonCodes).toEqual(['calibration_active']);
+    expect(out.confidence).toBe('low');
+    expect(out.safetyState).toBe('reduced');
+    expect(out.prescription).toBeUndefined();
   });
 });
 

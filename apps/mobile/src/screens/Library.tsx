@@ -543,7 +543,10 @@ function Signal({ w }: { w: Workout }) {
   const stats = useMemo(() => workoutStats(w, sessions), [w, sessions]);
   // Through sessionOpeners, so this figure and the one the logger prefills come
   // from the same function — including the red-morning easing.
-  const opens = useMemo(() => sessionOpeners(w, db.settings, whoop), [w, db.settings, whoop]);
+  const opens = useMemo(
+    () => sessionOpeners(w, db.settings, whoop, sessions),
+    [w, db.settings, whoop, sessions],
+  );
 
   if (!stats.count && !opens.length) return null;
 

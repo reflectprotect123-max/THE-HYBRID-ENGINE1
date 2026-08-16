@@ -90,6 +90,25 @@ export const AUTOREG = {
    * disguised as a 2.5% progression".
    */
   maxJumpPct: 0.05,
+  /**
+   * Stage 5 of the RPE progression design — calibration after a layoff.
+   *
+   * `calibrationGapDays` is a CONFIGURED GUESS, and the design doc says so in
+   * as many words: the review "declines to give one" — *"Detraining evidence
+   * does not provide a universal time-off-to-load-reduction equation."* Three
+   * weeks is chosen because it is longer than a normal deload week (which
+   * must not trigger calibration) and shorter than a month most training
+   * programmes would already treat as a real break. It is not derived from
+   * data and should be revisited against real logs once there are any.
+   *
+   * `calibrationReductionPct` is the same kind of guess for the same reason:
+   * enough of a back-off that a four-month-old anchor cannot fail a comeback
+   * set outright, not so much that a mild two-week gap tells the athlete they
+   * have gone soft. `product_heuristic`, exactly as `deloadPct` was labelled
+   * before the review priced it.
+   */
+  calibrationGapDays: 21,
+  calibrationReductionPct: 0.1,
 } as const;
 
 /** Nothing loadable on a barbell goes above this. Guards Infinity/overflow. */

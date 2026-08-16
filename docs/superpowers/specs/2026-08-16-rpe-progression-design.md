@@ -244,6 +244,55 @@ So a movement whose last exposure is older than the configured gap enters
 The gap threshold and the calibration reduction are both configured heuristics
 and labelled as such.
 
+**Shipped** (16 August 2026), against `AUTOREG.calibrationGapDays: 21` and
+`AUTOREG.calibrationReductionPct: 0.1`, both spelled out as `product_heuristic`
+in the constant's own doc, exactly as `deloadPct` was before the review priced
+it. `calibrationStateFor(name, sessions, now?)` implements both halves of the
+design in one function, in `packages/engine/src/adaptive/exposures.ts`:
+
+- **Entry** — nothing logged since the gap opened: the trailing distance from
+  `now` to the last exposure exceeds the threshold. The NEXT session is the
+  comeback.
+- **Exit** — walks every exposure for the most recent gap that crossed the
+  threshold, then counts on-target exposures logged after it. Below two,
+  still calibrating — explicitly NOT "is the gap still open", which would exit
+  after one comeback session purely because that session's own timestamp
+  reset the clock. That was the first version of this function and it failed
+  its own test the moment the test asked for it by name.
+
+**Both places that name a load are wired**, so the Library preview and the
+Logger's own field cannot disagree during a comeback — the same invariant
+`sessionOpeners`'s header already claimed for the recovery-ease case:
+
+- `nextWorkingWeight` takes an additive 5th parameter, `sessions`, and returns
+  early with a 10%-reduced weight and the note *"back after a break — offering
+  less so today can find where you actually are"* when calibrating — ahead of
+  the recovery-ease gate, not stacked with it, because one honest reduction
+  with one honest reason beats a compounded cut across two sentences.
+- `decideStrengthProgression` checks `calibrationStateFor` before
+  `MIN_EXPOSURES`, not after — a movement can clear three exposures in raw
+  count while still being one comeback session into a real layoff — and
+  returns `hold` / `calibration_active` / `safetyState: 'reduced'` rather than
+  letting a calibration exposure win the two-in-a-row promotion gate.
+
+**One structural move this stage required**: `strengthExposuresFor` and the
+new `calibrationStateFor` moved out of `adaptive/strength.ts` into a new
+`adaptive/exposures.ts`. `strength.ts` imports `liftMoves` from `lift.ts`;
+`lift.ts` now needs `calibrationStateFor` too, for the reason above. A module
+that imports FROM `lift.ts` cannot also be imported BY it without a cycle, so
+the shared primitive moved to a file that imports from neither. `strength.ts`
+re-exports everything from it, so nothing at the package boundary changed.
+
+**A note on how this was tested.** `calibrationStateFor`'s entry gate reads
+real elapsed time against a session's `completedAt`, and the existing test
+suites in `lift.test.ts` and `strength.test.ts` use small synthetic
+timestamps (`1000`, `2000`, …) for ordering, not real dates — against the
+actual wall clock every one of them is decades old, which made every
+history-bearing test a false "back after a break" the first time this landed.
+Both files now pin `vi.useFakeTimers` to a fixed point just above their
+largest synthetic timestamp, which keeps `Date.now()` real-shaped without
+requiring dozens of fixtures to be rewritten with realistic dates.
+
 ### Stage 6 — the override note
 
 When the athlete changes the offered number, the app records what was offered,
