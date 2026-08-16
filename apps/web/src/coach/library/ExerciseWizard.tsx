@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { CatalogueEntry } from '@hybrid/engine';
 import type { BlockExercise } from './BlockEditor';
 import type { SetRow } from './SetRows';
+import { ExercisePicker } from './ExercisePicker';
 
 /** Ninety seconds — the app's own default rest, unchanged from before this file existed. */
 export const DEFAULT_REST_SEC = 90;
@@ -44,4 +46,159 @@ export interface WizardShape {
   sets: number;
   a: string;
   b: string;
+}
+
+/**
+ * What the wizard commits on Review (Task 4) — the same shape `BlockExercise`
+ * already carries, minus `id` (assigned by the caller for a new exercise, kept
+ * as-is for an edit).
+ */
+export interface WizardResult {
+  id?: string;
+  name: string;
+  columnA: string;
+  columnB: string;
+  rest: number;
+  every?: number;
+  tempo?: string;
+  sets: SetRow[];
+}
+
+export interface ExerciseWizardProps {
+  entries: CatalogueEntry[];
+  initial?: BlockExercise;
+  lastShape?: WizardShape;
+  onCreateMovement?: (name: string) => void;
+  onSave: (result: WizardResult, shape: WizardShape) => void;
+  onCancel: () => void;
+}
+
+type Step = 'exercise' | 'measure' | 'sets' | 'values' | 'review';
+const STEP_ORDER: Step[] = ['exercise', 'measure', 'sets', 'values', 'review'];
+const STEP_LABEL: Record<Step, string> = { exercise: 'Exercise', measure: 'Measure', sets: 'Sets', values: 'Values', review: 'Review' };
+
+interface Draft {
+  name: string;
+  measure: Measure;
+  sets: number;
+  a: string;
+  b: string;
+}
+
+function initialDraft(initial?: BlockExercise, lastShape?: WizardShape): Draft {
+  if (initial) {
+    return {
+      name: initial.name,
+      measure: measureFor(initial.columnA, initial.columnB),
+      sets: initial.sets.length || 3,
+      a: initial.sets[0]?.a ?? '',
+      b: initial.sets[0]?.b ?? '',
+    };
+  }
+  return {
+    name: '',
+    measure: lastShape?.measure ?? 'reps_weight',
+    sets: lastShape?.sets ?? 3,
+    a: lastShape?.a ?? '',
+    b: lastShape?.b ?? '',
+  };
+}
+
+/**
+ * The guided one-question-at-a-time flow that replaces the always-expanded
+ * exercise form (see `docs/superpowers/specs/2026-08-16-exercise-wizard-design.md`).
+ * This task carries only the first two of five steps — Exercise and Measure —
+ * plus the history-stack navigation every later step reuses. `onSave` is not
+ * called yet: there is no Review step to build a `WizardResult` from until
+ * Task 4.
+ */
+export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, onCancel }: ExerciseWizardProps) {
+  const [history, setHistory] = useState<Step[]>(['exercise']);
+  const [draft, setDraft] = useState<Draft>(() => initialDraft(initial, lastShape));
+
+  const step = history[history.length - 1];
+  const idx = STEP_ORDER.indexOf(step);
+
+  function patch(next: Partial<Draft>) {
+    setDraft((d) => ({ ...d, ...next }));
+  }
+
+  function push(s: Step) {
+    setHistory((h) => [...h, s]);
+  }
+
+  function back() {
+    if (history.length > 1) setHistory((h) => h.slice(0, -1));
+    else onCancel();
+  }
+
+  return (
+    <div className="cb-wizard">
+      <div className="cb-wizard-topbar">
+        <button type="button" className="cb-wizard-back" onClick={back}>
+          &larr; {step === 'exercise' ? 'Back to block' : 'Back'}
+        </button>
+      </div>
+      <div className="cb-wizard-progress-track">
+        <div className="cb-wizard-progress-fill" style={{ width: `${((idx + 1) / STEP_ORDER.length) * 100}%` }} />
+      </div>
+      <p className="cb-wizard-stepcount">{idx + 1} of {STEP_ORDER.length} &middot; {STEP_LABEL[step]}</p>
+
+      {step === 'exercise' && (
+        <div className="cb-wizard-step">
+          <h1>What are they doing?</h1>
+          {draft.name && (
+            <input
+              type="text"
+              className="cb-wizard-selected-name"
+              aria-label="Selected exercise"
+              value={draft.name}
+              readOnly
+            />
+          )}
+          <ExercisePicker
+            entries={entries}
+            open
+            onPick={(name) => patch({ name })}
+            onNewExercise={(name) => {
+              onCreateMovement?.(name);
+              patch({ name });
+            }}
+            onDone={() => {}}
+          />
+          <div className="cb-wizard-btn-row">
+            <span />
+            <button type="button" className="cb-wizard-btn cb-wizard-btn-brass" disabled={!draft.name} onClick={() => push('measure')}>
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'measure' && (
+        <div className="cb-wizard-step">
+          <h1>What are you tracking?</h1>
+          <div className="cb-wizard-glyph-grid">
+            {MEASURES.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                className={`cb-wizard-glyph-tile${draft.measure === m.key ? ' on' : ''}`}
+                aria-label={m.name}
+                onClick={() => patch({ measure: m.key })}
+              >
+                <span className="glyph">{m.glyph}</span>
+                <span className="name">{m.name}</span>
+                <span className="sub">{m.sub}</span>
+              </button>
+            ))}
+          </div>
+          <div className="cb-wizard-btn-row">
+            <button type="button" className="cb-wizard-btn" onClick={back}>Back</button>
+            <button type="button" className="cb-wizard-btn cb-wizard-btn-brass" onClick={() => push('sets')}>Next</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
