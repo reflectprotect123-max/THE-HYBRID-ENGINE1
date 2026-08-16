@@ -29,7 +29,7 @@ export interface RestState {
  *
  * `rest` starts when the set ENDS: 90 seconds means 90 seconds, whatever the
  * set took. `every` is EMOM pacing and starts when the set STARTED, so the set
- * and its recovery share one window — `sinceSet` is how much of that window
+ * and its recovery share one window — `elapsed` is how much of that window
  * the set itself consumed, and what is left is the rest. A set that overran
  * its window leaves nothing, and the honest answer there is no rest at all
  * rather than a 0:00 dial: the athlete is already late and the next set is
@@ -41,13 +41,13 @@ export interface RestState {
 export function restAfter(
   block: StrengthBlock<LoggedSet>,
   item: QueueItem,
-  sinceSet = 0,
+  elapsed = 0,
 ): RestState | null {
   if (!nextUp(block)) return { left: 0, total: 0, kind: 'block' };
   const ex = block.exercises[item.exerciseIndex];
   const every = ex.every || 0;
   if (every > 0) {
-    const left = Math.max(0, every - Math.max(0, sinceSet));
+    const left = Math.max(0, every - Math.max(0, elapsed));
     if (left <= 0) return null;
     return { left, total: every, kind: 'set', paced: true };
   }

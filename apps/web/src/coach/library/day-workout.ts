@@ -162,11 +162,16 @@ function toCondBlock(block: BlockValue, note: string): CondBlock {
  * `{ t, rpe }`, two suites assert it, and `loadPctOf`/`loadKgOf` are where
  * that lives.
  *
- * `rpe` IS STILL EMPTY, deliberately and not by omission. The builder has no
- * RPE control — the mockup has none either — and an empty `rpe` is a defined
- * value: `rpeCenterOf` reads it as the 8.5 default centre. Writing a number
- * the coach never chose would be worse than the documented default. Giving
- * them a control to choose one is a feature, not this fix.
+ * `rpe` IS AUTHORED since 16 August 2026, and was deliberately empty before
+ * that: the mockup has no RPE control and an empty `rpe` is a defined value —
+ * `rpeCenterOf` reads it as the 8.5 default centre — so writing a number the
+ * coach never chose would have been worse. The control exists now, and empty
+ * still means that same documented default, so a session authored before it
+ * behaves exactly as it did.
+ *
+ * A RANGE IS FINE. "7-10" is what the owner's own sessions write, and
+ * `rpeCenterOf` takes the mean of every number in the string, so a range is a
+ * band centre rather than a parse failure.
  */
 function toPlannedSet(row: SetRow, columnA: string, columnB: string): LoggedSet {
   const value = (col: string) => (col === columnA ? row.a : col === columnB ? row.b : '');
@@ -196,7 +201,7 @@ function toPlannedSet(row: SetRow, columnA: string, columnB: string): LoggedSet 
 
   // `t` and `rpe` ONLY. No aVal, no aVal2, no done — nothing on a planned set
   // may look like something the athlete already did.
-  return { t: parts.join(' '), rpe: '' };
+  return { t: parts.join(' '), rpe: (row.rpe ?? '').trim() };
 }
 
 /**
@@ -234,7 +239,16 @@ function splitPlannedSet(set: LoggedSet, columnA: string, columnB: string): Omit
 
   // `warm` only when it IS one: an explicit `false` on every working set would
   // round-trip as noise through every stored session.
-  return { a: forColumn(columnA), b: forColumn(columnB), ...(isWarmup(set) ? { warm: true } : {}) };
+  return {
+    a: forColumn(columnA),
+    b: forColumn(columnB),
+    ...(isWarmup(set) ? { warm: true } : {}),
+    /* Absent rather than '', so a set the coach never gave an RPE round-trips
+       as the record it was. Empty and absent mean the same thing to
+       `rpeCenterOf` — the 8.5 default — so nothing downstream can tell them
+       apart, but the identity assertion on this round trip can. */
+    ...(String(set.rpe || '').trim() ? { rpe: String(set.rpe).trim() } : {}),
+  };
 }
 
 function toBlock(block: BlockValue): Block<LoggedSet> {

@@ -102,18 +102,31 @@ export const SESSION_TEMPLATES: readonly SessionTemplate[] = [
 /**
  * The template, as blocks the day builder can edit.
  *
- * `seq` is where the ids start, so applying a template to a day that already
- * has blocks cannot collide with them — `BlockEditor` keys its exercises off
- * the block id, and two blocks sharing one id is a React key collision that
- * shows up as edits landing in the wrong block.
+ * `taken` is every block id already on the day, and the ids skip past all of
+ * them. A COUNTER IS NOT ENOUGH, which is what this used to use: apply a
+ * six-section template, remove one block, apply it again, and the second pass
+ * starts at five — colliding with the sixth block from the first pass. Two
+ * blocks sharing an id is a React key collision, and it shows up as the
+ * coach's edits landing in a different block from the one they typed in.
  *
  * A conditioning section is seeded with `newCondValue`, the same defaults the
  * dropdown gives it, because a conditioning block with no `conditioning` value
  * is a block whose fields the coach cannot see.
  */
-export function templateToBlocks(template: SessionTemplate, seq = 0): BlockValue[] {
+export function templateToBlocks(
+  template: SessionTemplate,
+  taken: readonly string[] = [],
+): BlockValue[] {
+  const used = new Set(taken);
+  const mint = (i: number) => {
+    let n = i;
+    let id = `${template.id}-${n}`;
+    while (used.has(id)) id = `${template.id}-${++n}`;
+    used.add(id);
+    return id;
+  };
   return template.sections.map((section, i) => ({
-    id: `${template.id}-${seq + i}`,
+    id: mint(i),
     category: section.category,
     heading: section.heading,
     minutes: section.minutes,

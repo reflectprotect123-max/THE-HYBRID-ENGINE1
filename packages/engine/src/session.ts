@@ -261,12 +261,22 @@ export function rxLine(ex: Exercise<AnySet>): string {
  * itself. Absent `now` on a live session simply leaves the last block out
  * rather than inventing a duration for it.
  *
+
+ * An ABANDONED session is the one honest wrinkle: `expireStaleSessions` gives
+ * it `completedAt = startedAt`, so its last segment stops before it started
+ * and clamps to zero. There is no true end time for a session nobody finished,
+ * so any answer there is a guess; zero is the quietest one.
+ *
  * Blocks the athlete never opened are ABSENT rather than zero. Zero would say
  * "they were there and it took no time"; absent says "they were never there",
  * and only one of those is true of a session that ended early.
  */
 export function blockDurations(s: Session, now?: number): Record<string, number> {
-  const log = s.blockLog ?? [];
+  /* Not `?? []`: a session blob is a trust boundary, and a non-array here —
+     a backup restore, a hand-edited blob, a bad merge — would throw on
+     `forEach` and take the whole recap down. Same guard `sanitizeDB` puts on
+     `folders` and `conditioning`, for the same reason. */
+  const log = Array.isArray(s.blockLog) ? s.blockLog : [];
   const out: Record<string, number> = {};
   const end = s.completedAt ?? now;
   log.forEach((entry, i) => {

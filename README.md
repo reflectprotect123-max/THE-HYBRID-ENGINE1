@@ -31,12 +31,12 @@ The fastest way into this repo. Find the symptom, go to the file.
 
 | Symptom | Look in |
 |---|---|
-| Wrong weight suggested for a set | `packages/engine/src/logger.ts` → `prefillPrimary`, then `packages/engine/src/lift.ts` → `nextWorkingWeight` |
+| Wrong weight suggested for a set | `packages/engine/src/lift.ts` → `openingLoadFor`, which is the whole ladder — a fold over today's sets, then a coach's authored kg or %, then `nextWorkingWeight` for what the last session earned |
 | Weight didn't go up / down after a session | `packages/engine/src/lift.ts` → `liftAdapt` |
 | Wrong HR zone, or zones look off | `packages/engine/src/hr.ts` → `conZones` (Tanaka 208 − 0.7×age, or Karvonen when a resting HR is set) |
 | Conditioning got harder/easier unexpectedly | `packages/engine/src/conditioning.ts` → `conAdapt`, `conPrescription` |
 | Conditioning never progresses at all | `packages/engine/src/conditioning.ts` → `conAdapt`. It returns early on zero zone seconds: **no heart-rate data means no level earned AND no miss recorded**, so a strapless session is invisible to progression rather than a failed one. Most sessions are strapless. Which formats can progress at all is `packages/engine/src/constants.ts` → `PROGRESSED_FORMATS` |
-| Rest timer wrong, or no rest between a superset | `packages/engine/src/logger.ts` → `advanceAfterSet`, `ssGroups` |
+| Rest timer wrong, or no rest between a superset | `packages/session-authoring/src/rest.ts` → `restAfter` (two clocks: plain rest, and EMOM pacing off `Exercise.every`), and `packages/engine/src/logger.ts` → `ssGroups` for the pairing |
 | Exercises labelled A1/A2 wrongly | `packages/engine/src/logger.ts` → `sessionLetters` |
 | A session vanished, or a deleted one came back | `packages/engine/src/db.ts` → `mergeEngines`, `mergeSettings`, tombstones in `settings.deletedIds` |
 | Data lost on sync between devices | `packages/engine/src/db.ts` → `pickSession` / `pickWorkout`, then `cloud.ts` |
@@ -116,13 +116,18 @@ supabase/migrations the cross-app contract: RLS-owned core, domain snapshots,
 docs/               design tokens, the migration record, the changelog.
 ```
 
-**Deleted, and named here because the code still reads as though they exist**:
-`packages/coordinator`, `packages/coordinator-adapter` and
-`packages/auto-coach` on 14 August 2026; `packages/strength-engine`,
-`packages/conditioning-engine` and `packages/ai-prescription` on 15 August,
-when nothing imported them any more. Rows they wrote are still
-readable and `athlete_weekly_plans` still accepts `writer = 'coordinator'`;
-nothing produces one.
+**Deleted, and named here because the code still reads as though they exist**
+— written without backticks deliberately, because `checks/docs.mjs` resolves
+every backticked path in this file and a deleted one fails it. That check was
+red on main from 14 August 2026 until this was noticed on the 16th: it is CI's
+first step, `pnpm run verify` does not include it, so nothing a human ran
+locally ever said so.
+
+packages/coordinator, packages/coordinator-adapter and packages/auto-coach went
+on 14 August 2026; packages/strength-engine, packages/conditioning-engine and
+packages/ai-prescription on 15 August, when nothing imported them any more.
+Rows they wrote are still readable and `athlete_weekly_plans` still accepts
+`writer = 'coordinator'`; nothing produces one.
 
 The rebuild status, rollout gates and product commands are in
 [`docs/ARCHITECTURE_STATUS.md`](docs/ARCHITECTURE_STATUS.md). Claude Code's

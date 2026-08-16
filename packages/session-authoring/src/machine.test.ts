@@ -207,9 +207,12 @@ describe('finish', () => {
 
 describe('the set’s own clock, for EMOM pacing', () => {
   /*
-   * `sinceSet` is how the reducer knows how much of an `every` window the set
-   * itself consumed. Nothing counted seconds during a set before 16 August
-   * 2026, because plain rest starts when a set ENDS and never needed it.
+   * `setOpenedAt` is how the reducer knows how much of an `every` window the
+   * set itself used. It is a STAMP and not a counter, and it was a counter for
+   * about an hour on 16 August 2026 — counting needs an interval running, and
+   * a JS interval is throttled or stopped while an Android app is
+   * backgrounded, so an athlete who took a call mid-set came back to a rest
+   * that was too long. Same argument as `Session.blockLog`, one layer down.
    */
   const pacedSession = (): Session =>
     ({
@@ -231,30 +234,40 @@ describe('the set’s own clock, for EMOM pacing', () => {
       ],
     }) as unknown as Session;
 
-  it('advances the SET while nothing is resting', () => {
+  it('spends the time the set actually ran on the window, however that time passed', () => {
+    /* Forty seconds of wall clock, whether the app was in the foreground for
+       all of it or none of it. A counter could only have seen the foreground
+       part. */
     const sess = pacedSession();
-    let st = reduce(sess, initialRun(sess), { type: 'tick' });
-    st = reduce(st.session, st.run, { type: 'tick' });
-    expect(st.run.sinceSet).toBe(2);
+    const run = { ...initialRun(sess), setOpenedAt: Date.now() - 40_000 };
+    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8 } }, { type: 'logSet' });
+    expect(st.run.rest).toMatchObject({ total: 150, paced: true });
+    expect(st.run.rest?.left).toBeGreaterThanOrEqual(109);
+    expect(st.run.rest?.left).toBeLessThanOrEqual(111);
   });
 
-  it('advances the REST instead while a rest is up, so the two never double-count', () => {
-    /* Both clocks are driven by the same action. If a tick moved both, an
-       athlete's rest would burn down at twice the rate the dial promised. */
+  it('gives no rest at all when the set outlasted its window', () => {
     const sess = pacedSession();
-    const run = { ...initialRun(sess), rest: { left: 30, total: 60, kind: 'set' as const } };
+    const run = { ...initialRun(sess), setOpenedAt: Date.now() - 300_000 };
+    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8 } }, { type: 'logSet' });
+    expect(st.run.rest).toBeNull();
+  });
+
+  it('restarts the window for the set that follows', () => {
+    const sess = pacedSession();
+    const run = { ...initialRun(sess), setOpenedAt: Date.now() - 40_000 };
+    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8 } }, { type: 'logSet' });
+    expect(Date.now() - st.run.setOpenedAt).toBeLessThan(1000);
+  });
+
+  it('does not advance anything on a tick with no rest running', () => {
+    /* There is nothing left to count. The set's elapsed time is read off the
+       stamp when it is needed, so a tick outside a rest is a no-op — and the
+       app arms no interval for it at all. */
+    const sess = pacedSession();
+    const run = initialRun(sess);
     const st = reduce(sess, run, { type: 'tick' });
-    expect(st.run.rest?.left).toBe(29);
-    expect(st.run.sinceSet).toBe(run.sinceSet);
-  });
-
-  it('spends the counted seconds on the window, then starts the next set at zero', () => {
-    const sess = pacedSession();
-    let st = { session: sess, run: initialRun(sess) };
-    for (let i = 0; i < 40; i++) st = reduce(st.session, st.run, { type: 'tick' });
-    st = reduce(st.session, { ...st.run, draft: { kg: 100, reps: 5, felt: 8 } }, { type: 'logSet' });
-    expect(st.run.rest).toMatchObject({ left: 110, total: 150, paced: true });
-    expect(st.run.sinceSet).toBe(0);
+    expect(st.run).toBe(run);
   });
 });
 

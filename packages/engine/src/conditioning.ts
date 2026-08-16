@@ -191,6 +191,64 @@ export function condEffort(b: Partial<CondBlock> | CondResult | null | undefined
 }
 
 /**
+ * The effort band a felt RPE falls in — the inverse of `CON_EFFORTS[k].rpe`.
+ *
+ * The bands are contiguous in intent but not in numbers (easy 3–4, medium
+ * 5–7, hard 8–9.5), so the gaps and the ends have to be decided rather than
+ * left to a lookup: anything at or below easy's top is easy, anything at or
+ * above hard's bottom is hard, everything between is medium. A 4.5 is medium,
+ * a 2 is easy, a 10 is hard.
+ *
+ * Returns null for a rating that is not a number, because "no answer" and
+ * "an easy session" are different facts and only one of them is a session.
+ */
+export function effortForFelt(felt: unknown): EffortKey | null {
+  const n = typeof felt === 'number' ? felt : parseFloat(String(felt ?? ''));
+  if (!Number.isFinite(n)) return null;
+  if (n <= CON_EFFORTS.easy.rpe[1]) return 'easy';
+  if (n >= CON_EFFORTS.hard.rpe[0]) return 'hard';
+  return 'medium';
+}
+
+/**
+ * A STRAPLESS SESSION'S MINUTES, CREDITED FROM THE ATHLETE'S OWN RATING.
+ *
+ * The owner's decision on 16 August 2026, in his words: a conditioning session
+ * without a strap "asks for RPE at the end of the session and adds up to the
+ * minutes in that easy/medium/hard areas."
+ *
+ * The problem it solves is the one `apps/lab` found and then was deleted for
+ * finding: `conAdapt` returns at `if (zoned <= 0)`, so a session with no zone
+ * seconds earns nothing AND is not counted as a miss. Most sessions are
+ * strapless, so most sessions were invisible to progression — that is the
+ * honest answer to "why doesn't conditioning ever move", and this is the fix.
+ *
+ * The whole duration lands in ONE zone, the one the rated effort names.
+ * That is deliberately cruder than a heart-rate trace, which distributes real
+ * seconds across three zones, and it is the point: a rating is one number
+ * about a whole session, so pretending it resolves minute by minute would be
+ * inventing detail the athlete never gave.
+ *
+ * `zsrc: 'felt'` MARKS IT, and that is the part not to remove. Without it a
+ * derived distribution is indistinguishable from a measured one, and every
+ * chart, trend and export downstream would show self-reported effort as if a
+ * chest strap had recorded it. Measured data always wins: a record that
+ * already has zone seconds is returned untouched.
+ */
+export function withFeltZones(rec: CondResult): CondResult {
+  const z = rec.zsec || { low: 0, mod: 0, high: 0 };
+  if ((z.low || 0) + (z.mod || 0) + (z.high || 0) > 0) return rec;
+  const effort = effortForFelt(rec.felt);
+  const dur = Math.max(0, Math.round(rec.dur || 0));
+  if (!effort || dur <= 0) return rec;
+  return {
+    ...rec,
+    zsec: { low: 0, mod: 0, high: 0, [CON_EFFORTS[effort].zone]: dur },
+    zsrc: 'felt',
+  };
+}
+
+/**
  * How far a felt rating sits OUTSIDE the band it was given.
  *
  * The chip promises a range ("Medium · RPE 5-7"), so anything inside that range

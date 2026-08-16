@@ -122,6 +122,20 @@ export function sanitizeDB(d: unknown): EngineDB {
         .filter((f) => typeof f.id === 'string' && f.id && typeof f.name === 'string')
         .map((f) => ({ id: f.id as string, name: f.name as string }));
     }
+    // The coach's exercise library, guarded the same way and for the same
+    // reason. `buildCatalogue` maps over it with no per-value check, so a
+    // string or an object here — reachable through a backup restore, a hand-
+    // edited blob or a bad merge — crashes the picker outright. Only touch it
+    // when it IS an array, so ABSENT still means "never set" and `[]` still
+    // means an emptied library; those two are not the same and the fallback
+    // to mining history turns on the difference.
+    if (Array.isArray(out.movements)) {
+      out.movements = (out.movements as unknown[])
+        .filter((m): m is string => typeof m === 'string' && !!m.trim())
+        .map((m) => m.trim());
+    } else if (out.movements !== undefined) {
+      delete out.movements;
+    }
     return out as Settings;
   };
 
@@ -369,6 +383,26 @@ export function mergeSettings(base: Settings = {}, winner: Settings = {}): Setti
   if (base.mobility || winner.mobility) {
     const seen = new Set<string>();
     out.mobility = [...(base.mobility || []), ...(winner.mobility || [])].filter((m) => {
+      const k = String(m || '').trim().toLowerCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  // The coach's exercise library is a UNION too, and for exactly the reason
+  // `mobility` above is: adding a movement on the bench and another on the
+  // phone are both real edits, and `Object.assign` drops whichever side loses.
+  // Found in review on 16 August 2026, before the field had shipped — the
+  // owner had just asked for the derived library emptied so he could rebuild
+  // it by hand, so silently dropping half of what he typed would have been the
+  // worst possible bug in the worst possible place.
+  //
+  // Case-insensitive, matching `addMovement` and `buildCatalogue`: two entries
+  // disagreeing over "Back Squat" and "back squat" are worse than either.
+  if (base.movements || winner.movements) {
+    const seen = new Set<string>();
+    out.movements = [...(base.movements || []), ...(winner.movements || [])].filter((m) => {
       const k = String(m || '').trim().toLowerCase();
       if (!k || seen.has(k)) return false;
       seen.add(k);

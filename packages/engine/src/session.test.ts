@@ -439,3 +439,21 @@ describe('sessionDuration', () => {
     expect(sessionDuration({ startedAt: 1_000 } as unknown as Session)).toBe(0);
   });
 });
+
+describe('blockDurations survives a blob it did not write', () => {
+  /* A stored session is a trust boundary — a backup restore, a hand-edited
+     blob or a bad merge can put anything in `blockLog`, and `forEach` on a
+     string would take the whole recap screen down. */
+  it('treats a non-array log as no log rather than throwing', () => {
+    expect(blockDurations({ blockLog: 'nope' } as unknown as Session)).toEqual({});
+    expect(blockDurations({ blockLog: 7 } as unknown as Session)).toEqual({});
+  });
+
+  it('skips entries with no id or no numeric stamp', () => {
+    const s = {
+      completedAt: 120_000,
+      blockLog: [null, { at: 0 }, { id: 'a' }, { id: 'b', at: 'soon' }, { id: 'c', at: 60_000 }],
+    } as unknown as Session;
+    expect(blockDurations(s)).toEqual({ c: 60 });
+  });
+});

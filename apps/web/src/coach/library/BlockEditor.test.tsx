@@ -390,3 +390,64 @@ describe('how an exercise is paced', () => {
     );
   });
 });
+
+describe('authoring the target RPE', () => {
+  const openRow = (sets: { id: string; a: string; b: string; rpe?: string }[]) => {
+    const onChange = vi.fn();
+    render(
+      <BlockEditor
+        block={{
+          id: 'b',
+          category: 'Strength/Power',
+          exercises: [
+            { id: 'e0', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets },
+          ],
+        }}
+        entries={[]}
+        index={0}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />,
+    );
+    fireEvent.click(document.querySelector('.cb-item-head') as HTMLElement);
+    return onChange;
+  };
+
+  it('writes what the coach types onto EVERY set', () => {
+    /* `PlannedSet.rpe` is where the engine reads it, and the owner's own
+       sessions write one band for the movement. */
+    const onChange = openRow([
+      { id: 's0', a: '5', b: '100' },
+      { id: 's1', a: '5', b: '100' },
+    ]);
+    fireEvent.change(screen.getByLabelText(/target rpe/i), { target: { value: '7-10' } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exercises: [
+          expect.objectContaining({
+            sets: [expect.objectContaining({ rpe: '7-10' }), expect.objectContaining({ rpe: '7-10' })],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('shows the shared value when the sets agree', () => {
+    openRow([
+      { id: 's0', a: '5', b: '100', rpe: '8' },
+      { id: 's1', a: '5', b: '100', rpe: '8' },
+    ]);
+    expect((screen.getByLabelText(/target rpe/i) as HTMLInputElement).value).toBe('8');
+  });
+
+  it('goes BLANK and says so when they disagree, rather than picking one', () => {
+    /* Picking one and rendering it would make it true of all of them on the
+       next keystroke. A top set at 9 with backoffs at 7 is real programming. */
+    openRow([
+      { id: 's0', a: '5', b: '100', rpe: '9' },
+      { id: 's1', a: '5', b: '100', rpe: '7' },
+    ]);
+    expect((screen.getByLabelText(/target rpe/i) as HTMLInputElement).value).toBe('');
+    expect(screen.getByText(/different RPE targets/i)).toBeInTheDocument();
+  });
+});

@@ -499,3 +499,58 @@ describe('restrictToProduct keeps only one domain\'s workouts and sessions', () 
     expect(out.core).toBe(db.core);
   });
 });
+
+describe('mergeSettings — the coach’s exercise library', () => {
+  /*
+   * Caught in review on 16 August 2026, before the field had shipped.
+   * `movements` had no union rule, so `Object.assign` made it winner-wins and
+   * one device's additions were dropped silently — in a list the owner had
+   * just asked to rebuild by hand, which is the worst place for it.
+   */
+  it('UNIONS both sides rather than letting one device win', () => {
+    const out = mergeSettings({ movements: ['Back Squat'] }, { movements: ['Bench Press'] });
+    expect(out.movements).toEqual(['Back Squat', 'Bench Press']);
+  });
+
+  it('de-duplicates case-insensitively, matching addMovement and buildCatalogue', () => {
+    const out = mergeSettings({ movements: ['Back Squat'] }, { movements: ['back squat', 'Row Erg'] });
+    expect(out.movements).toEqual(['Back Squat', 'Row Erg']);
+  });
+
+  it('drops blanks', () => {
+    expect(mergeSettings({ movements: ['  ', 'Row Erg'] }, {}).movements).toEqual(['Row Erg']);
+  });
+
+  it('leaves it ABSENT when neither side has one', () => {
+    /* Absent means "never set", which falls the picker back to mining history.
+       An empty array means an emptied library. Minting `[]` here would silently
+       empty the library of anyone who had never touched the field. */
+    expect(mergeSettings({}, {})).not.toHaveProperty('movements');
+  });
+
+  it('keeps an EMPTY library empty rather than treating it as unset', () => {
+    expect(mergeSettings({ movements: [] }, {}).movements).toEqual([]);
+  });
+});
+
+describe('sanitizeDB guards the coach’s library', () => {
+  /* `buildCatalogue` maps over `movements` with no per-value check, so a
+     string or an object crashes the picker outright. Same guard `folders` and
+     `conditioning` already carry. */
+  it('drops a non-array outright', () => {
+    const db = sanitizeDB({ settings: { movements: 'Back Squat' } });
+    expect(db.settings).not.toHaveProperty('movements');
+  });
+
+  it('keeps only real names, trimmed', () => {
+    const db = sanitizeDB({ settings: { movements: ['  Back Squat  ', 7, null, '', { a: 1 }, 'Row Erg'] } });
+    expect(db.settings.movements).toEqual(['Back Squat', 'Row Erg']);
+  });
+
+  it('leaves an EMPTY library empty, and an absent one absent', () => {
+    /* The two are not the same: absent falls the picker back to mining
+       history, empty does not. */
+    expect(sanitizeDB({ settings: { movements: [] } }).settings.movements).toEqual([]);
+    expect(sanitizeDB({ settings: {} }).settings).not.toHaveProperty('movements');
+  });
+});

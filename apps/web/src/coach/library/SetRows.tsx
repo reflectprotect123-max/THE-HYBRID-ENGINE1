@@ -24,6 +24,21 @@ export interface SetRow {
    * first character — undiscoverable, and indistinguishable from a typo.
    */
   warm?: boolean;
+  /**
+   * The target RPE for this set — `PlannedSet.rpe`.
+   *
+   * Per SET rather than per exercise, even though the bench edits it one
+   * exercise at a time, because that is the shape the engine reads and a
+   * per-exercise field would flatten a workout authored anywhere else. A top
+   * set at 9 with backoffs at 7 is real programming; storing one number for
+   * the exercise would quietly destroy it on the next save.
+   *
+   * A RANGE IS FINE — "7-10", exactly as the owner's own sessions write it.
+   * `rpeCenterOf` takes the mean of every number it finds, so a range is a
+   * band centre and not a parse error. Empty is a defined value too: the
+   * documented 8.5 default.
+   */
+  rpe?: string;
 }
 
 /**

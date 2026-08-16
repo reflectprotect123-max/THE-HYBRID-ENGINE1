@@ -568,11 +568,25 @@ keep.** Recorded here rather than in the deleted app's own header:
   `+5s work`, then `−5s rest`. Contrast `liftProgress`, which stores
   `{kg, at, reps}` and reads back only `kg`, so a `10,8,6` → `9,7,5` wave moves
   no weight at all. That gap is still open.
-- It is nevertheless invisible without a chest strap. `conAdapt` returns at
-  `if (zoned <= 0) return none;` — a session with no zone seconds earns
-  nothing AND is not counted as a miss. Most sessions are strapless, so most
-  sessions are invisible to progression. That is the honest answer to "why
-  doesn't conditioning ever move".
+- It WAS invisible without a chest strap, and that is FIXED as of 16 August
+  2026. The finding stands as the lab reported it: `conAdapt` returns at
+  `if (zoned <= 0) return none;`, so a session with no zone seconds earned
+  nothing AND was not counted as a miss — and most sessions are strapless, so
+  most sessions were invisible to progression. That was the honest answer to
+  "why doesn't conditioning ever move", and it is the best thing the lab
+  produced before it was deleted.
+
+  The owner's fix, in his words: a strapless session "asks for RPE at the end
+  of the session and adds up to the minutes in that easy/medium/hard areas."
+  `withFeltZones` credits the whole duration to the zone the rated effort
+  names, using the RPE bands `CON_EFFORTS` already carried. A rating is ONE
+  number about a WHOLE session, so it lands in one zone rather than pretending
+  to resolve minute by minute.
+
+  **`zsrc: 'felt'` marks a derived distribution and must not be removed.**
+  Without it, self-reported effort is indistinguishable from a chest-strap
+  trace in every chart and export downstream. Measured data always wins — a
+  record that already has zone seconds is returned untouched.
 - Only `steady`, `intervals` and `tempo` progress at all. `custom` is the
   athlete's own numbers by definition and `free` has no target to miss.
 
@@ -653,17 +667,50 @@ the same commit that does the install.
 2. Work in a dedicated Git worktree for a phase; see `docs/WORKTREES.md`.
 3. Keep decision logic pure and add a test before changing a rule.
 4. Run `pnpm run typecheck`, focused Vitest tests, `pnpm run check:ecosystem`,
-   and the relevant web/mobile build before handoff. CI runs EVERY check under
-   `checks/` except the three parity gates, which need an Expo export of the
-   mobile harness — those are `pnpm run check:parity-mobile`, by hand.
+   and the relevant web/mobile build before handoff. **CI runs EVERY check
+   under `checks/`**, with one exception: `check:parity-harness`, which drives
+   the committed prototype HTML that no commit here can change.
 
-   That was not true until 15 August 2026: `screens`, `pwa-update` and
-   `mobile-touch` ran nowhere, and wiring them in immediately caught two live
-   defects — two raw `<Pressable>` in the mobile logger under the touch
-   minimum, and a service worker publishing updates to nobody after
-   `UpdateBanner` was deleted. A check that exists and does not run is worth
-   very little; if you add one, add it to `.github/workflows/ci.yml` in the
-   same commit.
+   THIS SENTENCE HAS BEEN WRONG TWICE, THE SAME WAY BOTH TIMES, and each
+   correction cost a live defect.
+
+   Until 15 August 2026 it excluded `screens`, `pwa-update` and
+   `mobile-touch`, which ran nowhere. Wiring them in immediately caught two:
+   two raw `<Pressable>` in the mobile logger under the touch minimum, and a
+   service worker publishing updates to nobody after `UpdateBanner` was
+   deleted.
+
+   Until 16 August 2026 it excluded the two MOBILE PARITY gates, on the
+   grounds that they need an Expo export first. They had been failing for a
+   day: `RunningSession` grew a `useDb()` call, the parity harness mounts
+   `SessionLogger` without the `DbProvider` the app's own route has, and the
+   screen threw on mount — so both gates walked into a blank page and died
+   reporting a missing selector, which reads like a broken driver rather than
+   a crashed screen. Nothing else in CI drives the phone logger end to end.
+   They are in `.github/workflows/ci.yml` now.
+
+   A check that exists and does not run is worth very little; if you add one,
+   add it to `.github/workflows/ci.yml` in the same commit. And if you exclude
+   one, the exclusion is a claim that ages — say why in the workflow, and
+   expect to be wrong.
+
+   **A check that runs in CI and NOT in `verify` is the same trap from the
+   other side**, found on 16 August 2026. `checks/docs.mjs` is CI's first step
+   and was not in `verify`, so it sat RED on main from 14 August — the README
+   named six deleted packages and two deleted exports — while every local
+   `pnpm run verify` came back green and said nothing. It is in `verify` now.
+   The two lists should agree; where they cannot, the difference is a claim
+   that needs a reason written beside it.
+
+   **The visual parity baselines are the APP's own since 16 August 2026, not
+   the prototype's.** The app deliberately moved past the prototype — the
+   weight field now prices its opener from history, and the finish card
+   carries a session time the prototype has no row for — and the owner
+   confirmed the app is the standard in both. The cost, stated in
+   `checks/parity-visual.mjs` itself: that gate now catches an ACCIDENTAL
+   visual change and no longer measures drift away from the design.
+   Re-recording is a decision to take out loud, never a way to turn a red run
+   green.
 5. Never run production migrations, EAS submissions, Netlify deploys, or
    destructive data operations without an explicit approval and rollback plan.
 

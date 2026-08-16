@@ -536,6 +536,9 @@ function ExerciseItem({
   const [expanded, setExpanded] = useState(false);
   const count = exercise.sets.length;
   const emom = (exercise.every ?? 0) > 0;
+  /* The RPE every set agrees on, or null when they disagree — see the field. */
+  const rpeValues = new Set(exercise.sets.map((st) => (st.rpe ?? '').trim()));
+  const sharedRpe = rpeValues.size <= 1 ? ([...rpeValues][0] ?? '') : null;
 
   return (
     <li className={`cb-item${expanded ? ' expanded' : ''}`}>
@@ -623,6 +626,45 @@ function ExerciseItem({
               }}
             />
           </label>
+          <label className="cb-field-block">
+            <span className="cal-field-label">
+              Target RPE <span className="cb-optional-inline">optional</span>
+            </span>
+            <input
+              type="text"
+              className="cb-text-input"
+              placeholder="8, or 7-10"
+              value={sharedRpe ?? ''}
+              onChange={(e) =>
+                onPatch({ sets: exercise.sets.map((st) => ({ ...st, rpe: e.target.value })) })
+              }
+            />
+          </label>
+          {/*
+            * EDITED PER EXERCISE, STORED PER SET.
+            *
+            * The owner's own sessions write one band for the movement — "RPE
+            * 7–10" — so that is the control. The value lands on every set,
+            * because `PlannedSet.rpe` is where the engine reads it and a
+            * per-exercise field would flatten a workout authored anywhere else
+            * on its next save: a top set at 9 with backoffs at 7 is real
+            * programming.
+            *
+            * So the field shows the shared value when every set agrees and
+            * BLANK when they do not, rather than picking one and quietly
+            * making it true of all of them. Typing into a blank field is then
+            * an explicit choice to set them all, which is a thing the coach
+            * did rather than a thing the screen did behind them.
+            *
+            * A RANGE IS A VALID VALUE, not a parse failure — `rpeCenterOf`
+            * averages every number in the string, so "7-10" is a band centre
+            * of 8.5. Empty is valid too, and is that same documented default.
+            */}
+          {sharedRpe === null && (
+            <p className="cb-note cb-pace-note">
+              These sets have different RPE targets. Typing here sets them all to one.
+            </p>
+          )}
           <p className="cb-note cb-pace-note">
             {emom
               ? `${fmtEvery(exercise.every ?? 0)} × ${exercise.sets.length} ${
