@@ -88,15 +88,43 @@ describe('SetRows', () => {
     expect(props.onColumnChange).toHaveBeenCalledWith('a', 'seconds');
   });
 
-  it('adds a set', () => {
+  /*
+   * ONE PAIR OF CONTROLS, NOT ONE PER ROW (16 August 2026).
+   *
+   * The per-row `×` these were written against had no cell to sit in: the
+   * stylesheet lays `.cb-set-row` out as `24px 1fr 1fr` — number, value,
+   * value — so a fourth child wrapped onto a line of its own under every set.
+   * The mockup ends the table with `− Sets +` instead, and that is what these
+   * now drive.
+   */
+  it('adds a set from the table footer', () => {
     const props = renderSets();
-    fireEvent.click(screen.getByRole('button', { name: /add set/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add a set/i }));
     expect(vi.mocked(props.onSetsChange).mock.calls[0][0]).toHaveLength(4);
   });
 
-  it('removes a set', () => {
+  it('removes the LAST set, so the numbering never has a hole in it', () => {
     const props = renderSets();
-    fireEvent.click(screen.getAllByRole('button', { name: /remove set/i })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /remove a set/i }));
     expect(vi.mocked(props.onSetsChange).mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it('will not remove the last remaining set', () => {
+    /* An exercise with no sets is not a lighter exercise, it is a broken one:
+       `day-workout.ts` would emit it with an empty `sets` array and the
+       athlete's logger would have nothing to open. */
+    const props = renderSets({ sets: [{ id: 's1', a: '', b: '' }] });
+    const minus = screen.getByRole('button', { name: /remove a set/i });
+    expect(minus).toBeDisabled();
+    fireEvent.click(minus);
+    expect(props.onSetsChange).not.toHaveBeenCalled();
+  });
+
+  it('labels the footer controls without repeating the count', () => {
+    /* The count is the row's own `.cb-sets-pill`, one level up. Printing it
+       here as well would be two renderings of one number on one screen. */
+    renderSets();
+    expect(screen.getByText('Sets')).toBeInTheDocument();
+    expect(screen.queryByText('3 Sets')).not.toBeInTheDocument();
   });
 });

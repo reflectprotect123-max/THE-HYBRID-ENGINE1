@@ -197,27 +197,13 @@ export function BlockEditor({
           <div className="cb-strength-body">
             <ol className="cb-block-items">
               {block.exercises.map((ex, i) => (
-                <li key={ex.id} className="cb-item">
-                  <span className="cal-letter-chip">{letterFor(i)}</span>
-                  <span className="name">{ex.name}</span>
-                  <button
-                    type="button"
-                    className="cb-block-remove"
-                    aria-label={`Remove ${ex.name}`}
-                    onClick={() => removeExercise(ex.id)}
-                  >
-                    <Cross />
-                  </button>
-                  <SetRows
-                    sets={ex.sets}
-                    columnA={ex.columnA}
-                    columnB={ex.columnB}
-                    onColumnChange={(which, value) =>
-                      patchExercise(ex.id, which === 'a' ? { columnA: value } : { columnB: value })
-                    }
-                    onSetsChange={(sets) => patchExercise(ex.id, { sets })}
-                  />
-                </li>
+                <ExerciseItem
+                  key={ex.id}
+                  exercise={ex}
+                  letter={letterFor(i)}
+                  onRemove={() => removeExercise(ex.id)}
+                  onPatch={(patch) => patchExercise(ex.id, patch)}
+                />
               ))}
             </ol>
 
@@ -375,3 +361,91 @@ function CondBlockFields({
 const MODALITY_LABELS: Record<string, string> = {
   row: 'Row', run: 'Run', ski: 'Ski', bike: 'Bike', air_bike: 'Air bike',
 };
+
+/**
+ * ONE EXERCISE IN A BLOCK: a row you can read at a glance, opening into its
+ * sets.
+ *
+ * Rebuilt to the mockup on 16 August 2026. What shipped before was the same
+ * data with none of the shape — a letter, a name, a remove button, and then
+ * the full sets table inline, for every exercise, always. Five exercises in a
+ * block meant five stacked tables and a page a coach had to scroll past to
+ * reach the one they wanted.
+ *
+ * The mockup collapses it. A row is `[letter] [name] [3 Sets]`, and clicking
+ * the row opens the editor beneath it. That is not decoration: the stylesheet
+ * was ported whole in stage 1 and has carried `.cb-item-head-row`,
+ * `.cb-item-head`, `.cb-sets-pill`, `.cb-item.expanded` and `.cb-exp`
+ * (`display: none` until expanded) ever since, describing exactly this. None
+ * of it was rendered, so it was invisible — the same failure as the exercise
+ * picker two commits ago, and 41 of the stylesheet's 77 `cb-` classes are
+ * still in that state.
+ *
+ * WHAT IS DELIBERATELY NOT PORTED, because the mockup's `.cb-exp` also holds:
+ *
+ *   - `.cb-exp-cues`, a per-exercise instructions box with a 0/500 counter
+ *   - `.cb-swaps`, suggested swaps and points of performance
+ *   - `.cb-opt-toggle`, an "Optional" checkbox per column
+ *
+ * `BlockExercise` has nowhere to put any of them — no `cues`, no `swaps`, no
+ * per-column optional flag — and `day-workout.ts` would drop them on the way
+ * to a `Workout`. A textarea a coach types into that is discarded on save is
+ * worse than no textarea, so they wait for the data model rather than
+ * arriving as scenery.
+ */
+function ExerciseItem({
+  exercise,
+  letter,
+  onRemove,
+  onPatch,
+}: {
+  exercise: BlockExercise;
+  letter: string;
+  onRemove: () => void;
+  onPatch: (patch: Partial<BlockExercise>) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const count = exercise.sets.length;
+
+  return (
+    <li className={`cb-item${expanded ? ' expanded' : ''}`}>
+      <div className="cb-item-head-row">
+        <button
+          type="button"
+          className="cb-item-head"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <span className="cal-letter-chip">{letter}</span>
+          <span className="cb-item-name">{exercise.name}</span>
+          {/* The mockup's own wording and capitalisation: "1 Set", "3 Sets". */}
+          <span className="cb-sets-pill">{count === 1 ? '1 Set' : `${count} Sets`}</span>
+        </button>
+        <button
+          type="button"
+          className="cb-item-remove"
+          aria-label={`Remove ${exercise.name}`}
+          onClick={onRemove}
+        >
+          <Cross />
+        </button>
+      </div>
+
+      {/*
+        * ALWAYS RENDERED, hidden by `.cb-exp`'s own `display: none` until the
+        * item carries `expanded`. Mounting it conditionally would put React in
+        * charge of a visibility the stylesheet already owns — which is the
+        * exact mistake that made the picker unreachable at desktop width.
+        */}
+      <div className="cb-exp">
+        <SetRows
+          sets={exercise.sets}
+          columnA={exercise.columnA}
+          columnB={exercise.columnB}
+          onColumnChange={(which, value) => onPatch(which === 'a' ? { columnA: value } : { columnB: value })}
+          onSetsChange={(sets) => onPatch({ sets })}
+        />
+      </div>
+    </li>
+  );
+}

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { CatalogueEntry } from '@hybrid/engine';
 import { BlockEditor, BLOCK_CATEGORIES, type BlockValue } from './BlockEditor';
+import { newSetRows } from './SetRows';
 
 const entries: CatalogueEntry[] = [
   { name: 'Back Squat', tags: ['Barbell'], uses: 2 },
@@ -208,5 +209,70 @@ describe('BlockEditor — reaching the exercise picker', () => {
     expect(document.querySelector('.cb-picker')?.className).toBe('cb-picker');
     fireEvent.click(screen.getByText('+ Add exercise from library'));
     expect(document.querySelector('.cb-picker')?.className).toBe('cb-picker picker-open');
+  });
+});
+
+/*
+ * THE EXERCISE ROW COLLAPSES, which is what the stylesheet has described since
+ * stage 1 and what the markup did not do until 16 August 2026.
+ *
+ * `.cb-exp { display: none }` / `.cb-item.expanded .cb-exp { display: block }`
+ * is the whole mechanism, so — exactly as with the picker — React must not also
+ * decide whether the editor exists. These assert the class, because the class
+ * is the contract; jsdom applies no stylesheet and cannot see the result.
+ */
+describe('BlockEditor — the exercise row', () => {
+  const withSquat = {
+    block: {
+      id: 'b1',
+      category: 'Strength/Power',
+      exercises: [{ id: 'e1', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', sets: newSetRows('e1') }],
+    } as BlockValue,
+  };
+
+  it('opens collapsed, showing the letter, the name and a set count', () => {
+    renderBlock(withSquat);
+    const item = document.querySelector('.cb-item') as HTMLElement;
+    expect(item.className).toBe('cb-item');
+    expect(within(item).getByText('A')).toBeInTheDocument();
+    expect(within(item).getByText('Back Squat')).toBeInTheDocument();
+    expect(within(item).getByText('3 Sets')).toBeInTheDocument();
+  });
+
+  it('expands and collapses on the row, and keeps the editor mounted either way', () => {
+    /* Mounted either way is the point. The sets table has to be in the DOM for
+       `.cb-exp` to hide it, and hiding it is the stylesheet's job. */
+    renderBlock(withSquat);
+    expect(document.querySelector('.cb-exp')).not.toBeNull();
+
+    /* Scoped to the item: the BLOCK's own collapse chevron carries
+       aria-expanded too, and an unscoped query cannot tell them apart. */
+    const item = () => document.querySelector('.cb-item') as HTMLElement;
+    fireEvent.click(item().querySelector('.cb-item-head') as HTMLElement);
+    expect(item().className).toBe('cb-item expanded');
+    expect(document.querySelector('.cb-exp')).not.toBeNull();
+
+    fireEvent.click(item().querySelector('.cb-item-head') as HTMLElement);
+    expect(item().className).toBe('cb-item');
+  });
+
+  it('keeps Remove OUT of the head button, so opening a row cannot delete it', () => {
+    /* `.cb-item-head` is a button and `.cb-item-remove` is its sibling in
+       `.cb-item-head-row` — nesting the second inside the first would be
+       invalid HTML and would fire both handlers on one click. */
+    const props = renderBlock(withSquat);
+    const remove = screen.getByRole('button', { name: /remove back squat/i });
+    expect(remove.closest('.cb-item-head')).toBeNull();
+    expect(remove.closest('.cb-item-head-row')).not.toBeNull();
+
+    fireEvent.click(remove);
+    expect(vi.mocked(props.onChange).mock.calls.at(-1)?.[0].exercises).toHaveLength(0);
+  });
+
+  it('tracks the set count in the pill as sets are added', () => {
+    const props = renderBlock(withSquat);
+    fireEvent.click(screen.getByRole('button', { name: /add a set/i }));
+    const next = vi.mocked(props.onChange).mock.calls.at(-1)?.[0] as BlockValue;
+    expect(next.exercises[0].sets).toHaveLength(4);
   });
 });
