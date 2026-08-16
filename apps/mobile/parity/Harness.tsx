@@ -9,6 +9,7 @@ import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@hybrid/design';
 import { SessionLogger } from '../src/screens/logger/SessionLogger';
+import { DbProvider } from '../src/store/db';
 
 /*
  * The parity harness.
@@ -79,9 +80,30 @@ export function Harness() {
        exactly what keeps the shots comparable with the prototype's. */
     <SafeAreaProvider>
       <ThemeProvider world="strength">
-        <View testID="parity-harness-ready" style={{ flex: 1 }}>
-          <SessionLogger />
-        </View>
+        {/*
+          * `DbProvider`, and this harness ran WITHOUT it for a while.
+          *
+          * `RunningSession` started calling `useDb()` on 16 August 2026, to
+          * reach the history that prices an opening weight. The app has always
+          * had a provider above the Logger route; this harness did not, so the
+          * screen threw "useDb outside DbProvider" the moment it mounted and
+          * both parity gates died on a blank page.
+          *
+          * NOTHING CAUGHT IT, because the parity gates are the three checks
+          * CLAUDE.md excludes from CI — they need an Expo export first. That
+          * is the exact shape this repository keeps paying for: a check that
+          * exists and does not run. The gates are wired into CI in the same
+          * commit as this fix.
+          *
+          * It is also the more faithful harness. The provider reads the same
+          * `localStorage` key the driver seeds, so the screen now boots from
+          * the fixture the way it boots from real data on a phone.
+          */}
+        <DbProvider>
+          <View testID="parity-harness-ready" style={{ flex: 1 }}>
+            <SessionLogger />
+          </View>
+        </DbProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
