@@ -76,11 +76,26 @@ export interface BlockExercise {
    * nothing covers rest between strength sets.
    */
   rest: number;
+  /**
+   * EMOM pacing in seconds — see `Exercise.every`. Zero or absent means the
+   * plain rest above, which is the mode every exercise authored before
+   * 16 August 2026 is in.
+   */
+  every?: number;
   sets: SetRow[];
 }
 
 /** Ninety seconds — the same default `newEx` gives an exercise on the phone. */
 export const DEFAULT_REST_SEC = 90;
+
+/** Two and a half minutes — the interval in the session the owner sent. */
+export const DEFAULT_EVERY_SEC = 150;
+
+/** "2:30", the way a coach writes an interval. */
+export function fmtEvery(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 export interface BlockValue {
   id: string;
@@ -131,6 +146,7 @@ export function BlockEditor({
   entries,
   index,
   startCollapsed = false,
+  onCreateMovement,
   onChange,
   onRemove,
 }: {
@@ -145,6 +161,13 @@ export function BlockEditor({
    * pressed Add block is about to fill it in.
    */
   startCollapsed?: boolean;
+  /**
+   * Put a brand-new movement into the coach's own library, so it is there the
+   * next time the picker opens. Without it "+ New exercise" only ever added
+   * the movement to THIS block and the library never grew — which is exactly
+   * the state the emptied library would have been stuck in.
+   */
+  onCreateMovement?: (name: string) => void;
   onChange: (next: BlockValue) => void;
   onRemove: () => void;
 }) {
@@ -336,7 +359,9 @@ export function BlockEditor({
               open={pickerOpen}
               onPick={addExercise}
               onNewExercise={(name) => {
-                if (name) addExercise(name);
+                if (!name) return;
+                onCreateMovement?.(name);
+                addExercise(name);
               }}
               onDone={() => setPickerOpen(false)}
             />
@@ -510,6 +535,7 @@ function ExerciseItem({
 }) {
   const [expanded, setExpanded] = useState(false);
   const count = exercise.sets.length;
+  const emom = (exercise.every ?? 0) > 0;
 
   return (
     <li className={`cb-item${expanded ? ' expanded' : ''}`}>
@@ -547,18 +573,64 @@ function ExerciseItem({
           * names for a labelled field inside the expanded editor — both were
           * ported in stage 1 and neither had ever been rendered.
           */}
-        <label className="cb-field-block">
-          <span className="cal-field-label">Rest between sets (seconds)</span>
-          <input
-            className="cb-text-input"
-            type="number"
-            min={0}
-            step={15}
-            inputMode="numeric"
-            value={exercise.rest}
-            onChange={(e) => onPatch({ rest: Math.max(0, Number(e.target.value) || 0) })}
-          />
-        </label>
+        {/*
+          * HOW THIS EXERCISE IS PACED, in the one place the coach was already
+          * setting rest — the owner's own instruction on 16 August 2026: "the
+          * format needs to sit in the rest screen with a single or an emom
+          * style with a timer, which is then X the amount of sets."
+          *
+          * The two are genuinely different clocks and the labels say so.
+          * "Rest between sets" starts when a set ENDS. "Every" is one window
+          * that the set and its recovery share, so a slow set leaves less
+          * rest — that is what makes it EMOM rather than a renamed rest. The X
+          * is the exercise's own set count; nothing separate is authored.
+          *
+          * Switching back to Rest keeps `every` rather than clearing it, and
+          * vice versa, so a coach flipping between the two to compare does not
+          * lose the number they typed.
+          */}
+        <div className="cb-pace">
+          <label className="cb-field-block">
+            <span className="cal-field-label">Pacing</span>
+            <select
+              className="cb-text-input"
+              aria-label="Pacing"
+              value={emom ? 'every' : 'rest'}
+              onChange={(e) =>
+                onPatch(
+                  e.target.value === 'every'
+                    ? { every: exercise.every && exercise.every > 0 ? exercise.every : DEFAULT_EVERY_SEC }
+                    : { every: 0 },
+                )
+              }
+            >
+              <option value="rest">Rest between sets</option>
+              <option value="every">Every — start each set on the clock</option>
+            </select>
+          </label>
+          <label className="cb-field-block">
+            <span className="cal-field-label">{emom ? 'Every (seconds)' : 'Rest (seconds)'}</span>
+            <input
+              className="cb-text-input"
+              type="number"
+              min={0}
+              step={15}
+              inputMode="numeric"
+              value={emom ? (exercise.every ?? 0) : exercise.rest}
+              onChange={(e) => {
+                const n = Math.max(0, Number(e.target.value) || 0);
+                onPatch(emom ? { every: n } : { rest: n });
+              }}
+            />
+          </label>
+          <p className="cb-note cb-pace-note">
+            {emom
+              ? `${fmtEvery(exercise.every ?? 0)} × ${exercise.sets.length} ${
+                  exercise.sets.length === 1 ? 'set' : 'sets'
+                } — each set starts on the clock, so a slower set gets less rest.`
+              : 'The countdown starts when the set ends.'}
+          </p>
+        </div>
 
         <SetRows
           sets={exercise.sets}

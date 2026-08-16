@@ -625,7 +625,7 @@
   .cb-cond-zone-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 650; color: var(--color-text); background: var(--color-well); border: 1px solid var(--color-line2); border-radius: var(--radius-pill); padding: 6px 12px; width: fit-content; }
   .cb-cond-zone-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-z-mod); box-shadow: 0 0 8px 1px currentColor; }
   .cb-cond-summary { margin: 0; font-size: 11px; color: var(--color-dim); }
-  @media (max-width: 560px) { .cb-cond-grid { grid-template-columns: repeat(2, 1fr); } .cb-cond-grid3 { grid-template-columns: 1fr; } .cb-block-meta { grid-template-columns: 1fr 1fr; } .cb-block-meta > label:first-child { grid-column: 1 / -1; } }
+  @media (max-width: 560px) { .cb-cond-grid { grid-template-columns: repeat(2, 1fr); } .cb-cond-grid3 { grid-template-columns: 1fr; } .cb-block-meta { grid-template-columns: 1fr 1fr; } .cb-block-meta > label:first-child { grid-column: 1 / -1; } .cb-pace { grid-template-columns: 1fr; } }
 
   .cb-block-items { list-style: none; margin: 0; padding: 0; }
   .cb-block-items:empty { display: none; }

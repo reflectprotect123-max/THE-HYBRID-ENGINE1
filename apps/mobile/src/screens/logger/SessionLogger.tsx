@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { isCond, isText, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
+import { isCond, isText, sessionDuration, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useSession, type Action, type SessionView } from '@hybrid/session-authoring';
 import type { LoadContext } from '@hybrid/engine';
 import { Tap } from '../../ui';
@@ -111,6 +111,39 @@ export function useLoggerBridge(
     }
   }, [view.rest, startRest, stopRest, addRest]);
 
+  /*
+   * THE SET'S OWN CLOCK, and it only exists because of EMOM pacing.
+   *
+   * `RestTakeover` has always owned the countdown while a rest is up. Nothing
+   * counted seconds while a SET was open, because nothing needed to — plain
+   * rest starts when the set ends. `Exercise.every` starts when the set
+   * starts, so the reducer has to be told how long the set took, and this is
+   * the tick that tells it. The reducer ignores it while a rest is running,
+   * so the two clocks cannot both advance and this cannot double-count.
+   *
+   * Only armed for a session that actually paces something, so an ordinary
+   * session runs no extra interval at all.
+   *
+   * AND ONLY WHILE NO REST IS UP. `RestTakeover` mounts its own interval for
+   * the rest countdown, so leaving this one running would send two `tick`s a
+   * second and burn every rest down at double speed. The reducer's guard
+   * decides which clock a tick advances; this decides that only one interval
+   * exists at a time.
+   */
+  const paced = useMemo(
+    () =>
+      session.blocks.some(
+        (b) => isStrengthBlock(b) && b.exercises.some((e) => (e.every ?? 0) > 0),
+      ),
+    [session.blocks],
+  );
+  const resting = !!view.rest;
+  useEffect(() => {
+    if (!paced || resting) return;
+    const id = setInterval(() => dispatch({ type: 'tick' }), 1000);
+    return () => clearInterval(id);
+  }, [paced, resting, dispatch]);
+
   return { view, dispatch, session };
 }
 
@@ -206,7 +239,12 @@ function RunningSession({ session: initialSession }: { session: Session }) {
             title={currentTitle}
             receipt={
               allDone && onLastBlock ? (
-                <FinishCard blocks={view.blocks.length} setsLogged={setsLogged} bestE1rm={view.bestE1rm} />
+                <FinishCard
+                  blocks={view.blocks.length}
+                  setsLogged={setsLogged}
+                  bestE1rm={view.bestE1rm}
+                  seconds={sessionDuration(session)}
+                />
               ) : null
             }
             rounds={view.rounds}

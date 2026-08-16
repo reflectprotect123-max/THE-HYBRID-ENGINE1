@@ -51,6 +51,24 @@ export interface Exercise<S extends AnySet = LoggedSet> {
   /** seconds */
   rest?: number;
   /**
+   * EMOM pacing, in seconds: every set STARTS this far apart, however long the
+   * last one took. Absent means the ordinary `rest` countdown, which starts
+   * when a set ends.
+   *
+   * The two are different clocks and that is the whole reason this exists.
+   * "90 seconds rest" means 90 seconds AFTER the set; "every 2:30" means the
+   * set and the recovery share one window, so a set that took 40 seconds
+   * leaves 110 and a set that took 90 leaves 60. The owner asked for it on
+   * 16 August 2026 in exactly those terms — "a single or an emom style with a
+   * timer, which is then X the amount of sets" — and the X is the set count
+   * the exercise already carries.
+   *
+   * When both are present `every` wins, because it is the more specific
+   * instruction; `rest` is kept rather than cleared so switching the mode back
+   * does not lose the number the coach typed.
+   */
+  every?: number;
+  /**
    * The smallest step this movement's load can actually move by, in kg.
    *
    * A barbell moves in 2.5kg (the pair of 1.25s); a dumbbell rack moves in 2;
@@ -262,6 +280,25 @@ export interface Session {
   completedAt?: number;
   updatedAt?: number;
   workoutId?: string;
+  /**
+   * Every time the athlete moved INTO a block, in order, as wall-clock stamps.
+   *
+   * TIMESTAMPS RATHER THAN A STOPWATCH, deliberately. A counting timer has to
+   * be told what to do every time the phone locks, the app is backgrounded or
+   * Android reclaims it, and it silently loses or double-counts whenever one
+   * of those is missed. Two times of day survive the process dying outright —
+   * which is exactly why `startedAt`/`completedAt` have always been the way
+   * session duration is known, and this is the same trick per block.
+   *
+   * It is a LIST rather than one stamp per block because an athlete can go
+   * back: block 1, block 2, block 1 again is three segments, and a single
+   * "when did I first enter this" would attribute the third to the wrong
+   * place. `blockDurations` sums the segments per block.
+   *
+   * Session-only. It never appears on a `Workout`, because it is a fact about
+   * a run and not about a plan.
+   */
+  blockLog?: { id: string; at: number }[];
 }
 
 /** A finished conditioning effort, stored on its block and in settings history. */

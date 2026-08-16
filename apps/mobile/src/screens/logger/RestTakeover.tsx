@@ -83,7 +83,12 @@ export function RestTakeover({
       accessibilityLabel="Resting"
       style={st.takeover}
     >
-      <Text style={st.takeoverKind}>{timed ? 'rest' : 'block done'}</Text>
+      {/* A paced rest is a DEADLINE, not a rest — see `RestState.paced`. The
+          athlete is being told when the next set is owed, which is a different
+          sentence from how long they get to recover. */}
+      <Text style={st.takeoverKind}>
+        {timed ? (rest.paced ? 'next set in' : 'rest') : 'block done'}
+      </Text>
 
       {timed ? (
         <View testID="rest-dial" style={st.dialWrap}>
@@ -115,7 +120,12 @@ export function RestTakeover({
       ) : null}
 
       <View style={st.takeoverActions}>
-        {timed && rest.left > 0 ? (
+        {/* No +15 on a paced rest. The clock is the instruction — pushing it
+            out would leave every later set in the window late by the same
+            amount, and the screen would still claim to be counting to a fixed
+            interval. An athlete who needs longer takes it; the app just does
+            not pretend that is still EMOM. */}
+        {timed && !rest.paced && rest.left > 0 ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Fifteen seconds more"

@@ -13,6 +13,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  blockDurations,
+  sessionDuration,
   detectPRs,
   duplicateExercise,
   duplicateWorkout,
@@ -366,3 +368,74 @@ describe('detectPRs scans every block for a lift, not just the first (E3)', () =
   });
 });
 
+
+describe('how long each part took', () => {
+  /*
+   * Added 16 August 2026. The owner asked for a stopwatch per block; this is
+   * the cheaper shape that answers the same question — wall-clock stamps, the
+   * way session duration has always been known, so nothing has to survive the
+   * phone locking or the app being reclaimed mid-session.
+   */
+  const sess = (over: Partial<Session>): Session =>
+    ({ id: 's', date: '2026-08-16', status: 'completed', blocks: [], ...over }) as unknown as Session;
+
+  it('measures each block up to the next one, and the last up to the finish', () => {
+    const s = sess({
+      blockLog: [
+        { id: 'warm', at: 1_000_000 },
+        { id: 'strength', at: 1_000_000 + 600_000 },
+      ],
+      completedAt: 1_000_000 + 600_000 + 900_000,
+    });
+    expect(blockDurations(s)).toEqual({ warm: 600, strength: 900 });
+  });
+
+  it('SUMS a block the athlete came back to', () => {
+    /* The case one "first entered at" stamp per block could not describe, and
+       the reason `blockLog` is a list. */
+    const s = sess({
+      blockLog: [
+        { id: 'a', at: 0 },
+        { id: 'b', at: 60_000 },
+        { id: 'a', at: 90_000 },
+      ],
+      completedAt: 120_000,
+    });
+    /* `a` ran 0–60s and again 90–120s: sixty plus thirty. */
+    expect(blockDurations(s)).toEqual({ a: 90, b: 30 });
+  });
+
+  it('leaves a block the athlete never opened OUT, rather than at zero', () => {
+    /* Zero says "they were there and it took no time"; absent says "they were
+       never there", and only the second is true of a session that ended early. */
+    const s = sess({ blockLog: [{ id: 'a', at: 0 }], completedAt: 60_000 });
+    expect(blockDurations(s).b).toBeUndefined();
+  });
+
+  it('needs a clock for a live session, and drops the open segment without one', () => {
+    const live = sess({ status: 'active', blockLog: [{ id: 'a', at: 0 }, { id: 'b', at: 60_000 }] });
+    expect(blockDurations(live)).toEqual({ a: 60 });
+    expect(blockDurations(live, 90_000)).toEqual({ a: 60, b: 30 });
+  });
+
+  it('never reports negative time when the device clock went backwards', () => {
+    const s = sess({ blockLog: [{ id: 'a', at: 60_000 }], completedAt: 0 });
+    expect(blockDurations(s)).toEqual({ a: 0 });
+  });
+
+  it('is empty for a session logged before any of this existed', () => {
+    expect(blockDurations(sess({ completedAt: 5 }))).toEqual({});
+  });
+});
+
+describe('sessionDuration', () => {
+  it('is the two stamps that have always been there', () => {
+    expect(
+      sessionDuration({ startedAt: 1_000, completedAt: 91_000 } as unknown as Session),
+    ).toBe(90);
+  });
+
+  it('is zero for a session that never finished', () => {
+    expect(sessionDuration({ startedAt: 1_000 } as unknown as Session)).toBe(0);
+  });
+});

@@ -129,3 +129,44 @@ describe('RestTakeover — a block turn', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'dismissRest' });
   });
 });
+
+describe('RestTakeover — an EMOM window', () => {
+  const pacedRest = (over: Partial<RestState> = {}): RestState => ({
+    left: 110,
+    total: 150,
+    kind: 'set',
+    paced: true,
+    ...over,
+  });
+
+  it('calls it a deadline rather than a rest', () => {
+    /* "1:50 rest" and "next set in 1:50" are different promises. The second
+       one did not start when the set ended — see `RestState.paced`. */
+    const r = render(
+      <RestTakeover rest={pacedRest()} hot={hot} draftKg={null} blocks={blocks} blockIndex={0} dispatch={noop} />,
+    );
+    expect(r.getByText('next set in')).toBeTruthy();
+    expect(r.queryByText('rest')).toBeNull();
+  });
+
+  it('still draws the dial against the whole window', () => {
+    const r = render(
+      <RestTakeover rest={pacedRest()} hot={hot} draftKg={null} blocks={blocks} blockIndex={0} dispatch={noop} />,
+    );
+    expect(r.getByTestId('rest-dial')).toBeTruthy();
+    expect(r.getByText('1:50')).toBeTruthy();
+  });
+
+  it('offers no +15, because pushing the clock out is not EMOM any more', () => {
+    const r = render(
+      <RestTakeover rest={pacedRest()} hot={hot} draftKg={null} blocks={blocks} blockIndex={0} dispatch={noop} />,
+    );
+    expect(r.queryByLabelText('Fifteen seconds more')).toBeNull();
+    /* And a plain rest still does, so this is the paced case and not a
+       regression in the ordinary one. */
+    const plain = render(
+      <RestTakeover rest={setRest()} hot={hot} draftKg={null} blocks={blocks} blockIndex={0} dispatch={noop} />,
+    );
+    expect(plain.getByLabelText('Fifteen seconds more')).toBeTruthy();
+  });
+});

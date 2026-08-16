@@ -19,6 +19,18 @@ export interface RunState {
   blockIndex: number;
   draft: Draft | null;
   rest: RestState | null;
+  /**
+   * Seconds the current set has been open, counted by `tick`.
+   *
+   * Only EMOM pacing needs it — `Exercise.every` measures from when a set
+   * STARTS, so the rest owed afterwards is the window minus whatever the set
+   * itself used. Plain `rest` ignores it entirely. Reset by every action that
+   * begins a new set: logging one, skipping one, changing block.
+   *
+   * A `tick` while a rest is running advances the REST, not this, so a long
+   * rest cannot eat the next set's window before that set has begun.
+   */
+  sinceSet: number;
 }
 
 export type Action =
@@ -58,7 +70,7 @@ function draftFor(session: Session, blockIndex: number, ctx: LoadContext): Draft
  * fold alone: see `openDraft` for why that default is the safe one.
  */
 export function initialRun(session: Session, ctx: LoadContext = {}): RunState {
-  return { blockIndex: 0, draft: draftFor(session, 0, ctx), rest: null };
+  return { blockIndex: 0, draft: draftFor(session, 0, ctx), rest: null, sinceSet: 0 };
 }
 
 /** Rebuild the session with one block replaced. */
@@ -88,10 +100,10 @@ export function reduce(
       if (!item) return { session, run };
       const logged = applyDraft(block, item, run.draft);
       const nextSession = withBlock(session, run.blockIndex, logged);
-      const rest = restAfter(logged, item);
+      const rest = restAfter(logged, item, run.sinceSet);
       const nextItem = nextUp(logged);
       const draft = nextItem ? openDraft(logged, nextItem, ctx) : null;
-      return { session: nextSession, run: { ...run, draft, rest } };
+      return { session: nextSession, run: { ...run, draft, rest, sinceSet: 0 } };
     }
 
     // A prep piece is not a rated set — it never gives a `felt`, and writing
@@ -162,7 +174,8 @@ export function reduce(
       if (!item) return { session, run };
       const following = itemAfter(block, item);
       const draft = following ? openDraft(block, following, ctx) : null;
-      return { session, run: { ...run, draft } };
+      /* A different set is now open, so its window starts here. */
+      return { session, run: { ...run, draft, sinceSet: 0 } };
     }
 
     case 'addSet': {
@@ -185,11 +198,46 @@ export function reduce(
 
     case 'goToBlock': {
       if (action.index < 0 || action.index >= session.blocks.length) return { session, run };
-      return { session, run: { ...run, blockIndex: action.index, draft: draftFor(session, action.index, ctx), rest: null } };
+      /*
+       * ENTERING A BLOCK IS STAMPED, so the recap can say how long each part
+       * took. See `Session.blockLog` for why this is a wall-clock stamp and
+       * not a stopwatch, and why it is a list — an athlete going back to an
+       * earlier block opens a second segment for it rather than overwriting
+       * the first.
+       *
+       * The second impure edge in this package, alongside `finish`, and for
+       * the same unavoidable reason: the moment a thing happened is not
+       * derivable from the state it happened to.
+       *
+       * Re-selecting the block already open stamps NOTHING. The athlete has
+       * not gone anywhere, and a stamp there would end the current segment and
+       * start an identical one — harmless to the arithmetic, but it would fill
+       * the log with entries describing a move nobody made.
+       */
+      const sameBlock = action.index === run.blockIndex;
+      const target = session.blocks[action.index];
+      const stamped: Session =
+        sameBlock || !target?.id
+          ? session
+          : { ...session, blockLog: [...(session.blockLog ?? []), { id: target.id, at: Date.now() }] };
+      return {
+        session: stamped,
+        run: { ...run, blockIndex: action.index, draft: draftFor(stamped, action.index, ctx), rest: null, sinceSet: 0 },
+      };
     }
 
     case 'tick': {
-      if (!run.rest) return { session, run };
+      /*
+       * WITH NO REST RUNNING, A TICK IS THE SET'S OWN CLOCK.
+       *
+       * It used to be ignored outright, because the only thing that counted
+       * seconds was a rest. EMOM pacing needs the other half: `Exercise.every`
+       * measures from when a set starts, so `restAfter` has to be told how
+       * much of the window the set consumed. Ticking here and nowhere else
+       * keeps that in one place, and keeps the reducer pure — the caller
+       * decides when a second has passed, exactly as it already did for rest.
+       */
+      if (!run.rest) return { session, run: { ...run, sinceSet: run.sinceSet + 1 } };
       // A 'set' rest that has already hit zero clears itself on the tick
       // that finds it spent; a 'block' page-turn (total 0) is untouched by
       // `tickRest` and stands until the athlete dismisses it.

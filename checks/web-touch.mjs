@@ -280,10 +280,25 @@ async function walkDayBuilder(page, visible) {
     await page.waitForTimeout(120);
   }
 
+  /*
+   * THE LIBRARY STARTS EMPTY, since 16 August 2026 — the coach's own movement
+   * list replaced the one mined out of every stored record. So this walk can
+   * no longer assume there is something to pick, and it types a movement in
+   * and creates it, which is the path a coach with a fresh library takes
+   * anyway. It then picks that entry from the list, so what is measured is
+   * still a real row reached through the picker and not a shortcut.
+   *
+   * This check FAILED, loudly and by name, the moment the library emptied.
+   * That is the shape to keep: a walk that quietly measured nothing would
+   * have reported green over a picker with no way through it.
+   */
+  const search = page.getByPlaceholder(/search the exercise library/i).first();
+  await search.fill('Walk Test Squat');
+  await page.getByRole('button', { name: /new exercise/i }).first().click();
+  await page.waitForTimeout(150);
+
   const movement = page.locator('.cb-picker-list button').first();
   if (!(await movement.count())) throw new Error('web-touch: the exercise picker offered nothing to pick');
-  await movement.click();
-  await page.waitForTimeout(120);
 
   // The row opens collapsed, and the sets table is behind it.
   const head = page.locator('.cb-item-head').first();

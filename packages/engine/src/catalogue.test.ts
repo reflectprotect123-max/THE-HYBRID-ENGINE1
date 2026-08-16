@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCatalogue, filterCatalogue, tagCounts, CATALOGUE_TAGS } from './catalogue';
+import { addMovement, buildCatalogue, filterCatalogue, tagCounts, CATALOGUE_TAGS } from './catalogue';
 import type { Session, Workout } from './types';
 
 /*
@@ -170,5 +170,69 @@ describe('filterCatalogue', () => {
 
   it('returns nothing when a filter excludes everything, rather than falling back to all', () => {
     expect(filterCatalogue(entries, 'zzzz', [])).toEqual([]);
+  });
+});
+
+describe('a library the coach owns', () => {
+  /*
+   * Added 16 August 2026, when the owner asked for the derived list emptied so
+   * he could rebuild it from what he actually enters. The derived list had
+   * reached 166 movements scraped out of every stored record, and nothing
+   * could remove one — a name only left when the last record holding it did.
+   */
+  const w = (names: string[]): Workout =>
+    ({
+      id: 'w',
+      updatedAt: 1,
+      blocks: [{ id: 'b', exercises: names.map((n) => ({ id: n, name: n, mode: 'reps_kg', sets: [] })) }],
+    }) as unknown as Workout;
+
+  it('is the list it was given, not the one history implies', () => {
+    const entries = buildCatalogue([w(['Back Squat', 'Row Erg'])], [], undefined, ['Bench Press']);
+    expect(entries.map((e) => e.name)).toEqual(['Bench Press']);
+  });
+
+  it('treats an EMPTY list as an empty library rather than as no library', () => {
+    /* The distinction the whole feature rests on. `[]` is what an emptied
+       library looks like; if it fell back to mining, all 166 would return. */
+    expect(buildCatalogue([w(['Back Squat'])], [], undefined, [])).toEqual([]);
+    expect(buildCatalogue([w(['Back Squat'])], [], undefined, undefined)).toHaveLength(1);
+  });
+
+  it('still counts uses from history, including zero for an unused movement', () => {
+    const entries = buildCatalogue([w(['Back Squat', 'Back Squat'])], [], undefined, ['Back Squat', 'Zercher Squat']);
+    expect(entries.find((e) => e.name === 'Back Squat')?.uses).toBe(2);
+    expect(entries.find((e) => e.name === 'Zercher Squat')?.uses).toBe(0);
+  });
+
+  it('drops blanks and duplicate spellings, and sorts by name', () => {
+    const entries = buildCatalogue([], [], undefined, ['Row Erg', '  ', 'row erg', 'Back Squat']);
+    expect(entries.map((e) => e.name)).toEqual(['Back Squat', 'Row Erg']);
+  });
+
+  it('still takes its tags from the declared map', () => {
+    const entries = buildCatalogue([], [], { 'Row Erg': ['Conditioning'] }, ['Row Erg']);
+    expect(entries[0].tags).toEqual(['Conditioning']);
+  });
+});
+
+describe('addMovement', () => {
+  it('appends a new name', () => {
+    expect(addMovement(['Back Squat'], 'Bench Press')).toEqual(['Back Squat', 'Bench Press']);
+  });
+
+  it('starts a library from nothing', () => {
+    expect(addMovement(undefined, 'Back Squat')).toEqual(['Back Squat']);
+  });
+
+  it('refuses a name already there under ANY spelling', () => {
+    /* Same case-insensitive rule `buildCatalogue` de-duplicates by: two
+       entries arguing over "Back Squat" vs "back squat" are worse than one. */
+    expect(addMovement(['Back Squat'], 'back squat')).toEqual(['Back Squat']);
+    expect(addMovement(['Back Squat'], '  Back Squat  ')).toEqual(['Back Squat']);
+  });
+
+  it('refuses a blank', () => {
+    expect(addMovement(['Back Squat'], '   ')).toEqual(['Back Squat']);
   });
 });

@@ -337,3 +337,55 @@ describe('warm-up sets', () => {
     expect('warm' in after.blocks[0].exercises[0].sets[0]).toBe(false);
   });
 });
+
+describe('EMOM pacing survives the round trip', () => {
+  /*
+   * Added 16 August 2026. The two clocks are stored as two fields and the
+   * absence of `every` is what puts an exercise on plain rest, so a stored
+   * zero would be noise on every straight exercise ever authored.
+   */
+  const dayWith = (over: Partial<{ rest: number; every: number }>) => ({
+    instructions: '',
+    blocks: [
+      {
+        id: 'b0',
+        category: 'Strength/Power',
+        exercises: [
+          {
+            id: 'e0',
+            name: 'Back Squat',
+            columnA: 'reps',
+            columnB: 'weight_kg',
+            rest: 90,
+            sets: [{ id: 's0', a: '5', b: '100' }],
+            ...over,
+          },
+        ],
+      },
+    ],
+  });
+
+  it('carries `every` out and back', () => {
+    const back = workoutsToDayBuilder(dayBuilderToWorkouts(dayWith({ every: 150 }), { id: 'w' }));
+    expect(back.blocks[0].exercises[0].every).toBe(150);
+  });
+
+  it('writes NO `every` key at all for an exercise on plain rest', () => {
+    const [w] = dayBuilderToWorkouts(dayWith({}), { id: 'w' });
+    const ex = (w.blocks?.[0] as { exercises: unknown[] }).exercises[0];
+    expect(ex).not.toHaveProperty('every');
+    expect(workoutsToDayBuilder([w]).blocks[0].exercises[0]).not.toHaveProperty('every');
+  });
+
+  it('drops a zero rather than storing it', () => {
+    /* `restAfter` switches on `every > 0`, so 0 and absent mean the same
+       thing. Storing the 0 would make two records differ over nothing. */
+    const [w] = dayBuilderToWorkouts(dayWith({ every: 0 }), { id: 'w' });
+    expect((w.blocks?.[0] as { exercises: unknown[] }).exercises[0]).not.toHaveProperty('every');
+  });
+
+  it('keeps the coach’s rest number alongside it, so switching back loses nothing', () => {
+    const back = workoutsToDayBuilder(dayBuilderToWorkouts(dayWith({ every: 150 }), { id: 'w' }));
+    expect(back.blocks[0].exercises[0]).toMatchObject({ rest: 90, every: 150 });
+  });
+});

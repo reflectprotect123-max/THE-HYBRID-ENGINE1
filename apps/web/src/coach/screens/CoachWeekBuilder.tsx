@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { buildCatalogue } from '@hybrid/engine';
+import { addMovement, buildCatalogue } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
 import { coachingTargetOf } from '../data/contracts';
@@ -92,7 +92,7 @@ function PublishMessage({ text, failed }: { text: string; failed: boolean }) {
 /** The whole screen, once the athlete and the week are known to be real. */
 function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart: string }) {
   const { repository } = useCoachWorkspace();
-  const { db } = useDb();
+  const { db, update } = useDb();
 
   const dates = useMemo(() => weekDates(weekStart), [weekStart]);
   const today = new Date().toISOString().slice(0, 10);
@@ -106,9 +106,35 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
    * repository, which is server-side and authorised per athlete.
    */
   const entries = useMemo(() => {
-    const tags = (db.settings as { movementTags?: Record<string, string[]> }).movementTags;
-    return buildCatalogue(db.workouts, db.sessions, tags);
+    const s = db.settings as { movementTags?: Record<string, string[]>; movements?: string[] };
+    /*
+     * THE COACH'S OWN LIBRARY, and `?? []` rather than a fallback to mining
+     * history. The owner asked for the derived list emptied on 16 August 2026
+     * so he could rebuild it from what he actually enters — it had reached 166
+     * movements scraped out of every stored workout and session, with no way
+     * to remove one. Falling back would put all 166 straight back, which is
+     * the opposite of what was asked for.
+     */
+    return buildCatalogue(db.workouts, db.sessions, s.movementTags, s.movements ?? []);
   }, [db.workouts, db.sessions, db.settings]);
+
+  /*
+   * A movement the coach just invented, kept. It goes into `settings` rather
+   * than into the session, because the library is a fact about the COACH and
+   * the session is a fact about one day — before this, "+ New exercise" put
+   * the name in the block and nowhere else, so an emptied library could never
+   * refill.
+   */
+  const createMovement = (name: string) => {
+    update((d) => {
+      const s = d.settings as { movements?: string[] };
+      const next = addMovement(s.movements, name);
+      /* `false` is this store's "nothing changed" — adding a name the library
+         already holds must not dirty the fingerprint and trigger a sync. */
+      if (next.length === (s.movements?.length ?? 0)) return false;
+      s.movements = next;
+    });
+  };
 
   const [plan, setPlan] = useState<CoachWeekPlan | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -261,6 +287,7 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
         date={dates[index]}
         published={(publishedDays.find((d) => d.date === dates[index])?.sessions.length ?? 0) > 0}
         entries={entries}
+        onCreateMovement={createMovement}
         initialValue={days[index]}
         onSave={(value) => {
           setDays((prev) => prev.map((day, i) => (i === index ? value : day)));
