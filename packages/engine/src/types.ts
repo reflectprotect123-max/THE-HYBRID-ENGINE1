@@ -311,6 +311,18 @@ export interface CondResult {
   felt?: string;
   /** seconds banked per zone */
   zsec?: Record<ZoneKey, number>;
+  /**
+   * Where `zsec` CAME FROM. Absent means a real heart-rate trace, which is
+   * every record written before 16 August 2026 and every strapped session
+   * since.
+   *
+   * `'felt'` means it was derived from the athlete's own end-of-session RPE by
+   * `withFeltZones` — the whole duration in one zone, because a rating is one
+   * number about a whole session. Anything that must only trust measured data
+   * checks this; anything counting MINUTES TRAINED can use both, which is the
+   * point of deriving it at all.
+   */
+  zsrc?: 'felt';
   /** total session seconds */
   dur?: number;
   /** WHOOP recovery captured WITH the session, not re-read later */

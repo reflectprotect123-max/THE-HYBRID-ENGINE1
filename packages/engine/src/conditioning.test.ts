@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conAdapt, condEffort, CON_EFFORTS } from './index';
+import { conAdapt, condEffort, effortForFelt, withFeltZones, CON_EFFORTS } from './index';
 
 describe('conAdapt no-data guard', () => {
   it('a run with no zone time earns nothing and costs nothing', () => {
@@ -222,5 +222,88 @@ describe('painHoldFor', () => {
     ];
     const held = painHoldFor('intervals', sessions, {}, 'row');
     expect(held.held).toBe(true);
+  });
+});
+
+describe('a strapless session is credited from its own rating', () => {
+  /*
+   * The owner's decision, 16 August 2026: a conditioning session without a
+   * strap "asks for RPE at the end of the session and adds up to the minutes
+   * in that easy/medium/hard areas."
+   *
+   * The problem it solves is the one the deleted lab found: `conAdapt` returns
+   * at `if (zoned <= 0)`, so a strapless session earned nothing AND was not
+   * counted as a miss. Most sessions are strapless, so most sessions were
+   * invisible to progression.
+   */
+  const rec = (over: Partial<CondResult> = {}): CondResult =>
+    ({ fmt: 'steady', dur: 1200, ...over }) as CondResult;
+
+  it('reads the effort band a rating falls in, including the gaps and the ends', () => {
+    /* The bands are easy 3–4, medium 5–7, hard 8–9.5 — contiguous in intent,
+       not in numbers, so 4.5 and 10 have to be decided rather than looked up. */
+    expect(effortForFelt(2)).toBe('easy');
+    expect(effortForFelt(4)).toBe('easy');
+    expect(effortForFelt(4.5)).toBe('medium');
+    expect(effortForFelt(6)).toBe('medium');
+    expect(effortForFelt(8)).toBe('hard');
+    expect(effortForFelt(10)).toBe('hard');
+    expect(effortForFelt('7')).toBe('medium');
+  });
+
+  it('is null for no answer, which is not the same as an easy session', () => {
+    expect(effortForFelt(undefined)).toBeNull();
+    expect(effortForFelt('')).toBeNull();
+    expect(effortForFelt('hard')).toBeNull();
+  });
+
+  it('puts the WHOLE duration in the one zone the rating names', () => {
+    /* Cruder than a trace on purpose: a rating is one number about a whole
+       session, so spreading it across zones would invent detail. */
+    expect(withFeltZones(rec({ felt: '6' })).zsec).toEqual({ low: 0, mod: 1200, high: 0 });
+    expect(withFeltZones(rec({ felt: '3' })).zsec).toEqual({ low: 1200, mod: 0, high: 0 });
+    expect(withFeltZones(rec({ felt: '9' })).zsec).toEqual({ low: 0, mod: 0, high: 1200 });
+  });
+
+  it('MARKS it as derived, so nothing mistakes it for a chest strap', () => {
+    expect(withFeltZones(rec({ felt: '6' })).zsrc).toBe('felt');
+  });
+
+  it('leaves a MEASURED record completely alone', () => {
+    /* Real data always wins. */
+    const measured = rec({ felt: '9', zsec: { low: 100, mod: 200, high: 300 } });
+    const out = withFeltZones(measured);
+    expect(out).toBe(measured);
+    expect(out.zsrc).toBeUndefined();
+  });
+
+  it('does nothing without a rating or without a duration', () => {
+    expect(withFeltZones(rec({})).zsec).toBeUndefined();
+    expect(withFeltZones(rec({ felt: '6', dur: 0 })).zsec).toBeUndefined();
+  });
+
+  it('EARNS a level where the same session used to earn nothing', () => {
+    /* The whole point. Twenty minutes rated 6 on a steady session is zone time
+       the athlete really did, and progression can finally see it. */
+    const before = conAdapt(rec({ felt: '6' }), {});
+    expect(before.delta).toBe(0);
+    const after = conAdapt(withFeltZones(rec({ felt: '6' })), {});
+    expect(after.delta).toBe(1);
+  });
+
+  it('and can now MISS, which is the other half of being visible', () => {
+    /* A steady session rated 9 banks all its time in the high zone, which is
+       not what steady asked for — `overcooked`. Before this it was silence:
+       no earn, no miss, nothing.
+       The miss COUNTER moves and `delta` stays 0, because a deload needs two
+       consecutive misses. Both halves matter — being counted is the change,
+       and one bad session still not dropping the level is the existing rule
+       working on data it could not previously see. */
+    const first = conAdapt(withFeltZones(rec({ felt: '9' })), {});
+    expect(first.delta).toBe(0);
+    expect(first.conProgress.steady).toEqual({ level: 0, miss: 1 });
+
+    const second = conAdapt(withFeltZones(rec({ felt: '9' })), { conProgress: first.conProgress });
+    expect(second.delta).toBe(-1);
   });
 });

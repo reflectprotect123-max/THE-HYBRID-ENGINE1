@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   CON_FORMATS,
   cardioCompletionFor,
+  withFeltZones,
   conAdapt,
   conDownsample,
   conHrr,
@@ -427,6 +428,23 @@ export function ConditioningScreen() {
    *  zsec/dur (never asked of the athlete), so it belongs here — not in
    *  submitMechanical — so every write path sets it the same way. */
   const bank = (rec: CondResult) => {
+    /*
+     * A STRAPLESS SESSION'S MINUTES GO SOMEWHERE NOW, and this is the right
+     * place for the same reason `cardioCompletion` is computed here: BOTH
+     * write paths land in `bank`. Doing it in `submitMechanical` — where it
+     * was first written — would have skipped the exit guard's "Bank & leave",
+     * so a run rated and then backed out of would have kept its minutes and
+     * lost them at the same time.
+     *
+     * `withFeltZones` credits the whole duration to the zone the athlete's own
+     * RPE names and marks it `zsrc: 'felt'`, so nothing downstream mistakes it
+     * for a heart-rate trace. A record that HAS zone seconds is returned
+     * untouched, so a strapped session is unaffected. It runs BEFORE
+     * `cardioCompletionFor` and before `conAdapt`, because both read `zsec`
+     * and a verdict computed on empty zones would disagree with the zones
+     * stored beside it.
+     */
+    Object.assign(rec, withFeltZones(rec));
     rec.cardioCompletion = cardioCompletionFor(rec.fmt ?? fmt, rec.zsec, rec.dur ?? 0);
     update((d) => {
       const at = Date.now();
@@ -690,6 +708,18 @@ export function ConditioningScreen() {
         <>
           <SectionHead title="Banked" />
           <Card>
+            {/*
+              * SAYS SO WHEN IT IS SELF-REPORTED. `withFeltZones` credits a
+              * strapless session's whole duration to the zone its RPE names,
+              * which is a real answer and NOT a heart-rate trace — and a row
+              * reading "Conditioning 20:00" is indistinguishable from a
+              * measured one unless the screen admits the difference.
+              */}
+            {result.zsrc === 'felt' ? (
+              <T className="mb-1 text-3 text-dim">
+                From how it felt — no strap this session, so the whole time is banked at that effort.
+              </T>
+            ) : null}
             {(['low', 'mod', 'high'] as const).map((k) => (
               <Row
                 key={k}

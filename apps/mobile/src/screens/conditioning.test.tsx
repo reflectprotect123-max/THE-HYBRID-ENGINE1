@@ -96,9 +96,14 @@ describe('ConditioningScreen felt RPE', () => {
     expect(runs).toHaveLength(1);
     expect(runs[0].felt).toBe('7');
     expect(runs[0].mechanicalCompletion).toBe('met');
-    // Strapless run: no zone time banked at all, so the computed cardio
-    // verdict falls to the dur denominator and reads not_met.
-    expect(runs[0].cardioCompletion).toBe('not_met');
+    /* Strapless run, and since 16 August 2026 that is no longer the same as a
+       failed one. `withFeltZones` credits the whole duration to the zone the
+       athlete's own RPE names, so the cardio verdict is computed against real
+       banked minutes and reads `met`. Before this the session banked nothing,
+       was judged `not_met` for having no data, and was invisible to
+       progression — which is the defect the owner asked to fix. */
+    expect(runs[0].cardioCompletion).toBe('met');
+    expect(runs[0].zsrc).toBe('felt');
     expect(runs[0].dur).toBeGreaterThanOrEqual(20);
   });
 
@@ -198,9 +203,13 @@ describe('ConditioningScreen felt RPE', () => {
     expect(runs).toHaveLength(1);
     expect(runs[0].felt).toBe('7');
     expect(runs[0].mechanicalCompletion).toBeUndefined();
-    // cardioCompletion is derived from zsec/dur, not from the unanswered
-    // mechanical-completion question — it is set on this exit path too.
-    expect(runs[0].cardioCompletion).toBe('not_met');
+    /* cardioCompletion is derived from zsec/dur, not from the unanswered
+       mechanical-completion question — it is set on this exit path too, and
+       so is `withFeltZones`. Both live in `bank()` precisely so the exit guard
+       and the full answer produce the same record; an RPE given and then
+       backed out of still banks its minutes. */
+    expect(runs[0].cardioCompletion).toBe('met');
+    expect(runs[0].zsrc).toBe('felt');
     expect(runs[0].dur).toBeGreaterThanOrEqual(20);
   });
 });
