@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
+  blockDurations,
   CON_FORMATS,
   blockExercises,
   detectPRs,
@@ -54,6 +55,10 @@ export function RecapScreen() {
   const vol = sessionVolume(s);
   const rpe = sessionRpe(s);
   const dur = s.completedAt && s.startedAt ? Math.max(0, Math.round((s.completedAt - s.startedAt) / 1000)) : 0;
+  /* Live sessions have no `completedAt`, so the last block's segment would be
+     open-ended. The recap only ever shows finished sessions, but passing the
+     clock costs nothing and keeps this honest if that changes. */
+  const times = blockDurations(s, Date.now());
   const working = s.blocks.reduce(
     (n, b) =>
       n + blockExercises(b as StrengthBlock<LoggedSet>).reduce((m, e) => m + e.sets.filter((st) => st.done && !isWarmup(st)).length, 0),
@@ -136,6 +141,20 @@ export function RecapScreen() {
       {s.blocks.map((b, bi) => (
         <Card key={b.id ?? bi} className="mb-1">
           <T w="semi" className="text-3 uppercase tracking-widest text-dim">{b.heading || 'Block'}</T>
+          {/*
+            * HOW LONG THIS PART TOOK, against what the coach budgeted for it.
+            *
+            * The actual comes from `blockDurations`, which reads the wall-clock
+            * stamps in `Session.blockLog` — see that field for why stamps and
+            * not a stopwatch. The planned side is `StrengthBlock.minutes`, the
+            * number the coach types into a section, which until now was stored
+            * and read by nothing at all.
+            *
+            * A block the athlete never opened has NO stamp, so it prints
+            * nothing rather than "0:00" — the difference between skipping a
+            * section and doing it instantly.
+            */}
+          <BlockTime seconds={times[b.id]} planned={(b as StrengthBlock<LoggedSet>).minutes} />
           {isCond(b) ? (
             <T num className="mt-0.5 text-4 text-muted">
               {CON_FORMATS[b.condFmt]?.name ?? b.condFmt}
@@ -191,5 +210,26 @@ function Stat({ label, value, unit }: { label: string; value: string; unit: stri
         {unit ? <T className="text-4 text-dim"> {unit}</T> : null}
       </T>
     </Card>
+  );
+}
+
+
+/**
+ * "12:04 · planned 15 min" — what a section actually took, beside its budget.
+ *
+ * Renders NOTHING when the block has no stamp: a section the athlete never
+ * opened is not a section that took no time, and "0:00" would say the second.
+ * The planned half is dropped on its own when the coach set no minutes, which
+ * is every session authored before section budgets existed.
+ */
+function BlockTime({ seconds, planned }: { seconds: number | undefined; planned?: number | string }) {
+  if (seconds == null) return null;
+  const budget = Number(planned);
+  const hasBudget = Number.isFinite(budget) && budget > 0;
+  return (
+    <T num className="mt-0.5 text-3 text-dim">
+      {fmtClock(seconds)}
+      {hasBudget ? ` · planned ${budget} min` : ''}
+    </T>
   );
 }

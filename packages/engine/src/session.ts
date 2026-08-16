@@ -247,6 +247,50 @@ export function rxLine(ex: Exercise<AnySet>): string {
   return rx;
 }
 
+/**
+ * How long the athlete spent in each block, in SECONDS, keyed by block id.
+ *
+ * Built from `Session.blockLog` — see its own doc for why this is a list of
+ * wall-clock stamps rather than a stopwatch. Each entry opens a segment that
+ * runs until the next entry, and the last one runs until `completedAt`. A
+ * block entered more than once has its segments SUMMED, which is the case a
+ * single "first entered at" stamp could not describe.
+ *
+ * A session still running has no `completedAt`, so `now` stands in — the
+ * caller passes it, because this file decides nothing from a clock it read
+ * itself. Absent `now` on a live session simply leaves the last block out
+ * rather than inventing a duration for it.
+ *
+ * Blocks the athlete never opened are ABSENT rather than zero. Zero would say
+ * "they were there and it took no time"; absent says "they were never there",
+ * and only one of those is true of a session that ended early.
+ */
+export function blockDurations(s: Session, now?: number): Record<string, number> {
+  const log = s.blockLog ?? [];
+  const out: Record<string, number> = {};
+  const end = s.completedAt ?? now;
+  log.forEach((entry, i) => {
+    if (!entry || typeof entry.at !== 'number' || !entry.id) return;
+    const stop = i + 1 < log.length ? log[i + 1]?.at : end;
+    if (typeof stop !== 'number') return;
+    // A clock that went backwards — a device time change mid-session — is not
+    // negative training time. Clamp rather than subtract from the total.
+    const seconds = Math.max(0, Math.round((stop - entry.at) / 1000));
+    out[entry.id] = (out[entry.id] ?? 0) + seconds;
+  });
+  return out;
+}
+
+/**
+ * The whole session, in seconds, from the two stamps that have always been
+ * there. Zero when either is missing, which is every session that never
+ * finished.
+ */
+export function sessionDuration(s: Session): number {
+  if (!s.completedAt || !s.startedAt) return 0;
+  return Math.max(0, Math.round((s.completedAt - s.startedAt) / 1000));
+}
+
 /** Warm-ups are excluded: they inflate volume without being training. */
 export function sessionVolume(s: Session): number {
   let v = 0;

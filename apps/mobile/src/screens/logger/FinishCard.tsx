@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
+import { fmtClock } from '@hybrid/engine';
 import { useLoggerStyles } from './styles';
 
 /*
@@ -22,6 +23,7 @@ export function FinishCard({
   blocks,
   setsLogged,
   bestE1rm,
+  seconds,
 }: {
   /** `view.blocks.length` — every block the session had. */
   blocks: number;
@@ -29,6 +31,16 @@ export function FinishCard({
   setsLogged: number;
   /** `view.bestE1rm`; null when no rated lift was logged today. */
   bestE1rm: number | null;
+  /**
+   * How long the session took, in seconds.
+   *
+   * The two stamps behind it — `startedAt` and `completedAt` — have existed
+   * since sessions did, and `Recap` has read them all along. This screen did
+   * not, so finishing a session told the athlete nothing about time until they
+   * went and opened the recap. Zero renders as an em dash rather than 0:00,
+   * which is the same rule the recap already applies.
+   */
+  seconds: number;
 }) {
   const st = useLoggerStyles();
   const [comment, setComment] = useState('');
@@ -39,6 +51,7 @@ export function FinishCard({
       <Text style={st.finishSub}>nice work</Text>
 
       <View style={st.stats}>
+        <Stat hook="time" label="Session time" value={seconds ? fmtClock(seconds) : '—'} />
         <Stat hook="blocks" label="Blocks" value={String(blocks)} />
         <Stat hook="sets" label="Sets logged" value={String(setsLogged)} />
         <Stat hook="e1rm" label="Best e1RM today" value={bestE1rm ? `${Math.round(bestE1rm)} kg` : '—'} />

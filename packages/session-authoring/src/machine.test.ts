@@ -257,3 +257,51 @@ describe('the set’s own clock, for EMOM pacing', () => {
     expect(st.run.sinceSet).toBe(0);
   });
 });
+
+describe('stamping which block the athlete is in', () => {
+  /*
+   * `Session.blockLog` — wall-clock stamps rather than a stopwatch, so nothing
+   * has to survive the phone locking or Android reclaiming the app. The recap
+   * turns them into "how long each part took" via `blockDurations`.
+   */
+  const twoBlocks = (): Session =>
+    ({
+      id: 's',
+      status: 'active',
+      blockLog: [{ id: 'b0', at: 1000 }],
+      blocks: [
+        { id: 'b0', exercises: [{ id: 'e0', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }] },
+        { id: 'b1', exercises: [{ id: 'e1', name: 'Row', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }] },
+      ],
+    }) as unknown as Session;
+
+  it('appends an entry when the athlete moves to another block', () => {
+    const sess = twoBlocks();
+    const st = reduce(sess, initialRun(sess), { type: 'goToBlock', index: 1 });
+    expect(st.session.blockLog).toHaveLength(2);
+    expect(st.session.blockLog?.[1].id).toBe('b1');
+    expect(st.session.blockLog?.[1].at).toBeGreaterThan(0);
+  });
+
+  it('stamps NOTHING for re-selecting the block already open', () => {
+    /* The athlete has not gone anywhere. A stamp would close one segment and
+       open an identical one — harmless arithmetic, but a log full of moves
+       nobody made. */
+    const sess = twoBlocks();
+    const st = reduce(sess, initialRun(sess), { type: 'goToBlock', index: 0 });
+    expect(st.session.blockLog).toHaveLength(1);
+  });
+
+  it('records a RETURN as its own entry rather than overwriting the first', () => {
+    const sess = twoBlocks();
+    let st = reduce(sess, initialRun(sess), { type: 'goToBlock', index: 1 });
+    st = reduce(st.session, st.run, { type: 'goToBlock', index: 0 });
+    expect(st.session.blockLog?.map((e) => e.id)).toEqual(['b0', 'b1', 'b0']);
+  });
+
+  it('leaves the log alone for an index that is not a block', () => {
+    const sess = twoBlocks();
+    const st = reduce(sess, initialRun(sess), { type: 'goToBlock', index: 9 });
+    expect(st.session.blockLog).toHaveLength(1);
+  });
+});

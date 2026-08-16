@@ -280,6 +280,25 @@ export interface Session {
   completedAt?: number;
   updatedAt?: number;
   workoutId?: string;
+  /**
+   * Every time the athlete moved INTO a block, in order, as wall-clock stamps.
+   *
+   * TIMESTAMPS RATHER THAN A STOPWATCH, deliberately. A counting timer has to
+   * be told what to do every time the phone locks, the app is backgrounded or
+   * Android reclaims it, and it silently loses or double-counts whenever one
+   * of those is missed. Two times of day survive the process dying outright —
+   * which is exactly why `startedAt`/`completedAt` have always been the way
+   * session duration is known, and this is the same trick per block.
+   *
+   * It is a LIST rather than one stamp per block because an athlete can go
+   * back: block 1, block 2, block 1 again is three segments, and a single
+   * "when did I first enter this" would attribute the third to the wrong
+   * place. `blockDurations` sums the segments per block.
+   *
+   * Session-only. It never appears on a `Workout`, because it is a fact about
+   * a run and not about a plan.
+   */
+  blockLog?: { id: string; at: number }[];
 }
 
 /** A finished conditioning effort, stored on its block and in settings history. */

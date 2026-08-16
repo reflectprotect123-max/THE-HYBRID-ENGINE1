@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { isCond, isText, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
+import { isCond, isText, sessionDuration, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
 import { useSession, type Action, type SessionView } from '@hybrid/session-authoring';
 import type { LoadContext } from '@hybrid/engine';
 import { Tap } from '../../ui';
@@ -239,7 +239,12 @@ function RunningSession({ session: initialSession }: { session: Session }) {
             title={currentTitle}
             receipt={
               allDone && onLastBlock ? (
-                <FinishCard blocks={view.blocks.length} setsLogged={setsLogged} bestE1rm={view.bestE1rm} />
+                <FinishCard
+                  blocks={view.blocks.length}
+                  setsLogged={setsLogged}
+                  bestE1rm={view.bestE1rm}
+                  seconds={sessionDuration(session)}
+                />
               ) : null
             }
             rounds={view.rounds}

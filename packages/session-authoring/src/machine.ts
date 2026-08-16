@@ -198,7 +198,32 @@ export function reduce(
 
     case 'goToBlock': {
       if (action.index < 0 || action.index >= session.blocks.length) return { session, run };
-      return { session, run: { ...run, blockIndex: action.index, draft: draftFor(session, action.index, ctx), rest: null, sinceSet: 0 } };
+      /*
+       * ENTERING A BLOCK IS STAMPED, so the recap can say how long each part
+       * took. See `Session.blockLog` for why this is a wall-clock stamp and
+       * not a stopwatch, and why it is a list — an athlete going back to an
+       * earlier block opens a second segment for it rather than overwriting
+       * the first.
+       *
+       * The second impure edge in this package, alongside `finish`, and for
+       * the same unavoidable reason: the moment a thing happened is not
+       * derivable from the state it happened to.
+       *
+       * Re-selecting the block already open stamps NOTHING. The athlete has
+       * not gone anywhere, and a stamp there would end the current segment and
+       * start an identical one — harmless to the arithmetic, but it would fill
+       * the log with entries describing a move nobody made.
+       */
+      const sameBlock = action.index === run.blockIndex;
+      const target = session.blocks[action.index];
+      const stamped: Session =
+        sameBlock || !target?.id
+          ? session
+          : { ...session, blockLog: [...(session.blockLog ?? []), { id: target.id, at: Date.now() }] };
+      return {
+        session: stamped,
+        run: { ...run, blockIndex: action.index, draft: draftFor(stamped, action.index, ctx), rest: null, sinceSet: 0 },
+      };
     }
 
     case 'tick': {
