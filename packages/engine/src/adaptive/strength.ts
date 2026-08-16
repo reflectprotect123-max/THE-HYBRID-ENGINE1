@@ -6,12 +6,38 @@ import { blockExercises, isLiftMode, isWarmupBlock } from '../session';
 import type { LoggedSet, Session } from '../types';
 import type { TrainingDecisionExplanation } from './types';
 
+/**
+ * Stage 3 of the RPE progression design classifies an exposure from data the
+ * logger ALREADY stored — no new capture on the athlete's side.
+ *
+ *   successful               — met the rep floor and carries a rating
+ *   successful_but_uncertain — met the rep floor with no rating logged
+ *   missed                   — below the rep floor
+ *
+ * Two of the design's five classes are deliberately absent. `incomplete`
+ * needs no code: a session with no completed working set never produces a
+ * `StrengthExposure` at all (see the `if (found)` guard below), so it is
+ * already "ignored entirely" by construction. `pain_blocked` is a declared
+ * gap, not an oversight — nothing in `LoggedSet` records a pain flag per set
+ * for a strength exercise (conditioning's `mechanicalCompletion: 'pain_stop'`
+ * has no strength counterpart), so there is no stored fact to classify
+ * against. Reading `whole-athlete-state`'s `pain_hold_active` would answer a
+ * different question — TODAY's flag, not what a past exposure was — and
+ * `@hybrid/engine` does not depend on that package. See CLAUDE.md's "Who owns
+ * the week": nothing consumes `pain_hold_active` yet, so this is not a
+ * regression, only an undone stage.
+ */
+type ExposureClass = 'successful' | 'successful_but_uncertain' | 'missed';
+
 interface StrengthExposure {
   reps: number;
   /** null for a bodyweight exercise — same convention `exLogFor` already uses. */
   kg: number | null;
   missed: boolean;
   onTarget: boolean;
+  /** Whether `felt` was a real number — see `ExposureClass`'s doc. */
+  rated: boolean;
+  exposureClass: ExposureClass;
   /**
    * The session this exposure was logged in. Kept so the decision can re-derive
    * what `lift.ts` ALREADY earned from it (see `earnedKgFrom`) rather than
@@ -120,9 +146,11 @@ function strengthExposuresFor(name: string, sessions: Session[]): StrengthExposu
         const missed = floor > 0 && reps < floor;
         const center = rpeCenterOf(finalSet);
         const felt = parseFloat(String(finalSet.felt ?? ''));
-        const verdict = Number.isFinite(felt) ? verdictForRpe(felt, center) : null;
+        const rated = Number.isFinite(felt);
+        const verdict = rated ? verdictForRpe(felt, center) : null;
         const onTarget = !missed && (verdict === 'right on target' || verdict === 'a touch under target');
-        out.push({ reps, kg, missed, onTarget, source: s });
+        const exposureClass: ExposureClass = missed ? 'missed' : rated ? 'successful' : 'successful_but_uncertain';
+        out.push({ reps, kg, missed, onTarget, rated, exposureClass, source: s });
       }
     });
 
@@ -429,6 +457,22 @@ export function decideStrengthProgression(
       note: `Missed the last 2 sessions — ${Math.round(AUTOREG.deloadPct * 100)}% off your last good ${anchor}kg lands exactly where the weight already is, so hold at ${shownKg}kg.`,
       safetyState: 'approved',
       dataLimitations: [],
+    };
+  }
+
+  // Stage 3: an unrated exposure is not "mixed" — it is evidence the athlete
+  // never finished giving. It still COUNTS (this is why `exposureClass` runs
+  // over every exposure and not just the two-in-a-row gate above), but it
+  // lowers confidence rather than being silently absorbed into the generic
+  // hold every other undecided case falls into.
+  if (!last.rated || !prev.rated) {
+    return {
+      action: 'hold',
+      confidence: 'low',
+      reasonCodes: ['exposure_not_rated'],
+      note: 'One of the last 2 sessions has no RPE rating logged for this movement — rate your sets so this can move again.',
+      safetyState: 'approved',
+      dataLimitations: ['exposure_not_rated'],
     };
   }
 

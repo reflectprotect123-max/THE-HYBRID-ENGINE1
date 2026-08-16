@@ -78,7 +78,14 @@ export type ReasonCode =
    * correction, so nothing moves — see `anchorKgFor`.
    */
   | 'no_successful_anchor'
-  | 'mixed_recent_results';
+  | 'mixed_recent_results'
+  /**
+   * Stage 3 of the RPE progression design: an exposure met its rep floor but
+   * carries no RPE rating. It still counts as evidence — it is not
+   * `mixed_recent_results` — but it cannot raise confidence past `low` until
+   * it is rated.
+   */
+  | 'exposure_not_rated';
 
 export interface TrainingDecisionExplanation {
   action: ProgressionAction;

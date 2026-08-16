@@ -406,7 +406,6 @@ describe('decideStrengthProgression — RPE classification boundaries', () => {
     ['4.5', 'way too light', 'hold', 'mixed_recent_results'],
     ['8.6', 'grindy', 'hold', 'mixed_recent_results'],
     ['10', 'max effort', 'hold', 'mixed_recent_results'],
-    ['', 'unrated — the non-numeric guard', 'hold', 'mixed_recent_results'],
   ];
 
   for (const [felt, verdict, action, reason] of ROWS) {
@@ -420,6 +419,20 @@ describe('decideStrengthProgression — RPE classification boundaries', () => {
       else expect(out.prescription).toEqual({ load: 102.5 });
     });
   }
+
+  it('an unrated exposure — Stage 3 — holds with its own honest reason, not the generic mixed bucket', () => {
+    /* `felt` blank fails `Number.isFinite`, so the exposure met the rep floor
+       with no rating at all. It is not "mixed" — the athlete just never
+       finished giving the evidence — so it gets `exposure_not_rated` at low
+       confidence instead of being silently absorbed into `mixed_recent_results`. */
+    const s = (id: string, at: number) => sessionWith(id, at, set('100', '5', '', '5', '8'));
+    const sessions = [s('s0', 1000), s('s1', 2000), s('s2', 3000)];
+    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
+    expect(out.action).toBe('hold');
+    expect(out.reasonCodes).toEqual(['exposure_not_rated']);
+    expect(out.confidence).toBe('low');
+    expect(out.prescription).toBeUndefined();
+  });
 });
 
 describe('decideStrengthProgression is stateless', () => {

@@ -140,19 +140,41 @@ was too easy, because the exercise was changed, or because the user entered a
 value without actually performing the set."*
 
 An exposure is classified before it counts, from what is **already stored** —
-no new capture on the logger:
+no new capture on the logger. **Shipped** (16 August 2026):
 
 | Class | Condition | Effect |
 |---|---|---|
-| `successful` | met the rep floor, rated, same movement and column pair | counts toward the promotion gate |
-| `successful_but_uncertain` | met the floor but no rating, or the column pair changed | counts, lowers confidence, says so |
-| `missed` | below the rep floor, no pain flag | counts as miss evidence |
-| `pain_blocked` | pain flag on the exercise | never counts; safety pathway |
-| `incomplete` | no completed working set | ignored entirely |
+| `successful` | met the rep floor, rated | counted, as before |
+| `successful_but_uncertain` | met the floor, no rating logged | counts, but the fallback path now says so by name (`exposure_not_rated`, confidence `low`) instead of being absorbed into the generic `mixed_recent_results` hold |
+| `missed` | below the rep floor | counted, as before |
+| `incomplete` | no completed working set | needs no code — a session with no working set never produces a `StrengthExposure` at all, so it was already "ignored entirely" |
 
-Uncertainty **lowers certainty rather than blocking the decision** — the
-review's own rule. `TrainingDecisionExplanation.confidence` already exists to
-carry it.
+`ExposureClass` is computed and stored on every `StrengthExposure`, additive
+metadata that the progression and deload gates do not yet read — only the
+final fallback branch does, narrowly, to replace one generic hold reason with
+an honest one. The two-in-a-row promotion gate (`last.onTarget && prev.onTarget`)
+is unchanged: this stage makes the classification visible and improves one
+hold message, it does not let an uncertain exposure promote at reduced
+confidence. That is a larger, riskier change to a safety-relevant decision
+tree with 199 existing pinned tests, and it is deferred rather than guessed
+at — see below.
+
+**Two classes did not ship, both for the same reason: no stored fact to
+classify against.**
+
+- **`pain_blocked`** — nothing in `LoggedSet` records a pain flag per set for
+  a strength exercise. Conditioning has `mechanicalCompletion: 'pain_stop'`;
+  strength has no counterpart. Reading `whole-athlete-state`'s
+  `pain_hold_active` would answer a different question — whether pain is
+  flagged *today*, not what a *past* exposure was — and would also mean
+  `@hybrid/engine` depending on `@hybrid/whole-athlete-state`, which nothing
+  in this repository does today (dependencies run the other way, both
+  packages sit on `@hybrid/shared-core`). CLAUDE.md already records that
+  nothing consumes `pain_hold_active` yet; this is that gap staying open, not
+  a new one.
+- **The "column pair changed" half of `successful_but_uncertain`** — no
+  exposure field tracks which set-entry columns (`setColumns.ts`) a past
+  session logged against, so there is nothing to compare today's pair to.
 
 **Explicitly not built:** the review's full thirteen-field exposure record —
 technique flags, rest interval, approved substitutions. Nobody answers those
