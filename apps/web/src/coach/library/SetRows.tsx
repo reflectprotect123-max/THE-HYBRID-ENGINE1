@@ -6,6 +6,24 @@ export interface SetRow {
   a: string;
   /** Second column's value, in whatever `columnB` measures. */
   b: string;
+  /**
+   * A RAMP SET, not a working one — the empty bar, then 60, then 80, on the
+   * way to the weight that counts.
+   *
+   * This is the SECOND warm-up concept in the system and it is not the block
+   * kind. A "Warm-up" BLOCK is prep — mobility, a bike, a circuit — and the
+   * phone runs it as pieces with no rating and no rest. A warm-up SET lives
+   * inside an ordinary lift block, on the same movement, and the engine has
+   * always known about it: `isWarmup` tests `t` for a leading `W`, the fold
+   * drops those sets before pricing anything, and `liftMoves` refuses to earn
+   * from them so an empty bar at RPE 3 cannot teach the progression that bench
+   * is 20kg.
+   *
+   * The bench could not SAY it until now. Typing "W10" into a reps column
+   * happened to work, because the value lands in `t` and `isWarmup` reads the
+   * first character — undiscoverable, and indistinguishable from a typo.
+   */
+  warm?: boolean;
 }
 
 /**
@@ -107,10 +125,28 @@ export function SetRows({
       <div className="cb-sets-rows">
         {sets.map((s, i) => (
           <div key={s.id} className="cb-set-row">
-            {/* `.n`, not `.cb-set-n`. The stylesheet styles the number as
-                `.cb-set-row .n` — a gold circle chip — and the invented class
-                name meant it rendered as bare text for as long as it existed. */}
-            <span className="n">{i + 1}</span>
+            {/*
+              * THE CHIP IS THE TOGGLE, rather than a fourth control in the row.
+              * `.cb-set-row` is a three-column grid — number, value, value —
+              * and tonight already cost one lesson about putting a fourth
+              * child in it. The set's number and whether it is a ramp set are
+              * the same fact about that row's identity, so one control says
+              * both: "1" for a working set, "W" for a warm-up.
+              *
+              * `.n` and not `.cb-set-n`: the stylesheet styles it as
+              * `.cb-set-row .n`, and the invented class name meant it rendered
+              * as bare text for as long as it existed.
+              */}
+            <button
+              type="button"
+              className={`n${s.warm ? ' warm' : ''}`}
+              aria-pressed={!!s.warm}
+              aria-label={`Set ${i + 1}: ${s.warm ? 'a warm-up set' : 'a working set'}`}
+              title="Warm-up set — never earns a working weight"
+              onClick={() => onSetsChange(sets.map((x) => (x.id === s.id ? { ...x, warm: !x.warm } : x)))}
+            >
+              {s.warm ? 'W' : i + 1}
+            </button>
             <input
               type="text"
               value={s.a}
