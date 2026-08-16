@@ -54,6 +54,15 @@ export interface LoggedSet extends PlannedSet {
    * `offeredKg`; never asked for on an ordinary set that matched the offer.
    */
   overrideNote?: string;
+  /**
+   * The athlete flagged pain on this set. Narrow and deliberate: it feeds
+   * `ExposureClass: 'pain_blocked'` (`adaptive/exposures.ts`), which keeps a
+   * flagged set out of the load-progression math — nothing more. It does not
+   * hold or stop a session; that is `whole-athlete-state`'s ground, and this
+   * flag is never read there. See CLAUDE.md's "The auto-coach is deleted"
+   * before building anything on top of this that resembles a session stop.
+   */
+  painFlagged?: boolean;
 }
 
 export type AnySet = PlannedSet | LoggedSet;

@@ -181,6 +181,66 @@ describe('decideStrengthProgression — progression', () => {
   });
 });
 
+describe('decideStrengthProgression — pain_blocked', () => {
+  const painSet = (kg: string, reps: string, felt: string): LoggedSet =>
+    ({ t: reps, rpe: '8', aVal: kg, aVal2: reps, felt, done: true, painFlagged: true }) as LoggedSet;
+
+  it('holds with pain_flagged when the most recent exposure was flagged, even with a clean streak behind it', () => {
+    const s = (id: string, at: number) => sessionWith(id, at, set('100', '5', '8', '5', '8'));
+    const sessions = [
+      s('s0', 1000),
+      s('s1', 2000),
+      sessionWith('s2', 3000, painSet('100', '5', '8')),
+    ];
+    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
+    expect(out.action).toBe('hold');
+    expect(out.reasonCodes).toEqual(['pain_flagged']);
+    expect(out.confidence).toBe('low');
+    expect(out.safetyState).toBe('held');
+    expect(out.prescription).toBeUndefined();
+  });
+
+  it('never lets a pain-flagged exposure win the two-in-a-row promotion gate, even mid-streak', () => {
+    /* Same 3-session shape as "suggests a load step", except the MIDDLE
+       session is pain-flagged — clean before and after it. A naive
+       last-two-exposures gate would see s1/s2 (both clean, both onTarget)
+       and progress; pain_blocked exposures are filtered from the list
+       entirely, so the two clean sessions are not adjacent once s1 is
+       removed and there still are not two comparable exposures next to
+       each other counting as a streak through the gap. */
+    const clean = (id: string, at: number) => sessionWith(id, at, set('100', '5', '8', '5', '8'));
+    const sessions = [
+      clean('s0', 1000),
+      sessionWith('s1', 2000, painSet('100', '5', '8')),
+      clean('s2', 3000),
+    ];
+    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
+    // Only two REAL exposures remain after filtering (s0, s2), which is
+    // below MIN_EXPOSURES (3) — an honest "not enough data", not a promotion.
+    expect(out.action).toBe('pause_insufficient_data');
+  });
+
+  it('a pain-flagged set is excluded from the anchor a deload is cut from', () => {
+    /* The pain-flagged exposure (s0, 120kg) is heavier than the real, clean
+       anchor (the older session, 100kg). If pain_blocked exposures were
+       still eligible to anchor, this would cut 5% from 120 → 114kg. Cutting
+       correctly from the 100kg clean anchor lands at 95kg — the two numbers
+       are far enough apart that this test fails loudly if the exclusion
+       breaks, not just by coincidence like a same-value fixture would. */
+    const sessions = [
+      sessionWith('older', 500, set('100', '5', '8', '5', '8')),
+      sessionWith('s0', 1000, painSet('120', '5', '8')),
+      sessionWith('s1', 2000, set('94', '3', '10', '5', '8')),
+      sessionWith('s2', 3000, set('94', '3', '10', '5', '8')),
+    ];
+    const out = decideStrengthProgression('Bench press', sessions, { t: '5', rpe: '8' });
+    expect(out.action).toBe('deload');
+    expect(out.prescription?.load).toBe(95);
+    expect(out.note).toContain('100kg');
+    expect(out.note).not.toContain('120kg');
+  });
+});
+
 describe('calibrationStateFor — Stage 5, the layoff gate', () => {
   const DAY = 24 * 60 * 60 * 1000;
   const GAP = 21 * DAY; // AUTOREG.calibrationGapDays, spelled out so a constant change breaks this loudly

@@ -144,7 +144,7 @@ describe('BlockScreen — the rotate grip', () => {
 
 describe('BlockScreen — skip / add set', () => {
   const hot = { exerciseIndex: 0, setIndex: 0, exerciseName: 'x', message: 'm', planned };
-  const draft = { kg: 100, reps: 8, felt: 8, offered: 100, note: '' };
+  const draft = { kg: 100, reps: 8, felt: 8, offered: 100, note: '', pain: false };
   const liveRounds: RoundView[] = [
     { round: 0, sets: [{ exerciseIndex: 0, setIndex: 0, exerciseName: 'x', status: 'live', planned, logged: null }] },
   ];
@@ -180,7 +180,7 @@ describe('BlockScreen — a warm-up block', () => {
   }
 
   const piecePlanned = { reps: '30', rpe: '' };
-  const pieceDraft = { kg: 0, reps: 30, felt: null, offered: 0, note: '' };
+  const pieceDraft = { kg: 0, reps: 30, felt: null, offered: 0, note: '', pain: false };
 
   it('renders a piece receipt for a done piece, and the live piece as a PieceCard', () => {
     const rounds: RoundView[] = [

@@ -37,7 +37,7 @@ describe('the session useSession relies on `reduce` for', () => {
 
     // Mirrors exactly what `useSession`'s `dispatch` callback does: feed the
     // current `{ session, run }` pair and one action to `reduce`.
-    const draftedRun = { ...run, draft: { kg: 100, reps: 8, felt: 8, offered: 100, note: '' } };
+    const draftedRun = { ...run, draft: { kg: 100, reps: 8, felt: 8, offered: 100, note: '', pain: false } };
     const next = reduce(sess, draftedRun, { type: 'logSet' });
 
     // The session the hook would now hold is a NEW object, not the one it

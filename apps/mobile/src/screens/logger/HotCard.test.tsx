@@ -19,6 +19,7 @@ const draft = (patch: Partial<Draft> = {}): Draft => ({
   felt: null,
   offered: patch.kg ?? 100,
   note: '',
+  pain: false,
   ...patch,
 });
 
@@ -141,6 +142,34 @@ describe('HotCard — Stage 6, the override note', () => {
       <HotCard hot={hot('m')} draft={draft({ kg: 0, offered: 0 })} dispatch={noop} label="Set 1" weighted={false} />,
     );
     expect(r.queryByTestId('hot-override-note')).toBeNull();
+  });
+});
+
+describe('HotCard — the pain flag', () => {
+  it('is always present, off by default, whether or not the set is weighted', () => {
+    const weighted = render(<HotCard hot={hot('m')} draft={draft()} dispatch={noop} label="Set 1" weighted />);
+    expect(weighted.getByTestId('hot-pain')).toBeTruthy();
+    const bodyweight = render(<HotCard hot={hot('m')} draft={draft({ kg: 0, offered: 0 })} dispatch={noop} label="Set 1" weighted={false} />);
+    expect(bodyweight.getByTestId('hot-pain')).toBeTruthy();
+  });
+
+  it('toggles through setDraft, on and back off', () => {
+    const dispatch = jest.fn();
+    const r = render(<HotCard hot={hot('m')} draft={draft({ pain: false })} dispatch={dispatch} label="Set 1" weighted />);
+    fireEvent.press(r.getByTestId('hot-pain'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'setDraft', patch: { pain: true } });
+  });
+
+  it('flips the flagged draft back off, not on again', () => {
+    const dispatch = jest.fn();
+    const r = render(<HotCard hot={hot('m')} draft={draft({ pain: true })} dispatch={dispatch} label="Set 1" weighted />);
+    fireEvent.press(r.getByTestId('hot-pain'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'setDraft', patch: { pain: false } });
+  });
+
+  it('is never required — the log gate ignores it entirely', () => {
+    const r = render(<HotCard hot={hot('m')} draft={draft({ pain: true, felt: 8 })} dispatch={noop} label="Set 1" weighted />);
+    expect(r.getByTestId('log').props.accessibilityState.disabled).toBe(false);
   });
 });
 

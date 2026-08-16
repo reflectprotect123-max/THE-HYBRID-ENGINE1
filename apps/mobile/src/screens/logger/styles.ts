@@ -196,6 +196,15 @@ function build(color: Palette) {
     chipInkOn: { fontFamily: mono, fontSize: 13, color: color.doneInk, fontWeight: '700' },
     chipInkOff: { fontFamily: mono, fontSize: 13, color: color.muted },
 
+    /* The pain flag — deliberately not a chip row: it is off far more often
+       than on, and a permanent full-width control the size of the RPE chips
+       would read as a required field. `color.bad` is the shared semantic
+       (heart-rate/readiness) rather than a strength-specific invention, so
+       "something hurts" reads the same everywhere this app already uses it. */
+    painRow: { marginTop: 10 },
+    painOff: { fontFamily: mono, fontSize: 11, color: color.dim },
+    painOn: { fontFamily: mono, fontSize: 11, color: color.bad, fontWeight: '700' },
+
     /* `.logbtn` — the one control set in the UI face rather than the mono one. */
     cta: { height: 50, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
     ctaOn: { backgroundColor: color.gold2 },

@@ -17,6 +17,12 @@ export interface Draft {
   /** The optional override line — see `LoggedSet.overrideNote`. Always ''
    *  until the athlete types one; never required. */
   note: string;
+  /**
+   * Whether the athlete flagged this set for pain — see `LoggedSet.painFlagged`.
+   * Always `false` until they tap it; never required, never asked twice
+   * (a fresh `openDraft` for the next set always starts `false`).
+   */
+  pain: boolean;
 }
 
 /**
@@ -53,6 +59,7 @@ export function openDraft(block: StrengthBlock<LoggedSet>, item: QueueItem, ctx:
     felt: null,
     offered,
     note: '',
+    pain: false,
   };
 }
 
@@ -77,6 +84,10 @@ export function draftReady(draft: Draft): boolean {
  * here again once a caller has moved to the new one). The note travels only
  * with the override it explains — never asked for, never stored, on a set
  * that matched the offer.
+ *
+ * `painFlagged` is independent of the override check above — an athlete can
+ * flag pain on a set they took exactly as offered — so it is written
+ * whenever `draft.pain` is true, with no `overridden` gate of its own.
  */
 export function applyDraft(
   block: StrengthBlock<LoggedSet>,
@@ -102,6 +113,7 @@ export function applyDraft(
                     done: true,
                     ...(overridden ? { offeredKg: draft.offered } : {}),
                     ...(overridden && (draft.note || '').trim() ? { overrideNote: draft.note.trim() } : {}),
+                    ...(draft.pain ? { painFlagged: true } : {}),
                   },
             ),
           },

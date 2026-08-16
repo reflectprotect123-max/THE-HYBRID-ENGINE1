@@ -214,6 +214,20 @@ export function HotCard({
         })}
       </View>
 
+      <View style={st.painRow}>
+        <Pressable
+          testID="hot-pain"
+          accessibilityRole="button"
+          accessibilityState={{ selected: draft.pain }}
+          accessibilityLabel={draft.pain ? 'Pain flagged on this set — tap to remove' : 'Flag pain on this set'}
+          onPress={() => setDraft({ pain: !draft.pain })}
+        >
+          <Text style={draft.pain ? st.painOn : st.painOff}>
+            {draft.pain ? '⚠ pain flagged — tap to undo' : 'something hurt? flag pain'}
+          </Text>
+        </Pressable>
+      </View>
+
       <Pressable
         testID="log"
         accessibilityRole="button"

@@ -36,7 +36,7 @@ describe('logSet', () => {
   it('writes the set, opens the next draft, and starts the rest', () => {
     const sess = session([solo([s(), s()])]);
     let st = { session: sess, run: initialRun(sess) };
-    st = reduce(st.session, { ...st.run, draft: { kg: 100, reps: 8, felt: 8, offered: 100, note: '' } }, { type: 'logSet' });
+    st = reduce(st.session, { ...st.run, draft: { kg: 100, reps: 8, felt: 8, offered: 100, note: '', pain: false } }, { type: 'logSet' });
     expect((st.session.blocks[0] as StrengthBlock<LoggedSet>).exercises[0].sets[0].done).toBe(true);
     expect(st.run.rest).toEqual({ left: 120, total: 120, kind: 'set' });
     expect(st.run.draft).not.toBeNull();
@@ -44,7 +44,7 @@ describe('logSet', () => {
 
   it('refuses an incomplete draft rather than logging a guess', () => {
     const sess = session([solo([s()])]);
-    const run = { ...initialRun(sess), draft: { kg: 100, reps: 8, felt: null, offered: 100, note: '' } };
+    const run = { ...initialRun(sess), draft: { kg: 100, reps: 8, felt: null, offered: 100, note: '', pain: false } };
     const st = reduce(sess, run, { type: 'logSet' });
     expect((st.session.blocks[0] as StrengthBlock<LoggedSet>).exercises[0].sets[0].done).toBeFalsy();
   });
@@ -52,7 +52,7 @@ describe('logSet', () => {
   it('does not mutate the session it was given', () => {
     const sess = session([solo([s()])]);
     const snapshot = JSON.stringify(sess);
-    reduce(sess, { ...initialRun(sess), draft: { kg: 100, reps: 8, felt: 8, offered: 100, note: '' } }, { type: 'logSet' });
+    reduce(sess, { ...initialRun(sess), draft: { kg: 100, reps: 8, felt: 8, offered: 100, note: '', pain: false } }, { type: 'logSet' });
     expect(JSON.stringify(sess)).toBe(snapshot);
   });
 });
@@ -240,7 +240,7 @@ describe('the set’s own clock, for EMOM pacing', () => {
        part. */
     const sess = pacedSession();
     const run = { ...initialRun(sess), setOpenedAt: Date.now() - 40_000 };
-    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8, offered: 100, note: '' } }, { type: 'logSet' });
+    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8, offered: 100, note: '', pain: false } }, { type: 'logSet' });
     expect(st.run.rest).toMatchObject({ total: 150, paced: true });
     expect(st.run.rest?.left).toBeGreaterThanOrEqual(109);
     expect(st.run.rest?.left).toBeLessThanOrEqual(111);
@@ -249,14 +249,14 @@ describe('the set’s own clock, for EMOM pacing', () => {
   it('gives no rest at all when the set outlasted its window', () => {
     const sess = pacedSession();
     const run = { ...initialRun(sess), setOpenedAt: Date.now() - 300_000 };
-    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8, offered: 100, note: '' } }, { type: 'logSet' });
+    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8, offered: 100, note: '', pain: false } }, { type: 'logSet' });
     expect(st.run.rest).toBeNull();
   });
 
   it('restarts the window for the set that follows', () => {
     const sess = pacedSession();
     const run = { ...initialRun(sess), setOpenedAt: Date.now() - 40_000 };
-    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8, offered: 100, note: '' } }, { type: 'logSet' });
+    const st = reduce(sess, { ...run, draft: { kg: 100, reps: 5, felt: 8, offered: 100, note: '', pain: false } }, { type: 'logSet' });
     expect(Date.now() - st.run.setOpenedAt).toBeLessThan(1000);
   });
 

@@ -92,7 +92,13 @@ export type ReasonCode =
    * logged since. The session offers a reduced weight to observe, not to
    * progress or deload — see `calibrationStateFor`.
    */
-  | 'calibration_active';
+  | 'calibration_active'
+  /**
+   * The most recent exposure for this movement carried `LoggedSet.painFlagged`.
+   * Never counts toward a streak, never anchors a deload — see
+   * `ExposureClass: 'pain_blocked'` in `adaptive/exposures.ts`.
+   */
+  | 'pain_flagged';
 
 export interface TrainingDecisionExplanation {
   action: ProgressionAction;

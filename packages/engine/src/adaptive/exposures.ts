@@ -17,26 +17,34 @@ import type { LoggedSet, Session } from '../types';
 
 /**
  * Stage 3 of the RPE progression design classifies an exposure from data the
- * logger ALREADY stored — no new capture on the athlete's side.
+ * logger ALREADY stored — no new capture on the athlete's side, except
+ * `pain_blocked`, added after Stage 3 shipped once `LoggedSet.painFlagged`
+ * existed to classify against.
  *
  *   successful               — met the rep floor and carries a rating
  *   successful_but_uncertain — met the rep floor with no rating logged
  *   missed                   — below the rep floor
+ *   pain_blocked             — the exposure set was flagged for pain
  *
- * Two of the design's five classes are deliberately absent. `incomplete`
- * needs no code: a session with no completed working set never produces a
- * `StrengthExposure` at all (see the `if (found)` guard below), so it is
- * already "ignored entirely" by construction. `pain_blocked` is a declared
- * gap, not an oversight — nothing in `LoggedSet` records a pain flag per set
- * for a strength exercise (conditioning's `mechanicalCompletion: 'pain_stop'`
- * has no strength counterpart), so there is no stored fact to classify
- * against. Reading `whole-athlete-state`'s `pain_hold_active` would answer a
- * different question — TODAY's flag, not what a past exposure was — and
- * `@hybrid/engine` does not depend on that package. See CLAUDE.md's "Who owns
- * the week": nothing consumes `pain_hold_active` yet, so this is not a
- * regression, only an undone stage.
+ * `incomplete` needs no code: a session with no completed working set never
+ * produces a `StrengthExposure` at all (see the `if (found)` guard below), so
+ * it is already "ignored entirely" by construction.
+ *
+ * `pain_blocked` OUTRANKS everything else — checked first, in
+ * `strengthExposuresFor` below — because a set can be both a miss and
+ * pain-flagged (the athlete stopped early because it hurt), and "missed" is
+ * the wrong story for that: `decideStrengthProgression`'s deload logic would
+ * read it as a strength failure and cut load, when the honest read is "do not
+ * use this exposure as strength evidence at all". This is deliberately
+ * narrow: it does NOT reinstate the deleted auto-coach session stop (see
+ * CLAUDE.md, "The auto-coach is deleted") — nothing here holds today's
+ * session or blocks the athlete from logging. It only keeps a flagged set out
+ * of the load-progression math after the fact, which whole-athlete-state's
+ * `pain_hold_active` does not do either (it is a today-only flag, read
+ * nowhere near this decision). Two different, narrow jobs; neither duplicates
+ * the other's ground.
  */
-export type ExposureClass = 'successful' | 'successful_but_uncertain' | 'missed';
+export type ExposureClass = 'successful' | 'successful_but_uncertain' | 'missed' | 'pain_blocked';
 
 export interface StrengthExposure {
   reps: number;
@@ -46,6 +54,8 @@ export interface StrengthExposure {
   onTarget: boolean;
   /** Whether `felt` was a real number — see `ExposureClass`'s doc. */
   rated: boolean;
+  /** Whether the exposure set carried `LoggedSet.painFlagged`. */
+  painFlagged: boolean;
   exposureClass: ExposureClass;
   /**
    * The session this exposure was logged in. Kept so a caller can re-derive
@@ -152,13 +162,24 @@ export function strengthExposuresFor(name: string, sessions: Session[]): Strengt
         const kg = Number.isFinite(kgVal) && kgVal > 0 ? kgVal : null;
         const floor = repFloorOf(finalSet.t);
         const missed = floor > 0 && reps < floor;
+        const painFlagged = !!finalSet.painFlagged;
         const center = rpeCenterOf(finalSet);
         const felt = parseFloat(String(finalSet.felt ?? ''));
         const rated = Number.isFinite(felt);
         const verdict = rated ? verdictForRpe(felt, center) : null;
-        const onTarget = !missed && (verdict === 'right on target' || verdict === 'a touch under target');
-        const exposureClass: ExposureClass = missed ? 'missed' : rated ? 'successful' : 'successful_but_uncertain';
-        out.push({ reps, kg, missed, onTarget, rated, exposureClass, source: s });
+        // A pain-flagged set is never onTarget — it must not win the
+        // two-in-a-row promotion gate or bank a calibration exit, whatever
+        // its rated RPE says. See ExposureClass's doc for why pain outranks
+        // missed here too.
+        const onTarget = !painFlagged && !missed && (verdict === 'right on target' || verdict === 'a touch under target');
+        const exposureClass: ExposureClass = painFlagged
+          ? 'pain_blocked'
+          : missed
+            ? 'missed'
+            : rated
+              ? 'successful'
+              : 'successful_but_uncertain';
+        out.push({ reps, kg, missed, onTarget, rated, painFlagged, exposureClass, source: s });
       }
     });
 

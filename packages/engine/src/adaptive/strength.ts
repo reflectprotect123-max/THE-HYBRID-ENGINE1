@@ -136,7 +136,29 @@ export function decideStrengthProgression(
     };
   }
 
-  const exposures = strengthExposuresFor(name, sessions);
+  /*
+   * PAIN OUTRANKS EVERYTHING BELOW IT TOO, for the same reason calibration
+   * does: a pain-flagged exposure must never win a streak, and the design's
+   * own words are "never counts; safety pathway". Checked against the RAW,
+   * unfiltered list so the most recent exposure is asked about specifically
+   * — a flagged set silently vanishing into "not enough data" would be the
+   * wrong story when there IS data, just not usable data. Every pain-blocked
+   * exposure is then filtered out before anything below reads the list, so
+   * an older flagged set two sessions back cannot quietly re-enter the
+   * two-in-a-row gate either.
+   */
+  const allExposures = strengthExposuresFor(name, sessions);
+  if (allExposures[allExposures.length - 1]?.exposureClass === 'pain_blocked') {
+    return {
+      action: 'hold',
+      confidence: 'low',
+      reasonCodes: ['pain_flagged'],
+      note: 'The last set for this movement was flagged for pain — not enough to suggest a change. Reassess before loading it again.',
+      safetyState: 'held',
+      dataLimitations: ['pain_flagged'],
+    };
+  }
+  const exposures = allExposures.filter((e) => e.exposureClass !== 'pain_blocked');
   if (exposures.length < MIN_EXPOSURES) {
     return {
       action: 'pause_insufficient_data',
