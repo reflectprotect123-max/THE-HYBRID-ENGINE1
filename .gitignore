@@ -8,6 +8,10 @@ node_modules/
 # Per-plan working state, not a project artifact.
 .superpowers/sdd/
 
+# Brainstorming visual-companion scratch — mockup HTML served to a local
+# browser tab during a design discussion. Per-session, not a project artifact.
+.superpowers/brainstorm/
+
 # Claude's per-machine state — local settings, caches, session scratch — is
 # noise in a diff and differs per developer. Its SKILLS are the opposite:
 # shared tooling that should arrive with a clone, the same as anything in
