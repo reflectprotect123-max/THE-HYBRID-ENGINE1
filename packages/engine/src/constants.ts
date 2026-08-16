@@ -248,4 +248,4 @@ export const LS_KEY = 'hybrid-engine-v1';
  * these means a publish could overwrite logged work, so the emit boundary
  * rejects it outright rather than stripping it quietly.
  */
-export const FORBIDDEN_SET_KEYS = ['aVal', 'aVal2', 'felt', 'done', 'note'] as const;
+export const FORBIDDEN_SET_KEYS = ['aVal', 'aVal2', 'felt', 'done', 'note', 'offeredKg', 'overrideNote'] as const;

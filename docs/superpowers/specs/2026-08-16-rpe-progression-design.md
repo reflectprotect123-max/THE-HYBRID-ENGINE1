@@ -307,6 +307,43 @@ Two things this buys:
    read as decline — the `successful_but_uncertain` path with a human reason
    attached.
 
+**Shipped in two halves** (16 August 2026), and they are genuinely two halves
+rather than one feature, because the second one has no screen to land on yet.
+
+**The capture half is shipped, end to end.** `Draft` (`@hybrid/session-
+authoring`) gains `offered` — the kg the engine offered, stamped once by
+`openDraft` and never patched again — and `note`, the optional line. `applyDraft`
+writes `LoggedSet.offeredKg`/`overrideNote` ONLY when `draft.kg !== draft.offered`;
+an ordinary set that matched the offer records nothing extra, exactly as an
+un-rated exposure records nothing extra elsewhere in this design. Both fields
+join `FORBIDDEN_SET_KEYS` — logger-owned, same as `aVal`/`felt`/`done`, and a
+coach's plan can never carry one. On the phone, `HotCard` reveals the note
+field the moment the weight the athlete is holding differs from the weight
+that was offered, labelled by name — *"you took 95kg, not the 102.5kg
+offered — why? (optional)"* — never a validation error, never required by the
+log gate. Both mobile parity gates (behaviour and visual, driven through the
+real exported harness) pass unchanged, because neither scripted flow ever
+edits the weight field away from the offer.
+
+**The "coach sees" half is a declared gap, not a silent one.** Point 1 above —
+*"the coach stops seeing 95kg and starts seeing…"* — has nowhere to land: no
+screen on the coach bench shows a coach any athlete's individual logged sets
+today. That is `#167`, `request_session_detail and the draft editor`, already
+tracked and already pending before this design existed. Building a session-
+detail viewer to give the override note its first reader is that task's scope,
+not this stage's — recorded here so the gap is legible rather than discovered
+later.
+
+**Point 2 — the engine reading the note back — is also not wired**, for the
+same honest reason `successful_but_uncertain` itself does not yet influence
+promotion (see Stage 3): a human-typed reason attached to a miss is exactly
+the kind of signal that should raise confidence rather than just being
+displayed, and doing that properly means deciding how a free-text reason
+maps to `dataLimitations`/`confidence` — a real design question, not a
+follow-on of storage existing. `overrideNote` is captured and stored now
+specifically so that decision has real data to be made against later, rather
+than being made blind.
+
 ## 5. What the athlete sees
 
 Unchanged in shape. The weight field, prefilled, with one line under it:

@@ -39,6 +39,21 @@ export interface LoggedSet extends PlannedSet {
   felt?: string;
   done?: boolean;
   note?: string;
+  /**
+   * Stage 6 of the RPE progression design: the kg the engine actually
+   * offered before the athlete edited the field, present ONLY when it
+   * differs from `aVal` — an override that matched the offer leaves nothing
+   * to record. Written once, by `@hybrid/session-authoring`'s `applyDraft`,
+   * never re-derived: `aVal` already gets edited by the athlete, so the
+   * offer has to be captured before that happens or it is lost.
+   */
+  offeredKg?: number;
+  /**
+   * One optional line the athlete may leave when overriding the offered
+   * weight — "shoulder felt off", "slept 4 hours". Present only alongside
+   * `offeredKg`; never asked for on an ordinary set that matched the offer.
+   */
+  overrideNote?: string;
 }
 
 export type AnySet = PlannedSet | LoggedSet;

@@ -54,26 +54,29 @@ describe('openDraft', () => {
   });
 });
 
+/** A draft that matches its own offer — the ordinary, non-override case. */
+const asOffered = (kg: number, reps: number, felt: number | null) => ({ kg, reps, felt, offered: kg, note: '' });
+
 describe('draftReady', () => {
   it('needs reps and a rating before it can be logged', () => {
-    expect(draftReady({ kg: 100, reps: 8, felt: null })).toBe(false);
-    expect(draftReady({ kg: 100, reps: 0, felt: 8 })).toBe(false);
-    expect(draftReady({ kg: 100, reps: 8, felt: 8 })).toBe(true);
+    expect(draftReady(asOffered(100, 8, null))).toBe(false);
+    expect(draftReady(asOffered(100, 0, 8))).toBe(false);
+    expect(draftReady(asOffered(100, 8, 8))).toBe(true);
   });
 
   it('allows a bodyweight set, which has no weight to enter', () => {
-    expect(draftReady({ kg: 0, reps: 8, felt: 8 })).toBe(true);
+    expect(draftReady(asOffered(0, 8, 8))).toBe(true);
   });
 });
 
 describe('applyDraft', () => {
   it('writes the draft onto the set and marks it done', () => {
-    const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, { kg: 102.5, reps: 7, felt: 9 });
+    const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, asOffered(102.5, 7, 9));
     expect(b.exercises[0].sets[0]).toMatchObject({ aVal: '102.5', aVal2: '7', felt: '9', done: true });
   });
 
   it('leaves the planned target alone — the plan is not rewritten by doing it', () => {
-    const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, { kg: 100, reps: 7, felt: 9 });
+    const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, asOffered(100, 7, 9));
     expect(b.exercises[0].sets[0].t).toBe('8');
     expect(b.exercises[0].sets[0].rpe).toBe('8');
   });
@@ -81,7 +84,53 @@ describe('applyDraft', () => {
   it('does not mutate the block it was given', () => {
     const before = one([{ t: '8', rpe: '8' }]);
     const snapshot = JSON.stringify(before);
-    applyDraft(before, { exerciseIndex: 0, setIndex: 0 }, { kg: 100, reps: 8, felt: 8 });
+    applyDraft(before, { exerciseIndex: 0, setIndex: 0 }, asOffered(100, 8, 8));
     expect(JSON.stringify(before)).toBe(snapshot);
+  });
+
+  describe('Stage 6 — the override note', () => {
+    it('records nothing extra when the athlete takes the number exactly as offered', () => {
+      const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, asOffered(100, 8, 8));
+      expect(b.exercises[0].sets[0]).not.toHaveProperty('offeredKg');
+      expect(b.exercises[0].sets[0]).not.toHaveProperty('overrideNote');
+    });
+
+    it('records what was offered when the athlete changes the number, with no note required', () => {
+      const draft = { kg: 95, reps: 8, felt: 8, offered: 102.5, note: '' };
+      const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, draft);
+      expect(b.exercises[0].sets[0]).toMatchObject({ aVal: '95', offeredKg: 102.5 });
+      expect(b.exercises[0].sets[0]).not.toHaveProperty('overrideNote');
+    });
+
+    it('carries the note alongside the override, trimmed', () => {
+      const draft = { kg: 95, reps: 8, felt: 8, offered: 102.5, note: '  shoulder felt off  ' };
+      const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, draft);
+      expect(b.exercises[0].sets[0]).toMatchObject({ offeredKg: 102.5, overrideNote: 'shoulder felt off' });
+    });
+
+    it('never stores a note left over from a set that was NOT overridden', () => {
+      // If the app ever fails to clear `note` between sets, a stray line must
+      // not attach itself to an unrelated, un-overridden set.
+      const draft = { kg: 100, reps: 8, felt: 8, offered: 100, note: 'felt great' };
+      const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, draft);
+      expect(b.exercises[0].sets[0]).not.toHaveProperty('overrideNote');
+      expect(b.exercises[0].sets[0]).not.toHaveProperty('offeredKg');
+    });
+
+    it('drops a note that is empty after trimming — whitespace is not a reason', () => {
+      const draft = { kg: 95, reps: 8, felt: 8, offered: 102.5, note: '   ' };
+      const b = applyDraft(one([{ t: '8', rpe: '8' }]), { exerciseIndex: 0, setIndex: 0 }, draft);
+      expect(b.exercises[0].sets[0]).toMatchObject({ offeredKg: 102.5 });
+      expect(b.exercises[0].sets[0]).not.toHaveProperty('overrideNote');
+    });
+  });
+});
+
+describe('openDraft — Stage 6, the offer is captured at the moment the field opens', () => {
+  it('opens with offered equal to kg — the ordinary, un-overridden shape', () => {
+    const b = one([{ t: '8', rpe: '8' }]);
+    const d = openDraft(b, { exerciseIndex: 0, setIndex: 0 });
+    expect(d.offered).toBe(d.kg);
+    expect(d.note).toBe('');
   });
 });

@@ -140,6 +140,28 @@ export function HotCard({
                   : ''}
               </Text>
             ) : null}
+            {draft.kg !== draft.offered ? (
+              /*
+               * STAGE 6 OF THE RPE PROGRESSION DESIGN. Offered by name, not
+               * "different from default" — the athlete needs to recognise
+               * this as the number the app suggested, not an error state.
+               * Optional and skippable: `logSet`'s own readiness check never
+               * reads `note`, so leaving this blank logs the set exactly as
+               * before this stage existed.
+               */
+              <View style={st.overrideRow}>
+                <Text style={st.overrideLabel}>you took {draft.kg}kg, not the {draft.offered}kg offered — why? (optional)</Text>
+                <TextInput
+                  testID="hot-override-note"
+                  accessibilityLabel="Optional note about why you changed the offered weight"
+                  placeholder="shoulder felt off, slept badly, felt great…"
+                  placeholderTextColor={st.overrideLabel.color as string}
+                  value={draft.note}
+                  onChangeText={(t) => setDraft({ note: t })}
+                  style={st.overrideInput}
+                />
+              </View>
+            ) : null}
           </View>
         ) : null}
 

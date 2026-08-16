@@ -7,6 +7,16 @@ export interface Draft {
   reps: number;
   /** How hard it was. Null until they say — never guessed. */
   felt: number | null;
+  /**
+   * Stage 6 of the RPE progression design: what the engine offered when this
+   * draft was OPENED, kept alongside `kg` so an edit can be recognised as one.
+   * Set once by `openDraft` and never patched afterwards — see `applyDraft`,
+   * which is the only place it is read.
+   */
+  offered: number;
+  /** The optional override line — see `LoggedSet.overrideNote`. Always ''
+   *  until the athlete types one; never required. */
+  note: string;
 }
 
 /**
@@ -36,10 +46,13 @@ export function openDraft(block: StrengthBlock<LoggedSet>, item: QueueItem, ctx:
   const ex = block.exercises[item.exerciseIndex];
   const st = ex.sets[item.setIndex];
   const isMax = /max/i.test(st.t || '');
+  const offered = openingLoadFor(ex, item.setIndex, ctx).kg;
   return {
-    kg: openingLoadFor(ex, item.setIndex, ctx).kg,
+    kg: offered,
     reps: isMax ? 0 : repFloorOf(st.t),
     felt: null,
+    offered,
+    note: '',
   };
 }
 
@@ -55,12 +68,22 @@ export function draftReady(draft: Draft): boolean {
  * the coaching rule judges the performance against them. Overwriting the plan
  * with what happened would score every set as perfect and the weight would
  * never move.
+ *
+ * STAGE 6: `offeredKg`/`overrideNote` are written ONLY when `draft.kg` differs
+ * from `draft.offered` — an athlete who takes the number exactly as offered
+ * has nothing to record, and every set logged before this stage existed
+ * takes that same path by construction (an absent `offered` on an old draft
+ * shape cannot happen; a set applied through the old `Draft` never reaches
+ * here again once a caller has moved to the new one). The note travels only
+ * with the override it explains — never asked for, never stored, on a set
+ * that matched the offer.
  */
 export function applyDraft(
   block: StrengthBlock<LoggedSet>,
   item: QueueItem,
   draft: Draft,
 ): StrengthBlock<LoggedSet> {
+  const overridden = draft.kg !== draft.offered;
   return {
     ...block,
     exercises: block.exercises.map((ex, ei) =>
@@ -77,6 +100,8 @@ export function applyDraft(
                     aVal2: String(draft.reps),
                     felt: draft.felt == null ? st.felt : String(draft.felt),
                     done: true,
+                    ...(overridden ? { offeredKg: draft.offered } : {}),
+                    ...(overridden && (draft.note || '').trim() ? { overrideNote: draft.note.trim() } : {}),
                   },
             ),
           },

@@ -10,7 +10,17 @@ const hot = (message: string): HotSet => ({
   planned: { reps: '8', rpe: '8' },
 });
 
-const draft = (patch: Partial<Draft> = {}): Draft => ({ kg: 100, reps: 8, felt: null, ...patch });
+// `offered` defaults to the same value as `kg` — the ordinary, un-overridden
+// shape every existing test in this file exercises. A test that wants the
+// override note visible sets `offered` explicitly to something else.
+const draft = (patch: Partial<Draft> = {}): Draft => ({
+  kg: 100,
+  reps: 8,
+  felt: null,
+  offered: patch.kg ?? 100,
+  note: '',
+  ...patch,
+});
 
 const noop = () => {};
 
@@ -94,6 +104,43 @@ describe('HotCard — the weight field', () => {
     fireEvent.changeText(r.getByTestId('hot-kg'), 'heavy');
     fireEvent(r.getByTestId('hot-kg'), 'blur');
     expect(dispatch).not.toHaveBeenCalled();
+  });
+});
+
+describe('HotCard — Stage 6, the override note', () => {
+  it('is absent when the weight matches what was offered', () => {
+    const r = render(<HotCard hot={hot('m')} draft={draft({ kg: 100, offered: 100 })} dispatch={noop} label="Set 1" weighted />);
+    expect(r.queryByTestId('hot-override-note')).toBeNull();
+  });
+
+  it('appears once the weight differs from what was offered', () => {
+    const r = render(<HotCard hot={hot('m')} draft={draft({ kg: 95, offered: 102.5 })} dispatch={noop} label="Set 1" weighted />);
+    expect(r.getByTestId('hot-override-note')).toBeTruthy();
+  });
+
+  it('is never required — the log gate ignores it entirely', () => {
+    const r = render(
+      <HotCard hot={hot('m')} draft={draft({ kg: 95, offered: 102.5, felt: 8 })} dispatch={noop} label="Set 1" weighted />,
+    );
+    expect(r.getByTestId('log').props.accessibilityState.disabled).toBe(false);
+  });
+
+  it('every keystroke goes through setDraft, same as every other field', () => {
+    const dispatch = jest.fn();
+    const r = render(
+      <HotCard hot={hot('m')} draft={draft({ kg: 95, offered: 102.5 })} dispatch={dispatch} label="Set 1" weighted />,
+    );
+    fireEvent.changeText(r.getByTestId('hot-override-note'), 'shoulder felt off');
+    expect(dispatch).toHaveBeenCalledWith({ type: 'setDraft', patch: { note: 'shoulder felt off' } });
+  });
+
+  it('does not render for a bodyweight exercise even if kg drifted from 0', () => {
+    // weighted=false hides the whole weight column, override note included —
+    // a bodyweight movement has no offer to compare against.
+    const r = render(
+      <HotCard hot={hot('m')} draft={draft({ kg: 0, offered: 0 })} dispatch={noop} label="Set 1" weighted={false} />,
+    );
+    expect(r.queryByTestId('hot-override-note')).toBeNull();
   });
 });
 

@@ -175,6 +175,12 @@ function build(color: Palette) {
     kgInput: { width: 130, borderRadius: 8, borderWidth: 1, borderColor: color.goldLine, backgroundColor: color.panel2, paddingHorizontal: 8, paddingVertical: 0, fontFamily: mono, fontSize: 40, color: color.text },
     plates: { fontFamily: mono, fontSize: 10.5, color: color.muted, marginTop: 4, lineHeight: 16.275 },
 
+    /* ---- Stage 6: the override note, shown only once the field has been
+       edited away from what was offered — see HotCard's own comment. ---- */
+    overrideRow: { marginTop: 8 },
+    overrideLabel: { fontFamily: mono, fontSize: 9, letterSpacing: 1.17, color: color.dim, textTransform: 'uppercase', lineHeight: 13.95, marginBottom: 4 },
+    overrideInput: { borderRadius: 8, borderWidth: 1, borderColor: color.line2, backgroundColor: color.panel2, paddingHorizontal: 10, paddingVertical: 8, fontFamily: font.reg, fontSize: 13, color: color.text },
+
     repsCol: { alignItems: 'center', gap: 2 },
     repsColWide: { flex: 1 },
     repsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
