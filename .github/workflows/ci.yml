@@ -3,9 +3,20 @@ name: CI
 # One job that runs exactly what `pnpm run verify` runs locally, plus every
 # other check that needs no network and no secrets.
 #
-# As of 15 August 2026 that is EVERY check under `checks/` except the three
-# parity gates, which need an Expo export of the mobile harness and are run
-# with `pnpm run check:parity-mobile`. Four checks were added that day —
+# As of 16 August 2026 that is EVERY check under `checks/`, the two mobile
+# parity gates included. They were the last exclusion, on the grounds that
+# they need an Expo export of the mobile harness first — true, and it costs a
+# couple of minutes, which turned out to be a far smaller price than not
+# running them. Both were BROKEN for a day without anyone noticing: the
+# harness mounts `SessionLogger` directly, `RunningSession` grew a `useDb()`
+# call, and the screen threw on mount so both gates walked into a blank page
+# and died reporting a missing selector. Nothing else in this file exercises
+# the phone logger end to end.
+#
+# `check:parity-harness` remains out — it drives the PROTOTYPE, which is a
+# committed HTML file that no commit here can change.
+#
+# Four checks were added on 15 August 2026 —
 # screens, pwa-update, mobile-touch and (already present) the contract loop —
 # and TWO of them failed immediately on real defects that had been invisible
 # for want of anyone running them. If a check exists and is not here, say why
@@ -158,6 +169,20 @@ jobs:
             echo "::error::screens.mjs found no browser, so no route was actually shot."
             exit 1
           fi
+
+      # The phone logger, driven end to end: exports apps/mobile's parity
+      # harness, serves it, and walks a whole session through it. The BEHAVIOUR
+      # gate replays 18 recorded steps and diffs the trace; the VISUAL gate
+      # shoots four states and diffs them pixel-for-pixel. Nothing else in this
+      # file runs the logger at all — the mobile unit tests render components,
+      # not a session.
+      #
+      # These ran nowhere until 16 August 2026 and both were failing when first
+      # run: see the workflow header. The visual baselines are the APP's own
+      # since that day rather than the prototype's — `checks/parity-visual.mjs`
+      # says why, and says what it costs.
+      - name: Mobile parity (behaviour + visual, real Expo export)
+        run: pnpm run check:parity-mobile
 
       # The whole update loop: builds TWO real bundles, serves the second under
       # a page running the first, and asserts the new version is announced,

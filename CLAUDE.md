@@ -653,17 +653,42 @@ the same commit that does the install.
 2. Work in a dedicated Git worktree for a phase; see `docs/WORKTREES.md`.
 3. Keep decision logic pure and add a test before changing a rule.
 4. Run `pnpm run typecheck`, focused Vitest tests, `pnpm run check:ecosystem`,
-   and the relevant web/mobile build before handoff. CI runs EVERY check under
-   `checks/` except the three parity gates, which need an Expo export of the
-   mobile harness — those are `pnpm run check:parity-mobile`, by hand.
+   and the relevant web/mobile build before handoff. **CI runs EVERY check
+   under `checks/`**, with one exception: `check:parity-harness`, which drives
+   the committed prototype HTML that no commit here can change.
 
-   That was not true until 15 August 2026: `screens`, `pwa-update` and
-   `mobile-touch` ran nowhere, and wiring them in immediately caught two live
-   defects — two raw `<Pressable>` in the mobile logger under the touch
-   minimum, and a service worker publishing updates to nobody after
-   `UpdateBanner` was deleted. A check that exists and does not run is worth
-   very little; if you add one, add it to `.github/workflows/ci.yml` in the
-   same commit.
+   THIS SENTENCE HAS BEEN WRONG TWICE, THE SAME WAY BOTH TIMES, and each
+   correction cost a live defect.
+
+   Until 15 August 2026 it excluded `screens`, `pwa-update` and
+   `mobile-touch`, which ran nowhere. Wiring them in immediately caught two:
+   two raw `<Pressable>` in the mobile logger under the touch minimum, and a
+   service worker publishing updates to nobody after `UpdateBanner` was
+   deleted.
+
+   Until 16 August 2026 it excluded the two MOBILE PARITY gates, on the
+   grounds that they need an Expo export first. They had been failing for a
+   day: `RunningSession` grew a `useDb()` call, the parity harness mounts
+   `SessionLogger` without the `DbProvider` the app's own route has, and the
+   screen threw on mount — so both gates walked into a blank page and died
+   reporting a missing selector, which reads like a broken driver rather than
+   a crashed screen. Nothing else in CI drives the phone logger end to end.
+   They are in `.github/workflows/ci.yml` now.
+
+   A check that exists and does not run is worth very little; if you add one,
+   add it to `.github/workflows/ci.yml` in the same commit. And if you exclude
+   one, the exclusion is a claim that ages — say why in the workflow, and
+   expect to be wrong.
+
+   **The visual parity baselines are the APP's own since 16 August 2026, not
+   the prototype's.** The app deliberately moved past the prototype — the
+   weight field now prices its opener from history, and the finish card
+   carries a session time the prototype has no row for — and the owner
+   confirmed the app is the standard in both. The cost, stated in
+   `checks/parity-visual.mjs` itself: that gate now catches an ACCIDENTAL
+   visual change and no longer measures drift away from the design.
+   Re-recording is a decision to take out loud, never a way to turn a red run
+   green.
 5. Never run production migrations, EAS submissions, Netlify deploys, or
    destructive data operations without an explicit approval and rollback plan.
 

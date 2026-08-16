@@ -11,10 +11,35 @@
  * them, how many of that step's own actions to run first) — never at a
  * duplicated list of clicks.
  *
- * The prototype at checks/fixtures/prototype/rolling-logger.html is the
- * specification. This gate is built before the rebuild exists, on purpose,
- * so it records what the SPEC looks like, once, and everything after that
- * is measured against it.
+ * WHAT THE BASELINE IS, AND WHAT IT STOPPED BEING ON 16 AUGUST 2026.
+ *
+ * It was the PROTOTYPE — checks/fixtures/prototype/rolling-logger.html,
+ * recorded once before the rebuild existed, so the rebuild was measured
+ * against the spec rather than against itself. That is a stronger gate and it
+ * is worth knowing it is no longer the one running here.
+ *
+ * The app deliberately moved past the prototype in two places, and the owner
+ * confirmed the app is now the standard in both:
+ *
+ *   - `94aa76d` changed what the weight field OPENS AT. The prototype
+ *     hard-codes an opener; the app prices one from the athlete's own history
+ *     through `openingLoadFor`, which was the entire point of that work. Seen
+ *     in `live-superset-card`, `rest-takeover` and `block-done-takeover`.
+ *   - `c9c14d4` added a session-time stat to the finish card, which the
+ *     prototype has no row for. Seen in `finish-card`.
+ *
+ * So the four `run`-phase baselines are now recorded from
+ * `--target=harness`: the app's own appearance. BE HONEST ABOUT WHAT THAT
+ * COSTS. This gate now catches an ACCIDENTAL visual change — a layout that
+ * shifts, a control that vanishes — and no longer measures drift away from
+ * the design. Re-recording is how a visual gate quietly becomes a
+ * screenshot-of-itself, so it is a decision to be taken out loud each time,
+ * never a way to make a red run go green.
+ *
+ * The prototype file stays exactly where it is, and `--target=prototype`
+ * still walks it. It remains the reference a human compares against by eye,
+ * and re-recording FROM it is one command if the design is ever restored as
+ * the standard.
  *
  * Usage:
  *   node checks/parity-visual.mjs [--target=prototype|<url>] [--record] [--phase=build|run|all]
