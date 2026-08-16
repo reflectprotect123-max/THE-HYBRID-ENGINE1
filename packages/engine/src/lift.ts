@@ -348,10 +348,31 @@ export interface LoadContext {
  * (`foldNextOpener` returns null when the opener is not positive), so nothing
  * is lost by letting it fall.
  *
- * Warm-ups are the caller's business, not this function's: it is asked about a
- * set and answers about that set. The one contamination guard that MUST stay
- * with the caller is that a warm-up must never be opened at the working
- * weight — see `openDraft`, which asks only for working sets.
+ * WARM-UPS ARE THIS FUNCTION'S BUSINESS AFTER ALL. The first version of this
+ * comment said they were the caller's, and that "a warm-up must never be
+ * opened at the working weight — see `openDraft`, which asks only for working
+ * sets". `openDraft` does no such thing: it asks about whatever `nextUp`
+ * returns, and a `W`-marked set inside an ordinary lift block is in that
+ * queue. The claim was written without being checked and was false for the
+ * few hours it stood — a warm-up opened at the full earned weight.
+ *
+ * That is the contamination every other layer already guards: `liftMoves`
+ * skips warm-up blocks so an empty bar at RPE 3 cannot teach the progression
+ * that bench is 20kg, `readExercise` drops warm-up sets before folding, and
+ * the deleted `prefillPrimary` carried a `same(x) => isWarmup(x) === warm`
+ * guard for exactly this. It is enforced here now:
+ *
+ *   - AN AUTHORED ABSOLUTE stands. "W5 @40kg" is a coach writing forty kilos
+ *     for the warm-up, derived from nothing, and honouring it is the whole
+ *     point of letting them write it.
+ *   - AN AUTHORED PERCENTAGE does not. It resolves against the working e1RM,
+ *     so it IS a working-weight-derived number wearing a warm-up's clothes.
+ *     The old prefill refused this too, in a test named for it.
+ *   - THE EARNED WEIGHT does not. That is the working weight by definition.
+ *
+ * So a warm-up with nothing authored opens BLANK, and the athlete puts on
+ * whatever they warm up with. A blank field is the honest answer; a number
+ * that is three times too heavy is not.
  */
 export interface OpeningLoad {
   kg: number;
@@ -380,6 +401,18 @@ export function openingLoadFor(
 ): OpeningLoad {
   const st = ex.sets[si];
   if (!st) return { kg: 0, message: '', source: 'none' };
+
+  /*
+   * A WARM-UP SET IS ANSWERED FIRST AND SEPARATELY, before any rung that could
+   * hand it a working number. The fold answers for the next WORKING set rather
+   * than for this index, so it cannot be trusted here either.
+   */
+  if (isWarmup(st)) {
+    const authored = loadKgOf(st.t);
+    return authored != null
+      ? { kg: authored, message: 'your coach’s warm-up weight', source: 'prescribed' }
+      : { kg: 0, message: 'warm-up — load it as you like', source: 'none' };
+  }
 
   const folded = foldFromExercise(ex as Exercise<LoggedSet>, incrementFor(ex as Exercise<LoggedSet>));
   if (folded && folded.kg > 0) return { kg: folded.kg, message: folded.message, source: 'fold' };

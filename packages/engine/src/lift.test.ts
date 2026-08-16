@@ -546,6 +546,50 @@ describe('openingLoadFor — what the weight field opens at', () => {
     expect(eased.message).toBe('eased for 20% recovery');
   });
 
+  it('NEVER offers a warm-up the working weight', () => {
+    /*
+     * THE REGRESSION THIS PINS WAS MINE, and it was live for a few hours on
+     * 16 August 2026: `openingLoadFor` fell through to `nextWorkingWeight` for
+     * a `W`-marked set and offered 140kg for a warm-up. Its own doc claimed
+     * `openDraft` "asks only for working sets" — it asks about whatever
+     * `nextUp` returns, and a warm-up set inside a lift block is in that
+     * queue.
+     *
+     * Every other layer already guards this. `liftMoves` skips warm-up blocks
+     * so an empty bar at RPE 3 cannot teach the progression that bench is
+     * 20kg; `readExercise` drops warm-up sets before folding. This is the same
+     * rule at the point a number reaches the athlete.
+     */
+    const warmed = ex('Back squat', [
+      { t: 'W10', rpe: '' } as LoggedSet,
+      { t: '5', rpe: '8' } as LoggedSet,
+    ]);
+    expect(openingLoadFor(warmed, 0, { sessions: history, settings: earned140 }).kg).toBe(0);
+    // The WORKING set beside it is unaffected — the guard is per set, not per
+    // exercise, or a single warm-up would blank the whole movement.
+    expect(openingLoadFor(warmed, 1, { sessions: history, settings: earned140 }).kg).toBe(140);
+  });
+
+  it('honours a warm-up weight the coach actually wrote, but not a percentage', () => {
+    /*
+     * The line between them is where the number COMES FROM. "@40kg" is
+     * derived from nothing — it is forty kilos, and refusing to show it would
+     * throw away the only instruction the coach gave. "@80%" resolves against
+     * the working e1RM, so it is a working-weight-derived number wearing a
+     * warm-up's clothes; the deleted `prefillPrimary` refused it in a test
+     * named for exactly that.
+     */
+    const authored = ex('Back squat', [{ t: 'W5 @40kg', rpe: '' } as LoggedSet]);
+    expect(openingLoadFor(authored, 0, { sessions: history, settings: earned140 })).toEqual({
+      kg: 40,
+      message: 'your coach’s warm-up weight',
+      source: 'prescribed',
+    });
+
+    const pct = ex('Back squat', [{ t: 'W5 @80%', rpe: '' } as LoggedSet]);
+    expect(openingLoadFor(pct, 0, { sessions: history, settings: earned140 }).kg).toBe(0);
+  });
+
   it('answers 0 for a set index that does not exist rather than throwing', () => {
     expect(openingLoadFor(ex('Back squat', []), 0, { settings: earned140 }).kg).toBe(0);
     expect(openingLoadFor(ex('Back squat', [{ t: '5', rpe: '8' } as LoggedSet]), 9, { settings: earned140 }).kg).toBe(0);
