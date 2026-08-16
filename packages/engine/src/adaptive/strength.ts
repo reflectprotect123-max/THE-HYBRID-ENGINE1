@@ -229,6 +229,19 @@ export function decideStrengthProgression(
     // target with no number at all ("max", ""), where the field opens empty and
     // any rep count is new information.
     const shownReps = Number.isFinite(repTop) ? repTop : null;
+    /*
+     * THE COACH'S SYNTAX IS READ AS INTENT. A single written number —
+     * `repTopOf(t) === String(repFloorOf(t))` — is an INSTRUCTION: the coach
+     * asked for exactly that many reps, and this engine prices load only. A
+     * range ("8-12") is an INVITATION to climb inside it before adding load.
+     * The check below does not need to run that comparison explicitly: an
+     * instruction's `shownReps` already equals the floor, so `last.reps` can
+     * never be less than it once a set is `onTarget` (missed floor ⇒ not
+     * onTarget) — the rep route falls through to the load route by
+     * construction. A WAVE — 10, then 8, then 6 — is a sequence of
+     * instructions, and this is why the engine never proposes an eleventh rep
+     * on the 10.
+     */
     // Double progression: climb the rep range before adding load. A bodyweight
     // movement has no load axis at all, so it always takes the rep route.
     const repsRoute = last.kg == null || (shownReps != null && last.reps < shownReps);

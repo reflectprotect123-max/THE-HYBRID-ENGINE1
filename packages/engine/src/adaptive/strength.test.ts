@@ -147,6 +147,19 @@ describe('decideStrengthProgression — progression', () => {
     expect(out.reasonCodes).toEqual(['already_at_rep_target']);
   });
 
+  it('a single written number is an instruction — never proposes an eleventh rep on a "10"', () => {
+    /* Stage 2 of the RPE progression design: `repTopOf('10') === String(repFloorOf('10'))`,
+       so "10" is an instruction and the engine prices load only. Two sessions on
+       target at exactly 10 reps must progress load, never suggest reps — the
+       wave case (10, then 8, then 6 the following week) depends on this never
+       climbing past what the coach wrote. */
+    const s = (id: string, at: number) => sessionWith(id, at, set('100', '10', '8', '10', '8'));
+    const sessions = [s('s0', 1000), s('s1', 2000), s('s2', 3000)];
+    const out = decideStrengthProgression('Bench press', sessions, { t: '10', rpe: '8' });
+    expect(out.action).not.toBe('progress_reps');
+    expect(out.prescription?.reps).toBeUndefined();
+  });
+
   it('suggests one more rep when the target names no rep ceiling at all', () => {
     // `repTopOf('max')` is '' — the Reps field opens EMPTY, so any count is new
     // information rather than a number written over a bigger one.
