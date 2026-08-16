@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { SetRows, newSetRows } from './SetRows';
+import { SetRows, type SetRow, newSetRows } from './SetRows';
 
 function renderSets(over: Partial<Parameters<typeof SetRows>[0]> = {}) {
   const props = {
@@ -126,5 +126,36 @@ describe('SetRows', () => {
     renderSets();
     expect(screen.getByText('Sets')).toBeInTheDocument();
     expect(screen.queryByText('3 Sets')).not.toBeInTheDocument();
+  });
+});
+
+/*
+ * MARKING A RAMP SET, at the control a coach actually presses.
+ *
+ * The chip is the toggle rather than a fourth control in the row: `.cb-set-row`
+ * is a three-column grid, and putting a fourth child in it is a mistake this
+ * file already made once tonight. A set's number and whether it is a ramp set
+ * are the same fact about that row, so one control says both.
+ */
+describe('SetRows — warm-up sets', () => {
+  it('shows the number for a working set and W for a ramp set', () => {
+    renderSets({ sets: [{ id: 's1', a: '', b: '' }, { id: 's2', a: '', b: '', warm: true }] });
+    expect(screen.getByRole('button', { name: /Set 1: a working set/ })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /Set 2: a warm-up set/ })).toHaveTextContent('W');
+  });
+
+  it('toggles one row without touching the others', () => {
+    const props = renderSets();
+    fireEvent.click(screen.getByRole('button', { name: /Set 2: a working set/ }));
+    const next = vi.mocked(props.onSetsChange).mock.calls[0][0];
+    expect(next.map((s: SetRow) => !!s.warm)).toEqual([false, true, false]);
+  });
+
+  it('says which it is to a screen reader, not just in the glyph', () => {
+    /* "W" is not self-describing, and `aria-pressed` alone announces "pressed"
+       without saying what was pressed. */
+    renderSets({ sets: [{ id: 's1', a: '', b: '', warm: true }] });
+    const chip = screen.getByRole('button', { name: /Set 1: a warm-up set/ });
+    expect(chip).toHaveAttribute('aria-pressed', 'true');
   });
 });

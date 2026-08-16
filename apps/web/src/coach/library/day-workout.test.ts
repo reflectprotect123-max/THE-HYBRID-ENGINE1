@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isWarmup } from '@hybrid/engine';
 import type { Workout } from '@hybrid/engine';
 import { dayBuilderToWorkouts, workoutsToDayBuilder, workoutToDayBuilder, INSTRUCTIONS_HEADING } from './day-workout';
 import type { DayBuilderValue } from './DayBuilder';
@@ -269,5 +270,70 @@ describe('workoutToDayBuilder', () => {
       blocks: [{ id: 'b0', heading: 'Accessories', exercises: [] }],
     };
     expect(workoutToDayBuilder(w).blocks[0].category).toBe('Strength/Power');
+  });
+});
+
+/*
+ * THE SECOND WARM-UP, and the one the bench could not say until 16 August 2026.
+ *
+ * A "Warm-up" BLOCK is prep — the phone runs it as pieces, with no rating and
+ * no rest — and that half has worked since the category existed. A warm-up SET
+ * is a ramp inside an ordinary lift block, on the same movement, and the
+ * engine has always known about it: `isWarmup` reads a leading `W` on `t`, the
+ * fold drops those sets before pricing anything, and `liftMoves` refuses to
+ * earn from them.
+ *
+ * Typing "W10" into a reps column happened to work, because the value lands in
+ * `t` and `isWarmup` only reads the first character. Undiscoverable, and
+ * indistinguishable from a typo.
+ */
+describe('warm-up sets', () => {
+  const dayWith = (sets: { id: string; a: string; b: string; warm?: boolean }[]) => ({
+    instructions: '',
+    blocks: [{
+      id: 'b0',
+      category: 'Strength/Power',
+      exercises: [{ id: 'e0', name: 'Back squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets }],
+    }],
+  });
+
+  const setsOf = (w: Workout): string[] =>
+    (w.blocks[0] as { exercises: { sets: { t?: string }[] }[] }).exercises[0].sets.map((s) => s.t ?? '');
+
+  it('writes W FIRST, because that is the only place isWarmup looks', () => {
+    /* Marked anywhere else in the string and the set is a working one as far
+       as the fold, `liftMoves` and `openingLoadFor` are concerned — which
+       would teach the progression that the working weight is the empty bar. */
+    const w = one(dayWith([
+      { id: 's0', a: '10', b: '20', warm: true },
+      { id: 's1', a: '5', b: '100' },
+    ]), { id: 'w1' });
+    expect(setsOf(w)).toEqual(['W10 @20kg', '5 @100kg']);
+    expect(isWarmup({ t: setsOf(w)[0] })).toBe(true);
+    expect(isWarmup({ t: setsOf(w)[1] })).toBe(false);
+  });
+
+  it('marks a bare warm-up with no reps written', () => {
+    const w = one(dayWith([{ id: 's0', a: '', b: '', warm: true }]), { id: 'w1' });
+    expect(setsOf(w)).toEqual(['W']);
+    expect(isWarmup({ t: 'W' })).toBe(true);
+  });
+
+  it('round trips, and does not leave the W in the reps cell', () => {
+    /* The cell is labelled Reps. Showing "W10" in it would be wrong on its own
+       terms, and saving that back would put a second W on the front. */
+    const before = dayWith([{ id: 's0', a: '10', b: '20', warm: true }, { id: 's1', a: '5', b: '100' }]);
+    const after = workoutToDayBuilder(one(before, { id: 'w1' }));
+    expect(after.blocks[0].exercises[0].sets).toEqual([
+      { id: 'e0-s0', a: '10', b: '20', warm: true },
+      { id: 'e0-s1', a: '5', b: '100' },
+    ]);
+  });
+
+  it('carries no `warm` key at all on a working set', () => {
+    /* An explicit false on every working set would round-trip as noise through
+       every stored session, for a fact that is already expressed by absence. */
+    const after = workoutToDayBuilder(one(dayWith([{ id: 's0', a: '5', b: '100' }]), { id: 'w1' }));
+    expect('warm' in after.blocks[0].exercises[0].sets[0]).toBe(false);
   });
 });

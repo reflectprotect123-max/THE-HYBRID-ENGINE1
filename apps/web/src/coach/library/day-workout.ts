@@ -1,5 +1,5 @@
-import type { Block, CondBlock, CondFmtKey, EffortKey, Exercise, LoggedSet, Modality, ModeKey, Workout } from '@hybrid/engine';
-import { CON_EFFORTS, loadKgOf, loadPctOf } from '@hybrid/engine';
+import type { Block, CondBlock, CondFmtKey, EffortKey, Exercise, LoggedSet, Modality, ModeKey, StrengthBlock, Workout } from '@hybrid/engine';
+import { CON_EFFORTS, isWarmup, loadKgOf, loadPctOf } from '@hybrid/engine';
 import {
   BLOCK_CATEGORIES,
   CONDITIONING_CATEGORIES,
@@ -102,7 +102,11 @@ function toCondBlock(block: BlockValue, note: string): CondBlock {
     // The category, exactly as the strength path stores it, and for the same
     // reason: it is what tells `workoutsToDayBuilder` which of the two
     // conditioning categories this was.
-    heading: block.category,
+    category: block.category,
+    // The name the athlete reads. A template gives a section its own name
+    // ("FINISHER"); without one the category is the name, which is what this
+    // field held on its own before `category` existed.
+    heading: block.heading?.trim() || block.category,
     condFmt: value.fmt as CondFmtKey,
     effort,
     // Kept in lockstep with `effort` — types.ts: "so older read paths still
@@ -164,7 +168,7 @@ function toCondBlock(block: BlockValue, note: string): CondBlock {
  * the coach never chose would be worse than the documented default. Giving
  * them a control to choose one is a feature, not this fix.
  */
-function toPlannedSet(row: { a: string; b: string }, columnA: string, columnB: string): LoggedSet {
+function toPlannedSet(row: SetRow, columnA: string, columnB: string): LoggedSet {
   const value = (col: string) => (col === columnA ? row.a : col === columnB ? row.b : '');
   const has = (col: string) => columnA === col || columnB === col;
 
@@ -174,6 +178,14 @@ function toPlannedSet(row: { a: string; b: string }, columnA: string, columnB: s
     const v = value(reps).trim();
     if (v) parts.push(v);
   }
+  /*
+   * `W` FIRST OR NOT AT ALL. `isWarmup` tests the first character of `t`, so a
+   * ramp set marked anywhere else in the string is simply a working set as far
+   * as the fold, `liftMoves` and `openingLoadFor` are concerned — and it would
+   * then teach the progression that the working weight is whatever the empty
+   * bar weighed.
+   */
+  if (row.warm) parts.unshift(parts.length ? 'W' + parts.shift() : 'W');
   if (has('weight_kg')) {
     const kg = value('weight_kg').trim();
     if (kg) parts.push(`@${kg}kg`);
@@ -200,12 +212,18 @@ function toPlannedSet(row: { a: string; b: string }, columnA: string, columnB: s
  * those back into the editor would show a coach the athlete's performance
  * where their own prescription should be, and then save it as the plan.
  */
-function splitPlannedSet(set: LoggedSet, columnA: string, columnB: string): { a: string; b: string } {
+function splitPlannedSet(set: LoggedSet, columnA: string, columnB: string): Omit<SetRow, 'id'> {
   const t = set.t ?? '';
   const kg = loadKgOf(t);
   const pct = loadPctOf(t);
   // Everything that is not the `@…` load chunk is the rep or duration target.
-  const reps = t.replace(/@\s*\d+(?:\.\d+)?\s*(?:%|kg)/gi, ' ').trim();
+  const reps = t
+    .replace(/@\s*\d+(?:\.\d+)?\s*(?:%|kg)/gi, ' ')
+    // The `W` marker is carried by `warm`, not by the reps cell — leaving it
+    // in would show the coach "W10" in a box labelled Reps and then save it
+    // back with a second W on the front.
+    .replace(/^\s*W/i, '')
+    .trim();
 
   const forColumn = (col: string): string => {
     if (col === 'weight_kg') return kg == null ? '' : String(kg);
@@ -214,7 +232,9 @@ function splitPlannedSet(set: LoggedSet, columnA: string, columnB: string): { a:
     return '';
   };
 
-  return { a: forColumn(columnA), b: forColumn(columnB) };
+  // `warm` only when it IS one: an explicit `false` on every working set would
+  // round-trip as noise through every stored session.
+  return { a: forColumn(columnA), b: forColumn(columnB), ...(isWarmup(set) ? { warm: true } : {}) };
 }
 
 function toBlock(block: BlockValue): Block<LoggedSet> {
@@ -235,10 +255,16 @@ function toBlock(block: BlockValue): Block<LoggedSet> {
     rest: ex.rest,
     sets: ex.sets.map((row) => toPlannedSet(row, ex.columnA, ex.columnB)),
   }));
+  const minutes = num(block.minutes ?? '');
   return {
     id: block.id,
-    heading: block.category,
+    category: block.category,
+    heading: block.heading?.trim() || block.category,
     ...(block.category === 'Warm-up' ? { warmup: true } : {}),
+    ...(minutes !== undefined ? { minutes } : {}),
+    // Absent rather than `false`, so a straight block round-trips as the
+    // record it was rather than growing a key on every save.
+    ...(block.superset ? { superset: true } : {}),
     exercises,
   };
 }
@@ -341,11 +367,28 @@ export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValu
       .filter((b) => b !== (instructionsBlock as unknown))
       .map((block) => {
         const heading = (block as { heading?: string }).heading;
+        /*
+         * The category comes from its own field when the block has one, and
+         * from `heading` when it does not — which is every block authored
+         * before `category` existed, and every block authored anywhere but
+         * here. A heading that IS the category is not a section name, so it
+         * opens the name field empty rather than repeating the dropdown.
+         */
+        const stored = (block as { category?: string }).category;
+        /*
+         * ABSENT, NOT EMPTY. `dayBuilderToWorkouts → workoutsToDayBuilder` is
+         * asserted to be an identity, and a block the coach never named would
+         * otherwise come back carrying `heading: ''` it did not go in with.
+         */
+        const named = (category: string) =>
+          heading && heading !== category ? { heading } : {};
         if ((block as { kind?: string }).kind === 'conditioning') {
           const cond = block as CondBlock;
+          const category = isCategory(stored) ? stored : isCategory(heading) ? heading : 'Conditioning';
           return {
             id: cond.id,
-            category: isCategory(heading) ? heading : 'Conditioning',
+            category,
+            ...named(category),
             exercises: [],
             conditioning: {
               fmt: cond.condFmt ?? 'steady',
@@ -371,12 +414,17 @@ export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValu
             sets,
           };
         });
+        // An unrecognised heading is not a category — a workout from the
+        // Planner can say anything. It opens under the default rather than
+        // leaving the dropdown on a value it does not offer.
+        const category = isCategory(stored) ? stored : isCategory(heading) ? heading : BLOCK_CATEGORIES[0];
+        const strength = block as StrengthBlock<LoggedSet>;
         return {
           id: block.id,
-          // An unrecognised heading is not a category — a workout from the
-          // Planner can say anything. It opens under the default rather than
-          // leaving the dropdown on a value it does not offer.
-          category: isCategory(heading) ? heading : BLOCK_CATEGORIES[0],
+          category,
+          ...named(category),
+          ...(strength.minutes === undefined ? {} : { minutes: String(strength.minutes) }),
+          ...(strength.superset ? { superset: true } : {}),
           exercises,
         };
       }),

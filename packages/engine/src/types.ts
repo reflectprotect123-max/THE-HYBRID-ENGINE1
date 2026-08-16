@@ -109,6 +109,21 @@ export interface StrengthBlock<S extends AnySet = LoggedSet> {
    */
   warmup?: boolean;
   heading?: string;
+  /**
+   * What KIND of block this is, when the coach's builder authored it — one of
+   * `BLOCK_CATEGORIES` in the bench's `BlockEditor`.
+   *
+   * The bench used to store the category in `heading`, which meant a block's
+   * displayed name and its kind were the same string and only one of them
+   * could be true. A session template needs both: a section reading "STRENGTH
+   * INTENSITY 1" that is nonetheless a Strength/Power block. So the kind moved
+   * here and `heading` went back to being the name the athlete reads.
+   *
+   * Absent on everything authored before that and on everything authored
+   * anywhere else, which is why the bench still falls back to reading the
+   * category out of `heading` when this is missing.
+   */
+  category?: string;
   minutes?: number | string;
   format?: string;
   superset?: boolean;
@@ -146,6 +161,8 @@ export interface CondBlock {
   id: string;
   kind: 'conditioning';
   heading?: string;
+  /** See `StrengthBlock.category` — the same split, for the same reason. */
+  category?: string;
   condFmt: CondFmtKey;
   /** what the coach authored */
   effort?: EffortKey;

@@ -123,3 +123,50 @@ describe('DayBuilder — both modes', () => {
     expect(screen.getByText(/nothing on this day yet/i)).toBeInTheDocument();
   });
 });
+
+describe('starting from a session template', () => {
+  it('offers the templates on an empty day and lays out their sections', () => {
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /hybrid — two strength pieces/i }));
+    expect(screen.getByText('BLOCK 06')).toBeInTheDocument();
+    /* The NAME is what each block head says, so six sections are told apart
+       while they are all still closed. */
+    expect(screen.getByText('STRENGTH INTENSITY 1')).toBeInTheDocument();
+    expect(screen.getByText('STRENGTH INTENSITY 2')).toBeInTheDocument();
+    expect(screen.getByText('FINISHER')).toBeInTheDocument();
+  });
+
+  it('lays its sections down CLOSED', () => {
+    /* Six sections each opening onto its own exercise library is a 7,600px
+       page before the coach has chosen a single movement. A block added one at
+       a time still opens expanded — see `BlockEditor`'s `startCollapsed`. */
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /hybrid — two strength pieces/i }));
+    expect(screen.queryByLabelText('Section name')).not.toBeInTheDocument();
+    /* And every one of them can be opened again. The toggle says which way it
+       goes, and until 16 August 2026 the stylesheet hid it above phone width —
+       so a block laid down closed had no visible way back open at all. */
+    const open = screen.getAllByRole('button', { name: /expand block/i });
+    expect(open).toHaveLength(6);
+    fireEvent.click(open[0]);
+    expect(screen.getByDisplayValue('WARM-UP')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /collapse block/i })).toHaveLength(1);
+  });
+
+  it('brings no movements with it — the coach still picks every one', () => {
+    /* The whole point of a template, in the owner's words: "then I just need to
+       select exercise / rest timers / rpe". A template that arrived with
+       exercises in it would be a workout, not a shape. */
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /hybrid — one strength piece/i }));
+    expect(screen.queryByRole('button', { name: /remove exercise/i })).not.toBeInTheDocument();
+  });
+
+  it('stops offering templates once the day has anything on it', () => {
+    /* Applying a template APPENDS, so the offer is only unambiguous while the
+       day is empty. See `applyTemplate`. */
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /lift and engine/i }));
+    expect(screen.queryByRole('button', { name: /lift and engine/i })).not.toBeInTheDocument();
+  });
+});

@@ -525,7 +525,15 @@
   .cb-block-type { flex: 1; }
   .cb-block-remove { flex-shrink: 0; width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--color-line2); background: var(--color-well); color: var(--color-dim); cursor: pointer; display: grid; place-items: center; }
   .cb-block-remove:hover { color: var(--color-bad); border-color: color-mix(in srgb, var(--color-bad) 45%, transparent); }
-  .cb-block-collapse { flex-shrink: 0; width: 22px; height: 22px; display: none; place-items: center; border: none; background: none; color: var(--color-dim); cursor: pointer; }
+  /* VISIBLE AT EVERY WIDTH, and it was phone-only until 16 August 2026.
+     That was survivable while every block opened expanded and the React
+     `expanded &&` guards were the only thing hiding a body — nobody could
+     reach a collapsed block at desktop because nothing could collapse one.
+     A template lays six sections down CLOSED, so the toggle became the only
+     way into any of them, and a control the stylesheet hides is not a way in.
+     The same React-decides-existence / CSS-decides-visibility split that hid
+     the exercise picker at desktop, one component along. */
+  .cb-block-collapse { flex-shrink: 0; width: 22px; height: 22px; display: grid; place-items: center; border: none; background: none; color: var(--color-dim); cursor: pointer; }
   .cb-block-collapse svg { transition: transform .18s var(--ease-standard); }
   .cb-block.collapsed .cb-block-collapse svg { transform: rotate(-90deg); }
   .cb-picker-reveal { display: none; width: 100%; margin-top: 12px; font: inherit; font-size: 12px; font-weight: 700; color: var(--color-gold2); background: var(--color-gold-wash); border: 1px dashed var(--color-gold-line); border-radius: var(--radius-md); padding: 11px; cursor: pointer; }
@@ -535,8 +543,52 @@
      category is Conditioning. */
   .cb-strength-body[hidden], .cb-cond-body[hidden] { display: none; }
   .cb-cond-body { display: flex; flex-direction: column; gap: 14px; }
+  /* The session templates offered on an empty day. Not in the mockup, which
+     draws an empty day as a single line of text. Cards rather than a select,
+     because a template is chosen on what it CONTAINS — the sections and the
+     minutes — and a dropdown can only show its name. */
+  .cb-templates { display: flex; flex-direction: column; gap: 10px; }
+  .cb-template-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  /* The `li` stretches to the tallest row; without this the BUTTON inside it
+     does not, and three cards with different summary lengths end ragged. */
+  .cb-template-list li { display: flex; }
+  .cb-template {
+    display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; cursor: pointer;
+    padding: 11px 13px; border-radius: var(--radius-sm); border: 1px solid var(--color-line2);
+    background: var(--color-well); font: inherit;
+  }
+  .cb-template:hover { border-color: var(--color-gold-line); background: var(--color-gold-wash); }
+  .cb-template:focus-visible { outline: 2px solid var(--color-gold2); outline-offset: 1px; }
+  .cb-template-name { font-size: 13px; font-weight: 700; color: var(--color-text); }
+  .cb-template-summary { font-size: 11px; line-height: 1.4; color: var(--color-dim); }
+  /* Pushed to the bottom so the three cards' meta lines share one baseline
+     however long each summary runs. */
+  .cb-template-sections { margin-top: auto; padding-top: 2px; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--color-gold2); font-variant-numeric: tabular-nums; }
+
   .cb-field-block { display: block; }
   .cb-field-block .cal-field-label { margin-bottom: 6px; }
+  /* Not in the mockup — the mockup has no section name, no minutes and no
+     superset control, which is exactly why a session template could not be
+     authored. Two columns that collapse to one at phone width, with the
+     superset toggle spanning underneath them at both. */
+  .cb-block-meta {
+    display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px 12px; align-items: end;
+    padding: 12px 14px 0;
+  }
+  /* The kind select is the mockup's `.cb-block-type`, moved out of the head —
+     it inherits `.cb-text-input`, which already styles `.cb-cond-grid select`,
+     so it matches the fields beside it rather than the head it came from. */
+  .cb-block-meta select { appearance: none; cursor: pointer; padding-right: 26px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--color-dim) 50%), linear-gradient(135deg, var(--color-dim) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 55%, calc(100% - 9px) 55%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+  /* A full sentence, so it does not get the 9px chip size the toggle carries
+     everywhere else. Spans the row under the three fields. */
+  .cb-block-superset { grid-column: 1 / -1; font-size: 11px; }
+  .cb-block-superset input { width: 13px; height: 13px; }
+  /* The section's own name is the block's identity in the head. Before this it
+     was the kind dropdown, and a six-section template read as four identical
+     "Strength/Power" rows. */
+  .cb-block-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cb-optional-inline { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--color-dim); }
   .cb-text-input, .cb-cond-grid select {
     width: 100%; font: inherit; font-size: 12px; color: var(--color-text); background: var(--color-well);
@@ -573,7 +625,7 @@
   .cb-cond-zone-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 650; color: var(--color-text); background: var(--color-well); border: 1px solid var(--color-line2); border-radius: var(--radius-pill); padding: 6px 12px; width: fit-content; }
   .cb-cond-zone-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-z-mod); box-shadow: 0 0 8px 1px currentColor; }
   .cb-cond-summary { margin: 0; font-size: 11px; color: var(--color-dim); }
-  @media (max-width: 560px) { .cb-cond-grid { grid-template-columns: repeat(2, 1fr); } .cb-cond-grid3 { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .cb-cond-grid { grid-template-columns: repeat(2, 1fr); } .cb-cond-grid3 { grid-template-columns: 1fr; } .cb-block-meta { grid-template-columns: 1fr 1fr; } .cb-block-meta > label:first-child { grid-column: 1 / -1; } }
 
   .cb-block-items { list-style: none; margin: 0; padding: 0; }
   .cb-block-items:empty { display: none; }
@@ -622,7 +674,14 @@
   }
   .cb-col-select.conflict { color: var(--color-dim); background-color: var(--color-well); border-color: var(--color-line2); opacity: .7; }
   .cb-set-row { display: grid; grid-template-columns: 24px 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 6px; }
-  .cb-set-row .n { display: grid; place-items: center; width: 22px; height: 22px; margin: 0 auto; border-radius: 50%; font-size: 10px; font-weight: 800; color: var(--color-gold2); background: var(--color-gold-wash); border: 1px solid var(--color-gold-line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
+  .cb-set-row .n { display: grid; place-items: center; width: 22px; height: 22px; margin: 0 auto; border-radius: 50%; font-size: 10px; font-weight: 800; color: var(--color-gold2); background: var(--color-gold-wash); border: 1px solid var(--color-gold-line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); font-family: inherit; cursor: pointer; padding: 0; }
+  /* A RAMP SET READS AS PREP, not as work. Brass is what this bench uses for
+     the things that count — an earned weight, a live set, a published week —
+     so a warm-up giving up its brass is the whole signal, and it matches the
+     phone, where a prep piece renders with no rating chips and no coaching
+     line at all. Dashed because it is on the way to something. */
+  .cb-set-row .n.warm { color: var(--color-dim); background: var(--color-well); border-style: dashed; border-color: var(--color-line2); box-shadow: none; }
+  .cb-set-row .n.warm + input, .cb-set-row .n.warm + input + input { opacity: .78; }
   .cb-set-row input { font: inherit; font-size: 12px; color: var(--color-text); background: var(--color-well); border: 1px solid var(--color-line2); border-radius: var(--radius-sm); padding: 7px 9px; width: 100%; box-shadow: inset 0 1px 3px rgba(0, 0, 0, .4); text-align: center; }
   .cb-set-row input:focus { outline: 2px solid var(--color-gold2); outline-offset: 1px; }
   .cb-set-row input:disabled, .cb-set-row input.conflict { opacity: .35; background: var(--color-panel3); box-shadow: none; cursor: not-allowed; }
@@ -828,9 +887,9 @@
        Blocks become a collapsible accordion (chevron toggle, auto-collapse
        siblings on "+ Add block") and the picker hides behind an "Add
        exercise" button until you actually want to browse it. Desktop is
-       untouched — .cb-block-collapse and .cb-picker-reveal only appear here,
-       and .cb-block.collapsed / .cb-picker.picker-open only matter here. */
-    .cb-block-collapse { display: grid; }
+       untouched — .cb-picker-reveal only appears here, and
+       .cb-picker.picker-open only matters here. `.cb-block-collapse` moved
+       out of this block entirely; see its rule above. */
     .cb-block.collapsed .cb-block-body-wrap { display: none; }
     .cb-picker-reveal { display: block; }
     .cb-picker-reveal[hidden] { display: none; }
