@@ -99,8 +99,8 @@ describe('BlockEditor', () => {
         id: 'b1',
         category: 'Strength/Power',
         exercises: [
-          { id: 'e1', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', sets: [] },
-          { id: 'e2', name: 'Row Erg', columnA: 'seconds', columnB: 'meters', sets: [] },
+          { id: 'e1', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets: [] },
+          { id: 'e2', name: 'Row Erg', columnA: 'seconds', columnB: 'meters', rest: 90, sets: [] },
         ],
       },
     });
@@ -136,7 +136,7 @@ describe('BlockEditor', () => {
             id: 'e1',
             name: 'Back Squat',
             columnA: 'reps',
-            columnB: 'weight_kg',
+            columnB: 'weight_kg', rest: 90,
             sets: [{ id: 's1', a: '', b: '' }],
           },
         ],
@@ -151,7 +151,7 @@ describe('BlockEditor', () => {
       block: {
         id: 'b1',
         category: 'Strength/Power',
-        exercises: [{ id: 'e1', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', sets: [] }],
+        exercises: [{ id: 'e1', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets: [] }],
       },
     });
     fireEvent.click(screen.getByRole('button', { name: /remove Back Squat/i }));
@@ -226,7 +226,7 @@ describe('BlockEditor — the exercise row', () => {
     block: {
       id: 'b1',
       category: 'Strength/Power',
-      exercises: [{ id: 'e1', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', sets: newSetRows('e1') }],
+      exercises: [{ id: 'e1', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets: newSetRows('e1') }],
     } as BlockValue,
   };
 

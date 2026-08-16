@@ -223,12 +223,79 @@ async function heights({ hasTouch }) {
     const loading = await page.evaluate(() =>
       /Loading coach workspace/.test(document.body.innerText || document.body.textContent || ''),
     );
-    const found = await visible();
+    let found = await visible();
+    // The DayBuilder's own controls only exist several clicks in — see WALK
+    // below, and the note about this check learning to walk again.
+    if (route.startsWith('/coach/day/')) found = found.concat(await walkDayBuilder(page, visible));
     perRoute.push([route, found.length, loading]);
     hs.push(...found);
   }
   await ctx.close();
   return { hs, coarse, perRoute };
+}
+
+
+/**
+ * THE WALK, BACK — narrower than the one deleted on 14 August, and for the same
+ * reason it was needed then.
+ *
+ * This file said, when the guided builder's four-click walk was dropped:
+ * "Nothing here now walks into a control that only exists after several
+ * clicks... if DayBuilder grows a multi-step path with a target at the end of
+ * it, this is the file that should learn to walk again."
+ *
+ * It grew one on 16 August 2026. A day opens empty, so a flat measurement of
+ * `/coach/day/:date` finds four controls and none of them are the ones a coach
+ * spends their time on. Add a block, add an exercise, open the row, and the
+ * exercise remove, the column selects and the set steppers appear — every one
+ * of them smaller than 44px in its desktop size, and every one previously
+ * unmeasured.
+ *
+ * It walks by VISIBLE TEXT rather than by class, so a rename that keeps the
+ * screen working keeps this working, and a rename that breaks the screen
+ * breaks this loudly at the step that no longer exists.
+ */
+async function walkDayBuilder(page, visible) {
+  const step = async (name) => {
+    const el = page.getByRole('button', { name }).first();
+    if (!(await el.count())) throw new Error(`web-touch: DayBuilder walk stalled — no control matching ${name}`);
+    await el.click();
+    await page.waitForTimeout(120);
+  };
+
+  await step(/add block/i);
+
+  /*
+   * ON TOUCH THE PICKER IS BEHIND A DOOR, and this walk found that out the
+   * hard way: `.cb-picker` is `display: none` under `pointer: coarse` until
+   * `.picker-open`, so the movement list resolved to a real button that was
+   * never visible. On a mouse the picker is open already and the reveal button
+   * is the hidden one. Pressing it only when it is visible is what makes one
+   * walk work under both emulations — and the fact that it is needed under
+   * exactly one of them is the two-mode design proving itself.
+   */
+  const reveal = page.getByRole('button', { name: /add exercise from library/i }).first();
+  if (await reveal.isVisible()) {
+    await reveal.click();
+    await page.waitForTimeout(120);
+  }
+
+  const movement = page.locator('.cb-picker-list button').first();
+  if (!(await movement.count())) throw new Error('web-touch: the exercise picker offered nothing to pick');
+  await movement.click();
+  await page.waitForTimeout(120);
+
+  // The row opens collapsed, and the sets table is behind it.
+  const head = page.locator('.cb-item-head').first();
+  if (!(await head.count())) throw new Error('web-touch: no exercise row appeared after picking a movement');
+  await head.click();
+  await page.waitForTimeout(150);
+
+  const found = await visible();
+  if (!found.some((c) => /remove a set|add a set/i.test(c.what))) {
+    throw new Error('web-touch: the row opened but its set controls were not measurable');
+  }
+  return found;
 }
 
 const touch = await heights({ hasTouch: true });

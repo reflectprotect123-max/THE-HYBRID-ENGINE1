@@ -24,7 +24,7 @@ const MONDAY = '2026-08-10';
 function dayWith(category: string): DayBuilderValue {
   return {
     instructions: '',
-    blocks: [{ id: 'b1', category, exercises: [{ id: 'e1', name: 'Back squat', columnA: 'reps', columnB: 'weight_kg', sets: [{ id: 's1', a: '5', b: '100' }] }] }],
+    blocks: [{ id: 'b1', category, exercises: [{ id: 'e1', name: 'Back squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets: [{ id: 's1', a: '5', b: '100' }] }] }],
   };
 }
 

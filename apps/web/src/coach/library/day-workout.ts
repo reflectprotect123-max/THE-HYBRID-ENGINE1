@@ -1,6 +1,13 @@
 import type { Block, CondBlock, CondFmtKey, EffortKey, Exercise, LoggedSet, Modality, ModeKey, Workout } from '@hybrid/engine';
-import { CON_EFFORTS } from '@hybrid/engine';
-import { BLOCK_CATEGORIES, CONDITIONING_CATEGORIES, newCondValue, type BlockValue, type CondValue } from './BlockEditor';
+import { CON_EFFORTS, loadKgOf, loadPctOf } from '@hybrid/engine';
+import {
+  BLOCK_CATEGORIES,
+  CONDITIONING_CATEGORIES,
+  DEFAULT_REST_SEC,
+  newCondValue,
+  type BlockValue,
+  type CondValue,
+} from './BlockEditor';
 import type { SetRow } from './SetRows';
 import type { DayBuilderValue } from './DayBuilder';
 
@@ -118,13 +125,115 @@ function toCondBlock(block: BlockValue, note: string): CondBlock {
  * stored as what they are, with the category surviving as the block's
  * `heading`. Conditioning and Mixed modal go through `toCondBlock` instead.
  */
+/**
+ * ONE AUTHORED SET BECOMES A PLANNED ONE — a target, not a result.
+ *
+ * THE BUG THIS REPLACES, found on 16 August 2026 and live for as long as this
+ * screen has existed: the coach's two authored values went straight into
+ * `aVal`/`aVal2` with `t` and `rpe` left empty. Those are the LOGGER's fields.
+ * `emit.ts` states the rule in as many words — "the athlete's logger, never
+ * the coach, writes the actual-result set fields; a target can never
+ * masquerade as a logged result" — and `assertWorkout` enforced it against a
+ * path with no traffic before being deleted with the rest of the unused
+ * surface.
+ *
+ * What it cost, all of it silent:
+ *
+ *   - `repFloorOf('')` is 0, so the athlete's reps field opened at zero and
+ *     nothing could be "missed".
+ *   - `rpeCenterOf({rpe:''})` falls back to 8.5, so every set was judged
+ *     against a default the coach never chose and the fold could not move.
+ *   - The weight WORKED, by accident: `readExercise` takes its opener from
+ *     `saneKg(aVal)`, which happened to hold the coach's number.
+ *
+ * The mapping now, and it is decided by what each column MEASURES rather than
+ * by its position — a coach may write weight first:
+ *
+ *   reps / reps_range / seconds / meters  ->  `t`, the rep or duration target
+ *   weight_kg                             ->  `@Nkg` appended to `t`
+ *   weight_pct                            ->  `@N%` appended to `t`
+ *
+ * `t` carrying the load behind an `@` is the engine's own documented escape
+ * hatch, not an invention here: `PlannedSet` is contractually exactly
+ * `{ t, rpe }`, two suites assert it, and `loadPctOf`/`loadKgOf` are where
+ * that lives.
+ *
+ * `rpe` IS STILL EMPTY, deliberately and not by omission. The builder has no
+ * RPE control — the mockup has none either — and an empty `rpe` is a defined
+ * value: `rpeCenterOf` reads it as the 8.5 default centre. Writing a number
+ * the coach never chose would be worse than the documented default. Giving
+ * them a control to choose one is a feature, not this fix.
+ */
+function toPlannedSet(row: { a: string; b: string }, columnA: string, columnB: string): LoggedSet {
+  const value = (col: string) => (col === columnA ? row.a : col === columnB ? row.b : '');
+  const has = (col: string) => columnA === col || columnB === col;
+
+  const reps = ['reps', 'reps_range', 'seconds', 'meters'].find(has);
+  const parts: string[] = [];
+  if (reps) {
+    const v = value(reps).trim();
+    if (v) parts.push(v);
+  }
+  if (has('weight_kg')) {
+    const kg = value('weight_kg').trim();
+    if (kg) parts.push(`@${kg}kg`);
+  } else if (has('weight_pct')) {
+    const pct = value('weight_pct').trim();
+    if (pct) parts.push(`@${pct}%`);
+  }
+
+  // `t` and `rpe` ONLY. No aVal, no aVal2, no done — nothing on a planned set
+  // may look like something the athlete already did.
+  return { t: parts.join(' '), rpe: '' };
+}
+
+/**
+ * A planned set, back into the two columns the builder edits.
+ *
+ * The exact inverse of `toPlannedSet`, and it has to be: a day the coach saves
+ * and reopens must show what they typed, not a reading of it. Anything the
+ * round trip cannot carry is a field the builder would silently erase on the
+ * next save.
+ *
+ * It reads `t` and `t` only. `aVal`/`aVal2` belong to the athlete's logger, and
+ * a session that has been TRAINED carries real logged values in them — reading
+ * those back into the editor would show a coach the athlete's performance
+ * where their own prescription should be, and then save it as the plan.
+ */
+function splitPlannedSet(set: LoggedSet, columnA: string, columnB: string): { a: string; b: string } {
+  const t = set.t ?? '';
+  const kg = loadKgOf(t);
+  const pct = loadPctOf(t);
+  // Everything that is not the `@…` load chunk is the rep or duration target.
+  const reps = t.replace(/@\s*\d+(?:\.\d+)?\s*(?:%|kg)/gi, ' ').trim();
+
+  const forColumn = (col: string): string => {
+    if (col === 'weight_kg') return kg == null ? '' : String(kg);
+    if (col === 'weight_pct') return pct == null ? '' : String(pct);
+    if (['reps', 'reps_range', 'seconds', 'meters'].includes(col)) return reps;
+    return '';
+  };
+
+  return { a: forColumn(columnA), b: forColumn(columnB) };
+}
+
 function toBlock(block: BlockValue): Block<LoggedSet> {
   const exercises: Exercise<LoggedSet>[] = block.exercises.map((ex) => ({
     id: ex.id,
     name: ex.name,
     mode: modeForColumns(ex.columnA, ex.columnB),
     cols: { a: ex.columnA, b: ex.columnB },
-    sets: ex.sets.map((row) => ({ t: '', rpe: '', aVal: row.a, aVal2: row.b })),
+    /*
+     * THE REST THE ATHLETE GETS BETWEEN THESE SETS.
+     *
+     * `restAfter` in @hybrid/session-authoring reads `exercises[i].rest` and
+     * returns null at zero — so before this field was authored, a coach's
+     * session ran with NO rest timer at all. The countdown, the notification
+     * and the rest chip all existed and none of them ever fired for published
+     * work; they only ran for sessions the athlete had built themselves.
+     */
+    rest: ex.rest,
+    sets: ex.sets.map((row) => toPlannedSet(row, ex.columnA, ex.columnB)),
   }));
   return {
     id: block.id,
@@ -251,10 +360,16 @@ export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValu
           const cols = ex.cols ?? columnsForMode(ex.mode);
           const sets: SetRow[] = (ex.sets ?? []).map((set, i) => ({
             id: `${ex.id}-s${i}`,
-            a: set.aVal ?? '',
-            b: set.aVal2 ?? '',
+            ...splitPlannedSet(set, cols.a, cols.b),
           }));
-          return { id: ex.id, name: ex.name, columnA: cols.a, columnB: cols.b, sets };
+          return {
+            id: ex.id,
+            name: ex.name,
+            columnA: cols.a,
+            columnB: cols.b,
+            rest: ex.rest ?? DEFAULT_REST_SEC,
+            sets,
+          };
         });
         return {
           id: block.id,
