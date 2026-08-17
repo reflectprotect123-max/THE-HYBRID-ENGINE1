@@ -512,7 +512,7 @@ describe('mergeSettings — the coach’s exercise library', () => {
     expect(out.movements).toEqual(['Back Squat', 'Bench Press']);
   });
 
-  it('de-duplicates case-insensitively, matching addMovement and buildCatalogue', () => {
+  it('de-duplicates case-insensitively, matching the deleted exercise picker', () => {
     const out = mergeSettings({ movements: ['Back Squat'] }, { movements: ['back squat', 'Row Erg'] });
     expect(out.movements).toEqual(['Back Squat', 'Row Erg']);
   });
@@ -534,9 +534,10 @@ describe('mergeSettings — the coach’s exercise library', () => {
 });
 
 describe('sanitizeDB guards the coach’s library', () => {
-  /* `buildCatalogue` maps over `movements` with no per-value check, so a
-     string or an object crashes the picker outright. Same guard `folders` and
-     `conditioning` already carry. */
+  /* The deleted exercise picker mapped over `movements` with no per-value
+     check, so a string or an object would have crashed it outright. Same
+     guard `folders` and `conditioning` already carry, kept for the stored
+     data's own shape-safety now that nothing reads it forward. */
   it('drops a non-array outright', () => {
     const db = sanitizeDB({ settings: { movements: 'Back Squat' } });
     expect(db.settings).not.toHaveProperty('movements');

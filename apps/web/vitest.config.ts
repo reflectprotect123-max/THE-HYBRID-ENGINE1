@@ -1,13 +1,14 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  // `@hybrid/session-authoring` carries its own `react` devDependency (for its
-  // own package-local test run) at a different pinned version than this app's.
-  // Vite resolves a workspace package's imports from its REAL path, so without
-  // this its `react` import found that copy instead of the app's — two React
-  // instances in one test, and every hook inside the shared hook throws
-  // "Invalid hook call". `dedupe` forces both to resolve to the one instance
-  // this app itself depends on.
+  // Historically needed because `@hybrid/session-authoring` carried its own
+  // `react` devDependency at a different pinned version than this app's, and
+  // Vite resolves a workspace package's imports from its REAL path — so
+  // without this, a shared hook's `react` import found that copy instead of
+  // the app's, and every hook inside it threw "Invalid hook call". That
+  // package was deleted 17 August 2026 with the rest of strength; `dedupe`
+  // is kept as cheap insurance against the same class of bug from any other
+  // workspace package that pins its own `react`.
   resolve: {
     dedupe: ['react', 'react-dom'],
   },

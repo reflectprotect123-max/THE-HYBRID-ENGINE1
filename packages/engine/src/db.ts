@@ -117,12 +117,11 @@ export function sanitizeDB(d: unknown): EngineDB {
         .map((f) => ({ id: f.id as string, name: f.name as string }));
     }
     // The coach's exercise library, guarded the same way and for the same
-    // reason. `buildCatalogue` maps over it with no per-value check, so a
-    // string or an object here — reachable through a backup restore, a hand-
-    // edited blob or a bad merge — crashes the picker outright. Only touch it
-    // when it IS an array, so ABSENT still means "never set" and `[]` still
-    // means an emptied library; those two are not the same and the fallback
-    // to mining history turns on the difference.
+    // reason — the exercise picker that read it is deleted (17 August 2026,
+    // with the rest of strength), but the stored list is still real data and
+    // still worth keeping shape-safe. Only touch it when it IS an array, so
+    // ABSENT still means "never set" and `[]` still means an emptied
+    // library; those two are not the same.
     if (Array.isArray(out.movements)) {
       out.movements = (out.movements as unknown[])
         .filter((m): m is string => typeof m === 'string' && !!m.trim())
@@ -392,8 +391,9 @@ export function mergeSettings(base: Settings = {}, winner: Settings = {}): Setti
   // it by hand, so silently dropping half of what he typed would have been the
   // worst possible bug in the worst possible place.
   //
-  // Case-insensitive, matching `addMovement` and `buildCatalogue`: two entries
-  // disagreeing over "Back Squat" and "back squat" are worse than either.
+  // Case-insensitive, matching the deleted exercise picker's own dedupe:
+  // two entries disagreeing over "Back Squat" and "back squat" are worse
+  // than either.
   if (base.movements || winner.movements) {
     const seen = new Set<string>();
     out.movements = [...(base.movements || []), ...(winner.movements || [])].filter((m) => {

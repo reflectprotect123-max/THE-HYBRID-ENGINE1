@@ -356,12 +356,16 @@ export interface Settings {
    */
   mobility?: string[];
   /**
-   * The coach's own exercise library — see `buildCatalogue`.
+   * The coach's own exercise library, from the exercise picker deleted whole
+   * with the rest of strength on 17 August 2026. Kept — not purged — for the
+   * same reason `cleanBlock` keeps a legacy strength block's stored row: a
+   * coach's own edits to their library are real data, and there is nothing
+   * left in this codebase to read the list back, but a future strength
+   * rebuild might.
    *
-   * Additive, so `mergeSettings` UNIONS it rather than letting one device win:
-   * a movement added on the bench and another added on the phone are both real
-   * edits. Absent means "never set", which falls the picker back to mining
-   * history; an empty array means an emptied library and does not.
+   * `mergeSettings` still UNIONS it rather than letting one device win, so
+   * syncing an old client against a new one does not lose either side's
+   * additions.
    */
   movements?: string[];
   /**
