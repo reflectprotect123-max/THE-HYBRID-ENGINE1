@@ -1,0 +1,5421 @@
+{
+  "schema_version": "hybrid-engine.exercise-library.v1",
+  "library_version": "120-canonical",
+  "title": "THE HYBRID ENGINE — Exercise Library",
+  "count": 120,
+  "source": {
+    "app_seed": "THE hybrid engine.html",
+    "historical_export": "trainheroic-userData-export-2026-07-13.zip",
+    "selection": "95 existing Hybrid Engine movements plus 25 curated gap-fill movements; raw aliases preserved where available."
+  },
+  "category_counts": {
+    "Arms": 7,
+    "Cardio": 7,
+    "Core": 8,
+    "Loaded Carry / Conditioning": 7,
+    "Machine / Isolation": 8,
+    "Power & Athletic": 12,
+    "Prep / Mobility": 2,
+    "Shoulders / Isolation": 3,
+    "Strength — Hinge": 12,
+    "Strength — Horizontal Pull": 11,
+    "Strength — Horizontal Push": 13,
+    "Strength — Squat": 10,
+    "Strength — Unilateral": 8,
+    "Strength — Vertical Pull": 6,
+    "Strength — Vertical Push": 6
+  },
+  "exercises": [
+    {
+      "exercise_id": "core-barbell-curl",
+      "name": "Barbell Curl",
+      "category": "Arms",
+      "movement_pattern": "arms",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "biceps"
+      ],
+      "secondary_muscles": [
+        "forearms"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the upper arm stable.",
+        "Use the full comfortable range without swinging.",
+        "Control the eccentric."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Arms",
+        "Barbell Curl",
+        "arms",
+        "barbell",
+        "barbell curl",
+        "biceps",
+        "forearms",
+        "rack or bench"
+      ],
+      "source_aliases": [
+        "barbell curl"
+      ],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-cable-tricep-pushdown",
+      "name": "Cable Tricep Pushdown",
+      "category": "Arms",
+      "movement_pattern": "arms",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "triceps"
+      ],
+      "secondary_muscles": [
+        "forearms"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the upper arm stable.",
+        "Use the full comfortable range without swinging.",
+        "Control the eccentric."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Arms",
+        "Cable Tricep Pushdown",
+        "arms",
+        "cable station",
+        "cable tricep pushdown",
+        "forearms",
+        "triceps"
+      ],
+      "source_aliases": [
+        "cable tricep pushdown"
+      ],
+      "source_occurrences": 5,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-dumbbell-curl",
+      "name": "Dumbbell Curl",
+      "category": "Arms",
+      "movement_pattern": "arms",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "biceps"
+      ],
+      "secondary_muscles": [
+        "forearms"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the upper arm stable.",
+        "Use the full comfortable range without swinging.",
+        "Control the eccentric."
+      ],
+      "aliases": [
+        "DB Curl",
+        "Dumbbell Bicep Curl"
+      ],
+      "search_terms": [
+        "Arms",
+        "DB Curl",
+        "Dumbbell Bicep Curl",
+        "Dumbbell Curl",
+        "arms",
+        "bench optional",
+        "biceps",
+        "dumbbells",
+        "forearms"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-hammer-curl",
+      "name": "Hammer Curl",
+      "category": "Arms",
+      "movement_pattern": "arms",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "biceps"
+      ],
+      "secondary_muscles": [
+        "forearms"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the upper arm stable.",
+        "Use the full comfortable range without swinging.",
+        "Control the eccentric."
+      ],
+      "aliases": [
+        "DB Hammer Curl",
+        "Hammer Curls"
+      ],
+      "search_terms": [
+        "Arms",
+        "DB Hammer Curl",
+        "Hammer Curl",
+        "Hammer Curls",
+        "arms",
+        "biceps",
+        "forearms",
+        "free weights or bodyweight"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 90,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-overhead-tricep-extension",
+      "name": "Overhead Tricep Extension",
+      "category": "Arms",
+      "movement_pattern": "arms",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "triceps"
+      ],
+      "secondary_muscles": [
+        "forearms"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the upper arm stable.",
+        "Use the full comfortable range without swinging.",
+        "Control the eccentric."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Arms",
+        "Overhead Tricep Extension",
+        "arms",
+        "forearms",
+        "free weights or bodyweight",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-preacher-curl",
+      "name": "Preacher Curl",
+      "category": "Arms",
+      "movement_pattern": "arms",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "biceps"
+      ],
+      "secondary_muscles": [
+        "forearms"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the upper arm stable.",
+        "Use the full comfortable range without swinging.",
+        "Control the eccentric."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Arms",
+        "Preacher Curl",
+        "arms",
+        "biceps",
+        "forearms",
+        "free weights or bodyweight"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 6,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-skull-crusher",
+      "name": "Skull Crusher",
+      "category": "Arms",
+      "movement_pattern": "arms",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "triceps"
+      ],
+      "secondary_muscles": [
+        "forearms"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the upper arm stable.",
+        "Use the full comfortable range without swinging.",
+        "Control the eccentric."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Arms",
+        "Skull Crusher",
+        "arms",
+        "forearms",
+        "free weights or bodyweight",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 8,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-assault-bike",
+      "name": "Assault Bike",
+      "category": "Cardio",
+      "movement_pattern": "conditioning",
+      "equipment": [
+        "cardio machine"
+      ],
+      "primary_muscles": [
+        "cardiorespiratory system"
+      ],
+      "secondary_muscles": [
+        "legs",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "conditioning",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "duration_distance",
+      "default_rep_range": "duration / distance",
+      "default_rest_seconds": 0,
+      "coaching_cues": [
+        "Start below maximum effort.",
+        "Keep the rhythm repeatable.",
+        "Use duration, distance, and RPE to guide progression."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Assault Bike",
+        "Cardio",
+        "cardio machine",
+        "cardiorespiratory system",
+        "conditioning",
+        "legs",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 115,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-cycling",
+      "name": "Cycling",
+      "category": "Cardio",
+      "movement_pattern": "conditioning",
+      "equipment": [
+        "cardio machine"
+      ],
+      "primary_muscles": [
+        "cardiorespiratory system"
+      ],
+      "secondary_muscles": [
+        "legs",
+        "trunk"
+      ],
+      "difficulty": "beginner",
+      "role": "conditioning",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "duration_distance",
+      "default_rep_range": "duration / distance",
+      "default_rest_seconds": 0,
+      "coaching_cues": [
+        "Start below maximum effort.",
+        "Keep the rhythm repeatable.",
+        "Use duration, distance, and RPE to guide progression."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cardio",
+        "Cycling",
+        "cardio machine",
+        "cardiorespiratory system",
+        "conditioning",
+        "legs",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-jump-rope",
+      "name": "Jump Rope",
+      "category": "Cardio",
+      "movement_pattern": "conditioning",
+      "equipment": [
+        "jump rope"
+      ],
+      "primary_muscles": [
+        "cardiorespiratory system"
+      ],
+      "secondary_muscles": [
+        "legs",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "conditioning",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "duration_distance",
+      "default_rep_range": "duration / distance",
+      "default_rest_seconds": 0,
+      "coaching_cues": [
+        "Start below maximum effort.",
+        "Keep the rhythm repeatable.",
+        "Use duration, distance, and RPE to guide progression."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cardio",
+        "Jump Rope",
+        "cardiorespiratory system",
+        "conditioning",
+        "jump rope",
+        "legs",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-rowing-erg",
+      "name": "Rowing (Erg)",
+      "category": "Cardio",
+      "movement_pattern": "conditioning",
+      "equipment": [
+        "cardio machine"
+      ],
+      "primary_muscles": [
+        "cardiorespiratory system"
+      ],
+      "secondary_muscles": [
+        "legs",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "conditioning",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "duration_distance",
+      "default_rep_range": "duration / distance",
+      "default_rest_seconds": 0,
+      "coaching_cues": [
+        "Start below maximum effort.",
+        "Keep the rhythm repeatable.",
+        "Use duration, distance, and RPE to guide progression."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cardio",
+        "Rowing (Erg)",
+        "cardio machine",
+        "cardiorespiratory system",
+        "conditioning",
+        "legs",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-running",
+      "name": "Running",
+      "category": "Cardio",
+      "movement_pattern": "conditioning",
+      "equipment": [
+        "treadmill or outdoors"
+      ],
+      "primary_muscles": [
+        "cardiorespiratory system"
+      ],
+      "secondary_muscles": [
+        "legs",
+        "trunk"
+      ],
+      "difficulty": "beginner",
+      "role": "conditioning",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "duration_distance",
+      "default_rep_range": "duration / distance",
+      "default_rest_seconds": 0,
+      "coaching_cues": [
+        "Start below maximum effort.",
+        "Keep the rhythm repeatable.",
+        "Use duration, distance, and RPE to guide progression."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cardio",
+        "Running",
+        "cardiorespiratory system",
+        "conditioning",
+        "legs",
+        "treadmill or outdoors",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 11,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-swimming",
+      "name": "Swimming",
+      "category": "Cardio",
+      "movement_pattern": "conditioning",
+      "equipment": [
+        "pool"
+      ],
+      "primary_muscles": [
+        "cardiorespiratory system"
+      ],
+      "secondary_muscles": [
+        "legs",
+        "trunk"
+      ],
+      "difficulty": "beginner",
+      "role": "conditioning",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "duration_distance",
+      "default_rep_range": "duration / distance",
+      "default_rest_seconds": 0,
+      "coaching_cues": [
+        "Start below maximum effort.",
+        "Keep the rhythm repeatable.",
+        "Use duration, distance, and RPE to guide progression."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cardio",
+        "Swimming",
+        "cardiorespiratory system",
+        "conditioning",
+        "legs",
+        "pool",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-ab-wheel-rollout",
+      "name": "Ab Wheel Rollout",
+      "category": "Core",
+      "movement_pattern": "core",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "abdominals"
+      ],
+      "secondary_muscles": [
+        "hip flexors",
+        "obliques"
+      ],
+      "difficulty": "advanced",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the ribs and pelvis connected.",
+        "Breathe behind the brace.",
+        "Stop before the trunk position changes."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Ab Wheel Rollout",
+        "Core",
+        "abdominals",
+        "bodyweight",
+        "core",
+        "external load optional",
+        "hip flexors",
+        "obliques"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-hanging-leg-raise",
+      "name": "Hanging Leg Raise",
+      "category": "Core",
+      "movement_pattern": "core",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "abdominals"
+      ],
+      "secondary_muscles": [
+        "hip flexors",
+        "obliques"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the ribs and pelvis connected.",
+        "Breathe behind the brace.",
+        "Stop before the trunk position changes."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Core",
+        "Hanging Leg Raise",
+        "abdominals",
+        "bodyweight",
+        "core",
+        "external load optional",
+        "hip flexors",
+        "obliques"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 21,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-pallof-press",
+      "name": "Pallof Press",
+      "category": "Core",
+      "movement_pattern": "core",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "obliques",
+        "deep trunk stabilisers"
+      ],
+      "secondary_muscles": [
+        "glute medius"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the ribs and pelvis connected.",
+        "Breathe behind the brace.",
+        "Stop before the trunk position changes."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Core",
+        "Pallof Press",
+        "bodyweight",
+        "core",
+        "deep trunk stabilisers",
+        "external load optional",
+        "glute medius",
+        "obliques"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-plank",
+      "name": "Plank",
+      "category": "Core",
+      "movement_pattern": "core",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "abdominals"
+      ],
+      "secondary_muscles": [
+        "hip flexors",
+        "obliques"
+      ],
+      "difficulty": "beginner",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "time_or_reps",
+      "default_rep_range": "20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the ribs and pelvis connected.",
+        "Breathe behind the brace.",
+        "Stop before the trunk position changes."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Core",
+        "Plank",
+        "abdominals",
+        "bodyweight",
+        "core",
+        "external load optional",
+        "hip flexors",
+        "obliques"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 9,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-battle-ropes",
+      "name": "Battle Ropes",
+      "category": "Loaded Carry / Conditioning",
+      "movement_pattern": "carry",
+      "equipment": [
+        "battle ropes"
+      ],
+      "primary_muscles": [
+        "grip",
+        "trunk"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "legs"
+      ],
+      "difficulty": "intermediate",
+      "role": "carry",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "distance_time_load",
+      "default_rep_range": "20–40 m or 20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Stand tall and keep the load close when appropriate.",
+        "Use short, quiet steps.",
+        "Finish the distance without leaning or rushing."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Battle Ropes",
+        "Loaded Carry / Conditioning",
+        "battle ropes",
+        "carry",
+        "grip",
+        "legs",
+        "trapezius",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 51,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-farmer-walk",
+      "name": "Farmer Walk",
+      "category": "Loaded Carry / Conditioning",
+      "movement_pattern": "carry",
+      "equipment": [
+        "dumbbells or kettlebells"
+      ],
+      "primary_muscles": [
+        "grip",
+        "trunk"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "legs"
+      ],
+      "difficulty": "beginner",
+      "role": "carry",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "distance_time_load",
+      "default_rep_range": "20–40 m or 20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Stand tall and keep the load close when appropriate.",
+        "Use short, quiet steps.",
+        "Finish the distance without leaning or rushing."
+      ],
+      "aliases": [
+        "Farmer Carry",
+        "Farmer's Carry",
+        "Farmer's Walk"
+      ],
+      "search_terms": [
+        "Farmer Carry",
+        "Farmer Walk",
+        "Farmer's Carry",
+        "Farmer's Walk",
+        "Loaded Carry / Conditioning",
+        "carry",
+        "dumbbells or kettlebells",
+        "grip",
+        "legs",
+        "trapezius",
+        "trunk"
+      ],
+      "source_aliases": [
+        "Farmer Carry"
+      ],
+      "source_occurrences": 72,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-sled-push",
+      "name": "Sled Push",
+      "category": "Loaded Carry / Conditioning",
+      "movement_pattern": "carry",
+      "equipment": [
+        "sled"
+      ],
+      "primary_muscles": [
+        "grip",
+        "trunk"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "legs"
+      ],
+      "difficulty": "intermediate",
+      "role": "carry",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "distance_time_load",
+      "default_rep_range": "20–40 m or 20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Stand tall and keep the load close when appropriate.",
+        "Use short, quiet steps.",
+        "Finish the distance without leaning or rushing."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Loaded Carry / Conditioning",
+        "Sled Push",
+        "Sledpush",
+        "carry",
+        "grip",
+        "legs",
+        "sled",
+        "trapezius",
+        "trunk"
+      ],
+      "source_aliases": [
+        "Sledpush"
+      ],
+      "source_occurrences": 82,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-cable-fly",
+      "name": "Cable Fly",
+      "category": "Machine / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "anterior deltoids",
+        "triceps"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cable Fly",
+        "Machine / Isolation",
+        "anterior deltoids",
+        "cable station",
+        "chest",
+        "isolation",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 3,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-calf-raise",
+      "name": "Calf Raise",
+      "category": "Machine / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "calves"
+      ],
+      "secondary_muscles": [
+        "feet and ankles"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Calf Raise",
+        "Machine / Isolation",
+        "calves",
+        "feet and ankles",
+        "isolation",
+        "machine"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 7,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-leg-curl",
+      "name": "Leg Curl",
+      "category": "Machine / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "calves"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Leg Curl",
+        "Machine / Isolation",
+        "calves",
+        "hamstrings",
+        "isolation",
+        "machine"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-leg-extension",
+      "name": "Leg Extension",
+      "category": "Machine / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "quadriceps"
+      ],
+      "secondary_muscles": [
+        "hip flexors"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Leg Extension",
+        "Machine / Isolation",
+        "hip flexors",
+        "isolation",
+        "machine",
+        "quadriceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 8,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-pec-deck",
+      "name": "Pec Deck",
+      "category": "Machine / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "anterior deltoids",
+        "triceps"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Machine / Isolation",
+        "Pec Deck",
+        "anterior deltoids",
+        "chest",
+        "isolation",
+        "machine",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-box-jump",
+      "name": "Box Jump",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "box or bench"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "calves",
+        "hamstrings"
+      ],
+      "difficulty": "advanced",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Box Jump",
+        "Power & Athletic",
+        "box or bench",
+        "calves",
+        "glutes",
+        "hamstrings",
+        "power",
+        "quadriceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 6,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-broad-jump",
+      "name": "Broad Jump",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "calves",
+        "hamstrings"
+      ],
+      "difficulty": "advanced",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Broad Jump",
+        "Power & Athletic",
+        "calves",
+        "free weights or bodyweight",
+        "glutes",
+        "hamstrings",
+        "power",
+        "quadriceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 207,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-medicine-ball-slam",
+      "name": "Medicine Ball Slam",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "medicine ball"
+      ],
+      "primary_muscles": [
+        "trunk",
+        "shoulders"
+      ],
+      "secondary_muscles": [
+        "hips",
+        "arms"
+      ],
+      "difficulty": "intermediate",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Medicine Ball Slam",
+        "Power & Athletic",
+        "arms",
+        "hips",
+        "medicine ball",
+        "power",
+        "shoulders",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-seated-dynamic-jump",
+      "name": "Seated Dynamic Jump",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "box or bench"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "calves",
+        "hamstrings"
+      ],
+      "difficulty": "intermediate",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Power & Athletic",
+        "Seated Dynamic Jump",
+        "box or bench",
+        "calves",
+        "glutes",
+        "hamstrings",
+        "power",
+        "quadriceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-cable-lateral-raise",
+      "name": "Cable Lateral Raise",
+      "category": "Shoulders / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "deltoids"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "rotator cuff"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cable Lateral Raise",
+        "Shoulders / Isolation",
+        "cable station",
+        "deltoids",
+        "isolation",
+        "rotator cuff",
+        "trapezius"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-lateral-raise",
+      "name": "Lateral Raise",
+      "category": "Shoulders / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "deltoids"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "rotator cuff"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Lateral Raise",
+        "Shoulders / Isolation",
+        "deltoids",
+        "free weights or bodyweight",
+        "isolation",
+        "rotator cuff",
+        "trapezius"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-rear-delt-fly",
+      "name": "Rear Delt Fly",
+      "category": "Shoulders / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "rear deltoids"
+      ],
+      "secondary_muscles": [
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Rear Delt Fly",
+        "Shoulders / Isolation",
+        "free weights or bodyweight",
+        "isolation",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-deadlift",
+      "name": "Deadlift",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Deadlift",
+        "Strength — Hinge",
+        "barbell",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "rack or bench",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 135,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-good-morning",
+      "name": "Good Morning",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Good Morning",
+        "Strength — Hinge",
+        "barbell",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "rack or bench",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 4,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-hip-thrust",
+      "name": "Hip Thrust",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Hip Thrust",
+        "Strength — Hinge",
+        "free weights or bodyweight",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 6,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-nordic-curl",
+      "name": "Nordic Curl",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "advanced",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Nordic Curl",
+        "Strength — Hinge",
+        "free weights or bodyweight",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 18,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-romanian-deadlift",
+      "name": "Romanian Deadlift",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [
+        "RDL",
+        "RDLs"
+      ],
+      "search_terms": [
+        "RDL",
+        "RDLs",
+        "Romanian Deadlift",
+        "Strength — Hinge",
+        "free weights or bodyweight",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [
+        "RDL"
+      ],
+      "source_occurrences": 160,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-sumo-deadlift",
+      "name": "Sumo Deadlift",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Strength — Hinge",
+        "Sumo DeadLift",
+        "Sumo Deadlift",
+        "free weights or bodyweight",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Sumo DeadLift"
+      ],
+      "source_occurrences": 93,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-trap-bar-deadlift",
+      "name": "Trap Bar Deadlift",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "trap bar"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [
+        "Trap-Bar Deadlift",
+        "Trap Bar Deadlifts"
+      ],
+      "search_terms": [
+        "Strength — Hinge",
+        "Trap Bar Deadlift",
+        "Trap Bar Deadlifts",
+        "Trap-Bar Deadlift",
+        "Trapbar Deadlift",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "spinal erectors",
+        "trap bar",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Trapbar Deadlift",
+        "Trap Bar Deadlifts"
+      ],
+      "source_occurrences": 67,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-barbell-row",
+      "name": "Barbell Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [
+        "BB Row",
+        "Bent Over Row"
+      ],
+      "search_terms": [
+        "BB Row",
+        "Barbell Row",
+        "Barbell row.",
+        "Bent Over Row",
+        "Strength — Horizontal Pull",
+        "barbell",
+        "biceps",
+        "horizontal pull",
+        "lats",
+        "rack or bench",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Barbell row.",
+        "Bent Over Row"
+      ],
+      "source_occurrences": 54,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-cable-row",
+      "name": "Cable Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cable Row",
+        "Strength — Horizontal Pull",
+        "biceps",
+        "cable station",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-chest-supported-row",
+      "name": "Chest-Supported Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Chest Supported Row",
+        "Chest-Supported Row",
+        "Strength — Horizontal Pull",
+        "biceps",
+        "free weights or bodyweight",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Chest Supported Row"
+      ],
+      "source_occurrences": 2,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-dumbbell-row",
+      "name": "Dumbbell Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [
+        "DB Row",
+        "1-Arm DB Row"
+      ],
+      "search_terms": [
+        "1-Arm DB Row",
+        "DB Row",
+        "Dumbbell Row",
+        "Strength — Horizontal Pull",
+        "bench optional",
+        "biceps",
+        "dumbbells",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [
+        "DB Row",
+        "1-Arm DB Row"
+      ],
+      "source_occurrences": 146,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-face-pull",
+      "name": "Face Pull",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Face Pull",
+        "Strength — Horizontal Pull",
+        "biceps",
+        "cable station",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-meadows-row",
+      "name": "Meadows Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "advanced",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Meadows Row",
+        "Strength — Horizontal Pull",
+        "biceps",
+        "cable station",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 5,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-supinated-barbell-row",
+      "name": "Supinated Barbell Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Strength — Horizontal Pull",
+        "Supinated Barbell Row",
+        "Supinated Barbell row.",
+        "barbell",
+        "biceps",
+        "horizontal pull",
+        "lats",
+        "rack or bench",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Supinated Barbell row."
+      ],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-t-bar-row",
+      "name": "T-Bar Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Strength — Horizontal Pull",
+        "T-Bar Row",
+        "biceps",
+        "free weights or bodyweight",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 44,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-bench-press",
+      "name": "Bench Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Bench Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "barbell",
+        "chest",
+        "horizontal push",
+        "rack or bench",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 278,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-close-grip-bench-press",
+      "name": "Close Grip Bench Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Close Grip Bench Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bodyweight",
+        "chest",
+        "external load optional",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 145,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-dip",
+      "name": "Dip",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Dip",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bodyweight",
+        "chest",
+        "external load optional",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-dumbbell-bench-press",
+      "name": "Dumbbell Bench Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [
+        "DB Bench Press"
+      ],
+      "search_terms": [
+        "DB Bench Press",
+        "Dumbbell Bench Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bench optional",
+        "chest",
+        "dumbbells",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [
+        "DB Bench Press"
+      ],
+      "source_occurrences": 66,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-incline-bench-press",
+      "name": "Incline Bench Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Incline Bench Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bodyweight",
+        "chest",
+        "external load optional",
+        "horizontal push",
+        "incline Bench Press",
+        "triceps"
+      ],
+      "source_aliases": [
+        "incline Bench Press"
+      ],
+      "source_occurrences": 58,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-low-incline-db-bench",
+      "name": "Low Incline 1 1/4 Dumbbell Bench Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Low Incline 1 1/4 Dumbbell Bench Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bench optional",
+        "chest",
+        "dumbbells",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 8,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-push-up",
+      "name": "Push Up",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "beginner",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [
+        "Push-Up",
+        "Push Ups",
+        "Bodyweight Push-Up"
+      ],
+      "search_terms": [
+        "Bodyweight Push-Up",
+        "Push Up",
+        "Push Ups",
+        "Push up",
+        "Push-Up",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bodyweight",
+        "chest",
+        "external load optional",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [
+        "Push up",
+        "Push-Up",
+        "Push Ups"
+      ],
+      "source_occurrences": 39,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-strict-bar-dip",
+      "name": "Strict Bar Dip",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "advanced",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Strength — Horizontal Push",
+        "Strict Bar Dip",
+        "anterior deltoids",
+        "bodyweight",
+        "chest",
+        "external load optional",
+        "horizontal push",
+        "strict bar dip",
+        "triceps"
+      ],
+      "source_aliases": [
+        "strict bar dip"
+      ],
+      "source_occurrences": 12,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-back-squat",
+      "name": "Back Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Back Squat",
+        "Strength — Squat",
+        "adductors",
+        "barbell",
+        "glutes",
+        "quadriceps",
+        "rack or bench",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 310,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-box-squat",
+      "name": "Box Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "box or bench"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Box Squat",
+        "Strength — Squat",
+        "adductors",
+        "box or bench",
+        "glutes",
+        "quadriceps",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 56,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-front-squat",
+      "name": "Front Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Front Squat",
+        "Strength — Squat",
+        "adductors",
+        "barbell",
+        "glutes",
+        "quadriceps",
+        "rack or bench",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 220,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-goblet-squat",
+      "name": "Goblet Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "beginner",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Goblet Squat",
+        "Strength — Squat",
+        "adductors",
+        "free weights or bodyweight",
+        "glutes",
+        "quadriceps",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 37,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-hack-squat",
+      "name": "Hack Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Hack Squat",
+        "Strength — Squat",
+        "adductors",
+        "glutes",
+        "machine",
+        "quadriceps",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-leg-press",
+      "name": "Leg Press",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "beginner",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Leg Press",
+        "Strength — Squat",
+        "adductors",
+        "glutes",
+        "machine",
+        "quadriceps",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 17,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-zercher-squat",
+      "name": "Zercher Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "advanced",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Strength — Squat",
+        "Zercher Squat",
+        "adductors",
+        "barbell",
+        "glutes",
+        "quadriceps",
+        "rack or bench",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 25,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-bulgarian-split-squat",
+      "name": "Bulgarian Split Squat",
+      "category": "Strength — Unilateral",
+      "movement_pattern": "unilateral",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps / side",
+      "default_rest_seconds": 90,
+      "coaching_cues": [
+        "Own the stance before adding load.",
+        "Keep the pelvis level and the working foot stable.",
+        "Use a controlled tempo on the way down."
+      ],
+      "aliases": [
+        "Bulgarian Split Squats",
+        "Rear-Foot-Elevated Split Squat"
+      ],
+      "search_terms": [
+        "Bulgarian Split Squat",
+        "Bulgarian Split Squats",
+        "Bulgarian Split squat",
+        "Rear-Foot-Elevated Split Squat",
+        "Strength — Unilateral",
+        "bodyweight",
+        "external load optional",
+        "glutes",
+        "hamstrings",
+        "quadriceps",
+        "trunk",
+        "unilateral"
+      ],
+      "source_aliases": [
+        "Bulgarian Split squat",
+        "Bulgarian Split Squats"
+      ],
+      "source_occurrences": 67,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-reverse-lunge",
+      "name": "Reverse Lunge",
+      "category": "Strength — Unilateral",
+      "movement_pattern": "unilateral",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps / side",
+      "default_rest_seconds": 90,
+      "coaching_cues": [
+        "Own the stance before adding load.",
+        "Keep the pelvis level and the working foot stable.",
+        "Use a controlled tempo on the way down."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Reverse Lunge",
+        "Strength — Unilateral",
+        "bodyweight",
+        "external load optional",
+        "glutes",
+        "hamstrings",
+        "quadriceps",
+        "trunk",
+        "unilateral"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 10,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-single-leg-rdl",
+      "name": "Single Leg RDL",
+      "category": "Strength — Unilateral",
+      "movement_pattern": "unilateral",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps / side",
+      "default_rest_seconds": 90,
+      "coaching_cues": [
+        "Own the stance before adding load.",
+        "Keep the pelvis level and the working foot stable.",
+        "Use a controlled tempo on the way down."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Single Leg RDL",
+        "Strength — Unilateral",
+        "bodyweight",
+        "external load optional",
+        "glutes",
+        "hamstrings",
+        "quadriceps",
+        "trunk",
+        "unilateral"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 35,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-step-up",
+      "name": "Step Up",
+      "category": "Strength — Unilateral",
+      "movement_pattern": "unilateral",
+      "equipment": [
+        "box or bench"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "trunk"
+      ],
+      "difficulty": "beginner",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps / side",
+      "default_rest_seconds": 90,
+      "coaching_cues": [
+        "Own the stance before adding load.",
+        "Keep the pelvis level and the working foot stable.",
+        "Use a controlled tempo on the way down."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Step Up",
+        "Strength — Unilateral",
+        "box or bench",
+        "glutes",
+        "hamstrings",
+        "quadriceps",
+        "trunk",
+        "unilateral"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-walking-lunge",
+      "name": "Walking Lunge",
+      "category": "Strength — Unilateral",
+      "movement_pattern": "unilateral",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps / side",
+      "default_rest_seconds": 90,
+      "coaching_cues": [
+        "Own the stance before adding load.",
+        "Keep the pelvis level and the working foot stable.",
+        "Use a controlled tempo on the way down."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Strength — Unilateral",
+        "Walking Lunge",
+        "bodyweight",
+        "external load optional",
+        "glutes",
+        "hamstrings",
+        "quadriceps",
+        "trunk",
+        "unilateral"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 6,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-chin-up",
+      "name": "Chin Up",
+      "category": "Strength — Vertical Pull",
+      "movement_pattern": "vertical_pull",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "upper back"
+      ],
+      "difficulty": "advanced",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Start from a stable shoulder position.",
+        "Drive the elbows down rather than yanking with the hands.",
+        "Control the return to the start."
+      ],
+      "aliases": [
+        "Chin-Up",
+        "Chin Ups"
+      ],
+      "search_terms": [
+        "Chin Up",
+        "Chin Ups",
+        "Chin-Up",
+        "Strength — Vertical Pull",
+        "biceps",
+        "bodyweight",
+        "chin up",
+        "external load optional",
+        "lats",
+        "upper back",
+        "vertical pull"
+      ],
+      "source_aliases": [
+        "chin up",
+        "Chin-Up",
+        "Chin Ups"
+      ],
+      "source_occurrences": 23,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-lat-pulldown",
+      "name": "Lat Pulldown",
+      "category": "Strength — Vertical Pull",
+      "movement_pattern": "vertical_pull",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Start from a stable shoulder position.",
+        "Drive the elbows down rather than yanking with the hands.",
+        "Control the return to the start."
+      ],
+      "aliases": [
+        "Lat Pull Down",
+        "Lat Pulldowns"
+      ],
+      "search_terms": [
+        "Lat Pull Down",
+        "Lat Pulldown",
+        "Lat Pulldowns",
+        "Strength — Vertical Pull",
+        "biceps",
+        "bodyweight",
+        "external load optional",
+        "lats",
+        "upper back",
+        "vertical pull"
+      ],
+      "source_aliases": [
+        "Lat Pull Down"
+      ],
+      "source_occurrences": 66,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-neutral-grip-pulldown",
+      "name": "Neutral Grip Pulldown",
+      "category": "Strength — Vertical Pull",
+      "movement_pattern": "vertical_pull",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Start from a stable shoulder position.",
+        "Drive the elbows down rather than yanking with the hands.",
+        "Control the return to the start."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Neutral Grip Pulldown",
+        "Strength — Vertical Pull",
+        "biceps",
+        "bodyweight",
+        "external load optional",
+        "lats",
+        "upper back",
+        "vertical pull"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-pronated-strict-pull-up",
+      "name": "Pronated Strict Pull Up",
+      "category": "Strength — Vertical Pull",
+      "movement_pattern": "vertical_pull",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "upper back"
+      ],
+      "difficulty": "advanced",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Start from a stable shoulder position.",
+        "Drive the elbows down rather than yanking with the hands.",
+        "Control the return to the start."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Pronated Strict Pull Up",
+        "Strength — Vertical Pull",
+        "biceps",
+        "bodyweight",
+        "external load optional",
+        "lats",
+        "pronated strict pull up",
+        "upper back",
+        "vertical pull"
+      ],
+      "source_aliases": [
+        "pronated strict pull up"
+      ],
+      "source_occurrences": 17,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-pull-up",
+      "name": "Pull Up",
+      "category": "Strength — Vertical Pull",
+      "movement_pattern": "vertical_pull",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "upper back"
+      ],
+      "difficulty": "advanced",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Start from a stable shoulder position.",
+        "Drive the elbows down rather than yanking with the hands.",
+        "Control the return to the start."
+      ],
+      "aliases": [
+        "Pull-Up",
+        "Pull Ups"
+      ],
+      "search_terms": [
+        "Pull Up",
+        "Pull Ups",
+        "Pull-Up",
+        "Strength — Vertical Pull",
+        "biceps",
+        "bodyweight",
+        "external load optional",
+        "lats",
+        "upper back",
+        "vertical pull"
+      ],
+      "source_aliases": [
+        "Pull-Up"
+      ],
+      "source_occurrences": 71,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-arnold-press",
+      "name": "Arnold Press",
+      "category": "Strength — Vertical Push",
+      "movement_pattern": "vertical_push",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "deltoids"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "upper chest"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Stack the ribs over the pelvis before pressing.",
+        "Keep the forearms under the load.",
+        "Finish with control; do not chase range by arching."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Arnold Press",
+        "Strength — Vertical Push",
+        "bodyweight",
+        "deltoids",
+        "external load optional",
+        "triceps",
+        "upper chest",
+        "vertical push"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-landmine-press",
+      "name": "Landmine Press",
+      "category": "Strength — Vertical Push",
+      "movement_pattern": "vertical_push",
+      "equipment": [
+        "landmine"
+      ],
+      "primary_muscles": [
+        "deltoids"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "upper chest"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Stack the ribs over the pelvis before pressing.",
+        "Keep the forearms under the load.",
+        "Finish with control; do not chase range by arching."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Landmine Press",
+        "Strength — Vertical Push",
+        "deltoids",
+        "landmine",
+        "triceps",
+        "upper chest",
+        "vertical push"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-overhead-press",
+      "name": "Overhead Press",
+      "category": "Strength — Vertical Push",
+      "movement_pattern": "vertical_push",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "deltoids"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "upper chest"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Stack the ribs over the pelvis before pressing.",
+        "Keep the forearms under the load.",
+        "Finish with control; do not chase range by arching."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Overhead Press",
+        "Strength — Vertical Push",
+        "barbell",
+        "deltoids",
+        "rack or bench",
+        "triceps",
+        "upper chest",
+        "vertical push"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-push-press",
+      "name": "Push Press",
+      "category": "Strength — Vertical Push",
+      "movement_pattern": "vertical_push",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "deltoids"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "upper chest"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Stack the ribs over the pelvis before pressing.",
+        "Keep the forearms under the load.",
+        "Finish with control; do not chase range by arching."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Push Press",
+        "Strength — Vertical Push",
+        "barbell",
+        "deltoids",
+        "rack or bench",
+        "triceps",
+        "upper chest",
+        "vertical push"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 64,
+      "built_in": true
+    },
+    {
+      "exercise_id": "core-seated-db-overhead-press",
+      "name": "Seated DB Overhead Press",
+      "category": "Strength — Vertical Push",
+      "movement_pattern": "vertical_push",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "deltoids"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "upper chest"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Stack the ribs over the pelvis before pressing.",
+        "Keep the forearms under the load.",
+        "Finish with control; do not chase range by arching."
+      ],
+      "aliases": [
+        "Seated Dumbbell Shoulder Press",
+        "Seated DB Press"
+      ],
+      "search_terms": [
+        "Seated DB Overhead Press",
+        "Seated DB Press",
+        "Seated Dumbbell Shoulder Press",
+        "Strength — Vertical Push",
+        "bench optional",
+        "deltoids",
+        "dumbbells",
+        "triceps",
+        "upper chest",
+        "vertical push"
+      ],
+      "source_aliases": [
+        "Seated Dumbbell Shoulder Press",
+        "Seated DB Press"
+      ],
+      "source_occurrences": 76,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-incline-db-press",
+      "name": "Incline DB Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [
+        "Incline Dumbbell Bench Press",
+        "DB Incline Bench"
+      ],
+      "search_terms": [
+        "DB Incline Bench",
+        "Incline DB Press",
+        "Incline Dumbbell Bench Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bench optional",
+        "chest",
+        "dumbbells",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-dumbbell-press",
+      "name": "Dumbbell Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Dumbbell Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bench optional",
+        "chest",
+        "dumbbells",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-machine-press",
+      "name": "Machine Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "beginner",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Machine Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "chest",
+        "horizontal push",
+        "machine",
+        "triceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-lateral-lunge",
+      "name": "Lateral Lunge",
+      "category": "Strength — Unilateral",
+      "movement_pattern": "unilateral",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps / side",
+      "default_rest_seconds": 90,
+      "coaching_cues": [
+        "Own the stance before adding load.",
+        "Keep the pelvis level and the working foot stable.",
+        "Use a controlled tempo on the way down."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Lateral Lunge",
+        "Strength — Unilateral",
+        "bodyweight",
+        "external load optional",
+        "glutes",
+        "hamstrings",
+        "quadriceps",
+        "trunk",
+        "unilateral"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 12,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-tempo-bodyweight-squat",
+      "name": "Tempo Bodyweight Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "beginner",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Strength — Squat",
+        "Tempo Bodyweight Squat",
+        "adductors",
+        "free weights or bodyweight",
+        "glutes",
+        "quadriceps",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-block-pull",
+      "name": "Block Pull",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "barbell",
+        "rack or bench"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Block Pull",
+        "Strength — Hinge",
+        "barbell",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "rack or bench",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-band-good-morning",
+      "name": "Band Good Morning",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "resistance band"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Band Good Morning",
+        "Strength — Hinge",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "resistance band",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-db-rdl",
+      "name": "DB RDL",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [
+        "Dumbbell Romanian Deadlift",
+        "Dumbbell RDL",
+        "DB RDLs"
+      ],
+      "search_terms": [
+        "DB RDL",
+        "DB RDLs",
+        "Dumbbell RDL",
+        "Dumbbell Romanian Deadlift",
+        "Strength — Hinge",
+        "bench optional",
+        "dumbbells",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [
+        "DB RDLs"
+      ],
+      "source_occurrences": 116,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-suitcase-carry",
+      "name": "Suitcase Carry",
+      "category": "Loaded Carry / Conditioning",
+      "movement_pattern": "carry",
+      "equipment": [
+        "dumbbells or kettlebells"
+      ],
+      "primary_muscles": [
+        "grip",
+        "trunk"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "legs"
+      ],
+      "difficulty": "intermediate",
+      "role": "carry",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "distance_time_load",
+      "default_rep_range": "20–40 m or 20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Stand tall and keep the load close when appropriate.",
+        "Use short, quiet steps.",
+        "Finish the distance without leaning or rushing."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Loaded Carry / Conditioning",
+        "Suitcase Carry",
+        "carry",
+        "dumbbells or kettlebells",
+        "grip",
+        "legs",
+        "trapezius",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 11,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-sandbag-carry",
+      "name": "Sandbag Carry",
+      "category": "Loaded Carry / Conditioning",
+      "movement_pattern": "carry",
+      "equipment": [
+        "sandbag"
+      ],
+      "primary_muscles": [
+        "grip",
+        "trunk"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "legs"
+      ],
+      "difficulty": "intermediate",
+      "role": "carry",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "distance_time_load",
+      "default_rep_range": "20–40 m or 20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Stand tall and keep the load close when appropriate.",
+        "Use short, quiet steps.",
+        "Finish the distance without leaning or rushing."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Loaded Carry / Conditioning",
+        "Sandbag Carry",
+        "carry",
+        "grip",
+        "legs",
+        "sandbag",
+        "trapezius",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-bear-crawl",
+      "name": "Bear Crawl",
+      "category": "Loaded Carry / Conditioning",
+      "movement_pattern": "carry",
+      "equipment": [
+        "dumbbells or kettlebells"
+      ],
+      "primary_muscles": [
+        "grip",
+        "trunk"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "legs"
+      ],
+      "difficulty": "intermediate",
+      "role": "carry",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "distance_time_load",
+      "default_rep_range": "20–40 m or 20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Stand tall and keep the load close when appropriate.",
+        "Use short, quiet steps.",
+        "Finish the distance without leaning or rushing."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Bear Crawl",
+        "Loaded Carry / Conditioning",
+        "carry",
+        "dumbbells or kettlebells",
+        "grip",
+        "legs",
+        "trapezius",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-backpack-carry",
+      "name": "Backpack Carry",
+      "category": "Loaded Carry / Conditioning",
+      "movement_pattern": "carry",
+      "equipment": [
+        "loaded backpack"
+      ],
+      "primary_muscles": [
+        "grip",
+        "trunk"
+      ],
+      "secondary_muscles": [
+        "trapezius",
+        "legs"
+      ],
+      "difficulty": "intermediate",
+      "role": "carry",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "distance_time_load",
+      "default_rep_range": "20–40 m or 20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Stand tall and keep the load close when appropriate.",
+        "Use short, quiet steps.",
+        "Finish the distance without leaning or rushing."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Backpack Carry",
+        "Loaded Carry / Conditioning",
+        "carry",
+        "grip",
+        "legs",
+        "loaded backpack",
+        "trapezius",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-med-ball-throw",
+      "name": "Med-Ball Throw",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "medicine ball"
+      ],
+      "primary_muscles": [
+        "trunk",
+        "shoulders"
+      ],
+      "secondary_muscles": [
+        "hips",
+        "arms"
+      ],
+      "difficulty": "intermediate",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Med-Ball Throw",
+        "Power & Athletic",
+        "arms",
+        "hips",
+        "medicine ball",
+        "power",
+        "shoulders",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-kettlebell-swing",
+      "name": "Kettlebell Swing",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "kettlebell"
+      ],
+      "primary_muscles": [
+        "hips",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "trunk",
+        "shoulders"
+      ],
+      "difficulty": "intermediate",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Kettlebell Swing",
+        "Power & Athletic",
+        "hamstrings",
+        "hips",
+        "kettlebell",
+        "power",
+        "shoulders",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-fast-sit-to-stand",
+      "name": "Fast Sit-to-Stand",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "hips",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "trunk",
+        "shoulders"
+      ],
+      "difficulty": "intermediate",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Fast Sit-to-Stand",
+        "Power & Athletic",
+        "free weights or bodyweight",
+        "hamstrings",
+        "hips",
+        "power",
+        "shoulders",
+        "trunk"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-jump-squat",
+      "name": "Jump Squat",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "calves",
+        "hamstrings"
+      ],
+      "difficulty": "intermediate",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Jump Squat",
+        "Power & Athletic",
+        "calves",
+        "free weights or bodyweight",
+        "glutes",
+        "hamstrings",
+        "power",
+        "quadriceps"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-scap-push-up",
+      "name": "Scap Push-Up",
+      "category": "Prep / Mobility",
+      "movement_pattern": "prep",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "movement preparation"
+      ],
+      "secondary_muscles": [
+        "hips",
+        "shoulders"
+      ],
+      "difficulty": "beginner",
+      "role": "prep",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_or_time",
+      "default_rep_range": "5–10 reps or 20–40 sec",
+      "default_rest_seconds": 30,
+      "coaching_cues": [
+        "Move smoothly and stay below fatigue.",
+        "Use only the range you can control.",
+        "Treat discomfort as a signal to reduce range or stop."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Prep / Mobility",
+        "Scap Push-Up",
+        "bodyweight",
+        "external load optional",
+        "hips",
+        "movement preparation",
+        "prep",
+        "shoulders"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 206,
+      "built_in": true
+    },
+    {
+      "exercise_id": "rebuilt-hip-hinge-drill",
+      "name": "Hip Hinge Drill",
+      "category": "Prep / Mobility",
+      "movement_pattern": "prep",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "movement preparation"
+      ],
+      "secondary_muscles": [
+        "hips",
+        "shoulders"
+      ],
+      "difficulty": "beginner",
+      "role": "prep",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_or_time",
+      "default_rep_range": "5–10 reps or 20–40 sec",
+      "default_rest_seconds": 30,
+      "coaching_cues": [
+        "Move smoothly and stay below fatigue.",
+        "Use only the range you can control.",
+        "Treat discomfort as a signal to reduce range or stop."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Hip Hinge Drill",
+        "Prep / Mobility",
+        "bodyweight",
+        "external load optional",
+        "hips",
+        "movement preparation",
+        "prep",
+        "shoulders"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 0,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-assisted-pull-up",
+      "name": "Assisted Pull-Up",
+      "category": "Strength — Vertical Pull",
+      "movement_pattern": "vertical_pull",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Start from a stable shoulder position.",
+        "Drive the elbows down rather than yanking with the hands.",
+        "Control the return to the start."
+      ],
+      "aliases": [
+        "Assisted Ring Pull Ups - SP",
+        "Band Assisted Pull Up",
+        "assisted pull up"
+      ],
+      "search_terms": [
+        "Assisted Pull-Up",
+        "Assisted Ring Pull Ups - SP",
+        "Band Assisted Pull Up",
+        "Strength — Vertical Pull",
+        "assisted pull up",
+        "biceps",
+        "bodyweight",
+        "external load optional",
+        "lats",
+        "upper back",
+        "vertical pull"
+      ],
+      "source_aliases": [
+        "Assisted Ring Pull Ups - SP",
+        "Band Assisted Pull Up"
+      ],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-inverted-row",
+      "name": "Inverted Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Feet Elevated Inverted Row",
+        "Inverted Row",
+        "Strength — Horizontal Pull",
+        "biceps",
+        "free weights or bodyweight",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Feet Elevated Inverted Row"
+      ],
+      "source_occurrences": 14,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-seal-row",
+      "name": "Seal Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "DB Seal Rows",
+        "Seal Row",
+        "Seal Rows",
+        "Strength — Horizontal Pull",
+        "biceps",
+        "free weights or bodyweight",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Seal Rows",
+        "DB Seal Rows"
+      ],
+      "source_occurrences": 3,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-low-cable-row",
+      "name": "Low Cable Row",
+      "category": "Strength — Horizontal Pull",
+      "movement_pattern": "horizontal_pull",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Keep the trunk stable and avoid using momentum.",
+        "Pull the elbows toward the body.",
+        "Pause briefly in the contracted position."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Low Cable Row",
+        "Seated Cable Row",
+        "Strength — Horizontal Pull",
+        "biceps",
+        "cable station",
+        "horizontal pull",
+        "lats",
+        "rear deltoids",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Seated Cable Row"
+      ],
+      "source_occurrences": 27,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-dumbbell-floor-press",
+      "name": "Dumbbell Floor Press",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "DB Floor Press",
+        "DB Floor Press - neutral grip",
+        "Dumbbell Floor Press",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bench optional",
+        "chest",
+        "dumbbells",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [
+        "DB Floor Press",
+        "DB Floor Press - neutral grip"
+      ],
+      "source_occurrences": 18,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-deficit-push-up",
+      "name": "Deficit Push-Up",
+      "category": "Strength — Horizontal Push",
+      "movement_pattern": "horizontal_push",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "anterior deltoids"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps",
+      "default_rest_seconds": 120,
+      "coaching_cues": [
+        "Set the shoulder blades and keep the ribcage controlled.",
+        "Lower with control and keep the wrists stacked.",
+        "Press smoothly without bouncing or grinding."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Deficit Push Up",
+        "Deficit Push-Up",
+        "Deficit Push-Ups",
+        "Strength — Horizontal Push",
+        "anterior deltoids",
+        "bodyweight",
+        "chest",
+        "external load optional",
+        "horizontal push",
+        "triceps"
+      ],
+      "source_aliases": [
+        "Deficit Push Up",
+        "Deficit Push-Ups"
+      ],
+      "source_occurrences": 8,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-z-press",
+      "name": "Z-Press",
+      "category": "Strength — Vertical Push",
+      "movement_pattern": "vertical_push",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "deltoids"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "upper chest"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Stack the ribs over the pelvis before pressing.",
+        "Keep the forearms under the load.",
+        "Finish with control; do not chase range by arching."
+      ],
+      "aliases": [
+        "Barbell Z Press",
+        "DB Z Press",
+        "Kettlebell Z Press"
+      ],
+      "search_terms": [
+        "Barbell Z Press",
+        "DB Z Press",
+        "Kettlebell Z Press",
+        "Strength — Vertical Push",
+        "Z-Press",
+        "Z-press",
+        "bodyweight",
+        "deltoids",
+        "external load optional",
+        "triceps",
+        "upper chest",
+        "vertical push"
+      ],
+      "source_aliases": [
+        "Z-press",
+        "Barbell Z Press",
+        "DB Z Press",
+        "Kettlebell Z Press"
+      ],
+      "source_occurrences": 112,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-landmine-squat",
+      "name": "Landmine Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "landmine"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [
+        "Landmine Squat",
+        "1 1/4 Landmine Squat"
+      ],
+      "search_terms": [
+        "1 1/4 Landmine Squat",
+        "Landmine Squat",
+        "Strength — Squat",
+        "adductors",
+        "glutes",
+        "landmine",
+        "quadriceps",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [
+        "1 1/4 Landmine Squat"
+      ],
+      "source_occurrences": 19,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-cyclist-squat",
+      "name": "Cyclist Squat",
+      "category": "Strength — Squat",
+      "movement_pattern": "squat",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Brace before each rep and keep the full foot grounded.",
+        "Control the descent without losing knee and foot position.",
+        "Stand by driving through the floor."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cyclist Squat",
+        "Strength — Squat",
+        "adductors",
+        "cyclist squat - back rack",
+        "free weights or bodyweight",
+        "glutes",
+        "quadriceps",
+        "squat",
+        "trunk"
+      ],
+      "source_aliases": [
+        "cyclist squat - back rack"
+      ],
+      "source_occurrences": 17,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-cossack-squat",
+      "name": "Cossack Squat",
+      "category": "Strength — Unilateral",
+      "movement_pattern": "unilateral",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps / side",
+      "default_rest_seconds": 90,
+      "coaching_cues": [
+        "Own the stance before adding load.",
+        "Keep the pelvis level and the working foot stable.",
+        "Use a controlled tempo on the way down."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cossack Squat",
+        "Goblet Cossack Squat",
+        "Strength — Unilateral",
+        "bodyweight",
+        "external load optional",
+        "glutes",
+        "hamstrings",
+        "quadriceps",
+        "trunk",
+        "unilateral"
+      ],
+      "source_aliases": [
+        "Goblet Cossack Squat"
+      ],
+      "source_occurrences": 37,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-front-foot-elevated-reverse-lunge",
+      "name": "Front-Foot Elevated Reverse Lunge",
+      "category": "Strength — Unilateral",
+      "movement_pattern": "unilateral",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "6–12 reps / side",
+      "default_rest_seconds": 90,
+      "coaching_cues": [
+        "Own the stance before adding load.",
+        "Keep the pelvis level and the working foot stable.",
+        "Use a controlled tempo on the way down."
+      ],
+      "aliases": [
+        "DB Reverse Lunge (Front Foot Elevated)",
+        "Front Foot Elevated KB Reverse Lunges"
+      ],
+      "search_terms": [
+        "DB Reverse Lunge (Front Foot Elevated)",
+        "Front Foot Elevated KB Reverse Lunges",
+        "Front-Foot Elevated Reverse Lunge",
+        "Strength — Unilateral",
+        "bodyweight",
+        "external load optional",
+        "glutes",
+        "hamstrings",
+        "quadriceps",
+        "trunk",
+        "unilateral"
+      ],
+      "source_aliases": [
+        "DB Reverse Lunge (Front Foot Elevated)",
+        "Front Foot Elevated KB Reverse Lunges"
+      ],
+      "source_occurrences": 22,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-b-stance-romanian-deadlift",
+      "name": "B-Stance Romanian Deadlift",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": true,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "B Stance Rdl",
+        "B-STANCE RDL - DB",
+        "B-Stance Romanian Deadlift",
+        "Strength — Hinge",
+        "free weights or bodyweight",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [
+        "B Stance Rdl",
+        "B-STANCE RDL - DB"
+      ],
+      "source_occurrences": 17,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-cable-pull-through",
+      "name": "Cable Pull-Through",
+      "category": "Strength — Hinge",
+      "movement_pattern": "hinge",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "spinal erectors",
+        "upper back"
+      ],
+      "difficulty": "intermediate",
+      "role": "strength",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "3–8 reps",
+      "default_rest_seconds": 150,
+      "coaching_cues": [
+        "Set the trunk and keep the load close.",
+        "Push the hips back while keeping the spine controlled.",
+        "Finish tall without leaning back."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Cable Pull Thru",
+        "Cable Pull-Through",
+        "Strength — Hinge",
+        "cable station",
+        "glutes",
+        "hamstrings",
+        "hinge",
+        "spinal erectors",
+        "upper back"
+      ],
+      "source_aliases": [
+        "Cable Pull Thru"
+      ],
+      "source_occurrences": 20,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-cable-crunch",
+      "name": "Cable Crunch",
+      "category": "Core",
+      "movement_pattern": "core",
+      "equipment": [
+        "cable station"
+      ],
+      "primary_muscles": [
+        "abdominals"
+      ],
+      "secondary_muscles": [
+        "hip flexors",
+        "obliques"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the ribs and pelvis connected.",
+        "Breathe behind the brace.",
+        "Stop before the trunk position changes."
+      ],
+      "aliases": [
+        "Rope (cable attachment) or Kneeling Heavy Band Crunches",
+        "Standing, Heavy Band Crunches"
+      ],
+      "search_terms": [
+        "Cable Crunch",
+        "Core",
+        "Rope (cable attachment) or Kneeling Heavy Band Crunches",
+        "Standing, Heavy Band Crunches",
+        "abdominals",
+        "cable station",
+        "core",
+        "hip flexors",
+        "obliques"
+      ],
+      "source_aliases": [
+        "Rope (cable attachment) or Kneeling Heavy Band Crunches",
+        "Standing, Heavy Band Crunches"
+      ],
+      "source_occurrences": 2,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-dead-bug",
+      "name": "Dead Bug",
+      "category": "Core",
+      "movement_pattern": "core",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "abdominals"
+      ],
+      "secondary_muscles": [
+        "hip flexors",
+        "obliques"
+      ],
+      "difficulty": "beginner",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "time_or_reps",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the ribs and pelvis connected.",
+        "Breathe behind the brace.",
+        "Stop before the trunk position changes."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Core",
+        "Dead Bug",
+        "Dead Bug with Mini Bands",
+        "Deadbug",
+        "abdominals",
+        "bodyweight",
+        "core",
+        "external load optional",
+        "hip flexors",
+        "obliques"
+      ],
+      "source_aliases": [
+        "Deadbug",
+        "Dead Bug with Mini Bands"
+      ],
+      "source_occurrences": 6,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-side-plank",
+      "name": "Side Plank",
+      "category": "Core",
+      "movement_pattern": "core",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "obliques",
+        "deep trunk stabilisers"
+      ],
+      "secondary_muscles": [
+        "glute medius"
+      ],
+      "difficulty": "beginner",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "time_or_reps",
+      "default_rep_range": "20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the ribs and pelvis connected.",
+        "Breathe behind the brace.",
+        "Stop before the trunk position changes."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Core",
+        "Side Plank",
+        "Side Plank - Straight Arm",
+        "bodyweight",
+        "core",
+        "deep trunk stabilisers",
+        "external load optional",
+        "glute medius",
+        "obliques"
+      ],
+      "source_aliases": [
+        "Side Plank - Straight Arm"
+      ],
+      "source_occurrences": 29,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-copenhagen-plank",
+      "name": "Copenhagen Plank",
+      "category": "Core",
+      "movement_pattern": "core",
+      "equipment": [
+        "bodyweight",
+        "external load optional"
+      ],
+      "primary_muscles": [
+        "obliques",
+        "deep trunk stabilisers"
+      ],
+      "secondary_muscles": [
+        "glute medius"
+      ],
+      "difficulty": "advanced",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "time_or_reps",
+      "default_rep_range": "20–60 sec",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Keep the ribs and pelvis connected.",
+        "Breathe behind the brace.",
+        "Stop before the trunk position changes."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Bent-Knee Copenhagen ISO-Hold",
+        "Copenhagen Plank",
+        "Core",
+        "bodyweight",
+        "core",
+        "deep trunk stabilisers",
+        "external load optional",
+        "glute medius",
+        "obliques"
+      ],
+      "source_aliases": [
+        "Bent-Knee Copenhagen ISO-Hold"
+      ],
+      "source_occurrences": 14,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-adductor-machine",
+      "name": "Adductor Machine",
+      "category": "Machine / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "adductors"
+      ],
+      "secondary_muscles": [
+        "glutes"
+      ],
+      "difficulty": "beginner",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Adductor Machine",
+        "Machine / Isolation",
+        "adductors",
+        "glutes",
+        "isolation",
+        "machine"
+      ],
+      "source_aliases": [],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-seated-leg-curl",
+      "name": "Seated Leg Curl",
+      "category": "Machine / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "calves"
+      ],
+      "difficulty": "intermediate",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Machine / Isolation",
+        "Seated Leg Curl",
+        "Seated Leg Curls",
+        "calves",
+        "hamstrings",
+        "isolation",
+        "machine",
+        "seated leg curl"
+      ],
+      "source_aliases": [
+        "seated leg curl",
+        "Seated Leg Curls"
+      ],
+      "source_occurrences": 15,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-hip-abduction-machine",
+      "name": "Hip Abduction Machine",
+      "category": "Machine / Isolation",
+      "movement_pattern": "isolation",
+      "equipment": [
+        "machine"
+      ],
+      "primary_muscles": [
+        "glute medius"
+      ],
+      "secondary_muscles": [
+        "glute minimus"
+      ],
+      "difficulty": "beginner",
+      "role": "accessory",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "8–15 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a stable position and a manageable load.",
+        "Move through the target joint without momentum.",
+        "Stop the set when the target muscle loses control."
+      ],
+      "aliases": [
+        "Hip Abduction Machine (Extra Range)",
+        "weight plate hip abduction"
+      ],
+      "search_terms": [
+        "Hip Abduction Machine",
+        "Hip Abduction Machine (Extra Range)",
+        "Machine / Isolation",
+        "glute medius",
+        "glute minimus",
+        "isolation",
+        "machine",
+        "weight plate hip abduction"
+      ],
+      "source_aliases": [
+        "Hip Abduction Machine (Extra Range)",
+        "weight plate hip abduction"
+      ],
+      "source_occurrences": 7,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-hang-power-clean",
+      "name": "Hang Power Clean",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "hips",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "trunk",
+        "shoulders"
+      ],
+      "difficulty": "advanced",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Hang Power Clean",
+        "Hang Power Clean From Mid Thigh",
+        "Power & Athletic",
+        "free weights or bodyweight",
+        "hamstrings",
+        "hips",
+        "power",
+        "shoulders",
+        "trunk"
+      ],
+      "source_aliases": [
+        "Hang Power Clean From Mid Thigh"
+      ],
+      "source_occurrences": 123,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-dumbbell-snatch",
+      "name": "Dumbbell Snatch",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "dumbbells",
+        "bench optional"
+      ],
+      "primary_muscles": [
+        "hips",
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "trunk",
+        "shoulders"
+      ],
+      "difficulty": "advanced",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Alternating DB Snatch",
+        "DB Snatch",
+        "Dumbbell Snatch",
+        "Power & Athletic",
+        "bench optional",
+        "dumbbells",
+        "hamstrings",
+        "hips",
+        "power",
+        "shoulders",
+        "trunk"
+      ],
+      "source_aliases": [
+        "DB Snatch",
+        "Alternating DB Snatch"
+      ],
+      "source_occurrences": 14,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-lateral-bound",
+      "name": "Lateral Bound",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "free weights or bodyweight"
+      ],
+      "primary_muscles": [
+        "quadriceps",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "calves",
+        "hamstrings"
+      ],
+      "difficulty": "advanced",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Lateral Bound",
+        "Lateral Bound to Box jump",
+        "Power & Athletic",
+        "calves",
+        "free weights or bodyweight",
+        "glutes",
+        "hamstrings",
+        "power",
+        "quadriceps"
+      ],
+      "source_aliases": [
+        "Lateral Bound to Box jump"
+      ],
+      "source_occurrences": 3,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-medicine-ball-rotational-throw",
+      "name": "Medicine Ball Rotational Throw",
+      "category": "Power & Athletic",
+      "movement_pattern": "power",
+      "equipment": [
+        "medicine ball"
+      ],
+      "primary_muscles": [
+        "trunk",
+        "shoulders"
+      ],
+      "secondary_muscles": [
+        "hips",
+        "arms"
+      ],
+      "difficulty": "intermediate",
+      "role": "power",
+      "is_unilateral": false,
+      "is_compound": true,
+      "tracking_mode": "reps_load",
+      "default_rep_range": "2–5 reps",
+      "default_rest_seconds": 60,
+      "coaching_cues": [
+        "Use a light enough load to stay fast.",
+        "Reset between reps when technique changes.",
+        "Stop the set when speed or landing quality drops."
+      ],
+      "aliases": [],
+      "search_terms": [
+        "Med Ball Rotational Throw",
+        "Medicine Ball Rotational Throw",
+        "Power & Athletic",
+        "arms",
+        "hips",
+        "medicine ball",
+        "power",
+        "shoulders",
+        "trunk"
+      ],
+      "source_aliases": [
+        "Med Ball Rotational Throw"
+      ],
+      "source_occurrences": 1,
+      "built_in": true
+    },
+    {
+      "exercise_id": "library-skierg",
+      "name": "SkiErg",
+      "category": "Cardio",
+      "movement_pattern": "conditioning",
+      "equipment": [
+        "cardio machine"
+      ],
+      "primary_muscles": [
+        "cardiorespiratory system"
+      ],
+      "secondary_muscles": [
+        "legs",
+        "trunk"
+      ],
+      "difficulty": "intermediate",
+      "role": "conditioning",
+      "is_unilateral": false,
+      "is_compound": false,
+      "tracking_mode": "duration_distance",
+      "default_rep_range": "duration / distance",
+      "default_rest_seconds": 0,
+      "coaching_cues": [
+        "Start below maximum effort.",
+        "Keep the rhythm repeatable.",
+        "Use duration, distance, and RPE to guide progression."
+      ],
+      "aliases": [
+        "Ski Erg",
+        "SkiErg"
+      ],
+      "search_terms": [
+        "Cardio",
+        "Ski Erg",
+        "SkiErg",
+        "cardio machine",
+        "cardiorespiratory system",
+        "conditioning",
+        "legs",
+        "trunk"
+      ],
+      "source_aliases": [
+        "Ski Erg"
+      ],
+      "source_occurrences": 211,
+      "built_in": true
+    }
+  ]
+}
