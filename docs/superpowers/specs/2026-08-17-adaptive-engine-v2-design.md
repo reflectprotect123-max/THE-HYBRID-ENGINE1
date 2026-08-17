@@ -20,6 +20,25 @@ the owner this session:
   AI-backed implementation satisfy interchangeably. Neither this doc nor
   Phase A needed to be rewritten to fit each other.
 
+> **Build-order note, added after further scoping the same day.** The owner
+> ruled out Claude API (no ongoing per-call dependency on Anthropic
+> specifically), ruled out a cloud-rented GPU running an open model like Kimi
+> K3 (cost/infra disproportionate to what a progression decision needs), and
+> has no local hardware to self-host a smaller open model on today. Their
+> own words: **"we are not hosting it. just build the engine."**
+>
+> So the build order is: **Phases E and F ship now. Phase G (the actual
+> model call) does not.** Phase F's knowledge base and retrieval are real,
+> useful on their own — a coach can search their own notes — and `Phase
+> E`'s `DeterministicDecider` is the only `ProgressionDecider` wired into
+> the app. `AiRetrievalDecider` (Slice 40) stays defined as an interface
+> shape and nothing more: no model is chosen, no hosting decision is made,
+> and Slices 41-45 (the actual call, guardrails, scheduling) do not get
+> built until a model/hosting choice exists. Phases H and I, which assume
+> Phase G is live, wait with it. This is not a scope cut — nothing here was
+> descoped, it is a hold on the one phase whose infrastructure isn't
+> decided, with a real seam already in place for whenever it is.
+
 ## Architecture
 
 **Phase E extends `@hybrid/strength-engine`** (no new package) — the
