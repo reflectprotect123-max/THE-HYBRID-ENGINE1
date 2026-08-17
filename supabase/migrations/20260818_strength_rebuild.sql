@@ -140,3 +140,15 @@ create table performed_measurement (
   value            numeric not null,
   primary key (performed_set_id, metric_key)
 );
+
+-- Slice 9: working max is event-sourced, never a mutable column.
+create table working_max_event (
+  id           uuid primary key default gen_random_uuid(),
+  athlete_id   uuid not null,
+  exercise_id  uuid not null,
+  value_kg     numeric not null,
+  source       text not null,
+  formula      text,
+  from_set_id  uuid references performed_set(id),
+  effective_at timestamptz not null
+);
