@@ -149,8 +149,14 @@ describe('starting from a session template', () => {
     const open = screen.getAllByRole('button', { name: /expand block/i });
     expect(open).toHaveLength(6);
     fireEvent.click(open[0]);
-    expect(screen.getByDisplayValue('WARM-UP')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /collapse block/i })).toHaveLength(1);
+    /* Section name/Kind/Minutes/Superset stay collapsed behind their own
+       toggle on a REOPENED template block — see BlockEditor's `metaOpen`.
+       A template already set all four; the coach reopening one is almost
+       always there for the exercise list. */
+    expect(screen.queryByDisplayValue('WARM-UP')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /block settings/i }));
+    expect(screen.getByDisplayValue('WARM-UP')).toBeInTheDocument();
   });
 
   it('brings no movements with it — the coach still picks every one', () => {

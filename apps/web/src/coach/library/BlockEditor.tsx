@@ -171,6 +171,18 @@ export function BlockEditor({
 }) {
   const [expanded, setExpanded] = useState(!startCollapsed);
   /**
+   * Section name / Kind / Minutes / Superset, collapsed behind their own
+   * toggle rather than always showing the moment a block is expanded.
+   *
+   * These four are set once and rarely touched again — a coach expanding a
+   * block is almost always there for the exercise list. Defaults to OPEN for
+   * a block the coach just added by hand (`!startCollapsed`, same initial
+   * value as `expanded` itself) because that block genuinely has nothing
+   * configured yet; defaults CLOSED for a template-seeded block reopened
+   * later, since a template already set all four correctly.
+   */
+  const [metaOpen, setMetaOpen] = useState(!startCollapsed);
+  /**
    * Which exercise the wizard is open for — `'new'` for a fresh add, an
    * exercise's own `id` to edit it pre-filled, or `null` when it is closed.
    * The wizard is the only writer of an exercise's fields now; `BlockEditor`
@@ -202,6 +214,7 @@ export function BlockEditor({
    */
   function openHeading() {
     setExpanded(true);
+    setMetaOpen(true);
     // The field mounts on this same render; focusing it has to wait one tick.
     requestAnimationFrame(() => headingInputRef.current?.focus());
   }
@@ -273,6 +286,25 @@ export function BlockEditor({
         * be a Strength/Power block underneath.
         */}
       {expanded && (
+        <button
+          type="button"
+          className="cb-block-meta-toggle"
+          aria-expanded={metaOpen}
+          onClick={() => setMetaOpen((v) => !v)}
+        >
+          <ChevronDown />
+          Block settings
+          {!metaOpen && (
+            <span className="cb-block-meta-summary">
+              {block.category}
+              {block.minutes ? ` · ${block.minutes} min` : ''}
+              {block.superset ? ' · Superset' : ''}
+            </span>
+          )}
+        </button>
+      )}
+
+      {expanded && metaOpen && (
         <div className="cb-block-meta">
           <label className="cb-field-block">
             <span className="cal-field-label">

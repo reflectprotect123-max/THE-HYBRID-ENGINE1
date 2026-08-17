@@ -595,6 +595,22 @@
      however long each summary runs. */
   .cb-template-sections { margin-top: auto; padding-top: 2px; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--color-gold2); font-variant-numeric: tabular-nums; }
 
+  /*
+   * SECTION NAME / KIND / MINUTES / SUPERSET, collapsed behind this toggle —
+   * a coach expanding a block is almost always there for the exercise list,
+   * and these four are set once and rarely revisited. Reuses the block-head
+   * chevron's own rotate transition rather than inventing a second one.
+   */
+  .cb-block-meta-toggle {
+    display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px;
+    margin: 4px 0 0; padding: 4px 14px; font: inherit; font-size: 11px; font-weight: 700;
+    color: var(--color-dim); background: none; border: none; cursor: pointer; text-align: left;
+  }
+  .cb-block-meta-toggle:hover { color: var(--color-muted); }
+  .cb-block-meta-toggle svg { flex-shrink: 0; width: 10px; height: 10px; transition: transform .18s var(--ease-standard); transform: rotate(-90deg); }
+  .cb-block-meta-toggle[aria-expanded="true"] svg { transform: none; }
+  .cb-block-meta-summary { color: var(--color-dim); font-weight: 550; }
+
   .cb-field-block { display: block; }
   .cb-field-block .cal-field-label { margin-bottom: 6px; }
   /* Not in the mockup — the mockup has no section name, no minutes and no
