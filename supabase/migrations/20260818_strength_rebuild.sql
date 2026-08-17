@@ -106,3 +106,17 @@ create table prescribed_target (
     (expr_kind is not null)::int = 1
   )
 );
+
+-- Slice 6: publish-time snapshot. After publish, nothing reads
+-- prescribed_target for this session again — only resolved_snapshot. A
+-- later template edit must never rewrite what an athlete was already told.
+create table assigned_session (
+  id                uuid primary key default gen_random_uuid(),
+  athlete_id        uuid not null,
+  source_session_id uuid,
+  scheduled_date    date not null,
+  state             text not null default 'draft',
+  published_at      timestamptz,
+  resolved_snapshot jsonb,
+  timezone          text not null
+);
