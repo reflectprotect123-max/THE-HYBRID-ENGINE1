@@ -129,6 +129,45 @@ describe('a templated day, stored and reopened', () => {
   });
 });
 
+describe('a template with seed exercises', () => {
+  it('brings real exercises, unlike the shape-only templates', () => {
+    const blocks = templateToBlocks(byId('hybrid-roots-1'));
+    expect(blocks.every((b) => b.exercises.length === 1)).toBe(true);
+    expect(blocks[0].exercises[0]).toMatchObject({ name: 'Zercher Squat', columnA: 'reps', columnB: 'weight_kg', rest: 180 });
+  });
+
+  it('writes N sets sharing one shared reps value each, the same shape the wizard commits — weight is left blank for the coach to fill in', () => {
+    const blocks = templateToBlocks(byId('hybrid-roots-1'));
+    const squat = blocks[0].exercises[0];
+    expect(squat.sets).toHaveLength(5);
+    expect(squat.sets.every((s) => s.a === '5' && s.b === '')).toBe(true);
+  });
+
+  it('leaves the second column empty for a bodyweight movement, not a stray value', () => {
+    const blocks = templateToBlocks(byId('hybrid-roots-1'));
+    const ghr = blocks.find((b) => b.exercises[0]?.name === 'Glute Ham Raise');
+    expect(ghr?.exercises[0].columnB).toBe('');
+    expect(ghr?.exercises[0].sets.every((s) => s.b === '')).toBe(true);
+  });
+
+  it('mints exercise and set ids that cannot collide across two applications', () => {
+    const first = templateToBlocks(byId('hybrid-roots-1'));
+    const second = templateToBlocks(byId('hybrid-roots-1'), first.map((b) => b.id));
+    const exerciseIds = [...first, ...second].flatMap((b) => b.exercises.map((e) => e.id));
+    const setIds = [...first, ...second].flatMap((b) => b.exercises.flatMap((e) => e.sets.map((s) => s.id)));
+    expect(new Set(exerciseIds).size).toBe(exerciseIds.length);
+    expect(new Set(setIds).size).toBe(setIds.length);
+  });
+
+  it('carries seed exercises through a store-and-reopen round trip', () => {
+    const value = { instructions: '', blocks: templateToBlocks(byId('hybrid-roots-2')) };
+    const back = workoutsToDayBuilder(dayBuilderToWorkouts(value, { id: 'w1' }));
+    const bench = back.blocks.find((b) => b.exercises[0]?.name === 'Slight Incline BB Bench Press');
+    expect(bench?.exercises[0]).toMatchObject({ columnA: 'reps', columnB: 'weight_kg', rest: 180 });
+    expect(bench?.exercises[0].sets).toHaveLength(5);
+  });
+});
+
 describe('a block authored before templates existed', () => {
   it('still opens under the right category, with an empty name', () => {
     /* Every session in the wild carries the category in `heading` and has no
