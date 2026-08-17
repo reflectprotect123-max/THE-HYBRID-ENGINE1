@@ -30,7 +30,7 @@ import { WhoopProvider } from './cloud/whoop';
 import { Concept2Provider } from './cloud/concept2';
 import { HomeScreen } from './screens/Home';
 import { TrainingScreen } from './screens/Training';
-import { SessionLogger } from './screens/logger/SessionLogger';
+import { StrengthRebuilding } from './screens/StrengthRebuilding';
 import { SettingsScreen } from './screens/Settings';
 import { LibraryScreen } from './screens/Library';
 import { ProgressScreen } from './screens/Progress';
@@ -329,7 +329,7 @@ function AppInner() {
                       resolve against. */}
                   <Stack.Screen name="Logger">
                     {({ navigation }) => (
-                      <SessionLogger onLeave={() => navigation.navigate('Tabs', { screen: 'Train' })} />
+                      <StrengthRebuilding onLeave={() => navigation.navigate('Tabs', { screen: 'Train' })} />
                     )}
                   </Stack.Screen>
                   <Stack.Screen name="Planner" component={PlannerScreen} />

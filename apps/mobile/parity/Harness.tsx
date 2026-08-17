@@ -8,7 +8,7 @@ import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
 import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@hybrid/design';
-import { SessionLogger } from '../src/screens/logger/SessionLogger';
+import { StrengthRebuilding } from '../src/screens/StrengthRebuilding';
 import { DbProvider } from '../src/store/db';
 
 /*
@@ -100,8 +100,13 @@ export function Harness() {
           * the fixture the way it boots from real data on a phone.
           */}
         <DbProvider>
+          {/* TODO(fire-sale rebuild): this harness existed to parity-test the
+              strength logger, deleted 17 August 2026. It has nothing to prove
+              until the new logger lands — the mobile parity CI gates need a
+              decision (retire, or repoint at the new screen) alongside that
+              work. Stubbed rather than left pointing at a deleted screen. */}
           <View testID="parity-harness-ready" style={{ flex: 1 }}>
-            <SessionLogger />
+            <StrengthRebuilding />
           </View>
         </DbProvider>
       </ThemeProvider>

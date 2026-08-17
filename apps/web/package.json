@@ -21,7 +21,6 @@
     "@hybrid/nutrition-core": "workspace:*",
     "@hybrid/nutrition-engine": "workspace:*",
     "@hybrid/product-scope": "workspace:*",
-    "@hybrid/session-authoring": "workspace:*",
     "@hybrid/shared-core": "workspace:*",
     "@hybrid/whole-athlete-state": "workspace:*",
     "@supabase/supabase-js": "^2.110.8",
