@@ -1,15 +1,4 @@
-import { FORBIDDEN_SET_KEYS, MODE_KEYS } from './constants';
-import type {
-  CondBlock,
-  CondFmtKey,
-  EffortKey,
-  Exercise,
-  ModeKey,
-  PlannedSet,
-  StrengthBlock,
-  Workout,
-  ZoneKey,
-} from './types';
+import type { CondBlock, CondFmtKey, EffortKey, ZoneKey } from './types';
 
 /*
  * THE Hybrid System — emit contract (coach → athlete).
@@ -47,57 +36,10 @@ function eid(): string {
 
 const s = (v: unknown): string => (v == null ? '' : String(v));
 
-export function newSet(target?: unknown, rpe?: unknown): PlannedSet {
-  return { t: s(target), rpe: s(rpe) };
-}
-
-export interface ExOpts {
-  rest?: number | string;
-  tempo?: string;
-  /**
-   * Coach cue. Also where a PRESCRIBED LOAD lives: the athlete's set model is
-   * {t, rpe} with no target-weight field, so a coach naming a number writes it
-   * into the cue and the athlete reads it on the card.
-   */
-  cue?: string;
-}
-
-export function newEx(name: string, mode: string, sets?: PlannedSet[], opts: ExOpts = {}): Exercise<PlannedSet> {
-  const m: ModeKey = (MODE_KEYS as string[]).includes(mode) ? (mode as ModeKey) : 'reps_kg';
-  let rest = parseInt(String(opts.rest), 10);
-  if (!Number.isFinite(rest) || rest < 0) rest = 90;
-  const ex: Exercise<PlannedSet> = {
-    id: eid(),
-    name: s(name),
-    mode: m,
-    tempo: s(opts.tempo),
-    rest: Math.min(rest, 3600),
-    sets: sets && sets.length ? sets : [newSet(), newSet(), newSet()],
-  };
-  if (s(opts.cue)) ex.cue = s(opts.cue);
-  return ex;
-}
-
-export interface BlockOpts {
-  minutes?: number | string;
-  format?: string;
-}
-
-export function newBlock(
-  heading: string,
-  exercises?: Exercise<PlannedSet>[],
-  superset?: boolean,
-  opts: BlockOpts = {},
-): StrengthBlock<PlannedSet> {
-  return {
-    id: eid(),
-    heading: s(heading) || 'Block',
-    minutes: s(opts.minutes),
-    format: s(opts.format),
-    superset: !!superset,
-    exercises: exercises && exercises.length ? exercises : [newEx('', 'reps_kg')],
-  };
-}
+/* `newSet`/`ExOpts`/`newEx`/`BlockOpts`/`newBlock` were deleted whole on
+   17 August 2026 with the rest of strength — they built PlannedSet/
+   Exercise/StrengthBlock content, none of which callers ever reached
+   through this contract (nothing called them but `emit.test.ts`). */
 
 /** Takes an effort (easy/medium/hard) and emits BOTH it and the zone it holds.
     Passing a bare zone still works, for plans authored before effort existed. */

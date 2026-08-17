@@ -1,6 +1,6 @@
-import { CON_RETENTION, CON_TRACE_KEEP, MODES } from './constants';
+import { CON_RETENTION, CON_TRACE_KEEP } from './constants';
 import { uid, uniqArr, ymd } from './num';
-import { isCond, isText, newEx, newSet, loggedWorkCount, hasLoggedWork } from './session';
+import { isCond, isText, loggedWorkCount, hasLoggedWork } from './session';
 import {
   migrateLegacySettings,
   emptyEcosystemNamespace,
@@ -16,14 +16,11 @@ import type {
   CondBlock,
   CondResult,
   EngineDB,
-  Exercise,
   Folder,
-  LiftState,
   LoggedSet,
   ProgressState,
   Session,
   Settings,
-  StrengthBlock,
   Workout,
 } from './types';
 
@@ -58,37 +55,34 @@ export function sanitizeDB(d: unknown): EngineDB {
   const src = (d && typeof d === 'object' ? d : {}) as Partial<EngineDB>;
   const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
-  const cleanEx = (e: unknown): Exercise<LoggedSet> => {
-    const ex = (e && typeof e === 'object' ? e : {}) as Exercise<LoggedSet>;
-    ex.sets = arr<LoggedSet>(ex.sets).map((s) => (s && typeof s === 'object' ? s : ({} as LoggedSet)));
-    if (!ex.sets.length) ex.sets = [newSet() as LoggedSet];
-    ex.mode = MODES[ex.mode] ? ex.mode : 'reps_kg';
-    return ex;
-  };
-
-  const cleanBlock = (b: unknown): Block<LoggedSet> => {
+  /*
+   * A block that is neither text nor conditioning is a LEGACY strength block
+   * — real data from before 17 August 2026, when strength (engine, builder,
+   * logger) was deleted whole. Nothing left in this codebase can render or
+   * run one, so `cleanBlock` drops it here rather than half-coercing it into
+   * a `Block` union that no longer has a member shaped like it. This is a
+   * read-time filter only: the stored row itself is untouched, so nothing is
+   * destroyed — it simply stops appearing to a running app.
+   */
+  const cleanBlock = (b: unknown): Block<LoggedSet> | null => {
     const bl = (b && typeof b === 'object' ? b : {}) as Block<LoggedSet>;
     if (isText(bl)) {
-      // A text block has no exercises and must not be given any — the strength
-      // path below injects an empty one, which would render a phantom movement
-      // under every metcon.
       delete (bl as { exercises?: unknown }).exercises;
       return bl;
     }
     if (isCond(bl)) {
-      // A conditioning block has no exercises. An older blob may carry an empty
-      // array from before the split; drop it so no read path treats the block
-      // as strength work with zero movements.
+      // An older blob may carry an empty `exercises` array from before the
+      // split; drop it so no read path treats the block as strength work.
       delete (bl as { exercises?: unknown }).exercises;
       return bl;
     }
-    const sb = bl as StrengthBlock<LoggedSet>;
-    sb.exercises = arr<unknown>(sb.exercises).map(cleanEx);
-    if (!sb.exercises.length) sb.exercises = [newEx() as Exercise<LoggedSet>];
-    return sb;
+    return null;
   };
 
-  const cleanBlocks = (v: unknown): Block<LoggedSet>[] => arr<unknown>(v).map(cleanBlock);
+  const cleanBlocks = (v: unknown): Block<LoggedSet>[] =>
+    arr<unknown>(v)
+      .map(cleanBlock)
+      .filter((b): b is Block<LoggedSet> => b !== null);
 
   // settings is the one hole in this trust boundary: JSON.parse materialises a
   // hostile "__proto__" as an OWN enumerable property, and mergeSettings'
@@ -431,35 +425,8 @@ export function mergeSettings(base: Settings = {}, winner: Settings = {}): Setti
     out.conProgress = cp;
   }
 
-  // Earned working weights: NEWEST wins per lift, by the `at` the session that
-  // earned it finished.
-  //
-  // This looks inconsistent with the max-wins rule directly above and is not.
-  // `conProgress.level` only ever climbs a ladder, so taking the higher side is
-  // safe. A working weight must be able to go DOWN — a set that missed its rep
-  // floor, or a deload — and max-wins would ratchet it up forever, so the one
-  // outcome the athlete most needs to survive a sync is the one it would eat.
-  const bl2 = base.liftProgress || {};
-  const wl2 = winner.liftProgress || {};
-  const lk = new Set([...Object.keys(bl2), ...Object.keys(wl2)]);
-  if (lk.size) {
-    const lp: Record<string, LiftState> = {};
-    lk.forEach((k) => {
-      const a = bl2[k];
-      const b = wl2[k];
-      if (!a) {
-        if (b) lp[k] = b;
-        return;
-      }
-      if (!b) {
-        lp[k] = a;
-        return;
-      }
-      // `winner` takes an exact tie, matching how every scalar above resolves.
-      lp[k] = (b.at || 0) >= (a.at || 0) ? b : a;
-    });
-    out.liftProgress = lp;
-  }
+  /* `liftProgress` (earned working weights) merge was deleted whole on
+     17 August 2026 — the field no longer exists on `Settings`. */
 
   // Conditioning history: union by id, but MERGE each record rather than taking
   // whichever side was seen first. A rating added locally to a record the

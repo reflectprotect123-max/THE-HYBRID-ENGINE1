@@ -75,12 +75,7 @@ describe('applyPull', () => {
       date: '2026-02-01',
       status: 'completed',
       completedAt: 10,
-      blocks: [
-        {
-          id: 'b',
-          exercises: [{ id: 'e', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', done: true }] }],
-        },
-      ],
+      blocks: [{ id: 'b', kind: 'conditioning', condFmt: 'intervals', condResult: { felt: '8' } }],
     };
     const empty: Session = { id: 's1', date: '2026-02-01', status: 'completed', completedAt: 999, blocks: [] };
 
@@ -89,29 +84,6 @@ describe('applyPull', () => {
 
     const b = applyPull({ workouts: [], sessions: [empty], settings: {} }, { workouts: [], sessions: [logged], settings: {} });
     expect(b.db.sessions[0].blocks.length, 'logged remote must survive a newer empty local').toBe(1);
-  });
-});
-
-describe('mergeSettings carries earned working weights', () => {
-  const at = (kg: number, when: number) => ({ workouts: [], sessions: [], settings: { liftProgress: { squat: { kg, at: when } } } });
-
-  it('a DELOAD survives a merge against a higher, older weight', () => {
-    // The case that makes this rule different from conProgress's max-wins.
-    // A missed set, or a deliberate back-off, lowers the weight — and max-wins
-    // would restore the higher number on the next sync, so the one outcome an
-    // athlete most needs to stick is the one it would eat.
-    const deloaded = at(90, 2000);
-    const stale = at(110, 1000);
-
-    expect(applyPull(deloaded, stale).db.settings.liftProgress?.squat.kg, 'local deload vs older remote').toBe(90);
-    expect(applyPull(stale, deloaded).db.settings.liftProgress?.squat.kg, 'remote deload vs older local').toBe(90);
-  });
-
-  it('a lift only one side knows about is kept, not dropped', () => {
-    const a: EngineDB = { workouts: [], sessions: [], settings: { liftProgress: { squat: { kg: 100, at: 1 } } } };
-    const b: EngineDB = { workouts: [], sessions: [], settings: { liftProgress: { bench: { kg: 60, at: 1 } } } };
-    const lp = applyPull(a, b).db.settings.liftProgress || {};
-    expect(Object.keys(lp).sort()).toEqual(['bench', 'squat']);
   });
 });
 
@@ -140,7 +112,7 @@ describe('a device that has split a mixed workout, pulling from a server that ha
           name: 'Leg Day',
           updatedAt: 1,
           blocks: [
-            { id: 'sb1', exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }] },
+            { id: 'sb1', kind: 'text', heading: 'Warm-up', body: '5 min bike' },
             { id: 'cb1', kind: 'conditioning', condFmt: 'intervals' },
           ],
         },
@@ -189,10 +161,7 @@ describe('a device that has split a mixed SESSION, pulling from a server that ha
           completedAt: 1,
           workoutId: 'w1',
           blocks: [
-            {
-              id: 'sb1',
-              exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8', done: true }] }],
-            },
+            { id: 'sb1', kind: 'text', heading: 'Warm-up', body: '5 min bike', done: true },
             { id: 'cb1', kind: 'conditioning', condFmt: 'intervals', condResult: { id: 'cr1', secs: 600 } },
           ],
         },
