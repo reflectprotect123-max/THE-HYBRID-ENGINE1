@@ -426,3 +426,36 @@ describe('BlockEditor — new exercises get non-colliding set ids', () => {
     expect(firstIds.some((id) => secondIds.includes(id))).toBe(false);
   });
 });
+
+describe('a Warm-up/Cooldown/Mobility block\'s free-text description', () => {
+  it('offers a description box for Warm-up, Cooldown and Mobility, and reports edits to it', () => {
+    const props = renderBlock({ block: { ...block, category: 'Warm-up' } });
+    const box = screen.getByPlaceholderText(/5 min bike/i);
+    fireEvent.change(box, { target: { value: '5 min bike, dynamic stretching' } });
+    expect(props.onChange).toHaveBeenCalledWith(expect.objectContaining({ note: '5 min bike, dynamic stretching' }));
+  });
+
+  it('offers no description box for Strength/Power or Conditioning', () => {
+    renderBlock();
+    expect(screen.queryByPlaceholderText(/5 min bike/i)).not.toBeInTheDocument();
+    renderBlock({ block: { ...block, category: 'Conditioning' } });
+    expect(screen.queryByPlaceholderText(/5 min bike/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('reordering a block against its neighbours', () => {
+  it('offers no move controls when neither handler is given', () => {
+    renderBlock();
+    expect(screen.queryByRole('button', { name: /^move block/i })).not.toBeInTheDocument();
+  });
+
+  it('calls onMoveUp / onMoveDown when given', () => {
+    const onMoveUp = vi.fn();
+    const onMoveDown = vi.fn();
+    renderBlock({ onMoveUp, onMoveDown });
+    fireEvent.click(screen.getByRole('button', { name: /move block up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /move block down/i }));
+    expect(onMoveUp).toHaveBeenCalled();
+    expect(onMoveDown).toHaveBeenCalled();
+  });
+});

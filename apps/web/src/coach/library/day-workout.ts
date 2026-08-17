@@ -286,6 +286,7 @@ function toBlock(block: BlockValue): Block<LoggedSet> {
     // Absent rather than `false`, so a straight block round-trips as the
     // record it was rather than growing a key on every save.
     ...(block.superset ? { superset: true } : {}),
+    ...(block.note?.trim() ? { note: block.note.trim() } : {}),
     exercises,
   };
 }
@@ -448,6 +449,7 @@ export function workoutToDayBuilder(workout: Workout<LoggedSet>): DayBuilderValu
           ...named(category),
           ...(strength.minutes === undefined ? {} : { minutes: String(strength.minutes) }),
           ...(strength.superset ? { superset: true } : {}),
+          ...(strength.note ? { note: strength.note } : {}),
           exercises,
         };
       }),

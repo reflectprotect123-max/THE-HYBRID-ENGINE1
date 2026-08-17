@@ -179,6 +179,13 @@ export interface StrengthBlock<S extends AnySet = LoggedSet> {
    * logged before the athlete reordered anything.
    */
   roundOrder?: Record<number, number[]>;
+  /**
+   * The coach's free-text note for this block — a Warm-up/Cooldown/Mobility
+   * block is often a description ("5 min bike, dynamic stretching") rather
+   * than a set of loggable movements, and `exercises` is required here (see
+   * `CondBlock.note` for the same field on the conditioning side).
+   */
+  note?: string;
   exercises: Exercise<S>[];
 }
 

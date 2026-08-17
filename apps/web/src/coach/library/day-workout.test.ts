@@ -480,3 +480,32 @@ describe('the coach’s target RPE reaches the set', () => {
     expect(back.blocks[0].exercises[0].sets.map((s) => s.rpe)).toEqual(['9', '7']);
   });
 });
+
+/*
+ * A WARM-UP/COOLDOWN/MOBILITY BLOCK'S DESCRIPTION — a block-level free-text
+ * note, distinct from `instructions` (the whole session) and from
+ * `CondBlock.note` (conditioning's own field for the same idea). It round
+ * trips through the engine's `StrengthBlock.note`.
+ */
+describe('a block\'s free-text note', () => {
+  it('round-trips through a Warm-up block, trimmed', () => {
+    const v = value();
+    v.blocks[0].note = '  5 min bike, dynamic stretching  ';
+    const back = workoutsToDayBuilder(dayBuilderToWorkouts(v, { id: 'w' }));
+    expect(back.blocks[0].note).toBe('5 min bike, dynamic stretching');
+  });
+
+  it('is absent, not empty, when the coach never wrote one', () => {
+    const back = workoutsToDayBuilder(dayBuilderToWorkouts(value(), { id: 'w' }));
+    expect(back.blocks[0]).not.toHaveProperty('note');
+    expect(back.blocks[1]).not.toHaveProperty('note');
+  });
+
+  it('is independent of the whole-session `instructions`', () => {
+    const v = value();
+    v.blocks[0].note = 'Bike + dynamic stretching';
+    const back = workoutsToDayBuilder(dayBuilderToWorkouts(v, { id: 'w' }));
+    expect(back.instructions).toBe('Ease into it. Stop the top set if the bar slows.');
+    expect(back.blocks[0].note).toBe('Bike + dynamic stretching');
+  });
+});

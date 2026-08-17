@@ -164,6 +164,22 @@ export function DayBuilder({
     });
   }
 
+  /*
+   * REORDERING, UP OR DOWN ONE SLOT AT A TIME — a swap with the neighbour in
+   * that direction. A superset is already one `BlockValue` (see its own
+   * doc), so it moves as a unit for free; there is nothing here that needs
+   * to know a block is a pairing rather than a single exercise.
+   */
+  function moveBlock(i: number, dir: -1 | 1) {
+    setBlocks((prev) => {
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
   return (
     <div id="cal-session-builder" className="rd-content">
       <div className="cb-head">
@@ -270,6 +286,8 @@ export function DayBuilder({
                 onCreateMovement={onCreateMovement}
                 onChange={(next) => setBlocks((prev) => prev.map((x) => (x.id === b.id ? next : x)))}
                 onRemove={() => setBlocks((prev) => prev.filter((x) => x.id !== b.id))}
+                onMoveUp={i > 0 ? () => moveBlock(i, -1) : undefined}
+                onMoveDown={i < blocks.length - 1 ? () => moveBlock(i, 1) : undefined}
               />
               {b.superset && b.exercises.length > 1 ? (
                 <button type="button" className="cb-superset-toggle active" onClick={() => splitLastExercise(i)}>

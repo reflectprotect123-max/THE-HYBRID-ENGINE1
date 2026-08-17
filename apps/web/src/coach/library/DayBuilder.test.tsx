@@ -236,3 +236,37 @@ describe('pairing two blocks into a superset', () => {
     expect(screen.getByRole('button', { name: /^\+ superset$/i })).toBeInTheDocument();
   });
 });
+
+/*
+ * REORDERING BLOCKS — up/down swaps a block with its neighbour. A superset
+ * is already one `BlockValue` (see its own doc), so it moves as a unit with
+ * no special handling here; `applyRootsOne`-style fixtures aren't needed —
+ * three hand-added blocks are enough to exercise both directions and both
+ * boundaries.
+ */
+describe('reordering blocks up and down', () => {
+  it('has no move-up on the first block and no move-down on the last', () => {
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /add block/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add block/i }));
+    const ups = screen.getAllByRole('button', { name: /move block up/i });
+    const downs = screen.getAllByRole('button', { name: /move block down/i });
+    expect(ups).toHaveLength(1);
+    expect(downs).toHaveLength(1);
+  });
+
+  it('swaps two blocks, and their exercises move with them', () => {
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /add block/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add block/i }));
+    const names = screen.getAllByRole('button', { name: /strength\/power/i });
+    fireEvent.click(names[0]);
+    fireEvent.change(screen.getAllByLabelText(/section name/i)[0], { target: { value: 'FIRST' } });
+    fireEvent.click(names[1]);
+    fireEvent.change(screen.getAllByLabelText(/section name/i)[1], { target: { value: 'SECOND' } });
+
+    fireEvent.click(screen.getAllByRole('button', { name: /move block down/i })[0]);
+    const order = screen.getAllByText(/^(FIRST|SECOND)$/).map((el) => el.textContent);
+    expect(order).toEqual(['SECOND', 'FIRST']);
+  });
+});

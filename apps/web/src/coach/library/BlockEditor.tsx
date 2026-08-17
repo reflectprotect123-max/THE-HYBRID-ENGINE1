@@ -28,6 +28,14 @@ export const BLOCK_CATEGORIES = [
 export const CONDITIONING_CATEGORIES: readonly string[] = ['Conditioning', 'Mixed modal'];
 
 /**
+ * The categories that get a free-text description alongside their exercise
+ * list — a warm-up or cooldown is as often "5 min bike, dynamic stretching"
+ * as it is a set of loggable movements, and the coach needs somewhere to
+ * write that down without it being mistaken for an exercise.
+ */
+export const NOTE_CATEGORIES: readonly string[] = ['Warm-up', 'Cooldown', 'Mobility'];
+
+/**
  * What a conditioning block holds. Every field maps onto one the engine's
  * `CondBlock` already has, so nothing here is a shape this app invented:
  * `minutes` and `targetDistanceM` are strings only because they are text
@@ -111,6 +119,8 @@ export interface BlockValue {
   exercises: BlockExercise[];
   /** Present only for a conditioning category; see `CONDITIONING_CATEGORIES`. */
   conditioning?: CondValue;
+  /** The coach's free-text description; see `NOTE_CATEGORIES`. */
+  note?: string;
 }
 
 /** A, B, C … — the mockup letters exercises within a block rather than numbering them. */
@@ -127,6 +137,18 @@ const ChevronDown = () => (
 const Cross = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 6L6 18M6 6l12 12" />
+  </svg>
+);
+
+const ArrowUp = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 19V5M5 12l7-7 7 7" />
+  </svg>
+);
+
+const ArrowDown = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 5v14M19 12l-7 7-7-7" />
   </svg>
 );
 
@@ -147,6 +169,8 @@ export function BlockEditor({
   onCreateMovement,
   onChange,
   onRemove,
+  onMoveUp,
+  onMoveDown,
 }: {
   block: BlockValue;
   entries: CatalogueEntry[];
@@ -168,6 +192,18 @@ export function BlockEditor({
   onCreateMovement?: (name: string) => void;
   onChange: (next: BlockValue) => void;
   onRemove: () => void;
+  /**
+   * Reorder this block against its neighbours. Absent (rather than disabled)
+   * at the first/last position — `DayBuilder` only passes the handler when
+   * there is somewhere for the block to go, so there is nothing to explain
+   * about why the button is greyed out.
+   *
+   * A superset is already a single `BlockValue` (see that field's own doc),
+   * so moving it needs no special case here — `DayBuilder` moves one array
+   * entry and every exercise in the pairing goes with it.
+   */
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const [expanded, setExpanded] = useState(!startCollapsed);
   /**
@@ -270,6 +306,16 @@ export function BlockEditor({
         <button type="button" className="cb-block-name" onClick={openHeading} title="Rename this block">
           {block.heading?.trim() || block.category}
         </button>
+        {onMoveUp && (
+          <button type="button" className="cb-block-move" aria-label="Move block up" onClick={onMoveUp}>
+            <ArrowUp />
+          </button>
+        )}
+        {onMoveDown && (
+          <button type="button" className="cb-block-move" aria-label="Move block down" onClick={onMoveDown}>
+            <ArrowDown />
+          </button>
+        )}
         <button type="button" className="cb-block-remove" aria-label="Remove block" onClick={onRemove}>
           <Cross />
         </button>
@@ -390,6 +436,19 @@ export function BlockEditor({
       {expanded && !isConditioning && !wizardFor && (
         <div className="cb-block-body-wrap">
           <div className="cb-strength-body">
+            {NOTE_CATEGORIES.includes(block.category) && (
+              <label className="cb-field-block cb-block-note">
+                <span className="cal-field-label">
+                  Description <span className="cb-optional-inline">optional</span>
+                </span>
+                <textarea
+                  className="cb-textarea"
+                  placeholder="5 min bike, dynamic stretching…"
+                  value={block.note ?? ''}
+                  onChange={(e) => onChange({ ...block, note: e.target.value })}
+                />
+              </label>
+            )}
             <ol className="cb-block-items">
               {block.exercises.map((ex, i) => (
                 <ExerciseItem
