@@ -28,3 +28,44 @@ insert into metric (key, dimension, canonical_unit, value_type, aggregation, hig
   ('calories', 'energy', 'kcal','scalar',   'sum',  true,  false),
   ('watts',    'power',  'W',   'scalar',   'mean', true,  false),
   ('height',   'length', 'm',   'scalar',   'max',  true,  false);
+
+-- Slice 2: exercise rebuild, with equipment and the reference-max/track-as
+-- graph. Cycle depth is enforced by a trigger, not app code.
+create table equipment (
+  id             uuid primary key default gen_random_uuid(),
+  name           text not null,
+  increment_kg   numeric,
+  rack_values_kg numeric[],
+  rounding       text not null default 'down'
+);
+
+create table exercise (
+  id                        uuid primary key default gen_random_uuid(),
+  owner_id                  uuid,
+  name                      text not null,
+  video_asset_id            uuid,
+  cues                      text,
+  equipment_id              uuid references equipment(id),
+  default_metrics           text[] not null default '{reps,load}',
+  reference_max_exercise_id uuid references exercise(id),
+  track_as_exercise_id      uuid references exercise(id),
+  e1rm_formula              text not null default 'epley',
+  check (id <> reference_max_exercise_id),
+  check (id <> track_as_exercise_id)
+);
+
+create function check_exercise_edge_depth() returns trigger as $$
+begin
+  if new.reference_max_exercise_id is not null and exists (
+    select 1 from exercise e where e.id = new.reference_max_exercise_id
+      and e.reference_max_exercise_id is not null
+  ) then raise exception 'reference_max_exercise_id must point at a root (depth <= 1)'; end if;
+  if new.track_as_exercise_id is not null and exists (
+    select 1 from exercise e where e.id = new.track_as_exercise_id
+      and e.track_as_exercise_id is not null
+  ) then raise exception 'track_as_exercise_id must point at a root (depth <= 1)'; end if;
+  return new;
+end; $$ language plpgsql;
+
+create trigger exercise_edge_depth before insert or update on exercise
+  for each row execute function check_exercise_edge_depth();
