@@ -13,7 +13,9 @@ deleted, including the athlete WEB app — its screens, its nutrition world and
 its device integrations all live in `apps/mobile` now, and git history holds
 the browser versions.
 
-Three worlds — Strength, Conditioning and Nutrition — one athlete.
+Two worlds — Conditioning and Nutrition — one athlete. Strength (engine,
+builder, logger) was deleted whole on 17 August 2026 and is being rebuilt
+from scratch; see "Deleted, and named here" below.
 
 Everything works offline. The cloud is a sync target, never the source of
 truth — the app on the device owns the data and merges toward the server.
@@ -31,19 +33,17 @@ The fastest way into this repo. Find the symptom, go to the file.
 
 | Symptom | Look in |
 |---|---|
-| Wrong weight suggested for a set | `packages/engine/src/lift.ts` → `openingLoadFor`, which is the whole ladder — a fold over today's sets, then a coach's authored kg or %, then `nextWorkingWeight` for what the last session earned |
-| Weight didn't go up / down after a session | `packages/engine/src/lift.ts` → `liftAdapt` |
+| Wrong weight suggested for a set / weight didn't go up or down | Not applicable — strength (`lift.ts`, `fold.ts`) was deleted 17 August 2026. See "Deleted, and named here" below |
 | Wrong HR zone, or zones look off | `packages/engine/src/hr.ts` → `conZones` (Tanaka 208 − 0.7×age, or Karvonen when a resting HR is set) |
 | Conditioning got harder/easier unexpectedly | `packages/engine/src/conditioning.ts` → `conAdapt`, `conPrescription` |
 | Conditioning never progresses at all | `packages/engine/src/conditioning.ts` → `conAdapt`. It returns early on zero zone seconds: **no heart-rate data means no level earned AND no miss recorded**, so a strapless session is invisible to progression rather than a failed one. Most sessions are strapless. Which formats can progress at all is `packages/engine/src/constants.ts` → `PROGRESSED_FORMATS` |
-| Rest timer wrong, or no rest between a superset | `packages/session-authoring/src/rest.ts` → `restAfter` (two clocks: plain rest, and EMOM pacing off `Exercise.every`), and `packages/engine/src/logger.ts` → `ssGroups` for the pairing |
-| Exercises labelled A1/A2 wrongly | `packages/engine/src/logger.ts` → `sessionLetters` |
+| A conditioning block's marker looks wrong | `packages/engine/src/logger.ts` → `sessionLetters` (a heart for conditioning; nothing else carries a marker since strength was deleted 17 August 2026) |
 | A session vanished, or a deleted one came back | `packages/engine/src/db.ts` → `mergeEngines`, `mergeSettings`, tombstones in `settings.deletedIds` |
 | Data lost on sync between devices | `packages/engine/src/db.ts` → `pickSession` / `pickWorkout`, then `cloud.ts` |
 | A backup won't load | `packages/engine/src/db.ts` → `restoreDb`; UI in `apps/mobile/src/screens/Settings.tsx` |
 | A day shows as trained when it wasn't | `packages/engine/src/session.ts` → `hasLoggedWork`; expiry in `packages/engine/src/db.ts` → `expireStaleSessions` |
 | Chart is a flat wall, or exaggerates | `packages/engine/src/num.ts` → `barScale` (floating baseline) |
-| e1RM looks wrong | `packages/engine/src/num.ts` → `epley`; history in `packages/engine/src/session.ts` → `exLogFor` |
+| e1RM looks wrong | Not applicable — e1RM was strength-only, deleted 17 August 2026 |
 | No insights appear, or one looks wrong | `packages/engine/src/insights.ts` → `insights`; the sample-size and noise floors are `packages/engine/src/constants.ts` → `INSIGHTS` |
 | Web deploy doesn't reach an installed app | `apps/web/src/serviceWorker.ts`; check with `node checks/pwa-update.mjs`. The prompt-to-reload banner went with the athlete surface on 15 August 2026 — the bench takes updates on the normal service-worker cycle |
 | WHOOP connect or sync fails | `netlify/functions/whoop-*`; check with `node checks/whoop-contract.mjs` |
@@ -84,8 +84,6 @@ packages/whole-athlete-state recovery/life context, constraints and data quality
                     nothing consumes them.
 packages/product-scope the two product identities and their capability lists.
                     A fact table, not a decision layer.
-packages/session-authoring the shared session-authoring logic behind the
-                    builders.
 packages/nutrition-core athlete-side nutrition model: log entries, weigh-ins,
                     macro programs, check-ins — sanitize and merge. No
                     prescription lives here.
@@ -129,6 +127,15 @@ packages/ai-prescription on 15 August, when nothing imported them any more.
 Rows they wrote are still readable and `athlete_weekly_plans` still accepts
 `writer = 'coordinator'`; nothing produces one.
 
+packages/session-authoring (the shared session-running state machine behind
+the athlete's live logger) and packages/engine/src/lift.ts, fold.ts,
+adaptive/ and catalogue.ts went whole on 17 August 2026 — the fire-sale
+rebuild. Strength (engine math, the coach's exercise wizard, the athlete's
+live logger, the exercise catalogue/picker) is deleted and being rebuilt
+from scratch. Conditioning and nutrition are untouched. `apps/web/src/coach/pillars/Strength.tsx` and
+`apps/mobile/src/screens/StrengthRebuilding.tsx` are placeholders where the
+deleted screens used to be.
+
 The rebuild status, rollout gates and product commands are in
 [`docs/ARCHITECTURE_STATUS.md`](docs/ARCHITECTURE_STATUS.md). Claude Code's
 operating contract is in [`CLAUDE.md`](CLAUDE.md), and the Supabase cross-app
@@ -141,13 +148,12 @@ The staging compatibility matrix and rollback procedure are in
 
 | Module | Owns |
 |---|---|
-| `session.ts` | Session/block/exercise shape, volume, PRs, `hasLoggedWork` |
-| `logger.ts` | The guided set flow — which set is next, prefill, superset chains |
-| `lift.ts` | Earned working weight: `liftAdapt`, `nextWorkingWeight` |
-| `autoreg.ts` | Per-set autoregulation from felt RPE |
+| `session.ts` | Conditioning/text block shape, `hasLoggedWork`, `duplicateWorkout` |
+| `logger.ts` | `sessionLetters` (a heart for conditioning), `sessionProgress` |
+| `autoreg.ts` | Per-set string parsing (`isWarmup`, `rpeCenterOf`, `repFloorOf`) |
 | `conditioning.ts` | Formats, prescription, the earned conditioning baseline |
 | `hr.ts` | Max HR, zones, recovery-driven daily adjustment |
-| `balance.ts` | Strength vs conditioning readout |
+| `balance.ts` | `condEfforts` — conditioning's own effort list |
 | `insights.ts` | What changed about you at matched effort: `insights` |
 | `db.ts` | Load/sanitize/merge/restore. The trust boundary for shape |
 | `cloud.ts` | Supabase row ↔ engine record mapping |
