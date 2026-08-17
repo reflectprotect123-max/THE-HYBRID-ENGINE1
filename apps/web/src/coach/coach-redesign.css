@@ -509,6 +509,21 @@
   .cb-instructions textarea:focus { outline: 2px solid var(--color-gold2); outline-offset: 1px; }
 
   .cb-blocks { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+  .cb-block-with-toggle { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  /*
+   * PAIRING TWO BLOCKS — sits between two adjacent Strength/Power blocks,
+   * mirroring the mockup's own "+ Superset" control. Not `.cb-add-btn`'s
+   * gold pill: this toggles a relationship between two blocks rather than
+   * adding a new one, so it reads as a thinner, centred divider control.
+   */
+  .cb-superset-toggle {
+    font: inherit; font-size: 12px; font-weight: 700;
+    color: var(--color-gold2); background: var(--color-gold-wash); border: 1px solid var(--color-gold-line);
+    border-radius: var(--radius-pill); padding: 6px 16px; cursor: pointer;
+  }
+  .cb-superset-toggle:hover { background: var(--color-gold-line); }
+  .cb-superset-toggle.active { color: var(--color-text); background: var(--color-panel2); border-color: var(--color-line2); }
+  .cb-superset-toggle.active:hover { border-color: var(--color-gold-line); }
   .cb-block {
     position: relative; border: 1px solid var(--color-line2); background: linear-gradient(180deg, var(--color-panel), var(--color-panel3));
     border-radius: var(--radius-lg); padding: 16px 16px 16px 20px; box-shadow: var(--shadow-card);

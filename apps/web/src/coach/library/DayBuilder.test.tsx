@@ -170,3 +170,63 @@ describe('starting from a session template', () => {
     expect(screen.queryByRole('button', { name: /lift and engine/i })).not.toBeInTheDocument();
   });
 });
+
+/*
+ * PAIRING TWO BLOCKS — the "+ Superset" control between two adjacent
+ * Strength/Power blocks, mirroring the mockup. `hybrid-roots-1` seeds six
+ * consecutive Strength/Power blocks (each one real exercise) then a
+ * Cooldown block, which is exactly the shape needed to exercise both the
+ * offered and withheld cases without hand-building blocks.
+ */
+describe('pairing two blocks into a superset', () => {
+  function applyRootsOne() {
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /hybrid roots — day 1/i }));
+  }
+
+  it('offers "+ Superset" between every adjacent pair of Strength/Power blocks, and nowhere else', () => {
+    applyRootsOne();
+    /* Six Strength/Power blocks then one Cooldown block — five internal gaps
+       between the six, none leading into the Cooldown block. */
+    expect(screen.getAllByRole('button', { name: /^\+ superset$/i })).toHaveLength(5);
+  });
+
+  it('merges two blocks into one, folding both exercises in, and flips to "− Superset"', () => {
+    applyRootsOne();
+    fireEvent.click(screen.getAllByRole('button', { name: /^\+ superset$/i })[0]);
+    /* One fewer block: BLOCK 07 (Cooldown) shifts down to BLOCK 06. */
+    expect(screen.queryByText('BLOCK 07')).not.toBeInTheDocument();
+    expect(screen.getByText('BLOCK 06')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^− superset$/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: /expand block/i })[0]);
+    expect(screen.getByRole('button', { name: /remove zercher squat/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /remove glute ham raise/i })).toBeInTheDocument();
+  });
+
+  it('splits the pairing back apart on "− Superset", one exercise at a time', () => {
+    applyRootsOne();
+    fireEvent.click(screen.getAllByRole('button', { name: /^\+ superset$/i })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /^− superset$/i }));
+    /* Back to seven blocks, and the pairing control is gone from that slot —
+       each exercise owns its own block again. */
+    expect(screen.getByText('BLOCK 07')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^− superset$/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: /expand block/i })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /expand block/i })[1]);
+    expect(screen.getByRole('button', { name: /remove zercher squat/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /remove glute ham raise/i })).toBeInTheDocument();
+  });
+
+  it('offers no pairing control at all between hand-added blocks with no exercises yet', () => {
+    /* A block from "+ Add block" is empty and unnamed until the coach fills
+       it in — nothing to pair with an equally-empty neighbour is still
+       offered, since both ARE Strength/Power by default; this just confirms
+       the control appears without requiring real content first. */
+    renderDay();
+    fireEvent.click(screen.getByRole('button', { name: /add block/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add block/i }));
+    expect(screen.getByRole('button', { name: /^\+ superset$/i })).toBeInTheDocument();
+  });
+});
