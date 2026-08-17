@@ -152,3 +152,14 @@ create table working_max_event (
   from_set_id  uuid references performed_set(id),
   effective_at timestamptz not null
 );
+
+-- Slice 10: PRs are per rep-count, not collapsed.
+create table pr_event (
+  athlete_id       uuid not null,
+  exercise_id      uuid not null,
+  rep_count        int  not null,
+  value_kg         numeric not null,
+  achieved_at      timestamptz not null,
+  performed_set_id uuid not null references performed_set(id),
+  primary key (athlete_id, exercise_id, rep_count, achieved_at)
+);
