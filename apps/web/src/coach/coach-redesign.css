@@ -536,7 +536,22 @@
   .cb-block-collapse { flex-shrink: 0; width: 22px; height: 22px; display: grid; place-items: center; border: none; background: none; color: var(--color-dim); cursor: pointer; }
   .cb-block-collapse svg { transition: transform .18s var(--ease-standard); }
   .cb-block.collapsed .cb-block-collapse svg { transform: rotate(-90deg); }
+  /* Phone-only reveal, kept for anything that still wants a picker hidden
+     behind a tap on a phone. Nothing uses it any more — see
+     `.cb-add-exercise-btn` below. */
   .cb-picker-reveal { display: none; width: 100%; margin-top: 12px; font: inherit; font-size: 12px; font-weight: 700; color: var(--color-gold2); background: var(--color-gold-wash); border: 1px dashed var(--color-gold-line); border-radius: var(--radius-md); padding: 11px; cursor: pointer; }
+  /* VISIBLE AT EVERY WIDTH. Until 17 August 2026 the wizard's "+ Add
+     exercise from library" trigger reused `.cb-picker-reveal`, which is
+     `display: none` at top level and only `display: block` inside the
+     phone media query below — a reveal designed for a picker that used to
+     be always-mounted on desktop. The exercise wizard replaced that
+     always-mounted picker and made this button the ONLY way to add an
+     exercise at any width, so a phone-only reveal class meant a coach at
+     1440px — the width this workspace is composed at — could not add an
+     exercise to a block at all. This class is its own, styled the same,
+     but visible everywhere. See `BlockEditor.tsx`'s "+ Add exercise from
+     library" button and its regression test. */
+  .cb-add-exercise-btn { display: block; width: 100%; margin-top: 12px; font: inherit; font-size: 12px; font-weight: 700; color: var(--color-gold2); background: var(--color-gold-wash); border: 1px dashed var(--color-gold-line); border-radius: var(--radius-md); padding: 11px; cursor: pointer; }
 
   /* Conditioning block body — a modality/format/effort/duration prescription,
      shown instead of the strength body's exercise picker when a block's
@@ -651,6 +666,13 @@
   .cb-sets-pill { font-size: 10px; font-weight: 700; color: var(--color-gold2); background: var(--color-gold-wash); border: 1px solid var(--color-gold-line); border-radius: var(--radius-pill); padding: 4px 9px; white-space: nowrap; text-align: center; }
   .cb-item-remove { flex-shrink: 0; width: 26px; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--color-line2); background: var(--color-well); color: var(--color-dim); cursor: pointer; display: grid; place-items: center; }
   .cb-item-remove:hover { color: var(--color-bad); border-color: color-mix(in srgb, var(--color-bad) 45%, transparent); }
+  /* The set-table escape hatch's own toggle — the wizard authors one shared
+     value per exercise and can never author a genuine wave or a per-set
+     warm-up flag; this reaches `SetRows` directly for that. Separate from
+     `.cb-item-head`'s click, which opens the wizard instead. */
+  .cb-item-sets-toggle { flex-shrink: 0; width: 26px; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--color-line2); background: var(--color-well); color: var(--color-dim); cursor: pointer; display: grid; place-items: center; font-size: 11px; font-weight: 800; }
+  .cb-item-sets-toggle:hover, .cb-item.expanded .cb-item-sets-toggle { color: var(--color-gold2); border-color: var(--color-gold-line); background: var(--color-gold-wash); }
+  .cb-item-sets-body { padding: 10px 10px 12px; border-top: 1px solid var(--color-line2); }
   .cb-item-circuit { display: flex; align-items: flex-start; gap: 8px; padding: 10px; }
   .cb-item-circuit .cb-item-head { flex: 1; min-width: 0; grid-template-columns: 26px minmax(0, 1fr); align-items: start; cursor: default; padding: 0; }
   .cb-item-circuit textarea { font: inherit; font-size: 12px; color: var(--color-text); background: var(--color-well); border: 1px solid var(--color-line2); border-radius: var(--radius-sm); padding: 9px 10px; width: 100%; min-height: 48px; resize: vertical; box-shadow: inset 0 2px 4px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .03); }
@@ -888,10 +910,12 @@
        several blocks, each with a full exercise picker, all open at once.
        Blocks become a collapsible accordion (chevron toggle, auto-collapse
        siblings on "+ Add block") and the picker hides behind an "Add
-       exercise" button until you actually want to browse it. Desktop is
-       untouched — .cb-picker-reveal only appears here, and
-       .cb-picker.picker-open only matters here. `.cb-block-collapse` moved
-       out of this block entirely; see its rule above. */
+       exercise" button until you actually want to browse it. `.cb-picker-
+       reveal` is unused now (see its own rule above); `.cb-add-exercise-btn`
+       — the wizard's actual trigger — is visible at every width on purpose,
+       not gated here. `.cb-picker.picker-open` only matters here.
+       `.cb-block-collapse` moved out of this block entirely; see its rule
+       above. */
     .cb-block.collapsed .cb-block-body-wrap { display: none; }
     .cb-picker-reveal { display: block; }
     .cb-picker-reveal[hidden] { display: none; }

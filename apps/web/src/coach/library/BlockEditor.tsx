@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { CON_EFFORTS, CON_FORMATS } from '@hybrid/engine';
 import type { CatalogueEntry, CondFmtKey, EffortKey } from '@hybrid/engine';
 import { ExerciseWizard, type WizardResult, type WizardShape } from './ExerciseWizard';
-import type { SetRow } from './SetRows';
+import { SetRows, type SetRow } from './SetRows';
 
 export { DEFAULT_REST_SEC, DEFAULT_EVERY_SEC, fmtEvery } from './ExerciseWizard';
 
@@ -178,6 +178,18 @@ export function BlockEditor({
    */
   const [wizardFor, setWizardFor] = useState<'new' | string | null>(null);
   const [lastShape, setLastShape] = useState<WizardShape | undefined>(undefined);
+  /**
+   * The set-table escape hatch (Critical finding 2b, 17 August 2026): which
+   * exercise (if any) has its raw `SetRows` table expanded inline, beneath
+   * its row. The wizard authors one shared value across every set and can
+   * never author a genuine wave (different loads per set) or per-set
+   * `warm`/`rpe` divergence — see `ExerciseWizard.commit()`'s own doc — so
+   * this is the direct path to the same `SetRows` component the wizard's
+   * Values step can't reach. Independent of `wizardFor`: a coach can have
+   * the wizard closed and a set table open, never both for the SAME
+   * exercise at once because opening the wizard on a row closes this.
+   */
+  const [setsOpenFor, setSetsOpenFor] = useState<string | null>(null);
   const isConditioning = CONDITIONING_CATEGORIES.includes(block.category);
   const headingInputRef = useRef<HTMLInputElement>(null);
 
@@ -210,6 +222,14 @@ export function BlockEditor({
 
   function removeExercise(id: string) {
     onChange({ ...block, exercises: block.exercises.filter((e) => e.id !== id) });
+  }
+
+  /** The same edit path `handleWizardSave` uses, but for the set-table escape hatch. */
+  function patchExerciseSets(id: string, patch: Partial<Pick<BlockExercise, 'sets' | 'columnA' | 'columnB'>>) {
+    onChange({
+      ...block,
+      exercises: block.exercises.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    });
   }
 
   return (
@@ -345,12 +365,24 @@ export function BlockEditor({
                   exercise={ex}
                   letter={letterFor(i)}
                   onRemove={() => removeExercise(ex.id)}
-                  onOpen={() => setWizardFor(ex.id)}
+                  onOpen={() => {
+                    setSetsOpenFor(null);
+                    setWizardFor(ex.id);
+                  }}
+                  setsOpen={setsOpenFor === ex.id}
+                  onToggleSets={() => setSetsOpenFor((cur) => (cur === ex.id ? null : ex.id))}
+                  onPatchSets={(patch) => patchExerciseSets(ex.id, patch)}
                 />
               ))}
             </ol>
 
-            <button type="button" className="cb-picker-reveal" onClick={() => setWizardFor('new')}>
+            {/*
+              * `.cb-add-exercise-btn`, NOT `.cb-picker-reveal` — that class is
+              * `display: none` outside the phone media query in
+              * `coach-redesign.css`, and this button is now the ONLY way to
+              * add an exercise at any width. See the class's own comment.
+              */}
+            <button type="button" className="cb-add-exercise-btn" onClick={() => setWizardFor('new')}>
               + Add exercise from library
             </button>
           </div>
@@ -499,30 +531,58 @@ const MODALITY_LABELS: Record<string, string> = {
  * wizard took over the editing job entirely: a row is `[letter] [name] [3
  * Sets]`, and clicking it opens `ExerciseWizard` rather than an inline `.cb-
  * exp` body. `BlockExercise` fields it once wrote directly — Pacing, Rest/
- * Every, Target RPE, Tempo, and the sets table itself — are now authored
- * exclusively through the wizard's Values and Review steps; `ExerciseItem`
- * neither reads nor writes them.
+ * Every, Target RPE, Tempo — are now authored exclusively through the
+ * wizard's Values and Review steps; `ExerciseItem` neither reads nor writes
+ * them.
+ *
+ * THE SETS TABLE ITSELF CAME BACK the same day (Critical finding 2b of the
+ * final review), as a second, independent toggle. The wizard's Values step
+ * writes one shared value across every set — necessarily, it's one field —
+ * so it can never author a genuine wave (10/8/6 at three different loads),
+ * never sets a per-set `warm` ramp flag, and never diverges per-set RPE; see
+ * `ExerciseWizard.commit()`'s own doc for the merge that keeps it from
+ * DESTROYING those when they already exist. Editing them at all requires
+ * `SetRows` directly, which is what this toggle reaches — deliberately not
+ * a wizard step, exactly as the design spec's "What this deliberately does
+ * not do" always said: "a coach who wants a genuine wave still uses the
+ * block's own set table after the wizard closes."
  */
 function ExerciseItem({
   exercise,
   letter,
   onRemove,
   onOpen,
+  setsOpen,
+  onToggleSets,
+  onPatchSets,
 }: {
   exercise: BlockExercise;
   letter: string;
   onRemove: () => void;
   onOpen: () => void;
+  setsOpen: boolean;
+  onToggleSets: () => void;
+  onPatchSets: (patch: Partial<Pick<BlockExercise, 'sets' | 'columnA' | 'columnB'>>) => void;
 }) {
   const count = exercise.sets.length;
   return (
-    <li className="cb-item">
+    <li className={`cb-item${setsOpen ? ' expanded' : ''}`}>
       <div className="cb-item-head-row">
         <button type="button" className="cb-item-head" onClick={onOpen}>
           <span className="cal-letter-chip">{letter}</span>
           <span className="cb-item-name">{exercise.name}</span>
           {/* The mockup's own wording and capitalisation: "1 Set", "3 Sets". */}
           <span className="cb-sets-pill">{count === 1 ? '1 Set' : `${count} Sets`}</span>
+        </button>
+        <button
+          type="button"
+          className="cb-item-sets-toggle"
+          aria-label={setsOpen ? `Hide ${exercise.name}'s set table` : `Edit ${exercise.name}'s sets directly`}
+          aria-expanded={setsOpen}
+          title="Edit individual sets — for a wave or a warm-up ramp the wizard can't author"
+          onClick={onToggleSets}
+        >
+          #
         </button>
         <button
           type="button"
@@ -533,6 +593,17 @@ function ExerciseItem({
           <Cross />
         </button>
       </div>
+      {setsOpen && (
+        <div className="cb-item-sets-body">
+          <SetRows
+            sets={exercise.sets}
+            columnA={exercise.columnA}
+            columnB={exercise.columnB}
+            onColumnChange={(which, value) => onPatchSets(which === 'a' ? { columnA: value } : { columnB: value })}
+            onSetsChange={(sets) => onPatchSets({ sets })}
+          />
+        </div>
+      )}
     </li>
   );
 }

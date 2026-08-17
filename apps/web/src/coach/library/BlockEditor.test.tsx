@@ -118,6 +118,24 @@ describe('BlockEditor — the exercise wizard', () => {
     expect(screen.getByText('What are they doing?')).toBeInTheDocument();
   });
 
+  /*
+   * `.cb-picker-reveal` was `display: none` at top level in
+   * `coach-redesign.css` and only `display: block` inside the
+   * `(max-width: 760px)` media query — a phone-only reveal for a picker that
+   * used to be always-mounted on desktop. The wizard made this button the
+   * ONLY way to add an exercise at any width, so that phone-only visibility
+   * meant a coach at 1440px — the width this workspace is composed at —
+   * could not add an exercise to a block at all. jsdom applies no
+   * stylesheet, so `fireEvent.click` on a `display: none` element succeeds
+   * regardless of layout; the assertion that would have caught this is on
+   * the CLASS, matching how `ExercisePicker.test.tsx` tests the
+   * `picker-open`/phone visibility contract elsewhere in this codebase.
+   */
+  it('the add-exercise trigger does not carry the phone-only reveal class', () => {
+    render(<BlockEditor block={wizardBlock} entries={[]} index={0} onChange={vi.fn()} onRemove={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /add exercise from library/i })).not.toHaveClass('cb-picker-reveal');
+  });
+
   it('folds a new exercise from the wizard into block.exercises', () => {
     const onChange = vi.fn();
     render(
@@ -279,5 +297,132 @@ describe('a new movement joins the library', () => {
     fireEvent.click(screen.getByRole('button', { name: /new exercise/i }));
     expect(onCreateMovement).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * CRITICAL FINDING 2b — the wizard's Values step writes one shared value
+ * across every set and can never author a genuine wave, a per-set `warm`
+ * flag, or a `NONE_COLUMN`/arbitrary column pair. This is the direct escape
+ * hatch back to `SetRows`, reached WITHOUT opening the wizard.
+ */
+describe('BlockEditor — the set-table escape hatch', () => {
+  const exerciseWithTwoSets = {
+    id: 'e1', name: 'Front Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90,
+    sets: [
+      { id: 'e1-s0', a: '10', b: '40', warm: true },
+      { id: 'e1-s1', a: '5', b: '90' },
+    ],
+  };
+
+  it('opens the set table directly, without opening the wizard', () => {
+    render(
+      <BlockEditor
+        block={{ id: 'b1', category: 'Strength/Power', exercises: [exerciseWithTwoSets] }}
+        entries={[]}
+        index={0}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /edit front squat's sets directly/i }));
+    expect(screen.queryByText('What are they doing?')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/set 1 reps/i)).toBeInTheDocument();
+  });
+
+  it('edits a single set value directly, leaving the other set untouched', () => {
+    const onChange = vi.fn();
+    render(
+      <BlockEditor
+        block={{ id: 'b1', category: 'Strength/Power', exercises: [exerciseWithTwoSets] }}
+        entries={[]}
+        index={0}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /edit front squat's sets directly/i }));
+    fireEvent.change(screen.getByLabelText(/set 1 reps/i), { target: { value: '3' } });
+    const next = onChange.mock.calls[0][0];
+    expect(next.exercises[0].sets[0]).toMatchObject({ a: '3', warm: true });
+    expect(next.exercises[0].sets[1]).toMatchObject({ a: '5', b: '90' });
+  });
+
+  it('toggling a warm-up flag directly is not reachable through the wizard', () => {
+    const onChange = vi.fn();
+    render(
+      <BlockEditor
+        block={{ id: 'b1', category: 'Strength/Power', exercises: [exerciseWithTwoSets] }}
+        entries={[]}
+        index={0}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /edit front squat's sets directly/i }));
+    fireEvent.click(screen.getByRole('button', { name: /set 2: a working set/i }));
+    const next = onChange.mock.calls[0][0];
+    expect(next.exercises[0].sets[1].warm).toBe(true);
+  });
+});
+
+/*
+ * IMPORTANT FINDING 3, end to end — `BlockEditor.handleWizardSave` merges
+ * with `{ ...e, ...result }`; this proves that merge actually clears a
+ * blanked Tempo rather than keeping the exercise's stale value.
+ */
+describe('BlockEditor — clearing tempo through the wizard', () => {
+  it('blanking Tempo on an edit and saving removes it from the stored exercise', () => {
+    const onChange = vi.fn();
+    const withTempo = {
+      id: 'b1', category: 'Strength/Power',
+      exercises: [
+        { id: 'e1', name: 'Front Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, tempo: '3-1-1-0', sets: [{ id: 'e1-s0', a: '5', b: '80' }] },
+      ],
+    };
+    render(<BlockEditor block={withTempo} entries={[]} index={0} onChange={onChange} onRemove={vi.fn()} />);
+    fireEvent.click(screen.getByText('Front Squat'));
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.change(screen.getByLabelText(/^tempo/i), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const next = onChange.mock.calls[0][0];
+    expect(next.exercises[0].tempo).toBeUndefined();
+  });
+});
+
+/*
+ * IMPORTANT FINDING 6, end to end — two new exercises added to the same
+ * block must not collide on set ids.
+ */
+describe('BlockEditor — new exercises get non-colliding set ids', () => {
+  it('gives two new exercises in the same block distinct set-id prefixes', () => {
+    const onChange = vi.fn();
+    const twoEntries = [
+      { name: 'Back Squat', tags: [], uses: 0 },
+      { name: 'Front Squat', tags: [], uses: 0 },
+    ];
+    const emptyBlock = { id: 'b1', category: 'Strength/Power', exercises: [] };
+    const { rerender } = render(
+      <BlockEditor block={emptyBlock} entries={twoEntries} index={0} onChange={onChange} onRemove={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /add exercise from library/i }));
+    fireEvent.click(screen.getByText('Back Squat'));
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const afterFirst = onChange.mock.calls[0][0];
+
+    rerender(<BlockEditor block={afterFirst} entries={twoEntries} index={0} onChange={onChange} onRemove={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /add exercise from library/i }));
+    fireEvent.click(screen.getByText('Front Squat'));
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const afterSecond = onChange.mock.calls[1][0];
+
+    const firstIds: string[] = afterSecond.exercises[0].sets.map((s: { id: string }) => s.id);
+    const secondIds: string[] = afterSecond.exercises[1].sets.map((s: { id: string }) => s.id);
+    expect(firstIds.some((id) => secondIds.includes(id))).toBe(false);
   });
 });

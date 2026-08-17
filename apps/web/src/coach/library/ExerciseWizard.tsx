@@ -77,6 +77,9 @@ type Step = 'exercise' | 'measure' | 'sets' | 'values' | 'review';
 const STEP_ORDER: Step[] = ['exercise', 'measure', 'sets', 'values', 'review'];
 const STEP_LABEL: Record<Step, string> = { exercise: 'Exercise', measure: 'Measure', sets: 'Sets', values: 'Values', review: 'Review' };
 
+/** 'rest' = plain rest between sets, 'every' = EMOM — see `Exercise.every`. */
+type Pacing = 'rest' | 'every';
+
 interface Draft {
   name: string;
   measure: Measure;
@@ -84,6 +87,7 @@ interface Draft {
   a: string;
   b: string;
   rest: number;
+  pacing: Pacing;
   every: number;
   tempo: string;
   rpe: string;
@@ -99,7 +103,8 @@ function initialDraft(initial?: BlockExercise, lastShape?: WizardShape): Draft {
       a: initial.sets[0]?.a ?? '',
       b: initial.sets[0]?.b ?? '',
       rest: initial.rest,
-      every: initial.every ?? 0,
+      pacing: (initial.every ?? 0) > 0 ? 'every' : 'rest',
+      every: initial.every && initial.every > 0 ? initial.every : DEFAULT_EVERY_SEC,
       tempo: initial.tempo ?? '',
       rpe: rpeValues.size <= 1 ? [...rpeValues][0] ?? '' : '',
     };
@@ -111,7 +116,8 @@ function initialDraft(initial?: BlockExercise, lastShape?: WizardShape): Draft {
     a: lastShape?.a ?? '',
     b: lastShape?.b ?? '',
     rest: DEFAULT_REST_SEC,
-    every: 0,
+    pacing: 'rest',
+    every: DEFAULT_EVERY_SEC,
     tempo: '',
     rpe: '',
   };
@@ -135,6 +141,25 @@ function shapeSummary(draft: Draft): string {
 export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, onSave, onCancel }: ExerciseWizardProps) {
   const [history, setHistory] = useState<Step[]>(['exercise']);
   const [draft, setDraft] = useState<Draft>(() => initialDraft(initial, lastShape));
+  /**
+   * Whether the coach actually clicked a Measure tile during THIS edit. Used
+   * only when `initial` is set and its `columnA`/`columnB` pair is not one
+   * `MEASURES` can represent (`weight_pct`, `reps_range`, and so on) — see
+   * `commit()`. Without this, opening the wizard on such an exercise and
+   * saving without ever visiting Measure would silently rewrite its columns
+   * to whatever `measureFor` fell back to.
+   */
+  const [measureTouched, setMeasureTouched] = useState(false);
+  /**
+   * A stable per-mount id for a brand-new exercise's set rows, so two new
+   * exercises added to the same block don't collide on `new-s0`/`new-s1`/….
+   * `BlockEditor.handleWizardSave` assigns the exercise's real id separately
+   * — this only has to be unique among the sets of ONE new exercise's own
+   * commit, which a fresh mount already guarantees.
+   */
+  const [newExerciseId] = useState(
+    () => `new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+  );
 
   const step = history[history.length - 1];
   const idx = STEP_ORDER.indexOf(step);
@@ -158,18 +183,68 @@ export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, 
 
   function commit() {
     const opt = MEASURES.find((m) => m.key === draft.measure)!;
-    const rowId = (i: number) => `${initial?.id ?? 'new'}-s${i}`;
-    const sets: SetRow[] = Array.from({ length: draft.sets }, (_, i) => ({
-      id: rowId(i), a: draft.a, b: draft.b, ...(draft.rpe ? { rpe: draft.rpe } : {}),
-    }));
+
+    /*
+     * COLUMNS: don't let the wizard's Measure vocabulary silently overwrite a
+     * column pair it cannot represent (weight_pct, reps_range, …) unless the
+     * coach actually chose a Measure tile this edit. `measureFor` maps such a
+     * pair to a representable fallback (usually 'reps') purely so the wizard
+     * has SOMETHING to show pre-selected — that fallback was never meant to
+     * be written back on a save the coach never touched.
+     */
+    let columnA = opt.columnA;
+    let columnB = opt.columnB;
+    if (initial && !measureTouched) {
+      const representable = MEASURES.some((m) => m.columnA === initial.columnA && m.columnB === initial.columnB);
+      if (!representable) {
+        columnA = initial.columnA;
+        columnB = initial.columnB;
+      }
+    }
+
+    /*
+     * SETS: the wizard's Values step edits one shared a/b (and one shared
+     * RPE) for the whole exercise, which is fine for authoring but destroys a
+     * genuine wave (different loads per set), individual `warm` ramp-set
+     * flags, and per-set RPE the instant it REPLACES the array wholesale. If
+     * the coach didn't change the set COUNT, merge the shared values onto the
+     * existing rows instead — a real wave/warm-up split still has to go
+     * through the block's own set-row escape hatch (`SetRows`) rather than
+     * the wizard, but at minimum committing the wizard without touching Sets
+     * must not erase what was already there. A set-count change has no
+     * existing rows to preserve column-for-column, so it still rebuilds.
+     */
+    let sets: SetRow[];
+    if (initial && draft.sets === initial.sets.length) {
+      sets = initial.sets.map((s) => ({
+        ...s,
+        a: draft.a,
+        b: draft.b,
+        rpe: draft.rpe ? draft.rpe : s.rpe,
+      }));
+    } else {
+      const rowId = (i: number) => `${initial?.id ?? newExerciseId}-s${i}`;
+      sets = Array.from({ length: draft.sets }, (_, i) => ({
+        id: rowId(i), a: draft.a, b: draft.b, ...(draft.rpe ? { rpe: draft.rpe } : {}),
+      }));
+    }
+
+    /*
+     * `every`/`tempo` are ALWAYS emitted (as a value or explicit `undefined`)
+     * rather than only when truthy, so `BlockEditor.handleWizardSave`'s
+     * `{ ...e, ...result }` merge actually CLEARS a value the coach blanked
+     * out or switched off — an absent key there is indistinguishable from
+     * "the wizard has no opinion", so the old exercise's value survived every
+     * save whether or not the coach meant to keep it.
+     */
     const result: WizardResult = {
       ...(initial ? { id: initial.id } : {}),
       name: draft.name,
-      columnA: opt.columnA,
-      columnB: opt.columnB,
+      columnA,
+      columnB,
       rest: draft.rest,
-      ...(draft.every > 0 ? { every: draft.every } : {}),
-      ...(draft.tempo.trim() ? { tempo: draft.tempo.trim() } : {}),
+      every: draft.pacing === 'every' ? (draft.every > 0 ? draft.every : DEFAULT_EVERY_SEC) : undefined,
+      tempo: draft.tempo.trim() ? draft.tempo.trim() : undefined,
       sets,
     };
     onSave(result, { measure: draft.measure, sets: draft.sets, a: draft.a, b: draft.b });
@@ -231,7 +306,10 @@ export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, 
                 type="button"
                 className={`cb-wizard-glyph-tile${draft.measure === m.key ? ' on' : ''}`}
                 aria-label={m.name}
-                onClick={() => patch({ measure: m.key })}
+                onClick={() => {
+                  patch({ measure: m.key });
+                  setMeasureTouched(true);
+                }}
               >
                 <span className="glyph">{m.glyph}</span>
                 <span className="name">{m.name}</span>
@@ -316,9 +394,33 @@ export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, 
             </div>
             <div className="cb-wizard-review-extra">
               <label className="cell">
-                <span>Rest</span>
-                <input aria-label="Rest in seconds" type="number" min={0} value={draft.rest} onChange={(e) => patch({ rest: Math.max(0, Number(e.target.value) || 0) })} />
+                <span>Pacing</span>
+                <select
+                  aria-label="Pacing"
+                  value={draft.pacing}
+                  onChange={(e) => patch({ pacing: e.target.value as Pacing })}
+                >
+                  <option value="rest">Rest between sets</option>
+                  <option value="every">Every — EMOM</option>
+                </select>
               </label>
+              {draft.pacing === 'every' ? (
+                <label className="cell">
+                  <span>Every</span>
+                  <input
+                    aria-label="Every, in seconds"
+                    type="number"
+                    min={0}
+                    value={draft.every}
+                    onChange={(e) => patch({ every: Math.max(0, Number(e.target.value) || 0) })}
+                  />
+                </label>
+              ) : (
+                <label className="cell">
+                  <span>Rest</span>
+                  <input aria-label="Rest in seconds" type="number" min={0} value={draft.rest} onChange={(e) => patch({ rest: Math.max(0, Number(e.target.value) || 0) })} />
+                </label>
+              )}
               <label className="cell">
                 <span>Target RPE</span>
                 <input aria-label="Target RPE" placeholder="8, or 7–10" value={draft.rpe} onChange={(e) => patch({ rpe: e.target.value })} />
@@ -328,6 +430,11 @@ export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, 
                 <input aria-label="Tempo" placeholder="e.g. 3-1-1-0" value={draft.tempo} onChange={(e) => patch({ tempo: e.target.value })} />
               </label>
             </div>
+            <p className="cb-note">
+              {draft.pacing === 'every'
+                ? `${fmtEvery(draft.every)} × ${draft.sets} sets — each set starts on the clock, so a slower set gets less rest.`
+                : 'The countdown starts when the set ends.'}
+            </p>
           </div>
           <div className="cb-wizard-btn-row">
             <button type="button" className="cb-wizard-btn" onClick={back}>Back</button>

@@ -56,8 +56,8 @@ const ENTRIES = [
 
 function renderWizard(over: Partial<Parameters<typeof ExerciseWizard>[0]> = {}) {
   const props = { entries: ENTRIES, onSave: vi.fn(), onCancel: vi.fn(), ...over };
-  render(<ExerciseWizard {...props} />);
-  return props;
+  const { unmount } = render(<ExerciseWizard {...props} />);
+  return { ...props, unmount };
 }
 
 describe('ExerciseWizard — steps 1 and 2', () => {
@@ -249,5 +249,198 @@ describe('ExerciseWizard — Review and commit', () => {
     fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
     fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
     expect(screen.getByText('5 × 30s')).toBeInTheDocument();
+  });
+});
+
+/*
+ * CRITICAL FINDING 2a — commit() must not silently destroy what an edit
+ * didn't touch. Two separate traps: overwriting a column pair the wizard's
+ * Measure step cannot represent (weight_pct, reps_range, …), and replacing
+ * every set with one shared value even when the coach never opened Values.
+ */
+describe('ExerciseWizard — editing does not silently destroy what it did not touch', () => {
+  it('keeps an unrepresentable column pair (e.g. %1RM) when the coach never visits Measure', () => {
+    const props = renderWizard({
+      initial: {
+        id: 'e10', name: 'Back Squat', columnA: 'reps', columnB: 'weight_pct', rest: 90,
+        sets: [{ id: 'e10-s0', a: '5', b: '80' }],
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> measure
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect(result.columnA).toBe('reps');
+    expect(result.columnB).toBe('weight_pct');
+  });
+
+  it('overwrites the column pair when the coach explicitly picks a Measure tile', () => {
+    const props = renderWizard({
+      initial: {
+        id: 'e11', name: 'Back Squat', columnA: 'reps', columnB: 'weight_pct', rest: 90,
+        sets: [{ id: 'e11-s0', a: '5', b: '80' }],
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> measure
+    fireEvent.click(screen.getByRole('button', { name: /Seconds/ }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect(result.columnA).toBe('seconds');
+    expect(result.columnB).toBe('');
+  });
+
+  it('editing with an unchanged set count preserves warm flags and untouched per-set RPE', () => {
+    const props = renderWizard({
+      initial: {
+        id: 'e9', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90,
+        sets: [
+          { id: 'e9-s0', a: '10', b: '40', warm: true, rpe: '3' },
+          { id: 'e9-s1', a: '8', b: '80', rpe: '9' },
+          { id: 'e9-s2', a: '6', b: '90' },
+        ],
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> measure
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect(result.sets).toHaveLength(3);
+    expect(result.sets[0].warm).toBe(true);
+    expect(result.sets[0].rpe).toBe('3');
+    expect(result.sets[1].rpe).toBe('9');
+    expect(result.sets[2].rpe).toBeUndefined();
+  });
+
+  it('changing the set count still rebuilds the array (nothing to merge onto)', () => {
+    const props = renderWizard({
+      initial: {
+        id: 'e14', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90,
+        sets: [{ id: 'e14-s0', a: '5', b: '80', warm: true }],
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> measure
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i })); // -> sets
+    fireEvent.click(screen.getByRole('button', { name: /one more set/i }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect(result.sets).toHaveLength(2);
+    expect(result.sets.every((s: SetRow) => !s.warm)).toBe(true);
+  });
+});
+
+/*
+ * IMPORTANT FINDING 3 — `commit()` only included `tempo`/`every` in its
+ * result when non-blank/non-zero, so `BlockEditor`'s `{ ...e, ...result }`
+ * merge had no key to clear the old value with. Both must now be clearable.
+ */
+describe('ExerciseWizard — clearing tempo and pacing', () => {
+  it('blanking Tempo on an edit reports it as cleared, not simply absent', () => {
+    const props = renderWizard({
+      initial: {
+        id: 'e12', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, tempo: '3-1-1-0',
+        sets: [{ id: 'e12-s0', a: '5', b: '80' }],
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    fireEvent.change(screen.getByLabelText(/^tempo/i), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect('tempo' in result).toBe(true);
+    expect(result.tempo).toBeUndefined();
+  });
+
+  it('switching Pacing from Every back to Rest clears `every`', () => {
+    const props = renderWizard({
+      initial: {
+        id: 'e13', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, every: 120,
+        sets: [{ id: 'e13-s0', a: '5', b: '80' }],
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    expect(screen.getByLabelText('Pacing')).toHaveValue('every');
+    fireEvent.change(screen.getByLabelText('Pacing'), { target: { value: 'rest' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect('every' in result).toBe(true);
+    expect(result.every).toBeUndefined();
+  });
+});
+
+/*
+ * IMPORTANT FINDING 4 — EMOM pacing had a `Draft.every` field and preserved
+ * it through an edit, but no step ever rendered a control to author it.
+ */
+describe('ExerciseWizard — EMOM pacing on Review', () => {
+  it('defaults to Rest between sets for a new exercise', () => {
+    renderWizard();
+    toReview();
+    expect(screen.getByLabelText('Pacing')).toHaveValue('rest');
+    expect(screen.getByText(/the countdown starts when the set ends/i)).toBeInTheDocument();
+  });
+
+  it('switching to Every — EMOM shows the seconds field and the EMOM summary, and commits `every`', () => {
+    const props = renderWizard();
+    toReview();
+    fireEvent.change(screen.getByLabelText('Pacing'), { target: { value: 'every' } });
+    fireEvent.change(screen.getByLabelText(/every, in seconds/i), { target: { value: '90' } });
+    expect(screen.getByText(/1:30 × 3 sets — each set starts on the clock/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect(result.every).toBe(90);
+  });
+
+  it('pre-fills Every and Pacing from an exercise already on EMOM pacing', () => {
+    renderWizard({
+      initial: {
+        id: 'e15', name: 'Back Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, every: 150,
+        sets: [{ id: 'e15-s0', a: '5', b: '80' }],
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
+    expect(screen.getByLabelText('Pacing')).toHaveValue('every');
+    expect(screen.getByLabelText(/every, in seconds/i)).toHaveValue(150);
+  });
+});
+
+/*
+ * IMPORTANT FINDING 6 — every NEW exercise's set ids were keyed
+ * `new-s0`/`new-s1`/…, colliding across every new exercise added in the same
+ * block. A fresh mount now mints a unique per-exercise id.
+ */
+describe('ExerciseWizard — new-exercise set ids', () => {
+  it('does not key a new exercise\'s sets with the literal prefix "new"', () => {
+    const props = renderWizard();
+    toReview();
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const onSave = props.onSave as ReturnType<typeof vi.fn>;
+    const [result] = onSave.mock.calls[0];
+    expect(result.sets.every((s: SetRow) => !s.id.startsWith('new-s'))).toBe(true);
+  });
+
+  it('mints different set-id prefixes for two separate new-exercise mounts', () => {
+    const first = renderWizard();
+    toReview();
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const firstIds = (first.onSave as ReturnType<typeof vi.fn>).mock.calls[0][0].sets.map((s: SetRow) => s.id);
+    first.unmount();
+
+    const second = renderWizard();
+    toReview();
+    fireEvent.click(screen.getByRole('button', { name: /^add exercise$/i }));
+    const secondIds = (second.onSave as ReturnType<typeof vi.fn>).mock.calls[0][0].sets.map((s: SetRow) => s.id);
+
+    expect(firstIds.some((id: string) => secondIds.includes(id))).toBe(false);
   });
 });
