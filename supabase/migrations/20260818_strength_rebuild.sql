@@ -69,3 +69,40 @@ end; $$ language plpgsql;
 
 create trigger exercise_edge_depth before insert or update on exercise
   for each row execute function check_exercise_edge_depth();
+
+-- Slice 3: a prescribed set is a set of typed targets, not fixed columns —
+-- the fix for a fixed 2-metric-per-set ceiling.
+create table strength_block_item (
+  id           uuid primary key default gen_random_uuid(),
+  block_id     uuid not null,
+  exercise_id  uuid not null references exercise(id),
+  ordinal      int  not null,
+  grouping_key text,
+  unique (block_id, ordinal)
+);
+
+create table prescribed_set (
+  id                uuid primary key default gen_random_uuid(),
+  block_item_id     uuid not null references strength_block_item(id) on delete cascade,
+  ordinal           int  not null,
+  is_optional       boolean not null default false,
+  is_amrap          boolean not null default false,
+  unique (block_item_id, ordinal)
+);
+
+create table prescribed_target (
+  prescribed_set_id uuid not null references prescribed_set(id) on delete cascade,
+  metric_key        text not null references metric(key),
+  literal_value      numeric,
+  range_lo           numeric,
+  range_hi           numeric,
+  expr_kind          text,
+  expr_arg           numeric,
+  expr_ref_exercise  uuid references exercise(id),
+  primary key (prescribed_set_id, metric_key),
+  check (
+    (literal_value is not null)::int +
+    (range_lo is not null and range_hi is not null)::int +
+    (expr_kind is not null)::int = 1
+  )
+);
