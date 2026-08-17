@@ -1,5 +1,82 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 17 August 2026. `main` is at `3a5fa81`.
+> STRENGTH WAS DELETED WHOLE THE SAME DAY, AND A FULL REBUILD IS SPECCED BUT
+> NOT STARTED. Where this block disagrees with anything below it, this one
+> wins.**
+>
+> ## What happened today
+>
+> The owner ordered a full teardown of strength — engine math, coach
+> authoring UI, mobile logger — keeping conditioning and nutrition completely
+> untouched. "Fire sale. Everything's gotta go." Confirmed explicitly more
+> than once, including after being told what it would cost (the auto-coach's
+> pain/illness session-hold went with an earlier deletion this week; nothing
+> comparable was at stake here, but the athlete-web strength UI, the mobile
+> logger, and `@hybrid/engine`'s `lift.ts`/`fold.ts`/`adaptive/` all went).
+>
+> **Deleted, `main` history `540f7f4`..`b92287b`** (11 commits, "fire-sale
+> rebuild parts 1–10" plus a lockfile fix as part 11): `packages/session-
+> authoring` (whole package — confirmed by direct investigation, not
+> inherited from a first-pass agent classification, that conditioning never
+> imported it), `packages/engine/src/{lift,fold,catalogue,setColumns}.ts` +
+> `adaptive/{types,explain,strength}.ts`, the mobile logger screens
+> (`screens/logger/`, `screens/guided/{Movement,Sets,Reps,Rpe}Step.tsx`,
+> `Exercise.tsx`, `planner/{ExerciseCard,SupersetSeam}.tsx`), the coach
+> bench's exercise wizard/session-builder strength half (`BlockEditor`'s
+> `Strength/Power` category, `ExercisePicker.tsx`, the superset merge/split
+> feature), every strength-bearing session template, and ~340 lines of
+> orphaned CSS the first cleanup pass missed (`checks/screens.mjs` and a
+> direct grep sweep — triggered by the owner asking "so are you certain
+> EVERYTHING strength is deleted," which was the right question: the first
+> claim of completeness was wrong).
+>
+> **What survived on purpose.** `Block<S>`'s union dropped to `CondBlock |
+> TextBlock`, `S` kept as a documented-vestigial generic so no call site
+> needed touching. `Settings.movements`/legacy strength rows in stored DBs
+> are kept, not migrated — `cleanBlock` now returns `null` for a block that
+> is neither text nor conditioning and `cleanBlocks` filters it, a read-time
+> filter only; the stored row is untouched. `StrengthRebuilding.tsx`
+> (mobile) and `Strength.tsx` (coach bench pillar) are placeholder screens,
+> not deleted routes — `checks/screens.mjs`'s 20-shot coverage still needs
+> every `/coach` route to render, and CLAUDE.md's placeholder-screen pattern
+> exists exactly for this case.
+>
+> ## The rebuild is specced, not started
+>
+> `docs/superpowers/specs/2026-08-17-strength-rebuild-design.md` — 30 slices
+> across 4 phases (Foundation schema/engine → coach authoring → mobile
+> logger → analytics), full DDL, function signatures, edge cases and tests
+> per slice. Written after the owner supplied a commissioned TrainHeroic
+> competitive teardown (`75f0b28d-trainheroicdeepdive.md`, from a separate
+> Cowork session) and answered scoping questions through it: build the full
+> "metric registry" schema (targets/measurements as typed rows, not fixed
+> columns — the fix for TrainHeroic's 2-metric-per-set ceiling), not a
+> simplified fixed-shape version, and structure the rebuild as ~30 small
+> slices rather than 3-4 big phases. **The owner said more competitive
+> material is still coming from Cowork ("theres gonna be more") — the spec
+> is written so later phases can absorb it without invalidating Phase A,
+> which has no UI dependency.**
+>
+> Spec was committed and pushed (`3a5fa81`); the owner has not yet reviewed
+> it or said go. **Do not start Phase A implementation until they do** — the
+> brainstorming skill's process (still mid-flow) calls for a spec-review gate
+> before writing-plans, and this owner in particular re-opened scope
+> mid-process twice already this week (strength deletion itself, then "keep
+> going, use agents" mid-deletion) — confirm before assuming green light.
+>
+> ## One other fix, same session
+>
+> The strength deletion dropped `@hybrid/session-authoring` from
+> `apps/mobile/package.json` but nobody regenerated `pnpm-lock.yaml`, so the
+> EAS Android build the owner requested (`hows the apk` → checked, it had
+> failed) never got past `pnpm install --frozen-lockfile` in CI. Fixed,
+> committed, pushed (`f74ef0f`) — **the build has not been re-triggered
+> since**. If asked "hows the apk" again, that's the first thing to check:
+> was it re-run after `f74ef0f` landed.
+>
+> ---
+>
 > **AUTHORITATIVE CHECKPOINT — 15 August 2026, END OF DAY. `main` is at
 > `8f715eb`. SCOPE WAS CUT TO TWO PRODUCTS, every check was put into CI, the
 > coach directory was sorted, and the backend was audited end to end. Where any
