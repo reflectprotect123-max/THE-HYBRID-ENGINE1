@@ -120,3 +120,23 @@ create table assigned_session (
   resolved_snapshot jsonb,
   timezone          text not null
 );
+
+-- Slice 7: performance is an independently-shaped set of measurements.
+-- Client-generated id (offline-first): a retried sync is a no-op upsert.
+create table performed_set (
+  id                  uuid primary key,
+  assigned_session_id uuid not null references assigned_session(id),
+  exercise_id         uuid not null references exercise(id),
+  prescribed_set_id   uuid references prescribed_set(id),
+  ordinal             int not null,
+  status              text not null,
+  performed_at        timestamptz not null,
+  client_created_at   timestamptz not null
+);
+
+create table performed_measurement (
+  performed_set_id uuid not null references performed_set(id) on delete cascade,
+  metric_key       text not null references metric(key),
+  value            numeric not null,
+  primary key (performed_set_id, metric_key)
+);
