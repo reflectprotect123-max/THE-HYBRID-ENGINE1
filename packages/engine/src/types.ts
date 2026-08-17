@@ -67,127 +67,13 @@ export interface LoggedSet extends PlannedSet {
 
 export type AnySet = PlannedSet | LoggedSet;
 
-export interface Exercise<S extends AnySet = LoggedSet> {
-  id: string;
-  name: string;
-  mode: ModeKey;
-  sets: S[];
-  /** seconds */
-  rest?: number;
-  /**
-   * EMOM pacing, in seconds: every set STARTS this far apart, however long the
-   * last one took. Absent means the ordinary `rest` countdown, which starts
-   * when a set ends.
-   *
-   * The two are different clocks and that is the whole reason this exists.
-   * "90 seconds rest" means 90 seconds AFTER the set; "every 2:30" means the
-   * set and the recovery share one window, so a set that took 40 seconds
-   * leaves 110 and a set that took 90 leaves 60. The owner asked for it on
-   * 16 August 2026 in exactly those terms — "a single or an emom style with a
-   * timer, which is then X the amount of sets" — and the X is the set count
-   * the exercise already carries.
-   *
-   * When both are present `every` wins, because it is the more specific
-   * instruction; `rest` is kept rather than cleared so switching the mode back
-   * does not lose the number the coach typed.
-   */
-  every?: number;
-  /**
-   * The smallest step this movement's load can actually move by, in kg.
-   *
-   * A barbell moves in 2.5kg (the pair of 1.25s); a dumbbell rack moves in 2;
-   * a weight stack moves in whatever the stack says. Without this, every
-   * exercise rounded to the one global `AUTOREG.plateIncrement`, so a
-   * 12kg dumbbell's next step was priced at 12.5kg — a weight that does not
-   * exist on the rack — and the coaching line said so out loud ("the next jump
-   * is 2.5 kg"). Found by driving the parity harness against the prototype,
-   * which has authored this per exercise all along.
-   *
-   * Optional, and absent means the global. Every session logged before this
-   * existed keeps behaving exactly as it did.
-   */
-  inc?: number;
-  /**
-   * Superset this exercise into the NEXT one: no rest between them, and the
-   * pair cycles until both are done.
-   *
-   * Per-exercise rather than the block's all-or-nothing `superset`, because a
-   * real session is "bench paired with dips, then three straight sets" — one
-   * flag on the block cannot say that, so pairing anything meant splitting the
-   * block, and nobody does that mid-set on a gym floor.
-   *
-   * `block.superset` still works and means every exercise links to the next.
-   * Chaining three or more is just consecutive links: a triset.
-   */
-  ssNext?: boolean;
-  tempo?: string;
-  /**
-   * What this exercise's two set columns MEASURE, when it was authored in the
-   * coach's day builder — values from `COLUMN_TYPES` in `setColumns.ts`.
-   *
-   * `mode` is the engine's own vocabulary and only six values wide, so a pair
-   * like reps × meters has no exact `ModeKey`. The pair is recorded here so
-   * reopening the builder shows the coach the columns they chose rather than
-   * the closest mode the engine could name. Absent on everything authored any
-   * other way, and read by the day builder only — `mode` remains what every
-   * other screen reads.
-   */
-  cols?: { a: string; b: string };
-  /** free text from the coach, shown on the logger stage */
-  cue?: string;
-}
-
-export interface StrengthBlock<S extends AnySet = LoggedSet> {
-  id: string;
-  kind?: undefined;
-  /**
-   * Prep, not work.
-   *
-   * A warm-up block holds real movements you tick off, but nothing in it may
-   * reach tonnage, an e1RM, or an earned working weight — warming up with an
-   * empty bar must never teach the progression that your bench went to 20kg.
-   * The per-SET warm-up marker ("W10") already exists for a ramp inside a
-   * working exercise; this is the whole block.
-   */
-  warmup?: boolean;
-  heading?: string;
-  /**
-   * What KIND of block this is, when the coach's builder authored it — one of
-   * `BLOCK_CATEGORIES` in the bench's `BlockEditor`.
-   *
-   * The bench used to store the category in `heading`, which meant a block's
-   * displayed name and its kind were the same string and only one of them
-   * could be true. A session template needs both: a section reading "STRENGTH
-   * INTENSITY 1" that is nonetheless a Strength/Power block. So the kind moved
-   * here and `heading` went back to being the name the athlete reads.
-   *
-   * Absent on everything authored before that and on everything authored
-   * anywhere else, which is why the bench still falls back to reading the
-   * category out of `heading` when this is missing.
-   */
-  category?: string;
-  minutes?: number | string;
-  format?: string;
-  superset?: boolean;
-  /**
-   * Which movement led each round, by round index, as indices into `exercises`.
-   *
-   * A superset's pair order is a fact about each ROUND, not about the block.
-   * Reordering the pair mid-session must not rewrite what already happened, so a
-   * round that has begun keeps the order it ran in and only unstarted rounds
-   * move. Absent means "the order `exercises` is in", which is every session
-   * logged before the athlete reordered anything.
-   */
-  roundOrder?: Record<number, number[]>;
-  /**
-   * The coach's free-text note for this block — a Warm-up/Cooldown/Mobility
-   * block is often a description ("5 min bike, dynamic stretching") rather
-   * than a set of loggable movements, and `exercises` is required here (see
-   * `CondBlock.note` for the same field on the conditioning side).
-   */
-  note?: string;
-  exercises: Exercise<S>[];
-}
+/*
+ * `Exercise` and `StrengthBlock` were deleted whole on 17 August 2026 — the
+ * fire-sale rebuild. They typed the authoring/set/rep/RPE model the old
+ * wizard, the old live logger, and lift.ts/fold.ts's progression math all
+ * shared, and all three are gone with them. `CondBlock`/`TextBlock` below are
+ * untouched — conditioning and nutrition were explicitly kept.
+ */
 
 /** One GPS fix during a tracked conditioning session. */
 export interface GeoSample {
@@ -263,7 +149,13 @@ export interface TextBlock {
   exercises?: undefined;
 }
 
-export type Block<S extends AnySet = LoggedSet> = StrengthBlock<S> | CondBlock | TextBlock;
+/*
+ * `S` is vestigial since `StrengthBlock<S>` left the union on 17 August 2026
+ * — neither `CondBlock` nor `TextBlock` reads it — kept only so every
+ * existing `Block<LoggedSet>`/`Workout<LoggedSet>` call site across the repo
+ * does not need touching for a type parameter that changes nothing it sees.
+ */
+export type Block<S extends AnySet = LoggedSet> = CondBlock | TextBlock;
 
 export interface Workout<S extends AnySet = LoggedSet> {
   id: string;
@@ -432,26 +324,8 @@ export interface ProgressState {
   miss: number;
 }
 
-/**
- * The working weight a movement has EARNED, carried to its next session.
- *
- * It lives in settings rather than on a set because `FORBIDDEN_SET_KEYS` bans
- * recorded values from a planned set and `emit.test.ts` asserts it — a weight
- * riding on a `PlannedSet` would leak an athlete's logbook into a coach's plan.
- */
-export interface LiftState {
-  /** kilos to offer next time */
-  kg: number;
-  /** `completedAt` of the session that earned it — the merge tiebreak */
-  at: number;
-  /** reps it was earned at, so a changed rep target is visible in the record */
-  reps?: number;
-  /** the e1RM implied by the opener this was earned at, so a later session
-   *  whose plan changes the rep scheme can re-price the opener instead of
-   *  re-offering the same kilo regardless of what today asks for — see
-   *  `anchorForOpener` and `plannedKg` in fold.ts */
-  e1rm?: number;
-}
+/* `LiftState` (the earned-weight/e1RM record `liftProgress` kept per
+   movement) went with the rest of strength on 17 August 2026. */
 
 /** A user-named grouping of workouts in Library — organizational only, never
  *  scheduling, never progression state. Deleting one never deletes the
@@ -464,8 +338,6 @@ export interface Folder {
 export interface Settings {
   profile?: Profile;
   conProgress?: Record<string, ProgressState>;
-  /** Earned working weights, keyed by LOWERCASED movement name. */
-  liftProgress?: Record<string, LiftState>;
   conditioning?: CondResult[];
   /**
    * When the athlete last confirmed they're ready to continue, per

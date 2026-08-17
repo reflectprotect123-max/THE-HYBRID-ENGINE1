@@ -20,28 +20,10 @@
 import { describe, expect, it } from 'vitest';
 import { repFloorOf, repTopOf } from './autoreg';
 import { conZones, zoneSeconds } from './hr';
-import { knownMovements, workoutStats } from './session';
+import { workoutStats } from './session';
 import { agoLabel, barScale, byMonth, dayLabel, monthLabel } from './num';
 import { mergeEngines } from './db';
-import type { EngineDB, Exercise, LoggedSet, Session, Workout } from './types';
-
-const ex = (name: string, sets: LoggedSet[]): Exercise<LoggedSet> => ({
-  id: 'e1',
-  name,
-  mode: 'reps_kg',
-  tempo: '',
-  rest: 90,
-  sets,
-});
-
-/** One completed session holding one exercise, for the history-backed prefills. */
-const historySession = (e: Exercise<LoggedSet>): Session => ({
-  id: 's-old',
-  date: '2026-01-01',
-  status: 'completed',
-  completedAt: 1000,
-  blocks: [{ id: 'b', heading: 'Main', exercises: [e] }],
-});
+import type { EngineDB, Session, Workout } from './types';
 
 describe('zone banking counts every beat, as conFinish does', () => {
   it('a beat under the floor still banks against Recovery', () => {
@@ -57,45 +39,6 @@ describe('zone banking counts every beat, as conFinish does', () => {
 });
 
 
-describe('the movement list the Planner offers back', () => {
-  const mk = (names: string[], at: number): Session => ({
-    id: 's' + at,
-    date: '2026-01-01',
-    status: 'completed',
-    completedAt: at,
-    blocks: [{ id: 'b', exercises: names.map((n, i) => ({ ...ex(n, []), id: 'e' + i })) }],
-  });
-
-  it('collapses spellings that differ only in case, keeping the newest', () => {
-    // The whole reason this exists: "Back Squat" and "back squat" are two
-    // separate lifts to exLogFor, detectPRs and the earned working weight.
-    const out = knownMovements([], [mk(['back squat'], 100), mk(['Back Squat'], 200)]);
-    expect(out).toEqual(['Back Squat']);
-  });
-
-  it('trims, and drops blanks', () => {
-    expect(knownMovements([], [mk(['  Bench  ', '', '   '], 1)])).toEqual(['Bench']);
-  });
-
-  it('reads workouts as well as sessions, since a plan may be unlogged', () => {
-    const w: Workout = { id: 'w1', name: 'A', updatedAt: 5, blocks: [{ id: 'b', exercises: [ex('Overhead press', [])] }] };
-    expect(knownMovements([w], [])).toEqual(['Overhead press']);
-  });
-
-  it('ignores conditioning and non-lift modes', () => {
-    const w: Workout = {
-      id: 'w1',
-      name: 'A',
-      updatedAt: 1,
-      blocks: [
-        { id: 'c', kind: 'conditioning', condFmt: 'intervals' },
-        { id: 'b', exercises: [{ ...ex('Plank', []), mode: 'seconds' }] },
-      ],
-    };
-    expect(knownMovements([w], [])).toEqual([]);
-  });
-});
-
 describe('what the Library says about a session', () => {
   const w: Workout = { id: 'w1', name: 'Lower', blocks: [] };
   const logged: Session = {
@@ -104,7 +47,7 @@ describe('what the Library says about a session', () => {
     status: 'completed',
     completedAt: 200,
     workoutId: 'w1',
-    blocks: [{ id: 'b', exercises: [ex('Squat', [{ t: '5', rpe: '8', aVal: '100', done: true }])] }],
+    blocks: [{ id: 'b', kind: 'conditioning', condFmt: 'intervals', condResult: { felt: '8' } }],
   };
   const abandoned: Session = { id: 's2', date: '2026-03-09', status: 'completed', completedAt: 900, workoutId: 'w1', blocks: [] };
 
