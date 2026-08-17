@@ -1,29 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { CondResult, Session, Settings } from '@hybrid/engine';
+import type { CondResult, Settings } from '@hybrid/engine';
 import {
   applyApprovedProposal,
   conditioningProgressionProposal,
   proposalIsStale,
-  strengthProgressionProposals,
 } from './progression';
 
-const strengthSession = (): Session => ({
-  id: 'strength-1',
-  kind: 'strength',
-  date: '2026-08-08',
-  status: 'completed',
-  completedAt: 1000,
-  blocks: [{
-    id: 'main',
-    heading: 'Main',
-    exercises: [{
-      id: 'squat',
-      name: 'Back squat',
-      mode: 'reps_kg',
-      sets: [{ t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '6', done: true }],
-    }],
-  }],
-});
+/*
+ * Strength progression proposals (`strengthProgressionProposals`,
+ * `LiftState`) were deleted with the strength engine — see CLAUDE.md. Only
+ * conditioning progression coverage survives here now.
+ */
 
 const conditioningResult = (mechanicalCompletion: CondResult['mechanicalCompletion'] = 'met'): CondResult => ({
   id: 'conditioning-1',
@@ -38,41 +25,6 @@ const conditioningResult = (mechanicalCompletion: CondResult['mechanicalCompleti
 });
 
 describe('progression proposals', () => {
-  it('keeps a strength increase proposal separate until approval', () => {
-    const settings: Settings = { liftProgress: { 'back squat': { kg: 100, at: 500, reps: 5 } } };
-    const [proposal] = strengthProgressionProposals(strengthSession(), settings);
-
-    expect(proposal.direction).toBe('increase');
-    expect(proposal.after.kg).toBeGreaterThan(100);
-    expect(settings.liftProgress?.['back squat'].kg).toBe(100);
-
-    const approved = applyApprovedProposal(proposal, settings);
-    expect(approved.liftProgress?.['back squat']).toEqual(proposal.after);
-    expect(settings.liftProgress?.['back squat'].kg).toBe(100);
-  });
-
-  it('carries the e1RM anchor through a coach-approved proposal, not just the kilo', () => {
-    /* `after` is built field-by-field here rather than spread from `move` —
-       see the comment on `after` in progression.ts. That shape is exactly
-       what let `e1rm` go missing silently when stage 1 of the RPE
-       progression design added it to `LiftMove`/`LiftState`: every OTHER
-       write path (`liftAdapt`) picked it up automatically, and this one,
-       reconstructing the object by hand, did not. */
-    const settings: Settings = { liftProgress: { 'back squat': { kg: 100, at: 500, reps: 5 } } };
-    const [proposal] = strengthProgressionProposals(strengthSession(), settings);
-
-    expect(proposal.after.e1rm).toBeCloseTo(123.333, 2);
-
-    const approved = applyApprovedProposal(proposal, settings);
-    expect(approved.liftProgress?.['back squat'].e1rm).toBeCloseTo(123.333, 2);
-  });
-
-  it('turns strength progression into review when pain or illness is active', () => {
-    const [proposal] = strengthProgressionProposals(strengthSession(), {}, ['Pain hold is active.']);
-    expect(proposal.direction).toBe('review');
-    expect(() => applyApprovedProposal(proposal, {})).toThrow(/cannot be applied/i);
-  });
-
   it('makes conditioning progression approval-only', () => {
     const settings: Settings = { conProgress: { intervals: { level: 2, miss: 0 } } };
     const proposal = conditioningProgressionProposal(conditioningResult(), settings);
@@ -88,45 +40,24 @@ describe('progression proposals', () => {
     expect(proposal?.reason).toMatch(/pain/i);
   });
 
-  it('states the OPENER as its evidence on a ramped exercise, beside a delta measured from it', () => {
-    /*
-     * The bug this pins. A coach reading the card saw "Last working set: 120
-     * kg × 5" over "Engine adjustment: -20 kg" over a reason that said hold —
-     * three lines describing two different sets, on a movement where nothing
-     * had gone wrong at all.
-     *
-     * 100/110/120, every set 5 reps rated exactly at its '5' @ 8 target:
-     * dev = 8 − 8 = 0 on all three, inside the ±1 dead band, so the fold's
-     * multiplier stays 1 and next session opens at 100 × 1 = 100. The
-     * evidence must therefore name the 100, and the adjustment 0.
-     */
-    const ramped: Session = {
-      ...strengthSession(),
-      blocks: [{
-        id: 'main',
-        heading: 'Main',
-        exercises: [{
-          id: 'squat',
-          name: 'Back squat',
-          mode: 'reps_kg',
-          sets: [
-            { t: '5', rpe: '8', aVal: '100', aVal2: '5', felt: '8', done: true },
-            { t: '5', rpe: '8', aVal: '110', aVal2: '5', felt: '8', done: true },
-            { t: '5', rpe: '8', aVal: '120', aVal2: '5', felt: '8', done: true },
-          ],
-        }],
-      }],
-    };
-    const [proposal] = strengthProgressionProposals(ramped, {});
-    expect(proposal.evidence).toEqual(['Opening set: 100 kg × 5', 'Engine adjustment: 0 kg']);
-    expect(proposal.direction).toBe('hold');
-    expect(proposal.after.kg).toBe(100);
-  });
-
-  it('refuses to apply a proposal over a changed accepted prescription', () => {
-    const [proposal] = strengthProgressionProposals(strengthSession(), {});
-    const changed: Settings = { liftProgress: { 'back squat': { kg: 110, at: 3000, reps: 5 } } };
+  it('refuses to apply a conditioning proposal over a changed accepted prescription', () => {
+    const settings: Settings = { conProgress: { intervals: { level: 2, miss: 0 } } };
+    const proposal = conditioningProgressionProposal(conditioningResult(), settings)!;
+    const changed: Settings = { conProgress: { intervals: { level: 5, miss: 0 } } };
     expect(proposalIsStale(proposal, changed)).toBe(true);
     expect(() => applyApprovedProposal(proposal, changed)).toThrow(/changed/i);
+  });
+
+  it('applies an approved conditioning proposal', () => {
+    const settings: Settings = { conProgress: { intervals: { level: 2, miss: 0 } } };
+    const proposal = conditioningProgressionProposal(conditioningResult(), settings)!;
+    const approved = applyApprovedProposal(proposal, settings);
+    expect(approved.conProgress?.intervals.level).toBe(3);
+    expect(settings.conProgress?.intervals.level).toBe(2);
+  });
+
+  it('a review-direction proposal cannot be applied', () => {
+    const proposal = conditioningProgressionProposal(conditioningResult('pain_stop'), {})!;
+    expect(() => applyApprovedProposal(proposal, {})).toThrow(/cannot be applied/i);
   });
 });

@@ -44,32 +44,34 @@ describe('structurallyEqual', () => {
 });
 
 describe('applyServerProgression', () => {
-  it('applies a strength proposal when before matches the current baseline', () => {
-    const settings = { liftProgress: { squat: { kg: 100, at: 1000 } } };
-    const out = applyServerProgression('strength', 'squat', { kg: 100, at: 1000 }, { kg: 102, at: 2000 }, settings);
-    expect(out?.liftProgress?.squat).toEqual({ kg: 102, at: 2000 });
-  });
-
-  it('applies even when the pushed `before` has a different key order than the local value — the jsonb round-trip case', () => {
-    const settings = { liftProgress: { squat: { kg: 100, at: 1000, reps: 5 } } };
-    const out = applyServerProgression('strength', 'squat', { at: 1000, reps: 5, kg: 100 }, { kg: 102, at: 2000, reps: 5 }, settings);
-    expect(out?.liftProgress?.squat).toEqual({ kg: 102, at: 2000, reps: 5 });
-  });
-
-  it('refuses (returns null) when the athlete has trained again since the proposal was pushed', () => {
-    const settings = { liftProgress: { squat: { kg: 103, at: 1500 } } };
-    const out = applyServerProgression('strength', 'squat', { kg: 100, at: 1000 }, { kg: 102, at: 2000 }, settings);
+  /*
+   * `domain: 'strength'` still admits at the type level because the backend
+   * was NOT changed with the strength engine deletion (CLAUDE.md) — a
+   * `progression_proposal_snapshots` row written before that deletion can
+   * still say `domain: 'strength'`. There is no `Settings.liftProgress` to
+   * write any more, so it is refused unconditionally: never applied, never
+   * throws.
+   */
+  it('refuses a strength-domain row unconditionally — there is no local field left to apply it to', () => {
+    const out = applyServerProgression('strength', 'squat', { kg: 100, at: 1000 }, { kg: 102, at: 2000 }, {});
     expect(out).toBeNull();
   });
 
-  it('a first-ever proposal has `before: null`, and applies against an athlete with no recorded baseline', () => {
-    const out = applyServerProgression('strength', 'squat', null, { kg: 80, at: 1000 }, {});
-    expect(out?.liftProgress?.squat).toEqual({ kg: 80, at: 1000 });
+  it('applies a conditioning proposal when before matches the current baseline', () => {
+    const settings = { conProgress: { 'row:steady': { level: 2, miss: 0 } } };
+    const out = applyServerProgression('conditioning', 'row:steady', { level: 2, miss: 0 }, { level: 3, miss: 0 }, settings);
+    expect(out?.conProgress?.['row:steady']).toEqual({ level: 3, miss: 0 });
   });
 
-  it('refuses a null-before proposal once the athlete DOES have a baseline — that is itself staleness', () => {
-    const settings = { liftProgress: { squat: { kg: 80, at: 900 } } };
-    const out = applyServerProgression('strength', 'squat', null, { kg: 82, at: 1000 }, settings);
+  it('applies even when the pushed `before` has a different key order than the local value — the jsonb round-trip case', () => {
+    const settings = { conProgress: { 'row:steady': { miss: 0, level: 2 } } };
+    const out = applyServerProgression('conditioning', 'row:steady', { level: 2, miss: 0 }, { level: 3, miss: 0 }, settings);
+    expect(out?.conProgress?.['row:steady']).toEqual({ level: 3, miss: 0 });
+  });
+
+  it('refuses (returns null) when the athlete has trained again since the proposal was pushed', () => {
+    const settings = { conProgress: { 'row:steady': { level: 4, miss: 0 } } };
+    const out = applyServerProgression('conditioning', 'row:steady', { level: 2, miss: 0 }, { level: 3, miss: 0 }, settings);
     expect(out).toBeNull();
   });
 
@@ -78,9 +80,9 @@ describe('applyServerProgression', () => {
     expect(out?.conProgress?.['row:steady']).toEqual({ level: 1, miss: 0 });
   });
 
-  it('does not touch the other domain\'s progress map', () => {
-    const settings = { liftProgress: { squat: { kg: 100, at: 1000 } }, conProgress: { 'row:steady': { level: 2, miss: 1 } } };
-    const out = applyServerProgression('strength', 'squat', { kg: 100, at: 1000 }, { kg: 102, at: 2000 }, settings);
+  it('does not touch a different key\'s progress', () => {
+    const settings = { conProgress: { 'row:steady': { level: 2, miss: 1 }, 'bike:tempo': { level: 0, miss: 0 } } };
+    const out = applyServerProgression('conditioning', 'bike:tempo', { level: 0, miss: 0 }, { level: 1, miss: 0 }, settings);
     expect(out?.conProgress?.['row:steady']).toEqual({ level: 2, miss: 1 });
   });
 });

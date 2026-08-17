@@ -1,5 +1,4 @@
 import {
-  bestE1rmByLift,
   type Block,
   type Concept2Result,
   type Session,
@@ -7,11 +6,12 @@ import {
 } from '@hybrid/engine';
 
 /**
- * "Where they're at", derived — never asserted. Lift trends come from the
- * engine's own e1RM math (bestE1rmByLift, which already excludes warm-ups
- * and un-done sets), windowed per week. Erg trends come from Concept2
- * results, but only within one (modality, distance) group — mixing a 2k
- * with a 5k would make the pace line a lie.
+ * "Where they're at", derived — never asserted. Erg trends come from
+ * Concept2 results, but only within one (modality, distance) group — mixing
+ * a 2k with a 5k would make the pace line a lie.
+ *
+ * Lift trends (bestE1rmByLift-based) were removed with the strength engine
+ * deletion — see CLAUDE.md.
  */
 
 export interface TrendSeries {
@@ -31,87 +31,6 @@ function mondayMs(iso: string): number {
   const day = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() - day + 1);
   return d.getTime();
-}
-
-export interface LiftTrendSummary {
-  /** Every lift with enough real exposure to chart, best-exposed first. */
-  series: TrendSeries[];
-  /** Lifts the athlete DID train in this window but which have fewer than
-   *  three weeks of exposure, so no line can honestly be drawn for them yet.
-   *  Named so the screen can say what it is not showing. */
-  belowThreshold: string[];
-  /** Qualifying lifts dropped by `topK`, if a caller asked for a cap. */
-  droppedByCap: string[];
-}
-
-/**
- * Weekly best-e1RM series per lift, plus what was left out and why.
- *
- * Added 11 August 2026 by the Stage-1 final review. `liftTrends` returned
- * only the series, and its `topK` default of 2 meant an athlete tracking six
- * lifts saw two, with nothing on screen saying four were dropped. The
- * three-week exposure filter was silent in the same way: a lift trained
- * twice simply vanished. Both are legitimate filters and neither should be
- * invisible — Conditioning states its excluded efforts in full and Nutrition
- * states every absent-data case in words; this is the same line.
- */
-export function liftTrendSummary(
-  sessions: Session[],
-  today: string,
-  weeks = 8,
-  topK = Number.MAX_SAFE_INTEGER,
-): LiftTrendSummary {
-  const mon0 = mondayMs(today);
-  const perLift = new Map<string, { name: string; points: Array<number | null> }>();
-
-  for (let w = 0; w < weeks; w++) {
-    const from = mon0 - (weeks - 1 - w) * 7 * DAY;
-    const best = bestE1rmByLift(sessions, from, from + 7 * DAY);
-    for (const [key, v] of best) {
-      let row = perLift.get(key);
-      if (!row) {
-        row = { name: v.name, points: Array.from({ length: weeks }, () => null) };
-        perLift.set(key, row);
-      }
-      row.points[w] = Math.round(v.e1 * 10) / 10;
-    }
-  }
-
-  const rows = [...perLift.values()].map((row) => {
-    const seen = row.points.filter((p): p is number => p != null);
-    return { row, exposures: seen.length, first: seen[0], latest: seen[seen.length - 1] };
-  });
-
-  const qualifying = rows
-    .filter((x) => x.exposures >= 3 && x.latest != null)
-    .sort((a, b) => b.exposures - a.exposures || (b.latest ?? 0) - (a.latest ?? 0));
-
-  return {
-    series: qualifying.slice(0, topK).map(({ row, exposures, first, latest }) => ({
-      label: row.name,
-      sub: `best e1RM · ${exposures} of ${weeks} weeks`,
-      points: row.points,
-      latest: latest!,
-      delta: exposures > 1 ? Math.round((latest! - first!) * 10) / 10 : null,
-    })),
-    belowThreshold: rows.filter((x) => x.exposures < 3 || x.latest == null).map((x) => x.row.name),
-    droppedByCap: qualifying.slice(topK).map((x) => x.row.name),
-  };
-}
-
-/** Weekly best-e1RM series for the athlete's most-trained lifts.
- *
- *  `topK` still defaults to 2 for this thin wrapper because its one caller
- *  is `LiftCard`'s expanded-range lookup, which passes an explicit 20 and
- *  `.find`s one label out of the result. Screens that RENDER a card list
- *  want `liftTrendSummary` above, which reports its own exclusions. */
-export function liftTrends(
-  sessions: Session[],
-  today: string,
-  weeks = 8,
-  topK = 2,
-): TrendSeries[] {
-  return liftTrendSummary(sessions, today, weeks, topK).series;
 }
 
 /** Pace-per-500m trend within the athlete's most repeated erg test. */
@@ -152,13 +71,7 @@ export function ergTrend(results: Concept2Result[], maxPoints = 8): TrendSeries 
 }
 
 const hardBlocks = (blocks: Block[]): boolean =>
-  blocks.some((b) =>
-    b.kind === 'conditioning'
-      ? b.effort === 'hard'
-      : b.kind === undefined &&
-        !b.warmup &&
-        (b.exercises ?? []).some((ex) => ex.sets.some((s) => parseFloat(String(s.rpe)) >= 8)),
-  );
+  blocks.some((b) => b.kind === 'conditioning' && b.effort === 'hard');
 
 export interface HardBudget {
   count: number;

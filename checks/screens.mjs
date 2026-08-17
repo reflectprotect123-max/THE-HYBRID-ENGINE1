@@ -163,7 +163,10 @@ const THIS_MONDAY = (() => {
 const COACH_SHOTS = [
   ['12-coach', '/coach', [/Readiness/i, /Strength/i, /Conditioning/i, /Nutrition/i]],
   ['13-coach-readiness', '/coach/readiness', [/\bHRV\b/i, /Resting HR/i]],
-  ['14-coach-strength', '/coach/strength', [/Lift trends/i, /Weekly hard-session budget/i]],
+  // Strength lift trends, the progression queue and the hard-session budget
+  // all went with the strength engine (15 August 2026, CLAUDE.md) — the
+  // pillar is now a static placeholder, and this is the only text it has.
+  ['14-coach-strength', '/coach/strength', [/Strength is being rebuilt/i]],
   ['15-coach-conditioning', '/coach/conditioning', [/Time in HR zone/i, /Erg trends/i]],
   ['16-coach-nutrition', '/coach/nutrition', [/Adherence . targets/i, /Weight trend/i]],
   // Stage 3a (11 August) cut this to the calendar alone; stage 3b (13 August)
@@ -211,7 +214,12 @@ const COACH_SHOTS = [
    * The numbering is deliberately NOT resequenced — `20`-`23` keep their
    * names so a filename in an old review still means what it meant.
    */
-  ['20-coach-progression', '/coach/progression', [/Progression queue/i, /Lift trends/i]],
+  // Addressed with no roster selected, so `CoachProgression` redirects a
+  // local/self-coach client straight to `/coach/strength` (unchanged
+  // behaviour) — which is now the strength-is-being-rebuilt placeholder
+  // (15 August 2026, CLAUDE.md), not the old self-coach ledger view this used
+  // to name.
+  ['20-coach-progression', '/coach/progression', [/Strength is being rebuilt/i]],
   /*
    * `21-coach-review` was here until 14 August 2026, when `review/:weekStart`
    * was deleted with the Coordinator. It is worth recording HOW it went,

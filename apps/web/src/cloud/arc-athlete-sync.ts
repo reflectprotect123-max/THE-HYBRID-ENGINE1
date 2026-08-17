@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { LiftState, ProgressState, Settings, Workout } from '@hybrid/engine';
+import type { ProgressState, Settings, Workout } from '@hybrid/engine';
 import type { ProgressionProposal } from '../lib/progression';
 import type { TrendSeries, HardBudget } from '../coach/data/trends';
 
@@ -71,13 +71,13 @@ function saveProcessedReceipts(ids: Set<string>): void {
 }
 
 /**
- * Structural equality for the two small flat shapes this file compares
- * (`LiftState`, `ProgressState`) — NOT `JSON.stringify`. A value pushed
- * locally and read back through Postgres jsonb does not preserve key order
- * (jsonb normalises it), so a naive `JSON.stringify` comparison would call a
- * freshly-matching value "stale" purely because `{kg,at,reps}` came back as
- * `{at,kg,reps}`, and every coach-approved progression would silently fail
- * to apply. This compares fields, not serialised text.
+ * Structural equality for the small flat shape this file compares
+ * (`ProgressState`) — NOT `JSON.stringify`. A value pushed locally and read
+ * back through Postgres jsonb does not preserve key order (jsonb normalises
+ * it), so a naive `JSON.stringify` comparison would call a freshly-matching
+ * value "stale" purely because `{level,miss}` came back as `{miss,level}`,
+ * and every coach-approved progression would silently fail to apply. This
+ * compares fields, not serialised text.
  */
 export function structurallyEqual(a: Record<string, unknown> | null, b: Record<string, unknown> | null): boolean {
   if (a === b) return true;
@@ -95,6 +95,13 @@ export function structurallyEqual(a: Record<string, unknown> | null, b: Record<s
  * `before` no longer matches the athlete's current baseline — the same
  * "stale, refuse rather than overwrite" rule `proposalIsStale` enforces for
  * the local-only flow, applied here across the network boundary.
+ *
+ * `domain` still admits `'strength'` because the backend was NOT changed
+ * (CLAUDE.md) — a `progression_proposal_snapshots` row written before the
+ * strength engine's deletion can still say `domain: 'strength'`, and this
+ * function is read from live Supabase rows, not a type it controls. There is
+ * no `Settings.liftProgress` to write any more, so a strength row is refused
+ * exactly like a stale one: nothing local to apply it to, nothing changed.
  */
 export function applyServerProgression(
   domain: 'strength' | 'conditioning',
@@ -103,11 +110,7 @@ export function applyServerProgression(
   after: Record<string, unknown>,
   settings: Settings,
 ): Settings | null {
-  if (domain === 'strength') {
-    const current = settings.liftProgress?.[clientKey] ?? null;
-    if (!structurallyEqual(current as Record<string, unknown> | null, before)) return null;
-    return { ...settings, liftProgress: { ...settings.liftProgress, [clientKey]: after as unknown as LiftState } };
-  }
+  if (domain === 'strength') return null;
   const current = (settings.conProgress?.[clientKey] ?? { level: 0, miss: 0 }) as unknown as Record<string, unknown>;
   if (!structurallyEqual(current, before ?? { level: 0, miss: 0 })) return null;
   return { ...settings, conProgress: { ...settings.conProgress, [clientKey]: after as unknown as ProgressState } };

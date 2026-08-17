@@ -1,17 +1,81 @@
 import {
   CON_FORMATS,
   conAdapt,
-  explainConAdapt,
-  liftMoves,
+  isProgressedFmt,
   progressionKey,
+  type AdaptResult,
   type CondResult,
-  type LiftState,
   type ProgressState,
-  type Session,
   type Settings,
 } from '@hybrid/engine';
 
-export type ProgressionDomain = 'strength' | 'conditioning';
+/*
+ * Strength progression (`strengthProgressionProposals`, `LiftState`,
+ * `liftMoves`) was deleted with the strength engine — see CLAUDE.md. Only
+ * conditioning progression survives here now.
+ */
+
+interface ExplainedAdapt {
+  confidence: 'low' | 'medium' | 'high';
+  note: string;
+  dataLimitations: string[];
+}
+
+/**
+ * Ported from the deleted `@hybrid/engine`'s `explainConAdapt`
+ * (`packages/engine/src/adaptive/explain.ts`, removed wholesale with the
+ * rest of `adaptive/` in the strength engine deletion — CLAUDE.md). This
+ * function itself was always conditioning-only and pure — no `LiftState`, no
+ * `Exercise` — it was collateral of the directory it lived in, not of what it
+ * explained. Behavior is unchanged: same branches, same reason text, same
+ * confidence and `dataLimitations` per case, just inlined here since it has
+ * exactly one caller left in the whole repository.
+ */
+function explainConAdapt(rec: CondResult | null | undefined, result: AdaptResult): ExplainedAdapt {
+  if (result.delta > 0) {
+    return {
+      confidence: 'high',
+      note: 'Conditioning level progressed after an on-target session.',
+      dataLimitations: [],
+    };
+  }
+  if (result.delta < 0) {
+    return {
+      confidence: 'high',
+      note: 'Conditioning level eased back after repeated missed sessions.',
+      dataLimitations: [],
+    };
+  }
+  if (!rec || rec.sim) {
+    return {
+      confidence: 'low',
+      note: 'This session does not count toward conditioning progression.',
+      dataLimitations: ['simulated_or_missing_session'],
+    };
+  }
+  if (!rec.fmt || !isProgressedFmt(rec.fmt)) {
+    return {
+      confidence: 'high',
+      note: 'This format does not carry earned progression.',
+      dataLimitations: [],
+    };
+  }
+  const z = rec.zsec || { low: 0, mod: 0, high: 0 };
+  const zoned = (z.low || 0) + (z.mod || 0) + (z.high || 0);
+  if (zoned <= 0) {
+    return {
+      confidence: 'low',
+      note: 'No heart-rate zone data was captured, so this session neither earns nor costs progression.',
+      dataLimitations: ['no_device_data'],
+    };
+  }
+  return {
+    confidence: 'medium',
+    note: 'Conditioning level held at its current stage.',
+    dataLimitations: [],
+  };
+}
+export type ProgressionDomain = 'conditioning';
 export type ProgressionDirection = 'increase' | 'hold' | 'decrease' | 'review';
 export type ProgressionDecision = 'approved' | 'rejected' | 'held';
 
@@ -33,13 +97,6 @@ interface ProposalBase {
   authority: 'coach-approval-required';
 }
 
-export interface StrengthProgressionProposal extends ProposalBase {
-  domain: 'strength';
-  before: LiftState | null;
-  after: LiftState;
-  key: string;
-}
-
 export interface ConditioningProgressionProposal extends ProposalBase {
   domain: 'conditioning';
   before: ProgressState;
@@ -47,7 +104,7 @@ export interface ConditioningProgressionProposal extends ProposalBase {
   key: string;
 }
 
-export type ProgressionProposal = StrengthProgressionProposal | ConditioningProgressionProposal;
+export type ProgressionProposal = ConditioningProgressionProposal;
 
 export interface ProgressionDecisionEvent {
   id: string;
@@ -62,60 +119,6 @@ export interface ProgressionDecisionEvent {
 
 function hardSafetyReason(reasons: string[]): string | null {
   return reasons.length ? `Safety review required: ${reasons.join(' ')}` : null;
-}
-
-export function strengthProgressionProposals(
-  session: Session,
-  settings: Settings,
-  hardSafetyReasons: string[] = [],
-): StrengthProgressionProposal[] {
-  const safetyReason = hardSafetyReason(hardSafetyReasons);
-  const at = session.completedAt || session.updatedAt || Date.now();
-  return liftMoves(session).map((move) => {
-    const before = settings.liftProgress?.[move.key] ?? null;
-    // On a safety hold nothing actually changed, so the anchor holds too —
-    // same rule as `kg` on the line above. On approve, `move.e1rm` is what
-    // THIS session's opener implies; carried through explicitly because
-    // `LiftState` is rebuilt field-by-field here rather than spread, and a
-    // field this constructor does not name is a field that quietly stops
-    // being banked. See the RPE progression design, stage 1.
-    const e1rm = safetyReason ? before?.e1rm : (move.e1rm ?? undefined);
-    const after: LiftState = { kg: safetyReason ? (before?.kg ?? move.from) : move.to, at, reps: move.reps, ...(e1rm != null && { e1rm }) };
-    const direction: ProgressionDirection = safetyReason
-      ? 'review'
-      : move.delta > 0
-        ? 'increase'
-        : move.delta < 0
-          ? 'decrease'
-          : 'hold';
-    return {
-      id: `strength:${session.id}:${move.key}:${at}`,
-      domain: 'strength',
-      subject: move.name,
-      sourceId: session.id,
-      sourceAt: at,
-      createdAt: Date.now(),
-      direction,
-      status: 'pending',
-      intent: 'Set the next-session working weight without changing the completed session.',
-      reason: safetyReason ?? move.verdict,
-      evidence: [
-        // The OPENER, not the last set: `move.to` is what next session should
-        // open at, so the only weight it can be compared against is the weight
-        // this session opened at. On a ramped exercise the last set is a
-        // different number answering a different question.
-        `Opening set: ${move.from} kg × ${move.reps}`,
-        `Engine adjustment: ${move.delta > 0 ? '+' : ''}${move.delta} kg`,
-      ],
-      confidence: safetyReason ? 'low' : 'high',
-      dataLimitations: safetyReason ? ['An active pain or illness constraint outranks progression.'] : [],
-      ruleVersion: 'progression-proposal-v1',
-      authority: 'coach-approval-required',
-      before,
-      after,
-      key: move.key,
-    };
-  });
 }
 
 export function conditioningProgressionProposal(
@@ -169,10 +172,6 @@ export function conditioningProgressionProposal(
 }
 
 export function proposalIsStale(proposal: ProgressionProposal, settings: Settings): boolean {
-  if (proposal.domain === 'strength') {
-    const current = settings.liftProgress?.[proposal.key] ?? null;
-    return JSON.stringify(current) !== JSON.stringify(proposal.before);
-  }
   const current = settings.conProgress?.[proposal.key] ?? { level: 0, miss: 0 };
   return JSON.stringify(current) !== JSON.stringify(proposal.before);
 }
@@ -180,8 +179,5 @@ export function proposalIsStale(proposal: ProgressionProposal, settings: Setting
 export function applyApprovedProposal(proposal: ProgressionProposal, settings: Settings): Settings {
   if (proposal.direction === 'review') throw new Error('Safety-review proposals cannot be applied.');
   if (proposalIsStale(proposal, settings)) throw new Error('The prescription changed after this proposal was created.');
-  if (proposal.domain === 'strength') {
-    return { ...settings, liftProgress: { ...settings.liftProgress, [proposal.key]: proposal.after } };
-  }
   return { ...settings, conProgress: { ...settings.conProgress, [proposal.key]: proposal.after } };
 }

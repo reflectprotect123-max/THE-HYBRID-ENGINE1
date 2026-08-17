@@ -6,7 +6,7 @@ import { LS_KEY } from '@hybrid/engine';
 import { DbProvider } from '../../store/db';
 import { ProgressionActions, RosterProgressionActions } from './progression-actions';
 import { resetProgressionLedgerForTests } from '../../store/progression';
-import type { ConditioningProgressionProposal, StrengthProgressionProposal } from '../../lib/progression';
+import type { ConditioningProgressionProposal } from '../../lib/progression';
 import type { AthleteProgressionProposal } from '../data/contracts';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from '../testing/coach-test-harness';
 
@@ -15,30 +15,6 @@ const LEDGER_KEY = 'hybrid-coach-progression-v1';
 function ledgerDecisions(): unknown[] {
   const raw = JSON.parse(localStorage.getItem(LEDGER_KEY) ?? 'null');
   return raw?.decisions ?? [];
-}
-
-function strengthProposal(over: Partial<StrengthProgressionProposal> = {}): StrengthProgressionProposal {
-  return {
-    id: 'strength-1',
-    domain: 'strength',
-    subject: 'Back squat',
-    sourceId: 'session-1',
-    sourceAt: Date.now(),
-    createdAt: Date.now(),
-    direction: 'increase',
-    status: 'pending',
-    intent: 'Set the next-session working weight without changing the completed session.',
-    reason: 'Completed at RPE 7, engine adjusted +2.5kg.',
-    evidence: ['Opening set: 100 kg × 5'],
-    confidence: 'high',
-    dataLimitations: [],
-    ruleVersion: 'progression-proposal-v1',
-    authority: 'coach-approval-required',
-    before: null,
-    after: { kg: 102.5, at: Date.now(), reps: 5 },
-    key: 'back_squat',
-    ...over,
-  };
 }
 
 function conditioningProposal(over: Partial<ConditioningProgressionProposal> = {}): ConditioningProgressionProposal {
@@ -75,7 +51,7 @@ function seedHardConstraint() {
   localStorage.setItem(LS_KEY, JSON.stringify(db));
 }
 
-function renderSelfCoach(proposal: StrengthProgressionProposal | ConditioningProgressionProposal) {
+function renderSelfCoach(proposal: ConditioningProgressionProposal) {
   return render(
     <DbProvider>
       <ProgressionActions proposal={proposal} />
@@ -90,14 +66,14 @@ beforeEach(() => {
 
 describe('ProgressionActions (self-coach)', () => {
   it('guard 1 — refuses to approve a proposal flagged for review', () => {
-    renderSelfCoach(strengthProposal({ direction: 'review' }));
+    renderSelfCoach(conditioningProposal({ direction: 'review' }));
     expect(screen.getByRole('button', { name: /approve/i })).toBeDisabled();
   });
 
   it('guard 2 — refuses to approve while a hard whole-athlete-state constraint is active, even for an increase', () => {
     seedHardConstraint();
-    // before === current (null) so this proposal is not ALSO stale — isolates the hard-safety guard.
-    renderSelfCoach(strengthProposal({ direction: 'increase', before: null }));
+    // before === current default ({level:0,miss:0}) so this proposal is not ALSO stale — isolates the hard-safety guard.
+    renderSelfCoach(conditioningProposal({ direction: 'increase', before: { level: 0, miss: 0 } }));
     expect(screen.getByRole('button', { name: /approve/i })).toBeDisabled();
   });
 
@@ -122,7 +98,7 @@ describe('ProgressionActions (self-coach)', () => {
         },
       }),
     );
-    renderSelfCoach(strengthProposal({ direction: 'increase', before: null }));
+    renderSelfCoach(conditioningProposal({ direction: 'increase', before: { level: 0, miss: 0 } }));
 
     expect(screen.getByText(/Pain hold: knee\./)).toBeInTheDocument();
     expect(screen.getByText(/Do not push through the flagged pain/)).toBeInTheDocument();
@@ -131,9 +107,9 @@ describe('ProgressionActions (self-coach)', () => {
   });
 
   it('guard 3 — refuses to approve a stale proposal whose accepted prescription changed since it was computed', () => {
-    // Default DB has no accepted back_squat baseline (current === null). A proposal computed
-    // against a non-null baseline is therefore stale relative to what is accepted now.
-    renderSelfCoach(strengthProposal({ direction: 'increase', before: { kg: 100, at: Date.now(), reps: 5 } }));
+    // Default DB has no accepted row_2k baseline (current === {level:0,miss:0}). A
+    // proposal computed against a different baseline is therefore stale.
+    renderSelfCoach(conditioningProposal({ direction: 'increase', before: { level: 2, miss: 0 } }));
     expect(screen.getByRole('button', { name: /approve/i })).toBeDisabled();
   });
 

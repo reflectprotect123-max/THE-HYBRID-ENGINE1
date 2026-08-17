@@ -104,7 +104,10 @@ export function CoachCommandCenter() {
     [progressionLedger.decisions],
   );
   const pendingProgression = progressionLedger.proposals.filter((proposal) => !decided.has(proposal.id));
-  const strengthPending = pendingProgression.filter((proposal) => proposal.domain === 'strength').length;
+  // The local self-coach ledger no longer produces a strength proposal at
+  // all (progression.ts, strength engine deletion, CLAUDE.md) — every entry
+  // it can hold is conditioning-domain, so there is nothing to count here.
+  const strengthPending = 0;
   const conditioningPending = pendingProgression.filter((proposal) => proposal.domain === 'conditioning').length;
 
   if (clientsLoading || !selectedClient) return <main className="rd-content" aria-busy="true">Loading coach workspace…</main>;

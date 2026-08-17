@@ -7,7 +7,6 @@ import type { ReactElement } from 'react';
 import { DbProvider } from '../../store/db';
 import { NutritionProvider } from '../../store/nutrition';
 import { FakeCoachWorkspaceRepository, renderCoachScreen, rosterClient } from '../testing/coach-test-harness';
-import { Strength } from './Strength';
 import { Conditioning } from './Conditioning';
 import { Nutrition } from './Nutrition';
 
@@ -41,41 +40,6 @@ function renderRoster(ui: ReactElement, repo: FakeCoachWorkspaceRepository) {
 }
 
 beforeEach(() => localStorage.clear());
-
-describe('Strength pillar — roster athlete', () => {
-  it('charts the lift trends that athlete shared, not the coach&rsquo;s own', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    repo.trendSnapshots = {
-      lift_trend: {
-        kind: 'lift_trend',
-        generatedAt: '2026-08-12T09:00:00.000Z',
-        points: [{ label: 'Back Squat', sub: '7 of 8 weeks', points: [120, 130, 140], latest: 140, delta: 20 }],
-      },
-      hard_budget: { kind: 'hard_budget', generatedAt: '2026-08-12T09:00:00.000Z', points: [{ count: 2, budget: 4 }] },
-    };
-    renderRoster(<Strength />, repo);
-    await act(async () => {});
-
-    expect(screen.getByText('Back Squat')).toBeInTheDocument();
-    expect(screen.getByText('140')).toBeInTheDocument();
-    expect(screen.getByText(/2 of 4 hard sessions/)).toBeInTheDocument();
-    // WHEN it was shared, not only what. A coach acting on a fortnight-old
-    // copy should be able to see that it is a fortnight old.
-    expect(screen.getByText(/Shared by their device on 2026-08-12/)).toBeInTheDocument();
-  });
-
-  /*
-   * "Nothing shared yet" and "shared, but empty" are different facts and are
-   * said differently. Collapsing them tells a coach this athlete has never
-   * lifted when in truth their phone has not synced.
-   */
-  it('says nothing has been shared rather than showing an empty chart', async () => {
-    const repo = new FakeCoachWorkspaceRepository();
-    renderRoster(<Strength />, repo);
-    await act(async () => {});
-    expect(screen.getByText(/No lift trends has been shared yet/i)).toBeInTheDocument();
-  });
-});
 
 describe('Conditioning pillar — roster athlete', () => {
   it('shows the shared erg trend and states that time-in-zone is not shared', async () => {

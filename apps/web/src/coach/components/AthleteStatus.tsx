@@ -6,14 +6,15 @@ import { getMyArcOrgId, pushTrendSnapshots, pushReadinessTrendSnapshot } from '.
 import { cx } from '../../ui';
 import { useCoachWorkspace } from '../data/CoachWorkspaceContext';
 import type { AthleteTrendSnapshot } from '../data/contracts';
-import { ergTrend, liftTrends, weeklyHardBudget, type TrendSeries } from '../data/trends';
+import { ergTrend, weeklyHardBudget, type TrendSeries } from '../data/trends';
 
 /*
  * "Where they're at." Capacity bands come from whole-athlete-state; the
- * trends are the engine's own e1RM math windowed per week, and Concept2's
- * synced results grouped into one honest test distance. Chart colors are
- * the validated chart-grade pair (see coach.css) — brand brass and blue
- * fail the chart lightness/chroma checks and stay reserved for UI chrome.
+ * trend is Concept2's synced results grouped into one honest test distance.
+ * Lift trends (the engine's e1RM math) were removed with the strength engine
+ * deletion (CLAUDE.md). Chart colors are the validated chart-grade pair (see
+ * coach.css) — brand brass and blue fail the chart lightness/chroma checks
+ * and stay reserved for UI chrome.
  */
 
 const BAND_TONE: Record<string, string> = {
@@ -191,7 +192,6 @@ function SelfAthleteStatus() {
   const c2 = useConcept2();
   const today = new Date().toISOString().slice(0, 10);
 
-  const lifts = useMemo(() => liftTrends(sessions, today), [sessions, today]);
   const erg = useMemo(() => ergTrend(c2.results), [c2.results]);
   const schedule = db.core?.schedule;
   const budgetTarget =
@@ -216,7 +216,7 @@ function SelfAthleteStatus() {
     void (async () => {
       const orgId = await getMyArcOrgId(supabaseClient, user.id);
       if (!orgId) return;
-      await pushTrendSnapshots(supabaseClient, orgId, lifts, erg, hard);
+      await pushTrendSnapshots(supabaseClient, orgId, [], erg, hard);
       await pushReadinessTrendSnapshot(supabaseClient, orgId, (db.settings.whoopDaily ?? []) as { date: string; recovery: number | null; strain: number | null; hrvMs?: number | null; restingHr?: number | null; sleepPerformance?: number | null }[]);
     })();
     // `hard` and `erg` are plain objects recomputed by useMemo above and
@@ -224,7 +224,7 @@ function SelfAthleteStatus() {
     // the computed VALUE actually changed (their own deps arrays already
     // guarantee that) is the point, not pushing on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, lifts, erg, hard]);
+  }, [user, erg, hard]);
 
   return (
     // Pure trend reference — never itself a decision point, so it recedes
@@ -256,31 +256,17 @@ function SelfAthleteStatus() {
         </span>
       </div>
 
-      {lifts.length === 0 && !erg ? (
+      {!erg ? (
         <p className="mt-0.5 text-[11px] text-dim">
-          Trends appear after three weeks of logged lifting or three synced erg tests — not
-          enough history yet.
+          Trends appear after three synced erg tests — not enough history yet.
         </p>
       ) : (
-        <>
-          {lifts.map((s) => (
-            <TrendRow
-              key={s.label}
-              series={s}
-              color="var(--chart-gold)"
-              fmt={(v) => `${v} kg`}
-              deltaFmt={(d) => `${d >= 0 ? '+' : ''}${d} kg`}
-            />
-          ))}
-          {erg && (
-            <TrendRow
-              series={erg}
-              color="var(--chart-blue)"
-              fmt={paceFmt}
-              deltaFmt={(d) => `${d <= 0 ? '−' : '+'}${paceFmt(Math.abs(d))} /500m`}
-            />
-          )}
-        </>
+        <TrendRow
+          series={erg}
+          color="var(--chart-blue)"
+          fmt={paceFmt}
+          deltaFmt={(d) => `${d <= 0 ? '−' : '+'}${paceFmt(Math.abs(d))} /500m`}
+        />
       )}
     </section>
   );

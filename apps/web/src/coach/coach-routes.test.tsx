@@ -92,9 +92,17 @@ describe('coach pillar routes', () => {
     },
   );
 
+  /*
+   * `strength` is excluded here (15 August 2026, strength engine deletion —
+   * CLAUDE.md). `pillars/Strength.tsx` is now a static "being rebuilt"
+   * placeholder with no `selectedClient` read at all — there is no coach data
+   * left in it to leak under a roster athlete's name, so the branch this
+   * check exists to require has nothing left to guard. The route still gates
+   * `layer3Ready` (checked above) and still renders identically, safely, for
+   * both a local and a roster client.
+   */
   it.each([
     ['readiness', 'Readiness'],
-    ['strength', 'Strength'],
     ['conditioning', 'Conditioning'],
     ['nutrition', 'Nutrition'],
   ])('the %s pillar branches on the client source rather than assuming local', (_path, file) => {
@@ -103,6 +111,12 @@ describe('coach pillar routes', () => {
       pillar,
       `${file}.tsx renders a roster client without branching on selectedClient.source — it would show the signed-in coach's own records under that athlete's name.`,
     ).toMatch(/selectedClient\.source !== 'engine-local'/);
+  });
+
+  it('the strength pillar renders no coach data at all, so nothing needs to branch on the client source', () => {
+    const pillar = readFileSync(resolve(__dirname, 'pillars/Strength.tsx'), 'utf8');
+    expect(pillar).not.toMatch(/useDb\(|useCoachWorkspace\(/);
+    expect(pillar).toMatch(/being rebuilt/i);
   });
 
   /* AMENDED 11 August 2026 — see "Task 7 amendment" below. The route is NOT a
