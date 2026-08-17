@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { STRENGTH_ENGINE_PACKAGE } from './index';
+import * as engine from './index';
 
-describe('package scaffold', () => {
-  it('exports a package marker', () => {
-    expect(STRENGTH_ENGINE_PACKAGE).toBe('@hybrid/strength-engine');
+describe('package barrel', () => {
+  it('exports the full public surface', () => {
+    expect(typeof engine.resolveTarget).toBe('function');
+    expect(typeof engine.roundToIncrement).toBe('function');
+    expect(typeof engine.e1rm).toBe('function');
+    expect(typeof engine.currentWorkingMax).toBe('function');
+    expect(typeof engine.detectPr).toBe('function');
+    expect(typeof engine.sessionLoad).toBe('function');
+    expect(typeof engine.resolveSessionForPublish).toBe('function');
   });
 });

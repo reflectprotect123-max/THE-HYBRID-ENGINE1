@@ -29,8 +29,12 @@ import { TextBlockCard } from './planner/TextBlockCard';
  * (`ExerciseCard`, `SupersetSeam`, `blockExercises`/`duplicateExercise`/
  * `fillLinkedSets`/`newBlock`/`newWarmupBlock`/`newEx`/`newSet`/
  * `knownMovements`) — went whole with the rest of strength on 17 August
- * 2026. What is left edits a CondBlock or a TextBlock; `Block` has no third
- * shape any more.
+ * 2026. What is left edits a CondBlock or a TextBlock. `Block` regained a
+ * third shape, `StrengthBlockItem` from `@hybrid/strength-engine`, on the
+ * same day Phase A closed — this screen still only renders/edits the other
+ * two, so reads of block-specific fields like `heading` are typed loosely
+ * (`{ heading?: string }`) rather than narrowed, since nothing here
+ * constructs or edits a `StrengthBlockItem` yet.
  */
 export function PlannerScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
@@ -75,14 +79,14 @@ export function PlannerScreen() {
           <View className="mb-1 flex-row items-center gap-1">
             <Input
               w="semi"
-              value={b.heading || ''}
-              onChangeText={(v) => edit((d) => void (d.blocks[bi].heading = v))}
+              value={(b as { heading?: string }).heading || ''}
+              onChangeText={(v) => edit((d) => void ((d.blocks[bi] as { heading?: string }).heading = v))}
               className="flex-1 text-5 text-text"
             />
             <Tap
               onPress={() => edit((d) => void d.blocks.splice(bi, 1))}
               box={{ h: 20, w: 24 }}
-              label={`delete block ${b.heading || bi + 1}`}
+              label={`delete block ${(b as { heading?: string }).heading || bi + 1}`}
             >
               <T className="px-1 text-3 text-dim">✕</T>
             </Tap>

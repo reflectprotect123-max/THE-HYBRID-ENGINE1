@@ -11,7 +11,8 @@
     "./golden/*": "./test/golden/*"
   },
   "dependencies": {
-    "@hybrid/shared-core": "workspace:*"
+    "@hybrid/shared-core": "workspace:*",
+    "@hybrid/strength-engine": "workspace:*"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",

@@ -86,7 +86,7 @@ function Detail({ s }: { s: Session }) {
     <View className="mt-1.5 border-t border-line pt-1.5">
       {s.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mb-1">
-          <T w="semi" className="text-3 uppercase tracking-widest text-dim">{b.heading || 'Block'}</T>
+          <T w="semi" className="text-3 uppercase tracking-widest text-dim">{(b as { heading?: string }).heading || 'Block'}</T>
           {isCond(b) ? (
             <T num className="text-4 text-muted">
               {CON_FORMATS[b.condFmt]?.name ?? b.condFmt}

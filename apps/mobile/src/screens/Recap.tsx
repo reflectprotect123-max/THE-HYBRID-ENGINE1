@@ -75,7 +75,7 @@ export function RecapScreen() {
       <SectionHead title="Everything logged" />
       {s.blocks.map((b, bi) => (
         <Card key={b.id ?? bi} className="mb-1">
-          <T w="semi" className="text-3 uppercase tracking-widest text-dim">{b.heading || 'Block'}</T>
+          <T w="semi" className="text-3 uppercase tracking-widest text-dim">{(b as { heading?: string }).heading || 'Block'}</T>
           {/*
             * HOW LONG THIS PART TOOK, against what the coach budgeted for it.
             *

@@ -149,13 +149,13 @@ export interface TextBlock {
   exercises?: undefined;
 }
 
-/*
- * `S` is vestigial since `StrengthBlock<S>` left the union on 17 August 2026
- * — neither `CondBlock` nor `TextBlock` reads it — kept only so every
- * existing `Block<LoggedSet>`/`Workout<LoggedSet>` call site across the repo
- * does not need touching for a type parameter that changes nothing it sees.
- */
-export type Block<S extends AnySet = LoggedSet> = CondBlock | TextBlock;
+/** A strength set/block now lives in `@hybrid/strength-engine` — see
+ * `StrengthBlockItem`/`PrescribedSet` there. `Block<S>` regains its third
+ * member as a reference to that package's shape rather than redefining it
+ * here, so the two packages cannot drift apart on what a strength block is. */
+import type { StrengthBlockItem } from '@hybrid/strength-engine';
+
+export type Block<S extends AnySet = LoggedSet> = StrengthBlockItem | CondBlock | TextBlock;
 
 export interface Workout<S extends AnySet = LoggedSet> {
   id: string;
