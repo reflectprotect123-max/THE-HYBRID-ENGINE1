@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
 import { CON_EFFORTS, CON_FORMATS } from '@hybrid/engine';
 import type { CatalogueEntry, CondFmtKey, EffortKey } from '@hybrid/engine';
-import { ExercisePicker } from './ExercisePicker';
-import { SetRows, newSetRows, type SetRow } from './SetRows';
+import { ExerciseWizard, type WizardResult, type WizardShape } from './ExerciseWizard';
+import type { SetRow } from './SetRows';
+
+export { DEFAULT_REST_SEC, DEFAULT_EVERY_SEC, fmtEvery } from './ExerciseWizard';
 
 /**
  * The block kinds a coach can add.
@@ -93,18 +95,6 @@ export interface BlockExercise {
   sets: SetRow[];
 }
 
-/** Ninety seconds — the same default `newEx` gives an exercise on the phone. */
-export const DEFAULT_REST_SEC = 90;
-
-/** Two and a half minutes — the interval in the session the owner sent. */
-export const DEFAULT_EVERY_SEC = 150;
-
-/** "2:30", the way a coach writes an interval. */
-export function fmtEvery(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
-
 export interface BlockValue {
   id: string;
   category: string;
@@ -180,7 +170,14 @@ export function BlockEditor({
   onRemove: () => void;
 }) {
   const [expanded, setExpanded] = useState(!startCollapsed);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * Which exercise the wizard is open for — `'new'` for a fresh add, an
+   * exercise's own `id` to edit it pre-filled, or `null` when it is closed.
+   * The wizard is the only writer of an exercise's fields now; `BlockEditor`
+   * only decides which one (if any) it is open for and folds the result in.
+   */
+  const [wizardFor, setWizardFor] = useState<'new' | string | null>(null);
+  const [lastShape, setLastShape] = useState<WizardShape | undefined>(undefined);
   const isConditioning = CONDITIONING_CATEGORIES.includes(block.category);
   const headingInputRef = useRef<HTMLInputElement>(null);
 
@@ -197,28 +194,22 @@ export function BlockEditor({
     requestAnimationFrame(() => headingInputRef.current?.focus());
   }
 
-  function addExercise(name: string) {
-    const id = `${block.id}-${block.exercises.length}-${name}`;
-    onChange({
-      ...block,
-      exercises: [
-        ...block.exercises,
-        // Reps and kilos: the pair a coach reaches for most, and a valid pair
-        // by `isColumnPairValid` so nothing opens already locked.
-        { id, name, columnA: 'reps', columnB: 'weight_kg', rest: DEFAULT_REST_SEC, sets: newSetRows(id) },
-      ],
-    });
+  function handleWizardSave(result: WizardResult, shape: WizardShape) {
+    setLastShape(shape);
+    if (result.id) {
+      onChange({
+        ...block,
+        exercises: block.exercises.map((e) => (e.id === result.id ? { ...e, ...result } : e)),
+      });
+    } else {
+      const id = `${block.id}-${block.exercises.length}-${result.name}`;
+      onChange({ ...block, exercises: [...block.exercises, { ...result, id }] });
+    }
+    setWizardFor(null);
   }
 
   function removeExercise(id: string) {
     onChange({ ...block, exercises: block.exercises.filter((e) => e.id !== id) });
-  }
-
-  function patchExercise(id: string, patch: Partial<BlockExercise>) {
-    onChange({
-      ...block,
-      exercises: block.exercises.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-    });
   }
 
   return (
@@ -344,7 +335,7 @@ export function BlockEditor({
         </div>
       )}
 
-      {expanded && !isConditioning && (
+      {expanded && !isConditioning && !wizardFor && (
         <div className="cb-block-body-wrap">
           <div className="cb-strength-body">
             <ol className="cb-block-items">
@@ -354,44 +345,27 @@ export function BlockEditor({
                   exercise={ex}
                   letter={letterFor(i)}
                   onRemove={() => removeExercise(ex.id)}
-                  onPatch={(patch) => patchExercise(ex.id, patch)}
+                  onOpen={() => setWizardFor(ex.id)}
                 />
               ))}
             </ol>
 
-            {/*
-              * The reveal button is a PHONE control — `.cb-picker-reveal` is
-              * `display: none` until the phone media query turns it on. It is
-              * still rendered here at every width because hiding it is the
-              * stylesheet's job, and on desktop it costs nothing.
-              */}
-            {!pickerOpen && (
-              <button type="button" className="cb-picker-reveal" onClick={() => setPickerOpen(true)}>
-                + Add exercise from library
-              </button>
-            )}
-
-            {/*
-              * ALWAYS MOUNTED, visibility decided in CSS. This was behind
-              * `pickerOpen &&` until 16 August 2026, and `pickerOpen` can only
-              * be set by the reveal button above — which does not exist at
-              * desktop width. The result was a block a coach could not put a
-              * single exercise into on the 1440px screen this workspace is
-              * composed at.
-              */}
-            <ExercisePicker
-              entries={entries}
-              open={pickerOpen}
-              onPick={addExercise}
-              onNewExercise={(name) => {
-                if (!name) return;
-                onCreateMovement?.(name);
-                addExercise(name);
-              }}
-              onDone={() => setPickerOpen(false)}
-            />
+            <button type="button" className="cb-picker-reveal" onClick={() => setWizardFor('new')}>
+              + Add exercise from library
+            </button>
           </div>
         </div>
+      )}
+
+      {wizardFor && (
+        <ExerciseWizard
+          entries={entries}
+          initial={wizardFor === 'new' ? undefined : block.exercises.find((e) => e.id === wizardFor)}
+          lastShape={lastShape}
+          onCreateMovement={onCreateMovement}
+          onSave={handleWizardSave}
+          onCancel={() => setWizardFor(null)}
+        />
       )}
     </div>
   );
@@ -517,71 +491,34 @@ const MODALITY_LABELS: Record<string, string> = {
 };
 
 /**
- * ONE EXERCISE IN A BLOCK: a row you can read at a glance, opening into its
- * sets.
+ * ONE EXERCISE IN A BLOCK: a row you can read at a glance, opening the
+ * exercise wizard pre-filled for editing.
  *
- * Rebuilt to the mockup on 16 August 2026. What shipped before was the same
- * data with none of the shape — a letter, a name, a remove button, and then
- * the full sets table inline, for every exercise, always. Five exercises in a
- * block meant five stacked tables and a page a coach had to scroll past to
- * reach the one they wanted.
- *
- * The mockup collapses it. A row is `[letter] [name] [3 Sets]`, and clicking
- * the row opens the editor beneath it. That is not decoration: the stylesheet
- * was ported whole in stage 1 and has carried `.cb-item-head-row`,
- * `.cb-item-head`, `.cb-sets-pill`, `.cb-item.expanded` and `.cb-exp`
- * (`display: none` until expanded) ever since, describing exactly this. None
- * of it was rendered, so it was invisible — the same failure as the exercise
- * picker two commits ago, and 41 of the stylesheet's 77 `cb-` classes are
- * still in that state.
- *
- * WHAT IS DELIBERATELY NOT PORTED, because the mockup's `.cb-exp` also holds:
- *
- *   - `.cb-exp-cues`, a per-exercise instructions box with a 0/500 counter
- *   - `.cb-swaps`, suggested swaps and points of performance
- *
- * `BlockExercise` has nowhere to put either — no `cues`, no `swaps` — and
- * `day-workout.ts` would drop them on the way to a `Workout`. A textarea a
- * coach types into that is discarded on save is worse than no textarea, so
- * they wait for the data model rather than arriving as scenery.
- *
- * `.cb-opt-toggle`, an "Optional" checkbox per column, WAS on this list and
- * is off it now — not ported as its own control, resolved a different way.
- * A per-column boolean flag would have needed the same new-field-and-
- * `day-workout.ts`-drop problem as `cues`/`swaps` above. `columnB` already
- * has a value that means "not tracked" — `NONE_COLUMN` in `@hybrid/engine`'s
- * `setColumns.ts`, `value: ''`, the exact shape a bodyweight-only exercise's
- * mode already collapsed to before a coach could ever choose it on purpose.
- * Picking "None (optional)" for the second column is the "optional" checkbox,
- * using data the model already had rather than a field it didn't.
+ * Rebuilt to the mockup on 16 August 2026 as an always-expanded inline
+ * editor beneath the row, then simplified again on 17 August 2026 when the
+ * wizard took over the editing job entirely: a row is `[letter] [name] [3
+ * Sets]`, and clicking it opens `ExerciseWizard` rather than an inline `.cb-
+ * exp` body. `BlockExercise` fields it once wrote directly — Pacing, Rest/
+ * Every, Target RPE, Tempo, and the sets table itself — are now authored
+ * exclusively through the wizard's Values and Review steps; `ExerciseItem`
+ * neither reads nor writes them.
  */
 function ExerciseItem({
   exercise,
   letter,
   onRemove,
-  onPatch,
+  onOpen,
 }: {
   exercise: BlockExercise;
   letter: string;
   onRemove: () => void;
-  onPatch: (patch: Partial<BlockExercise>) => void;
+  onOpen: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const count = exercise.sets.length;
-  const emom = (exercise.every ?? 0) > 0;
-  /* The RPE every set agrees on, or null when they disagree — see the field. */
-  const rpeValues = new Set(exercise.sets.map((st) => (st.rpe ?? '').trim()));
-  const sharedRpe = rpeValues.size <= 1 ? ([...rpeValues][0] ?? '') : null;
-
   return (
-    <li className={`cb-item${expanded ? ' expanded' : ''}`}>
+    <li className="cb-item">
       <div className="cb-item-head-row">
-        <button
-          type="button"
-          className="cb-item-head"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
-        >
+        <button type="button" className="cb-item-head" onClick={onOpen}>
           <span className="cal-letter-chip">{letter}</span>
           <span className="cb-item-name">{exercise.name}</span>
           {/* The mockup's own wording and capitalisation: "1 Set", "3 Sets". */}
@@ -595,138 +532,6 @@ function ExerciseItem({
         >
           <Cross />
         </button>
-      </div>
-
-      {/*
-        * ALWAYS RENDERED, hidden by `.cb-exp`'s own `display: none` until the
-        * item carries `expanded`. Mounting it conditionally would put React in
-        * charge of a visibility the stylesheet already owns — which is the
-        * exact mistake that made the picker unreachable at desktop width.
-        */}
-      <div className="cb-exp">
-        {/*
-          * `.cb-field-block` and `.cb-text-input` are the stylesheet's own
-          * names for a labelled field inside the expanded editor — both were
-          * ported in stage 1 and neither had ever been rendered.
-          */}
-        {/*
-          * HOW THIS EXERCISE IS PACED, in the one place the coach was already
-          * setting rest — the owner's own instruction on 16 August 2026: "the
-          * format needs to sit in the rest screen with a single or an emom
-          * style with a timer, which is then X the amount of sets."
-          *
-          * The two are genuinely different clocks and the labels say so.
-          * "Rest between sets" starts when a set ENDS. "Every" is one window
-          * that the set and its recovery share, so a slow set leaves less
-          * rest — that is what makes it EMOM rather than a renamed rest. The X
-          * is the exercise's own set count; nothing separate is authored.
-          *
-          * Switching back to Rest keeps `every` rather than clearing it, and
-          * vice versa, so a coach flipping between the two to compare does not
-          * lose the number they typed.
-          */}
-        <div className="cb-pace">
-          <label className="cb-field-block">
-            <span className="cal-field-label">Pacing</span>
-            <select
-              className="cb-text-input"
-              aria-label="Pacing"
-              value={emom ? 'every' : 'rest'}
-              onChange={(e) =>
-                onPatch(
-                  e.target.value === 'every'
-                    ? { every: exercise.every && exercise.every > 0 ? exercise.every : DEFAULT_EVERY_SEC }
-                    : { every: 0 },
-                )
-              }
-            >
-              <option value="rest">Rest between sets</option>
-              <option value="every">Every — start each set on the clock</option>
-            </select>
-          </label>
-          <label className="cb-field-block">
-            <span className="cal-field-label">{emom ? 'Every (seconds)' : 'Rest (seconds)'}</span>
-            <input
-              className="cb-text-input"
-              type="number"
-              min={0}
-              step={15}
-              inputMode="numeric"
-              value={emom ? (exercise.every ?? 0) : exercise.rest}
-              onChange={(e) => {
-                const n = Math.max(0, Number(e.target.value) || 0);
-                onPatch(emom ? { every: n } : { rest: n });
-              }}
-            />
-          </label>
-          <label className="cb-field-block">
-            <span className="cal-field-label">
-              Target RPE <span className="cb-optional-inline">optional</span>
-            </span>
-            <input
-              type="text"
-              className="cb-text-input"
-              placeholder="8, or 7-10"
-              value={sharedRpe ?? ''}
-              onChange={(e) =>
-                onPatch({ sets: exercise.sets.map((st) => ({ ...st, rpe: e.target.value })) })
-              }
-            />
-          </label>
-          <label className="cb-field-block">
-            <span className="cal-field-label">
-              Tempo <span className="cb-optional-inline">optional</span>
-            </span>
-            <input
-              type="text"
-              className="cb-text-input"
-              placeholder="e.g. 3-1-1-0"
-              aria-label="Tempo"
-              value={exercise.tempo ?? ''}
-              onChange={(e) => onPatch({ tempo: e.target.value })}
-            />
-          </label>
-          {/*
-            * EDITED PER EXERCISE, STORED PER SET.
-            *
-            * The owner's own sessions write one band for the movement — "RPE
-            * 7–10" — so that is the control. The value lands on every set,
-            * because `PlannedSet.rpe` is where the engine reads it and a
-            * per-exercise field would flatten a workout authored anywhere else
-            * on its next save: a top set at 9 with backoffs at 7 is real
-            * programming.
-            *
-            * So the field shows the shared value when every set agrees and
-            * BLANK when they do not, rather than picking one and quietly
-            * making it true of all of them. Typing into a blank field is then
-            * an explicit choice to set them all, which is a thing the coach
-            * did rather than a thing the screen did behind them.
-            *
-            * A RANGE IS A VALID VALUE, not a parse failure — `rpeCenterOf`
-            * averages every number in the string, so "7-10" is a band centre
-            * of 8.5. Empty is valid too, and is that same documented default.
-            */}
-          {sharedRpe === null && (
-            <p className="cb-note cb-pace-note">
-              These sets have different RPE targets. Typing here sets them all to one.
-            </p>
-          )}
-          <p className="cb-note cb-pace-note">
-            {emom
-              ? `${fmtEvery(exercise.every ?? 0)} × ${exercise.sets.length} ${
-                  exercise.sets.length === 1 ? 'set' : 'sets'
-                } — each set starts on the clock, so a slower set gets less rest.`
-              : 'The countdown starts when the set ends.'}
-          </p>
-        </div>
-
-        <SetRows
-          sets={exercise.sets}
-          columnA={exercise.columnA}
-          columnB={exercise.columnB}
-          onColumnChange={(which, value) => onPatch(which === 'a' ? { columnA: value } : { columnB: value })}
-          onSetsChange={(sets) => onPatch({ sets })}
-        />
       </div>
     </li>
   );
