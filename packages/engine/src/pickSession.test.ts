@@ -6,13 +6,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { pickSession } from './db';
-import type { Session, StrengthBlock, LoggedSet } from './types';
+import type { CondBlock, Session } from './types';
 
-const doneSet = (): LoggedSet => ({ t: '5', rpe: '8', aVal: '100', done: true });
-
-const strengthBlock = (sets: LoggedSet[]): StrengthBlock<LoggedSet> => ({
+const condBlock = (result?: CondBlock['condResult']): CondBlock => ({
   id: 'b1',
-  exercises: [{ id: 'e1', name: 'Back Squat', mode: 'reps_kg', sets }],
+  kind: 'conditioning',
+  condFmt: 'steady',
+  condResult: result,
 });
 
 const session = (over: Partial<Session>): Session => ({
@@ -24,36 +24,36 @@ const session = (over: Partial<Session>): Session => ({
 });
 
 describe('pickSession', () => {
-  it('keeps a session with a logged set over an empty session touched much later', () => {
+  it('keeps a session with a logged conditioning result over an empty session touched much later', () => {
     const logged = session({
       completedAt: 1_000_000,
       updatedAt: 1_000_000,
-      blocks: [strengthBlock([doneSet()])],
+      blocks: [condBlock({ fmt: 'steady', felt: '8' })],
     });
     const emptyButRecent = session({
       completedAt: 2_100_001,
       updatedAt: 2_100_001,
-      blocks: [strengthBlock([{ t: '5', rpe: '8' }])],
+      blocks: [condBlock(undefined)],
     });
     expect(pickSession(logged, emptyButRecent)).toBe(logged);
     expect(pickSession(emptyButRecent, logged)).toBe(logged);
   });
 
-  it('prefers more logged sets over fewer, regardless of timestamps', () => {
-    const twoSets = session({
+  it('prefers more logged blocks over fewer, regardless of timestamps', () => {
+    const twoBlocks = session({
       updatedAt: 1,
-      blocks: [strengthBlock([doneSet(), doneSet()])],
+      blocks: [condBlock({ fmt: 'steady', felt: '8' }), condBlock({ fmt: 'steady', felt: '7' })],
     });
-    const oneSet = session({
+    const oneBlock = session({
       updatedAt: 999_999_999,
-      blocks: [strengthBlock([doneSet()])],
+      blocks: [condBlock({ fmt: 'steady', felt: '8' })],
     });
-    expect(pickSession(oneSet, twoSets)).toBe(twoSets);
+    expect(pickSession(oneBlock, twoBlocks)).toBe(twoBlocks);
   });
 
   it('falls back to the most recently updated copy when work is equal', () => {
-    const older = session({ updatedAt: 100, blocks: [strengthBlock([doneSet()])] });
-    const newer = session({ updatedAt: 200, blocks: [strengthBlock([doneSet()])] });
+    const older = session({ updatedAt: 100, blocks: [condBlock({ fmt: 'steady', felt: '8' })] });
+    const newer = session({ updatedAt: 200, blocks: [condBlock({ fmt: 'steady', felt: '8' })] });
     expect(pickSession(older, newer)).toBe(newer);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sanitizeDB } from './db';
-import { hasLoggedWork, isText, newTextBlock, sessionVolume } from './session';
-import { sessionProgress, ssGroups } from './logger';
+import { hasLoggedWork, isText, newTextBlock } from './session';
+import { sessionProgress } from './logger';
 import type { Session, TextBlock } from './types';
 
 /*
@@ -25,10 +25,6 @@ describe('text blocks', () => {
     const b = newTextBlock();
     expect(isText(b)).toBe(true);
     expect((b as { exercises?: unknown }).exercises).toBeUndefined();
-  });
-
-  it('contributes nothing to tonnage, because it has nothing to measure', () => {
-    expect(sessionVolume(withText({ done: true }))).toBe(0);
   });
 
   it('does NOT count as trained until it is ticked', () => {
@@ -55,10 +51,6 @@ describe('text blocks', () => {
     const b = db.sessions[0].blocks[0] as TextBlock;
     expect(b.heading).toBe('Chipper');
     expect(b.body).toContain('AMRAP 12');
-  });
-
-  it('has no superset chains to compute', () => {
-    expect(ssGroups(withText().blocks[0])).toEqual([]);
   });
 
   it('a ticked metcon counts as done, and a metcon-only session can reach 100%', () => {

@@ -160,17 +160,17 @@ describe('the actual removeFolder write path survives a merge with a stale remot
 });
 
 describe('sanitizeDB backfills and splits Workout.kind', () => {
-  const strengthBlock = () => ({
-    id: 'sb1',
-    exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }],
-  });
+  /*
+   * A real legacy strength block (exercises/sets) is stripped by
+   * `cleanBlock` before any of this inference or splitting runs — that is
+   * the whole point of the 17 August 2026 deletion, see `db.ts`'s own
+   * header comment. So a fixture standing in for "the other half of a mixed
+   * workout" now has to be something `cleanBlock` keeps: a `TextBlock`. The
+   * split still hard-labels that sibling `kind: 'strength'` — unchanged,
+   * existing code — which is why the assertions below still say so.
+   */
+  const otherBlock = () => ({ id: 'sb1', kind: 'text', heading: 'Notes', body: 'Warm-up' });
   const condBlock = () => ({ id: 'cb1', kind: 'conditioning', condFmt: 'intervals' });
-
-  it('backfills kind=strength on an old workout with only strength blocks', () => {
-    const out = sanitizeDB({ workouts: [{ id: 'w1', blocks: [strengthBlock()] }], sessions: [], settings: {} });
-    expect(out.workouts).toHaveLength(1);
-    expect(out.workouts[0].kind).toBe('strength');
-  });
 
   it('backfills kind=conditioning on an old workout that is all conditioning blocks', () => {
     const out = sanitizeDB({ workouts: [{ id: 'w1', blocks: [condBlock()] }], sessions: [], settings: {} });
@@ -195,7 +195,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
 
   it('keeps a stored conditioning kind on a workout whose only remaining block is strength', () => {
     const out = sanitizeDB({
-      workouts: [{ id: 'w1', kind: 'conditioning', blocks: [strengthBlock()] }],
+      workouts: [{ id: 'w1', kind: 'conditioning', blocks: [otherBlock()] }],
       sessions: [],
       settings: {},
     });
@@ -208,7 +208,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
         {
           id: 'w1',
           name: 'Leg Day',
-          blocks: [strengthBlock(), condBlock()],
+          blocks: [otherBlock(), condBlock()],
           days: [1, 3],
           dates: ['2026-08-10'],
         },
@@ -231,7 +231,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
 
   it('splitting is idempotent — running sanitizeDB again on already-split output changes nothing further', () => {
     const once = sanitizeDB({
-      workouts: [{ id: 'w1', blocks: [strengthBlock(), condBlock()] }],
+      workouts: [{ id: 'w1', blocks: [otherBlock(), condBlock()] }],
       sessions: [],
       settings: {},
     });
@@ -251,7 +251,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
    */
   it('mints the same conditioning sibling id on two independent runs over the same original blob', () => {
     const raw = () => ({
-      workouts: [{ id: 'w1', name: 'Leg Day', blocks: [strengthBlock(), condBlock()] }],
+      workouts: [{ id: 'w1', name: 'Leg Day', blocks: [otherBlock(), condBlock()] }],
       sessions: [],
       settings: {},
     });
@@ -267,7 +267,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
     // the merge result carries the mixed original AND the already-split sibling.
     const out = sanitizeDB({
       workouts: [
-        { id: 'w1', name: 'Leg Day', blocks: [strengthBlock(), condBlock()] },
+        { id: 'w1', name: 'Leg Day', blocks: [otherBlock(), condBlock()] },
         { id: 'w1-cond', kind: 'conditioning', name: 'Leg Day — Conditioning', blocks: [condBlock()] },
       ],
       sessions: [],
@@ -280,8 +280,8 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
   it('steps aside deterministically if an unrelated workout already holds the derived id', () => {
     const raw = () => ({
       workouts: [
-        { id: 'w1', name: 'Leg Day', blocks: [strengthBlock(), condBlock()] },
-        { id: 'w1-cond', name: 'Coincidence', blocks: [strengthBlock()] },
+        { id: 'w1', name: 'Leg Day', blocks: [otherBlock(), condBlock()] },
+        { id: 'w1-cond', name: 'Coincidence', blocks: [otherBlock()] },
       ],
       sessions: [],
       settings: {},
@@ -296,7 +296,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
 
   it('bumps the strength sibling updatedAt when it splits, so the stale server copy loses the merge', () => {
     const out = sanitizeDB({
-      workouts: [{ id: 'w1', blocks: [strengthBlock(), condBlock()], updatedAt: 1000 }],
+      workouts: [{ id: 'w1', blocks: [otherBlock(), condBlock()], updatedAt: 1000 }],
       sessions: [],
       settings: {},
     });
@@ -312,7 +312,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
     // The server keeps the mixed original until it is overwritten, so a delete
     // has to survive it being served back and re-split.
     const resplit = sanitizeDB({
-      workouts: [{ id: 'w1', blocks: [strengthBlock(), condBlock()], updatedAt: 1000 }],
+      workouts: [{ id: 'w1', blocks: [otherBlock(), condBlock()], updatedAt: 1000 }],
       sessions: [],
       settings: {},
     });
@@ -328,7 +328,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
 
   it('leaves updatedAt alone on a load that splits nothing', () => {
     const out = sanitizeDB({
-      workouts: [{ id: 'w1', kind: 'strength', blocks: [strengthBlock()], updatedAt: 1 }],
+      workouts: [{ id: 'w1', kind: 'strength', blocks: [otherBlock()], updatedAt: 1 }],
       sessions: [],
       settings: {},
     });
@@ -337,7 +337,7 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
 
   it('clears _rev and sample on the new-id conditioning sibling, the same as duplicateWorkout', () => {
     const out = sanitizeDB({
-      workouts: [{ id: 'w1', blocks: [strengthBlock(), condBlock()], _rev: 'rev-9', sample: true }],
+      workouts: [{ id: 'w1', blocks: [otherBlock(), condBlock()], _rev: 'rev-9', sample: true }],
       sessions: [],
       settings: {},
     });
@@ -351,16 +351,16 @@ describe('sanitizeDB backfills and splits Workout.kind', () => {
 });
 
 describe('sanitizeDB backfills and splits Session.kind', () => {
-  const strengthBlock = () => ({
-    id: 'sb1',
-    exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }],
-  });
+  // Same substitution as the Workout describe above: a real legacy strength
+  // block is stripped by `cleanBlock` before the split ever sees it, so the
+  // "other half" of a mixed session is a `TextBlock` here too.
+  const otherBlock = () => ({ id: 'sb1', kind: 'text', heading: 'Notes', body: 'Warm-up' });
   const condBlock = () => ({ id: 'cb1', kind: 'conditioning', condFmt: 'intervals' });
 
   it('splits a mixed session the same way, preserving status', () => {
     const out = sanitizeDB({
       workouts: [],
-      sessions: [{ id: 's1', date: '2026-08-10', status: 'completed', blocks: [strengthBlock(), condBlock()] }],
+      sessions: [{ id: 's1', date: '2026-08-10', status: 'completed', blocks: [otherBlock(), condBlock()] }],
       settings: {},
     });
     expect(out.sessions).toHaveLength(2);
@@ -382,7 +382,7 @@ describe('sanitizeDB backfills and splits Session.kind', () => {
   it('leaves an ACTIVE mixed session whole — the split waits until it is finished', () => {
     const out = sanitizeDB({
       workouts: [],
-      sessions: [{ id: 's1', date: '2026-08-10', status: 'active', blocks: [strengthBlock(), condBlock()] }],
+      sessions: [{ id: 's1', date: '2026-08-10', status: 'active', blocks: [otherBlock(), condBlock()] }],
       settings: {},
     });
     expect(out.sessions).toHaveLength(1);
@@ -393,7 +393,7 @@ describe('sanitizeDB backfills and splits Session.kind', () => {
   it('splits that same session once it completes', () => {
     const out = sanitizeDB({
       workouts: [],
-      sessions: [{ id: 's1', date: '2026-08-10', status: 'incomplete', blocks: [strengthBlock(), condBlock()] }],
+      sessions: [{ id: 's1', date: '2026-08-10', status: 'incomplete', blocks: [otherBlock(), condBlock()] }],
       settings: {},
     });
     expect(out.sessions).toHaveLength(2);
@@ -414,7 +414,7 @@ describe('sanitizeDB backfills and splits Session.kind', () => {
           date: '2026-08-10',
           status: 'completed',
           workoutId: 'w1',
-          blocks: [strengthBlock(), condBlock()],
+          blocks: [otherBlock(), condBlock()],
         },
       ],
       settings: {},
@@ -426,7 +426,7 @@ describe('sanitizeDB backfills and splits Session.kind', () => {
   it('mints the same session sibling id on two independent runs over the same original blob', () => {
     const raw = () => ({
       workouts: [],
-      sessions: [{ id: 's1', date: '2026-08-10', status: 'completed', blocks: [strengthBlock(), condBlock()] }],
+      sessions: [{ id: 's1', date: '2026-08-10', status: 'completed', blocks: [otherBlock(), condBlock()] }],
       settings: {},
     });
     const a = sanitizeDB(raw());
