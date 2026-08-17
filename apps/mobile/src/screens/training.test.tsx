@@ -12,12 +12,12 @@
 import { fireEvent, screen } from '@testing-library/react-native';
 import { ymd, type Session } from '@hybrid/engine';
 import { setDiscipline } from '../discipline';
-import { liftWorkout, renderScreen, seed } from '../../test/harness';
+import { textWorkout, renderScreen, seed } from '../../test/harness';
 import { TrainingScreen } from './Training';
 
 describe('Training', () => {
   it('offers a workout from the library when nothing is live', () => {
-    seed({ workouts: [liftWorkout()] });
+    seed({ workouts: [textWorkout()] });
     renderScreen(<TrainingScreen />);
     expect(screen.getByText('Start a session')).toBeTruthy();
     expect(screen.getByText('Lower')).toBeTruthy();
@@ -27,20 +27,20 @@ describe('Training', () => {
     // The assertion is really "this did not throw". React's invalid-hook-order
     // error is raised during the re-render that Start triggers, so reaching the
     // in-progress screen at all IS the pass.
-    seed({ workouts: [liftWorkout()] });
+    seed({ workouts: [textWorkout()] });
     renderScreen(<TrainingScreen />);
 
     fireEvent.press(screen.getByText('Start'));
 
     expect(screen.getByText('In progress')).toBeTruthy();
-    expect(screen.getByText('Back squat')).toBeTruthy();
+    expect(screen.getByText('Metcon')).toBeTruthy();
   });
 
   it('shows the session it resumes rather than the start list', () => {
     // A live session must survive a remount — the athlete backgrounds the app
     // between sets constantly, and coming back to "Start a session" would read
     // as the session having been lost.
-    seed({ workouts: [liftWorkout()] });
+    seed({ workouts: [textWorkout()] });
     const first = renderScreen(<TrainingScreen />);
     fireEvent.press(screen.getByText('Start'));
     first.unmount();
@@ -51,10 +51,10 @@ describe('Training', () => {
   });
 
   it('does not put the brass on Finish while there is work left', () => {
-    // At 0 of 3 the loudest control on the screen used to be the one action you
+    // At 0 of 1 the loudest control on the screen used to be the one action you
     // should not take yet. The label is the observable half of that: the button
     // stays available and says what finishing now would mean.
-    seed({ workouts: [liftWorkout()] });
+    seed({ workouts: [textWorkout()] });
     renderScreen(<TrainingScreen />);
     fireEvent.press(screen.getByText('Start'));
 
@@ -71,7 +71,7 @@ describe('Training', () => {
   it('shows an honest empty state when nothing is scheduled today, with the rest of the library still reachable', () => {
     // Nobody today, but the library is not empty — a silent list of everything
     // used to read as "these are all scheduled for today", which they are not.
-    seed({ workouts: [liftWorkout()] });
+    seed({ workouts: [textWorkout()] });
     renderScreen(<TrainingScreen />);
     expect(screen.getByText('Nothing scheduled for today')).toBeTruthy();
     expect(screen.getByText('Everything else')).toBeTruthy();
@@ -104,7 +104,7 @@ describe('Training — a session live in the OTHER world', () => {
 
   it('says so, rather than leaving Start silently inert', () => {
     setDiscipline('strength');
-    seed({ workouts: [liftWorkout()], sessions: [liveConditioning()] });
+    seed({ workouts: [textWorkout()], sessions: [liveConditioning()] });
     renderScreen(<TrainingScreen />);
 
     /* The screen is still the start list — the conditioning session is not in
@@ -118,7 +118,7 @@ describe('Training — a session live in the OTHER world', () => {
     /* Otherwise the test above would pass on a component that always renders
        the banner, which would be its own lie. */
     setDiscipline('strength');
-    seed({ workouts: [liftWorkout()] });
+    seed({ workouts: [textWorkout()] });
     renderScreen(<TrainingScreen />);
 
     expect(screen.queryByText(/Session in progress in/)).toBeNull();

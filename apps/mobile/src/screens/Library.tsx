@@ -5,20 +5,14 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   CON_FORMATS,
   agoLabel,
-  blockExercises,
   duplicateWorkout,
   isCond,
   isCondWorkout,
-  knownMovements,
-  rxLine,
-  sessionOpeners,
   ungroupedWorkouts,
   uid,
   workoutStats,
   workoutsInFolder,
   type Folder,
-  type LoggedSet,
-  type StrengthBlock,
   type Workout,
 } from '@hybrid/engine';
 import { useDb } from '../store/db';
@@ -43,7 +37,7 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
  */
 export function LibraryScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
-  const { db, workouts, sessions, update } = useDb();
+  const { db, workouts, update } = useDb();
   const [open, setOpen] = useState<string | null>(null);
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   // 'NEW' while creating a folder, a folder id while renaming one, else null.
@@ -60,10 +54,11 @@ export function LibraryScreen() {
   const [pickerEditingFolder, setPickerEditingFolder] = useState(false);
   const [pickerFolderName, setPickerFolderName] = useState('');
 
-  /* Three slices of one library, not three destinations. Sessions are things
-     you START; exercises and mobility are things you LOOK UP. In one list the
-     448 movements buried the sessions you actually run. */
-  const [tab, setTab] = useState<'sessions' | 'exercises' | 'mobility'>('sessions');
+  /* Two slices of one library, not two destinations. Sessions are things you
+     START; mobility is something you LOOK UP. The third slice, Exercises —
+     a movement-name lookup over logged strength history — went with strength
+     on 17 August 2026: there is no more strength history to catalogue. */
+  const [tab, setTab] = useState<'sessions' | 'mobility'>('sessions');
   const [q, setQ] = useState('');
 
   const mine = workouts;
@@ -73,16 +68,15 @@ export function LibraryScreen() {
   // anything folder-related actually changed.
   const folders = useMemo(() => db.settings.folders || [], [db.settings.folders]);
   const ungrouped = useMemo(() => ungroupedWorkouts(mine, folders), [mine, folders]);
-  const movements = useMemo(() => knownMovements(workouts, sessions), [workouts, sessions]);
   const mobility = useMemo(
     () => (Array.isArray(db.settings.mobility) ? db.settings.mobility : []),
     [db.settings.mobility],
   );
   const shown = useMemo(() => {
-    const list = tab === 'exercises' ? movements : tab === 'mobility' ? mobility : [];
+    const list = tab === 'mobility' ? mobility : [];
     const k = q.trim().toLowerCase();
     return (k ? list.filter((m) => m.toLowerCase().includes(k)) : list).slice(0, 40);
-  }, [tab, q, movements, mobility]);
+  }, [tab, q, mobility]);
 
   /** Into the guided builder, one step at a time, rather than dropping you
    *  straight into a blank editor. */
@@ -240,7 +234,6 @@ export function LibraryScreen() {
         }}
         tabs={[
           { key: 'sessions', label: 'Sessions', count: workouts.length },
-          { key: 'exercises', label: 'Exercises', count: movements.length },
           { key: 'mobility', label: 'Mobility', count: mobility.length },
         ]}
       />
@@ -248,16 +241,11 @@ export function LibraryScreen() {
       {tab !== 'sessions' ? (
         <NameList
           shown={shown}
-          total={tab === 'exercises' ? movements.length : mobility.length}
+          total={mobility.length}
           q={q}
           setQ={setQ}
-          noun={tab === 'exercises' ? 'movements' : 'mobility & prep'}
-          onPick={tab === 'exercises' ? (m) => nav.navigate('Exercise', { name: m }) : undefined}
-          empty={
-            tab === 'exercises'
-              ? 'Nothing logged yet. Movements appear here as you train them.'
-              : 'No mobility work saved. These are the stretches, breathing and prep you do around training — they carry no load to track, so this is a reference list.'
-          }
+          noun="mobility & prep"
+          empty="No mobility work saved. These are the stretches, breathing and prep you do around training — they carry no load to track, so this is a reference list."
         />
       ) : null}
 
@@ -465,17 +453,16 @@ export function LibraryScreen() {
 /**
  * A searchable list of names — the web app's `NameList`.
  *
- * Shared by Exercises and Mobility because they are the same object at
- * different weights: one opens a history the app can draw, the other does not,
- * because mobility work carries no numbers and a tappable row would promise a
- * screen that has nothing on it.
+ * Only Mobility uses this now. It used to be shared with an Exercises tab
+ * (a movement-name lookup over logged strength history, tappable into a
+ * history screen); that tab and `onPick` went with strength on 17 August
+ * 2026 — mobility work carries no numbers, so its rows were never tappable.
  */
 function NameList({
   shown,
   total,
   q,
   setQ,
-  onPick,
   noun,
   empty,
 }: {
@@ -483,7 +470,6 @@ function NameList({
   total: number;
   q: string;
   setQ: (s: string) => void;
-  onPick?: (m: string) => void;
   noun: string;
   empty: string;
 }) {
@@ -503,25 +489,11 @@ function NameList({
         accessibilityLabel={`Search ${noun}`}
         className="mt-2 h-5 rounded-md border border-line bg-well px-1.5 text-4 text-text"
       />
-      {shown.map((m) =>
-        onPick ? (
-          <Tap
-            key={m}
-            onPress={() => onPick(m)}
-            label={`${m} history`}
-            className="mt-0.5 flex-row items-center rounded-md border border-line bg-panel3 p-1.5"
-          >
-            <T w="med" className="min-w-0 flex-1 text-4 text-text" numberOfLines={1}>
-              {m}
-            </T>
-            <T className="text-3 text-dim">›</T>
-          </Tap>
-        ) : (
-          <View key={m} className="mt-0.5 rounded-md border border-line bg-panel3 p-1.5">
-            <T className="text-4 text-muted">{m}</T>
-          </View>
-        ),
-      )}
+      {shown.map((m) => (
+        <View key={m} className="mt-0.5 rounded-md border border-line bg-panel3 p-1.5">
+          <T className="text-4 text-muted">{m}</T>
+        </View>
+      ))}
       {!shown.length ? <T className="mt-1 p-1.5 text-4 text-dim">Nothing matches “{q}”.</T> : null}
     </>
   );
@@ -530,39 +502,27 @@ function NameList({
 /*
  * What this session actually means to you, on the card.
  *
- * The Library is the screen you open to DECIDE what to train, and until now it
- * answered with a name and a block count. These two lines are the two things
- * that bear on the decision: when you last did it, and what you would be
- * lifting if you started it now.
+ * The Library is the screen you open to DECIDE what to train, and this line
+ * is the thing that bears on the decision: when you last did it.
  *
- * Both are suppressed when empty rather than rendered blank — a session you
- * have never trained should say nothing, not "last trained never · opens at".
+ * `sessionOpeners` — the second line this card used to carry, the weight you
+ * would open each lift at if you started it now — was deleted whole on
+ * 17 August 2026 with the rest of strength.
+ *
+ * Suppressed when empty rather than rendered blank — a session you have never
+ * trained should say nothing, not "last trained never".
  */
 function Signal({ w }: { w: Workout }) {
-  const { db, sessions, whoop } = useDb();
+  const { sessions } = useDb();
   const stats = useMemo(() => workoutStats(w, sessions), [w, sessions]);
-  // Through sessionOpeners, so this figure and the one the logger prefills come
-  // from the same function — including the red-morning easing.
-  const opens = useMemo(
-    () => sessionOpeners(w, db.settings, whoop, sessions),
-    [w, db.settings, whoop, sessions],
-  );
 
-  if (!stats.count && !opens.length) return null;
+  if (!stats.count) return null;
 
   return (
     <View className="mt-0.5">
-      {stats.count ? (
-        <T num className="text-3 text-dim">
-          {agoLabel(stats.lastDate)} · {stats.count} {stats.count === 1 ? 'time' : 'times'}
-        </T>
-      ) : null}
-      {opens.length ? (
-        <T num className="text-3 text-muted" numberOfLines={1}>
-          opens at {opens.map((o) => `${o.name} ${o.kg}`).join(' · ')}
-          {opens.some((o) => o.eased) ? ' (eased today)' : ''}
-        </T>
-      ) : null}
+      <T num className="text-3 text-dim">
+        {agoLabel(stats.lastDate)} · {stats.count} {stats.count === 1 ? 'time' : 'times'}
+      </T>
     </View>
   );
 }
@@ -688,13 +648,7 @@ export function Detail({ w }: { w: Workout }) {
             <T className="text-4 text-muted">
               {CON_FORMATS[b.condFmt]?.name ?? b.condFmt} · {b.effort || b.targetZone}
             </T>
-          ) : (
-            blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => (
-              <T key={ex.id ?? ei} num className="text-4 text-muted">
-                <T w="semi" className="text-text">{ex.name || 'Exercise'}</T> {rxLine(ex)}
-              </T>
-            ))
-          )}
+          ) : null}
         </View>
       ))}
     </View>

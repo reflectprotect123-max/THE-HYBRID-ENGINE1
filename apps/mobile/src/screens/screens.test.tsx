@@ -12,10 +12,9 @@
 import { Alert, type AlertButton } from 'react-native';
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { useNavigation } from '@react-navigation/native';
-import { liftSession, liftWorkout, renderScreen, runEffort, seed, volumeSession } from '../../test/harness';
+import { textSession, textWorkout, renderScreen, seed } from '../../test/harness';
 import { ProgressScreen } from './Progress';
 import { LibraryScreen } from './Library';
-import { ExerciseScreen } from './Exercise';
 import { DayScreen } from './Day';
 import { CalendarScreen } from './Calendar';
 import { HomeScreen } from './Home';
@@ -112,91 +111,12 @@ describe('Progress', () => {
   });
 });
 
-describe('Strength vs conditioning', () => {
-  it('says nothing at all until both sides have something to compare', () => {
-    // The card must be absent, not present-and-hedging. A readout that always
-    // has an opinion is one you stop reading.
-    seed({ sessions: [volumeSession(10, 4000)] });
-    renderScreen(<ProgressScreen />);
-    expect(screen.queryByText('Strength vs conditioning')).toBeNull();
-  });
-
-  it('surfaces the trade when conditioning climbs and the lifts do not', () => {
-    // The whole point of the feature: 60 min/week became 150, squat and bench
-    // have not moved, and no other screen in the app would have told you.
-    seed({
-      sessions: [
-        liftSession(40, 'Back squat', 100),
-        liftSession(40, 'Bench press', 80),
-        liftSession(10, 'Back squat', 100),
-        liftSession(10, 'Bench press', 80),
-      ],
-      settings: { conditioning: [runEffort(40, 30), runEffort(35, 30), runEffort(12, 75), runEffort(8, 75)] as never },
-    });
-    renderScreen(<ProgressScreen />);
-    expect(screen.getByText('Conditioning up, lifts flat')).toBeTruthy();
-    // And it must not overclaim: the caveat ships with the finding.
-    expect(screen.getByText(/not one causing the other/)).toBeTruthy();
-  });
-});
-
-describe('Weekly volume chart', () => {
-  /*
-   * The chart renders EIGHT buckets and the last one ends today, so it always
-   * holds a part-finished week. Scaling from all eight let that stub set the
-   * spread — 98% of the peak — which correctly told `barScale` there was
-   * nothing to zoom into, and the chart stayed the flat wall it had always
-   * been. The unit test for `barScale` passed the whole time because it used
-   * seven complete weeks: the shape the app never actually renders.
-   */
-  /* Bucket i spans days [i*7+6 … i*7] back from today, so bucket 0 is days 0–6
-     — the week in progress — and the mid-bucket days below put exactly one
-     session in each of the eight. Miss that and a bucket silently reads 0,
-     which changes the answer for an unrelated reason. */
-  const EIGHT_WEEKS = [
-    volumeSession(52, 6100),
-    volumeSession(45, 6200),
-    volumeSession(38, 6050),
-    volumeSession(31, 6300),
-    volumeSession(24, 6180),
-    volumeSession(17, 6400),
-    volumeSession(10, 6548),
-    // this week, two days in
-    volumeSession(1, 120),
-  ];
-
-  it('scales from the complete weeks, not the one still being trained', () => {
-    seed({ sessions: EIGHT_WEEKS });
-    renderScreen(<ProgressScreen />);
-    // Floating: the footer names the floor. Were the 120kg stub still setting
-    // the scale this would read "peak 6,548kg" and every bar would be full.
-    expect(screen.getByText(/axis starts at/)).toBeTruthy();
-  });
-
-  it('says which bar is the unfinished week, since a truncated axis exaggerates', () => {
-    seed({ sessions: EIGHT_WEEKS });
-    renderScreen(<ProgressScreen />);
-    expect(screen.getByText(/outlined bar is this week so far/)).toBeTruthy();
-  });
-
-  it('keeps the zero baseline when the complete weeks really do vary', () => {
-    seed({
-      sessions: [
-        volumeSession(52, 1000),
-        volumeSession(45, 3000),
-        volumeSession(38, 5000),
-        volumeSession(31, 7000),
-        volumeSession(24, 9000),
-        volumeSession(17, 6000),
-        volumeSession(10, 8000),
-        volumeSession(1, 120),
-      ],
-    });
-    renderScreen(<ProgressScreen />);
-    expect(screen.queryByText(/axis starts at/)).toBeNull();
-    expect(screen.getByText(/peak 9,000kg/)).toBeTruthy();
-  });
-});
+/*
+ * "Strength vs conditioning" (`loadBalance`, comparing the two disciplines'
+ * progression) and "Weekly volume chart" (`sessionVolume`, an 8-week tonnage
+ * bar chart) both went with the rest of strength on 17 August 2026 — there
+ * is no more lifting data for either to read.
+ */
 
 describe('Library', () => {
   it('names the button that exists in its empty state', () => {
@@ -211,25 +131,23 @@ describe('Library', () => {
   it('lists a session with a delete control on the row itself', () => {
     // Delete used to appear only once the card had been expanded, which is not
     // anywhere anyone looks for it.
-    seed({ workouts: [liftWorkout()] });
+    seed({ workouts: [textWorkout()] });
     renderScreen(<LibraryScreen />);
     expect(screen.getByText('Lower')).toBeTruthy();
     expect(screen.getByLabelText('delete Lower')).toBeTruthy();
   });
 
-  it('says nothing about history or opening weight for an untrained session', () => {
-    // Suppressed rather than rendered blank: "last trained never · opens at"
-    // reads as a bug.
-    seed({ workouts: [liftWorkout()] });
+  it('says nothing about last-trained history for an untrained session', () => {
+    // Suppressed rather than rendered blank: "last trained never" reads as a bug.
+    seed({ workouts: [textWorkout()] });
     renderScreen(<LibraryScreen />);
-    expect(screen.queryByText(/opens at/)).toBeNull();
     expect(screen.queryByText(/times/)).toBeNull();
   });
 
   it('duplicates a session onto Planner with a fresh id, not the original', () => {
     // Planner, never GuidedBuilder — GuidedBuilder is append-only and cannot
     // open pre-populated with the original's content.
-    const w = liftWorkout('Lower');
+    const w = textWorkout('Lower');
     seed({ workouts: [w] });
     const navigate = jest.fn();
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
@@ -246,50 +164,11 @@ describe('Library', () => {
   });
 });
 
-describe('Exercise history', () => {
-  /*
-   * The screen `exLogFor` was written for. It had no caller anywhere for
-   * months, so nothing would have noticed if the engine's shape drifted from
-   * what a screen needs — these are the first assertions that the two agree.
-   */
-  const SQUATS = [
-    liftSession(60, 'Back squat', 100),
-    liftSession(40, 'Back squat', 105),
-    liftSession(20, 'Back squat', 110),
-  ];
-
-  it('charts a movement across its sessions', () => {
-    seed({ sessions: SQUATS });
-    renderScreen(<ExerciseScreen />, { name: 'Back squat' });
-    expect(screen.getByText('Estimated 1RM · 3 sessions')).toBeTruthy();
-    // 110kg × 5 by Epley is 128kg, and it must be the best of the three. It
-    // appears in the bests card, the trend footer and the session row, so the
-    // assertion is on the labelled pair rather than the bare number.
-    expect(screen.getByText('Best estimated 1RM')).toBeTruthy();
-    expect(screen.getAllByText('128kg').length).toBeGreaterThan(0);
-    expect(screen.getByText('Heaviest set')).toBeTruthy();
-    expect(screen.getByText('for 5 reps')).toBeTruthy();
-  });
-
-  it('refuses to draw a trend from one session', () => {
-    // A line through a single point implies a direction it cannot know.
-    seed({ sessions: [liftSession(10, 'Back squat', 100)] });
-    renderScreen(<ExerciseScreen />, { name: 'Back squat' });
-    expect(screen.getByText(/One session is a point, not a trend/)).toBeTruthy();
-  });
-
-  it('says so for a movement with nothing logged', () => {
-    seed({ sessions: SQUATS });
-    renderScreen(<ExerciseScreen />, { name: 'Zercher squat' });
-    expect(screen.getByText('Nothing logged for this one yet')).toBeTruthy();
-  });
-
-  it('renders the picker with no movement chosen', () => {
-    seed({ sessions: SQUATS });
-    renderScreen(<ExerciseScreen />, {});
-    expect(screen.getByText('Pick a movement')).toBeTruthy();
-  });
-});
+/*
+ * The Exercise history screen — a per-movement e1RM trend read through
+ * `exLogFor`/`knownMovements` — went whole with the rest of strength on
+ * 17 August 2026, and its route with it.
+ */
 
 describe('Day preview', () => {
   /*
@@ -308,19 +187,17 @@ describe('Day preview', () => {
     renderScreen(<DayScreen />, { date: '2030-06-15' });
     expect(screen.getByText('Nothing scheduled')).toBeTruthy();
     expect(screen.getByText('Nothing scheduled for this day.')).toBeTruthy();
-    expect(screen.queryByText('Back squat')).toBeNull();
+    expect(screen.queryByText('Lower')).toBeNull();
     // The date heading must format, not fall through to the raw route param.
     expect(screen.queryByText('2030-06-15')).toBeNull();
   });
 
   it('shows the matched workout for a scheduled day, read-only', () => {
-    // liftWorkout()'s workout name is always 'Lower'; its first arg names the
-    // EXERCISE ('Back squat' by default) — see harness.tsx.
-    const w = { ...liftWorkout(), dates: ['2030-06-15'] };
+    const w = { ...textWorkout(), dates: ['2030-06-15'] };
     seed({ workouts: [w] });
     renderScreen(<DayScreen />, { date: '2030-06-15' });
     expect(screen.getByText('Lower')).toBeTruthy();
-    expect(screen.getByText('Back squat')).toBeTruthy();
+    expect(screen.getByText('Metcon')).toBeTruthy();
     expect(screen.queryByText('Nothing scheduled')).toBeNull();
     // Read-only: no Start/Edit/Delete/Duplicate control — those are
     // Library/Training's job, not this preview's.
@@ -363,9 +240,9 @@ describe('Calendar day-cell tap', () => {
     d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) + state;
 
   it("tapping a trained day lands on that day's Recap, not a generic Calendar view", () => {
-    const trained = liftSession(0, 'Back squat', 100);
+    const trained = textSession(0);
     const date = sameMonthOffset(6);
-    trained.date = ymd(date); // liftSession dates itself off "today" — retarget it
+    trained.date = ymd(date); // textSession dates itself off "today" — retarget it
     seed({ sessions: [trained] });
     const navigate = jest.fn();
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
@@ -380,7 +257,7 @@ describe('Calendar day-cell tap', () => {
     // The dots are a visual difference only; the label is the whole of what a
     // screen reader gets. A day with a workout scheduled on it must say so.
     const date = sameMonthOffset(9);
-    seed({ workouts: [{ ...liftWorkout(), dates: [ymd(date)] }], sessions: [] });
+    seed({ workouts: [{ ...textWorkout(), dates: [ymd(date)] }], sessions: [] });
     (useNavigation as jest.Mock).mockReturnValue({ navigate: jest.fn() });
 
     renderScreen(<CalendarScreen />);
@@ -448,8 +325,8 @@ describe("Home's week strip tap", () => {
 
   it("tapping a trained day lands on that day's Recap, not a generic Calendar view", () => {
     const date = weekEndDate();
-    const trained = liftSession(0, 'Back squat', 100);
-    trained.date = ymd(date); // liftSession dates itself off "today" — retarget it
+    const trained = textSession(0);
+    trained.date = ymd(date); // textSession dates itself off "today" — retarget it
     seed({ sessions: [trained] });
     const navigate = jest.fn();
     (useNavigation as jest.Mock).mockReturnValue({ navigate });
@@ -515,8 +392,8 @@ describe("Home's Today's plan delete", () => {
 
 describe('Library tabs', () => {
   const DB = {
-    workouts: [liftWorkout()],
-    sessions: [liftSession(10, 'Back squat', 100)],
+    workouts: [textWorkout()],
+    sessions: [textSession(10)],
     settings: { mobility: ['World’s Greatest Stretch', 'Parasympathetic Breathing'] as never },
   };
 
@@ -703,7 +580,11 @@ describe('Library folders picker', () => {
 });
 
 describe('Planner toolbar kind guard', () => {
-  it('hides + Conditioning for a strength workout', () => {
+  it('offers Metcon / notes, not Conditioning, for a strength (text) workout', () => {
+    // A `StrengthBlock`-shaped block (exercises/sets) is not a valid `Block`
+    // any more — `Block` is `CondBlock | TextBlock` since 17 August 2026 — so
+    // the fixture here is what a 'strength'-kind workout actually holds now:
+    // a text block, authored through GuidedBuilder's Metcon/notes choice.
     seed({
       workouts: [
         {
@@ -711,14 +592,12 @@ describe('Planner toolbar kind guard', () => {
           name: 'Strength Toolbar Test',
           kind: 'strength',
           updatedAt: 1,
-          blocks: [
-            { id: 'b1', exercises: [{ id: 'e1', name: 'Squat', mode: 'reps_kg', sets: [{ t: '5', rpe: '8' }] }] },
-          ],
+          blocks: [{ id: 'b1', kind: 'text', heading: 'Metcon', body: '' }],
         },
       ],
     });
     renderScreen(<PlannerScreen />, { id: 'toolbar-strength-1' });
-    expect(screen.getByText('＋ Block')).toBeTruthy();
+    expect(screen.getByText('✎ Metcon / notes')).toBeTruthy();
     expect(screen.queryByText('♥ Conditioning')).toBeNull();
   });
 
@@ -741,6 +620,6 @@ describe('Planner toolbar kind guard', () => {
     });
     renderScreen(<PlannerScreen />, { id: 'toolbar-cond-1' });
     expect(screen.getByText('♥ Conditioning')).toBeTruthy();
-    expect(screen.queryByText('＋ Block')).toBeNull();
+    expect(screen.queryByText('✎ Metcon / notes')).toBeNull();
   });
 });

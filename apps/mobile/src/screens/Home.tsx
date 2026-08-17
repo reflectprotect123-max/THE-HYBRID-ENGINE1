@@ -8,7 +8,6 @@ import {
   isCondWorkout,
   recoveryBand,
   rpeGapInfo,
-  sessionVolume,
   todayHrv,
   todayRecovery,
   todaySleepPerformance,
@@ -122,8 +121,6 @@ export function HomeScreen() {
       ),
     [sessions],
   );
-  const recentVolume = useMemo(() => week7.reduce((n, s) => n + sessionVolume(s), 0), [week7]);
-
   const bandColor = band === 'good' ? color.neonOk : band === 'watch' ? color.neonWarn : color.neonBad;
 
   const dateLine = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
@@ -328,8 +325,7 @@ export function HomeScreen() {
 
       <SectionHead title="Last 7 days" right={<Link onPress={() => nav.navigate('History')}>History ›</Link>} />
       <View className="flex-row gap-1">
-        <Stat value={recentVolume.toLocaleString()} label="kg lifted" tint />
-        <Stat value={String(week7.length)} label={week7.length === 1 ? 'session' : 'sessions'} />
+        <Stat value={String(week7.length)} label={week7.length === 1 ? 'session' : 'sessions'} tint />
       </View>
     </Screen>
   );

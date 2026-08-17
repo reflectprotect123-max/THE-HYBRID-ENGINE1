@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
-  CON_FORMATS, blockExercises, byMonth, dayLabel, epley, fmtDistance, isCond, sessionRpe, sessionVolume, type LoggedSet, type Session, type StrengthBlock } from '@hybrid/engine';
+  CON_FORMATS, byMonth, dayLabel, fmtDistance, isCond, sessionRpe, type Session } from '@hybrid/engine';
 import { useDb } from '../store/db';
 import { Card, Empty, Kicker, Screen, SectionHead, T, Tap, Title } from '../ui';
 import { RouteMap } from '../ui/RouteMap';
@@ -66,13 +66,11 @@ export function HistoryScreen() {
 }
 
 function Summary({ s }: { s: Session }) {
-  const vol = sessionVolume(s);
   const rpe = sessionRpe(s);
   const cond = s.blocks.filter((b) => isCond(b) && b.condResult).length;
   return (
     <T num className="mt-0.5 text-3 text-muted">
       {[
-        vol ? `${vol.toLocaleString()} kg` : null,
         rpe.felt != null ? `felt RPE ${rpe.felt.toFixed(1)}` : null,
         cond ? `${cond} conditioning` : null,
         s.status === 'incomplete' ? 'left unfinished' : null,
@@ -101,25 +99,6 @@ function Detail({ s }: { s: Session }) {
             <View className="mt-1">
               <RouteMap route={b.condResult.route} />
             </View>
-          ) : null}
-          {!isCond(b) ? (
-            blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
-              const logged = ex.sets.filter((st) => st.done);
-              if (!logged.length) return null;
-              const best = logged.reduce<number | null>((m, st) => {
-                const e1 = epley(st.aVal, st.aVal2);
-                return e1 != null && (m == null || e1 > m) ? e1 : m;
-              }, null);
-              return (
-                <View key={ex.id ?? ei}>
-                  <T w="semi" className="text-4 text-text">{ex.name || 'Exercise'}</T>
-                  <T num className="text-3 text-muted">
-                    {logged.map((st) => `${st.aVal || '—'}${st.aVal2 ? '×' + st.aVal2 : ''}${st.felt ? '@' + st.felt : ''}`).join('  ')}
-                    {best != null ? `  ·  e1RM ${Math.round(best)}kg` : ''}
-                  </T>
-                </View>
-              );
-            })
           ) : null}
         </View>
       ))}

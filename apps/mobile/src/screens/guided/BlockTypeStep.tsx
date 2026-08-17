@@ -2,8 +2,9 @@ import { View } from 'react-native';
 import type { BlockKind } from '@hybrid/guided-flow';
 import { Btn, Title } from '../../ui';
 
+/* 'lift' — the fifth choice, "🏋 Lift" — went with the rest of strength on
+   17 August 2026. */
 const CHOICES: { kind: Exclude<BlockKind, null>; label: string; glyph: string }[] = [
-  { kind: 'lift', label: 'Lift', glyph: '🏋' },
   { kind: 'warmup', label: 'Warm-up / Cooldown', glyph: '☀' },
   { kind: 'cond', label: 'Conditioning', glyph: '♥' },
   { kind: 'metcon', label: 'Metcon / notes', glyph: '✎' },

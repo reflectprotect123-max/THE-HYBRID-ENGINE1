@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -11,33 +11,22 @@ import {
   type FlowDraft,
   type FlowStep,
 } from '@hybrid/guided-flow';
-import { CON_EFFORTS, knownMovements, newBlock, newCondBlock, newTextBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
+import { CON_EFFORTS, newCondBlock, newTextBlock, type CondFmtKey, type EffortKey } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { Btn, Kicker, Title } from '../../ui';
 import type { RootStackParams } from '../../App';
 import { BlockTypeStep } from './BlockTypeStep';
-import { MovementStep } from './MovementStep';
-import { SetsStep } from './SetsStep';
-import { RepsStep } from './RepsStep';
-import { RpeStep } from './RpeStep';
 import { CondDetailStep } from './CondDetailStep';
 import { TextStep } from './TextStep';
 
 interface Draft extends FlowDraft {
   blockKind: Exclude<BlockKind, null> | null;
-  isWarmupSet: boolean;
-  sets: number;
   effort: EffortKey;
   minutes: number;
 }
 
 const EMPTY_DRAFT: Draft = {
   blockKind: null,
-  isWarmupSet: false,
-  movementName: '',
-  sets: 3,
-  reps: '',
-  rpe: '',
   condFmt: '',
   effort: 'medium',
   minutes: 0,
@@ -45,18 +34,25 @@ const EMPTY_DRAFT: Draft = {
 };
 
 const BLOCK_LABEL: Record<Exclude<BlockKind, null>, string> = {
-  lift: 'Lift',
   warmup: 'Warm-up / Cooldown',
   cond: 'Conditioning',
   metcon: 'Metcon / notes',
 };
 
+/*
+ * The 'lift' block kind — its own movement/sets/reps/rpe steps
+ * (`MovementStep`/`SetsStep`/`RepsStep`/`RpeStep`), the `known` movement
+ * list fed to `MovementStep` (`knownMovements`), and `newBlock()` — went
+ * whole with the rest of strength on 17 August 2026. This wizard now only
+ * ever authors a conditioning block or a text block (warm-up/cooldown or
+ * metcon/notes); `@hybrid/guided-flow`'s `BlockKind` dropped 'lift' the same
+ * day, so there is no third path to branch on here any more.
+ */
 export function GuidedBuilderScreen() {
   const { params } = useRoute<RouteProp<RootStackParams, 'GuidedBuilder'>>();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const insets = useSafeAreaInsets();
-  const { db, workouts, sessions, update } = useDb();
-  const known = useMemo(() => knownMovements(workouts, sessions), [workouts, sessions]);
+  const { db, update } = useDb();
   // By-id subject lookup goes through the WHOLE db, not the scoped view: the
   // guided flow itself flips a new workout's kind to conditioning the moment a
   // conditioning block is added, and a scoped lookup would make the editor
@@ -64,14 +60,17 @@ export function GuidedBuilderScreen() {
   // enough; scoping is for discovery surfaces, not the subject in hand.
   const currentWorkout = db.workouts.find((x) => x.id === params.id);
   // A workout that has already committed to a kind only offers that kind's
-  // blocks; a brand-new one (no kind yet) offers all four and commits on the
-  // first block. `kind` is trustworthy here — sanitizeDB never invents one for
-  // a blockless workout and never overwrites a stored one.
+  // blocks — a conditioning block cannot join a workout that already carries
+  // a text block, and vice versa (`CondBlock`'s own doc comment: `sanitizeDB`
+  // treats a mixed workout as two workouts, once, on load). A brand-new one
+  // (no kind yet) offers all three. `kind` is trustworthy here — sanitizeDB
+  // never invents one for a blockless workout and never overwrites a stored
+  // one.
   const allowedKinds: Exclude<BlockKind, null>[] | undefined =
     currentWorkout?.kind === 'conditioning'
       ? ['cond']
       : currentWorkout?.kind === 'strength'
-        ? ['lift', 'warmup', 'metcon']
+        ? ['warmup', 'metcon']
         : undefined;
 
   const [step, setStep] = useState<FlowStep>('block-type');
@@ -79,7 +78,7 @@ export function GuidedBuilderScreen() {
   const [added, setAdded] = useState<string[]>([]);
   const [phase, setPhase] = useState<'flow' | 'add-another'>('flow');
 
-  const state = { blockKind: draft.blockKind, isWarmupSet: draft.isWarmupSet };
+  const state = { blockKind: draft.blockKind };
 
   function patch(p: Partial<Draft>) {
     setDraft((d) => ({ ...d, ...p }));
@@ -120,15 +119,7 @@ export function GuidedBuilderScreen() {
       // decided once — `allowedKinds` above keeps every later block on the
       // same side of the split.
       if (!w.kind) w.kind = kind === 'cond' ? 'conditioning' : 'strength';
-      if (kind === 'lift') {
-        const block = newBlock();
-        const t = draft.isWarmupSet ? 'W' + draft.reps : draft.reps;
-        const rpe = draft.isWarmupSet ? '' : draft.rpe;
-        block.exercises[0].name = draft.movementName;
-        block.exercises[0].sets = Array.from({ length: draft.sets }, () => ({ t, rpe }));
-        w.blocks.push(block);
-        label = draft.movementName;
-      } else if (kind === 'cond') {
+      if (kind === 'cond') {
         // @hybrid/engine's flat-exported `newCondBlock` (from session.ts) is
         // zero-argument — the 4-arg version only exists as `emit.newCondBlock`,
         // reachable through the namespaced `emit` export, not this flat import.
@@ -203,60 +194,17 @@ export function GuidedBuilderScreen() {
       setStep(prev);
     });
     return unsub;
-  }, [nav, phase, step, draft.blockKind, draft.isWarmupSet, dropPhantom]);
+  }, [nav, phase, step, draft.blockKind, dropPhantom]);
 
   function pick(kind: Exclude<BlockKind, null>) {
-    // A fresh block starts from a clean draft: without this, `isWarmupSet` (and
-    // every other answer) leaks out of the previous block into this one.
+    // A fresh block starts from a clean draft: without this, an earlier
+    // block's answers leak into this one.
     setDraft({ ...EMPTY_DRAFT, blockKind: kind });
-    setStep(nextStep('block-type', { blockKind: kind, isWarmupSet: false }) ?? 'block-type');
+    setStep(nextStep('block-type', { blockKind: kind }) ?? 'block-type');
   }
 
   function renderStep() {
     if (step === 'block-type') return <BlockTypeStep onPick={pick} onBack={goBack} allowed={allowedKinds} />;
-
-    if (step === 'movement') {
-      return (
-        <MovementStep
-          value={draft.movementName}
-          known={known}
-          onChange={(v) => patch({ movementName: v })}
-          onNext={goNext}
-          onBack={goBack}
-          disabled={!canAdvance('movement', draft)}
-        />
-      );
-    }
-
-    if (step === 'sets') {
-      return <SetsStep value={draft.sets} onChange={(n) => patch({ sets: n })} onNext={goNext} onBack={goBack} />;
-    }
-
-    if (step === 'reps') {
-      return (
-        <RepsStep
-          value={draft.reps}
-          isWarmupSet={draft.isWarmupSet}
-          onChange={(v) => patch({ reps: v })}
-          onWarmupSetChange={(v) => patch({ isWarmupSet: v })}
-          onNext={goNext}
-          onBack={goBack}
-          disabled={!canAdvance('reps', draft)}
-        />
-      );
-    }
-
-    if (step === 'rpe') {
-      return (
-        <RpeStep
-          value={draft.rpe}
-          onChange={(v) => patch({ rpe: v })}
-          onNext={goNext}
-          onBack={goBack}
-          disabled={!canAdvance('rpe', draft)}
-        />
-      );
-    }
 
     if (step === 'cond-detail') {
       return (

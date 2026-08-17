@@ -36,7 +36,6 @@ import { LibraryScreen } from './screens/Library';
 import { ProgressScreen } from './screens/Progress';
 import { HistoryScreen } from './screens/History';
 import { CalendarScreen } from './screens/Calendar';
-import { ExerciseScreen } from './screens/Exercise';
 import { DayScreen } from './screens/Day';
 import { RecapScreen } from './screens/Recap';
 import { PlannerScreen } from './screens/Planner';
@@ -97,8 +96,6 @@ export type RootStackParams = {
   Conditioning: { bi?: number; bid?: string } | undefined;
   History: undefined;
   Calendar: undefined;
-  /** One movement's whole history. No param = the movement picker. */
-  Exercise: { name?: string } | undefined;
   /* Only the date — see Day.tsx's own doc comment for why a workoutId is
      deliberately NOT threaded through navigation params here. */
   Day: { date: string };
@@ -338,7 +335,6 @@ function AppInner() {
                   <Stack.Screen name="Conditioning" component={ConditioningScreen} />
                   <Stack.Screen name="History" component={HistoryScreen} />
                   <Stack.Screen name="Calendar" component={CalendarScreen} />
-                  <Stack.Screen name="Exercise" component={ExerciseScreen} />
                   <Stack.Screen name="Day" component={DayScreen} />
                 </Stack.Navigator>
               )}

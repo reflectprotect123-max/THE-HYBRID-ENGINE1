@@ -5,22 +5,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   CON_FORMATS,
-  blockExercises,
-  detectPRs,
-  exFinished,
   ensureSharedCore,
   fmtRest,
   isCond,
   isText,
-  liftAdapt,
-  rxLine,
-  sessionLetters,
   sessionProgress,
-  sessionVolume,
   ymd,
-  type LoggedSet,
-  type Session,
-  type StrengthBlock,
   type TextBlock,
   type Workout,
 } from '@hybrid/engine';
@@ -40,7 +30,7 @@ import type { RootStackParams } from '../App';
 export function TrainingScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const insets = useSafeAreaInsets();
-  const { workouts, sessions, activeSession, update } = useDb();
+  const { workouts, activeSession, update } = useDb();
   const { running: restRunning, left: restLeft, stop: stopRest } = useRest();
   const today = ymd(new Date());
   const dow = new Date().getDay();
@@ -69,20 +59,10 @@ export function TrainingScreen() {
    * render". Hook count has to be identical on every path.
    *
    * Memoised because this screen sits UNDER the Logger in the stack and stays
-   * mounted, so every keystroke in a set field re-rendered it — and detectPRs
-   * re-scans the entire training history for records.
+   * mounted, so every keystroke elsewhere re-renders it.
    */
   const s = activeSession;
-  const letters = useMemo(() => (s ? sessionLetters(s) : {}), [s]);
   const prog = useMemo(() => (s ? sessionProgress(s) : { done: 0, total: 0, pct: 0 }), [s]);
-  // Against every OTHER session — comparing a session with itself would call
-  // its own first working set a record.
-  const prs = useMemo(() => (s ? detectPRs(s, sessions.filter((x) => x.id !== s.id)) : []), [s, sessions]);
-  const volume = useMemo(() => (s ? sessionVolume(s) : 0), [s]);
-  /* Which exercise you are on. Guarded on `s` like every hook above it, so the
-     count is identical whether or not a session is live — typecheck is blind
-     to a hook that only runs on one path. */
-  const current = useMemo(() => (s ? firstUnfinished(s) : null), [s]);
   const allDone = prog.total > 0 && prog.done >= prog.total;
 
   // Narrowed on `s`, not activeSession, so it stays non-null below.
@@ -162,11 +142,6 @@ export function TrainingScreen() {
         ds.status = 'completed';
         ds.completedAt = completedAt;
         ds.updatedAt = completedAt;
-        /* Bank each lift's next working weight, in the SAME write that closes
-           the session — the way conditioning banks its level in the write that
-           records the effort. Split across two updates, a crash between them
-           would leave a finished session that progressed nothing. */
-        draft.settings.liftProgress = liftAdapt(ds, draft.settings).liftProgress;
         const core = ensureSharedCore(draft, completedAt).core!;
         draft.core = appendSharedCoreEvent(core, {
           type: 'workout_completed',
@@ -209,7 +184,6 @@ export function TrainingScreen() {
         <T num className="text-2 text-dim">
           {prog.done} of {prog.total} done
         </T>
-        <T num className="text-2 text-dim">{volume.toLocaleString()} kg</T>
       </View>
 
       {/* How much longer, at a glance — not a floating overlay, since the
@@ -268,49 +242,9 @@ export function TrainingScreen() {
                 {b.condResult ? 'logged · tap to review' : 'runs by heart rate · tap to start'}
               </T>
             </Tap>
-          ) : (
-            blockExercises(b as StrengthBlock<LoggedSet>).map((ex, ei) => {
-              const done = exFinished(ex);
-              const isCurrent = current === `${bi}:${ei}`;
-              return (
-                <Tap
-                  key={ex.id ?? ei}
-                  onPress={() => nav.navigate('Logger')}
-                  // The one you are on. Every card carried the same weight, so
-                  // finding your place meant reading seven set counters.
-                  style={isCurrent ? { boxShadow: '0 18px 40px -20px rgba(0,0,0,.9)' } : undefined}
-                  className={`mb-1 rounded-lg border p-2 ${
-                    done ? 'border-done-line bg-done-bg' : isCurrent ? 'border-gold-line bg-panel' : 'border-line bg-panel'
-                  }`}
-                >
-                  <View className="flex-row items-center gap-1">
-                    <Ltr>{letters[bi]?.[ei] ?? '?'}</Ltr>
-                    <T w="semi" className="flex-1 text-5 text-text" numberOfLines={1}>
-                      {ex.name || 'Exercise'}
-                    </T>
-                    <T num className="text-3 text-dim">
-                      {ex.sets.filter((x) => x.done).length}/{ex.sets.length}
-                    </T>
-                  </View>
-                  <T num className="mt-0.5 text-3 text-muted">{rxLine(ex)}</T>
-                  {ex.cue ? <T className="mt-0.5 text-3 text-gold2">{ex.cue}</T> : null}
-                </Tap>
-              );
-            })
-          )}
+          ) : null}
         </View>
       ))}
-
-      {prs.length ? (
-        <View className="mt-2 rounded-lg border border-gold-line bg-gold-wash p-2">
-          <T w="semi" className="text-2 uppercase tracking-widest text-dim">Personal records</T>
-          {prs.map((p) => (
-            <T key={p.name} num className="mt-0.5 text-4 text-gold2">
-              {p.name} — {p.kg}kg × {p.reps} (e1RM {Math.round(p.e1)}kg)
-            </T>
-          ))}
-        </View>
-      ) : null}
 
       {/* Brass only once the work is actually done. At 2 of 7 the loudest
           control on the screen was the one action you should not take yet.
@@ -320,16 +254,4 @@ export function TrainingScreen() {
       </Btn>
     </ScrollView>
   );
-}
-
-/** `"bi:ei"` of the first exercise with sets still to log, or null when the
- *  session is done. Conditioning blocks have no set list and are skipped. */
-function firstUnfinished(s: Session): string | null {
-  for (let bi = 0; bi < s.blocks.length; bi++) {
-    const b = s.blocks[bi];
-    if (isCond(b)) continue;
-    const exs = blockExercises(b as StrengthBlock<LoggedSet>);
-    for (let ei = 0; ei < exs.length; ei++) if (!exFinished(exs[ei])) return `${bi}:${ei}`;
-  }
-  return null;
 }

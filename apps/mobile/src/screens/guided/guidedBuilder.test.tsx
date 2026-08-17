@@ -1,6 +1,11 @@
 /*
  * The guided builder: mounting it against a seeded store and driving the
  * whole flow for real, the same way training.test.tsx mounts Training.
+ *
+ * The 'lift' block kind — its own movement/sets/reps/rpe steps — went with
+ * the rest of strength on 17 August 2026, and every test that drove it went
+ * with it. What remains authors a conditioning block or a text block
+ * (warm-up/cooldown or metcon/notes).
  */
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { LS_KEY, type EngineDB } from '@hybrid/engine';
@@ -19,103 +24,65 @@ const flushSave = () => act(() => jest.advanceTimersByTime(500));
 const newWorkout = () => ({ id: 'w1', name: 'New session', blocks: [], updatedAt: Date.now() });
 
 describe('GuidedBuilderScreen', () => {
-  it('builds a lift block end to end, lands on "add another?", and really saves it', () => {
+  it('builds a conditioning block end to end, lands on "add another?", and really saves it', () => {
     seed({ workouts: [newWorkout()] });
     renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
 
     expect(screen.getByText('Session · block 1')).toBeTruthy();
 
-    fireEvent.press(screen.getByText('🏋 Lift'));
-    expect(screen.getByText('Which movement?')).toBeTruthy();
+    fireEvent.press(screen.getByText('♥ Conditioning'));
+    expect(screen.getByText('What kind of conditioning?')).toBeTruthy();
 
-    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
-    fireEvent.press(screen.getByText('Next'));
-    expect(screen.getByText('How many sets?')).toBeTruthy();
-
-    fireEvent.press(screen.getByText('Next'));
-    expect(screen.getByText('How many reps?')).toBeTruthy();
-
-    fireEvent.press(screen.getByText('8'));
-    fireEvent.press(screen.getByText('Next'));
-    expect(screen.getByText('How hard should it feel?')).toBeTruthy();
-
-    fireEvent.press(screen.getByText('RPE 8'));
+    fireEvent.press(screen.getByText('Steady-state'));
     fireEvent.press(screen.getByText('Next'));
 
     expect(screen.getByText('Yes, add another')).toBeTruthy();
     expect(screen.getByText('Add another block?')).toBeTruthy();
-    expect(screen.getByText('Back Squat added')).toBeTruthy();
+    expect(screen.getByText('Conditioning added')).toBeTruthy();
 
     /*
      * Everything above is component state, set unconditionally once `update()`
      * has been CALLED — and `update()`'s contract is to no-op silently when its
      * callback returns false, which is exactly what happens when the workout
-     * cannot be found. So "Back Squat added" on screen is no evidence that
+     * cannot be found. So "Conditioning added" on screen is no evidence that
      * anything was written. This is: the seeded store, read back off the same
      * key the app persists to.
      */
     flushSave();
     const w = persisted().workouts.find((x) => x.id === 'w1')!;
+    expect(w.kind).toBe('conditioning');
     expect(w.blocks).toHaveLength(1);
-    const ex = w.blocks[0].exercises![0];
-    expect(ex.name).toBe('Back Squat');
-    expect(ex.sets).toHaveLength(3);
-    // Plain '8', not 'W8': nothing in this flow marked the set as a warm-up, and
-    // the 'W' prefix is where that flag lives in the stored target.
-    expect(ex.sets.map((s) => s.t)).toEqual(['8', '8', '8']);
-    expect(ex.sets.map((s) => s.rpe)).toEqual(['8', '8', '8']);
+    expect(w.blocks[0].kind).toBe('conditioning');
+    expect((w.blocks[0] as { condFmt: string }).condFmt).toBe('steady');
   });
 
-  it('keeps a custom reps target visible after stepping back onto it', () => {
-    // The custom box used to be local state, so it reset to '' on the unmount
-    // that every Back navigation causes: an empty box, no chip selected, and
-    // Next enabled with nothing on screen to say why.
+  it('builds a metcon/notes text block end to end', () => {
     seed({ workouts: [newWorkout()] });
     renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
 
-    fireEvent.press(screen.getByText('🏋 Lift'));
-    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('Next'));
+    fireEvent.press(screen.getByText('✎ Metcon / notes'));
+    expect(screen.getByText("What's the workout?")).toBeTruthy();
 
-    fireEvent.changeText(screen.getByLabelText('custom reps target'), '8-12');
-    fireEvent.press(screen.getByText('Next'));
-    expect(screen.getByText('How hard should it feel?')).toBeTruthy();
+    fireEvent.changeText(screen.getByLabelText("What's the workout?"), 'AMRAP 12 — 10 burpees, 200m run');
+    fireEvent.press(screen.getByText('Done'));
 
-    fireEvent.press(screen.getByText('‹ Back'));
-    expect(screen.getByText('How many reps?')).toBeTruthy();
-    expect(screen.getByLabelText('custom reps target').props.value).toBe('8-12');
-  });
-
-  it('does not clobber a custom reps target while it is being typed', () => {
-    // A native TextInput always reports the FULL new text on each keystroke,
-    // built from whatever the box is currently showing -- not from some
-    // separate intended-final-string. Deriving the shown value from `value`
-    // by blanking it whenever `value` happens to equal a preset ('8', '5', ...)
-    // used to reset the box to '' the instant the typed-so-far text matched
-    // one, so the next keystroke landed on an empty field: typing "8-12"
-    // produced a box (and a stored value) of "-12".
-    seed({ workouts: [newWorkout()] });
-    renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
-
-    fireEvent.press(screen.getByText('🏋 Lift'));
-    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('Next'));
-
-    for (const ch of '8-12') {
-      const shown = screen.getByLabelText('custom reps target').props.value;
-      fireEvent.changeText(screen.getByLabelText('custom reps target'), shown + ch);
-    }
-    expect(screen.getByLabelText('custom reps target').props.value).toBe('8-12');
-
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('RPE 8'));
-    fireEvent.press(screen.getByText('Next'));
+    expect(screen.getByText('Yes, add another')).toBeTruthy();
+    expect(screen.getByText('Metcon / notes added')).toBeTruthy();
 
     flushSave();
     const w = persisted().workouts.find((x) => x.id === 'w1')!;
-    expect(w.blocks[0].exercises![0].sets.map((s) => s.t)).toEqual(['8-12', '8-12', '8-12']);
+    expect(w.kind).toBe('strength');
+    expect(w.blocks).toHaveLength(1);
+    expect(w.blocks[0].kind).toBe('text');
+    expect((w.blocks[0] as { body?: string }).body).toBe('AMRAP 12 — 10 burpees, 200m run');
+  });
+
+  it('the warm-up/cooldown block asks its own question', () => {
+    seed({ workouts: [newWorkout()] });
+    renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
+
+    fireEvent.press(screen.getByText('☀ Warm-up / Cooldown'));
+    expect(screen.getByText("What's the warm-up?")).toBeTruthy();
   });
 
   it('cancelling the first question takes the phantom session with it', () => {
@@ -140,13 +107,8 @@ describe('GuidedBuilderScreen', () => {
     seed({ workouts: [newWorkout()] });
     renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
 
-    fireEvent.press(screen.getByText('🏋 Lift'));
-    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('8'));
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('RPE 8'));
+    fireEvent.press(screen.getByText('♥ Conditioning'));
+    fireEvent.press(screen.getByText('Steady-state'));
     fireEvent.press(screen.getByText('Next'));
 
     fireEvent.press(screen.getByText('Yes, add another'));
@@ -175,21 +137,13 @@ describe('GuidedBuilderScreen', () => {
       navRef.navigate('Under test', { id: 'w1' });
     });
 
-    fireEvent.press(screen.getByText('🏋 Lift'));
-    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
-    fireEvent.press(screen.getByText('Next'));
-    expect(screen.getByText('How many sets?')).toBeTruthy();
+    fireEvent.press(screen.getByText('♥ Conditioning'));
+    expect(screen.getByText('What kind of conditioning?')).toBeTruthy();
 
     act(() => {
       navRef.goBack();
     });
     // Still in the flow, one step earlier — not back on the route below.
-    expect(screen.getByText('Which movement?')).toBeTruthy();
-    expect(screen.getByLabelText('movement name').props.value).toBe('Back Squat');
-
-    act(() => {
-      navRef.goBack();
-    });
     expect(screen.getByText('What are we doing?')).toBeTruthy();
 
     // From the first question there IS no earlier step, so this one leaves —
@@ -203,56 +157,15 @@ describe('GuidedBuilderScreen', () => {
     expect(persisted().settings.deletedIds?.w1).toBeTruthy();
   });
 
-  it('starts each new block from a clean draft', () => {
-    // Marking a set as a warm-up used to leak into the NEXT block picked in the
-    // same wizard session — which silently skips the RPE step and prefixes the
-    // stored target with 'W'.
-    seed({ workouts: [newWorkout()] });
-    renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
-
-    fireEvent.press(screen.getByText('🏋 Lift'));
-    fireEvent.changeText(screen.getByLabelText('movement name'), 'Warm-up squat');
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByLabelText('this is a warm-up'));
-    fireEvent.press(screen.getByText('8'));
-    // A warm-up set skips RPE entirely, so this commits the block.
-    fireEvent.press(screen.getByText('Next'));
-    expect(screen.getByText('Yes, add another')).toBeTruthy();
-
-    fireEvent.press(screen.getByText('Yes, add another'));
-    fireEvent.press(screen.getByText('🏋 Lift'));
-    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('8'));
-    fireEvent.press(screen.getByText('Next'));
-    // Reached at all only because the warm-up flag did not carry over.
-    expect(screen.getByText('How hard should it feel?')).toBeTruthy();
-    fireEvent.press(screen.getByText('RPE 8'));
-    fireEvent.press(screen.getByText('Next'));
-
-    flushSave();
-    const w = persisted().workouts.find((x) => x.id === 'w1')!;
-    expect(w.blocks).toHaveLength(2);
-    expect(w.blocks[0].exercises![0].sets[0].t).toBe('W8');
-    expect(w.blocks[1].exercises![0].sets[0]).toEqual({ t: '8', rpe: '8' });
-  });
-
-  it('excludes Conditioning from block-type choices once a strength block exists', () => {
+  it('excludes Conditioning from block-type choices once a text block exists', () => {
     seed({ workouts: [newWorkout()] });
     renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
 
     expect(screen.getByText('♥ Conditioning')).toBeTruthy();
 
-    fireEvent.press(screen.getByText('🏋 Lift'));
-    fireEvent.changeText(screen.getByLabelText('movement name'), 'Back Squat');
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('8'));
-    fireEvent.press(screen.getByText('Next'));
-    fireEvent.press(screen.getByText('RPE 8'));
-    fireEvent.press(screen.getByText('Next'));
+    fireEvent.press(screen.getByText('✎ Metcon / notes'));
+    fireEvent.changeText(screen.getByLabelText("What's the workout?"), '10 min bike');
+    fireEvent.press(screen.getByText('Done'));
 
     expect(screen.getByText('Yes, add another')).toBeTruthy();
     fireEvent.press(screen.getByText('Yes, add another'));
@@ -265,13 +178,13 @@ describe('GuidedBuilderScreen', () => {
   });
 
   // The mirror of the test above. A split that only holds in one direction is
-  // half a split: a conditioning workout must stop offering strength blocks
-  // just as firmly as a strength workout stops offering conditioning.
-  it('excludes Lift / Warm-up / Metcon from block-type choices once a conditioning block exists', () => {
+  // half a split: a conditioning workout must stop offering text blocks just
+  // as firmly as a text-block workout stops offering conditioning.
+  it('excludes Warm-up / Metcon from block-type choices once a conditioning block exists', () => {
     seed({ workouts: [newWorkout()] });
     renderScreen(<GuidedBuilderScreen />, { id: 'w1' });
 
-    expect(screen.getByText('🏋 Lift')).toBeTruthy();
+    expect(screen.getByText('✎ Metcon / notes')).toBeTruthy();
 
     fireEvent.press(screen.getByText('♥ Conditioning'));
     expect(screen.getByText('What kind of conditioning?')).toBeTruthy();
@@ -282,7 +195,6 @@ describe('GuidedBuilderScreen', () => {
     fireEvent.press(screen.getByText('Yes, add another'));
 
     expect(screen.getByText('♥ Conditioning')).toBeTruthy();
-    expect(screen.queryByText('🏋 Lift')).toBeNull();
     expect(screen.queryByText('☀ Warm-up / Cooldown')).toBeNull();
     expect(screen.queryByText('✎ Metcon / notes')).toBeNull();
 

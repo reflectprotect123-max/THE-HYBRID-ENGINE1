@@ -1,39 +1,39 @@
-export type FlowStep = 'block-type' | 'movement' | 'sets' | 'reps' | 'rpe' | 'cond-detail' | 'text';
+export type FlowStep = 'block-type' | 'cond-detail' | 'text';
 
-export type BlockKind = 'lift' | 'warmup' | 'cond' | 'metcon' | null;
+export type BlockKind = 'warmup' | 'cond' | 'metcon' | null;
 
 export interface FlowState {
   blockKind: BlockKind;
-  /** Whether the SET currently being authored is marked as a warm-up. */
-  isWarmupSet: boolean;
 }
 
 /** Every field any step's `canAdvance` check might need to read. */
 export interface FlowDraft {
-  movementName: string;
-  reps: string;
-  rpe: string;
   condFmt: string;
   text: string;
 }
 
-const LIFT_SEQUENCE: FlowStep[] = ['block-type', 'movement', 'sets', 'reps', 'rpe'];
 const COND_SEQUENCE: FlowStep[] = ['block-type', 'cond-detail'];
 const TEXT_SEQUENCE: FlowStep[] = ['block-type', 'text'];
+
+/*
+ * `'lift'` — the fourth `BlockKind`, and its own `LIFT_SEQUENCE`
+ * ('block-type' → 'movement' → 'sets' → 'reps' → 'rpe') — went whole with
+ * the rest of strength on 17 August 2026. `FlowState` lost `isWarmupSet`
+ * with it: it existed only to decide whether a lift block's 'rpe' step was
+ * skipped for a warm-up SET, a question that made sense only inside the
+ * lift sequence. The whole-BLOCK 'warmup' kind (Warm-up/Cooldown, a single
+ * text box — see the spec's "two separate warm-up concepts" note) is
+ * unrelated and unaffected.
+ */
 
 /**
  * The ordered steps for the current state. A conditioning block authors its
  * format/effort/minutes on the 'cond-detail' step. A Warm-up/Cooldown BLOCK
- * and a Metcon/notes block are both a single open text box — see the spec's
- * "two separate warm-up concepts" note: this is the whole-BLOCK choice,
- * distinct from flagging one SET as a warm-up inside an ordinary lift block.
- * A warm-up SET skips 'rpe', since nothing in a warm-up counts toward
- * autoregulation (packages/engine/src/autoreg.ts).
+ * and a Metcon/notes block are both a single open text box.
  */
 export function stepsFor(state: FlowState): FlowStep[] {
   if (state.blockKind === 'cond') return COND_SEQUENCE;
-  if (state.blockKind === 'warmup' || state.blockKind === 'metcon') return TEXT_SEQUENCE;
-  return state.isWarmupSet ? LIFT_SEQUENCE.filter((s) => s !== 'rpe') : LIFT_SEQUENCE;
+  return TEXT_SEQUENCE;
 }
 
 export function nextStep(current: FlowStep, state: FlowState): FlowStep | null {
@@ -55,9 +55,6 @@ export function prevStep(current: FlowStep, state: FlowState): FlowStep | null {
  * can never disagree about whether advancing is allowed.
  */
 export function canAdvance(step: FlowStep, draft: FlowDraft): boolean {
-  if (step === 'movement') return draft.movementName.trim().length > 0;
-  if (step === 'reps') return draft.reps.trim().length > 0;
-  if (step === 'rpe') return draft.rpe.trim().length > 0;
   if (step === 'cond-detail') return draft.condFmt.trim().length > 0;
   if (step === 'text') return draft.text.trim().length > 0;
   return true;

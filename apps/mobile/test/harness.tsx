@@ -4,7 +4,7 @@ import { render } from '@testing-library/react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { newBlock, newEx, newSet, uid, ymd, type EngineDB, type Session, type Workout } from '@hybrid/engine';
+import { newTextBlock, uid, ymd, type EngineDB, type Session, type Workout } from '@hybrid/engine';
 import { DbProvider } from '../src/store/db';
 import { RestProvider } from '../src/store/rest';
 import { SetTimerProvider } from '../src/store/setTimer';
@@ -129,57 +129,45 @@ export function seed(db: Partial<EngineDB>) {
   return full;
 }
 
-/**
- * A finished session on a given day whose volume is EXACTLY `kg`.
- *
- * One done set of `kg` × 1 rep, so a test can name the number it expects on the
- * chart instead of deriving it. `daysAgo` rather than a date string because the
- * weekly buckets are relative to now — a fixed date would drift out of the
- * window the day after it was written.
+/*
+ * `volumeSession`/`liftSession`/`liftWorkout`/`runEffort` — strength-shaped
+ * fixtures built on `newBlock`/`newEx`/`newSet` (a lifted set's kg × reps, for
+ * the deleted volume chart and Exercise history screen) — went whole with the
+ * rest of strength on 17 August 2026. `textSession`/`textWorkout` below are
+ * their replacements for the generic "a trained/scheduled session exists"
+ * shape most tests actually wanted — kept `kind: 'strength'`, same as every
+ * caller's default world (`useDiscipline` opens fresh installs in Strength;
+ * see discipline.ts), since a conditioning-kind fixture would be scoped OUT
+ * of `useDb()`'s default read the same way a real conditioning session is.
+ * `runEffort`'s `settings.conditioning` shape had no caller left once the
+ * strength-vs-conditioning balance card (its only consumer) went too.
  */
-export function volumeSession(daysAgo: number, kg: number): Session {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  const ex = { ...newEx(), id: uid(), name: 'Back squat', sets: [{ t: '1', rpe: '8', done: true, aVal: String(kg), aVal2: '1' }] };
-  return {
-    id: uid(),
-    date: ymd(d),
-    status: 'completed',
-    blocks: [{ ...newBlock(), id: uid(), heading: 'Main', exercises: [ex] }],
-    updatedAt: Date.now(),
-  };
-}
 
 /**
- * A finished session `daysAgo` holding one lift at `kg` × 5, so the e1RM the
- * balance readout compares is a number the test named.
+ * A finished session `daysAgo`, holding one ticked-off text block — so
+ * `hasLoggedWork` (and everything built on it: Calendar's trained dot,
+ * `workoutStats`) counts it as trained.
  */
-export function liftSession(daysAgo: number, name: string, kg: number): Session {
+export function textSession(daysAgo: number): Session {
   const d = new Date();
   d.setDate(d.getDate() - daysAgo);
-  // `completedAt` is not decoration: exLogFor and rpeGapInfo both require it,
-  // and a session without one is invisible to every history read path.
   const at = d.getTime();
-  const ex = { ...newEx(), id: uid(), name, sets: [{ t: '5', rpe: '8', done: true, aVal: String(kg), aVal2: '5' }] };
   return {
     id: uid(),
     date: ymd(d),
+    kind: 'strength',
     status: 'completed',
-    blocks: [{ ...newBlock(), id: uid(), heading: 'Main', exercises: [ex] }],
+    blocks: [{ ...newTextBlock(), id: uid(), done: true }],
     startedAt: at,
     completedAt: at,
     updatedAt: at,
   };
 }
 
-/** A standalone conditioning effort `daysAgo`, `min` minutes long. */
-export function runEffort(daysAgo: number, min: number) {
-  return { id: uid(), startedAt: Date.now() - daysAgo * 864e5, dur: min * 60 };
-}
-
-/** A one-lift, three-set workout — the shape almost every test wants. */
-export function liftWorkout(name = 'Back squat', sets = 3): Workout {
-  const ex = { ...newEx(), id: uid(), name, sets: Array.from({ length: sets }, () => ({ ...newSet(), t: '5', rpe: '8' })) };
-  const block = { ...newBlock(), id: uid(), heading: 'Main', exercises: [ex] };
-  return { id: uid(), name: 'Lower', blocks: [block], updatedAt: Date.now() };
+/** A one-block text workout — the shape almost every test wants when it just
+ *  needs "a workout exists in the library", named 'Lower' to match what
+ *  every existing test already expects to read back. */
+export function textWorkout(name = 'Lower'): Workout {
+  const block = { ...newTextBlock(), id: uid() };
+  return { id: uid(), name, kind: 'strength', blocks: [block], updatedAt: Date.now() };
 }
