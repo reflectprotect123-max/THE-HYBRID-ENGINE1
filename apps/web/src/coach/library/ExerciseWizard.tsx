@@ -181,7 +181,7 @@ export function ExerciseWizard({ entries, initial, lastShape, onCreateMovement, 
         <button type="button" className="cb-wizard-back" onClick={back}>
           &larr; {step === 'exercise' ? 'Back to block' : 'Back'}
         </button>
-        {step !== 'review' && (step !== 'exercise' || draft.name) && (
+        {step !== 'exercise' && step !== 'review' && (
           <button type="button" className="cb-wizard-skip" onClick={goToReview}>Skip to review</button>
         )}
       </div>

@@ -227,6 +227,7 @@ describe('ExerciseWizard — Review and commit', () => {
     const props = renderWizard({
       initial: { id: 'e7', name: 'Front Squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets: [{ id: 'e7-s0', a: '5', b: '80' }] },
     });
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
     fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
     fireEvent.click(screen.getByRole('button', { name: /add exercise/i }));
     const onSave = props.onSave as ReturnType<typeof vi.fn>;
@@ -245,6 +246,7 @@ describe('ExerciseWizard — Review and commit', () => {
   it('uses lastShape to default Measure/Sets/Values for a brand-new add', () => {
     renderWizard({ lastShape: { measure: 'seconds', sets: 5, a: '30', b: '' } });
     fireEvent.click(screen.getByText('Back Squat'));
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
     fireEvent.click(screen.getByRole('button', { name: /skip to review/i }));
     expect(screen.getByText('5 × 30s')).toBeInTheDocument();
   });
