@@ -24,8 +24,8 @@ import type { AthleteAutocoachReceipt, AthleteWeekSummary, CoachWeekPlan } from 
 
 const MONDAY = '2026-08-10';
 
-/** `DayBuilder` reads the exercise catalogue from `useDb()`, so the real
- *  provider has to be present exactly as `App.tsx` nests it. */
+/** Wrapped exactly as `App.tsx` nests it, for parity with every other coach
+ *  screen render helper in this test suite. */
 async function renderBuilder(
   repository: FakeCoachWorkspaceRepository,
   athleteId = 'roster-1',
@@ -61,7 +61,7 @@ function publishedWeek(version = 1): CoachWeekPlan {
     status: 'published',
     version,
     body: weekBodyFromDays(MONDAY, [
-      { instructions: 'Steady', blocks: [{ id: 'b1', category: 'Strength/Power', exercises: [] }] },
+      { instructions: 'Steady', blocks: [{ id: 'b1', category: 'Warm-up' }] },
     ]),
     publishedAt: '2026-08-09T10:00:00.000Z',
   };

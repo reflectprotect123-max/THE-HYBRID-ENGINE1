@@ -4,6 +4,16 @@ import { dayBuilderToWorkouts, workoutsToDayBuilder } from './day-workout';
 import { isConditioningCategory } from './day-workout';
 import { BLOCK_CATEGORIES } from './BlockEditor';
 
+/*
+ * `hybrid-2-intensity`, `hybrid-1-intensity`, `hybrid-roots-1` and
+ * `hybrid-roots-2` were deleted on 17 August 2026 along with the
+ * Strength/Power category and the exercise-authoring model they depended on
+ * — see `session-templates.ts`'s own header. `lift-and-engine` is the one
+ * template left standing: it used to lead with a strength block, and now
+ * leads with nothing but its conditioning piece, framed by the same warm-up
+ * and cooldown it always had.
+ */
+
 const byId = (id: string) => {
   const t = SESSION_TEMPLATES.find((x) => x.id === id);
   if (!t) throw new Error(`no template ${id}`);
@@ -11,16 +21,6 @@ const byId = (id: string) => {
 };
 
 describe('the templates themselves', () => {
-  it('offers both of the shapes that were asked for — two strength pieces and one', () => {
-    /* The owner's requirement in as many words: "one with 2 strength Intensity
-       & another with only 1". Nothing reads a template's LENGTH, which is what
-       makes a variable number of sections possible at all. */
-    const two = byId('hybrid-2-intensity').sections.filter((s) => s.heading.startsWith('STRENGTH INTENSITY'));
-    const one = byId('hybrid-1-intensity').sections.filter((s) => s.heading.startsWith('STRENGTH INTENSITY'));
-    expect(two.map((s) => s.heading)).toEqual(['STRENGTH INTENSITY 1', 'STRENGTH INTENSITY 2']);
-    expect(one.map((s) => s.heading)).toEqual(['STRENGTH INTENSITY']);
-  });
-
   it('never names a section after its own category', () => {
     /* A heading equal to the category is how the builder says "this section has
        no name of its own" — it opens the name field empty. A template whose
@@ -35,21 +35,18 @@ describe('the templates themselves', () => {
       for (const s of t.sections) expect(BLOCK_CATEGORIES as readonly string[]).toContain(s.category);
     }
   });
+
+  it('lifts and engine keeps its conditioning piece, framed by a warm-up and cooldown', () => {
+    const sections = byId('lift-and-engine').sections;
+    expect(sections.map((s) => s.category)).toEqual(['Warm-up', 'Conditioning', 'Cooldown']);
+  });
 });
 
 describe('templateToBlocks', () => {
-  it('brings no exercises and no sets — the coach still picks every movement', () => {
-    const blocks = templateToBlocks(byId('hybrid-2-intensity'));
-    expect(blocks).toHaveLength(6);
-    expect(blocks.every((b) => b.exercises.length === 0)).toBe(true);
-  });
-
-  it('carries the name, the minutes and the pairing', () => {
-    const blocks = templateToBlocks(byId('hybrid-2-intensity'));
-    const finisher = blocks.find((b) => b.heading === 'FINISHER');
-    expect(finisher).toMatchObject({ category: 'Strength/Power', minutes: '10', superset: true });
-    /* Absent, not false — see `toBlock`. */
-    expect(blocks.find((b) => b.heading === 'STRENGTH INTENSITY 1')).not.toHaveProperty('superset');
+  it('mints one block per section', () => {
+    const blocks = templateToBlocks(byId('lift-and-engine'));
+    expect(blocks).toHaveLength(3);
+    expect(blocks.map((b) => b.heading)).toEqual(['WARM-UP', 'ENGINE', 'COOLDOWN']);
   });
 
   it('gives a conditioning section its dropdown defaults, at the template minutes', () => {
@@ -60,111 +57,46 @@ describe('templateToBlocks', () => {
   });
 
   it('mints ids that cannot collide with blocks already on the day', () => {
-    const first = templateToBlocks(byId('hybrid-1-intensity'));
-    const second = templateToBlocks(byId('hybrid-1-intensity'), first.map((b) => b.id));
+    const first = templateToBlocks(byId('lift-and-engine'));
+    const second = templateToBlocks(byId('lift-and-engine'), first.map((b) => b.id));
     const ids = [...first, ...second].map((b) => b.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('skips past ids still on the day after one was REMOVED', () => {
-    /* The case a counter could not survive, and this used to use one: apply
-       six sections, delete one, apply again, and the second pass started at
-       five — colliding with the sixth block from the first pass. Two blocks
-       sharing an id is a React key collision, and it lands the coach's edits
-       in a different block from the one they typed in. */
-    const first = templateToBlocks(byId('hybrid-2-intensity'));
-    const kept = first.filter((_, i) => i !== 2).map((b) => b.id);
-    const second = templateToBlocks(byId('hybrid-2-intensity'), kept);
+    /* The case a counter could not survive, and this used to use one: apply a
+       multi-section template, delete one, apply again, and the second pass
+       started where a counter would have collided with a block from the
+       first pass. Two blocks sharing an id is a React key collision, and it
+       lands the coach's edits in a different block from the one they typed
+       in. */
+    const first = templateToBlocks(byId('lift-and-engine'));
+    const kept = first.filter((_, i) => i !== 1).map((b) => b.id);
+    const second = templateToBlocks(byId('lift-and-engine'), kept);
     expect(second.some((b) => kept.includes(b.id))).toBe(false);
     expect(new Set([...kept, ...second.map((b) => b.id)]).size).toBe(kept.length + second.length);
   });
 });
 
 describe('a templated day, stored and reopened', () => {
-  it('keeps every section name, its minutes and its pairing', () => {
-    const value = { instructions: '', blocks: templateToBlocks(byId('hybrid-2-intensity')) };
+  it('keeps every section name and category', () => {
+    const value = { instructions: '', blocks: templateToBlocks(byId('lift-and-engine')) };
     const back = workoutsToDayBuilder(dayBuilderToWorkouts(value, { id: 'w1' }));
 
-    /* The strength and conditioning halves are stored as separate workouts, so
+    /* The note and conditioning halves are stored as separate workouts, so
        compare on the fields rather than on array order. */
-    const seen = back.blocks.map((b) => ({
-      heading: b.heading ?? '',
-      category: b.category,
-      minutes: b.minutes ?? '',
-      superset: !!b.superset,
-    }));
+    const seen = back.blocks.map((b) => ({ heading: b.heading ?? '', category: b.category }));
     expect(seen).toEqual([
-      { heading: 'WARM-UP', category: 'Warm-up', minutes: '8', superset: false },
-      { heading: 'STRENGTH INTENSITY 1', category: 'Strength/Power', minutes: '15', superset: false },
-      { heading: 'STRENGTH INTENSITY 2', category: 'Strength/Power', minutes: '12', superset: false },
-      { heading: 'STRENGTH BALANCE', category: 'Strength/Power', minutes: '10', superset: true },
-      { heading: 'FINISHER', category: 'Strength/Power', minutes: '10', superset: true },
-      { heading: 'COOLDOWN', category: 'Cooldown', minutes: '5', superset: true },
+      { heading: 'WARM-UP', category: 'Warm-up' },
+      { heading: 'COOLDOWN', category: 'Cooldown' },
+      { heading: 'ENGINE', category: 'Conditioning' },
     ]);
   });
 
   it('reaches the athlete as the section name, not as the block kind', () => {
-    /* `blockTitle` in @hybrid/session-authoring renders `heading`. Before the
-       category moved to its own field this said "Strength/Power" on the phone
-       for every strength section, which is why a template had nothing to say. */
-    const value = { instructions: '', blocks: templateToBlocks(byId('hybrid-1-intensity')) };
-    const [strength] = dayBuilderToWorkouts(value, { id: 'w1' });
-    expect(strength.blocks?.map((b) => (b as { heading?: string }).heading)).toEqual([
-      'WARM-UP',
-      'STRENGTH INTENSITY',
-      'STRENGTH BALANCE',
-      'FINISHER',
-      'COOLDOWN',
-    ]);
-  });
-
-  it('still marks the warm-up section as a warm-up BLOCK', () => {
-    /* `warmup: true` is what keeps prep out of tonnage and out of the earned
-       working weight. It is keyed off the category, and the category is no
-       longer the heading — so this is exactly the seam that could have broken. */
-    const value = { instructions: '', blocks: templateToBlocks(byId('hybrid-1-intensity')) };
-    const [strength] = dayBuilderToWorkouts(value, { id: 'w1' });
-    const warm = strength.blocks?.find((b) => (b as { warmup?: boolean }).warmup);
-    expect((warm as { heading?: string } | undefined)?.heading).toBe('WARM-UP');
-  });
-});
-
-describe('a template with seed exercises', () => {
-  it('brings real exercises, unlike the shape-only templates', () => {
-    const blocks = templateToBlocks(byId('hybrid-roots-1'));
-    expect(blocks.every((b) => b.exercises.length === 1)).toBe(true);
-    expect(blocks[0].exercises[0]).toMatchObject({ name: 'Zercher Squat', columnA: 'reps', columnB: 'weight_kg', rest: 180 });
-  });
-
-  it('writes N sets sharing one shared reps value each, the same shape the wizard commits — weight is left blank for the coach to fill in', () => {
-    const blocks = templateToBlocks(byId('hybrid-roots-1'));
-    const squat = blocks[0].exercises[0];
-    expect(squat.sets).toHaveLength(5);
-    expect(squat.sets.every((s) => s.a === '5' && s.b === '')).toBe(true);
-  });
-
-  it('leaves the second column empty for a bodyweight movement, not a stray value', () => {
-    const blocks = templateToBlocks(byId('hybrid-roots-1'));
-    const ghr = blocks.find((b) => b.exercises[0]?.name === 'Glute Ham Raise');
-    expect(ghr?.exercises[0].columnB).toBe('');
-    expect(ghr?.exercises[0].sets.every((s) => s.b === '')).toBe(true);
-  });
-
-  it('mints exercise and set ids that cannot collide across two applications', () => {
-    const first = templateToBlocks(byId('hybrid-roots-1'));
-    const second = templateToBlocks(byId('hybrid-roots-1'), first.map((b) => b.id));
-    const exerciseIds = [...first, ...second].flatMap((b) => b.exercises.map((e) => e.id));
-    const setIds = [...first, ...second].flatMap((b) => b.exercises.flatMap((e) => e.sets.map((s) => s.id)));
-    expect(new Set(exerciseIds).size).toBe(exerciseIds.length);
-    expect(new Set(setIds).size).toBe(setIds.length);
-  });
-
-  it('carries seed exercises through a store-and-reopen round trip', () => {
-    const value = { instructions: '', blocks: templateToBlocks(byId('hybrid-roots-2')) };
-    const back = workoutsToDayBuilder(dayBuilderToWorkouts(value, { id: 'w1' }));
-    const bench = back.blocks.find((b) => b.exercises[0]?.name === 'Slight Incline BB Bench Press');
-    expect(bench?.exercises[0]).toMatchObject({ columnA: 'reps', columnB: 'weight_kg', rest: 180 });
-    expect(bench?.exercises[0].sets).toHaveLength(5);
+    const value = { instructions: '', blocks: templateToBlocks(byId('lift-and-engine')) };
+    const [textSibling] = dayBuilderToWorkouts(value, { id: 'w1' });
+    expect(textSibling.blocks?.map((b) => (b as { heading?: string }).heading)).toEqual(['WARM-UP', 'COOLDOWN']);
   });
 });
 
@@ -172,11 +104,11 @@ describe('a block authored before templates existed', () => {
   it('still opens under the right category, with an empty name', () => {
     /* Every session in the wild carries the category in `heading` and has no
        `category` field. It must open on the dropdown value it always did, and
-       it must NOT show "Strength/Power" typed into the section-name box. */
+       it must NOT show "Cooldown" typed into the section-name box. */
     const legacy = {
       id: 'old',
       kind: 'strength' as const,
-      blocks: [{ id: 'b0', heading: 'Cooldown', exercises: [] }],
+      blocks: [{ id: 'b0', kind: 'text' as const, heading: 'Cooldown' }],
     };
     const back = workoutsToDayBuilder([legacy as never]);
     expect(back.blocks[0]).toMatchObject({ category: 'Cooldown' });
@@ -185,16 +117,16 @@ describe('a block authored before templates existed', () => {
     expect(back.blocks[0]).not.toHaveProperty('heading');
   });
 
-  it('opens an unrecognised heading as a NAME under the default category', () => {
-    /* A workout from the old Planner can head a block anything. It used to lose
-       the heading entirely and open under the default; now the default is still
-       the category, and the words survive as the section's name. */
+  it('opens an unrecognised heading as a NAME under the default note category', () => {
+    /* A workout from elsewhere can head a text block anything. It used to lose
+       the heading entirely and open under the default; now the default is
+       still a note category, and the words survive as the section's name. */
     const foreign = {
       id: 'old',
       kind: 'strength' as const,
-      blocks: [{ id: 'b0', heading: 'Squat + Row', exercises: [] }],
+      blocks: [{ id: 'b0', kind: 'text' as const, heading: 'Squat + Row' }],
     };
     const back = workoutsToDayBuilder([foreign as never]);
-    expect(back.blocks[0]).toMatchObject({ category: BLOCK_CATEGORIES[0], heading: 'Squat + Row' });
+    expect(back.blocks[0]).toMatchObject({ category: 'Warm-up', heading: 'Squat + Row' });
   });
 });

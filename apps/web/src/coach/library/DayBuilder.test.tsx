@@ -2,17 +2,13 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { CatalogueEntry } from '@hybrid/engine';
 import { DayBuilder } from './DayBuilder';
-
-const entries: CatalogueEntry[] = [{ name: 'Back Squat', tags: ['Barbell'], uses: 2 }];
 
 function renderDay(over: Partial<Parameters<typeof DayBuilder>[0]> = {}) {
   const props = {
     mode: 'dated' as const,
     date: '2026-08-11',
     published: false,
-    entries,
     onPublish: vi.fn(),
     onSave: vi.fn(),
     onBack: vi.fn(),
@@ -125,50 +121,52 @@ describe('DayBuilder — both modes', () => {
 });
 
 describe('starting from a session template', () => {
-  it('offers the templates on an empty day and lays out their sections', () => {
+  /*
+   * `hybrid-2-intensity`, `hybrid-1-intensity`, `hybrid-roots-1` and
+   * `hybrid-roots-2` were deleted on 17 August 2026 along with the
+   * Strength/Power category they depended on — see `session-templates.ts`'s
+   * own header. `lift-and-engine` is the one template left: a conditioning
+   * piece framed by a warm-up and cooldown.
+   */
+  it('offers the template on an empty day and lays out its sections', () => {
     renderDay();
-    fireEvent.click(screen.getByRole('button', { name: /hybrid — two strength pieces/i }));
-    expect(screen.getByText('BLOCK 06')).toBeInTheDocument();
-    /* The NAME is what each block head says, so six sections are told apart
-       while they are all still closed. */
-    expect(screen.getByText('STRENGTH INTENSITY 1')).toBeInTheDocument();
-    expect(screen.getByText('STRENGTH INTENSITY 2')).toBeInTheDocument();
-    expect(screen.getByText('FINISHER')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /lift and engine/i }));
+    expect(screen.getByText('BLOCK 03')).toBeInTheDocument();
+    /* The NAME is what each block head says, so the three sections are told
+       apart while they are all still closed. */
+    expect(screen.getByText('WARM-UP')).toBeInTheDocument();
+    expect(screen.getByText('ENGINE')).toBeInTheDocument();
+    expect(screen.getByText('COOLDOWN')).toBeInTheDocument();
   });
 
   it('lays its sections down CLOSED', () => {
-    /* Six sections each opening onto its own exercise library is a 7,600px
-       page before the coach has chosen a single movement. A block added one at
-       a time still opens expanded — see `BlockEditor`'s `startCollapsed`. */
     renderDay();
-    fireEvent.click(screen.getByRole('button', { name: /hybrid — two strength pieces/i }));
+    fireEvent.click(screen.getByRole('button', { name: /lift and engine/i }));
     expect(screen.queryByLabelText('Section name')).not.toBeInTheDocument();
     /* And every one of them can be opened again. The toggle says which way it
        goes, and until 16 August 2026 the stylesheet hid it above phone width —
        so a block laid down closed had no visible way back open at all. */
     const open = screen.getAllByRole('button', { name: /expand block/i });
-    expect(open).toHaveLength(6);
+    expect(open).toHaveLength(3);
     fireEvent.click(open[0]);
     expect(screen.getAllByRole('button', { name: /collapse block/i })).toHaveLength(1);
-    /* Section name/Kind/Minutes/Superset stay collapsed behind their own
-       toggle on a REOPENED template block — see BlockEditor's `metaOpen`.
-       A template already set all four; the coach reopening one is almost
-       always there for the exercise list. */
+    /* Section name/Kind stay collapsed behind their own toggle on a
+       REOPENED template block — see BlockEditor's `metaOpen`. A template
+       already set both; the coach reopening one is almost always there for
+       the conditioning fields or the note. */
     expect(screen.queryByDisplayValue('WARM-UP')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /block settings/i }));
     expect(screen.getByDisplayValue('WARM-UP')).toBeInTheDocument();
   });
 
-  it('brings no movements with it — the coach still picks every one', () => {
-    /* The whole point of a template, in the owner's words: "then I just need to
-       select exercise / rest timers / rpe". A template that arrived with
-       exercises in it would be a workout, not a shape. */
+  it('gives its conditioning section real fields to edit, seeded from the template minutes', () => {
     renderDay();
-    fireEvent.click(screen.getByRole('button', { name: /hybrid — one strength piece/i }));
-    expect(screen.queryByRole('button', { name: /remove exercise/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /lift and engine/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /expand block/i })[1]);
+    expect(screen.getByLabelText('Minutes')).toHaveValue(20);
   });
 
-  it('stops offering templates once the day has anything on it', () => {
+  it('stops offering the template once the day has anything on it', () => {
     /* Applying a template APPENDS, so the offer is only unambiguous while the
        day is empty. See `applyTemplate`. */
     renderDay();
@@ -178,71 +176,7 @@ describe('starting from a session template', () => {
 });
 
 /*
- * PAIRING TWO BLOCKS — the "+ Superset" control between two adjacent
- * Strength/Power blocks, mirroring the mockup. `hybrid-roots-1` seeds six
- * consecutive Strength/Power blocks (each one real exercise) then a
- * Cooldown block, which is exactly the shape needed to exercise both the
- * offered and withheld cases without hand-building blocks.
- */
-describe('pairing two blocks into a superset', () => {
-  function applyRootsOne() {
-    renderDay();
-    fireEvent.click(screen.getByRole('button', { name: /hybrid roots — day 1/i }));
-  }
-
-  it('offers "+ Superset" between every adjacent pair of Strength/Power blocks, and nowhere else', () => {
-    applyRootsOne();
-    /* Six Strength/Power blocks then one Cooldown block — five internal gaps
-       between the six, none leading into the Cooldown block. */
-    expect(screen.getAllByRole('button', { name: /^\+ superset$/i })).toHaveLength(5);
-  });
-
-  it('merges two blocks into one, folding both exercises in, and flips to "− Superset"', () => {
-    applyRootsOne();
-    fireEvent.click(screen.getAllByRole('button', { name: /^\+ superset$/i })[0]);
-    /* One fewer block: BLOCK 07 (Cooldown) shifts down to BLOCK 06. */
-    expect(screen.queryByText('BLOCK 07')).not.toBeInTheDocument();
-    expect(screen.getByText('BLOCK 06')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^− superset$/i })).toBeInTheDocument();
-
-    fireEvent.click(screen.getAllByRole('button', { name: /expand block/i })[0]);
-    expect(screen.getByRole('button', { name: /remove zercher squat/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /remove glute ham raise/i })).toBeInTheDocument();
-  });
-
-  it('splits the pairing back apart on "− Superset", one exercise at a time', () => {
-    applyRootsOne();
-    fireEvent.click(screen.getAllByRole('button', { name: /^\+ superset$/i })[0]);
-    fireEvent.click(screen.getByRole('button', { name: /^− superset$/i }));
-    /* Back to seven blocks, and the pairing control is gone from that slot —
-       each exercise owns its own block again. */
-    expect(screen.getByText('BLOCK 07')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^− superset$/i })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getAllByRole('button', { name: /expand block/i })[0]);
-    fireEvent.click(screen.getAllByRole('button', { name: /expand block/i })[1]);
-    expect(screen.getByRole('button', { name: /remove zercher squat/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /remove glute ham raise/i })).toBeInTheDocument();
-  });
-
-  it('offers no pairing control at all between hand-added blocks with no exercises yet', () => {
-    /* A block from "+ Add block" is empty and unnamed until the coach fills
-       it in — nothing to pair with an equally-empty neighbour is still
-       offered, since both ARE Strength/Power by default; this just confirms
-       the control appears without requiring real content first. */
-    renderDay();
-    fireEvent.click(screen.getByRole('button', { name: /add block/i }));
-    fireEvent.click(screen.getByRole('button', { name: /add block/i }));
-    expect(screen.getByRole('button', { name: /^\+ superset$/i })).toBeInTheDocument();
-  });
-});
-
-/*
- * REORDERING BLOCKS — up/down swaps a block with its neighbour. A superset
- * is already one `BlockValue` (see its own doc), so it moves as a unit with
- * no special handling here; `applyRootsOne`-style fixtures aren't needed —
- * three hand-added blocks are enough to exercise both directions and both
- * boundaries.
+ * REORDERING BLOCKS — up/down swaps a block with its neighbour.
  */
 describe('reordering blocks up and down', () => {
   it('has no move-up on the first block and no move-down on the last', () => {
@@ -255,11 +189,11 @@ describe('reordering blocks up and down', () => {
     expect(downs).toHaveLength(1);
   });
 
-  it('swaps two blocks, and their exercises move with them', () => {
+  it('swaps two blocks, and their fields move with them', () => {
     renderDay();
     fireEvent.click(screen.getByRole('button', { name: /add block/i }));
     fireEvent.click(screen.getByRole('button', { name: /add block/i }));
-    const names = screen.getAllByRole('button', { name: /strength\/power/i });
+    const names = screen.getAllByRole('button', { name: /^conditioning$/i });
     fireEvent.click(names[0]);
     fireEvent.change(screen.getAllByLabelText(/section name/i)[0], { target: { value: 'FIRST' } });
     fireEvent.click(names[1]);

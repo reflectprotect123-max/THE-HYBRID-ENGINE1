@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { addMovement, buildCatalogue } from '@hybrid/engine';
 import type { Workout } from '@hybrid/engine';
 import { useDb } from '../../store/db';
 import { DayBuilder, type DayBuilderValue } from './DayBuilder';
@@ -8,8 +7,8 @@ import { condSiblingId, dayBuilderToWorkouts, workoutsToDayBuilder } from './day
 import { SessionPicker } from './SessionPicker';
 
 /**
- * The day builder's route wrapper: it supplies the real catalogue, loads any
- * session already stored for this day, and writes edits back.
+ * The day builder's route wrapper: it loads any session already stored for
+ * this day, and writes edits back.
  *
  * `/coach/day/:date` is the dated mode, reached from the Calendar.
  * `/coach/day` with no date is library mode, where the guided wizard finishes.
@@ -82,37 +81,6 @@ function DayBuilderSurface({
   const { db, update } = useDb();
   const navigate = useNavigate();
   const [notice, setNotice] = useState('');
-
-  const entries = useMemo(() => {
-    const s = db.settings as { movementTags?: Record<string, string[]>; movements?: string[] };
-    /*
-     * THE COACH'S OWN LIBRARY, and `?? []` rather than a fallback to mining
-     * history. The owner asked for the derived list emptied on 16 August 2026
-     * so he could rebuild it from what he actually enters — it had reached 166
-     * movements scraped out of every stored workout and session, with no way
-     * to remove one. Falling back would put all 166 straight back, which is
-     * the opposite of what was asked for.
-     */
-    return buildCatalogue(db.workouts, db.sessions, s.movementTags, s.movements ?? []);
-  }, [db.workouts, db.sessions, db.settings]);
-
-  /*
-   * A movement the coach just invented, kept. It goes into `settings` rather
-   * than into the session, because the library is a fact about the COACH and
-   * the session is a fact about one day — before this, "+ New exercise" put
-   * the name in the block and nowhere else, so an emptied library could never
-   * refill.
-   */
-  const createMovement = (name: string) => {
-    update((d) => {
-      const s = d.settings as { movements?: string[] };
-      const next = addMovement(s.movements, name);
-      /* `false` is this store's "nothing changed" — adding a name the library
-         already holds must not dirty the fingerprint and trigger a sync. */
-      if (next.length === (s.movements?.length ?? 0)) return false;
-      s.movements = next;
-    });
-  };
 
   /*
    * The day's existing session, if any. Resolved ONCE — a `useState`
@@ -194,8 +162,6 @@ function DayBuilderSurface({
         mode={mode}
         date={date}
         published={false}
-        entries={entries}
-        onCreateMovement={createMovement}
         initialValue={initialValue}
         onPublish={(value) =>
           persist(

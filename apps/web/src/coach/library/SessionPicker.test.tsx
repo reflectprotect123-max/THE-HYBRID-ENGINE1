@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LS_KEY } from '@hybrid/engine';
@@ -37,11 +37,7 @@ const HEAVY_PULL = {
   name: 'Heavy Pull',
   kind: 'strength',
   updatedAt: 2,
-  blocks: [{
-    id: 'b0',
-    heading: 'Strength/Power',
-    exercises: [{ id: 'e0', name: 'Deadlift', mode: 'reps_kg', cols: { a: 'reps', b: 'weight_kg' }, sets: [{ t: '', rpe: '', aVal: '3', aVal2: '140' }] }],
-  }],
+  blocks: [{ id: 'b0', kind: 'text', heading: 'Strength/Power', body: 'Deadlift, work up to a heavy triple.' }],
 };
 
 describe('SessionPicker', () => {
@@ -50,7 +46,7 @@ describe('SessionPicker', () => {
   });
 
   it('offers the sessions the coach has written', async () => {
-    seed([HEAVY_PULL, { id: 'w-row', name: 'Easy Row', updatedAt: 1, blocks: [{ id: 'b0', heading: 'Conditioning', exercises: [] }] }]);
+    seed([HEAVY_PULL, { id: 'w-row', name: 'Easy Row', updatedAt: 1, blocks: [{ id: 'b0', kind: 'conditioning', heading: 'Conditioning', condFmt: 'steady' }] }]);
     renderPicker();
     expect(screen.getByRole('button', { name: /Heavy Pull/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Easy Row/ })).toBeInTheDocument();
@@ -70,17 +66,12 @@ describe('SessionPicker', () => {
       fireEvent.click(screen.getByRole('button', { name: /Heavy Pull/ }));
     });
 
-    // The builder, seeded: the picked session's exercise is IN THE BLOCK and
-    // the empty-day message is gone.
-    //
-    // Scoped to `.cb-block-items` since 16 August 2026. The exercise picker is
-    // mounted at every width now — it has to be, or a coach on a desktop
-    // cannot add anything — and it lists 'Deadlift' as something you COULD
-    // add. An unscoped query matches the offer as well as the fact, and would
-    // pass against a day the picked session never reached.
+    // The builder, seeded: the picked session's block is on the day (strength
+    // authoring is deleted, so what survives from HEAVY_PULL's old exercise
+    // block is its heading, carried as a note block's name) and the empty-day
+    // message is gone.
     expect(screen.queryByText(/nothing on this day yet/i)).not.toBeInTheDocument();
-    const items = document.querySelector('.cb-block-items') as HTMLElement;
-    expect(within(items).getByText('Deadlift')).toBeInTheDocument();
+    expect(screen.getByText('Strength/Power')).toBeInTheDocument();
   });
 
   it('copies rather than links — saving the day leaves the original session alone', async () => {

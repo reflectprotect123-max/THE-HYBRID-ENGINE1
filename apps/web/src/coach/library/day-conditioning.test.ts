@@ -13,8 +13,8 @@ import type { DayBuilderValue } from './DayBuilder';
  * as a contract ("A 'strength' workout's blocks may never contain a CondBlock
  * again").
  *
- * So a day with lifting AND conditioning cannot be one workout. The builder
- * emits the two siblings ITSELF, using the engine's own derived id
+ * So a day with a note block AND conditioning cannot be one workout. The
+ * builder emits the two siblings ITSELF, using the engine's own derived id
  * (`<id>-cond`) and naming convention, and reads them back as one day. Verified
  * below by running the real `sanitizeDB` over the output: if the builder ever
  * emits something the engine would split, these tests fail rather than the
@@ -23,20 +23,12 @@ import type { DayBuilderValue } from './DayBuilder';
 
 function mixedDay(): DayBuilderValue {
   return {
-    instructions: 'Lift first, then row easy.',
+    instructions: 'Warm up, then row easy.',
     blocks: [
-      {
-        id: 'b0',
-        category: 'Strength/Power',
-        exercises: [{
-          id: 'e0', name: 'Back squat', columnA: 'reps', columnB: 'weight_kg', rest: 90,
-          sets: [{ id: 'e0-s0', a: '5', b: '100' }],
-        }],
-      },
+      { id: 'b0', category: 'Warm-up', note: 'Dynamic stretching' },
       {
         id: 'b1',
         category: 'Conditioning',
-        exercises: [],
         conditioning: { fmt: 'steady', modality: 'row', effort: 'easy', minutes: '20', targetDistanceM: '4000' },
       },
     ],
@@ -44,7 +36,7 @@ function mixedDay(): DayBuilderValue {
 }
 
 describe('dayBuilderToWorkouts', () => {
-  it('emits two workouts for a day that lifts and conditions', () => {
+  it('emits two workouts for a day that has a note block and conditioning', () => {
     const out = dayBuilderToWorkouts(mixedDay(), { id: 'w1', date: '2026-08-14' });
     expect(out).toHaveLength(2);
     expect(out[0].kind).toBe('strength');
@@ -67,7 +59,7 @@ describe('dayBuilderToWorkouts', () => {
     const out = dayBuilderToWorkouts(
       {
         instructions: '',
-        blocks: [{ id: 'b0', category: 'Mixed modal', exercises: [], conditioning: { fmt: 'free', modality: '', effort: 'medium', minutes: '30', targetDistanceM: '' } }],
+        blocks: [{ id: 'b0', category: 'Mixed modal', conditioning: { fmt: 'free', modality: '', effort: 'medium', minutes: '30', targetDistanceM: '' } }],
       },
       { id: 'w1' },
     );
@@ -75,9 +67,9 @@ describe('dayBuilderToWorkouts', () => {
     expect(out[0].kind).toBe('conditioning');
   });
 
-  it('emits ONE workout when the day only lifts', () => {
+  it('emits ONE workout when the day has only a note block', () => {
     const out = dayBuilderToWorkouts(
-      { instructions: '', blocks: [{ id: 'b0', category: 'Strength/Power', exercises: [] }] },
+      { instructions: '', blocks: [{ id: 'b0', category: 'Warm-up' }] },
       { id: 'w1' },
     );
     expect(out).toHaveLength(1);
@@ -90,7 +82,7 @@ describe('dayBuilderToWorkouts', () => {
     const out = dayBuilderToWorkouts(
       {
         instructions: 'Keep it conversational.',
-        blocks: [{ id: 'b0', category: 'Mixed modal', exercises: [], conditioning: { fmt: 'free', modality: '', effort: 'easy', minutes: '40', targetDistanceM: '' } }],
+        blocks: [{ id: 'b0', category: 'Mixed modal', conditioning: { fmt: 'free', modality: '', effort: 'easy', minutes: '40', targetDistanceM: '' } }],
       },
       { id: 'w1' },
     );
@@ -101,7 +93,7 @@ describe('dayBuilderToWorkouts', () => {
 
   it('keeps the effort and its HR zone in lockstep, because every older read path uses the zone', () => {
     const out = dayBuilderToWorkouts(
-      { instructions: '', blocks: [{ id: 'b0', category: 'Conditioning', exercises: [], conditioning: { fmt: 'tempo', modality: 'bike', effort: 'hard', minutes: '12', targetDistanceM: '' } }] },
+      { instructions: '', blocks: [{ id: 'b0', category: 'Conditioning', conditioning: { fmt: 'tempo', modality: 'bike', effort: 'hard', minutes: '12', targetDistanceM: '' } }] },
       { id: 'w1' },
     );
     const block = out[0].blocks[0] as CondBlock;
@@ -111,7 +103,7 @@ describe('dayBuilderToWorkouts', () => {
 
   it('drops a duration that is not a number rather than storing NaN', () => {
     const out = dayBuilderToWorkouts(
-      { instructions: '', blocks: [{ id: 'b0', category: 'Conditioning', exercises: [], conditioning: { fmt: 'steady', modality: '', effort: 'easy', minutes: 'about twenty', targetDistanceM: '' } }] },
+      { instructions: '', blocks: [{ id: 'b0', category: 'Conditioning', conditioning: { fmt: 'steady', modality: '', effort: 'easy', minutes: 'about twenty', targetDistanceM: '' } }] },
       { id: 'w1' },
     );
     expect((out[0].blocks[0] as CondBlock).minutes).toBeUndefined();
@@ -119,7 +111,7 @@ describe('dayBuilderToWorkouts', () => {
 
   it('leaves modality absent for a mixed-modal block, which is what mixed means', () => {
     const out = dayBuilderToWorkouts(
-      { instructions: '', blocks: [{ id: 'b0', category: 'Mixed modal', exercises: [], conditioning: { fmt: 'free', modality: '', effort: 'medium', minutes: '30', targetDistanceM: '' } }] },
+      { instructions: '', blocks: [{ id: 'b0', category: 'Mixed modal', conditioning: { fmt: 'free', modality: '', effort: 'medium', minutes: '30', targetDistanceM: '' } }] },
       { id: 'w1' },
     );
     expect((out[0].blocks[0] as CondBlock).modality).toBeUndefined();
@@ -127,7 +119,7 @@ describe('dayBuilderToWorkouts', () => {
 
   it('prescribes no rest on a mixed-modal block — the rest timer stays the athlete’s choice', () => {
     const out = dayBuilderToWorkouts(
-      { instructions: '', blocks: [{ id: 'b0', category: 'Mixed modal', exercises: [], conditioning: { fmt: 'free', modality: '', effort: 'medium', minutes: '30', targetDistanceM: '' } }] },
+      { instructions: '', blocks: [{ id: 'b0', category: 'Mixed modal', conditioning: { fmt: 'free', modality: '', effort: 'medium', minutes: '30', targetDistanceM: '' } }] },
       { id: 'w1' },
     );
     expect(JSON.stringify(out[0])).not.toContain('rest');
@@ -144,7 +136,7 @@ describe('workoutsToDayBuilder', () => {
   it('survives the round trip for a conditioning-only day, note and all', () => {
     const before: DayBuilderValue = {
       instructions: 'Nose breathing throughout.',
-      blocks: [{ id: 'b0', category: 'Mixed modal', exercises: [], conditioning: { fmt: 'free', modality: '', effort: 'easy', minutes: '45', targetDistanceM: '' } }],
+      blocks: [{ id: 'b0', category: 'Mixed modal', conditioning: { fmt: 'free', modality: '', effort: 'easy', minutes: '45', targetDistanceM: '' } }],
     };
     expect(workoutsToDayBuilder(dayBuilderToWorkouts(before, { id: 'w1' }))).toEqual(before);
   });

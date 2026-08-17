@@ -12,14 +12,13 @@ import { BlockEditor, newCondValue, type BlockValue } from './BlockEditor';
  */
 
 function renderBlock(block: BlockValue, onChange = vi.fn()) {
-  render(<BlockEditor block={block} entries={[]} index={0} onChange={onChange} onRemove={vi.fn()} />);
+  render(<BlockEditor block={block} index={0} onChange={onChange} onRemove={vi.fn()} />);
   return onChange;
 }
 
 const conditioning = (category: string): BlockValue => ({
   id: 'b0',
   category,
-  exercises: [],
   conditioning: newCondValue(category),
 });
 
@@ -84,8 +83,8 @@ describe('a mixed-modal block', () => {
 });
 
 describe('switching a block’s category', () => {
-  it('seeds the prescription when a strength block becomes conditioning', () => {
-    const onChange = renderBlock({ id: 'b0', category: 'Strength/Power', exercises: [] });
+  it('seeds the prescription when a note block becomes conditioning', () => {
+    const onChange = renderBlock({ id: 'b0', category: 'Warm-up' });
     act(() => {
       fireEvent.change(screen.getByLabelText('Block kind'), { target: { value: 'Conditioning' } });
     });
@@ -95,15 +94,15 @@ describe('switching a block’s category', () => {
     }));
   });
 
-  it('drops the prescription when a conditioning block becomes strength, rather than hiding it', () => {
-    // A stale prescription on a strength block would round-trip a block the
+  it('drops the prescription when a conditioning block becomes a note block, rather than hiding it', () => {
+    // A stale prescription on a note block would round-trip a block the
     // coach can no longer see or edit.
     const onChange = renderBlock(conditioning('Conditioning'));
     act(() => {
-      fireEvent.change(screen.getByLabelText('Block kind'), { target: { value: 'Strength/Power' } });
+      fireEvent.change(screen.getByLabelText('Block kind'), { target: { value: 'Warm-up' } });
     });
     const next = onChange.mock.calls[0][0] as BlockValue;
-    expect(next.category).toBe('Strength/Power');
+    expect(next.category).toBe('Warm-up');
     expect(next.conditioning).toBeUndefined();
   });
 });

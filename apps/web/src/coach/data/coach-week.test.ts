@@ -24,7 +24,7 @@ const MONDAY = '2026-08-10';
 function dayWith(category: string): DayBuilderValue {
   return {
     instructions: '',
-    blocks: [{ id: 'b1', category, exercises: [{ id: 'e1', name: 'Back squat', columnA: 'reps', columnB: 'weight_kg', rest: 90, sets: [{ id: 's1', a: '5', b: '100' }] }] }],
+    blocks: [{ id: 'b1', category }],
   };
 }
 
@@ -90,7 +90,7 @@ describe('weekBodyFromDays', () => {
   it('splits a mixed day into its strength and conditioning records', () => {
     const mixed: DayBuilderValue = {
       instructions: '',
-      blocks: [...dayWith('Strength/Power').blocks, { id: 'b2', category: 'Conditioning', exercises: [] }],
+      blocks: [...dayWith('Strength/Power').blocks, { id: 'b2', category: 'Conditioning' }],
     };
     const sessions = weekBodyFromDays(MONDAY, [mixed]).days[0].sessions;
     expect(sessions.map((s) => s.kind)).toEqual(['strength', 'conditioning']);
@@ -120,10 +120,10 @@ describe('coachWeekBodyFrom', () => {
 
 describe('daysFromWeekBody', () => {
   it('round-trips an authored week back into the editors', () => {
-    const body = weekBodyFromDays(MONDAY, [dayWith('Strength/Power')]);
+    const body = weekBodyFromDays(MONDAY, [dayWith('Warm-up')]);
     const days = daysFromWeekBody(body, MONDAY);
     expect(days).toHaveLength(7);
-    expect(days[0].blocks[0].exercises[0].name).toBe('Back squat');
+    expect(days[0].blocks[0].category).toBe('Warm-up');
     expect(days[1].blocks).toHaveLength(0);
   });
 

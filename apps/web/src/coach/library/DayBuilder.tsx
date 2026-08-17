@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import type { CatalogueEntry } from '@hybrid/engine';
-import { BlockEditor, type BlockValue } from './BlockEditor';
+import { BLOCK_CATEGORIES, BlockEditor, type BlockValue } from './BlockEditor';
 import { SESSION_TEMPLATES, templateToBlocks } from './session-templates';
 
 export interface DayBuilderValue {
@@ -54,8 +53,6 @@ export function DayBuilder({
   mode,
   date,
   published,
-  entries,
-  onCreateMovement,
   initialValue,
   onPublish,
   onSave,
@@ -64,9 +61,6 @@ export function DayBuilder({
   mode: 'dated' | 'library' | 'week';
   date?: string;
   published: boolean;
-  entries: CatalogueEntry[];
-  /** See `BlockEditor`'s own prop — the coach's library grows through here. */
-  onCreateMovement?: (name: string) => void;
   /**
    * The session already stored for this day, if there is one. Seeds the editor
    * ONCE, on mount — after that the coach's own edits are the truth, and
@@ -114,61 +108,13 @@ export function DayBuilder({
   function addBlock() {
     setBlocks((prev) => [
       ...prev,
-      { id: `b${prev.length}-${prev.length ? prev[prev.length - 1].id : 'first'}`, category: 'Strength/Power', exercises: [] },
+      { id: `b${prev.length}-${prev.length ? prev[prev.length - 1].id : 'first'}`, category: BLOCK_CATEGORIES[0] },
     ]);
   }
 
   /*
-   * PAIRING TWO BLOCKS, THE SAME WAY THE MOCKUP OFFERS IT — a "+ Superset"
-   * control between two adjacent blocks, not a per-block checkbox alone.
-   *
-   * A superset in this app's data was always ONE block with several exercises
-   * and `superset: true` (see `BlockValue.superset`'s own doc) — never a link
-   * between two separate blocks, because nothing here represents that. So
-   * "pair block N with block N+1" is not a new relationship to invent, it is
-   * MERGING them: block N absorbs block N+1's exercises and the pair becomes
-   * one block. Adding a THIRD movement to the same superset is then just
-   * "+ Add exercise from library" inside that one block, same as any other —
-   * no repeated merge needed.
-   *
-   * Only offered between two `Strength/Power` blocks, per the owner's own
-   * words ("between any two adjacent strength blocks") — not warm-up,
-   * cooldown or conditioning, where pairing two sections has no meaning here.
-   */
-  function mergeWithNext(i: number) {
-    setBlocks((prev) => {
-      const a = prev[i];
-      const b = prev[i + 1];
-      if (!a || !b) return prev;
-      const merged: BlockValue = { ...a, superset: true, exercises: [...a.exercises, ...b.exercises] };
-      return [...prev.slice(0, i), merged, ...prev.slice(i + 2)];
-    });
-  }
-
-  /*
-   * UNDOING ONE PAIRING, not the whole superset at once — splits the LAST
-   * exercise back into its own block, mirroring how it was merged in. A
-   * three-exercise superset built from two "+ Superset" presses splits back
-   * down one press at a time, the same way it was built up.
-   */
-  function splitLastExercise(i: number) {
-    setBlocks((prev) => {
-      const block = prev[i];
-      if (!block || block.exercises.length < 2) return prev;
-      const exercises = block.exercises.slice(0, -1);
-      const split = block.exercises[block.exercises.length - 1];
-      const { superset: _drop, ...rest } = block;
-      const remaining: BlockValue = { ...rest, exercises, ...(exercises.length > 1 ? { superset: true } : {}) };
-      const newBlock: BlockValue = { id: `${block.id}-split-${split.id}`, category: block.category, exercises: [split] };
-      return [...prev.slice(0, i), remaining, newBlock, ...prev.slice(i + 1)];
-    });
-  }
-
-  /*
    * REORDERING, UP OR DOWN ONE SLOT AT A TIME — a swap with the neighbour in
-   * that direction. A superset is already one `BlockValue` (see its own
-   * doc), so it moves as a unit for free; there is nothing here that needs
-   * to know a block is a pairing rather than a single exercise.
+   * that direction.
    */
   function moveBlock(i: number, dir: -1 | 1) {
     setBlocks((prev) => {
@@ -271,34 +217,22 @@ export function DayBuilder({
               ))}
             </ul>
             <p className="cb-note">
-              A template lays out the sections and their minutes. You still choose every movement, its
-              rest and its target RPE.
+              A template lays out the sections. A conditioning section comes with defaults you can
+              adjust; a Warm-up, Cooldown or Mobility section is yours to describe.
             </p>
           </div>
         ) : (
           blocks.map((b, i) => (
-            <div key={b.id} className="cb-block-with-toggle">
-              <BlockEditor
-                block={b}
-                entries={entries}
-                index={i}
-                startCollapsed={fromTemplate.includes(b.id)}
-                onCreateMovement={onCreateMovement}
-                onChange={(next) => setBlocks((prev) => prev.map((x) => (x.id === b.id ? next : x)))}
-                onRemove={() => setBlocks((prev) => prev.filter((x) => x.id !== b.id))}
-                onMoveUp={i > 0 ? () => moveBlock(i, -1) : undefined}
-                onMoveDown={i < blocks.length - 1 ? () => moveBlock(i, 1) : undefined}
-              />
-              {b.superset && b.exercises.length > 1 ? (
-                <button type="button" className="cb-superset-toggle active" onClick={() => splitLastExercise(i)}>
-                  &minus; Superset
-                </button>
-              ) : b.category === 'Strength/Power' && blocks[i + 1]?.category === 'Strength/Power' ? (
-                <button type="button" className="cb-superset-toggle" onClick={() => mergeWithNext(i)}>
-                  + Superset
-                </button>
-              ) : null}
-            </div>
+            <BlockEditor
+              key={b.id}
+              block={b}
+              index={i}
+              startCollapsed={fromTemplate.includes(b.id)}
+              onChange={(next) => setBlocks((prev) => prev.map((x) => (x.id === b.id ? next : x)))}
+              onRemove={() => setBlocks((prev) => prev.filter((x) => x.id !== b.id))}
+              onMoveUp={i > 0 ? () => moveBlock(i, -1) : undefined}
+              onMoveDown={i < blocks.length - 1 ? () => moveBlock(i, 1) : undefined}
+            />
           ))
         )}
       </div>

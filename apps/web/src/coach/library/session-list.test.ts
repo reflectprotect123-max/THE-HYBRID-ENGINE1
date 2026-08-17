@@ -8,7 +8,7 @@ function workout(over: Partial<Workout> = {}): Workout {
     id: 'w1',
     name: 'Heavy Squat A',
     kind: 'strength',
-    blocks: [{ id: 'b0', heading: 'Strength/Power', exercises: [] }],
+    blocks: [{ id: 'b0', kind: 'text' as const, heading: 'Strength/Power' }],
     ...over,
   } as Workout;
 }
@@ -37,7 +37,7 @@ describe('authoredSessions', () => {
       workout({
         blocks: [
           { id: 'note', kind: 'text', heading: INSTRUCTIONS_HEADING, body: 'Ease in' },
-          { id: 'b0', heading: 'Strength/Power', exercises: [] },
+          { id: 'b0', kind: 'text' as const, heading: 'Strength/Power' },
         ],
       }),
     ]);
