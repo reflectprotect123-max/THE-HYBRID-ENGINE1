@@ -1,11 +1,12 @@
 // packages/strength-engine/src/progression.test.ts
 import { describe, it, expect } from 'vitest';
-import { decideProgression, anchorKgFor } from './progression';
+import { decideProgression, anchorKgFor, DeterministicDecider } from './progression';
+import { calibrationStateFor } from './calibration';
 import type { StrengthExposure } from './exposure';
 
 function exposure(overrides: Partial<StrengthExposure>): StrengthExposure {
   return {
-    exerciseId: 'sq', reps: 5, loadKg: 100, rated: true, painFlagged: false,
+    exerciseId: 'sq', assignedSessionId: 'as1', reps: 5, loadKg: 100, rated: true, painFlagged: false, onTarget: true,
     exposureClass: 'successful', performedSetId: 'p1', performedAt: '2026-08-20T10:00:00Z',
     ...overrides,
   };
@@ -94,5 +95,63 @@ describe('decideProgression', () => {
     const decision = decideProgression([exposure({})], { exerciseId: 'front-squat' });
     expect(decision.exerciseId).toBe('front-squat');
     expect(decision.source).toBe('deterministic');
+  });
+
+  it('does not progress a set that was completed but fell short of the prescribed stimulus', () => {
+    const exposures = [
+      exposure({ performedSetId: 'p1', exposureClass: 'successful', onTarget: false, performedAt: '2026-08-14T10:00:00Z' }),
+      exposure({ performedSetId: 'p2', exposureClass: 'successful', onTarget: false, performedAt: '2026-08-17T10:00:00Z' }),
+      exposure({ performedSetId: 'p3', exposureClass: 'successful', onTarget: false, performedAt: '2026-08-20T10:00:00Z' }),
+    ];
+    const decision = decideProgression(exposures, { exerciseId: 'sq' });
+    expect(decision.action).not.toBe('progress');
+  });
+
+  it('does not progress on 3 on-target but UNRATED (successful_but_uncertain) exposures — an unrated session does not by itself progress load', () => {
+    const exposures = [
+      exposure({ performedSetId: 'p1', exposureClass: 'successful_but_uncertain', onTarget: true, performedAt: '2026-08-14T10:00:00Z' }),
+      exposure({ performedSetId: 'p2', exposureClass: 'successful_but_uncertain', onTarget: true, performedAt: '2026-08-17T10:00:00Z' }),
+      exposure({ performedSetId: 'p3', exposureClass: 'successful_but_uncertain', onTarget: true, performedAt: '2026-08-20T10:00:00Z' }),
+    ];
+    const decision = decideProgression(exposures, { exerciseId: 'sq' });
+    expect(decision.action).toBe('hold');
+  });
+
+  it('carries deltaKg computed from the anchor kg on a progress decision', () => {
+    const exposures = [
+      exposure({ performedSetId: 'p1', loadKg: 100, performedAt: '2026-08-14T10:00:00Z' }),
+      exposure({ performedSetId: 'p2', loadKg: 100, performedAt: '2026-08-17T10:00:00Z' }),
+      exposure({ performedSetId: 'p3', loadKg: 100, performedAt: '2026-08-20T10:00:00Z' }),
+    ];
+    const decision = decideProgression(exposures, { exerciseId: 'sq' });
+    const anchor = anchorKgFor(exposures);
+    expect(decision.action).toBe('progress');
+    expect(decision.deltaKg).toBe(anchor! * decision.deltaPct!);
+  });
+
+  it('carries deltaKg computed from the anchor kg on a deload decision', () => {
+    const exposures = [
+      exposure({ performedSetId: 'p1', loadKg: 100, exposureClass: 'successful', performedAt: '2026-08-10T10:00:00Z' }),
+      exposure({ performedSetId: 'p2', loadKg: 94, exposureClass: 'missed', performedAt: '2026-08-15T10:00:00Z' }),
+      exposure({ performedSetId: 'p3', loadKg: 92, exposureClass: 'missed', performedAt: '2026-08-20T10:00:00Z' }),
+    ];
+    const decision = decideProgression(exposures, { exerciseId: 'sq' });
+    const anchor = anchorKgFor(exposures);
+    expect(decision.action).toBe('deload');
+    expect(decision.deltaKg).toBe(anchor! * decision.deltaPct!);
+  });
+});
+
+describe('DeterministicDecider (async seam)', () => {
+  it('resolves to the same decision decideProgression returns for the same inputs', async () => {
+    const exposures = [
+      exposure({ performedSetId: 'p1', performedAt: '2026-08-14T10:00:00Z' }),
+      exposure({ performedSetId: 'p2', performedAt: '2026-08-17T10:00:00Z' }),
+      exposure({ performedSetId: 'p3', performedAt: '2026-08-20T10:00:00Z' }),
+    ];
+    const calibration = calibrationStateFor(exposures);
+    const viaSeam = await DeterministicDecider.decide(exposures, calibration, { exerciseId: 'sq' });
+    const viaCore = decideProgression(exposures, { exerciseId: 'sq' });
+    expect(viaSeam).toEqual(viaCore);
   });
 });
