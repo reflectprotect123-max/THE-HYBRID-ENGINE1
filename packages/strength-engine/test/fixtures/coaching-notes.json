@@ -1,0 +1,22 @@
+[
+  { "body": "Two consecutive missed sessions with no illness or travel and RPE climbing on the top set is a real deload trigger, not just a bad week.", "tags": ["deload"] },
+  { "body": "A single poor session on its own — bad sleep, one missed set — does not independently justify a deload. Hold and re-test next session.", "tags": ["deload", "hold"] },
+  { "body": "Pain is a separate safety pathway from ordinary fatigue. A pain-flagged set is excluded from progression math entirely, never treated as a miss to average against.", "tags": ["pain"] },
+  { "body": "Training gaps (missed weeks, illness, travel) lower confidence in a working max rather than being ignored — treat the exercise as building, not calibrated, after a real gap.", "tags": ["calibration", "gaps"] },
+  { "body": "Default progression is 2.5% of the last stable opening load, with equipment-aware rounding — never a raw arithmetic bump that lands off-increment.", "tags": ["progression"] },
+  { "body": "Default reactive reduction is 5% from the last successful anchor, not from wherever a bad set within the same session already walked the load down to.", "tags": ["deload", "anchor"] },
+  { "body": "If the available equipment jump between increments is too large for a clean 2.5% step, prefer adjusting reps or RPE target instead of forcing an oversized load jump.", "tags": ["progression", "equipment"] },
+  { "body": "Unrated (no RPE logged) successful sets are real evidence of completion but not of readiness — don't progress load on unrated sessions alone.", "tags": ["progression", "rpe"] },
+  { "body": "A missed top set followed by two clean backoff sets at reduced load is still a missed exposure for that top-set weight — don't let backoff success mask a real miss.", "tags": ["missed"] },
+  { "body": "Three consecutive on-target, rated sessions is the calibration floor before trusting an autonomous progress or deload call for that exercise.", "tags": ["calibration"] },
+  { "body": "An athlete who consistently exceeds the prescribed rep target at the same load is a candidate for a bigger jump next session, not just the default 2.5%.", "tags": ["progression"] },
+  { "body": "Bodyweight-percentage-prescribed exercises (e.g. weighted pull-ups) should re-price off current bodyweight, not a stale figure from weeks ago.", "tags": ["bodyweight"] },
+  { "body": "A coach-set or test-result working max should hold until superseded by another manual event — don't let an auto-estimate quietly overwrite a deliberately tested number.", "tags": ["working-max"] },
+  { "body": "Illness lasting more than a few days should reset calibration for affected exercises, not just count as one more gap in the exposure window.", "tags": ["gaps", "illness"] },
+  { "body": "A PR at a rep count the athlete rarely trains (e.g. a 1-rep max attempt during an 8-rep block) shouldn't itself trigger a working-max update unless it was a declared test.", "tags": ["pr", "working-max"] },
+  { "body": "Swapping an exercise mid-block (e.g. front squat for back squat) resets exposure history for progression purposes — they are different exercises even if related by reference-max.", "tags": ["exercise-swap"] },
+  { "body": "A session logged well outside the athlete's normal training days (e.g. a make-up session) still counts as a real exposure — don't discount it just because of timing.", "tags": ["scheduling"] },
+  { "body": "Optional sets that go uncompleted should never count against compliance or feed a missed-exposure classification — they were never required.", "tags": ["compliance", "optional"] },
+  { "body": "A tempo-prescribed set performed noticeably faster than prescribed (rushed eccentric) is a real form deviation worth a coaching note, even if the load and reps were technically hit.", "tags": ["tempo", "form"] },
+  { "body": "Repeated RPE creep at the same prescribed load across several sessions (getting harder without the number changing) is an early deload signal, even before a set is actually missed.", "tags": ["deload", "rpe"] }
+]
