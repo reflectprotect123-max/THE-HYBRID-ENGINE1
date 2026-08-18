@@ -14,5 +14,6 @@ describe('package barrel', () => {
     expect(typeof engine.calibrationStateFor).toBe('function');
     expect(typeof engine.decideProgression).toBe('function');
     expect(typeof engine.anchorKgFor).toBe('function');
+    expect(typeof engine.progressionQueryText).toBe('function');
   });
 });
