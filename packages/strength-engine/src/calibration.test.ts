@@ -4,7 +4,7 @@ import type { StrengthExposure } from './exposure';
 
 function exposure(overrides: Partial<StrengthExposure>): StrengthExposure {
   return {
-    exerciseId: 'sq', reps: 5, loadKg: 100, rated: true, painFlagged: false,
+    exerciseId: 'sq', assignedSessionId: 'as1', reps: 5, loadKg: 100, rated: true, painFlagged: false, onTarget: true,
     exposureClass: 'successful', performedSetId: 'p1', performedAt: '2026-08-20T10:00:00Z',
     ...overrides,
   };
