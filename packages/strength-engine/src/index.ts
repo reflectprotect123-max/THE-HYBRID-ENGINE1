@@ -9,6 +9,9 @@ export * from './e1rm';
 export * from './workingMax';
 export * from './pr';
 export * from './load';
+export * from './exposure';
+export * from './calibration';
+export * from './progression';
 
 export interface StrengthBlockItem {
   id: string;

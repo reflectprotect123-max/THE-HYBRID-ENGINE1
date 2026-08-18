@@ -10,5 +10,9 @@ describe('package barrel', () => {
     expect(typeof engine.detectPr).toBe('function');
     expect(typeof engine.sessionLoad).toBe('function');
     expect(typeof engine.resolveSessionForPublish).toBe('function');
+    expect(typeof engine.strengthExposuresFor).toBe('function');
+    expect(typeof engine.calibrationStateFor).toBe('function');
+    expect(typeof engine.decideProgression).toBe('function');
+    expect(typeof engine.anchorKgFor).toBe('function');
   });
 });
