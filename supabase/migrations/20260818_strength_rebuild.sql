@@ -27,7 +27,8 @@ insert into metric (key, dimension, canonical_unit, value_type, aggregation, hig
   ('duration', 'time',   's',   'duration', 'sum',  null,  false),
   ('calories', 'energy', 'kcal','scalar',   'sum',  true,  false),
   ('watts',    'power',  'W',   'scalar',   'mean', true,  false),
-  ('height',   'length', 'm',   'scalar',   'max',  true,  false);
+  ('height',   'length', 'm',   'scalar',   'max',  true,  false),
+  ('pain',     'ratio',  'flag','scalar',   'none', null,  false);
 
 -- Slice 2: exercise rebuild, with equipment and the reference-max/track-as
 -- graph. Cycle depth is enforced by a trigger, not app code.

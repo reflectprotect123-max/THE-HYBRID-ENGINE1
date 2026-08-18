@@ -2,7 +2,7 @@
 // supabase/migrations/20260818_strength_rebuild.sql's metric seed. Do not
 // hand-edit — edit the migration's seed rows and re-run the script.
 
-export type MetricKey = 'load' | 'reps' | 'rpe' | 'rir' | 'tempo' | 'rest' | 'distance' | 'duration' | 'calories' | 'watts' | 'height';
+export type MetricKey = 'load' | 'reps' | 'rpe' | 'rir' | 'tempo' | 'rest' | 'distance' | 'duration' | 'calories' | 'watts' | 'height' | 'pain';
 
 export interface Metric {
   key: MetricKey;
@@ -112,6 +112,15 @@ export const METRICS: Record<MetricKey, Metric> = {
     valueType: 'scalar',
     aggregation: 'max',
     higherIsBetter: true,
+    isLoadBearing: false,
+  },
+  pain: {
+    key: 'pain',
+    dimension: 'ratio',
+    canonicalUnit: 'flag',
+    valueType: 'scalar',
+    aggregation: 'none',
+    higherIsBetter: null,
     isLoadBearing: false,
   },
 };
