@@ -1,5 +1,83 @@
 # Claude Handoff — THE Hybrid System
 
+> **AUTHORITATIVE CHECKPOINT — 18 August 2026, end of session. `main` is at
+> `e9ce6ec`. STRENGTH REBUILD: NON-UI WORK IS DONE. UI IS NEXT. Where this
+> block disagrees with anything below it, this one wins.**
+>
+> ## What's built
+>
+> Deleted 17 August, rebuild specced the same day
+> (`docs/superpowers/specs/2026-08-17-strength-rebuild-design.md`, 39 slices).
+> Three phases executed via subagent-driven-development (implementer → task
+> review → final whole-branch review → fix wave → scoped re-review, every
+> phase), all pushed straight to `main`, no feature branches:
+>
+> - **Phase A — foundation** (`docs/superpowers/plans/2026-08-17-strength-
+>   phase-a-foundation.md`). New package `@hybrid/strength-engine`: metric
+>   registry, exercise/equipment, prescription resolution
+>   (`resolveTarget`/`resolveSessionForPublish`), load rounding
+>   (`roundLoadToEquipment`), working-max event log (`currentWorkingMax` —
+>   caught and fixed a real date/timestamp comparison bug where a same-day
+>   event could vanish), PR detection. `Block<S>` in `@hybrid/engine` regains
+>   `StrengthBlock` (container) / `StrengthBlockItem` (exercise entry) —
+>   two-level on purpose, corrected mid-phase from a first pass that shipped
+>   the item shape directly as the union member.
+> - **Phase E — progression** (`...phase-e-progression.md`). Per-SESSION
+>   exposure classification (not per-set — user's explicit call:
+>   `strengthExposuresFor` groups by `assignedSessionId`), `onTarget` field
+>   (met/exceeded the prescribed target; defaults true when unresolvable),
+>   `CalibrationState` (3 usable exposures = calibrated, pain-blocked ones
+>   don't count), `decideProgression` (calibration gate → 3-on-target =
+>   +2.5% → repeated-deterioration = -5% deload → else hold), with
+>   `anchorKgFor` protecting deload math from ever anchoring on a missed
+>   weight. `ProgressionDecider` is an async 3-arg seam
+>   (`DeterministicDecider` today; an AI-backed one is on hold, not built).
+> - **Phase F — knowledge base** (`...phase-f-knowledge-base.md`).
+>   `coaching_note` table + pgvector `hnsw` index, Supabase Edge Function
+>   `embed-coaching-note` (Voyage AI `voyage-3`), `search_coaching_notes()`
+>   SQL function, pure `progressionQueryText()`, 20-note fixture corpus.
+>   Explicitly infra-only — nothing calls the search function yet (Phase G,
+>   an AI-retrieval decider, is on hold and NOT planned). `supabase/functions/`
+>   is now its own pnpm workspace member so its test is collected.
+>
+> **Two things the final review found and did NOT get fixed — surfaced to
+> the owner, awaiting a decision, not a defect to silently patch:**
+> 1. `embed-coaching-note` has no auth check at all — caller-supplied `id`,
+>    writes with the service-role key (bypasses RLS), no webhook secret, no
+>    JWT verification. Verbatim what the spec asked for; anyone reaching the
+>    URL can overwrite any note's embedding.
+> 2. `coaching_note` (and every Phase A table) has no RLS. Consistent with
+>    Phase A, not a Phase F regression — but `coaching_note` holds
+>    `owner_id`-scoped coach data in a public-schema table and
+>    `search_coaching_notes()` has no owner filter. Worth deciding for the
+>    whole strength table set at once, not per-phase.
+>
+> **Known, accepted, NOT a bug**: this sandbox's local ephemeral Postgres has
+> no `vector` extension installed at the OS level, so
+> `node checks/migrations-apply.mjs` fails at `create extension vector` in
+> `20260819_phase_f_knowledge_base.sql` every run. Supabase's hosted Postgres
+> has pgvector preinstalled. Every other check is green.
+>
+> ## What's next: UI
+>
+> Per the owner's explicit instruction, all buildable non-UI work is done and
+> this is the stop point. What's left of the 39-slice spec is **Phase B**
+> (coach authoring UI — new prescription builder replacing the deleted
+> `GuidedBuilder`/`Planner`) and **Phase C** (mobile strength logger UI,
+> replacing the deleted `screens/logger/` + `guided/*Step.tsx`). Neither has
+> a written implementation plan yet — start there, same brainstorming →
+> spec-review → writing-plans → SDD flow as every other phase this session.
+>
+> A separate, unstarted thread: the owner wants strength split into its own
+> git repository, same Supabase project (confirmed "same supabase different
+> repo"). Not scoped past that — open question I asked and haven't gotten an
+> answer on: does the new repo get its own separate coach web app + mobile
+> app, or stay a package the CURRENT `apps/web`/`apps/mobile` import via a
+> private registry or git dependency? Nothing has been executed on this (no
+> subtree split, no new repo created).
+>
+> ---
+>
 > **AUTHORITATIVE CHECKPOINT — 17 August 2026. `main` is at `3a5fa81`.
 > STRENGTH WAS DELETED WHOLE THE SAME DAY, AND A FULL REBUILD IS SPECCED BUT
 > NOT STARTED. Where this block disagrees with anything below it, this one
