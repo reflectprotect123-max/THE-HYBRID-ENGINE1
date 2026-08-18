@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+  - 'supabase/functions'
 
 allowBuilds:
   dtrace-provider: set this to true or false
