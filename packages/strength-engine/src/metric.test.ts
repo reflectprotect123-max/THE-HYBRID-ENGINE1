@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { METRICS } from './metric';
+import type { MetricKey } from './metric';
 
 // packages/strength-engine/src -> repo root is three levels up.
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -11,12 +12,9 @@ const metricTsPath = resolve(repoRoot, 'packages/strength-engine/src/metric.ts')
 const generatorPath = resolve(repoRoot, 'scripts/gen-metric-registry.mjs');
 
 describe('metric registry', () => {
-  it('every MetricKey has a METRICS entry', () => {
-    const keys: (keyof typeof METRICS)[] = [
-      'load', 'reps', 'rpe', 'rir', 'tempo', 'rest',
-      'distance', 'duration', 'calories', 'watts', 'height',
-    ];
-    for (const k of keys) expect(METRICS[k]).toBeDefined();
+  it('every MetricKey has a METRICS entry, and the registry has exactly 12 metrics', () => {
+    for (const k of Object.keys(METRICS)) expect(METRICS[k as MetricKey]).toBeDefined();
+    expect(Object.keys(METRICS)).toHaveLength(12);
   });
 
   it('regenerating from the current migration produces byte-identical output', () => {
