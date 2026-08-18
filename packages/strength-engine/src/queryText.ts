@@ -10,7 +10,11 @@ import type { CalibrationState } from './calibration';
  * its own provenance).
  */
 export function progressionQueryText(exercise: Exercise, exposures: StrengthExposure[], calibration: CalibrationState): string {
-  const recent = exposures.slice(-3).map(e =>
+  // Defensive: same reasoning as anchorKgFor/decideProgression in
+  // progression.ts — nothing enforces that an arbitrary caller's exposures
+  // arrive oldest-first.
+  const sorted = [...exposures].sort((a, b) => a.performedAt.localeCompare(b.performedAt));
+  const recent = sorted.slice(-3).map(e =>
     e.painFlagged ? `${e.exposureClass} (pain flagged)` : e.exposureClass
   ).join(', ');
   return `${exercise.name}: calibration=${calibration}, recent exposures: ${recent}`;

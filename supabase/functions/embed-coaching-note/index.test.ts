@@ -4,9 +4,8 @@
 // call is intentionally NOT exercised here (no live network calls in
 // pnpm run verify / CI, per repo convention).
 //
-// NOT YET COLLECTED BY `pnpm run test`: see this task's report
-// (.superpowers/sdd/2026-08-18-strength-phase-f-knowledge-base/task-2-report.md)
-// for why, and Task 6 for the fix.
+// Collected by `pnpm run test` via supabase/functions' own pnpm workspace
+// membership (fixed under Task 6 of the Phase F knowledge-base plan).
 //
 // Imports from ./_requestShape, not ./index: index.ts has a top-level
 // `jsr:@supabase/supabase-js@2` import and calls `Deno.serve(...)` at
