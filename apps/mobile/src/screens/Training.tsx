@@ -199,7 +199,7 @@ export function TrainingScreen() {
 
       {s.blocks.map((b, bi) => (
         <View key={b.id ?? bi} className="mt-2">
-          <T w="semi" className="mb-1 text-5 text-text">{(b as { heading?: string }).heading || 'Block'}</T>
+          <T w="semi" className="mb-1 text-5 text-text">{b.heading || 'Block'}</T>
           {isText(b) ? (
             /* A metcon reads as written. The only state it has is whether you
                did it, so the whole card is the tick. */

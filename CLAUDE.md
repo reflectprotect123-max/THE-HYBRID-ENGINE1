@@ -18,13 +18,19 @@ records; do not follow a stale statement that the rebuild has not started.
 - `@hybrid/shared-core` owns shared facts and compatibility contracts only.
 - `@hybrid/whole-athlete-state` interprets recovery/life context and emits
   constraints. It is not a diagnosis engine and does not prescribe workouts.
-- `@hybrid/strength-engine`, `@hybrid/conditioning-engine` and
-  `@hybrid/ai-prescription` are **DELETED** (15 August 2026). The first two
-  owned lifting and conditioning progression until 14 August, when the
-  Coordinator's deletion took their proposal boundaries; what remained was a
-  shell that nothing imported. Lifting and conditioning progression live in
-  `@hybrid/engine` (`lift.ts`, `conditioning.ts`) and always did the
-  arithmetic there.
+- `@hybrid/conditioning-engine` and `@hybrid/ai-prescription` are **DELETED**
+  (15 August 2026). Both owned lifting and conditioning progression until
+  14 August, when the Coordinator's deletion took their proposal boundaries;
+  what remained was a shell that nothing imported. Conditioning progression
+  lives in `@hybrid/engine` (`conditioning.ts`) and always did the arithmetic
+  there.
+  **`@hybrid/strength-engine` is back as of 18 August 2026, Phase A of the
+  strength rebuild** (`docs/superpowers/specs/2026-08-17-strength-rebuild-
+  design.md`). It owns strength prescription resolution, working-max tracking
+  and PR/load detection; `Block<S>` in `@hybrid/engine`'s `types.ts` regains
+  its third member, `StrengthBlock`, sourced from this package. `lift.ts` in
+  `@hybrid/engine` is untouched by this — read it before assuming which layer
+  owns what.
 - `@hybrid/coordinator` and `@hybrid/coordinator-adapter` are **DELETED**
   (14 August 2026). This line read "owns weekly conflict resolution and
   chooses the final weekly plan for an athlete with no coach", and before

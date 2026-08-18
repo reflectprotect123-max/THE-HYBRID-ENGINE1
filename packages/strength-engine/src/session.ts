@@ -1,7 +1,6 @@
 import type { Exercise } from './exercise';
 import type { PrescribedSet } from './prescription';
 import { resolveTarget, type ResolveCtx } from './resolve';
-import { roundToIncrement } from './rounding';
 
 export interface BlockItemInput {
   exercise: Exercise;
@@ -35,8 +34,10 @@ export function resolveSessionForPublish(items: BlockItemInput[], ctx: ResolveCt
           continue;
         }
         if (resolved.kind === 'scalar') {
-          const exact = target.exprKind ? resolveExact(target, exercise, ctx) : resolved.value;
-          targetEntries[target.metricKey] = { value: resolved.value, exact };
+          // resolveTarget computes both the rounded value and the unrounded
+          // exact value behind it (for the long-press "exact value" UI) in
+          // one pass — no second call into ctx needed here.
+          targetEntries[target.metricKey] = { value: resolved.value, exact: resolved.exact };
         } else if (resolved.kind === 'range') {
           targetEntries[target.metricKey] = { lo: resolved.lo, hi: resolved.hi };
         }
@@ -49,19 +50,4 @@ export function resolveSessionForPublish(items: BlockItemInput[], ctx: ResolveCt
 
   if (blocked.length) return { blocked };
   return { snapshot };
-}
-
-/** The unrounded value behind a rounded scalar, for the long-press "exact value" UI. */
-function resolveExact(target: any, exercise: Exercise, ctx: ResolveCtx): number {
-  if (target.exprKind === 'pct_of_max') {
-    const refId = target.exprRefExercise ?? exercise.referenceMaxExerciseId ?? exercise.id;
-    return (ctx.workingMaxAt(refId, ctx.scheduledDate) ?? 0) * target.exprArg;
-  }
-  if (target.exprKind === 'lwp_delta') {
-    return (ctx.lastPerformedLoad(ctx.athleteId, exercise.id) ?? 0) + target.exprArg;
-  }
-  if (target.exprKind === 'pct_of_bodyweight') {
-    return (ctx.bodyweightAt(ctx.athleteId, ctx.scheduledDate) ?? 0) * target.exprArg;
-  }
-  return roundToIncrement(0, exercise.equipment);
 }

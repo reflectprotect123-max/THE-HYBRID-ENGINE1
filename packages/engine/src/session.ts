@@ -11,14 +11,16 @@ import type {
   Workout,
   TextBlock,
 } from './types';
+import type { StrengthBlock } from '@hybrid/strength-engine';
 
 /*
  * `isWarmupBlock`/`blockExercises`/`newWarmupBlock`/`newSet`/`newEx`/
  * `newBlock`/`isLiftMode`/`fillLinkedSets`/`duplicateExercise`/`rxLine` were
  * deleted whole on 17 August 2026 (fire-sale rebuild) — they existed only to
- * type and build `StrengthBlock`/`Exercise` content, and `Block` is now
- * `CondBlock | TextBlock`. Nothing in this file casts to a strength shape
- * that no longer exists.
+ * type and build the old in-repo strength shape. `Block` is now
+ * `StrengthBlock | CondBlock | TextBlock`, `StrengthBlock` coming back from
+ * `@hybrid/strength-engine` as of Phase A. Nothing in this file casts to a
+ * strength shape that no longer exists here.
  */
 
 export function isCond(b: Block | null | undefined): b is CondBlock {
@@ -27,6 +29,10 @@ export function isCond(b: Block | null | undefined): b is CondBlock {
 
 export function isText(b: Block | null | undefined): b is TextBlock {
   return !!b && (b as TextBlock).kind === 'text';
+}
+
+export function isStrength(b: Block | null | undefined): b is StrengthBlock {
+  return !!b && (b as StrengthBlock).kind === 'strength';
 }
 
 export function newTextBlock(): TextBlock {
@@ -94,9 +100,11 @@ export function duplicateWorkout<S extends AnySet>(
   w: Workout<S>,
   existingNames: string[] = [],
 ): Workout<S> {
-  const blocks: Block<S>[] = w.blocks.map((b) =>
-    b.kind === 'text' ? { ...b, id: uid(), done: false } : { ...b, id: uid(), condResult: undefined },
-  );
+  const blocks: Block<S>[] = w.blocks.map((b) => {
+    if (b.kind === 'text') return { ...b, id: uid(), done: false };
+    if (b.kind === 'strength') return { ...b, id: uid() };
+    return { ...b, id: uid(), condResult: undefined };
+  });
   return {
     ...w,
     id: uid(),

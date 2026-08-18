@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSessionForPublish, type BlockItemInput } from '../../src/session';
-import { detectPr } from '../../src/pr';
-import { sessionLoad } from '../../src/load';
-import { measurementValue, type PerformedSetWithMeasurements } from '../../src/performed';
-import type { Exercise } from '../../src/exercise';
-import type { ResolveCtx } from '../../src/resolve';
+import { resolveSessionForPublish, type BlockItemInput } from './session';
+import { detectPr } from './pr';
+import { sessionLoad } from './load';
+import { measurementValue, type PerformedSetWithMeasurements } from './performed';
+import type { Exercise } from './exercise';
+import type { ResolveCtx } from './resolve';
 
 // Synthetic 5x5@75% session end to end: prescribe -> resolve -> publish ->
 // snapshot -> simulate the athlete performing it with one deliberate

@@ -20,7 +20,7 @@ function ctx(overrides: Partial<ResolveCtx> = {}): ResolveCtx {
 describe('resolveTarget', () => {
   it('returns a literal value unchanged', () => {
     const t: PrescribedTarget = { metricKey: 'load', literalValue: 100 };
-    expect(resolveTarget(t, squat, ctx())).toEqual({ kind: 'scalar', value: 100 });
+    expect(resolveTarget(t, squat, ctx())).toEqual({ kind: 'scalar', value: 100, exact: 100 });
   });
 
   it('returns a range unchanged', () => {
@@ -31,7 +31,7 @@ describe('resolveTarget', () => {
   it('resolves pct_of_max against the working max, rounded', () => {
     const t: PrescribedTarget = { metricKey: 'load', exprKind: 'pct_of_max', exprArg: 0.8 };
     const c = ctx({ workingMaxAt: () => 141 });
-    expect(resolveTarget(t, squat, c)).toEqual({ kind: 'scalar', value: 112.5 });
+    expect(resolveTarget(t, squat, c)).toEqual({ kind: 'scalar', value: 112.5, exact: 112.80000000000001 });
   });
 
   it('returns unresolved when pct_of_max has no working max on record', () => {
@@ -42,7 +42,7 @@ describe('resolveTarget', () => {
   it('resolves lwp_delta against the last performed load, rounded', () => {
     const t: PrescribedTarget = { metricKey: 'load', exprKind: 'lwp_delta', exprArg: 2.5 };
     const c = ctx({ lastPerformedLoad: () => 100 });
-    expect(resolveTarget(t, squat, c)).toEqual({ kind: 'scalar', value: 102.5 });
+    expect(resolveTarget(t, squat, c)).toEqual({ kind: 'scalar', value: 102.5, exact: 102.5 });
   });
 
   it('returns unresolved when lwp_delta has no history', () => {
@@ -52,15 +52,15 @@ describe('resolveTarget', () => {
 
   it('resolves pct_of_bodyweight, rounded', () => {
     // 89 * 0.5 = 44.5, which is not itself a multiple of the squat's 2.5kg
-    // barbell increment; roundToIncrement's 'down' rounding (Task 5, already
+    // barbell increment; roundLoadToEquipment's 'down' rounding (Task 5, already
     // committed and tested) floors it to 42.5. The brief's own worked
-    // example asserted 44.5 here, which contradicts roundToIncrement's own
-    // test suite (rounding.test.ts: roundToIncrement(103, barbell) === 102.5
+    // example asserted 44.5 here, which contradicts roundLoadToEquipment's own
+    // test suite (rounding.test.ts: roundLoadToEquipment(103, barbell) === 102.5
     // via the same floor-to-increment math) — corrected to the value the
     // real rounding function actually produces.
     const t: PrescribedTarget = { metricKey: 'load', exprKind: 'pct_of_bodyweight', exprArg: 0.5 };
     const c = ctx({ bodyweightAt: () => 89 });
-    expect(resolveTarget(t, squat, c)).toEqual({ kind: 'scalar', value: 42.5 });
+    expect(resolveTarget(t, squat, c)).toEqual({ kind: 'scalar', value: 42.5, exact: 44.5 });
   });
 
   it('defers rpe_autoreg to the athlete, never touching ctx', () => {
@@ -81,6 +81,6 @@ describe('resolveTarget', () => {
   it('pct_of_max uses exprRefExercise over the exercise\'s own reference_max_exercise_id', () => {
     const t: PrescribedTarget = { metricKey: 'load', exprKind: 'pct_of_max', exprArg: 0.5, exprRefExercise: 'front-squat' };
     const c = ctx({ workingMaxAt: (exId) => (exId === 'front-squat' ? 100 : 999) });
-    expect(resolveTarget(t, squat, c)).toEqual({ kind: 'scalar', value: 50 });
+    expect(resolveTarget(t, squat, c)).toEqual({ kind: 'scalar', value: 50, exact: 50 });
   });
 });

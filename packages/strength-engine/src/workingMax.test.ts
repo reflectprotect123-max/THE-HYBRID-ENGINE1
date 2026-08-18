@@ -39,4 +39,11 @@ describe('currentWorkingMax', () => {
     const events = [ev({ valueKg: 100, effectiveAt: '2026-08-01T00:00:00Z' }), ev({ valueKg: 999, effectiveAt: '2026-09-01T00:00:00Z' })];
     expect(currentWorkingMax(events, '2026-08-20')?.valueKg).toBe(100);
   });
+
+  it('sees an event set earlier the same day as a date-only asOf (regression)', () => {
+    // asOf is date-only ('2026-08-20'); a naive string compare would put it
+    // BEFORE any timestamp on the same day, hiding this event entirely.
+    const events = [ev({ valueKg: 110, effectiveAt: '2026-08-20T08:00:00Z' })];
+    expect(currentWorkingMax(events, '2026-08-20')?.valueKg).toBe(110);
+  });
 });

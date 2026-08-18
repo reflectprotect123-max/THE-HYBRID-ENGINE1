@@ -149,13 +149,14 @@ export interface TextBlock {
   exercises?: undefined;
 }
 
-/** A strength set/block now lives in `@hybrid/strength-engine` — see
- * `StrengthBlockItem`/`PrescribedSet` there. `Block<S>` regains its third
+/** A strength block now lives in `@hybrid/strength-engine` — see `StrengthBlock`
+ * (the block-level container of exercise entries) and `StrengthBlockItem`/
+ * `PrescribedSet` (one entry inside it) there. `Block<S>` regains its third
  * member as a reference to that package's shape rather than redefining it
  * here, so the two packages cannot drift apart on what a strength block is. */
-import type { StrengthBlockItem } from '@hybrid/strength-engine';
+import type { StrengthBlock } from '@hybrid/strength-engine';
 
-export type Block<S extends AnySet = LoggedSet> = StrengthBlockItem | CondBlock | TextBlock;
+export type Block<S extends AnySet = LoggedSet> = StrengthBlock | CondBlock | TextBlock;
 
 export interface Workout<S extends AnySet = LoggedSet> {
   id: string;

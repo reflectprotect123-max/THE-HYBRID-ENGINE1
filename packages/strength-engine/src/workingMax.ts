@@ -12,8 +12,14 @@ export interface WorkingMaxEvent {
 }
 
 export function currentWorkingMax(events: WorkingMaxEvent[], asOf: string): WorkingMaxEvent | null {
+  // `asOf` (ResolveCtx.scheduledDate) is date-only, e.g. '2026-08-20', while
+  // `effectiveAt` is a full ISO timestamp. A raw string compare puts the
+  // date-only value BEFORE any timestamp on the same day, so an event set
+  // earlier that same day would compare as "after" asOf and vanish. Normalize
+  // to end-of-day so same-day events are visible.
+  const asOfEnd = asOf.length === 10 ? `${asOf}T23:59:59.999Z` : asOf;
   const upTo = events
-    .filter(e => e.effectiveAt <= asOf)
+    .filter(e => e.effectiveAt <= asOfEnd)
     .sort((a, b) => b.effectiveAt.localeCompare(a.effectiveAt));
   if (!upTo.length) return null;
   const latest = upTo[0];

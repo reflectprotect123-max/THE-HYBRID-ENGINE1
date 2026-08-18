@@ -1,6 +1,6 @@
 import type { Equipment } from './exercise';
 
-export function roundToIncrement(value: number, equipment: Equipment | null): number {
+export function roundLoadToEquipment(value: number, equipment: Equipment | null): number {
   if (!equipment) return value;
   if (equipment.rackValuesKg?.length) {
     if (equipment.rounding === 'nearest') {
