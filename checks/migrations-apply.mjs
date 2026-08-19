@@ -154,6 +154,34 @@ const asOwnerSqlOut = (sql) => runSql(sql);
 const asOwnerProbe = (sql) => runSql(refusalProbe(sql));
 
 let failures = 0;
+/*
+ * KNOWN ENVIRONMENT GAPS — counted separately from failures, on purpose.
+ *
+ * pgvector (20260819_phase_f_knowledge_base's `create extension vector`) is a
+ * COMPILED extension: it ships as its own package
+ * (postgresql-<ver>-pgvector), not with the postgres this check borrows from
+ * whatever machine it runs on. From 18 August 2026 the check was permanently
+ * red anywhere that package was absent — which was everywhere, CI included —
+ * and a check that is always red hides every NEW failure behind the one it
+ * already reports. Red has to mean something.
+ *
+ * So a missing pgvector is named, printed loudly, and NOT counted as a
+ * failure: the run exits green when that is the only problem, and red for
+ * anything else. It is not allowed to pass silently in CI either — the
+ * workflow installs postgresql-<ver>-pgvector before this step and greps the
+ * output for `KNOWN ENVIRONMENT GAP`, failing the build if the marker
+ * appears there: on the runner the extension IS installed, so a gap there
+ * means the install broke, not the environment.
+ *
+ * The cost, stated plainly: on a machine without pgvector the phase F
+ * migration does not apply, so nothing it creates exists for later probes.
+ * Any future behaviour test against those objects must tolerate their
+ * absence when `knownGaps > 0`, or the gap stops being green-capable.
+ */
+let knownGaps = 0;
+const KNOWN_GAPS = [
+  { pattern: /extension "vector" is not available/, name: 'pgvector is not installed (apt: postgresql-<ver>-pgvector)' },
+];
 const check = (label, fn) => {
   try { fn(); console.log(`  PASS — ${label}`); }
   catch (e) { failures++; console.error(`  FAIL — ${label}: ${String(e.message || e).split('\n').slice(0, 3).join(' ')}`); }
@@ -167,7 +195,23 @@ try {
   console.log('Applying migrations to a throwaway cluster:\n');
   psql(`-q -f ${join(dir, 'supabase-prelude.sql')}`);
   for (const f of sqlFiles) {
-    check(`applies ${f}`, () => psql(`-q -f ${join(dir, f)}`));
+    try {
+      psql(`-q -f ${join(dir, f)}`);
+      console.log(`  PASS — applies ${f}`);
+    } catch (e) {
+      const out = `${e.stdout ?? ''}${e.stderr ?? ''}${e.message ?? ''}`;
+      const gap = KNOWN_GAPS.find((g) => g.pattern.test(out));
+      if (gap) {
+        knownGaps++;
+        console.error(`  KNOWN ENVIRONMENT GAP — ${f} did not apply: ${gap.name}.`);
+        console.error('      Not counted as a failure (see the knownGaps comment above), but nothing');
+        console.error('      this migration creates exists for the rest of this run. CI installs the');
+        console.error('      extension and FAILS on this marker, so the migration is still proven there.');
+      } else {
+        failures++;
+        console.error(`  FAIL — applies ${f}: ${String(e.message || e).split('\n').slice(0, 3).join(' ')}`);
+      }
+    }
   }
 
   console.log('\nBehaviour through the RPCs (the only supported write path):\n');
@@ -2073,5 +2117,8 @@ try {
   rmSync(dir, { recursive: true, force: true });
 }
 
+if (knownGaps) {
+  console.error(`\n${knownGaps} KNOWN ENVIRONMENT GAP(S) — see the lines above. Green here does NOT cover them; CI does.`);
+}
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nAll migration checks passed.');
 process.exit(failures ? 1 : 0);

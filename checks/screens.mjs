@@ -232,7 +232,15 @@ const COACH_SHOTS = [
    * practice. A pattern list is only proof when it names text ONLY the
    * intended screen shows; `/Week/i` never did.
    */
-  ['23-coach-day', `/coach/day/${TODAY}`, [/Session/i]],
+  /*
+   * The patterns here were `[/Session/i]` until 19 August 2026 — generic
+   * enough to match the Command Center behind the catch-all redirect, which
+   * is the exact `/Week/i` failure recorded above, waiting to repeat. These
+   * three are text ONLY `DayBuilder` renders, in its dated mode, regardless
+   * of whether the day is empty or already holds blocks: the instructions
+   * field label, the add-block button, and the dated-mode back link.
+   */
+  ['23-coach-day', `/coach/day/${TODAY}`, [/Coach instructions/i, /\+ Add block/i, /Back to calendar/i]],
   /*
    * The week builder (13 August 2026), joining in the same commit that adds
    * the route — the standing rule for anything new under `/coach`.

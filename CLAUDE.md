@@ -704,6 +704,13 @@ the same commit that does the install.
    a crashed screen. Nothing else in CI drives the phone logger end to end.
    They are in `.github/workflows/ci.yml` now.
 
+   **And back OUT as of 19 August 2026**, as a dated exclusion rather than a
+   silent one: the strength logger both gates proved was deleted on the 17th,
+   the parity harness mounts the `StrengthRebuilding` stub, and the gates die
+   driving a deleted screen's hooks. The commented-out step in the workflow
+   carries the reason and the restore condition (Phase C ships the new
+   logger); the harness, driver, script and baselines stay in-tree.
+
    A check that exists and does not run is worth very little; if you add one,
    add it to `.github/workflows/ci.yml` in the same commit. And if you exclude
    one, the exclusion is a claim that ages — say why in the workflow, and
@@ -736,6 +743,11 @@ pnpm install
 pnpm run typecheck
 pnpm run test
 pnpm run check:ecosystem
-pnpm run verify              # everything CI runs, in one command
+pnpm run verify              # everything CI runs that needs no browser/emulator
+                             # install; the full list and each exclusion's
+                             # reason live in .github/workflows/ci.yml (this
+                             # line claimed "everything CI runs" until
+                             # 19 August 2026 — it never was, and the gap is
+                             # now stated instead of denied)
 pnpm run build:site          # assemble the coach site into apps/web/dist
 ```

@@ -162,16 +162,28 @@ if (shotsStart === -1) {
   }
   const block = end === -1 ? '' : screensJs.slice(shotsStart, end);
   const routes = (block.match(/^\s*\[\s*'/gm) || []).length;
-  const stated = claudeMd.match(/\*\*(?:Eleven|\w+) routes, (\d+) shots, all green\.\*\*/);
+  const stated = claudeMd.match(/\*\*(\w+) routes, (\d+) shots, all green\.\*\*/);
+
+  /* The prose half of the same sentence. Until 19 August 2026 only the DIGIT
+     was derived and the WORD ("Ten routes") rode along unchecked — the exact
+     split that let the digit go stale twice. Same anchor, same array. */
+  const NUMBER_WORDS = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
+    'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen', 'Twenty'];
 
   if (!routes) {
     problems.push('parsed zero routes out of COACH_SHOTS — the declaration format changed');
   } else if (!stated) {
     problems.push('CLAUDE.md no longer states the shot count in the form "N routes, M shots, all green" — this check cannot verify it');
-  } else if (Number(stated[1]) !== routes * 2) {
+  } else if (Number(stated[2]) !== routes * 2) {
     problems.push(
-      `CLAUDE.md says ${stated[1]} shots; COACH_SHOTS has ${routes} routes × 2 widths = ${routes * 2}. ` +
+      `CLAUDE.md says ${stated[2]} shots; COACH_SHOTS has ${routes} routes × 2 widths = ${routes * 2}. ` +
         'A route was added or deleted and the sentence did not follow — this is the third time.',
+    );
+  } else if (routes < NUMBER_WORDS.length && stated[1].toLowerCase() !== NUMBER_WORDS[routes].toLowerCase()) {
+    problems.push(
+      `CLAUDE.md says "${stated[1]} routes"; COACH_SHOTS has ${routes} (${NUMBER_WORDS[routes]}). ` +
+        'The shot digit was corrected and the route word was not — the same sentence, drifting by halves.',
     );
   }
 }

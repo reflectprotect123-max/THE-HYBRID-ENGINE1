@@ -16,6 +16,12 @@ name: CI
 # `check:parity-harness` remains out — it drives the PROTOTYPE, which is a
 # committed HTML file that no commit here can change.
 #
+# Both mobile parity gates are back OUT as of 19 August 2026: the strength
+# logger they proved was deleted on the 17th and its replacement (Phase C of
+# the strength rebuild) is not built yet, so the gates drive a deleted screen.
+# See the dated comment on the commented-out step below for the restore
+# condition.
+#
 # Four checks were added on 15 August 2026 —
 # screens, pwa-update, mobile-touch and (already present) the contract loop —
 # and TWO of them failed immediately on real defects that had been invisible
@@ -93,12 +99,39 @@ jobs:
       # that stopped shipping postgres would turn the one check that proves RLS
       # actually isolates two athletes into a silent no-op, and CI would stay
       # green having verified nothing.
+      #
+      # pgvector is installed first (19 August 2026). The runner's postgres does
+      # not ship it, so from the day 20260819_phase_f_knowledge_base landed this
+      # step was red on EVERY push — and a permanently red step hides every new
+      # failure behind the one it already reports. The check now treats a
+      # missing pgvector as a named KNOWN ENVIRONMENT GAP rather than a failure
+      # (so a laptop without the package still gets a meaningful green), and CI
+      # closes the loop from both sides: the extension is installed here so the
+      # vector migration is genuinely exercised, and the grep below FAILS the
+      # build if the gap marker appears anyway — on this runner a gap means the
+      # install broke, never the environment.
+      - name: Install pgvector for the runner's Postgres
+        # Every version present, not just the newest: checks/migrations-apply.mjs
+        # prefers 16 over 15 and knows nothing newer, so installing only for the
+        # highest-numbered install could feed the wrong server. A version whose
+        # pgvector package is missing is tolerated here because the grep guard
+        # below turns any resulting gap into a red build with a clear message.
+        run: |
+          sudo apt-get update -qq
+          for v in $(ls /usr/lib/postgresql); do
+            sudo apt-get install -y -qq "postgresql-${v}-pgvector" || echo "no pgvector package for postgres ${v}"
+          done
+
       - name: Migrations apply to a real Postgres
         run: |
           set -o pipefail
           node checks/migrations-apply.mjs 2>&1 | tee "$RUNNER_TEMP/migrations-apply.log"
           if grep -qiE 'SKIP — no local postgres' "$RUNNER_TEMP/migrations-apply.log"; then
             echo "::error::migrations-apply found no postgres, so the RLS and RPC behaviour was never exercised."
+            exit 1
+          fi
+          if grep -q 'KNOWN ENVIRONMENT GAP' "$RUNNER_TEMP/migrations-apply.log"; then
+            echo "::error::migrations-apply hit a known environment gap on the one machine where the gap is supposed to be closed — the pgvector install above did not take."
             exit 1
           fi
 
@@ -187,8 +220,23 @@ jobs:
       # run: see the workflow header. The visual baselines are the APP's own
       # since that day rather than the prototype's — `checks/parity-visual.mjs`
       # says why, and says what it costs.
-      - name: Mobile parity (behaviour + visual, real Expo export)
-        run: pnpm run check:parity-mobile
+      #
+      # EXCLUDED 19 August 2026: the strength logger both gates prove was
+      # deleted on the 17th, and `apps/mobile/parity/Harness.tsx` now mounts
+      # the `StrengthRebuilding` stub in its place. `checks/parity/script.mjs`
+      # still drives the deleted logger's hooks, so the behaviour gate dies on
+      # `missing hook 'piece-done'` at the first step, and the visual gate —
+      # which replays the SAME step list and diffs against baselines shot from
+      # the deleted screen — is broken by the same deletion. Both halves of
+      # `check:parity-mobile` drive a screen that no longer exists; keeping
+      # the step red would hide any new failure behind the one it already
+      # reports. The harness, driver, script and baselines are all kept
+      # in-tree on purpose. RESTORE this step when Phase C of the strength
+      # rebuild ships the new logger (repointing or re-recording the gates is
+      # part of that work — see the TODO in Harness.tsx).
+      #
+      # - name: Mobile parity (behaviour + visual, real Expo export)
+      #   run: pnpm run check:parity-mobile
 
       # The whole update loop: builds TWO real bundles, serves the second under
       # a page running the first, and asserts the new version is announced,

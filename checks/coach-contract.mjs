@@ -312,9 +312,17 @@ console.log('Coach surface contract\n');
     //
     // `apps/mobile/src/screens/Logger.tsx` was the entry until slice 6
     // replaced it with the round-major logger in `screens/logger/`.
-    // `SessionLogger.tsx` is its successor and the surface that logs the set,
-    // so a write added there is exactly what this rule exists to catch.
-    'apps/mobile/src/screens/logger/SessionLogger.tsx',
+    // `SessionLogger.tsx` was ITS successor — and was deleted with the rest
+    // of the strength logger on 17 August 2026 (the fire-sale rebuild), which
+    // put this check red exactly as the paragraph below the list demands: a
+    // stale entry makes the coverage claim false. Removed 19 August 2026.
+    //
+    // THAT LEAVES THE LIST EMPTY, and an empty list makes this rule
+    // momentarily vacuous — stated rather than hidden. When Phase C of the
+    // strength rebuild ships the new logger, its logging surface joins this
+    // list in the same commit; until then there is no strength logging
+    // surface on which the rule could be violated. (Training.tsx and
+    // Conditioning.tsx remain deliberately un-listed — the KNOWN GAP below.)
     //
     // KNOWN GAP, recorded rather than quietly enforced or quietly dropped.
     // `apps/mobile/src/screens/Training.tsx` and `Conditioning.tsx` DO match
