@@ -249,6 +249,31 @@ export function hasLoggedWork(s: Session | null | undefined): boolean {
         (isText(b) && !!b.done),
     )
   );
+  /* A StrengthBlock is deliberately NOT counted here, and that is Phase A of
+     the strength rebuild speaking, not an oversight: the block as stored in
+     EngineDB carries PRESCRIPTION only (items/sets of PrescribedSet), while
+     performed sets live server-side, so nothing on-device can tell a trained
+     strength session from an untouched one. Claiming logged work for a bare
+     prescription would put a "trained" dot on days nobody trained. Phase C
+     (on-device strength logging) is what gives this function a marker to
+     read; until then EXISTENCE is protected separately — see
+     `hasStrengthPrescription` and `expireStaleSessions`. The same reasoning
+     covers `loggedWorkCount` above and `sessionRpe` (no performed strength
+     set means no felt RPE to average). */
+}
+
+/**
+ * Whether a session carries any PRESCRIBED strength work: a StrengthBlock
+ * with at least one item. This is EXISTENCE, not logged work — Phase A stores
+ * no performed-state on the block (see the note in `hasLoggedWork`), so this
+ * must never feed a "trained" indicator. Its one job is to keep
+ * `expireStaleSessions` from binning a strength day as untrained: destroying
+ * the only local copy of a coach-prescribed session because the device cannot
+ * see the server-side performed sets would be data loss, not tidying.
+ * Phase C replaces this with a real performed-marker check.
+ */
+export function hasStrengthPrescription(s: Session | null | undefined): boolean {
+  return !!s && (s.blocks || []).some((b) => isStrength(b) && Array.isArray(b.items) && b.items.length > 0);
 }
 
 /*

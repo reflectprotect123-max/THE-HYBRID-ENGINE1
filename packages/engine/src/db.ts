@@ -1,6 +1,6 @@
 import { CON_RETENTION, CON_TRACE_KEEP } from './constants';
 import { uid, uniqArr, ymd } from './num';
-import { isCond, isStrength, isText, loggedWorkCount, hasLoggedWork } from './session';
+import { isCond, isStrength, isText, loggedWorkCount, hasLoggedWork, hasStrengthPrescription } from './session';
 import {
   migrateLegacySettings,
   emptyEcosystemNamespace,
@@ -614,7 +614,16 @@ export function expireStaleSessions(
   const out = sessions.filter((s) => {
     if (s.status !== 'active' || s.date >= today) return true;
     changed = true;
-    if (hasLoggedWork(s)) {
+    /* `hasStrengthPrescription` alongside `hasLoggedWork`, because Phase A of
+       the strength rebuild stores performed sets SERVER-SIDE: the local
+       StrengthBlock is prescription only, so `hasLoggedWork` cannot see
+       whether a strength session was trained. Binning it on that blindness
+       would destroy the only local copy of a session that may well have been
+       completed. Promote it to `incomplete` instead — existence, not a claim
+       of training. Phase C (on-device strength logging) is what lets
+       `hasLoggedWork` answer for strength and makes this extra check
+       collapsible back into it. */
+    if (hasLoggedWork(s) || hasStrengthPrescription(s)) {
       s.status = 'incomplete';
       s.completedAt = s.completedAt || s.startedAt || now;
       return true;
