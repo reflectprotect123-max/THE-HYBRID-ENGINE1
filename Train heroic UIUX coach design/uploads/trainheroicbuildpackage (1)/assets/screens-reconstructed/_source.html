@@ -1,0 +1,498 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Measured from the live app: Poppins; topbar #000 @64px; rail 64px;
+   btn label 14px/700 capitalize; base 16px. */
+:root{--ink:#111214;--ink2:#6b6f76;--line:#e6e8eb;--blue:#2f4bf7;--green:#12c48b;--amber:#f5b301;
+      --bg:#fff;--rail:#0b0b0d;--pill:#111214}
+*{box-sizing:border-box}
+body{margin:0;font-family:Poppins,system-ui,sans-serif;background:#f4f4f6;color:var(--ink);font-size:16px}
+.screen{width:1440px;background:var(--bg);margin:0 0 40px;position:relative;overflow:hidden;
+        border:1px solid #d8dade}
+.cap{font:600 12px/1.4 Poppins,system-ui;letter-spacing:.06em;text-transform:uppercase;color:#6b6f76;
+     padding:10px 14px;background:#eceef1;border-bottom:1px solid #d8dade}
+/* chrome */
+.top{height:64px;background:#000;display:flex;align-items:center;gap:16px;padding:0 20px;color:#fff;
+     box-shadow:rgba(0,0,0,.2) 0 2px 4px -1px}
+.logo{width:26px;height:26px;font:800 20px/1 Poppins;font-style:italic}
+.top .greet{font:400 20px/1 Poppins}
+.top .pgttl{font:500 20px/1 Poppins}
+.sp{flex:1}
+.btnP{background:var(--blue);color:#fff;border-radius:6px;padding:11px 18px;
+      font:700 14px/1 Poppins;text-transform:capitalize}
+.icn{opacity:.9;font-size:18px}
+.badge{background:var(--blue);color:#fff;border-radius:99px;font:700 10px/1 Poppins;padding:3px 6px;
+       position:relative;top:-8px;left:-6px}
+.av{width:30px;height:30px;border-radius:50%;background:#3a3d42}
+.body{display:flex;min-height:520px}
+.rail{width:64px;background:var(--rail);color:#fff;padding:12px 0;flex:none}
+.rail div{text-align:center;padding:10px 2px;font:400 10px/1.25 Poppins;opacity:.85}
+.rail div.on{opacity:1;background:#fff;color:#0b0b0d;font-weight:600}
+.rail .ico{display:block;font-size:17px;margin-bottom:3px;opacity:.95}
+.main{flex:1;padding:22px 26px;min-width:0}
+/* controls */
+.sel{border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;align-items:center;
+     gap:12px;font:500 16px/1 Poppins;box-shadow:0 1px 2px rgba(0,0,0,.05);background:#fff}
+.mk{width:26px;height:26px;border-radius:50%;background:#111214;color:#fff;display:grid;place-items:center;
+    font:800 12px/1 Poppins;font-style:italic}
+.pill{border:1px solid #111214;border-radius:4px;padding:5px 10px;font:700 12px/1 Poppins}
+.h-date{font:600 18px/1 Poppins;margin:26px 0 14px}
+/* card */
+.card{border:1px solid var(--line);border-radius:10px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.who{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+.who .n{color:var(--blue);font:600 15px/1.2 Poppins}
+.who .s{color:var(--ink2);font:400 13px/1.3 Poppins;margin-top:2px}
+.kpis{display:flex;text-align:center}
+.kpis>div{flex:1}
+.ring{width:44px;height:44px;border-radius:50%;margin:0 auto 8px;border:4px solid var(--line)}
+.ring.g{border-color:var(--green);background:conic-gradient(var(--green) 60%,transparent 0)}
+.ring.full{border-color:var(--green);background:var(--green)}
+.kv{font:700 15px/1 Poppins}.kl{font:400 11px/1 Poppins;color:var(--ink2);margin-top:5px}
+.off .kv,.off .kl{color:#c3c6cb}
+.more{color:var(--blue);font:500 13px/1 Poppins;margin:16px 0 12px}
+.btnW{background:var(--blue);color:#fff;text-align:center;border-radius:6px;padding:13px;
+      font:600 14px/1 Poppins}
+/* blocks */
+.bh{font:700 11px/1 Poppins;letter-spacing:.09em;margin:20px 0 8px;color:#111214}
+.brow{display:flex;gap:12px;align-items:flex-start;padding:5px 0}
+.let{width:26px;height:26px;border-radius:50%;border:1.5px solid #c8ccd2;display:grid;place-items:center;
+     font:700 11px/1 Poppins;flex:none;color:#6b6f76;background:#fff}
+.let.g{background:var(--green);border-color:var(--green);color:#fff}
+.let.a{background:var(--amber);border-color:var(--amber);color:#fff}
+.ex{font:500 13.5px/1.4 Poppins}
+.pre{font:400 13px/1.4 Poppins;color:#9aa0a6;text-decoration:line-through}
+.perf{font:600 13px/1.4 Poppins}
+.note{font:400 13px/1.5 Poppins;color:var(--ink2)}
+.fc{color:var(--blue);font:500 13px/1.4 Poppins}
+/* dropdown */
+.dd{border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);background:#fff;
+    margin-top:-1px;overflow:hidden}
+.dd div{display:flex;gap:12px;align-items:center;padding:12px 16px;font:400 15px/1 Poppins}
+.dd div+div{border-top:1px solid #f2f3f5}
+/* table */
+table{width:100%;border-collapse:collapse}
+th{font:600 12px/1 Poppins;color:#6b6f76;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line)}
+td{padding:14px;border-bottom:1px solid var(--line);font:400 14px/1.3 Poppins}
+.tools{display:flex;align-items:center;gap:22px;padding:12px 0 16px;border-bottom:1px solid var(--line)}
+.lab{font:600 10px/1 Poppins;letter-spacing:.08em;color:#6b6f76}
+.val{font:600 15px/1 Poppins;margin-top:5px}
+.dis{color:#b9bdc3;font:500 14px/1 Poppins}
+/* drawer */
+.dr{position:absolute;right:0;top:0;bottom:0;width:400px;background:#fff;border-left:1px solid var(--line);
+    box-shadow:-8px 0 24px rgba(0,0,0,.10);padding:0 0 0 0}
+.dr .hd{padding:18px 20px 12px;display:flex;gap:12px;align-items:center}
+.dr .hd .nm{font:600 17px/1 Poppins;letter-spacing:.05em}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs div{flex:1;text-align:center;padding:12px 0;font:600 11.5px/1 Poppins;letter-spacing:.06em;color:#6b6f76}
+.tabs div.on{color:#111214;box-shadow:inset 0 -2px 0 #111214}
+.drb{padding:16px 20px}
+.srch{border:1px solid var(--line);border-radius:6px;padding:11px 12px;color:#9aa0a6;font:400 13.5px/1 Poppins;margin-bottom:14px}
+.rw{display:flex;padding:12px 0;border-bottom:1px solid #f2f3f5}
+.rw .e{flex:1;font:500 13.5px/1.3 Poppins}
+.rw .v{text-align:right;width:104px}
+.rw .v b{color:var(--blue);font:700 13px/1 Poppins}
+.rw .v s{display:block;font:400 9.5px/1.4 Poppins;color:#9aa0a6;text-decoration:none;margin-top:3px;letter-spacing:.04em}
+.hdr{display:flex;font:600 9.5px/1 Poppins;letter-spacing:.06em;color:#6b6f76;padding-bottom:8px}
+.tog{width:44px;height:24px;border-radius:99px;background:#2196f3;position:relative}
+.tog::after{content:"";position:absolute;right:2px;top:2px;width:20px;height:20px;border-radius:50%;background:#fff}
+.fld{font:600 14px/1 Poppins;margin:20px 0 8px}
+.plus{width:26px;height:26px;border-radius:5px;background:var(--blue);color:#fff;display:grid;place-items:center;font:700 16px/1 Poppins}
+/* settings */
+.stop{height:52px;background:#000;color:#fff;display:flex;align-items:center;gap:14px;padding:0 20px}
+.stabs{background:#000;display:flex;gap:26px;padding:0 20px 0 20px;border-bottom:1px solid #1e1f22}
+.stabs div{color:#b9bdc3;font:500 12.5px/1 Poppins;padding:12px 0 12px}
+.stabs div.on{color:#fff;font-weight:700;box-shadow:inset 0 -3px 0 #fff}
+.wiz{display:flex;justify-content:center;gap:0;align-items:center;padding:26px 0 6px}
+.wiz i{width:170px;height:1px;background:#d8dade;display:block}
+.wiz span{font:500 11.5px/1 Poppins;color:#6b6f76;text-align:center;display:block;margin-top:8px}
+.wiz .c{text-align:center}.wiz .c.on span{color:var(--blue)}
+.hero{text-align:center;font:700 22px/1 Poppins;font-style:italic;margin:14px 0 26px}
+.hero em{background:#f2ff5c;font-style:italic;padding:2px 10px}
+.pcard{border:1px solid var(--line);border-radius:10px;padding:20px 22px;width:420px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:18px;width:150px;text-align:center}
+.tile .t{font:600 13.5px/1.3 Poppins}.tile .big{font:700 30px/1 Poppins;margin:12px 0 8px}
+.tile .sm{font:400 10.5px/1.3 Poppins;color:#6b6f76}
+.tile a{color:var(--blue);font:600 12px/1 Poppins;display:block;margin-top:10px}
+.hl{background:#0b0b0d;color:#fff;padding:34px 60px;margin-top:34px}
+.hl h4{font:700 19px/1 Poppins;text-align:center;margin:0 0 22px}
+.hl ul{display:grid;grid-template-columns:1fr 1fr;gap:14px 40px;list-style:none;padding:0;margin:0}
+.hl li{font:500 13px/1.45 Poppins;display:flex;gap:9px}
+.hl li::before{content:"✔";color:#b8ff2e}
+/* marketplace */
+.mrow{border:1px solid var(--line);border-top:0;display:flex;align-items:center;gap:14px;padding:14px 18px}
+.mrow:first-of-type{border-top:1px solid var(--line);border-radius:8px 8px 0 0}
+.mrow:last-of-type{border-radius:0 0 8px 8px}
+.thumb{width:38px;height:38px;border-radius:6px;background:#1c1d20;color:#fff;display:grid;place-items:center;font:800 9px/1 Poppins}
+.mname{flex:1;font:600 14px/1 Poppins}
+.st{font:700 9.5px/1 Poppins;letter-spacing:.06em;padding:5px 9px;border-radius:4px}
+.st.a{background:#dff7e8;color:#0a7a3d}
+.st.c{background:#fde4e6;color:#b3202c}
+.st.b{background:#e2e8ff;color:#2f3fa8}
+.mp{text-align:right;width:150px}
+.mp .p{font:600 13.5px/1 Poppins}
+.mp .x{font:400 9.5px/1.4 Poppins;color:#9aa0a6;font-style:italic;margin-top:3px}
+.empty{text-align:center;padding:70px 0}
+.empty .art{font-size:70px;color:#ffc400;line-height:1}
+.empty h5{font:600 16px/1 Poppins;margin:18px 0 8px}
+.empty p{font:400 13.5px/1 Poppins;color:var(--ink2);margin:0}
+</style></head><body>
+
+<!-- ══ 01 Coach Home — expanded session card ══ -->
+<div class="screen" id="s01"><div class="cap">01 · Coach Home — session card expanded (See More)</div>
+<div class="top"><div class="logo">H</div><div class="greet">Welcome back, Coach veldman!</div><div class="sp"></div>
+<div class="btnP">Manage Assistant Coaches</div><div class="icn">💬</div><div class="icn">🔔<span class="badge">14</span></div><div class="av"></div></div>
+<div class="body"><div class="rail">
+<div class="on"><span class="ico">⌂</span>Coach<br>Home</div><div><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div>
+<div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="main" style="display:flex;gap:26px">
+<div style="flex:1;max-width:720px">
+<div style="display:flex;gap:14px;align-items:center"><div class="sel" style="flex:1"><div class="mk">H</div>All Athletes<div class="sp"></div>⌄</div>
+<div class="pill">Latest</div><div class="icn" style="color:#111">🗓</div></div>
+<div style="display:flex;align-items:center"><div class="h-date">Monday, August 10, 2026</div><div class="sp"></div></div>
+<div class="card">
+<div class="who"><div class="av" style="width:38px;height:38px"></div><div><div class="n">dan veldman</div><div class="s">Week 1 Day 1</div></div></div>
+<div class="kpis">
+<div><div class="ring g"></div><div class="kv">3/5</div><div class="kl">Blocks</div></div>
+<div><div class="ring"></div><div class="kv">–</div><div class="kl">Readiness</div></div>
+<div class="off"><div class="ring"></div><div class="kv">–</div><div class="kl">Minutes</div></div>
+<div class="off"><div class="ring"></div><div class="kv">–</div><div class="kl">Intensity</div></div>
+<div><div class="ring"></div><div class="kv">799</div><div class="kl">KG</div></div></div>
+<div class="more">See Less</div><div class="btnW">Session Comment</div>
+<div class="bh">WARM UP</div>
+<div class="brow"><div class="let">A</div><div><div class="note">2 minutes cardio of choice<br>1A. Pogo hops - 2 x 10-12<br>1B. Med ball chest press into floor - 2 x 10-12<br>1C. Rotational med ball slam - 2 x 10-12</div><div class="fc">For Completion</div></div></div>
+<div class="bh">STRENGTH/POWER</div>
+<div class="brow"><div class="let g">B</div><div><div class="ex">Bench Press</div><div class="perf">8,8,6 @ 80,100,105kg</div></div></div>
+<div class="bh">STRENGTH/POWER</div>
+<div class="brow"><div class="let g">C</div><div><div class="ex">Romanian Deadlift</div><div class="perf">7,8,6 @ 100,105,110kg</div></div></div>
+<div class="bh">STRENGTH/POWER</div>
+<div class="brow"><div class="let a">D1</div><div><div class="ex">Lat Pulldown</div><div class="pre">3 x 10-12</div><div class="perf">2 x 12 @ 70,75kg</div></div></div>
+<div class="brow"><div class="let a">D2</div><div><div class="ex">DB Reverse Lunge</div><div class="pre">3 x 10-12</div><div class="perf">2 x 10 @ 27kg</div></div></div>
+<div class="bh">CONDITIONING</div>
+<div class="brow"><div class="let">E</div><div><div class="ex">2-3 x E5OM</div><div class="note">complete a 30m heavy farmers carry</div></div></div>
+</div></div>
+<div style="width:330px"><div class="card"><div style="font:600 17px/1 Poppins;margin-bottom:16px">Needs Programming</div>
+<div style="display:flex;gap:12px;align-items:center"><div class="thumb">HTS</div>
+<div style="flex:1"><div style="font:600 13px/1.3 Poppins">hybrid training system.</div><div style="color:#d0021b;font:600 12px/1.3 Poppins;margin-top:3px">⚠ 7 Days Ago</div></div>
+<div class="icn" style="color:#2f80ed">🗓</div><div class="icn" style="color:#2f80ed">💬</div></div></div></div>
+</div></div></div>
+
+<!-- ══ 02 scope dropdown ══ -->
+<div class="screen" id="s02"><div class="cap">02 · Coach Home — scope select open (chevron only)</div>
+<div class="top"><div class="logo">H</div><div class="greet">Welcome back, Coach veldman!</div><div class="sp"></div><div class="btnP">Manage Assistant Coaches</div></div>
+<div class="body"><div class="rail"><div class="on"><span class="ico">⌂</span>Coach<br>Home</div><div><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div><div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="main"><div style="max-width:640px">
+<div class="sel"><div class="mk">H</div>All Athletes<div class="sp"></div>⌃</div>
+<div class="dd">
+<div><div class="mk">H</div>All Athletes</div>
+<div><div class="mk">H</div>1:1 Athletes</div>
+<div><div class="mk">H</div>New Members</div>
+<div><div class="av"></div>Me</div>
+<div><div class="thumb" style="width:26px;height:26px;font-size:7px">HTS</div>hybrid training system.</div>
+</div>
+<div style="font:400 12px/1.5 Poppins;color:#6b6f76;margin-top:18px">Icon carries the type distinction — product mark = system group, avatar = self, team logo = team. No headers or dividers.</div>
+</div></div></div></div>
+
+<!-- ══ 03 calendar mode + empty state ══ -->
+<div class="screen" id="s03"><div class="cap">03 · Coach Home — calendar mode, empty state</div>
+<div class="top"><div class="logo">H</div><div class="greet">Welcome back, Coach veldman!</div><div class="sp"></div><div class="btnP">Manage Assistant Coaches</div></div>
+<div class="body"><div class="rail"><div class="on"><span class="ico">⌂</span>Coach<br>Home</div><div><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div><div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="main"><div style="display:flex;gap:14px;align-items:center">
+<div class="sel" style="flex:0 0 520px"><div class="mk">H</div>All Athletes<div class="sp"></div>⌄</div>
+<div class="pill">Latest</div>
+<div style="display:flex;align-items:center;gap:14px;font:600 15px/1 Poppins">‹ <span>Wednesday, August 19, 2026</span> <span style="width:34px;height:34px;border-radius:50%;background:#e9eaee;display:grid;place-items:center">›</span></div></div>
+<div class="empty"><div class="art">👥</div><h5>No logged sessions found</h5><p>Try a different combination of filters to see athlete data</p></div>
+</div></div></div>
+
+<!-- ══ 04 Athletes list ══ -->
+<div class="screen" id="s04"><div class="cap">04 · Athletes list (legacy AngularJS host)</div>
+<div class="top"><div class="logo">H</div><div class="pgttl">My Athletes</div><div class="sp"></div><div class="btnP">Manage Assistant Coaches</div></div>
+<div class="body"><div class="rail"><div><span class="ico">⌂</span>Coach<br>Home</div><div class="on"><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div><div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="main" style="padding:0">
+<div class="tools" style="padding:14px 22px;background:#f7f8f9">
+<div><div class="lab">GROUP</div><div class="val">All Athletes (2) ⌄</div></div>
+<div><div class="lab">STATUS</div><div class="val">ACTIVE ⌄</div></div>
+<div class="sp"></div><div class="icn">🔍</div>
+<div class="dis">⇄ Remove From Teams</div><div class="dis">🗑 Archive</div>
+<div class="btnP">Invite Athletes</div><div class="icn">⋮</div></div>
+<table>
+<tr><th style="width:40px"></th><th>Athlete Name ⇅</th><th style="width:150px">Actions</th><th>Athlete Type</th><th>Teams</th><th>Tags</th><th>Days Since Last Login</th></tr>
+<tr><td>☐</td><td><div style="display:flex;gap:12px;align-items:center"><div class="av" style="background:#111;color:#fff;display:grid;place-items:center;font:700 12px/1 Poppins">CP</div><div><div style="font:600 14px/1.2 Poppins">Purvis, Carolyn</div><div style="font:400 11.5px/1.3 Poppins;color:#6b6f76">c-purvis88@hotmail.com</div></div></div></td>
+<td>🗓&nbsp;&nbsp;💬&nbsp;&nbsp;📈</td><td style="color:#6b6f76">Coach Plan</td><td style="color:#6b6f76">0 Teams</td><td style="color:var(--blue)">Add Tags</td><td>141</td></tr>
+<tr style="background:#dbeeff"><td>☐</td><td><div style="display:flex;gap:12px;align-items:center"><div class="av"></div><div><div style="font:600 14px/1.2 Poppins">Veldman, Dan</div><div style="font:400 11.5px/1.3 Poppins;color:#6b6f76">veld-man@hotmail.com</div></div></div></td>
+<td>🗓&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📈</td><td></td><td style="color:#6b6f76">17 Teams</td><td style="color:var(--blue)">Add Tags</td><td>0</td></tr>
+</table>
+<div style="font:400 12px/1.5 Poppins;color:#6b6f76;padding:14px 22px">Bulk actions greyed until a row is checked. Message icon absent on the non–Coach Plan athlete. Blank Athlete Type = marketplace / self-serve.</div>
+</div></div></div>
+
+<!-- ══ 05-08 athlete drawer, four tabs ══ -->
+<div class="screen" id="s05"><div class="cap">05 · Athlete drawer — EXERCISES</div>
+<div class="top"><div class="logo">H</div><div class="pgttl">My Athletes</div><div class="sp"></div><div class="btnP">Manage Assistant Coaches</div></div>
+<div class="body" style="min-height:470px"><div class="rail"><div><span class="ico">⌂</span>Coach<br>Home</div><div class="on"><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div><div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="main" style="padding:0"><table>
+<tr><th style="width:40px"></th><th>Athlete Name ⇅</th><th style="width:150px">Actions</th><th>Athlete Type</th><th>Teams</th></tr>
+<tr><td>☐</td><td style="font:600 14px/1.2 Poppins">Purvis, Carolyn</td><td>🗓 💬 📈</td><td style="color:#6b6f76">Coach Plan</td><td style="color:#6b6f76">0 Teams</td></tr>
+<tr style="background:#dbeeff"><td>☐</td><td style="font:600 14px/1.2 Poppins">Veldman, Dan</td><td>🗓 &nbsp;&nbsp; 📈</td><td></td><td style="color:#6b6f76">17 Teams</td></tr></table></div>
+<div class="dr"><div style="padding:14px 20px 0;font:400 18px/1 Poppins;color:#6b6f76">✕</div>
+<div class="hd"><div class="av" style="width:38px;height:38px"></div><div class="nm">DAN VELDMAN</div></div>
+<div class="tabs"><div class="on">EXERCISES</div><div>CIRCUITS</div><div>NOTES</div><div>ACCOUNT</div></div>
+<div class="drb"><div class="srch">🔍&nbsp; Search Back Squat, Pull Ups, Etc.</div>
+<div class="hdr"><span style="flex:1">EXERCISE</span><span style="width:104px;text-align:right">WORKING MAX</span><span style="width:104px;text-align:right">PERSONAL RECORD</span></div>
+<div class="rw"><span class="e">1 1/4 Cyclist Front Squat</span><span class="v"><b>100 kg</b><s>2026-04-15<br>ESTIMATED</s></span><span class="v"><b>8@80 kg</b><s>2026-04-15</s></span></div>
+<div class="rw"><span class="e">1 1/4 Back Squat</span><span class="v"><b>133.3 kg</b><s>2024-05-30<br>ESTIMATED</s></span><span class="v"><b>4@120 kg</b><s>2024-06-30</s></span></div>
+<div class="rw"><span class="e">Ab Wheel</span><span class="v"></span><span class="v"><b>15 reps</b><s>2025-08-25</s></span></div>
+<div class="rw"><span class="e">Airdyne</span><span class="v"></span><span class="v"><b>20:00 mm:ss</b><s>2026-02-03</s></span></div>
+</div></div></div></div>
+
+<div class="screen" id="s06"><div class="cap">06 · Athlete drawer — CIRCUITS (different column pair)</div>
+<div class="top"><div class="logo">H</div><div class="pgttl">My Athletes</div><div class="sp"></div><div class="btnP">Manage Assistant Coaches</div></div>
+<div class="body" style="min-height:420px"><div class="rail"><div><span class="ico">⌂</span>Coach<br>Home</div><div class="on"><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div><div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="main"></div>
+<div class="dr"><div style="padding:14px 20px 0;font:400 18px/1 Poppins;color:#6b6f76">✕</div>
+<div class="hd"><div class="av" style="width:38px;height:38px"></div><div class="nm">DAN VELDMAN</div></div>
+<div class="tabs"><div>EXERCISES</div><div class="on">CIRCUITS</div><div>NOTES</div><div>ACCOUNT</div></div>
+<div class="drb"><div class="srch">🔍&nbsp; Search Fran, etc.</div>
+<div class="hdr"><span style="flex:1">CIRCUIT</span><span style="width:104px;text-align:right">MOST RECENT</span><span style="width:104px;text-align:right">PERSONAL RECORD</span></div>
+<div class="rw"><span class="e">Warm Up 08/01/24 Cleans</span><span class="v"><b style="color:#111">0</b><s>2024-01-08</s></span><span class="v"><b>0</b><s>2024-01-08</s></span></div>
+<div class="rw"><span class="e">Clean Workout</span><span class="v"><b style="color:#111">0</b><s>2024-01-08</s></span><span class="v"><b>0</b><s>2024-01-08</s></span></div>
+<div class="rw"><span class="e">Metcon 070124</span><span class="v"><b style="color:#111">0</b><s>2024-01-08</s></span><span class="v"><b>0</b><s>2024-01-08</s></span></div>
+<div class="rw"><span class="e">Metcon 100124</span><span class="v"><b style="color:#111">0</b><s>2024-01-10</s></span><span class="v"><b>0</b><s>2024-01-10</s></span></div>
+</div></div></div></div>
+
+<div class="screen" id="s07"><div class="cap">07 · Athlete drawer — NOTES (one unstructured field)</div>
+<div class="top"><div class="logo">H</div><div class="pgttl">My Athletes</div><div class="sp"></div><div class="btnP">Manage Assistant Coaches</div></div>
+<div class="body" style="min-height:330px"><div class="rail"><div><span class="ico">⌂</span>Coach<br>Home</div><div class="on"><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div><div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="main"></div>
+<div class="dr"><div style="padding:14px 20px 0;font:400 18px/1 Poppins;color:#6b6f76">✕</div>
+<div class="hd"><div class="av" style="width:38px;height:38px"></div><div class="nm">DAN VELDMAN</div></div>
+<div class="tabs"><div>EXERCISES</div><div>CIRCUITS</div><div class="on">NOTES</div><div>ACCOUNT</div></div>
+<div class="drb"><div class="fld" style="margin-top:4px">Athlete Notes</div>
+<div style="font:400 13.5px/1.6 Poppins;color:#9aa0a6;border-bottom:1px solid var(--line);padding-bottom:14px">Injuries, modifications, training start date, FMS results, etc.</div>
+</div></div></div></div>
+
+<div class="screen" id="s08"><div class="cap">08 · Athlete drawer — ACCOUNT (per-athlete unit toggle)</div>
+<div class="top"><div class="logo">H</div><div class="pgttl">My Athletes</div><div class="sp"></div><div class="btnP">Manage Assistant Coaches</div></div>
+<div class="body" style="min-height:520px"><div class="rail"><div><span class="ico">⌂</span>Coach<br>Home</div><div class="on"><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div><div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="main"></div>
+<div class="dr"><div style="padding:14px 20px 0;font:400 18px/1 Poppins;color:#6b6f76">✕</div>
+<div class="hd"><div class="av" style="width:38px;height:38px"></div><div class="nm">DAN VELDMAN</div></div>
+<div class="tabs"><div>EXERCISES</div><div>CIRCUITS</div><div>NOTES</div><div class="on">ACCOUNT</div></div>
+<div class="drb">
+<div class="fld" style="margin-top:4px">Email</div><div style="font:400 14px/1 Poppins">veld-man@hotmail.com</div>
+<div class="fld">Reset Password</div><div class="btnW" style="border-radius:4px;font:700 13px/1 Poppins;letter-spacing:.04em">RESET ATHLETE'S PASSWORD</div>
+<div class="fld">Pounds/Kilograms</div>
+<div style="display:flex;align-items:center"><span style="font:400 14px/1 Poppins">Kilograms</span><div class="sp" style="flex:1"></div><div class="tog"></div></div>
+<div class="fld">Categories (Sports / Positions / Groups) <span style="color:#9aa0a6">?</span></div>
+<div style="border-top:1px solid var(--line);padding-top:14px;display:flex;gap:14px;align-items:center"><div class="plus">+</div><span style="color:var(--blue);font:600 13.5px/1 Poppins">Add Categories to User</span></div>
+<div class="fld">Teams/Programs <span style="color:#9aa0a6">?</span></div>
+<div style="border-top:1px solid var(--line);padding-top:14px;display:flex;gap:14px;align-items:center"><div class="plus">+</div><span style="color:var(--blue);font:600 13.5px/1 Poppins">Add Team or Program Access</span></div>
+</div></div></div></div>
+
+<!-- ══ 09 Coach Plans ══ -->
+<div class="screen" id="s09"><div class="cap">09 · account.trainheroic.com — Coach Plans (seat pricing)</div>
+<div class="stop"><div class="logo">H</div><div style="font:700 17px/1 Poppins;font-style:italic;letter-spacing:.06em">SETTINGS</div><div class="sp"></div><div class="av"></div><div>⌄</div></div>
+<div class="stabs"><div class="on">Coach Plans</div><div>Manage Assistant Coaches</div><div>Payment History</div><div>Payment Info</div><div>Marketplace Subscriptions</div></div>
+<div style="padding:0 0 0">
+<div class="wiz"><div class="c on"><div style="font-size:17px">🛒</div><span>Choose Plan</span></div><i></i><div class="c"><div style="font-size:17px">💳</div><span>Payment</span></div><i></i><div class="c"><div style="font-size:17px">✓</div><span>Review</span></div></div>
+<div class="hero"><em>Plans for every coach</em></div>
+<div style="display:flex;gap:22px;justify-content:center;align-items:flex-start">
+<div class="pcard"><div style="font:600 17px/1 Poppins;margin-bottom:20px">Current Plan</div>
+<div style="border-bottom:1px solid #b9bdc3;padding-bottom:9px;display:flex;font:400 14px/1 Poppins">1 athlete at $9.99 per month (current plan)<div style="flex:1"></div>⌄</div>
+<div style="background:#eef1ff;color:var(--blue);text-align:center;border-radius:5px;padding:12px;margin-top:24px;font:600 13.5px/1 Poppins">Upgrade Plan</div>
+<div style="text-align:center;color:var(--blue);font:600 13.5px/1 Poppins;margin-top:16px">Cancel Plan</div></div>
+<div class="tile"><div class="t">Attached<br>Athletes</div><div class="big">1<span style="font-size:14px">*</span></div><div class="sm">Invited Athletes: 0</div><a>Manage Athletes</a></div>
+<div class="tile"><div class="t">Assistant<br>Coaches</div><div class="big">0</div><div class="sm">$9.99 per month</div><a>Manage Coaches</a></div>
+</div>
+<div style="text-align:center;font:400 11.5px/1.5 Poppins;color:#6b6f76;margin-top:8px">*Does not include athletes who purchased from the marketplace</div>
+<div style="text-align:center;font:400 11.5px/1 Poppins;color:#6b6f76;margin:18px 0 26px">Need more than 1000 athletes? Contact <span style="text-decoration:underline">Support</span>.</div>
+<div class="hl"><h4>Highlights</h4><ul>
+<li>Risk-free 14 day trial and plans start at just $9.99</li>
+<li>Reach more clients by selling your programs in the TrainHeroic Marketplace</li>
+<li>Keep clients engaged with the top Athlete app experience</li>
+<li>Our expert team will help get you started and we're here to help as you grow</li>
+<li>Coach in any context: remote, in-person, groups, 1:1</li></ul></div>
+</div></div>
+
+<!-- ══ 10 Marketplace Subscriptions ══ -->
+<div class="screen" id="s10"><div class="cap">10 · account.trainheroic.com — Marketplace Subscriptions (three commercial models)</div>
+<div class="stop"><div class="logo">H</div><div style="font:700 17px/1 Poppins;font-style:italic;letter-spacing:.06em">SETTINGS</div><div class="sp"></div><div class="av"></div><div>⌄</div></div>
+<div class="stabs"><div>Coach Plans</div><div>Manage Assistant Coaches</div><div>Payment History</div><div>Payment Info</div><div class="on">Marketplace Subscriptions</div></div>
+<div style="max-width:640px;margin:36px auto 40px">
+<div style="display:flex;align-items:baseline;margin-bottom:18px"><div style="font:700 16px/1 Poppins;font-style:italic;letter-spacing:.05em">MARKETPLACE SUBSCRIPTIONS</div><div style="flex:1"></div><div style="color:var(--blue);font:600 12.5px/1 Poppins">Find More Teams On Our Marketplace</div></div>
+<div class="mrow"><div class="thumb">SB</div><div class="mname">Stay Beefy</div><div class="st c">CANCEL PENDING</div><div class="mp"><div class="p">$29.00 / month</div><div class="x">+ applicable taxes</div></div></div>
+<div class="mrow"><div class="thumb" style="background:#7a1420">HF</div><div class="mname">Hybrid Fit</div><div class="st c">CANCEL PENDING</div><div class="mp"><div class="p">$29.00 / month</div><div class="x">+ applicable taxes</div></div></div>
+<div class="mrow"><div class="thumb" style="background:#7a1420">HF</div><div class="mname">Hybrid Fit</div><div class="st c">CANCEL PENDING</div><div class="mp"><div class="p">$29.00 / month</div><div class="x">+ applicable taxes</div></div></div>
+<div class="mrow"><div class="thumb" style="background:#7a1420">HF</div><div class="mname">Hybrid Fit</div><div class="st c">CANCEL PENDING</div><div class="mp"><div class="p">$29.00 / month</div><div class="x">+ applicable taxes</div></div></div>
+<div class="mrow" style="border-color:#c8ccd2;background:#fcfcfd"><div class="thumb" style="background:#3d2a12">FC</div><div class="mname">Functional Conjugate All Access</div>
+<div class="st b" style="margin-right:6px">BUNDLE</div><div class="st a">ACTIVE</div>
+<div class="mp"><div class="p">$49.00 / month</div><div class="x">+ applicable taxes</div><div class="x" style="font-style:normal;color:#6b6f76">Renews September 17, 2026</div><div style="color:#d0021b;font:600 12px/1 Poppins;margin-top:8px">Cancel Subscription</div></div></div>
+<div class="mrow"><div class="thumb" style="background:#111">RX</div><div class="mname">Rx Athlete</div><div class="st a">ACTIVE</div><div class="mp"><div class="p">$99.00</div><div class="x">+ applicable taxes</div><div class="x" style="font-style:normal;color:#6b6f76">Lifetime Access</div></div></div>
+<div style="font:400 12px/1.6 Poppins;color:#6b6f76;margin-top:20px">Three coexisting models: monthly subscription (~$29), bundle (~$49, own badge), one-time lifetime ($99). <b>CANCEL PENDING</b> means access persists to period end — model state as <code>(status, access_until)</code>.</div>
+</div></div>
+
+
+<style>
+/* builder + calendar */
+.bwrap{display:flex;min-height:640px}
+.bleft{width:250px;border-right:1px solid var(--line);padding:16px 14px;flex:none}
+.wk{font:600 10.5px/1 Poppins;letter-spacing:.08em;color:#6b6f76;margin-bottom:10px}
+.days{display:flex;gap:6px;margin-bottom:22px}
+.days span{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:500 12.5px/1 Poppins;color:#6b6f76}
+.days span.on{background:#111214;color:#fff;font-weight:600}
+.days span i{display:block;width:3px;height:3px;border-radius:50%;background:#c8ccd2;position:relative;top:12px}
+.pvT{font:600 15px/1 Poppins;margin:0 0 14px}
+.pvHd{font:600 12.5px/1 Poppins;color:#6b6f76;margin:0 0 10px}
+.pvR{display:flex;gap:9px;padding:4px 0;align-items:flex-start}
+.pvR .l{width:20px;height:20px;border-radius:50%;border:1.2px solid #c8ccd2;display:grid;place-items:center;font:600 9px/1 Poppins;color:#6b6f76;flex:none}
+.pvR .n{font:500 12px/1.35 Poppins}
+.pvR .p{font:400 11px/1.35 Poppins;color:#6b6f76}
+.bmain{flex:1;padding:18px 26px;min-width:0}
+.crumb{color:#6b6f76;font:500 13px/1 Poppins;margin-bottom:18px}
+.h-day{font:700 30px/1 Poppins;margin:0 0 16px}
+.stitle{display:flex;gap:12px;align-items:center;margin-bottom:18px}
+.stitle .t1{color:#9aa0a6;font:400 19px/1 Poppins}
+.stitle .t2{color:#6b6f76;font:400 19px/1 Poppins}
+.txt{background:#f5f6f8;border-radius:7px;padding:14px 16px;position:relative;margin-bottom:20px}
+.txt .lb{font:700 13.5px/1 Poppins;margin-bottom:7px}
+.txt .bd{font:400 13px/1.55 Poppins;color:#4b4f56}
+.txt .ct{position:absolute;top:9px;right:12px;font:400 10px/1 Poppins;color:#9aa0a6}
+.blkhd{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.cat{color:#a855c7;font:600 14px/1 Poppins}
+.exrow{display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}
+.chain{display:flex;flex-direction:column;align-items:center;padding-top:6px}
+.chain .l{width:28px;height:28px;border-radius:50%;border:1.5px solid #111214;display:grid;place-items:center;font:700 11px/1 Poppins}
+.chain .bar{width:2px;flex:1;background:#111214;min-height:70px}
+.field{border:1px solid var(--line);border-radius:7px;padding:11px 13px;display:flex;align-items:center;font:600 13.5px/1 Poppins;background:#fff}
+.rx{width:270px;flex:none}
+.rxT{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px}
+.rxT .cur{font:600 14px/1 Poppins;flex:1}
+.rxT .sv{font:400 10.5px/1.25 Poppins;color:#6b6f76;text-align:right}
+.rxTable{border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.rxTable table{width:100%;border-collapse:collapse}
+.rxTable th{background:#f5f6f8;font:600 11px/1 Poppins;color:#6b6f76;padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+.rxTable td{padding:8px 10px;border-bottom:1px solid #f0f1f3;text-align:center;font:400 12.5px/1 Poppins}
+.rxTable td:first-child{color:#9aa0a6;text-align:left}
+.rxTable tr:last-child td{border-bottom:0}
+.setsBtn{text-align:center;margin-top:9px;color:var(--blue);font:500 12.5px/1 Poppins}
+.media{border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;gap:14px;margin-top:12px}
+.vid{width:130px;height:78px;border-radius:5px;background:#20232a;display:grid;place-items:center;color:#fff;font-size:20px;flex:none}
+.media .mh{color:var(--blue);font:600 11.5px/1 Poppins;text-align:right;margin-bottom:8px}
+.media .sh{font:700 10px/1 Poppins;letter-spacing:.05em;color:#6b6f76;margin:0 0 4px}
+.media .sb{font:400 11.5px/1.4 Poppins;color:#9aa0a6;margin-bottom:10px}
+.menu{position:absolute;background:#fff;border:1px solid var(--line);border-radius:7px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:5px 0;width:220px;z-index:5}
+.menu div{padding:9px 14px;font:400 13px/1 Poppins}
+.menu div.on{background:#f2f3f5}
+/* calendar */
+.cbar{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line)}
+.cgrid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cgrid .dh{background:#000;color:#fff;font:600 10.5px/1 Poppins;letter-spacing:.06em;padding:9px 10px}
+.cgrid .cell{min-height:210px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:9px}
+.cgrid .cell:nth-child(7n+7){border-right:0}
+.dn{font:600 12px/1 Poppins;color:#6b6f76;margin-bottom:8px}
+.sessChip{display:flex;gap:7px;align-items:center;font:600 12px/1 Poppins;margin-bottom:7px}
+.sessChip .sq{width:19px;height:19px;border-radius:4px;background:#111214;color:#fff;font:800 7px/1 Poppins;display:grid;place-items:center}
+.mini{display:flex;gap:2px;margin:5px 0 9px}
+.mini div{flex:1;text-align:center}
+.mini .r{width:19px;height:19px;border-radius:50%;border:2.5px solid var(--line);margin:0 auto 3px}
+.mini .r.f{border-color:var(--green);background:var(--green)}
+.mini .v{font:700 9.5px/1 Poppins}
+.unp{font:800 9px/1 Poppins;letter-spacing:.09em;color:#6b6f76;margin-bottom:7px}
+</style>
+
+<!-- ══ 11 session builder ══ -->
+<div class="screen" id="s11"><div class="cap">11 · Session builder — the screen that encodes the data model</div>
+<div class="top"><div class="logo">H</div><div class="pgttl">Train HYBRD ⌄</div><div class="sp"></div><div class="icn">💬</div><div class="icn">🔔</div><div class="av"></div></div>
+<div class="body" style="min-height:660px"><div class="rail"><div><span class="ico">⌂</span>Coach<br>Home</div><div><span class="ico">👤</span>Athletes</div><div><span class="ico">👥</span>Teams</div><div class="on"><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div class="bwrap" style="flex:1">
+<div class="bleft">
+<div class="wk">WEEK 1</div>
+<div class="days"><span>1<i></i></span><span>2<i></i></span><span>3</span><span>4</span><span class="on">5</span><span>6</span><span>7</span></div>
+<div class="pvT">Session Preview</div>
+<div style="border-top:1px solid var(--line);padding-top:12px"><div class="pvHd">Day 5</div>
+<div class="sessChip" style="margin-bottom:11px"><span class="sq">TH</span><span style="color:#9aa0a6;font-weight:400">mixed</span> Aerobic Conditioning</div>
+<div class="pvR"><div class="l">A</div><div><div class="n">SZNS conditioning warm up</div></div></div>
+<div class="pvR"><div class="l">B1</div><div><div class="n">FanBike</div><div class="p">3 x 50cal</div></div></div>
+<div class="pvR"><div class="l">B2</div><div><div class="n">KB swings</div><div class="p">3 x 25</div></div></div>
+<div class="pvR"><div class="l">B3</div><div><div class="n">Air Squat</div><div class="p">3 x 25</div></div></div>
+<div class="pvR"><div class="l">B4</div><div><div class="n">Rowing</div><div class="p">3 x 25cal</div></div></div>
+<div class="pvR"><div class="l">C</div><div><div class="n">recovery - Box breathing</div></div></div>
+</div></div>
+<div class="bmain">
+<div class="crumb">← Back To Program</div>
+<div style="display:flex;align-items:center"><div class="h-day">Week 1 Day 5</div><div style="flex:1"></div><div style="font-size:19px;color:#6b6f76">🖫&nbsp;&nbsp;🗑</div></div>
+<div class="stitle"><span class="sq" style="width:30px;height:30px;border-radius:6px;background:#111214;color:#fff;font:800 9px/1 Poppins;display:grid;place-items:center">TH</span><span class="t1">mixed</span><span class="t2">Aerobic Conditioning</span></div>
+<div class="txt"><span class="ct">357/10000</span><div class="lb">Coach Instructions</div><div class="bd">Today's pieces should be around the RPE 6-7. Use the talk test, you should be able to say a few words, unlike your first aerobic session which is easier aiming for that RPE 3-4 range.</div></div>
+<div class="blkhd"><span style="font-size:17px;color:#a855c7">⏱</span><span style="color:#a855c7">⌄</span><span class="cat">Conditioning</span><div style="flex:1"></div><span style="color:#6b6f76">⋯</span></div>
+<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:22px">
+<div class="chain"><div class="l">A</div></div>
+<div style="flex:1"><div class="field">SZNS conditioning warm up<div style="flex:1"></div>⌄ &nbsp; ⚟</div>
+<div class="txt" style="margin:10px 0 0"><span class="ct">355/10000</span><div class="lb">Circuit Details</div><div class="bd">1. Foam Roll Adductors: 60s of 1–2" motion on each side<br>2. Rock back Adductor Stretch x 30s<br>3. Shin Box x 10 total reps</div></div></div>
+<div style="width:250px;flex:none"><div style="font:400 10.5px/1 Poppins;color:#6b6f76;margin-bottom:5px">Results</div><div class="field">For Completion<div style="flex:1"></div>⌄</div></div>
+</div>
+<div class="blkhd"><span style="font-size:17px">🏋</span><span>⌄</span><span style="color:#9aa0a6;font:400 14px/1 Poppins">mixed</span><div style="flex:1"></div><span style="font-size:15px">🏆</span><span style="border:1px solid var(--line);border-radius:6px;padding:7px 30px 7px 12px;font:400 13px/1 Poppins;color:#9aa0a6">-&nbsp;&nbsp;⌄</span><span style="color:#6b6f76;margin-left:10px">⋯</span></div>
+<div class="exrow">
+<div class="chain"><div class="l">B1</div><div class="bar"></div><div class="l">B2</div></div>
+<div style="flex:1;min-width:0">
+<div class="field">FanBike<div style="flex:1"></div>⌄ &nbsp; ⚟<span style="position:relative;top:-9px;left:3px;font:700 9px/1 Poppins;color:#111">1</span></div>
+<div class="txt" style="margin:9px 0 0"><span class="ct">21/10000</span><div class="lb">Exercise Instructions</div><div class="bd">3 x 50 cals<br>-no rest</div></div>
+<div class="media"><div class="vid">▶</div><div style="flex:1"><div class="mh">Edit Exercise ⧉</div><div class="sh">SUGGESTED SWAPS</div><div class="sb">No swaps added yet.</div><div class="sh">POINTS OF PERFORMANCE</div><div class="sb" style="margin:0">No points of performance.</div></div></div>
+<div class="field" style="margin-top:14px">KB swings<div style="flex:1"></div>⌄ &nbsp; ⚟</div>
+</div>
+<div class="rx">
+<div class="rxT"><div class="cur">3 x 50cal &nbsp;⌄</div><div class="sv">Save<br>Prescription</div></div>
+<div class="rxTable"><table>
+<tr><th>3 Sets ⌄</th><th style="text-align:center">Calories (cal) ⌄</th><th style="text-align:center">Optional ⌄</th></tr>
+<tr><td>1</td><td>50</td><td></td></tr><tr><td>2</td><td>50</td><td></td></tr><tr><td>3</td><td>50</td><td></td></tr>
+</table></div>
+<div class="setsBtn">⊖&nbsp;&nbsp;Sets&nbsp;&nbsp;⊕</div>
+<div style="font:400 11px/1.5 Poppins;color:#9aa0a6;margin-top:14px">Three columns. Set count + 2 metrics. No add-column control — this is the ceiling.</div>
+</div></div>
+</div></div></div></div>
+
+<!-- ══ 12 metric enum ══ -->
+<div class="screen" id="s12"><div class="cap">12 · Prescription metric column — the full 20-member enum</div>
+<div style="padding:26px 30px;display:flex;gap:34px">
+<div style="width:300px;flex:none">
+<div class="rxT"><div class="cur">3 x 50cal &nbsp;⌄</div><div class="sv">Save<br>Prescription</div></div>
+<div class="rxTable"><table>
+<tr><th>3 Sets ⌄</th><th style="text-align:center;background:#e8ecff">Calories (cal) ⌃</th><th style="text-align:center">Optional ⌄</th></tr>
+<tr><td>1</td><td>50</td><td></td></tr><tr><td>2</td><td>50</td><td></td></tr><tr><td>3</td><td>50</td><td></td></tr>
+</table></div></div>
+<div class="menu" style="position:static;width:280px;box-shadow:0 10px 30px rgba(0,0,0,.14)">
+<div>Reps</div><div>Rep Range (min-max)</div><div>Weight (lb)</div><div>Weight (kg)</div><div>Weight (%)</div><div>Weight (LWP+)</div><div>Time (min::sec)</div><div>Seconds (s)</div><div>Distance (miles)</div><div>Distance (yd)</div><div>Distance (ft)</div><div>Distance (inches)</div><div>Distance (meters)</div><div>Height (inches)</div><div class="on">Calories (cal)</div><div>RPE</div><div>Watts</div><div>Velocity (m/s)</div><div>Other Number</div><div>Optional</div>
+</div>
+<div style="flex:1;font:400 13px/1.7 Poppins;color:#4b4f56">
+<b style="font-weight:700">Six of these twenty exist only because unit is baked into identity.</b><br><br>
+<code style="background:#f5f6f8;padding:2px 6px;border-radius:4px">Weight (lb)</code> and <code style="background:#f5f6f8;padding:2px 6px;border-radius:4px">Weight (kg)</code> are separate enum members, not one metric with a display unit — even though the athlete Account tab already carries a per-athlete lb/kg toggle.<br><br>
+<b style="font-weight:700">Replace with:</b> a metric registry table + canonical units. See <code style="background:#f5f6f8;padding:2px 6px;border-radius:4px">src/schema.sql</code>.
+</div></div></div>
+
+<!-- ══ 13 team calendar ══ -->
+<div class="screen" id="s13"><div class="cap">13 · Team calendar — published vs draft, publish controls</div>
+<div class="top"><div class="logo">H</div><div class="pgttl">hybrid training system. ⌄</div><div class="sp"></div><div class="icn">💬</div><div class="icn">🔔</div><div class="av"></div></div>
+<div class="body" style="min-height:560px"><div class="rail"><div><span class="ico">⌂</span>Coach<br>Home</div><div><span class="ico">👤</span>Athletes</div><div class="on"><span class="ico">👥</span>Teams</div><div><span class="ico">🗀</span>Library</div><div><span class="ico">📈</span>Analytics</div><div><span class="ico">📱</span>Gym<br>Tools</div></div>
+<div style="flex:1;min-width:0">
+<div class="cbar"><span style="font:700 17px/1 Poppins">‹ &nbsp;› &nbsp;&nbsp;August 2026</span><div style="flex:1"></div>
+<span style="background:#3a3d42;color:#fff;border-radius:6px;padding:10px 15px;font:600 13px/1 Poppins">💬 Message Team</span>
+<span class="btnP">Publish All</span>
+<span style="font-size:17px;color:#6b6f76">👁 &nbsp; ⊞ &nbsp; ◷ &nbsp; ⚙</span></div>
+<div class="cgrid">
+<div class="dh">MON</div><div class="dh">TUE</div><div class="dh">WED</div><div class="dh">THU</div><div class="dh">FRI</div><div class="dh">SAT</div><div class="dh">SUN</div>
+<div class="cell"><div class="dn">10</div>
+<div class="sessChip"><span class="sq">HTS</span>Week 1 Day 1</div>
+<div class="mini"><div><div class="r f"></div><div class="v">1/1</div></div><div><div class="r"></div><div class="v">–</div></div><div><div class="r"></div><div class="v">–</div></div><div><div class="r"></div><div class="v">–</div></div></div>
+<div class="pvR"><div class="l" style="width:17px;height:17px;font-size:8px">A</div><div><div class="n" style="font-size:11px">Warm Up</div></div></div>
+<div class="pvR"><div class="l" style="width:17px;height:17px;font-size:8px">B</div><div><div class="n" style="font-size:11px">Bench Press</div><div class="p" style="font-size:10.5px">3 x 6-8</div></div></div>
+<div class="pvR"><div class="l" style="width:17px;height:17px;font-size:8px">C</div><div><div class="n" style="font-size:11px">Romanian Deadlift</div><div class="p" style="font-size:10.5px">3 x 6-8</div></div></div>
+<div style="display:flex;gap:8px"><div class="chain" style="padding-top:2px"><div class="l" style="width:17px;height:17px;font-size:8px;border-width:1.2px">D1</div><div class="bar" style="min-height:22px;width:1.5px"></div><div class="l" style="width:17px;height:17px;font-size:8px;border-width:1.2px">D2</div></div>
+<div><div class="n" style="font:500 11px/1.3 Poppins">Lat Pulldown</div><div class="p" style="font:400 10.5px/1.3 Poppins;color:#6b6f76">3 x 10-12</div><div class="n" style="font:500 11px/1.3 Poppins;margin-top:4px">DB Reverse Lunge</div><div class="p" style="font:400 10.5px/1.3 Poppins;color:#6b6f76">3 x 10-12</div></div></div>
+</div>
+<div class="cell"><div class="dn">11</div>
+<div class="sessChip" style="opacity:.55"><span class="sq">HTS</span>2026-8-11</div>
+<div class="unp">UNPUBLISHED</div>
+<div class="pvR"><div class="l" style="width:17px;height:17px;font-size:8px">A</div><div><div class="n" style="font-size:11px">Bench Press</div><div class="p" style="font-size:10.5px">3 Sets</div></div></div></div>
+<div class="cell"><div class="dn">12</div></div><div class="cell"><div class="dn">13</div></div><div class="cell"><div class="dn">14</div></div><div class="cell"><div class="dn">15</div></div><div class="cell"><div class="dn">16</div></div>
+</div>
+<div style="font:400 12px/1.6 Poppins;color:#6b6f76;padding:14px 22px">Unpublished session greys out, gets an UNPUBLISHED label, and titles itself with the ISO date until named. Completed sessions carry the same KPI ring row as Coach Home at quarter size. Toolbar icons: View Options · Add From Library · Auto-Publish Options · Calendar settings.</div>
+</div></div></div>
+
+</body></html>

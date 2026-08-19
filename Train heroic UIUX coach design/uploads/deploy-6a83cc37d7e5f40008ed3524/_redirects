@@ -1,0 +1,41 @@
+/.well-known/assetlinks.json  /.well-known/assetlinks.json  200
+/privacy /privacy.html 200
+# Non-web paths: source, tests, build tooling and schema live in the repo but
+# have no business being fetched from the CDN. `!` forces the rule to win over
+# the real file. Tidiness, not secrecy — the repository is public, so nothing
+# here is hidden by this.
+#
+# These are inert under the current topology: the publish directory is
+# apps/web/dist, which contains none of these paths. They are KEPT because
+# reverting the cutover republishes the repo root, and at that moment they are
+# load-bearing again. Deleting them would make the rollback quietly worse than
+# the thing it rolls back to.
+/checks/*            /index.html  404!
+/native/*            /index.html  404!
+/design/*            /index.html  404!
+/netlify/functions/_lib/*  /index.html  404!
+/*.sql               /index.html  404!
+/*.md                /index.html  404!
+/readme.txt          /index.html  404!
+/package.json        /index.html  404!
+/package-lock.json   /index.html  404!
+# React monorepo source. `publish = "."` serves the whole tree, so without
+# these the TypeScript sources and node_modules would be fetchable while the
+# migration is in flight. The BUILT apps are published from their own dist/,
+# not from here.
+/packages/*          /index.html  404!
+/apps/*              /index.html  404!
+/node_modules/*      /index.html  404!
+/pnpm-workspace.yaml /index.html  404!
+/pnpm-lock.yaml      /index.html  404!
+/tsconfig*.json      /index.html  404!
+
+# The athlete SPA fallback. It is deliberately last: every rule above must beat
+# it, and Netlify evaluates this file top-down.
+#
+# The coach app is NOT handled here. Its own fallback lives in netlify.toml,
+# because netlify.toml redirects are evaluated BEFORE this file — that ordering
+# is the only thing that stops the rule below answering /coach/ deep links with
+# the athlete shell. Real files (/coach/index.html, /coach/assets/*) are served
+# ahead of both.
+/* /index.html 200

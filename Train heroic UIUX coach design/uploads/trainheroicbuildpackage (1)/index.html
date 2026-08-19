@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrainHeroic → Build Package</title>
+<style>
+/* ============================================================
+   TOKENS — dataviz reference palette. Light default + dark under
+   both the OS media query and the explicit [data-theme] scope.
+   ============================================================ */
+:root, .viz-root {
+  color-scheme: light;
+  --surface-1:      #fcfcfb;
+  --page:           #f9f9f7;
+  --sunken:         #f2f2ef;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --axis:           #c3c2b7;
+  --border:         rgba(11,11,11,0.10);
+  --border-strong:  rgba(11,11,11,0.18);
+
+  --series-1: #2a78d6;  /* blue   */
+  --series-2: #eb6834;  /* orange */
+  --series-3: #1baf7a;  /* aqua   */
+  --series-4: #eda100;  /* yellow */
+  --series-7: #4a3aa7;  /* violet */
+
+  --good:     #0ca30c;
+  --warning:  #fab219;
+  --serious:  #ec835a;
+  --critical: #d03b3b;
+  --good-ink: #006300;
+
+  --seq-100: #cde2fb; --seq-250: #86b6ef; --seq-400: #3987e5;
+  --seq-550: #1c5cab; --seq-700: #0d366b;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 10px;
+  --rail: 264px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])), :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d; --sunken: #151514;
+    --text-primary:#fff; --text-secondary:#c3c2b7; --text-muted:#898781;
+    --grid:#2c2c2a; --axis:#383835;
+    --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.20);
+    --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-4:#c98500; --series-7:#9085e9;
+    --good-ink:#0ca30c;
+    --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#3987e5; --seq-550:#86b6ef; --seq-700:#cde2fb;
+  }
+}
+:root[data-theme="dark"], :root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface-1: #1a1a19; --page: #0d0d0d; --sunken: #151514;
+  --text-primary:#fff; --text-secondary:#c3c2b7; --text-muted:#898781;
+  --grid:#2c2c2a; --axis:#383835;
+  --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.20);
+  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-4:#c98500; --series-7:#9085e9;
+  --good-ink:#0ca30c;
+  --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#3987e5;
+  --seq-550:#86b6ef; --seq-700:#cde2fb;
+}
+
+/* ============================================================ RESET / BASE */
+*,*::before,*::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+body {
+  margin:0; background: var(--page); color: var(--text-primary);
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+h1,h2,h3,h4 { line-height:1.25; margin:0; font-weight:650; letter-spacing:-0.011em; }
+h2 { font-size: 26px; margin-bottom: 6px; }
+h3 { font-size: 18px; margin: 32px 0 10px; }
+h4 { font-size: 14px; margin: 22px 0 8px; text-transform: uppercase; letter-spacing:.07em; color: var(--text-secondary); font-weight:650; }
+p  { margin: 0 0 14px; color: var(--text-secondary); max-width: 74ch; }
+strong { color: var(--text-primary); font-weight:640; }
+a { color: var(--series-1); }
+code { font-family: var(--mono); font-size: .88em; background: var(--sunken);
+       border:1px solid var(--border); border-radius:5px; padding: 1px 5px; color: var(--text-primary); }
+ul,ol { margin: 0 0 14px; padding-left: 20px; color: var(--text-secondary); max-width:74ch; }
+li { margin-bottom: 5px; }
+li::marker { color: var(--text-muted); }
+hr { border:0; border-top:1px solid var(--border); margin: 40px 0; }
+
+/* ============================================================ CHROME */
+header.top {
+  position: sticky; top:0; z-index: 50; background: var(--surface-1);
+  border-bottom: 1px solid var(--border); backdrop-filter: saturate(1.4) blur(6px);
+}
+.top-in { max-width: 1520px; margin:0 auto; padding: 12px 26px;
+  display:flex; align-items:center; gap:16px; }
+.mark { width:28px;height:28px;border-radius:7px;background:var(--text-primary);
+  color:var(--surface-1); display:grid;place-items:center;font-weight:800;font-size:14px;flex:none; }
+.top h1 { font-size: 15px; font-weight: 650; }
+.top .sub { font-size:13px; color: var(--text-muted); margin-left:2px; }
+.spacer { flex:1; }
+button.ghost {
+  font: inherit; font-size:13px; background: transparent; color: var(--text-secondary);
+  border:1px solid var(--border-strong); border-radius:7px; padding:5px 11px; cursor:pointer;
+}
+button.ghost:hover { background: var(--sunken); color: var(--text-primary); }
+
+.shell { max-width: 1520px; margin: 0 auto; display:grid; grid-template-columns: var(--rail) 1fr; gap: 34px; padding: 0 26px 120px; }
+nav.rail { position: sticky; top: 76px; align-self:start; max-height: calc(100vh - 96px); overflow-y:auto; padding: 26px 0; }
+nav.rail .grp { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); margin: 18px 0 6px; font-weight:650; }
+nav.rail a { display:block; font-size:13.5px; color: var(--text-secondary); text-decoration:none;
+  padding: 4px 10px; border-left: 2px solid transparent; border-radius: 0 5px 5px 0; }
+nav.rail a:hover { background: var(--sunken); color: var(--text-primary); }
+nav.rail a.on { border-left-color: var(--series-1); color: var(--text-primary); background: var(--sunken); font-weight:600; }
+main { padding: 26px 0; min-width:0; }
+section { scroll-margin-top: 80px; padding-bottom: 8px; }
+section + section { margin-top: 56px; }
+.eyebrow { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color: var(--series-1); font-weight:700; margin-bottom:8px; }
+.lede { font-size: 16.5px; color: var(--text-secondary); max-width:74ch; }
+
+/* ============================================================ COMPONENTS */
+.card { background: var(--surface-1); border:1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
+.card + .card { margin-top: 14px; }
+.grid2 { display:grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap:14px; }
+.grid3 { display:grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+
+.badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:650;
+  padding: 2px 8px; border-radius: 999px; border:1px solid var(--border-strong);
+  letter-spacing:.03em; white-space:nowrap; vertical-align:2px; }
+.badge .dot { width:7px;height:7px;border-radius:50%; flex:none; }
+.b-v .dot{background:var(--good)}  .b-v{color:var(--good-ink)}
+.b-i .dot{background:var(--warning)} .b-i{color:var(--text-primary)}
+.b-u .dot{background:var(--serious)} .b-u{color:var(--text-primary)}
+.b-n .dot{background:var(--series-1)} .b-n{color:var(--text-primary)}
+
+.callout { border-left: 3px solid var(--series-2); background: var(--sunken);
+  border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 18px 0; }
+.callout.warn { border-left-color: var(--critical); }
+.callout.good { border-left-color: var(--good); }
+.callout p:last-child { margin-bottom:0; }
+.callout .k { font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:700;
+  color: var(--text-muted); display:block; margin-bottom:5px; }
+
+table.t { width:100%; border-collapse: collapse; font-size:13.5px; margin: 12px 0 18px; }
+table.t th { text-align:left; font-weight:650; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+  color: var(--text-muted); padding: 8px 12px; border-bottom:1px solid var(--axis); white-space:nowrap; }
+table.t td { padding: 9px 12px; border-bottom:1px solid var(--grid); color: var(--text-secondary); vertical-align: top; }
+table.t td:first-child { color: var(--text-primary); font-weight:560; }
+table.t tbody tr:hover td { background: var(--sunken); }
+table.t .num { text-align:right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size:12.5px; }
+
+pre { background: var(--sunken); border:1px solid var(--border); border-radius: 9px;
+  padding: 16px 18px; overflow-x:auto; font-family: var(--mono); font-size: 12.4px; line-height:1.62;
+  color: var(--text-primary); margin: 12px 0 18px; }
+pre code { background:none;border:0;padding:0;font-size:inherit; }
+.codewrap { position:relative; }
+.codewrap .copy { position:absolute; top:9px; right:9px; opacity:0; transition:opacity .12s; }
+.codewrap:hover .copy { opacity:1; }
+.c-kw { color: var(--series-7); font-weight:600; }
+.c-ty { color: var(--series-1); }
+.c-cm { color: var(--text-muted); font-style: italic; }
+.c-st { color: var(--good-ink); }
+
+/* diagram primitives */
+.dg { background: var(--surface-1); border:1px solid var(--border); border-radius: var(--radius); padding: 22px; margin: 16px 0; overflow-x:auto; }
+.dg .cap { font-size:12px; color: var(--text-muted); margin-top: 14px; }
+.layer { display:flex; gap:10px; align-items:stretch; flex-wrap:wrap; }
+.node { background: var(--sunken); border:1px solid var(--border-strong); border-radius:8px;
+  padding: 10px 13px; font-size:13px; min-width: 0; flex:1; }
+.node .nt { font-weight:650; color: var(--text-primary); font-size:13px; }
+.node .ns { font-size:11.5px; color: var(--text-muted); font-family: var(--mono); margin-top:3px; word-break: break-all; }
+.node.legacy { border-color: var(--serious); background: color-mix(in srgb, var(--serious) 9%, var(--surface-1)); }
+.node.modern { border-color: var(--series-1); background: color-mix(in srgb, var(--series-1) 8%, var(--surface-1)); }
+.tier { margin: 0 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color: var(--text-muted); font-weight:650; }
+.down { text-align:center; color: var(--axis); font-size:16px; line-height:1; margin:8px 0; }
+
+/* tree */
+ul.tree { list-style:none; padding-left:0; margin:0; font-size:13.5px; }
+ul.tree ul { list-style:none; padding-left: 18px; margin:4px 0 0; border-left:1px solid var(--grid); }
+ul.tree li { padding: 2px 0 2px 12px; position:relative; color: var(--text-secondary); }
+ul.tree ul li::before { content:""; position:absolute; left:-1px; top:14px; width:9px; height:1px; background: var(--grid); }
+ul.tree .n { color: var(--text-primary); font-weight:600; }
+ul.tree .meta { color: var(--text-muted); font-size:12px; font-family: var(--mono); }
+
+/* entity cards */
+.ent { background: var(--surface-1); border:1px solid var(--border-strong); border-radius:9px; overflow:hidden; }
+.ent h5 { margin:0; font-size:12.5px; font-family: var(--mono); font-weight:700; letter-spacing:.02em;
+  padding: 8px 12px; background: var(--sunken); border-bottom:1px solid var(--border); color: var(--text-primary); }
+.ent.new h5 { background: color-mix(in srgb, var(--series-1) 12%, var(--surface-1)); }
+.ent.old h5 { background: color-mix(in srgb, var(--serious) 12%, var(--surface-1)); }
+.ent ul { list-style:none; margin:0; padding: 8px 0; font-size:12.2px; font-family: var(--mono); }
+.ent li { padding: 2px 12px; color: var(--text-secondary); display:flex; gap:8px; }
+.ent li .fk { color: var(--series-1); font-size:10px; border:1px solid var(--border-strong); border-radius:3px; padding:0 3px; align-self:center; }
+.ent li .pk { color: var(--series-4); font-size:10px; border:1px solid var(--border-strong); border-radius:3px; padding:0 3px; align-self:center; }
+.ent li em { color: var(--text-muted); font-style:normal; margin-left:auto; font-size:11px; }
+
+/* meter */
+.meter { display:inline-flex; align-items:center; gap:8px; }
+.meter .bar { width:64px; height:6px; border-radius:999px; background: var(--grid); overflow:hidden; flex:none; }
+.meter .bar i { display:block; height:100%; border-radius:999px; background: var(--seq-450, var(--series-1)); }
+.meter .v { font-family: var(--mono); font-size:12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+.verdict { font-weight:700; font-size:11px; letter-spacing:.04em; text-transform:uppercase; display:inline-flex; align-items:center; gap:5px; }
+.verdict::before { content:""; width:8px;height:8px;border-radius:2px; }
+.v-steal { color: var(--good-ink); } .v-steal::before { background: var(--good); }
+.v-reject { color: var(--critical); } .v-reject::before { background: var(--critical); }
+
+@media (max-width: 1080px) {
+  .shell { grid-template-columns: 1fr; }
+  nav.rail { position:static; max-height:none; border-bottom:1px solid var(--border); }
+}
+@media print {
+  nav.rail, header.top, .copy { display:none; }
+  .shell { grid-template-columns:1fr; }
+  body { background:#fff; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="mark">B</div>
+    <div>
+      <h1>TrainHeroic → Build Package</h1>
+      <div class="sub">Teardown · flows · analytics math · schema · UI reconstruction</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="ghost" id="themeBtn" type="button">Dark</button>
+  </div>
+</header>
+
+<div class="shell">
+<nav class="rail" id="rail">
+  <div class="grp">Orientation</div>
+  <a href="#how">How to use this</a>
+  <div class="grp">Part A · Teardown</div>
+  <a href="#arch">A1 · Architecture</a>
+  <a href="#ia">A2 · Information architecture</a>
+  <a href="#ui">A3 · UI reconstruction</a>
+  <a href="#their-model">A4 · Their data model, as-is</a>
+  <div class="grp">Part B · Flows</div>
+  <a href="#states">B1 · Session state machine</a>
+  <a href="#logging">B2 · Athlete logging flow</a>
+  <a href="#offline">B3 · Offline write path</a>
+  <div class="grp">Part C · Analytics</div>
+  <a href="#e1rm">C1 · Estimated 1RM</a>
+  <a href="#readiness">C2 · Readiness</a>
+  <a href="#metrics">C3 · Volume · Intensity · Compliance</a>
+  <a href="#rounding">C4 · Load rounding</a>
+  <div class="grp">Part D · Proposed schema</div>
+  <a href="#ceiling">D1 · The 2-metric ceiling</a>
+  <a href="#erd">D2 · Target ERD</a>
+  <a href="#ddl">D3 · SQL DDL</a>
+  <a href="#pipeline">D4 · Resolution pipeline</a>
+  <a href="#cond">D5 · Structured conditioning</a>
+  <div class="grp">Part E · Decisions</div>
+  <a href="#matrix">E1 · Steal / reject matrix</a>
+  <a href="#order">E2 · Build order</a>
+</nav>
+
+<main>
+
+<section id="how">
+  <div class="eyebrow">Orientation</div>
+  <h2>How to use this</h2>
+  <p class="lede">This package documents TrainHeroic as it actually is, and proposes a data model that removes its central constraint. It is written to be read by an implementing agent or engineer — everything is either observed, inferred, or explicitly flagged unknown.</p>
+
+  <div class="grid3" style="margin:22px 0">
+    <div class="card">
+      <span class="badge b-v"><span class="dot"></span>VERIFIED</span>
+      <p style="margin:10px 0 0;font-size:13.5px">Observed directly in the live coach app, or quoted from TrainHeroic's official support documentation.</p>
+    </div>
+    <div class="card">
+      <span class="badge b-i"><span class="dot"></span>INFERRED</span>
+      <p style="margin:10px 0 0;font-size:13.5px">Reasoned from observed behaviour. Plausible, load-bearing in places — but not stated by TrainHeroic.</p>
+    </div>
+    <div class="card">
+      <span class="badge b-u"><span class="dot"></span>UNKNOWN</span>
+      <p style="margin:10px 0 0;font-size:13.5px">Genuinely undocumented. Searched official docs, blog, forums, review sites. No public source exists.</p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <span class="k">Read this before copying anything</span>
+    <p>The UI reconstruction in <a href="#ui">A3</a> is <strong>layout-faithful, not byte-identical</strong> — it was rebuilt from screenshots without access to TrainHeroic's source, fonts, or assets, and carries neutral branding deliberately.</p>
+    <p style="margin-bottom:0">Copy their <strong>layout logic</strong>, which is genuinely good. Do not copy their <strong>data model</strong>, which is where every limitation in this document originates. Sections A4 and D2 are deliberately placed side by side so the difference is visible.</p>
+  </div>
+</section>
+
+<hr>
+
+<section id="arch">
+  <div class="eyebrow">Part A · Teardown</div>
+  <h2>A1 · Architecture</h2>
+  <p class="lede">The "coach app" is four separate front-ends behind one sidebar, talking to two generations of API. Roughly half the friction users report lives in these seams. <span class="badge b-v"><span class="dot"></span>VERIFIED</span></p>
+
+  <div class="dg">
+    <div class="tier">Client</div>
+    <div class="layer">
+      <div class="node"><div class="nt">Coach — browser</div><div class="ns">one persistent sidebar, four apps behind it</div></div>
+      <div class="node"><div class="nt">Athlete — iOS / Android</div><div class="ns">offline-capable; video is the exception</div></div>
+      <div class="node"><div class="nt">Gym display</div><div class="ns">/fullscreen-workout/{sessionId}</div></div>
+    </div>
+    <div class="down">↓</div>
+    <div class="tier">Front-ends — separate deployments, shared chrome</div>
+    <div class="layer">
+      <div class="node modern"><div class="nt">Coach Home · Builder</div><div class="ns">coachapp.trainheroic.com</div><div class="ns" style="color:var(--series-1)">React</div></div>
+      <div class="node modern"><div class="nt">Library</div><div class="ns">library.trainheroic.com</div><div class="ns" style="color:var(--series-1)">React</div></div>
+      <div class="node modern"><div class="nt">Teams · Calendar</div><div class="ns">teams.trainheroic.com</div><div class="ns" style="color:var(--series-1)">React</div></div>
+      <div class="node legacy"><div class="nt">Athletes · Classic Reports</div><div class="ns">coach.trainheroic.com/admin/coach#/…</div><div class="ns" style="color:var(--serious)">AngularJS + Angular Material</div></div>
+    </div>
+    <div class="down">↓</div>
+    <div class="tier">API — two live generations</div>
+    <div class="layer">
+      <div class="node modern"><div class="nt">v5</div>
+        <div class="ns">/v5/users · /v5/users/{id}/features</div>
+        <div class="ns">/v5/athletes · /v5/headCoach</div>
+        <div class="ns">/v5/coaches/orgs · /v5/programs/fixed</div>
+        <div class="ns">/v5/notifications/counts · /v5/site-banners</div></div>
+      <div class="node legacy"><div class="nt">2.0 — legacy</div>
+        <div class="ns">/2.0/coach/teams</div>
+        <div class="ns">/2.0/coach/athlete/numbers/{athleteId}</div>
+        <div class="ns">/2.0/coach/athlete/numbers/circuits/{id}</div>
+        <div class="ns">/2.0/coach/admin/note/{id} · /admin/groups/{id}</div>
+        <div class="ns">/2.0/coach/tags/getAthleteTags · getSportsTags</div></div>
+    </div>
+    <div class="cap"><strong>Blue</strong> = current generation. <strong>Orange</strong> = legacy still carrying production traffic. Note that athlete maxes and PRs — the most valuable data in the product — are still served by the 2.0 endpoint.</div>
+  </div>
+
+  <div class="callout">
+    <span class="k">What this tells you</span>
+    <p style="margin-bottom:0">TrainHeroic never finished a migration it started years ago. The strategic read: they cannot move quickly on anything touching athlete numbers, because that path runs through the oldest code in the system. That is where a competitor has room.</p>
+  </div>
+</section>
+
+<hr>
+
+<section id="ia">
+  <div class="eyebrow">Part A · Teardown</div>
+  <h2>A2 · Information architecture</h2>
+  <p class="lede">Complete navigation tree as observed. Everything below was clicked. <span class="badge b-v"><span class="dot"></span>VERIFIED</span></p>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="card">
+      <h4 style="margin-top:0">Primary sidebar</h4>
+      <ul class="tree">
+        <li><span class="n">Coach Home</span> <span class="meta">activity feed</span>
+          <ul>
+            <li>Athlete/team filter · Latest ↔ Calendar toggle</li>
+            <li>Session card → 5 KPIs <span class="meta">Blocks · Readiness · Minutes · Intensity · Volume</span></li>
+            <li>Expand all cards · See more · Session Comment</li>
+            <li>Rail: <span class="n">Needs Programming</span> <span class="meta">stale-calendar warning</span></li>
+          </ul>
+        </li>
+        <li><span class="n">Athletes</span> <span class="meta">legacy AngularJS</span>
+          <ul>
+            <li>Group filter · Status <span class="meta">Active / Archived</span> · search</li>
+            <li>Columns: Name · Actions · Athlete Type · Teams · Tags · Days Since Last Login</li>
+            <li>Bulk: Remove From Teams · Archive · Invite Athletes</li>
+            <li>Drawer tabs: <span class="n">Exercises · Circuits · Notes · Account</span></li>
+          </ul>
+        </li>
+        <li><span class="n">Teams</span>
+          <ul>
+            <li>Columns: Title · Planned Sessions · Difficulty · Athletes · Focus · Created</li>
+            <li>Row actions: calendar · message · settings · kebab</li>
+            <li>Settings: <span class="n">General</span> <span class="meta">name, owner, sport/focus, difficulty, logo 300×300</span></li>
+            <li>Settings: <span class="n">Access Codes</span></li>
+          </ul>
+        </li>
+        <li><span class="n">Library</span>
+          <ul>
+            <li>Programs · Sessions · Exercises · Circuits · Prescriptions</li>
+            <li>More → Parent Calendars · Team Subscriptions</li>
+            <li>Scope switch: My … ↔ All …</li>
+          </ul>
+        </li>
+        <li><span class="n">Analytics</span>
+          <ul>
+            <li>Readiness <span class="meta">single · team</span></li>
+            <li>Performance <span class="meta">single · team</span></li>
+            <li>Lift History <span class="meta">complete · working max</span></li>
+            <li>Training Summary <span class="meta">single · team</span></li>
+            <li>Compliance <span class="meta">team</span> · Lift Progress <span class="meta">team</span></li>
+            <li>→ Classic Reports <span class="meta">Benchmark Progress · Benchmark Snapshot</span></li>
+          </ul>
+        </li>
+        <li><span class="n">Gym Tools</span>
+          <ul>
+            <li>Spreadsheets <span class="meta">bulk entry / testing</span></li>
+            <li class="meta">Team App, Leaderboard, Whiteboard — removed</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h4 style="margin-top:0">Top bar &amp; contextual menus</h4>
+      <ul class="tree">
+        <li><span class="n">Manage Assistant Coaches</span> <span class="meta">$9.99 / seat / mo</span></li>
+        <li><span class="n">Messaging</span> · <span class="n">Notifications</span></li>
+        <li><span class="n">Account menu</span>
+          <ul>
+            <li>Billing Info · Settings</li>
+            <li>My Organizations <span class="meta">org layer above coach</span></li>
+            <li>My Assistant Coaches · Submit Feedback · Support · Logout</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h4>Calendar toolbar</h4>
+      <ul class="tree">
+        <li>Month ‹ › · <span class="n">Message Team</span> · <span class="n">Publish All</span></li>
+        <li>View Options <span class="meta">Show Instructions · Show Block Titles</span></li>
+        <li>Add From Library <span class="meta">Programs · Sessions · Parent Calendars</span></li>
+        <li>Auto-Publish Options <span class="meta">toggle · offset · time · fixed TZ</span></li>
+        <li>Calendar settings</li>
+      </ul>
+
+      <h4>Session kebab</h4>
+      <ul class="tree">
+        <li>Publish · Preview · Edit</li>
+        <li>Save to Library as… · Repeat · Copy · Delete</li>
+      </ul>
+
+      <h4>Block kebab</h4>
+      <ul class="tree">
+        <li>Change Block Category · Change Block Title</li>
+        <li>Create a Leaderboard · <span class="n">Test This Block</span></li>
+        <li>Move Circuit Up/Down · Delete Circuit</li>
+      </ul>
+
+      <h4>Exercise row menu</h4>
+      <ul class="tree">
+        <li>Move Exercise Up/Down · Move Superset Up/Down</li>
+        <li>Delete Exercise · filter picker</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr>
+<style>
+/* ===== UI RECONSTRUCTION — scoped mock styles ===== */
+.mock { --m-bg:#fff; --m-ink:#111214; --m-ink2:#6b6f76; --m-line:#e6e8eb; --m-blue:#2f4bf7; --m-green:#12c48b;
+  font-family: var(--sans); background: var(--m-bg); color: var(--m-ink);
+  border:1px solid var(--border-strong); border-radius:10px; overflow:hidden; font-size:13px; line-height:1.45; }
+:root[data-theme="dark"] .mock { --m-bg:#141416; --m-ink:#f2f3f4; --m-ink2:#9aa0a6; --m-line:#2a2c30; }
+.mock-h { display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--m-line);
+  font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--m-ink2);font-weight:650;background:color-mix(in srgb,var(--m-ink) 3%, var(--m-bg)); }
+.mock-b { padding:14px; }
+.m-title { font-weight:700; font-size:15px; }
+.m-sub { color: var(--m-ink2); font-size:12px; }
+.m-btn { background: var(--m-blue); color:#fff; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:650; display:inline-block; }
+.m-btn.gh { background:transparent; color: var(--m-ink2); border:1px solid var(--m-line); }
+.m-kpi { display:flex; gap:0; text-align:center; }
+.m-kpi > div { flex:1; }
+.m-kpi .ring { width:34px;height:34px;border-radius:50%;margin:0 auto 5px;
+  border:3px solid var(--m-line); display:grid;place-items:center;font-size:0; }
+.m-kpi .ring.done { border-color: var(--m-green); background: color-mix(in srgb, var(--m-green) 14%, transparent); }
+.m-kpi .v { font-weight:700; font-size:13px; }
+.m-kpi .l { font-size:10px; color: var(--m-ink2); text-transform:none; }
+.m-kpi .off .v, .m-kpi .off .l { color: color-mix(in srgb, var(--m-ink2) 55%, transparent); }
+.m-blk { display:flex; gap:9px; padding:5px 0; align-items:flex-start; }
+.m-let { width:22px;height:22px;border-radius:50%;border:1.5px solid var(--m-line);
+  display:grid;place-items:center;font-size:10px;font-weight:700;flex:none;color:var(--m-ink2); }
+.m-let.g { border-color: var(--m-green); background: color-mix(in srgb,var(--m-green) 16%, transparent); color: var(--m-ink); }
+.m-link { width:1.5px; background: var(--m-line); margin:-4px 0 -4px 10px; }
+.m-cal { display:grid; grid-template-columns: repeat(7,1fr); border-top:1px solid var(--m-line); }
+.m-cal .dh { font-size:10px; letter-spacing:.06em; color:var(--m-ink2); padding:6px 8px; font-weight:650;
+  background: color-mix(in srgb, var(--m-ink) 88%, #000); color:#fff; }
+:root[data-theme="dark"] .m-cal .dh { background:#000; }
+.m-cal .cell { min-height:120px; border-right:1px solid var(--m-line); border-bottom:1px solid var(--m-line); padding:7px; }
+.m-cal .cell:nth-child(7n){border-right:0}
+.m-cal .dn { font-size:11px; color: var(--m-ink2); font-weight:650; margin-bottom:6px; }
+.m-chip { display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:650; margin-bottom:5px; }
+.m-chip .sq { width:15px;height:15px;border-radius:3px;background:var(--m-ink);color:var(--m-bg);
+  font-size:7px;display:grid;place-items:center;font-weight:800; }
+.m-unpub { font-size:9.5px; letter-spacing:.08em; font-weight:800; color: var(--m-ink2); margin-bottom:5px; }
+.m-rx { border:1px solid var(--m-line); border-radius:6px; overflow:hidden; font-size:11.5px; }
+.m-rx table { width:100%; border-collapse:collapse; }
+.m-rx th { background: color-mix(in srgb,var(--m-ink) 4%, var(--m-bg)); font-weight:650; font-size:11px;
+  padding:6px 9px; text-align:left; border-bottom:1px solid var(--m-line); color:var(--m-ink2); white-space:nowrap; }
+.m-rx td { padding:6px 9px; border-bottom:1px solid var(--m-line); text-align:center; font-variant-numeric:tabular-nums; }
+.m-rx td:first-child { color: var(--m-ink2); }
+.m-rx tr:last-child td { border-bottom:0; }
+.m-sel { border:1px solid var(--m-line); border-radius:6px; padding:7px 10px; display:flex;
+  justify-content:space-between; align-items:center; font-size:12.5px; font-weight:600; }
+.m-sel .cv { color: var(--m-ink2); font-weight:400; }
+.m-instr { background: color-mix(in srgb,var(--m-ink) 4%, var(--m-bg)); border-radius:6px; padding:10px 12px;
+  font-size:12px; color: var(--m-ink2); position:relative; }
+.m-instr .cnt { position:absolute; top:6px; right:9px; font-size:9.5px; color:var(--m-ink2); font-family:var(--mono); }
+.m-row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--m-line); font-size:12.5px; }
+.m-row:last-child{border-bottom:0}
+.m-row .rv { text-align:right; }
+.m-row .rv b { color: var(--m-blue); font-family:var(--mono); font-size:12px; }
+.m-row .rv small { display:block; font-size:9.5px; color:var(--m-ink2); letter-spacing:.05em; }
+.m-dark { background:#0b0b0d; color:#f7f7f8; border-radius:10px; padding:22px 26px; border:1px solid var(--border-strong); }
+.m-dark .dh2 { text-align:center; font-weight:800; font-size:17px; letter-spacing:-.01em; margin-bottom:18px; }
+.m-dark .drow { display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-top:1px solid #232326; }
+.m-dark .dlet { width:26px;height:26px;border-radius:50%;border:1.5px solid #45464a;display:grid;place-items:center;
+  font-size:11px;font-weight:700;flex:none;color:#c8c9cc; }
+.m-dark .dnm { font-weight:800; font-size:19px; letter-spacing:-.01em; }
+.m-dark .dsub { color:#8b8d92; font-size:12.5px; margin-top:3px; }
+.m-dark .drx { margin-left:auto; font-weight:800; font-size:19px; white-space:nowrap; }
+.annot { display:grid; grid-template-columns: 26px 1fr; gap:9px; font-size:12.5px; color: var(--text-secondary); margin-top:7px; align-items:start; }
+.annot .n { width:20px;height:20px;border-radius:50%;background:var(--series-1);color:#fff;
+  display:grid;place-items:center;font-size:10.5px;font-weight:700; }
+</style>
+
+<section id="ui">
+  <div class="eyebrow">Part A · Teardown</div>
+  <h2>A3 · UI reconstruction</h2>
+  <p class="lede">Five screens rebuilt from screenshots. Structure, spacing logic, control placement and information hierarchy are faithful; branding is neutral and assets are not theirs. <span class="badge b-v"><span class="dot"></span>LAYOUT VERIFIED</span></p>
+
+  <h3>1 · Coach Home — session card</h3>
+  <p>The daily feed. One card per athlete per completed session. The five-KPI row is the strongest single idea in their coach UX: it makes a session scannable in about half a second.</p>
+  <div class="grid2">
+    <div>
+      <div class="mock">
+        <div class="mock-h">Coach Home · feed</div>
+        <div class="mock-b">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+            <div style="width:34px;height:34px;border-radius:50%;background:var(--m-line)"></div>
+            <div><div style="color:var(--m-blue);font-weight:650">dan veldman</div>
+                 <div class="m-sub">Week 1 Day 1</div></div>
+          </div>
+          <div class="m-kpi">
+            <div><div class="ring done"></div><div class="v">3/5</div><div class="l">Blocks</div></div>
+            <div><div class="ring"></div><div class="v">–</div><div class="l">Readiness</div></div>
+            <div class="off"><div class="ring"></div><div class="v">–</div><div class="l">Minutes</div></div>
+            <div class="off"><div class="ring"></div><div class="v">–</div><div class="l">Intensity</div></div>
+            <div><div class="ring"></div><div class="v">799</div><div class="l">KG</div></div>
+          </div>
+          <div style="color:var(--m-blue);font-size:12px;margin:12px 0 10px;font-weight:600">See More</div>
+          <div style="background:var(--m-blue);color:#fff;text-align:center;padding:9px;border-radius:6px;font-weight:650;font-size:12.5px">Session Comment</div>
+          <div style="margin-top:16px">
+            <div style="font-size:10.5px;letter-spacing:.08em;font-weight:800;color:var(--m-ink2);margin:12px 0 6px">WARM UP</div>
+            <div class="m-blk"><div class="m-let">A</div><div class="m-sub" style="font-size:12px">2 minutes cardio of choice<br>1A. Pogo hops – 2 x 10-12<br>1B. Med ball chest press into floor – 2 x 10-12</div></div>
+            <div style="font-size:10.5px;letter-spacing:.08em;font-weight:800;color:var(--m-ink2);margin:12px 0 6px">STRENGTH/POWER</div>
+            <div class="m-blk"><div class="m-let g">B</div><div><div style="font-weight:600">Bench Press</div><div class="m-sub">8,8,6 @ 80,100,105lb</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="annot"><div class="n">1</div><div><strong>Five KPIs, always the same five.</strong> Blocks completed / assigned, Readiness, Minutes, Intensity, Volume. Two render as <code>–</code> because the session had no percentage prescriptions and no logged duration. Nulls are shown, not hidden — good.</div></div>
+      <div class="annot"><div class="n">2</div><div><strong>Ring = block compliance</strong>, filled green on completion. This is the only place block-level compliance surfaces to a coach at a glance.</div></div>
+      <div class="annot"><div class="n">3</div><div><strong>Session Comment is a full-width primary button.</strong> They have made coach→athlete feedback the single loudest action on the card. Worth copying: it drives the retention loop.</div></div>
+      <div class="annot"><div class="n">4</div><div><strong>Expanded results read <code>8,8,6 @ 80,100,105lb</code></strong> — reps and loads as parallel comma lists. Compact, but it only works because there are exactly two metrics. Add a third and this notation collapses.</div></div>
+      <div class="annot"><div class="n">5</div><div><strong>Block category becomes a section heading</strong> in the expanded view. The category is doing real UI work, not just taxonomy.</div></div>
+    </div>
+  </div>
+
+  <h3>2 · Team calendar — published vs draft</h3>
+  <p>The assignment surface. Sessions are dated objects on a team calendar; the draft/publish distinction is visible in the cell itself.</p>
+  <div class="mock">
+    <div class="mock-h">Teams · calendar · August 2026</div>
+    <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--m-line)">
+      <span style="font-weight:700;font-size:14px">‹ &nbsp;›&nbsp;&nbsp; August 2026</span>
+      <span style="flex:1"></span>
+      <span class="m-btn gh">Message Team</span>
+      <span class="m-btn">Publish All</span>
+      <span class="m-sub" style="font-family:var(--mono);font-size:11px">👁 &nbsp;⊞ &nbsp;◷ &nbsp;⚙</span>
+    </div>
+    <div class="m-cal">
+      <div class="dh">MON</div><div class="dh">TUE</div><div class="dh">WED</div><div class="dh">THU</div><div class="dh">FRI</div><div class="dh">SAT</div><div class="dh">SUN</div>
+      <div class="cell">
+        <div class="dn">10</div>
+        <div class="m-chip"><span class="sq">HTS</span> Week 1 Day 1</div>
+        <div class="m-kpi" style="margin:4px 0 8px"><div><div class="ring done" style="width:20px;height:20px;border-width:2px"></div><div class="v" style="font-size:10px">1/1</div></div><div><div class="ring" style="width:20px;height:20px;border-width:2px"></div><div class="v" style="font-size:10px">–</div></div><div><div class="ring" style="width:20px;height:20px;border-width:2px"></div><div class="v" style="font-size:10px">–</div></div><div><div class="ring" style="width:20px;height:20px;border-width:2px"></div><div class="v" style="font-size:10px">–</div></div></div>
+        <div class="m-blk"><div class="m-let" style="width:17px;height:17px;font-size:8px">A</div><div style="font-size:11px">Warm Up</div></div>
+        <div class="m-blk"><div class="m-let" style="width:17px;height:17px;font-size:8px">B</div><div style="font-size:11px">Bench Press<div class="m-sub" style="font-size:10.5px">3 x 6-8</div></div></div>
+        <div class="m-blk"><div class="m-let" style="width:17px;height:17px;font-size:8px">C</div><div style="font-size:11px">Romanian Deadlift<div class="m-sub" style="font-size:10.5px">3 x 6-8</div></div></div>
+        <div style="display:flex"><div style="display:flex;flex-direction:column;align-items:center"><div class="m-let" style="width:17px;height:17px;font-size:8px">D1</div><div class="m-link" style="flex:1;margin:2px 0"></div><div class="m-let" style="width:17px;height:17px;font-size:8px">D2</div></div>
+          <div style="margin-left:9px"><div style="font-size:11px">Lat Pulldown<div class="m-sub" style="font-size:10.5px">3 x 10-12</div></div><div style="font-size:11px;margin-top:4px">DB Reverse Lunge<div class="m-sub" style="font-size:10.5px">3 x 10-12</div></div></div></div>
+      </div>
+      <div class="cell">
+        <div class="dn">11</div>
+        <div class="m-chip" style="opacity:.55"><span class="sq">HTS</span> 2026-8-11</div>
+        <div class="m-unpub">UNPUBLISHED</div>
+        <div class="m-blk"><div class="m-let" style="width:17px;height:17px;font-size:8px">A</div><div style="font-size:11px">Bench Press<div class="m-sub" style="font-size:10.5px">3 Sets</div></div></div>
+      </div>
+      <div class="cell"><div class="dn">12</div></div>
+      <div class="cell"><div class="dn">13</div></div>
+      <div class="cell"><div class="dn">14</div></div>
+      <div class="cell"><div class="dn">15</div></div>
+      <div class="cell"><div class="dn">16</div></div>
+    </div>
+  </div>
+  <div class="annot"><div class="n">1</div><div><strong><code>D1</code>/<code>D2</code> joined by a vertical rail</strong> is the superset notation. <code>A</code>, <code>B</code>, <code>C</code> standalone. A circuit renders the same way with more members. This labelling is free legibility — copy it.</div></div>
+  <div class="annot"><div class="n">2</div><div><strong>An unpublished session is greyed and labelled</strong>, and its title defaults to the ISO date until named. Athletes see nothing until <em>Publish All</em> or per-session publish.</div></div>
+  <div class="annot"><div class="n">3</div><div><strong>Completed sessions carry the same KPI ring row</strong> as Coach Home, at quarter size. One component, two densities.</div></div>
+
+  <h3>3 · Session builder — block, exercise, prescription</h3>
+  <p>The most important screen in the product, and the one that encodes the ceiling. Everything about how their data model works is visible here.</p>
+  <div class="mock">
+    <div class="mock-h">Builder · Week 1 Day 5 · mixed Aerobic Conditioning</div>
+    <div class="mock-b">
+      <div class="m-instr" style="margin-bottom:18px"><span class="cnt">357/10000</span>
+        <div style="font-weight:700;color:var(--m-ink);margin-bottom:5px">Coach Instructions</div>
+        Today's pieces should be around the RPE 6-7. Use the talk test — you should be able to say a few words.</div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="font-family:var(--mono);font-size:15px;color:#a855c7">◷ ⌄</span>
+        <span style="color:#a855c7;font-weight:600;font-size:13.5px">Conditioning</span>
+        <span style="flex:1"></span>
+        <span class="m-sub" style="font-family:var(--mono)">⋯</span>
+      </div>
+
+      <div style="display:flex;gap:11px;align-items:flex-start;margin-bottom:16px">
+        <div style="display:flex;flex-direction:column;align-items:center;padding-top:5px">
+          <div class="m-let">B1</div><div class="m-link" style="height:64px"></div>
+          <div class="m-let">B2</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="m-sel" style="margin-bottom:8px">FanBike <span class="cv">⌄ &nbsp;⚟</span></div>
+          <div class="m-instr" style="margin-bottom:14px"><span class="cnt">21/10000</span>
+            <div style="font-weight:700;color:var(--m-ink);margin-bottom:4px">Exercise Instructions</div>3 x 50 cals<br>-no rest</div>
+          <div class="m-sel">KB swings <span class="cv">⌄ &nbsp;⚟</span></div>
+        </div>
+        <div style="width:250px;flex:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div class="m-sel" style="flex:1;border:0;padding:0;font-size:13px">3 x 50cal <span class="cv">⌄</span></div>
+            <span style="font-size:10.5px;color:var(--m-ink2);text-align:right;line-height:1.2">Save<br>Prescription</span>
+          </div>
+          <div class="m-rx">
+            <table>
+              <tr><th>3 Sets ⌄</th><th style="text-align:center">Calories (cal) ⌄</th><th style="text-align:center">Optional ⌄</th></tr>
+              <tr><td>1</td><td>50</td><td></td></tr>
+              <tr><td>2</td><td>50</td><td></td></tr>
+              <tr><td>3</td><td>50</td><td></td></tr>
+            </table>
+          </div>
+          <div style="text-align:center;margin-top:8px;color:var(--m-blue);font-size:12px">⊖ &nbsp;Sets&nbsp; ⊕</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="annot"><div class="n">1</div><div><strong>Three columns. That is the whole prescription model.</strong> Set count, Parameter 1, Parameter 2 — where Parameter 2 defaults to the literal label <code>Optional</code>. There is no add-column control. This is the ceiling, and it is right here in the UI.</div></div>
+  <div class="annot"><div class="n">2</div><div><strong>Block header = category + custom title + kebab.</strong> Category is picked from a fixed set of seven and drives the icon and colour.</div></div>
+  <div class="annot"><div class="n">3</div><div><strong>Every text field is capped at 10,000 characters</strong> and shows a live counter. Coach Instructions, Exercise Instructions, Circuit Details, Points of Performance — all four, same cap.</div></div>
+  <div class="annot"><div class="n">4</div><div><strong>"Save Prescription"</strong> promotes the current table into a reusable library object. Small feature, disproportionate value for a coach programming at volume.</div></div>
+
+  <h3>4 · Athlete drawer — working maxes and PRs</h3>
+  <p>Served by the oldest endpoint in the system, and holding the most valuable data in it.</p>
+  <div class="grid2">
+    <div class="mock">
+      <div class="mock-h">Athletes · drawer</div>
+      <div class="mock-b">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <div style="width:30px;height:30px;border-radius:50%;background:var(--m-line)"></div>
+          <div class="m-title" style="letter-spacing:.06em">DAN VELDMAN</div>
+        </div>
+        <div style="display:flex;gap:18px;font-size:11px;letter-spacing:.06em;font-weight:700;color:var(--m-ink2);border-bottom:1px solid var(--m-line);padding-bottom:8px;margin-bottom:10px">
+          <span style="color:var(--m-ink);border-bottom:2px solid var(--m-ink);padding-bottom:8px;margin-bottom:-9px">EXERCISES</span><span>CIRCUITS</span><span>NOTES</span><span>ACCOUNT</span></div>
+        <div class="m-sel" style="margin-bottom:10px;font-weight:400;color:var(--m-ink2)">Search Back Squat, Pull Ups, Etc.</div>
+        <div style="display:flex;font-size:10px;letter-spacing:.05em;font-weight:700;color:var(--m-ink2);padding-bottom:6px">
+          <span style="flex:1">EXERCISE</span><span style="width:88px;text-align:right">WORKING MAX</span><span style="width:92px;text-align:right">PERSONAL RECORD</span></div>
+        <div class="m-row"><span style="flex:1">1 1/4 Cyclist Front Squat</span>
+          <span class="rv" style="width:88px"><b>100 kg</b><small>2026-04-15<br>ESTIMATED</small></span>
+          <span class="rv" style="width:92px"><b>8@80 kg</b><small>2026-04-15</small></span></div>
+        <div class="m-row"><span style="flex:1">1 1/4 Back Squat</span>
+          <span class="rv" style="width:88px"><b>133.3 kg</b><small>2024-05-30<br>ESTIMATED</small></span>
+          <span class="rv" style="width:92px"><b>4@120 kg</b><small>2024-06-30</small></span></div>
+        <div class="m-row"><span style="flex:1">Ab Wheel</span>
+          <span class="rv" style="width:88px"></span>
+          <span class="rv" style="width:92px"><b>15 reps</b><small>2025-08-25</small></span></div>
+        <div class="m-row"><span style="flex:1">Airdyne</span>
+          <span class="rv" style="width:88px"></span>
+          <span class="rv" style="width:92px"><b>20:00 mm:ss</b><small>2026-02-03</small></span></div>
+      </div>
+    </div>
+    <div>
+      <div class="annot"><div class="n">1</div><div><strong>Working max carries a date and an <code>ESTIMATED</code> flag.</strong> That flag is the fixed/unfixed distinction surfaced. Once a coach edits the value manually it stops auto-updating until retested — and nothing in this UI tells you that.</div></div>
+      <div class="annot"><div class="n">2</div><div><strong>PR is stored as <code>reps@weight</code>, not a collapsed best.</strong> A 4-rep PR and an 8-rep PR are separate records with separate dates. Leaderboards only compare exact rep matches.</div></div>
+      <div class="annot"><div class="n">3</div><div><strong>Unloaded movements degrade gracefully</strong> — Ab Wheel stores <code>15 reps</code>, Airdyne stores <code>20:00 mm:ss</code>, and neither has a working max. The PR column is polymorphic by exercise.</div></div>
+      <div class="annot"><div class="n">4</div><div><strong>Four tabs, and <em>Circuits</em> gets its own.</strong> Circuit results are stored in a parallel table — <code>/2.0/coach/athlete/numbers/circuits/{id}</code> — separate from exercise numbers. Two record systems that never join.</div></div>
+    </div>
+  </div>
+
+  <h3>5 · Workout preview — the gym display</h3>
+  <p>Reached from the session kebab at <code>/fullscreen-workout/{sessionId}</code>. This replaced the retired Whiteboard, Leaderboard and Team App.</p>
+  <div class="m-dark">
+    <div class="dh2">Week 1 Day 1</div>
+    <div class="drow" style="border-top:0">
+      <div class="dlet">A</div>
+      <div><div class="dnm">Warm Up</div>
+        <div class="dsub">2 minutes cardio of choice<br>1A. Pogo hops – 2 x 10-12<br>1B. Med ball chest press into floor – 2 x 10-12<br>1C. Rotational med ball slam – 2 x 10-12</div></div>
+    </div>
+    <div class="drow"><div class="dlet">B</div><div><div class="dnm">Bench Press</div></div><div class="drx">3 x 6-8</div></div>
+    <div class="drow"><div class="dlet">C</div><div><div class="dnm">Romanian Deadlift</div></div><div class="drx">3 x 6-8</div></div>
+    <div class="drow"><div class="dlet">D1</div><div><div class="dnm">Lat Pulldown</div></div><div class="drx">3 x 10-12</div></div>
+    <div class="drow" style="border-top:0;padding-top:0"><div class="dlet">D2</div><div><div class="dnm">DB Reverse Lunge</div></div><div class="drx">3 x 10-12</div></div>
+    <div class="drow"><div class="dlet">E</div><div><div class="dnm">conditioning</div><div class="dsub">2-3 x E5OM<br><br>complete a 30m heavy farmers carry</div></div></div>
+  </div>
+  <div class="annot"><div class="n">1</div><div><strong>Rep ranges render as <code>3 x 6-8</code></strong>, right-aligned at large weight. Legible across a gym floor — the type scale roughly doubles versus the builder.</div></div>
+  <div class="annot"><div class="n">2</div><div><strong>Block E is the escape hatch in the wild.</strong> "2-3 x E5OM / complete a 30m heavy farmers carry" is free text inside a circuit block. It renders perfectly and produces zero analysable data. Section D5 fixes this.</div></div>
+</section>
+
+<hr>
+
+<section id="their-model">
+  <div class="eyebrow">Part A · Teardown</div>
+  <h2>A4 · Their data model, as-is</h2>
+  <p class="lede">Reconstructed from UI affordances, form fields and endpoint shapes. Entity boundaries and enums are solid; exact column names are not theirs. <span class="badge b-i"><span class="dot"></span>INFERRED SHAPE</span> <span class="badge b-v"><span class="dot"></span>ENUMS VERIFIED</span></p>
+
+  <h3>Hierarchy</h3>
+  <div class="dg">
+    <div class="layer" style="align-items:center">
+      <div class="node"><div class="nt">Organization</div><div class="ns">/v5/coaches/orgs</div></div>
+      <div style="color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Coach</div><div class="ns">+ Assistant Coaches · $9.99/seat</div></div>
+      <div style="color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Team</div><div class="ns">many ⇄ many Athletes</div></div>
+      <div style="color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Athlete</div><div class="ns">type · tags · status</div></div>
+    </div>
+    <div class="down">↓</div>
+    <div class="layer" style="align-items:center">
+      <div class="node"><div class="nt">Program</div><div class="ns">difficulty · focus</div></div>
+      <div style="color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Week → Day</div><div class="ns">grid position</div></div>
+      <div style="color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Session</div><div class="ns">title · coach instructions</div></div>
+      <div style="color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Block</div><div class="ns">category · title · grouping</div></div>
+      <div style="color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Exercise / Circuit</div><div class="ns">+ Prescription</div></div>
+    </div>
+    <div class="cap">A Program is a <em>template</em> laid out on a week × day grid. A Team Calendar is the <em>instance</em> — dated sessions. Applying a program to a calendar copies sessions onto dates.</div>
+  </div>
+
+  <h3>Entities</h3>
+  <div class="grid3">
+    <div class="ent old"><h5>exercise</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li>title <em>required</em></li>
+      <li>param_1 <em>required</em></li>
+      <li>param_2</li>
+      <li>video_url <em>YT/Vimeo</em></li>
+      <li>points_of_performance <em>10k</em></li>
+      <li>tags[] <em>free text</em></li>
+      <li><span class="fk">FK</span> reference_max_exercise</li>
+      <li><span class="fk">FK</span> track_as_exercise</li>
+      <li>suggested_swaps[] <em>max 3</em></li>
+    </ul></div>
+    <div class="ent old"><h5>prescription</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li>set_count <em>1–10</em></li>
+      <li>col_1_metric <em>enum</em></li>
+      <li>col_2_metric <em>enum</em></li>
+      <li>rows[] <em>value per col</em></li>
+      <li>category[] <em>template only</em></li>
+    </ul></div>
+    <div class="ent old"><h5>block</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li><span class="fk">FK</span> session_id</li>
+      <li>ordinal</li>
+      <li>category <em>7-enum</em></li>
+      <li>title</li>
+      <li>is_test</li>
+      <li>leaderboard_id</li>
+    </ul></div>
+    <div class="ent old"><h5>circuit</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li>title</li>
+      <li>result_unit <em>18-enum</em></li>
+      <li>details <em>10k FREE TEXT</em></li>
+      <li>video_url</li>
+    </ul></div>
+    <div class="ent old"><h5>athlete_number</h5><ul>
+      <li><span class="fk">FK</span> athlete_id</li>
+      <li><span class="fk">FK</span> exercise_id</li>
+      <li>working_max</li>
+      <li>is_estimated</li>
+      <li>working_max_date</li>
+      <li>pr_reps</li>
+      <li>pr_value</li>
+      <li>pr_date</li>
+    </ul></div>
+    <div class="ent old"><h5>calendar_session</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li><span class="fk">FK</span> team_id</li>
+      <li>date</li>
+      <li>is_published</li>
+      <li>title <em>defaults to ISO date</em></li>
+    </ul></div>
+  </div>
+
+  <h3>The metric enum — all 20, verbatim</h3>
+  <p>Selectable in any prescription column. Note that units are <em>members</em>, not attributes.</p>
+  <div class="card" style="font-family:var(--mono);font-size:12.5px;line-height:2.1">
+    <span class="badge b-n"><span class="dot"></span>COUNT</span> Reps · Rep Range (min-max)<br>
+    <span class="badge b-n"><span class="dot"></span>MASS</span> Weight (lb) · Weight (kg) · Weight (%) · Weight (LWP+)<br>
+    <span class="badge b-n"><span class="dot"></span>TIME</span> Time (min::sec) · Seconds (s)<br>
+    <span class="badge b-n"><span class="dot"></span>LENGTH</span> Distance (miles) · Distance (yd) · Distance (ft) · Distance (inches) · Distance (meters) · Height (inches)<br>
+    <span class="badge b-n"><span class="dot"></span>OTHER</span> Calories (cal) · RPE · Watts · Velocity (m/s) · Other Number · Optional
+  </div>
+  <div class="callout warn"><span class="k">The structural defect, stated plainly</span>
+    <p style="margin-bottom:0">Six of the twenty members exist only because <strong>unit is baked into identity</strong>. <code>Weight (lb)</code> and <code>Weight (kg)</code> are not the same metric rendered differently — they are different enum values. Any athlete who switches units, or any coach with athletes on both, is a data-migration problem rather than a display preference.</p></div>
+
+  <h3>Fixed enums — copy these, they are well-chosen</h3>
+  <div class="grid2">
+    <div class="card"><h4 style="margin-top:0">Block category · 7</h4>
+      <p style="font-family:var(--mono);font-size:12.5px;margin:0">Uncategorized · Prep · Speed/Agility · Skill/Tech · Strength/Power · Conditioning · Recovery</p>
+      <p style="font-size:12.5px;margin:10px 0 0">Drives the icon, the colour, and the section headings in every athlete-facing render. Also the unit of block-level compliance.</p></div>
+    <div class="card"><h4 style="margin-top:0">Circuit result unit · 18</h4>
+      <p style="font-family:var(--mono);font-size:12.5px;margin:0">For Completion · Calories · Feet · Inches · Meters · Miles · Reps · Rounds · Seconds · Time · Velocity (m/s) · RPE · Watts · Weight · Yards · Data · Percent · Other Number</p>
+      <p style="font-size:12.5px;margin:10px 0 0">One number per circuit, and the rest of the workout is prose. This is the gap.</p></div>
+  </div>
+</section>
+
+<hr>
+
+<section id="states">
+  <div class="eyebrow">Part B · Flows</div>
+  <h2>B1 · Session state machine</h2>
+  <p class="lede">Most of TrainHeroic's data-loss reports live in the gaps between these states. <span class="badge b-v"><span class="dot"></span>STATES VERIFIED</span></p>
+
+  <div class="dg">
+  <svg viewBox="0 0 980 330" width="100%" style="max-width:980px;display:block" role="img" aria-label="Session state machine: draft to published to in progress to completed, with auto-publish, reschedule and abandon transitions.">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--axis)"/></marker>
+      <marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--series-1)"/></marker>
+    </defs>
+    <g font-family="var(--sans)" font-size="12">
+      <!-- boxes -->
+      <g>
+        <rect x="14" y="112" width="148" height="52" rx="8" fill="var(--sunken)" stroke="var(--axis)"/>
+        <text x="88" y="134" text-anchor="middle" fill="var(--text-primary)" font-weight="700" font-size="13">DRAFT</text>
+        <text x="88" y="151" text-anchor="middle" fill="var(--text-muted)" font-size="10.5">UNPUBLISHED badge</text>
+      </g>
+      <g>
+        <rect x="252" y="112" width="148" height="52" rx="8" fill="var(--sunken)" stroke="var(--series-1)" stroke-width="1.5"/>
+        <text x="326" y="134" text-anchor="middle" fill="var(--text-primary)" font-weight="700" font-size="13">PUBLISHED</text>
+        <text x="326" y="151" text-anchor="middle" fill="var(--text-muted)" font-size="10.5">visible to athlete</text>
+      </g>
+      <g>
+        <rect x="490" y="112" width="148" height="52" rx="8" fill="var(--sunken)" stroke="var(--axis)"/>
+        <text x="564" y="134" text-anchor="middle" fill="var(--text-primary)" font-weight="700" font-size="13">IN_PROGRESS</text>
+        <text x="564" y="151" text-anchor="middle" fill="var(--text-muted)" font-size="10.5">session timer running</text>
+      </g>
+      <g>
+        <rect x="728" y="112" width="148" height="52" rx="8" fill="color-mix(in srgb, var(--good) 12%, var(--surface-1))" stroke="var(--good)" stroke-width="1.5"/>
+        <text x="802" y="134" text-anchor="middle" fill="var(--text-primary)" font-weight="700" font-size="13">COMPLETED</text>
+        <text x="802" y="151" text-anchor="middle" fill="var(--text-muted)" font-size="10.5">sRPE · duration · comment</text>
+      </g>
+      <g>
+        <rect x="490" y="248" width="148" height="44" rx="8" fill="var(--sunken)" stroke="var(--axis)" stroke-dasharray="4 3"/>
+        <text x="564" y="275" text-anchor="middle" fill="var(--text-secondary)" font-weight="650" font-size="12.5">ABANDONED</text>
+      </g>
+      <g>
+        <rect x="252" y="248" width="148" height="44" rx="8" fill="var(--sunken)" stroke="var(--axis)" stroke-dasharray="4 3"/>
+        <text x="326" y="275" text-anchor="middle" fill="var(--text-secondary)" font-weight="650" font-size="12.5">RESCHEDULED</text>
+      </g>
+
+      <!-- transitions -->
+      <line x1="164" y1="138" x2="248" y2="138" stroke="var(--series-1)" stroke-width="1.6" marker-end="url(#arb)"/>
+      <text x="206" y="128" text-anchor="middle" fill="var(--series-1)" font-size="10.5" font-weight="650">publish</text>
+      <text x="206" y="158" text-anchor="middle" fill="var(--text-muted)" font-size="10">auto @ time</text>
+
+      <line x1="402" y1="138" x2="486" y2="138" stroke="var(--axis)" stroke-width="1.6" marker-end="url(#ar)"/>
+      <text x="444" y="128" text-anchor="middle" fill="var(--text-secondary)" font-size="10.5">start</text>
+
+      <line x1="640" y1="138" x2="724" y2="138" stroke="var(--axis)" stroke-width="1.6" marker-end="url(#ar)"/>
+      <text x="682" y="128" text-anchor="middle" fill="var(--text-secondary)" font-size="10.5">finish</text>
+
+      <line x1="564" y1="166" x2="564" y2="244" stroke="var(--axis)" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+      <text x="574" y="208" fill="var(--text-muted)" font-size="10">timeout / quit</text>
+
+      <line x1="326" y1="166" x2="326" y2="244" stroke="var(--axis)" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+      <text x="336" y="208" fill="var(--text-muted)" font-size="10">athlete moves day</text>
+
+      <!-- coach edit loop -->
+      <path d="M88 112 L88 62 L326 62 L326 108" fill="none" stroke="var(--series-2)" stroke-width="1.4" marker-end="url(#ar)"/>
+      <text x="207" y="52" text-anchor="middle" fill="var(--series-2)" font-size="10.5" font-weight="650">coach edits program — must NOT rewrite published sessions</text>
+
+      <!-- unpublish -->
+      <path d="M326 164 L326 196 L88 196 L88 168" fill="none" stroke="var(--axis)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+      <text x="207" y="212" text-anchor="middle" fill="var(--text-muted)" font-size="10">unpublish</text>
+    </g>
+  </svg>
+  <div class="cap">Dashed = states TrainHeroic does not distinguish, and should. There is no observable difference between a session an athlete skipped and one they never opened, which is precisely why their Compliance report has no published definition.</div>
+  </div>
+
+  <div class="grid2">
+    <div class="callout warn" style="margin:0"><span class="k">Gotcha · publish timezone</span>
+      <p style="margin-bottom:0">Auto-publish runs in the <strong>coach's</strong> account timezone — the dialog reads "Central timezone (America/Chicago)" with no athlete-local option. Schedule publish jobs in the athlete's timezone, or at minimum the calendar's declared one. Ten lines now; a migration later.</p></div>
+    <div class="callout warn" style="margin:0"><span class="k">Gotcha · snapshot on publish</span>
+      <p style="margin-bottom:0">The orange loop is the dangerous one. If percentages resolve at <em>read</em> time against the current working max, an athlete opening last month's session sees loads that were never prescribed. Resolve once, at publish, and persist.</p></div>
+  </div>
+</section>
+
+<hr>
+
+<section id="logging">
+  <div class="eyebrow">Part B · Flows</div>
+  <h2>B2 · Athlete logging flow</h2>
+  <p class="lede">Screen by screen, with what each step writes. <span class="badge b-v"><span class="dot"></span>VERIFIED from support docs</span></p>
+
+  <div class="dg">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:9px">
+      <div class="node"><div class="nt">1 · Start Session</div><div class="ns">session timer starts</div><div style="font-size:11px;margin-top:6px;color:var(--series-1)">writes started_at</div></div>
+      <div class="node"><div class="nt">2 · Readiness</div><div class="ns">sleep · mood · energy · stress · soreness</div><div style="font-size:11px;margin-top:6px;color:var(--series-1)">5 subscores, first-of-day only</div></div>
+      <div class="node"><div class="nt">3 · Instructions</div><div class="ns">session rich text</div><div style="font-size:11px;margin-top:6px;color:var(--text-muted)">no write</div></div>
+      <div class="node"><div class="nt">4 · Block list</div><div class="ns">A · B1/B2 · C1..C4</div><div style="font-size:11px;margin-top:6px;color:var(--text-muted)">no write</div></div>
+      <div class="node"><div class="nt">5 · Log a set</div><div class="ns">tick, or keypad → Done</div><div style="font-size:11px;margin-top:6px;color:var(--series-1)">one row per set per metric</div></div>
+      <div class="node"><div class="nt">6 · Deviate</div><div class="ns">± sets · swap · move to end</div><div style="font-size:11px;margin-top:6px;color:var(--series-2)">breaks 1:1 with prescription</div></div>
+      <div class="node"><div class="nt">7 · Timers</div><div class="ns">rest · stopwatch · AMRAP · for time · Tabata · interval · EMOM</div><div style="font-size:11px;margin-top:6px;color:var(--text-muted)">no write</div></div>
+      <div class="node"><div class="nt">8 · Finish</div><div class="ns">sRPE · duration · comment</div><div style="font-size:11px;margin-top:6px;color:var(--series-1)">completed_at + derived</div></div>
+    </div>
+    <div class="cap">Step 6 is the one most clones get wrong. An athlete may add sets, remove sets, change any value, swap the exercise, or reorder it to the end of the session — so <strong>prescription and performance are different objects with different shapes</strong> and cannot share a row.</div>
+  </div>
+
+  <h4>Derived writes triggered on finish</h4>
+  <table class="t">
+    <thead><tr><th>Trigger</th><th>Writes</th><th>Idempotency requirement</th></tr></thead>
+    <tbody>
+      <tr><td>Any set ≤ 15 reps on a lift with an unfixed max</td><td>new working-max estimate</td><td><strong>Must</strong> — key on source set id, never blind-insert</td></tr>
+      <tr><td>Best-ever load at a given rep count</td><td>PR event for that rep count</td><td><strong>Must</strong> — PRs are per rep-count, not collapsed</td></tr>
+      <tr><td>Block with every non-optional set resulted</td><td>block marked complete</td><td>Recompute, don't increment</td></tr>
+      <tr><td>Session finish</td><td>sRPE, duration, comment, completed_at</td><td><strong>Must</strong> — double-tap on flaky signal is common</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<hr>
+
+<section id="offline">
+  <div class="eyebrow">Part B · Flows</div>
+  <h2>B3 · Offline write path</h2>
+  <p class="lede">This is where TrainHeroic bleeds. The recurring store-review complaint — "logged a workout, closed the app, it was gone" — has one signature. <span class="badge b-i"><span class="dot"></span>DIAGNOSIS INFERRED</span></p>
+
+  <div class="grid2">
+    <div class="card" style="border-color:var(--critical)">
+      <h4 style="margin-top:0;color:var(--critical)">✗ The failure mode</h4>
+      <div style="font-family:var(--mono);font-size:12px;line-height:2">
+        <div>set entered → <span style="color:var(--text-muted)">React state</span></div>
+        <div>set entered → <span style="color:var(--text-muted)">React state</span></div>
+        <div>set entered → <span style="color:var(--text-muted)">React state</span></div>
+        <div style="color:var(--critical)">⟵ app backgrounded · OS reclaims memory</div>
+        <div style="color:var(--critical);font-weight:700">everything lost</div>
+      </div>
+      <p style="margin:12px 0 0;font-size:13px">"Finish Session" is the first durable write. Everything before it is volatile.</p>
+    </div>
+    <div class="card" style="border-color:var(--good)">
+      <h4 style="margin-top:0;color:var(--good-ink)">✓ What to build instead</h4>
+      <div style="font-family:var(--mono);font-size:12px;line-height:2">
+        <div>set entered → <span style="color:var(--good-ink)">local DB (uuid v4, client-gen)</span></div>
+        <div style="padding-left:14px">→ outbox queue</div>
+        <div style="padding-left:14px">→ optimistic UI</div>
+        <div style="padding-left:14px">→ background sync <span style="color:var(--text-muted)">(retry, backoff)</span></div>
+        <div style="color:var(--good-ink)">server upsert on client id — idempotent</div>
+      </div>
+      <p style="margin:12px 0 0;font-size:13px">Client-generated IDs make every write replay-safe. Session finish becomes one more queued event, not a save point.</p>
+    </div>
+  </div>
+
+  <div class="callout"><span class="k">The video exception</span>
+    <p style="margin-bottom:0">Offline logging works in TrainHeroic; <strong>video is the documented exception</strong>. The cause is structural, not incidental — the exercise <code>video</code> field is a YouTube or Vimeo <em>URL</em> (confirmed in the Create Exercise form; there is no upload control). A third-party embed can never be cached. If offline demos matter — and in a gym basement they do — you need first-party transcoded assets. That is a real cost TrainHeroic dodged and now cannot recover from.</p></div>
+</section>
+
+<hr>
+
+<section id="e1rm">
+  <div class="eyebrow">Part C · Analytics</div>
+  <h2>C1 · Estimated 1RM</h2>
+  <p class="lede">The most consequential finding in the teardown. TrainHeroic does not use a formula — it uses a lookup table, and the table runs out before their input range does.</p>
+
+  <div class="callout good"><span class="k">Verified — direct quote</span>
+    <p style="margin-bottom:0">"Estimated 1RM are calculated directly from the <strong>NSCA load chart</strong>, based on the best effort of <strong>15 reps or less</strong>." <span class="badge b-v"><span class="dot"></span>VERIFIED</span></p></div>
+
+  <p>The published NSCA chart maps reps to %1RM discretely. It defines <strong>1–10 and 12</strong>. It does not define 11, and it does not define 13, 14 or 15 — the range TrainHeroic accepts. What happens in that gap is <span class="badge b-u"><span class="dot"></span>UNKNOWN</span>; no public source describes it.</p>
+
+  <div class="dg">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px">
+      <div>
+        <div style="font-weight:650;font-size:15px">Implied 1RM from a 100 kg set</div>
+        <div style="font-size:12.5px;color:var(--text-muted)">Same input set, three methods. Where they disagree is where your athletes' percentages disagree.</div>
+      </div>
+      <div style="flex:1"></div>
+      <button class="ghost" id="tblBtn" type="button">Table view</button>
+    </div>
+
+    <div id="chartWrap">
+      <svg id="chart" viewBox="0 0 880 430" width="100%" style="display:block;overflow:visible" role="img"
+           aria-label="Line chart comparing implied one-rep max from a 100 kilogram set across rep counts 1 to 15, for the NSCA load chart, Epley formula and Brzycki formula."></svg>
+    </div>
+
+    <div id="tblWrap" hidden style="margin-top:6px">
+      <table class="t" id="e1rmTable"><thead><tr><th>Reps</th><th class="num">NSCA chart</th><th class="num">Epley</th><th class="num">Brzycki</th><th class="num">Spread</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <div class="cap" id="chartCap">All three converge near 10 reps and diverge hard at both ends. At 15 reps Brzycki reads <strong>13.6 kg higher</strong> than Epley on the same set — and NSCA reads nothing at all.</div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">What the chart shows</h4>
+      <ul style="margin-bottom:0">
+        <li><strong>1 rep:</strong> Epley returns 103.3 for a set that <em>is</em> a 1RM. A known artefact — it is not calibrated at r = 1. Special-case it.</li>
+        <li><strong>10 reps:</strong> all three land on 133.3. Total agreement, by coincidence of construction.</li>
+        <li><strong>12 reps:</strong> NSCA's last defined point. Brzycki has already pulled 4 kg above Epley.</li>
+        <li><strong>13–15 reps:</strong> NSCA is undefined. TrainHeroic still accepts these inputs.</li>
+      </ul>
+    </div>
+    <div class="card" style="border-color:var(--good)">
+      <h4 style="margin-top:0;color:var(--good-ink)">Recommendation — 8/10 confidence</h4>
+      <p>Ship <strong>Epley</strong> as the default, with a per-exercise override, and <strong>store the formula id alongside every computed value</strong>.</p>
+      <ul style="margin-bottom:0">
+        <li>Continuous — 13/14/15 reps aren't a cliff</li>
+        <li>Most widely recognised — athletes can sanity-check you</li>
+        <li>Monotonic and differentiable — matters when you plot e1RM over time</li>
+        <li>Storing the formula id keeps history reproducible when you change the default</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr>
+
+<section id="readiness">
+  <div class="eyebrow">Part C · Analytics</div>
+  <h2>C2 · Readiness</h2>
+  <p class="lede">The only piece of maths TrainHeroic actually publishes. Copy it close to verbatim. <span class="badge b-v"><span class="dot"></span>VERIFIED</span></p>
+
+  <div class="dg">
+    <div class="layer" style="align-items:stretch">
+      <div class="node"><div class="nt">5 subscores</div><div class="ns">sleep · mood · energy<br>stress · soreness</div><div style="font-size:11.5px;margin-top:7px">each 1–5</div></div>
+      <div style="display:grid;place-items:center;color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Daily score</div><div class="ns">arithmetic mean</div><div style="font-size:11.5px;margin-top:7px"><strong>First complete survey of the calendar day only.</strong> Later submissions are discarded.</div></div>
+      <div style="display:grid;place-items:center;color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Recent Average</div><div class="ns">weighted moving avg</div><div style="font-size:11.5px;margin-top:7px">"mostly made up of your last 5 scores… weighted so that more recent scores count for more" — the dotted trend line</div></div>
+      <div style="display:grid;place-items:center;color:var(--axis)">→</div>
+      <div class="node"><div class="nt">Normal band</div><div class="ns">long-term mean ± SD</div><div style="font-size:11.5px;margin-top:7px">Deviation outside the band is what gets flagged to the coach</div></div>
+    </div>
+    <div class="cap">Feedback is shown <strong>after</strong> the session by design, so it doesn't prime the athlete's effort. That is a deliberate and correct choice — keep it.</div>
+  </div>
+
+  <div class="callout warn"><span class="k">The trap · question polarity</span>
+    <p style="margin-bottom:0">Whether stress and soreness are reverse-scored before averaging is <span class="badge b-u"><span class="dot"></span>UNKNOWN</span> — never stated. <span class="badge b-i"><span class="dot"></span>INFERRED</span> the questions are worded so 5 always means "best", otherwise the mean is meaningless. If you let coaches author custom readiness questions you <strong>must</strong> store a <code>polarity</code> flag per question, or your averages silently invert and nobody notices for months.</p></div>
+</section>
+
+<hr>
+
+<section id="metrics">
+  <div class="eyebrow">Part C · Analytics</div>
+  <h2>C3 · Volume · Intensity · Compliance</h2>
+  <p class="lede">TrainHeroic names all three on the coach dashboard and defines none of them. <span class="badge b-u"><span class="dot"></span>ALL UNDOCUMENTED</span> — the formulas below are <strong>mine</strong>, not theirs. Do not cite them as "how TrainHeroic does it".</p>
+
+  <h3>Volume — stop computing one number</h3>
+  <p>Tonnage only counts loaded work, so a session of 400 calories on an Assault Bike scores <strong>zero</strong>. Compute three separate series and never sum across them.</p>
+  <table class="t">
+    <thead><tr><th style="width:180px">Series</th><th>Definition</th><th>Covers</th></tr></thead>
+    <tbody>
+      <tr><td><code>tonnage_kg</code></td><td class="num" style="text-align:left">Σ(reps × load_kg) over sets where the metric is load-bearing</td><td>Barbell, dumbbell, machine</td></tr>
+      <tr><td><code>work_reps</code></td><td class="num" style="text-align:left">Σ(reps) over unloaded sets</td><td>Calisthenics, plyometrics</td></tr>
+      <tr><td><code>conditioning_load</code></td><td class="num" style="text-align:left">Σ(duration_s × sRPE)</td><td>The standard session-RPE training-load unit — the only thing that meaningfully compares a bike interval to a squat</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Intensity</h3>
+  <p>Two of my session cards showed <code>–</code> for Intensity, and both were sessions with no percentage-based prescriptions. <span class="badge b-i"><span class="dot"></span>INFERRED</span> Intensity is average %1RM, null when nothing was prescribed as a percentage.</p>
+  <pre><code><span class="c-cm">// rep-weighted, NOT the mean of set percentages —</span>
+<span class="c-cm">// a naive mean over-weights warm-up singles</span>
+intensity = Σ(reps × load) / Σ(reps) / working_max</code></pre>
+
+  <h3>Compliance</h3>
+  <p>TrainHeroic confirms two levels and gives no formula. Define yours <strong>in the UI</strong>, because coaches will otherwise assume the flattering one.</p>
+  <table class="t">
+    <thead><tr><th style="width:200px">Metric</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr><td><code>session_compliance</code></td><td>completed sessions ÷ assigned sessions, where "completed" means <em>Finish Session</em> was pressed</td></tr>
+      <tr><td><code>block_compliance</code></td><td>completed blocks ÷ assigned blocks, where a block is complete when <strong>every non-optional set in it has a result</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout good"><span class="k">Why the Optional column exists</span>
+    <p style="margin-bottom:0">That <code>Optional</code> member in the metric enum isn't a null placeholder — it is there so optional sets don't tank compliance. Small feature; it's what makes the number honest. Honour it.</p></div>
+</section>
+
+<hr>
+
+<section id="rounding">
+  <div class="eyebrow">Part C · Analytics</div>
+  <h2>C4 · Load rounding</h2>
+  <p class="lede">72.5% of a 315 lb max is 228.375 lb. Nobody has written down what TrainHeroic shows the athlete. <span class="badge b-u"><span class="dot"></span>UNKNOWN</span> — and it is the single most-encountered calculation in the entire product.</p>
+
+  <pre><code>displayed_load = round_to_increment(target_pct × working_max, increment)
+
+<span class="c-cm">// increment resolves: exercise → equipment type → account default</span></code></pre>
+
+  <table class="t">
+    <thead><tr><th>Equipment</th><th>Increment</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Barbell (kg)</td><td class="num" style="text-align:left">2.5 kg</td><td>1.0 kg if micro-plates are declared available</td></tr>
+      <tr><td>Barbell (lb)</td><td class="num" style="text-align:left">5 lb</td><td>2.5 lb with fractional plates</td></tr>
+      <tr><td>Dumbbell</td><td class="num" style="text-align:left">—</td><td>Snap to the gym's <strong>actual rack</strong>, a declared array — not an increment</td></tr>
+      <tr><td>Machine / cable</td><td class="num" style="text-align:left">—</td><td>Snap to the declared stack increment</td></tr>
+      <tr><td>Fixed / bodyweight</td><td class="num" style="text-align:left">none</td><td>No rounding</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout"><span class="k">Two rules</span>
+    <p>Round <strong>down</strong> by default for percentage work — never prescribe more than intended. And always expose the exact unrounded value on long-press, so a coach can audit it.</p>
+    <p style="margin-bottom:0">Storing <code>equipment_increment</code> on the exercise is about ten minutes of work and eliminates an entire category of "the app told me to load 228.375 lb" support ticket.</p></div>
+</section>
+
+<hr>
+
+<section id="ceiling">
+  <div class="eyebrow">Part D · Proposed schema</div>
+  <h2>D1 · The 2-metric ceiling</h2>
+  <p class="lede">One design decision generates every limitation in this document. Here it is, and here is what replaces it.</p>
+
+  <div class="grid2">
+    <div class="card" style="border-color:var(--critical)">
+      <h4 style="margin-top:0;color:var(--critical)">✗ Fixed-arity row — TrainHeroic</h4>
+      <pre style="margin:0"><code>set = { ordinal, param_1, param_2 }
+
+<span class="c-cm">-- prescription table is literally 3 columns</span>
+[ Set # ][ Parameter 1 ][ Parameter 2 ]</code></pre>
+      <p style="margin:14px 0 0;font-size:13.5px"><strong>Cannot express:</strong> tempo · rest as data · reps + weight + RPE together · a load range · an RPE range · anything conditioning-shaped.</p>
+      <p style="margin:10px 0 0;font-size:13.5px"><strong>Downstream:</strong> unit variants become separate enum members, so unit conversion is a data-model problem instead of a display problem. And conditioning has nowhere to go, so it goes into free text — which is invisible to every analytics report they ship.</p>
+    </div>
+    <div class="card" style="border-color:var(--good)">
+      <h4 style="margin-top:0;color:var(--good-ink)">✓ Open bag of typed metrics</h4>
+      <pre style="margin:0"><code>set = {
+  ordinal,
+  targets: [ {metric, resolution} … ]   <span class="c-cm">-- n</span>
+}
+
+<span class="c-cm">-- one row per metric. no arity limit.</span>
+reps · load · rpe · tempo · rest  →  5 rows</code></pre>
+      <p style="margin:14px 0 0;font-size:13.5px"><strong>Metrics become data, not an enum.</strong> A new metric is a row in a registry table, not a migration and a deploy.</p>
+      <p style="margin:10px 0 0;font-size:13.5px"><strong>Units become display, not identity.</strong> <code>Weight (lb)</code> and <code>Weight (kg)</code> collapse into one metric <code>load</code>, stored in kg. That alone removes six of their twenty enum members.</p>
+    </div>
+  </div>
+
+  <div class="callout warn"><span class="k">If you take one thing from this package</span>
+    <p style="margin-bottom:0">Model a set as an <strong>open bag of typed metrics</strong> from day one. It costs you almost nothing now — the tables below are not complicated — and it is genuinely unfixable later, because every prescription, every result, every report and every export encodes the arity assumption.</p></div>
+</section>
+
+<hr>
+
+<section id="erd">
+  <div class="eyebrow">Part D · Proposed schema</div>
+  <h2>D2 · Target ERD</h2>
+  <p class="lede">Nine tables. Blue = new thinking; the exercise-graph edges in orange are TrainHeroic's ideas, kept. <span class="badge b-n"><span class="dot"></span>PROPOSED — my design, not a reconstruction of theirs</span></p>
+
+  <h4>Registry &amp; catalogue</h4>
+  <div class="grid3">
+    <div class="ent new"><h5>metric</h5><ul>
+      <li><span class="pk">PK</span> key</li>
+      <li>dimension</li>
+      <li>canonical_unit</li>
+      <li>value_type</li>
+      <li>aggregation <em>drives rollups</em></li>
+      <li>higher_is_better</li>
+      <li>is_load_bearing</li>
+    </ul></div>
+    <div class="ent new"><h5>exercise</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li>owner_id <em>null = global</em></li>
+      <li>name</li>
+      <li>video_asset_id <em>first-party</em></li>
+      <li>cues</li>
+      <li><span class="fk">FK</span> equipment_id</li>
+      <li>default_metrics[]</li>
+      <li><span class="fk">FK</span> reference_max_exercise_id</li>
+      <li><span class="fk">FK</span> track_as_exercise_id</li>
+    </ul></div>
+    <div class="ent new"><h5>equipment</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li>kind</li>
+      <li>increment_kg</li>
+      <li>discrete_values[] <em>DB rack</em></li>
+    </ul></div>
+  </div>
+
+  <h4>Programming</h4>
+  <div class="grid3">
+    <div class="ent new"><h5>block</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li><span class="fk">FK</span> session_id</li>
+      <li>ordinal · category · title</li>
+      <li>grouping <em>single/superset/circuit</em></li>
+      <li>scheme <em>amrap/emom/…</em></li>
+      <li>scheme_params <em>jsonb</em></li>
+      <li><span class="fk">FK</span> score_metric</li>
+      <li>is_test</li>
+    </ul></div>
+    <div class="ent new"><h5>prescribed_set</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li><span class="fk">FK</span> block_item_id</li>
+      <li>ordinal</li>
+      <li>is_optional</li>
+      <li>is_amrap</li>
+    </ul></div>
+    <div class="ent new"><h5>prescribed_target</h5><ul>
+      <li><span class="pk">PK</span> prescribed_set_id</li>
+      <li><span class="pk">PK</span> metric_key</li>
+      <li>literal_value</li>
+      <li>range_lo · range_hi</li>
+      <li>expr_kind</li>
+      <li>expr_arg</li>
+      <li><span class="fk">FK</span> expr_ref_exercise</li>
+    </ul></div>
+  </div>
+
+  <h4>Assignment &amp; performance</h4>
+  <div class="grid3">
+    <div class="ent new"><h5>assigned_session</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li><span class="fk">FK</span> athlete_id</li>
+      <li><span class="fk">FK</span> source_session_id</li>
+      <li>scheduled_date</li>
+      <li>state</li>
+      <li>published_at</li>
+      <li>resolved_snapshot <em>jsonb</em></li>
+      <li>timezone <em>athlete's</em></li>
+    </ul></div>
+    <div class="ent new"><h5>performed_set</h5><ul>
+      <li><span class="pk">PK</span> id <em>client-gen</em></li>
+      <li><span class="fk">FK</span> assigned_session_id</li>
+      <li><span class="fk">FK</span> exercise_id <em>may differ</em></li>
+      <li><span class="fk">FK</span> prescribed_set_id <em>nullable</em></li>
+      <li>ordinal · status</li>
+      <li>performed_at</li>
+      <li>client_created_at</li>
+    </ul></div>
+    <div class="ent new"><h5>performed_measurement</h5><ul>
+      <li><span class="pk">PK</span> performed_set_id</li>
+      <li><span class="pk">PK</span> metric_key</li>
+      <li>value <em>canonical unit</em></li>
+    </ul></div>
+  </div>
+
+  <h4>Derived — append-only</h4>
+  <div class="grid2">
+    <div class="ent new"><h5>working_max_event</h5><ul>
+      <li><span class="pk">PK</span> id</li>
+      <li><span class="fk">FK</span> athlete_id · exercise_id</li>
+      <li>value_kg</li>
+      <li>source <em>auto/coach/athlete/test</em></li>
+      <li>formula <em>reproducibility</em></li>
+      <li><span class="fk">FK</span> from_set_id</li>
+      <li>effective_at</li>
+    </ul></div>
+    <div class="ent new"><h5>pr_event</h5><ul>
+      <li><span class="pk">PK</span> athlete_id · exercise_id · rep_count · achieved_at</li>
+      <li>value_kg</li>
+      <li><span class="fk">FK</span> performed_set_id</li>
+    </ul></div>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="callout warn" style="margin:0"><span class="k">Gotcha · graph cycles</span>
+      <p style="margin-bottom:0"><code>reference_max</code> and <code>track_as</code> are graph edges and must be <strong>cycle-checked on write</strong>, not on read. A→B→A will hang your resolver. Enforce depth ≤ 1 unless you have a compelling reason — full transitive resolution is a support nightmare when a coach can't work out why their percentages moved.</p></div>
+    <div class="callout warn" style="margin:0"><span class="k">Gotcha · nullable parent</span>
+      <p style="margin-bottom:0"><code>performed_set.prescribed_set_id</code> is <strong>nullable on purpose</strong>. An athlete-added set has no parent. If you make it required you have re-created TrainHeroic's positional model and you will not be able to tell "skipped" from "never reached" — which is exactly why their Compliance report has no published definition.</p></div>
+  </div>
+</section>
+
+<hr>
+
+<section id="ddl">
+  <div class="eyebrow">Part D · Proposed schema</div>
+  <h2>D3 · SQL DDL</h2>
+  <p class="lede">Postgres. Copy-paste ready.</p>
+
+  <div class="codewrap"><button class="ghost copy" type="button" data-copy>Copy</button>
+<pre><code><span class="c-cm">-- ═══ METRIC REGISTRY — data, not enum. New metrics are rows. ═══</span>
+<span class="c-kw">CREATE TABLE</span> metric (
+  key              <span class="c-ty">text</span> <span class="c-kw">PRIMARY KEY</span>,        <span class="c-cm">-- 'load','reps','rpe','tempo','rest'</span>
+  dimension        <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,           <span class="c-cm">-- mass|count|ratio|time|length|power|velocity|energy</span>
+  canonical_unit   <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,           <span class="c-cm">-- kg|rep|rpe|s|m|W|m/s|kcal</span>
+  value_type       <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,           <span class="c-cm">-- scalar|range|tuple|duration|bool</span>
+  aggregation      <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,           <span class="c-cm">-- sum|mean|max|min|last|none  → analytics for free</span>
+  higher_is_better <span class="c-ty">boolean</span>,                    <span class="c-cm">-- NULL = neither (tempo)</span>
+  is_load_bearing  <span class="c-ty">boolean</span> <span class="c-kw">NOT NULL DEFAULT</span> <span class="c-st">false</span>
+);
+
+<span class="c-cm">-- ═══ EXERCISE + the two indirection edges worth stealing ═══</span>
+<span class="c-kw">CREATE TABLE</span> exercise (
+  id                        <span class="c-ty">uuid</span> <span class="c-kw">PRIMARY KEY</span>,
+  owner_id                  <span class="c-ty">uuid</span>,                 <span class="c-cm">-- NULL = global library</span>
+  name                      <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,
+  video_asset_id            <span class="c-ty">uuid</span>,                 <span class="c-cm">-- first-party + cacheable, NOT a YouTube URL</span>
+  cues                      <span class="c-ty">text</span>,                 <span class="c-cm">-- "Points of Performance"</span>
+  equipment_id              <span class="c-ty">uuid</span> <span class="c-kw">REFERENCES</span> equipment(id),
+  default_metrics           <span class="c-ty">text[]</span> <span class="c-kw">NOT NULL</span>,     <span class="c-cm">-- a DEFAULT, not a ceiling</span>
+  reference_max_exercise_id <span class="c-ty">uuid</span> <span class="c-kw">REFERENCES</span> exercise(id),
+  track_as_exercise_id      <span class="c-ty">uuid</span> <span class="c-kw">REFERENCES</span> exercise(id),
+  <span class="c-kw">CHECK</span> (id &lt;&gt; reference_max_exercise_id),
+  <span class="c-kw">CHECK</span> (id &lt;&gt; track_as_exercise_id)
+);
+
+<span class="c-cm">-- ═══ PRESCRIPTION — an expression tree, not a literal ═══</span>
+<span class="c-kw">CREATE TABLE</span> prescribed_set (
+  id            <span class="c-ty">uuid</span> <span class="c-kw">PRIMARY KEY</span>,
+  block_item_id <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,
+  ordinal       <span class="c-ty">int</span>  <span class="c-kw">NOT NULL</span>,
+  is_optional   <span class="c-ty">boolean</span> <span class="c-kw">NOT NULL DEFAULT</span> <span class="c-st">false</span>,  <span class="c-cm">-- excluded from compliance</span>
+  is_amrap      <span class="c-ty">boolean</span> <span class="c-kw">NOT NULL DEFAULT</span> <span class="c-st">false</span>,
+  <span class="c-kw">UNIQUE</span> (block_item_id, ordinal)
+);
+
+<span class="c-kw">CREATE TABLE</span> prescribed_target (
+  prescribed_set_id <span class="c-ty">uuid</span> <span class="c-kw">REFERENCES</span> prescribed_set(id) <span class="c-kw">ON DELETE CASCADE</span>,
+  metric_key        <span class="c-ty">text</span> <span class="c-kw">REFERENCES</span> metric(key),
+  <span class="c-cm">-- exactly one resolution strategy per row:</span>
+  literal_value     <span class="c-ty">numeric</span>,      <span class="c-cm">-- 100 kg</span>
+  range_lo          <span class="c-ty">numeric</span>,      <span class="c-cm">-- 6  ┐ generalises 'Rep Range' to ANY metric</span>
+  range_hi          <span class="c-ty">numeric</span>,      <span class="c-cm">-- 8  ┘ → time ranges, RPE ranges, load ranges</span>
+  expr_kind         <span class="c-ty">text</span>,         <span class="c-cm">-- pct_of_max|lwp_delta|pct_of_bodyweight|rpe_autoreg</span>
+  expr_arg          <span class="c-ty">numeric</span>,      <span class="c-cm">-- 0.725 | 2.5 | 0.5 | 8.0</span>
+  expr_ref_exercise <span class="c-ty">uuid</span>,         <span class="c-cm">-- override for pct_of_max</span>
+  <span class="c-kw">PRIMARY KEY</span> (prescribed_set_id, metric_key)
+);
+
+<span class="c-cm">-- ═══ ASSIGNMENT — snapshot at publish. Non-negotiable. ═══</span>
+<span class="c-kw">CREATE TABLE</span> assigned_session (
+  id                <span class="c-ty">uuid</span> <span class="c-kw">PRIMARY KEY</span>,
+  athlete_id        <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,
+  source_session_id <span class="c-ty">uuid</span>,                <span class="c-cm">-- provenance back to the program</span>
+  scheduled_date    <span class="c-ty">date</span> <span class="c-kw">NOT NULL</span>,
+  state             <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,       <span class="c-cm">-- draft|published|in_progress|completed|skipped</span>
+  published_at      <span class="c-ty">timestamptz</span>,
+  resolved_snapshot <span class="c-ty">jsonb</span> <span class="c-kw">NOT NULL</span>,      <span class="c-cm">-- fully-resolved prescription AT PUBLISH TIME</span>
+  timezone          <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>        <span class="c-cm">-- ATHLETE's tz, not the coach's</span>
+);
+
+<span class="c-cm">-- ═══ PERFORMANCE — independent of prescription ═══</span>
+<span class="c-kw">CREATE TABLE</span> performed_set (
+  id                  <span class="c-ty">uuid</span> <span class="c-kw">PRIMARY KEY</span>,   <span class="c-cm">-- CLIENT-GENERATED (offline-first)</span>
+  assigned_session_id <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,
+  exercise_id         <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,      <span class="c-cm">-- may DIFFER from prescription (swap)</span>
+  prescribed_set_id   <span class="c-ty">uuid</span>,               <span class="c-cm">-- NULLABLE: athlete-added sets have no parent</span>
+  ordinal             <span class="c-ty">int</span>  <span class="c-kw">NOT NULL</span>,
+  status              <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,      <span class="c-cm">-- completed|skipped|not_reached</span>
+  performed_at        <span class="c-ty">timestamptz</span> <span class="c-kw">NOT NULL</span>,
+  client_created_at   <span class="c-ty">timestamptz</span> <span class="c-kw">NOT NULL</span>  <span class="c-cm">-- offline conflict resolution</span>
+);
+
+<span class="c-kw">CREATE TABLE</span> performed_measurement (
+  performed_set_id <span class="c-ty">uuid</span> <span class="c-kw">REFERENCES</span> performed_set(id) <span class="c-kw">ON DELETE CASCADE</span>,
+  metric_key       <span class="c-ty">text</span> <span class="c-kw">REFERENCES</span> metric(key),
+  value            <span class="c-ty">numeric</span> <span class="c-kw">NOT NULL</span>,   <span class="c-cm">-- ALWAYS in metric.canonical_unit</span>
+  <span class="c-kw">PRIMARY KEY</span> (performed_set_id, metric_key)
+);
+
+<span class="c-cm">-- ═══ DERIVED STATE — append-only, never mutable columns ═══</span>
+<span class="c-kw">CREATE TABLE</span> working_max_event (
+  id           <span class="c-ty">uuid</span> <span class="c-kw">PRIMARY KEY</span>,
+  athlete_id   <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,
+  exercise_id  <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,          <span class="c-cm">-- ROOT exercise, after track_as resolution</span>
+  value_kg     <span class="c-ty">numeric</span> <span class="c-kw">NOT NULL</span>,
+  source       <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,          <span class="c-cm">-- auto_estimate|coach_set|athlete_set|test_result</span>
+  formula      <span class="c-ty">text</span>,                    <span class="c-cm">-- 'epley'|'brzycki'|'nsca_chart'</span>
+  from_set_id  <span class="c-ty">uuid</span>,
+  effective_at <span class="c-ty">timestamptz</span> <span class="c-kw">NOT NULL</span>
+);
+
+<span class="c-kw">CREATE TABLE</span> pr_event (
+  athlete_id       <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,
+  exercise_id      <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,
+  rep_count        <span class="c-ty">int</span>  <span class="c-kw">NOT NULL</span>,          <span class="c-cm">-- PRs are PER REP-COUNT</span>
+  value_kg         <span class="c-ty">numeric</span> <span class="c-kw">NOT NULL</span>,
+  achieved_at      <span class="c-ty">timestamptz</span> <span class="c-kw">NOT NULL</span>,
+  performed_set_id <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,
+  <span class="c-kw">PRIMARY KEY</span> (athlete_id, exercise_id, rep_count, achieved_at)
+);</code></pre></div>
+
+  <h4>Metric registry — seed rows</h4>
+  <table class="t">
+    <thead><tr><th>key</th><th>dimension</th><th>canonical</th><th>value_type</th><th>aggregation</th><th>load-bearing</th></tr></thead>
+    <tbody>
+      <tr><td><code>load</code></td><td>mass</td><td>kg</td><td>scalar</td><td>sum</td><td>yes</td></tr>
+      <tr><td><code>reps</code></td><td>count</td><td>rep</td><td>scalar</td><td>sum</td><td>no</td></tr>
+      <tr><td><code>rpe</code></td><td>ratio</td><td>rpe</td><td>scalar</td><td>mean</td><td>no</td></tr>
+      <tr><td><code>rir</code></td><td>count</td><td>rep</td><td>scalar</td><td>mean</td><td>no</td></tr>
+      <tr><td><code>tempo</code></td><td>time</td><td>s</td><td>tuple</td><td>none</td><td>no</td></tr>
+      <tr><td><code>rest</code></td><td>time</td><td>s</td><td>scalar</td><td>mean</td><td>no</td></tr>
+      <tr><td><code>duration</code></td><td>time</td><td>s</td><td>duration</td><td>sum</td><td>no</td></tr>
+      <tr><td><code>distance</code></td><td>length</td><td>m</td><td>scalar</td><td>sum</td><td>no</td></tr>
+      <tr><td><code>calories</code></td><td>energy</td><td>kcal</td><td>scalar</td><td>sum</td><td>no</td></tr>
+      <tr><td><code>watts</code></td><td>power</td><td>W</td><td>scalar</td><td>mean</td><td>no</td></tr>
+      <tr><td><code>velocity</code></td><td>velocity</td><td>m/s</td><td>scalar</td><td>mean</td><td>no</td></tr>
+      <tr><td><code>rounds</code></td><td>count</td><td>round</td><td>scalar</td><td>sum</td><td>no</td></tr>
+      <tr><td><code>heart_rate</code></td><td>rate</td><td>bpm</td><td>scalar</td><td>mean</td><td>no</td></tr>
+    </tbody>
+  </table>
+  <div class="callout good"><span class="k">What the registry buys you</span>
+    <p style="margin-bottom:0"><code>aggregation</code> and <code>is_load_bearing</code> mean <strong>every rollup in section C3 becomes a generic query</strong>. Add a new metric and volume, intensity and compliance keep working without a code change. That is the whole point of making it a table.</p></div>
+</section>
+
+<hr>
+
+<section id="pipeline">
+  <div class="eyebrow">Part D · Proposed schema</div>
+  <h2>D4 · Resolution pipeline</h2>
+  <p class="lede">How a target becomes a number an athlete sees. Runs <strong>once, at publish</strong> — never at render.</p>
+
+  <div class="dg">
+  <svg viewBox="0 0 940 400" width="100%" style="max-width:940px;display:block" role="img"
+       aria-label="Resolution pipeline: a prescribed target resolves via literal value, percentage of max, last-weight-performed delta, or a range, then rounds to equipment increment and is written into the published session snapshot.">
+    <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--axis)"/></marker></defs>
+    <g font-family="var(--sans)" font-size="12">
+      <rect x="16" y="164" width="150" height="46" rx="8" fill="var(--sunken)" stroke="var(--series-1)" stroke-width="1.5"/>
+      <text x="91" y="184" text-anchor="middle" font-weight="700" font-size="12.5" fill="var(--text-primary)">prescribed_target</text>
+      <text x="91" y="200" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">one row per metric</text>
+
+      <line x1="168" y1="187" x2="212" y2="187" stroke="var(--axis)" stroke-width="1.5" marker-end="url(#ar2)"/>
+
+      <!-- four branches -->
+      <g>
+        <rect x="216" y="24" width="196" height="40" rx="7" fill="var(--surface-1)" stroke="var(--axis)"/>
+        <text x="230" y="49" font-size="12" fill="var(--text-primary)"><tspan font-family="var(--mono)" font-size="11">literal_value</tspan> → value</text>
+      </g>
+      <g>
+        <rect x="216" y="82" width="368" height="76" rx="7" fill="var(--surface-1)" stroke="var(--series-2)"/>
+        <text x="230" y="103" font-family="var(--mono)" font-size="11" fill="var(--series-2)">expr_kind = 'pct_of_max'</text>
+        <text x="230" y="121" font-size="11.5" fill="var(--text-secondary)">→ resolve reference_max_exercise</text>
+        <text x="230" y="137" font-size="11.5" fill="var(--text-secondary)">→ working_max AS OF scheduled_date</text>
+        <text x="230" y="152" font-size="11.5" fill="var(--text-secondary)">→ × expr_arg</text>
+      </g>
+      <g>
+        <rect x="216" y="176" width="368" height="62" rx="7" fill="var(--surface-1)" stroke="var(--series-2)"/>
+        <text x="230" y="197" font-family="var(--mono)" font-size="11" fill="var(--series-2)">expr_kind = 'lwp_delta'</text>
+        <text x="230" y="215" font-size="11.5" fill="var(--text-secondary)">→ last performed load, this athlete + exercise</text>
+        <text x="230" y="230" font-size="11.5" fill="var(--text-secondary)">→ + expr_arg</text>
+      </g>
+      <g>
+        <rect x="216" y="256" width="196" height="40" rx="7" fill="var(--surface-1)" stroke="var(--axis)"/>
+        <text x="230" y="281" font-size="12" fill="var(--text-primary)"><tspan font-family="var(--mono)" font-size="11">range_lo–hi</tspan> → "6–8"</text>
+      </g>
+
+      <path d="M212 187 L212 44 L212 44" fill="none" stroke="var(--axis)" stroke-width="1.3"/>
+      <line x1="212" y1="44" x2="212" y2="276" stroke="var(--axis)" stroke-width="1.3"/>
+      <line x1="212" y1="44" x2="212" y2="44" stroke="var(--axis)"/>
+      <line x1="212" y1="44" x2="214" y2="44" stroke="var(--axis)" marker-end="url(#ar2)"/>
+      <line x1="212" y1="120" x2="214" y2="120" stroke="var(--axis)" marker-end="url(#ar2)"/>
+      <line x1="212" y1="207" x2="214" y2="207" stroke="var(--axis)" marker-end="url(#ar2)"/>
+      <line x1="212" y1="276" x2="214" y2="276" stroke="var(--axis)" marker-end="url(#ar2)"/>
+
+      <!-- rounding -->
+      <rect x="612" y="82" width="150" height="156" rx="8" fill="color-mix(in srgb, var(--series-4) 12%, var(--surface-1))" stroke="var(--series-4)" stroke-width="1.5"/>
+      <text x="687" y="146" text-anchor="middle" font-weight="700" font-size="12.5" fill="var(--text-primary)">round_to_increment</text>
+      <text x="687" y="164" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">exercise → equipment</text>
+      <text x="687" y="178" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">round DOWN by default</text>
+
+      <line x1="586" y1="120" x2="608" y2="140" stroke="var(--axis)" stroke-width="1.4" marker-end="url(#ar2)"/>
+      <line x1="586" y1="207" x2="608" y2="182" stroke="var(--axis)" stroke-width="1.4" marker-end="url(#ar2)"/>
+
+      <!-- snapshot -->
+      <rect x="612" y="300" width="310" height="60" rx="8" fill="color-mix(in srgb, var(--good) 12%, var(--surface-1))" stroke="var(--good)" stroke-width="1.5"/>
+      <text x="767" y="325" text-anchor="middle" font-weight="700" font-size="12.5" fill="var(--text-primary)">assigned_session.resolved_snapshot</text>
+      <text x="767" y="343" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">written ONCE, at publish · never recomputed</text>
+
+      <line x1="687" y1="240" x2="687" y2="296" stroke="var(--axis)" stroke-width="1.4" marker-end="url(#ar2)"/>
+      <path d="M314 296 L314 330 L608 330" fill="none" stroke="var(--axis)" stroke-width="1.4" marker-end="url(#ar2)"/>
+      <path d="M414 44 L560 44 L560 330" fill="none" stroke="var(--axis)" stroke-width="1.3" stroke-dasharray="3 3"/>
+    </g>
+  </svg>
+  <div class="cap">Resolving at publish rather than at render is the difference between an app whose history you can trust and one that silently rewrites itself every time a coach edits a template.</div>
+  </div>
+</section>
+
+<hr>
+
+<section id="cond">
+  <div class="eyebrow">Part D · Proposed schema</div>
+  <h2>D5 · Structured conditioning</h2>
+  <p class="lede">The open flank. TrainHeroic's circuit block takes one result unit and 10,000 characters of prose — and the prose is invisible to every report they ship.</p>
+
+  <div class="codewrap"><button class="ghost copy" type="button" data-copy>Copy</button>
+<pre><code><span class="c-kw">CREATE TABLE</span> block (
+  id            <span class="c-ty">uuid</span> <span class="c-kw">PRIMARY KEY</span>,
+  session_id    <span class="c-ty">uuid</span> <span class="c-kw">NOT NULL</span>,
+  ordinal       <span class="c-ty">int</span>  <span class="c-kw">NOT NULL</span>,
+  category      <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,  <span class="c-cm">-- prep|speed_agility|skill_tech|strength_power|conditioning|recovery</span>
+  title         <span class="c-ty">text</span>,
+  grouping      <span class="c-ty">text</span> <span class="c-kw">NOT NULL</span>,  <span class="c-cm">-- single|superset|circuit  → drives A / A1,A2 / B1..B4</span>
+  scheme        <span class="c-ty">text</span>,           <span class="c-cm">-- NULL|amrap|emom|e2mom|for_time|intervals|tabata|rounds</span>
+  scheme_params <span class="c-ty">jsonb</span>,          <span class="c-cm">-- {cap_s:1200} | {interval_s:60,rounds:10} | {work_s:20,rest_s:10,rounds:8}</span>
+  score_metric  <span class="c-ty">text</span> <span class="c-kw">REFERENCES</span> metric(key),  <span class="c-cm">-- rounds|duration|calories|distance|NULL</span>
+  is_test       <span class="c-ty">boolean</span> <span class="c-kw">NOT NULL DEFAULT</span> <span class="c-st">false</span>   <span class="c-cm">-- their "Test This Block"</span>
+);</code></pre></div>
+
+  <div class="grid2">
+    <div class="card" style="border-color:var(--critical)">
+      <h4 style="margin-top:0;color:var(--critical)">✗ Their version</h4>
+      <div class="m-instr" style="font-family:var(--mono);font-size:12px">2-3 x E5OM<br><br>complete a 30m heavy farmers carry</div>
+      <p style="margin:12px 0 0;font-size:13px">Renders perfectly. Produces <strong>nothing</strong>. Not in volume, not in intensity, not in compliance, not in any export. A coach programming half their week as conditioning has half their week invisible.</p>
+    </div>
+    <div class="card" style="border-color:var(--good)">
+      <h4 style="margin-top:0;color:var(--good-ink)">✓ Structured</h4>
+      <pre style="margin:0;font-size:11.5px"><code>block {
+  grouping: <span class="c-st">'circuit'</span>,
+  scheme: <span class="c-st">'emom'</span>,
+  scheme_params: { interval_s: 300, rounds: 3 },
+  score_metric: <span class="c-st">'rounds'</span>
+}
+  └ block_item → Farmers Carry
+      └ prescribed_set × 3
+          ├ distance = 30 m
+          └ load = pct_of_max(...)</code></pre>
+      <p style="margin:12px 0 0;font-size:13px">Same render. Now it lands in the same analytics pipeline as a back squat, and an EMOM is a first-class object rather than a paragraph.</p>
+    </div>
+  </div>
+</section>
+
+<hr>
+
+<section id="matrix">
+  <div class="eyebrow">Part E · Decisions</div>
+  <h2>E1 · Steal / reject matrix</h2>
+  <p class="lede">Every notable TrainHeroic behaviour, with a verdict and a rating out of 10. Ratings are my judgement, and I'd defend each one.</p>
+
+  <table class="t">
+    <thead><tr><th style="width:30%">Behaviour</th><th style="width:110px">Verdict</th><th style="width:120px">Rating</th><th>Reasoning</th></tr></thead>
+    <tbody>
+      <tr><td>Reference Max indirection</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:90%"></i></span><span class="v">9</span></span></td><td>"When loads are prescribed in %, the working max of this exercise is referenced." Solves variation programming better than anything else I've seen. Paused Bench at 70% resolving off Bench Press is exactly right.</td></tr>
+      <tr><td>Track As roll-up</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:90%"></i></span><span class="v">9</span></span></td><td>Results logged for X affect the history, working maxes and goals of Y. Variations feed the parent lift. Cheap to build, enormous for data density.</td></tr>
+      <tr><td>Weight (LWP+) autoregulation</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:80%"></i></span><span class="v">8</span></span></td><td>Last-weight-performed plus a delta, as a <em>metric type</em> rather than a separate progression engine. Elegant. Generalise it to <code>expr_kind</code>.</td></tr>
+      <tr><td>Block categories + block-level compliance</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:80%"></i></span><span class="v">8</span></span></td><td>Seven fixed categories doing triple duty — icon, section heading, and the unit of compliance. This is what makes "3/5 Blocks" mean something.</td></tr>
+      <tr><td>PRs per rep-count</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:80%"></i></span><span class="v">8</span></span></td><td>A 5RM and an 8RM are separate records with separate dates, and leaderboards only compare exact matches. Collapsing to one "best" throws away the useful signal.</td></tr>
+      <tr><td>Draft → publish + auto-publish</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:70%"></i></span><span class="v">7</span></span></td><td>Table stakes, but easy to forget. Coaches program in bursts and release on a schedule.</td></tr>
+      <tr><td>Prescription templates</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:70%"></i></span><span class="v">7</span></span></td><td>Boring, high-leverage for anyone coaching more than about twenty people.</td></tr>
+      <tr><td>Parent Calendars</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:70%"></i></span><span class="v">7</span></span></td><td>Master calendar that child team calendars inherit. Underrated — it's how multi-location gyms scale, and it's the enterprise wedge.</td></tr>
+      <tr><td><code>Optional</code> set flag</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:70%"></i></span><span class="v">7</span></span></td><td>Tiny feature. It's the thing that makes compliance an honest number rather than a punishing one.</td></tr>
+      <tr><td>A / A1,A2 / B1..B4 labelling</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:70%"></i></span><span class="v">7</span></span></td><td>Free legibility, universally understood by coaches, costs nothing to render.</td></tr>
+      <tr><td>Session Comment as primary CTA</td><td><span class="verdict v-steal">Steal</span></td><td><span class="meter"><span class="bar"><i style="width:60%"></i></span><span class="v">6</span></span></td><td>Making coach→athlete feedback the loudest button on the card is a deliberate retention choice. It works.</td></tr>
+      <tr><td><strong>2 metrics per set</strong></td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:10%"></i></span><span class="v">1</span></span></td><td><strong>Root cause of everything else in this column.</strong> No tempo, no rest-as-data, no reps+load+RPE together, and conditioning has nowhere to live.</td></tr>
+      <tr><td>lb and kg as distinct metric types</td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:10%"></i></span><span class="v">1</span></span></td><td>Unit baked into identity. Turns a display preference into a migration.</td></tr>
+      <tr><td>Free-text circuits</td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:30%"></i></span><span class="v">3</span></span></td><td>Their pressure valve <em>and</em> their analytics dead end. Genuinely useful as an escape hatch — which is why it's a 3 and not a 1 — but it must not be the primary way conditioning is expressed.</td></tr>
+      <tr><td>YouTube/Vimeo URL as the video field</td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:20%"></i></span><span class="v">2</span></span></td><td>Kills offline demos permanently. Cheap at build time, unrecoverable afterwards.</td></tr>
+      <tr><td>NSCA lookup chart, hardcoded</td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:30%"></i></span><span class="v">3</span></span></td><td>Discontinuous, undefined above 12 reps while accepting 15, and not overridable. Use a continuous formula and store the formula id.</td></tr>
+      <tr><td>Mutable working-max column</td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:20%"></i></span><span class="v">2</span></span></td><td>No audit trail, no as-of queries, and a bad estimate silently corrupts every past percentage. Event-source it.</td></tr>
+      <tr><td>Coach-timezone publishing</td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:20%"></i></span><span class="v">2</span></span></td><td>A Sydney coach with Sydney athletes publishes on Chicago time. Ten-line fix at design time.</td></tr>
+      <tr><td>Undefined Compliance / Intensity / Volume</td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:20%"></i></span><span class="v">2</span></span></td><td>Coaches make roster decisions on these numbers. Publish the definitions in the product, not just the docs.</td></tr>
+      <tr><td>Proprietary StackUp coefficients</td><td><span class="verdict v-reject">Reject</span></td><td><span class="meter"><span class="bar"><i style="width:30%"></i></span><span class="v">3</span></span></td><td>Use <strong>DOTS</strong> — open, published coefficients, sex-specific, and without Wilks' bias at the extremes. You get most of the value <em>and</em> can document it, which is itself a differentiator against a black box.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<hr>
+
+<section id="order">
+  <div class="eyebrow">Part E · Decisions</div>
+  <h2>E2 · Build order</h2>
+  <p class="lede">Sequenced by what is unfixable later, not by what demos best.</p>
+
+  <div class="card" style="border-left:3px solid var(--critical)">
+    <h4 style="margin-top:0;color:var(--critical)">Phase 0 · Decisions that are unfixable later</h4>
+    <p style="margin-bottom:8px">Do these before writing a line of product code. Each one is cheap now and a rewrite later.</p>
+    <ul style="margin-bottom:0">
+      <li><strong>Metric registry as a table</strong>, not an enum — with <code>aggregation</code> and <code>is_load_bearing</code> populated</li>
+      <li><strong>Canonical units</strong> — everything stored in kg / m / s, converted at the edge</li>
+      <li><strong>Client-generated IDs</strong> on every athlete-side write</li>
+      <li><strong>Append-only</strong> working-max and PR event tables</li>
+      <li><strong>Athlete timezone</strong> on the assignment, not the coach's</li>
+    </ul>
+  </div>
+
+  <div class="card" style="border-left:3px solid var(--series-2)">
+    <h4 style="margin-top:0">Phase 1 · The loop that has to work</h4>
+    <ul style="margin-bottom:0">
+      <li>Exercise library + equipment increments</li>
+      <li>Session builder — blocks, grouping, n-metric prescriptions</li>
+      <li>Assignment calendar + draft/publish + snapshot-on-publish</li>
+      <li>Athlete logging with offline outbox <em>(this is the make-or-break; it's where TrainHeroic loses users)</em></li>
+      <li>Working max + PR derivation</li>
+    </ul>
+  </div>
+
+  <div class="card" style="border-left:3px solid var(--series-1)">
+    <h4 style="margin-top:0">Phase 2 · The reasons a coach switches</h4>
+    <ul style="margin-bottom:0">
+      <li><code>reference_max</code> and <code>track_as</code> graph edges</li>
+      <li>Percentage + LWP resolution with equipment rounding</li>
+      <li>Compliance, volume (all three series), intensity — <strong>with the definitions shown in the UI</strong></li>
+      <li>Structured conditioning schemes — AMRAP, EMOM, intervals, for-time</li>
+      <li>Prescription templates</li>
+    </ul>
+  </div>
+
+  <div class="card" style="border-left:3px solid var(--good)">
+    <h4 style="margin-top:0">Phase 3 · Moat</h4>
+    <ul style="margin-bottom:0">
+      <li>First-party cached video <em>(the offline gap they cannot close)</em></li>
+      <li>Readiness with per-question polarity + custom questions</li>
+      <li>Parent Calendars for multi-location</li>
+      <li>Data export and a public API <em>(they have neither)</em></li>
+      <li>DOTS-based leaderboards, documented</li>
+    </ul>
+  </div>
+
+  <div class="callout warn" style="margin-top:22px"><span class="k">Honest caveats on this whole package</span>
+    <p>The metric-registry pattern is row-per-metric EAV — more joins than a wide table. At coaching-app scale (tens of millions of sets, not billions) this is fine, with a covering index on <code>(performed_set_id, metric_key)</code>. If you later need speed, denormalise a <code>jsonb</code> cache column. Do <strong>not</strong> start there.</p>
+    <p>I have <strong>not</strong> seen TrainHeroic's actual schema. Section A4 is inferred from UI affordances and endpoint shapes; Part D is my design, not a reconstruction of theirs.</p>
+    <p style="margin-bottom:0">The formulas in C3 and C4 are <strong>mine</strong>. TrainHeroic's are undocumented. Don't cite them as "how TrainHeroic does it".</p></div>
+</section>
+
+<section style="margin-top:56px">
+  <div class="card" style="background:var(--sunken)">
+    <h4 style="margin-top:0">Sources</h4>
+    <p style="font-size:13px;margin-bottom:0">Direct inspection of a live TrainHeroic coach account (Aug 2026) · <a href="https://support.trainheroic.com/hc/en-us/articles/18170920165645-Testing-and-Updating-Athletes-Maxes">Testing and Updating Athletes' Maxes</a> · <a href="https://support.trainheroic.com/hc/en-us/articles/18171015485837-Updating-Your-Working-Maxes">Updating Your Working Maxes</a> · <a href="https://support.trainheroic.com/hc/en-us/articles/18156547276557-Athlete-Pro-Readiness">Athlete Pro: Readiness</a> · <a href="https://support.trainheroic.com/hc/en-us/articles/18156762137741-Analytics-for-Lifts-and-Working-Maxes">Analytics for Lifts and Working Maxes</a> · <a href="https://support.trainheroic.com/hc/en-us/articles/18156702628621-Viewing-Compliance-Analytics">Viewing Compliance Analytics</a> · <a href="https://support.trainheroic.com/hc/en-us/articles/18156555844237-Athlete-Pro-StackUp">Athlete Pro: StackUp</a> · <a href="https://www.nsca.com/contentassets/61d813865e264c6e852cadfe247eae52/nsca_training_load_chart.pdf">NSCA Training Load Chart</a></p>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+const root = document.documentElement, btn = document.getElementById('themeBtn');
+function setTheme(t){ root.setAttribute('data-theme',t); btn.textContent = t==='dark'?'Light':'Dark'; try{localStorage.setItem('bp-theme',t)}catch(e){} }
+btn.addEventListener('click',()=> setTheme(root.getAttribute('data-theme')==='dark'?'light':'dark'));
+(function(){ let t=null; try{t=localStorage.getItem('bp-theme')}catch(e){}
+  if(!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light'; setTheme(t); })();
+
+const links=[...document.querySelectorAll('#rail a')];
+const obs=new IntersectionObserver(es=>{es.forEach(e=>{ if(e.isIntersecting){
+  links.forEach(a=>a.classList.toggle('on', a.getAttribute('href')==='#'+e.target.id)); }});},
+  {rootMargin:'-80px 0px -70% 0px'});
+document.querySelectorAll('main section').forEach(s=>obs.observe(s));
+</script>
+<script>
+/* ============ C1 · e1RM comparison chart ============ */
+(function(){
+  const NSCA_PCT = {1:100,2:95,3:93,4:90,5:87,6:85,7:83,8:80,9:77,10:75,11:72.5,12:70};
+  const REPS = Array.from({length:15},(_,i)=>i+1);
+  const W = 100; // reference set load
+  const nsca  = r => NSCA_PCT[r] ? W/(NSCA_PCT[r]/100) : null;
+  const epley = r => W*(1+r/30);
+  const brz   = r => W*36/(37-r);
+
+  const SERIES = [
+    {key:'nsca',  name:'NSCA chart',      color:'var(--series-1)', f:nsca,  dash:null},
+    {key:'epley', name:'Epley',           color:'var(--series-2)', f:epley, dash:null},
+    {key:'brz',   name:'Brzycki',         color:'var(--series-3)', f:brz,   dash:null}
+  ];
+
+  const svg = document.getElementById('chart');
+  if(!svg) return;
+  const VB={w:880,h:430}, P={l:58,r:112,t:22,b:48};
+  const x0=P.l, x1=VB.w-P.r, y0=VB.h-P.b, y1=P.t;
+  const XD=[1,15], YD=[95,168];
+  const xs = r => x0 + (r-XD[0])/(XD[1]-XD[0])*(x1-x0);
+  const ys = v => y0 - (v-YD[0])/(YD[1]-YD[0])*(y0-y1);
+  const NS='http://www.w3.org/2000/svg';
+  const el=(n,a={})=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+  const fmt = v => v.toFixed(1);
+
+  // ── undefined band ──────────────────────────────────────────
+  svg.appendChild(el('rect',{x:xs(12),y:y1,width:xs(15)-xs(12),height:y0-y1,
+    fill:'var(--text-muted)','fill-opacity':0.07}));
+  const bl=el('text',{x:(xs(12)+xs(15))/2,y:y0-40,'text-anchor':'middle',
+    'font-size':10.5,fill:'var(--text-muted)','font-family':'var(--sans)','font-weight':650});
+  bl.textContent='NSCA undefined';
+  svg.appendChild(bl);
+  const bl2=el('text',{x:(xs(12)+xs(15))/2,y:y0-24,'text-anchor':'middle',
+    'font-size':10,fill:'var(--text-muted)','font-family':'var(--sans)'});
+  bl2.textContent='TrainHeroic accepts these';
+  svg.appendChild(bl2);
+
+  // ── gridlines + y axis ──────────────────────────────────────
+  for(let v=100; v<=160; v+=10){
+    svg.appendChild(el('line',{x1:x0,x2:x1,y1:ys(v),y2:ys(v),stroke:'var(--grid)','stroke-width':1}));
+    const t=el('text',{x:x0-11,y:ys(v)+4,'text-anchor':'end','font-size':11,
+      fill:'var(--text-muted)','font-family':'var(--sans)','font-variant-numeric':'tabular-nums'});
+    t.textContent=v; svg.appendChild(t);
+  }
+  svg.appendChild(el('line',{x1:x0,x2:x1,y1:y0,y2:y0,stroke:'var(--axis)','stroke-width':1.5}));
+  const yl=el('text',{x:x0-11,y:y1+2,'text-anchor':'end','font-size':10.5,
+    fill:'var(--text-muted)','font-family':'var(--sans)','font-weight':650});
+  yl.textContent='kg'; svg.appendChild(yl);
+
+  // ── x axis ──────────────────────────────────────────────────
+  [1,3,5,7,9,10,12,15].forEach(r=>{
+    const t=el('text',{x:xs(r),y:y0+20,'text-anchor':'middle','font-size':11,
+      fill:'var(--text-muted)','font-family':'var(--sans)','font-variant-numeric':'tabular-nums'});
+    t.textContent=r; svg.appendChild(t);
+  });
+  const xl=el('text',{x:(x0+x1)/2,y:y0+40,'text-anchor':'middle','font-size':11.5,
+    fill:'var(--text-secondary)','font-family':'var(--sans)','font-weight':600});
+  xl.textContent='reps performed with 100 kg'; svg.appendChild(xl);
+
+  // ── series ──────────────────────────────────────────────────
+  SERIES.forEach(s=>{
+    const pts = REPS.map(r=>[r,s.f(r)]).filter(p=>p[1]!==null);
+    const d = pts.map((p,i)=>(i?'L':'M')+xs(p[0]).toFixed(1)+' '+ys(p[1]).toFixed(1)).join(' ');
+    svg.appendChild(el('path',{d,fill:'none',stroke:s.color,'stroke-width':2,
+      'stroke-linecap':'round','stroke-linejoin':'round'}));
+    // 2px surface ring on markers where lines overlap
+    pts.forEach(p=>{
+      svg.appendChild(el('circle',{cx:xs(p[0]),cy:ys(p[1]),r:4,fill:s.color,
+        stroke:'var(--surface-1)','stroke-width':2}));
+    });
+    // interpolated point on NSCA r=11
+    if(s.key==='nsca'){
+      svg.appendChild(el('circle',{cx:xs(11),cy:ys(s.f(11)),r:4.5,fill:'var(--surface-1)',
+        stroke:s.color,'stroke-width':2}));
+    }
+    // direct label at line end
+    const last = pts[pts.length-1];
+    const isN = s.key === 'nsca';                 // ends mid-plot; needs a leader
+    const lx = isN ? xs(12.9) : xs(last[0])+11;
+    const ly = isN ? ys(116)  : ys(last[1])+4;
+    if(isN){
+      svg.appendChild(el('line',{x1:xs(12)+5,y1:ys(last[1])+6,x2:lx-4,y2:ly-11,
+        stroke:s.color,'stroke-width':1,'stroke-dasharray':'2 2'}));
+    }
+    const lg=el('text',{x:lx,y:ly,'font-size':12,
+      fill:'var(--text-primary)','font-family':'var(--sans)','font-weight':650});
+    lg.textContent=s.name; svg.appendChild(lg);
+    const lv=el('text',{x:lx,y:ly+15,'font-size':11,
+      fill:'var(--text-muted)','font-family':'var(--sans)','font-variant-numeric':'tabular-nums'});
+    lv.textContent=fmt(last[1])+' kg'; svg.appendChild(lv);
+  });
+
+  // annotate the 11-rep interpolation
+  svg.appendChild(el('line',{x1:xs(3.1),y1:ys(154),x2:xs(10.75),y2:ys(nsca(11))-6,
+    stroke:'var(--text-muted)','stroke-width':1,'stroke-dasharray':'2 3',opacity:0.75}));
+  const an=el('text',{x:xs(1.1),y:ys(157),'font-size':10.5,
+    fill:'var(--text-muted)','font-family':'var(--sans)'});
+  an.textContent='11 reps is absent from the NSCA chart —'; svg.appendChild(an);
+  const an2=el('text',{x:xs(1.1),y:ys(150.5),'font-size':10.5,
+    fill:'var(--text-muted)','font-family':'var(--sans)'});
+  an2.textContent='interpolated here at 72.5%'; svg.appendChild(an2);
+
+  // ── crosshair + tooltip ─────────────────────────────────────
+  const cross = el('line',{x1:0,x2:0,y1:y1,y2:y0,stroke:'var(--axis)','stroke-width':1,
+    'stroke-dasharray':'3 3',opacity:0});
+  svg.appendChild(cross);
+  const tipG = el('g',{opacity:0,'pointer-events':'none'});
+  const tipR = el('rect',{rx:7,fill:'var(--surface-1)',stroke:'var(--border-strong)',width:150,height:88});
+  tipG.appendChild(tipR);
+  const tipT=[];
+  for(let i=0;i<4;i++){
+    const t=el('text',{'font-size':11.5,'font-family':'var(--sans)',fill:'var(--text-primary)'});
+    tipG.appendChild(t); tipT.push(t);
+  }
+  svg.appendChild(tipG);
+
+  const hit = el('rect',{x:x0,y:y1,width:x1-x0,height:y0-y1,fill:'transparent'});
+  svg.appendChild(hit);
+
+  function move(evt){
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    let r = Math.round(XD[0] + (p.x-x0)/(x1-x0)*(XD[1]-XD[0]));
+    r = Math.max(1, Math.min(15, r));
+    cross.setAttribute('x1',xs(r)); cross.setAttribute('x2',xs(r)); cross.setAttribute('opacity',1);
+    tipT[0].textContent = r + (r===1?' rep':' reps') + ' @ 100 kg';
+    tipT[0].setAttribute('font-weight',700);
+    SERIES.forEach((s,i)=>{
+      const v = s.f(r);
+      tipT[i+1].textContent = '● ' + s.name + '  ' + (v===null ? '—' : fmt(v)+' kg');
+      tipT[i+1].setAttribute('fill', v===null ? 'var(--text-muted)' : 'var(--text-secondary)');
+    });
+    const flip = xs(r) > (x0+x1)/2;
+    const bx = flip ? xs(r)-162 : xs(r)+12, by = y1+8;
+    tipR.setAttribute('x',bx); tipR.setAttribute('y',by);
+    tipT.forEach((t,i)=>{ t.setAttribute('x',bx+11); t.setAttribute('y',by+21+i*19); });
+    tipG.setAttribute('opacity',1);
+  }
+  hit.addEventListener('mousemove',move);
+  hit.addEventListener('mouseleave',()=>{cross.setAttribute('opacity',0);tipG.setAttribute('opacity',0);});
+
+  // ── table view (relief for the light-mode contrast WARN) ────
+  const tb = document.querySelector('#e1rmTable tbody');
+  REPS.forEach(r=>{
+    const n=nsca(r), e=epley(r), b=brz(r);
+    const spread = Math.max(e,b,(n??-Infinity)) - Math.min(e,b,(n??Infinity));
+    const tr=document.createElement('tr');
+    tr.innerHTML = '<td>'+r+'</td>'
+      +'<td class="num">'+(n===null?'<span style="color:var(--text-muted)">undefined</span>':fmt(n))+'</td>'
+      +'<td class="num">'+fmt(e)+'</td><td class="num">'+fmt(b)+'</td>'
+      +'<td class="num">'+fmt(spread)+'</td>';
+    tb.appendChild(tr);
+  });
+  const btn=document.getElementById('tblBtn'), cw=document.getElementById('chartWrap'), tw=document.getElementById('tblWrap');
+  btn.addEventListener('click',()=>{
+    const showTable = cw.hasAttribute('hidden') === false;
+    if(showTable){ cw.setAttribute('hidden',''); tw.removeAttribute('hidden'); btn.textContent='Chart view'; }
+    else { tw.setAttribute('hidden',''); cw.removeAttribute('hidden'); btn.textContent='Table view'; }
+  });
+})();
+
+/* ============ copy buttons ============ */
+document.querySelectorAll('[data-copy]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const pre=b.parentElement.querySelector('pre');
+    navigator.clipboard.writeText(pre.innerText).then(()=>{
+      const o=b.textContent; b.textContent='Copied'; setTimeout(()=>b.textContent=o,1400);
+    }).catch(()=>{ b.textContent='Select manually'; });
+  });
+});
+</script>
+
+</body>
+</html>

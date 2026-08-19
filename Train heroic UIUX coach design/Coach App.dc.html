@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700;1,800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #070706; }
+  a { color: #c2974e; text-decoration: none; }
+  a:hover { color: #d9b06a; }
+</style>
+</helmet>
+
+<div style="width:100vw; height:100vh; overflow:hidden; background:#070706; display:flex; alignItems:center; justifyContent:center">
+<div style="width:985px; height:692px; flexShrink:0; transform:{{ fitTransform }}; position:relative; background:#070706; color:#f2f1ee; font-family:Figtree,system-ui,sans-serif; fontSize:16px; overflow:hidden; boxShadow:0 24px 60px -12px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.12)">
+
+  <div style="height:48px; background:linear-gradient(#141618,#000); color:#fff; boxShadow:0 2px 10px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.10); display:flex; alignItems:center; justifyContent:space-between; padding:0 20px 0 0; position:relative; zIndex:5">
+    <div style="display:flex; alignItems:center">
+      <div style="width:48px; display:flex; alignItems:center; justifyContent:center">
+        <div style="width:15px; height:15px; border:2px solid #c2974e; transform:rotate(45deg)"></div>
+      </div>
+      <div style="fontSize:16px; fontWeight:400">{{ topTitle }}</div>
+    </div>
+    <div style="display:flex; alignItems:center; gap:18px">
+      <div style="display:flex; alignItems:center; gap:6px; cursor:pointer">
+        <div style="width:28px; height:28px; borderRadius:50%; background:#4a4f55"></div>
+        <div style="fontSize:12px; color:#55585c">▾</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; alignItems:stretch; height:644px; overflow:hidden">
+
+    <div style="width:48px; background:linear-gradient(#0e1011,#000); flexShrink:0; height:100%; boxShadow:2px 0 10px rgba(0,0,0,0.30)">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="6">
+        <div onClick="{{ n.onClick }}" style="padding:11px 3px 10px; textAlign:center; cursor:pointer; background:{{ n.bg }}; borderTop:1px solid #33373c" style-hover="background:#3a3f45">
+          <div style="height:17px; display:flex; alignItems:center; justifyContent:center">
+            <div style="width:13px; height:13px; borderRadius:{{ n.radius }}; background:{{ n.mark }}"></div>
+          </div>
+          <div style="fontSize:10px; lineHeight:1.2; marginTop:4px; fontWeight:{{ n.weight }}; color:{{ n.color }}">{{ n.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="flex:1; minWidth:0; background:#070706; height:100%; overflowY:auto">
+
+      <sc-if value="{{ onTeams }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display:flex; alignItems:center; justifyContent:space-between; padding:11px 18px 10px; borderBottom:1px solid #24272b">
+          <div style="display:flex; alignItems:center; gap:18px">
+            <div style="display:flex; gap:10px">
+              <div onClick="{{ prevMonth }}" style="width:22px; height:22px; borderRadius:50%; border:1px solid #2b2f33; fontSize:12px; color:#9a9c9e; display:flex; alignItems:center; justifyContent:center; cursor:pointer" style-hover="borderColor:#c2974e; color:#c2974e">‹</div>
+              <div onClick="{{ nextMonth }}" style="width:22px; height:22px; borderRadius:50%; border:1px solid #2b2f33; fontSize:12px; color:#9a9c9e; display:flex; alignItems:center; justifyContent:center; cursor:pointer" style-hover="borderColor:#c2974e; color:#c2974e">›</div>
+            </div>
+            <div style="fontSize:21px; fontWeight:700">{{ monthLabel }}</div>
+          </div>
+          <div style="display:flex; alignItems:center; gap:16px">
+            <div style="background:linear-gradient(#33373c,#24272b); color:#f2f1ee; fontSize:13px; fontWeight:700; padding:8px 16px; borderRadius:5px; cursor:pointer; boxShadow:0 2px 6px -1px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.10)" style-hover="background:#3a3f45">Message Team</div>
+            <div onClick="{{ publishAll }}" style="background:{{ publishBg }}; color:#f2f1ee; fontSize:13px; fontWeight:700; padding:8px 16px; borderRadius:5px; cursor:pointer; boxShadow:0 2px 8px -2px rgba(140,104,48,0.5), inset 0 1px 0 rgba(255,255,255,0.20)" style-hover="background:#c2974e">{{ publishLabel }}</div>
+            <div style="display:flex; gap:14px; color:#9a9c9e; marginLeft:6px">
+              <div style="width:20px; height:14px; borderRadius:10px; border:2px solid #9a9c9e; cursor:pointer" style-hover="borderColor:#c2974e"></div>
+              <div style="width:16px; height:16px; border:2px solid #9a9c9e; cursor:pointer" style-hover="borderColor:#c2974e"></div>
+              <div style="width:16px; height:16px; borderRadius:50%; border:2px solid #9a9c9e; cursor:pointer" style-hover="borderColor:#c2974e"></div>
+              <div style="width:16px; height:16px; borderRadius:50%; border:3px dotted #9a9c9e; cursor:pointer" style-hover="borderColor:#c2974e"></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:3px; padding:8px 18px; borderBottom:1px solid #24272b; overflowX:auto">
+          <sc-for list="{{ monthTabs }}" as="m" hint-placeholder-count="12">
+            <div onClick="{{ m.onClick }}" style="padding:5px 10px; borderRadius:4px; fontSize:11px; fontWeight:{{ m.weight }}; letterSpacing:0.06em; cursor:pointer; background:{{ m.bg }}; color:{{ m.color }}; border:1px solid {{ m.border }}; flexShrink:0" style-hover="borderColor:#c2974e">{{ m.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid; gridTemplateColumns:repeat(7,1fr); background:#1c1f22; borderBottom:1px solid #24272b">
+          <sc-for list="{{ weekdays }}" as="d" hint-placeholder-count="7">
+            <div style="padding:6px 10px; fontSize:11px; fontWeight:700; letterSpacing:0.08em; color:#9a9c9e">{{ d }}</div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid; gridTemplateColumns:repeat(7,1fr)">
+          <sc-for list="{{ cells }}" as="c" hint-placeholder-count="42">
+            <div onMouseEnter="{{ c.onEnter }}" onMouseLeave="{{ c.onLeave }}" style="position:relative; height:74px; borderRight:1px solid #1c1f22; borderBottom:1px solid #1c1f22; padding:6px 8px; overflow:hidden; background:{{ c.bg }}">
+              <div style="fontSize:12px; fontWeight:600; color:{{ c.dateColor }}">{{ c.date }}</div>
+
+              <sc-if value="{{ c.hasSession }}" hint-placeholder-val="{{ true }}">
+                <div onClick="{{ openBuilder }}" style="cursor:pointer; marginTop:6px">
+                  <div style="display:flex; alignItems:center; gap:7px">
+                    <div style="width:16px; height:16px; borderRadius:3px; background:{{ c.markBg }}; color:#f2f1ee; fontSize:7px; fontWeight:700; display:flex; alignItems:center; justifyContent:center; flexShrink:0">HTS</div>
+                    <div style="fontSize:11px; fontWeight:700; color:{{ c.titleColor }}; overflow:hidden; textOverflow:ellipsis; whiteSpace:nowrap">{{ c.title }}</div>
+                  </div>
+                  <sc-if value="{{ c.unpublished }}" hint-placeholder-val="{{ false }}">
+                    <div style="fontSize:9px; fontWeight:700; letterSpacing:0.08em; color:#6f7276; marginTop:5px">UNPUBLISHED</div>
+                  </sc-if>
+                  <sc-for list="{{ c.items }}" as="it" hint-placeholder-count="2">
+                    <div style="fontSize:10px; color:#9a9c9e; marginTop:3px; overflow:hidden; textOverflow:ellipsis; whiteSpace:nowrap">{{ it }}</div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ c.showActions }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute; left:0; right:0; top:22px; bottom:0; background:#101214; display:flex; flexDirection:column; justifyContent:center; gap:2px">
+                  <div onClick="{{ openBuilder }}" style="textAlign:center; fontSize:10px; fontWeight:700; letterSpacing:0.06em; color:#c2974e; padding:5px 3px; cursor:pointer" style-hover="background:#1c1811">CREATE SESSION</div>
+                  <div onClick="{{ openLib }}" style="textAlign:center; fontSize:10px; fontWeight:700; letterSpacing:0.06em; color:#c2974e; padding:5px 3px; cursor:pointer" style-hover="background:#1c1811">ADD FROM LIBRARY</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ onLibrary }}" hint-placeholder-val="{{ false }}">
+      <div style="zoom:0.77; display:grid; gridTemplateColumns:250px 1fr; alignItems:start">
+        <div style="borderRight:1px solid #24272b; padding:14px 16px 34px; height:100%">
+          <div style="display:grid; gridTemplateColumns:repeat(7,1fr); textAlign:center; fontSize:10px; fontWeight:700; letterSpacing:0.04em; color:#9a9c9e; marginBottom:6px">
+            <div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div>SAT</div><div>SUN</div>
+          </div>
+          <div style="display:grid; gridTemplateColumns:repeat(7,1fr); rowGap:6px; textAlign:center">
+            <sc-for list="{{ monthDays }}" as="m" hint-placeholder-count="28">
+              <div onClick="{{ m.onClick }}" style="height:28px; display:flex; flexDirection:column; alignItems:center; justifyContent:center; cursor:pointer">
+                <div style="width:23px; height:23px; borderRadius:50%; display:flex; alignItems:center; justifyContent:center; fontSize:12px; background:{{ m.bg }}; color:{{ m.color }}; fontWeight:{{ m.weight }}" style-hover="outline:1px solid #a9803f">{{ m.n }}</div>
+                <div style="width:5px; height:5px; borderRadius:50%; background:{{ m.dot }}; marginTop:1px"></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="fontSize:14px; color:#9a9c9e; margin:10px 0 18px; paddingLeft:6px">Sep</div>
+
+          <div style="fontSize:16px; fontWeight:700; paddingBottom:10px; borderBottom:1px solid #24272b">Session Preview</div>
+          <div style="fontSize:13px; fontWeight:700; margin:13px 0 11px">Tuesday Aug 11, 2026</div>
+          <div style="display:flex; alignItems:center; gap:10px; marginBottom:16px">
+            <div style="width:26px; height:26px; borderRadius:5px; background:#2b2f33; color:#f2f1ee; fontSize:9px; fontWeight:700; display:flex; alignItems:center; justifyContent:center">HTS</div>
+            <div style="fontSize:15px; color:#6f7276; fontFamily:'IBM Plex Mono',monospace">2026-8-11</div>
+            <div style="marginLeft:auto; color:#a9803f; fontSize:15px; cursor:pointer" style-hover="color:#856330">⧉</div>
+          </div>
+          <sc-for list="{{ previewBlocks }}" as="p" hint-placeholder-count="1">
+            <div style="display:flex; gap:10px; marginBottom:12px">
+              <div style="width:26px; height:26px; borderRadius:50%; border:1px solid #55585c; color:#9a9c9e; fontSize:10px; fontWeight:700; display:flex; alignItems:center; justifyContent:center; flexShrink:0">{{ p.tag }}</div>
+              <div>
+                <div style="fontSize:16px; fontWeight:700">{{ p.name }}</div>
+                <div style="fontSize:14px; color:#6f7276">{{ p.sets }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="padding:22px 32px 60px">
+          <div style="maxWidth:900px; margin:0 auto">
+            <div onClick="{{ backToProgram }}" style="fontSize:17px; fontWeight:600; color:#f2f1ee; cursor:pointer; display:inline-block" style-hover="color:#a9803f">← Back To Calendar</div>
+
+            <div style="display:flex; alignItems:center; justifyContent:space-between; margin:38px 0 0">
+              <div style="fontSize:26px; fontWeight:700">Tuesday August 11</div>
+              <div style="display:flex; alignItems:center; gap:22px">
+                <div onClick="{{ saveToLibrary }}" title="Save to Library" style="display:flex; alignItems:center; gap:7px; cursor:pointer; color:{{ saveLibColor }}" style-hover="color:#c2974e">
+                  <div style="width:15px; height:17px; border:2px solid currentColor; borderRadius:2px 2px 3px 3px; position:relative">
+                    <div style="position:absolute; top:-2px; left:3px; width:5px; height:6px; background:currentColor"></div>
+                  </div>
+                  <div style="fontSize:12px; fontWeight:700; letterSpacing:0.04em">{{ saveLibLabel }}</div>
+                </div>
+                <div onClick="{{ deleteSession }}" title="Delete session" style="display:flex; flexDirection:column; alignItems:center; cursor:pointer; color:#9a9c9e" style-hover="color:#f0625f">
+                  <div style="width:10px; height:2px; background:currentColor; marginBottom:1px"></div>
+                  <div style="width:14px; height:2px; background:currentColor; marginBottom:1px"></div>
+                  <div style="width:11px; height:14px; border:2px solid currentColor; borderTop:0; borderRadius:0 0 3px 3px"></div>
+                </div>
+                <div onClick="{{ publishSession }}" style="background:{{ publishBg }}; color:#fff; fontSize:13px; fontWeight:700; padding:9px 18px; borderRadius:5px; cursor:pointer; boxShadow:0 2px 8px -2px rgba(140,104,48,0.50), inset 0 1px 0 rgba(255,255,255,0.25)" style-hover="background:#b8894a">{{ publishSessionLabel }}</div>
+              </div>
+            </div>
+
+            <div style="display:flex; alignItems:center; gap:14px; margin:18px 0 22px">
+              <div style="width:38px; height:38px; borderRadius:6px; background:#2b2f33; color:#f2f1ee; fontSize:11px; fontWeight:700; display:flex; alignItems:center; justifyContent:center">HTS</div>
+              <div>
+                <div style="fontSize:17px; color:#6f7276; fontFamily:'IBM Plex Mono',monospace">2026-8-11</div>
+                <div style="display:flex; alignItems:center; gap:8px; marginTop:4px">
+                  <div style="width:9px; height:9px; borderRadius:50%; background:{{ statusDot }}"></div>
+                  <div style="fontSize:16px; color:{{ statusDot }}">{{ statusLabel }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:#0a0c0d; border:1px solid #24272b; borderRadius:8px; boxShadow:inset 0 1px 4px rgba(0,0,0,0.7); padding:18px 20px 22px; position:relative">
+              <div style="fontSize:14px; fontWeight:700; marginBottom:7px">Coach Instructions</div>
+              <div style="position:absolute; top:16px; right:18px; fontSize:12px; color:#a9803f; fontFamily:'IBM Plex Mono',monospace">{{ coachCount }}</div>
+              <textarea onChange="{{ onCoachInstr }}" value="{{ coachInstr }}" placeholder="Use this area to help the athlete understand goals for today's session." rows="3" style="width:100%; border:0; background:transparent; padding:0; resize:vertical; fontFamily:inherit; fontSize:14px; lineHeight:1.5; color:#f2f1ee; outline:none"></textarea>
+            </div>
+
+            <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="1">
+            <div>
+              <sc-if value="{{ b.showLink }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; alignItems:center; gap:12px; height:34px; marginTop:8px">
+                  <div onClick="{{ b.onToggleLink }}" title="{{ b.linkTitle }}" style="width:34px; display:flex; flexDirection:column; alignItems:center; justifyContent:center; cursor:pointer; gap:2px">
+                    <div style="width:2px; height:6px; background:{{ b.linkColor }}"></div>
+                    <div style="width:13px; height:13px; borderRadius:50%; border:2px solid {{ b.linkColor }}; background:{{ b.linkFill }}"></div>
+                    <div style="width:2px; height:6px; background:{{ b.linkColor }}"></div>
+                  </div>
+                  <div onClick="{{ b.onToggleLink }}" style="fontSize:11px; fontWeight:700; letterSpacing:0.08em; color:{{ b.linkColor }}; cursor:pointer" style-hover="color:#c2974e">{{ b.linkLabel }}</div>
+                </div>
+              </sc-if>
+            <div style="marginTop:{{ b.topGap }}">
+              <sc-if value="{{ b.showCategory }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; alignItems:center; gap:12px; marginBottom:14px">
+                <div style="width:20px; height:14px; borderRadius:3px; border:2px solid #9a9c9e"></div>
+                <div style="color:#9a9c9e; fontSize:13px; cursor:pointer">▾</div>
+                <input onChange="{{ b.onCategory }}" value="{{ b.category }}" placeholder="Block name" style="border:0; background:transparent; padding:0; marginLeft:8px; fontFamily:inherit; fontSize:17px; color:#6f7276; outline:none; width:220px">
+                <div style="marginLeft:auto; display:flex; alignItems:center; gap:16px">
+                  <div style="width:16px; height:20px; borderRadius:3px 3px 8px 8px; border:2px solid #9a9c9e"></div>
+                  <div style="border:1px solid #24272b; background:#101214; borderRadius:6px; padding:9px 30px 9px 14px; fontSize:16px; color:#9a9c9e; cursor:pointer">– ▾</div>
+                  <div onClick="{{ b.onRemove }}" style="color:#9a9c9e; fontWeight:700; cursor:pointer" style-hover="color:#f0625f">✕</div>
+                </div>
+              </div>
+              </sc-if>
+
+              <div style="display:grid; gridTemplateColumns:1fr 340px; gap:18px; alignItems:start">
+                <div>
+                  <div style="display:flex; gap:12px; alignItems:stretch">
+                    <div style="width:34px; height:34px; borderRadius:50%; border:1px solid #55585c; color:#9a9c9e; fontSize:12px; fontWeight:700; display:flex; alignItems:center; justifyContent:center; flexShrink:0; alignSelf:center">{{ b.letter }}</div>
+                    <div style="flex:1; minWidth:0; border:1px solid #2b2f33; background:#0d0f11; borderRadius:6px; padding:14px 16px; boxShadow:inset 0 1px 3px rgba(0,0,0,0.6); display:flex; alignItems:center; justifyContent:space-between">
+                      <input onChange="{{ b.onName }}" value="{{ b.name }}" placeholder="Exercise name" style="flex:1; minWidth:0; border:0; background:transparent; padding:0; fontFamily:inherit; fontSize:15px; fontWeight:700; color:#f2f1ee; outline:none">
+                      <div style="color:#9a9c9e; fontSize:13px">▾</div>
+                    </div>
+                    <div style="position:relative; width:44px; border:1px solid #24272b; background:#101214; borderRadius:6px; display:flex; alignItems:center; justifyContent:center; cursor:pointer" style-hover="borderColor:#a9803f">
+                      <div style="fontSize:15px; color:#9a9c9e">≡</div>
+                    </div>
+                  </div>
+
+                  <div style="background:#0a0c0d; border:1px solid #24272b; borderRadius:8px; boxShadow:inset 0 1px 4px rgba(0,0,0,0.7); padding:16px 20px 20px; margin:14px 0 0 46px; position:relative">
+                    <div style="fontSize:14px; fontWeight:700; marginBottom:6px">Exercise Instructions</div>
+                    <div style="position:absolute; top:14px; right:18px; fontSize:12px; color:#6f7276; fontFamily:'IBM Plex Mono',monospace">{{ b.instrCount }}</div>
+                    <textarea onChange="{{ b.onInstr }}" value="{{ b.instr }}" placeholder="Add cues for this session." rows="2" style="width:100%; border:0; background:transparent; padding:0; resize:vertical; fontFamily:inherit; fontSize:14px; lineHeight:1.5; color:#f2f1ee; outline:none"></textarea>
+                  </div>
+
+                  <div style="border:1px solid #24272b; borderRadius:8px; padding:16px 18px 20px; margin:16px 0 0 46px">
+                    <div style="textAlign:right; fontSize:15px; fontWeight:700; color:#a9803f; cursor:pointer" style-hover="color:#c2974e">Edit Swaps ⧉</div>
+                    <div style="display:grid; gridTemplateColumns:150px 1fr; gap:22px; marginTop:8px">
+                      <div>
+                        <div style="height:82px; borderRadius:4px; background:repeating-linear-gradient(135deg,#2c2c2a 0 8px,#33373c 8px 16px); display:flex; alignItems:center; justifyContent:center">
+                          <div style="width:0; height:0; borderLeft:16px solid #f2f1ee; borderTop:11px solid transparent; borderBottom:11px solid transparent"></div>
+                        </div>
+                        <div style="fontSize:15px; fontWeight:700; marginTop:8px">{{ b.name }}</div>
+                      </div>
+                      <div>
+                        <div style="fontSize:13px; fontWeight:700; letterSpacing:0.06em; color:#f2f1ee">SUGGESTED SWAPS</div>
+                        <div style="fontSize:16px; color:#6f7276; marginTop:4px; paddingBottom:14px; borderBottom:1px solid #1c1f22">No swaps added yet.</div>
+                        <div style="fontSize:13px; fontWeight:700; letterSpacing:0.06em; color:#f2f1ee; marginTop:14px">POINTS OF PERFORMANCE</div>
+                        <div style="fontSize:16px; color:#6f7276; marginTop:4px">No points of performance.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="position:relative">
+                  <div style="display:flex; alignItems:stretch; gap:0">
+                    <div onClick="{{ b.toggleSets }}" style="flex:1; minWidth:0; border:1px solid #24272b; background:#101214; borderRadius:6px 0 0 6px; padding:14px 16px; display:flex; alignItems:center; justifyContent:space-between; fontSize:15px; fontWeight:700; cursor:pointer" style-hover="background:#191c1f">
+                      <div>{{ b.setsLabel }}</div>
+                      <div style="color:#9a9c9e; fontSize:13px">{{ b.setsCaret }}</div>
+                    </div>
+                    <div onClick="{{ b.onSave }}" style="width:120px; border:1px solid #24272b; borderLeft:0; background:#101214; borderRadius:0 6px 6px 0; padding:10px 12px; fontSize:13px; textAlign:center; lineHeight:1.3; whiteSpace:pre-line; color:{{ b.saveColor }}; display:flex; alignItems:center; justifyContent:center; cursor:pointer" style-hover="color:#c2974e">{{ b.saveLabel }}</div>
+                  </div>
+
+                  <div style="border:1px solid #24272b; borderTop:0; overflow:hidden">
+                    <div style="display:grid; gridTemplateColumns:0.7fr 1.15fr 1.15fr; background:#101214; fontSize:12px; fontWeight:700; borderBottom:1px solid #24272b">
+                      <div onClick="{{ b.toggleSets }}" style="padding:12px 10px; cursor:pointer" style-hover="background:#191c1f">{{ b.setsLabel }} {{ b.setsCaret }}</div>
+                      <div onClick="{{ b.toggleMetric }}" style="padding:12px 10px; cursor:pointer; display:flex; justifyContent:space-between" style-hover="background:#191c1f"><span>{{ b.metric }}</span><span style="color:#9a9c9e">{{ b.metricCaret }}</span></div>
+                      <div onClick="{{ b.toggleOptional }}" style="padding:12px 10px; cursor:pointer; display:flex; justifyContent:space-between" style-hover="background:#191c1f"><span>{{ b.optional }}</span><span style="color:#9a9c9e">{{ b.optionalCaret }}</span></div>
+                    </div>
+                    <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="3">
+                      <div style="display:grid; gridTemplateColumns:0.7fr 1.15fr 1.15fr; borderBottom:1px solid #1c1f22; fontSize:13px">
+                        <div style="padding:12px 10px; color:#55585c">{{ r.n }}</div>
+                        <input onChange="{{ r.onChange }}" value="{{ r.v }}" style="border:0; borderLeft:1px solid #1c1f22; background:transparent; padding:12px 10px; fontFamily:inherit; fontSize:13px; color:#f2f1ee; outline:none; minWidth:0" style-focus="background:#191c1f">
+                        <input onChange="{{ r.onChange2 }}" value="{{ r.v2 }}" style="border:0; borderLeft:1px solid #1c1f22; background:transparent; padding:12px 10px; fontFamily:inherit; fontSize:13px; color:#f2f1ee; outline:none; minWidth:0" style-focus="background:#191c1f">
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <div style="display:flex; justifyContent:center; alignItems:center; gap:12px; fontSize:16px; fontWeight:700; color:#a9803f; marginTop:16px">
+                    <div onClick="{{ b.removeSet }}" style="width:26px; height:26px; borderRadius:50%; border:2px solid #a9803f; display:flex; alignItems:center; justifyContent:center; cursor:pointer" style-hover="background:#191c1f">–</div>
+                    <div style="color:#f2f1ee">Sets</div>
+                    <div onClick="{{ b.addSet }}" style="width:26px; height:26px; borderRadius:50%; border:2px solid #a9803f; display:flex; alignItems:center; justifyContent:center; cursor:pointer" style-hover="background:#191c1f">+</div>
+                  </div>
+
+                  <sc-if value="{{ b.setsOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute; top:56px; left:0; width:160px; background:#101214; border:1px solid #2b2f33; borderRadius:10px; boxShadow:0 18px 44px -8px #000; padding:8px 0; zIndex:5; maxHeight:300px; overflowY:auto">
+                      <sc-for list="{{ b.setCounts }}" as="c" hint-placeholder-count="10">
+                        <div onClick="{{ c.onClick }}" style="padding:10px 18px; fontSize:15px; cursor:pointer; background:{{ c.bg }}" style-hover="background:#1c1f22">{{ c.label }}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ b.metricOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute; top:104px; left:40px; width:280px; background:#101214; border:1px solid #2b2f33; borderRadius:10px; boxShadow:0 18px 44px -8px #000; padding:10px 0; zIndex:4; maxHeight:340px; overflowY:auto">
+                      <sc-for list="{{ b.metricOptions }}" as="m" hint-placeholder-count="20">
+                        <div onClick="{{ m.onClick }}" style="padding:11px 20px; fontSize:15px; cursor:pointer; background:{{ m.bg }}" style-hover="background:#1c1f22">{{ m.label }}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ b.optionalOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute; top:104px; right:0; width:280px; background:#101214; border:1px solid #2b2f33; borderRadius:10px; boxShadow:0 18px 44px -8px #000; padding:10px 0; zIndex:4; maxHeight:340px; overflowY:auto">
+                      <sc-for list="{{ b.optionalOptions }}" as="m" hint-placeholder-count="20">
+                        <div onClick="{{ m.onClick }}" style="padding:11px 20px; fontSize:15px; cursor:pointer; background:{{ m.bg }}" style-hover="background:#1c1f22">{{ m.label }}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+            </div>
+            </sc-for>
+
+            <div onClick="{{ addBlock }}" style="background:linear-gradient(#b8894a,#9c7136); color:#f2f1ee; borderRadius:6px; padding:16px 22px; margin:44px 0 0; boxShadow:0 3px 10px -2px rgba(140,104,48,0.45), inset 0 1px 0 rgba(255,255,255,0.25); display:flex; alignItems:center; justifyContent:space-between; fontSize:14px; fontWeight:700; cursor:pointer; maxWidth:560px" style-hover="background:#b8894a">
+              <div>Add Block</div>
+              <div style="width:20px; height:20px; borderRadius:50%; border:2px solid #fff; fontSize:12px; display:flex; alignItems:center; justifyContent:center">i</div>
+            </div>
+
+            <div style="height:1px; background:#24272b; margin:44px 0"></div>
+
+            <div style="border:1px solid #9c7136; color:#9c7136; borderRadius:6px; padding:16px 22px; fontSize:14px; fontWeight:700; textAlign:center; cursor:pointer; maxWidth:560px" style-hover="background:#1c1811">Add New Session</div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ onStub }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:24px 26px 44px">
+        <div style="display:flex; alignItems:flex-start; gap:28px; marginBottom:34px">
+          <div style="flex:1">
+            <div style="fontSize:21px; fontWeight:800; fontStyle:italic; letterSpacing:0.01em; textTransform:uppercase">Analytics</div>
+            <div style="fontSize:17px; color:#9a9c9e; lineHeight:1.5; marginTop:10px; maxWidth:420px; textWrap:pretty">Readiness, output and adherence across every athlete and team.</div>
+          </div>
+          <div style="border:1px solid #9c7136; color:#c2974e; borderRadius:6px; padding:12px 20px; fontSize:14px; fontWeight:700; textAlign:center; lineHeight:1.3; cursor:pointer" style-hover="background:#1c1811">Classic<br>Reports</div>
+        </div>
+
+        <div style="display:grid; gridTemplateColumns:repeat(3,1fr); gap:14px">
+          <sc-for list="{{ reports }}" as="r" hint-placeholder-count="6">
+            <div style="border:1px solid #24272b; borderRadius:10px; background:#0d0f11; boxShadow:0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 24px -10px #000; padding:22px 24px 20px; display:flex; flexDirection:column; minHeight:150px" style-hover="borderColor:#3a3f45">
+              <div style="display:flex; alignItems:flex-start; justifyContent:space-between; gap:14px">
+                <div style="fontSize:17px; fontWeight:700">{{ r.title }}</div>
+                <div style="width:34px; height:34px; borderRadius:50%; background:#1c1f22; border:1px solid #2b2f33; flexShrink:0; display:flex; alignItems:center; justifyContent:center">
+                  <div style="width:15px; height:15px; borderRadius:{{ r.glyphRadius }}; background:{{ r.glyphBg }}; border:2px solid #c2974e"></div>
+                </div>
+              </div>
+              <div style="fontSize:13px; color:#9a9c9e; lineHeight:1.5; marginTop:9px; textWrap:pretty">{{ r.desc }}</div>
+              <div style="display:flex; gap:34px; marginTop:auto; paddingTop:22px">
+                <sc-for list="{{ r.scopes }}" as="sc" hint-placeholder-count="2">
+                  <div onClick="{{ sc.onClick }}" style="fontSize:12px; fontWeight:700; color:#c2974e; cursor:pointer" style-hover="textDecoration:underline">{{ sc.label }}</div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ reportOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="border:1px solid #24272b; borderRadius:10px; background:#0d0f11; marginTop:24px; padding:22px 24px 24px">
+            <div style="display:flex; alignItems:center; justifyContent:space-between">
+              <div style="fontSize:19px; fontWeight:700">{{ reportTitle }}</div>
+              <div onClick="{{ closeReport }}" style="fontSize:20px; color:#9a9c9e; cursor:pointer" style-hover="color:#f2f1ee">✕</div>
+            </div>
+            <div style="fontSize:16px; color:#9a9c9e; marginTop:8px">Scope: {{ reportScope }}. No logged data in range yet.</div>
+          </div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      </sc-if>
+
+    </div>
+  </div>
+
+  <sc-if value="{{ libOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeLib }}" style="position:absolute; inset:0; background:rgba(0,0,0,0.55); zIndex:7"></div>
+    <div style="position:absolute; top:0; right:0; bottom:0; width:340px; background:#0b0d0e; borderLeft:1px solid #24272b; boxShadow:-18px 0 52px #000; zIndex:8; display:flex; flexDirection:column">
+      <div style="display:flex; alignItems:center; justifyContent:space-between; padding:16px 18px; borderBottom:1px solid #24272b">
+        <div style="fontSize:15px; fontWeight:700">Saved Sessions</div>
+        <div onClick="{{ closeLib }}" style="fontSize:18px; color:#9a9c9e; cursor:pointer" style-hover="color:#f2f1ee">✕</div>
+      </div>
+      <div style="padding:12px 18px; borderBottom:1px solid #1c1f22">
+        <div style="display:flex; alignItems:center; gap:8px; border:1px solid #2b2f33; borderRadius:6px; padding:9px 12px; background:#0d0f11">
+          <div style="fontSize:13px; color:#6f7276">⌕</div>
+          <input placeholder="Search saved sessions" style="flex:1; minWidth:0; border:0; background:transparent; padding:0; fontFamily:inherit; fontSize:13px; color:#f2f1ee; outline:none">
+        </div>
+      </div>
+      <div style="flex:1; overflowY:auto; padding:8px 0">
+        <sc-if value="{{ libEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:40px 24px; textAlign:center; fontSize:13px; color:#6f7276; lineHeight:1.5">Nothing saved yet. Build a session and hit Save to Library.</div>
+        </sc-if>
+        <sc-for list="{{ libSessions }}" as="ls" hint-placeholder-count="3">
+          <div onClick="{{ ls.onLoad }}" style="display:flex; alignItems:center; gap:12px; padding:13px 18px; borderBottom:1px solid #16181a; cursor:pointer" style-hover="background:#101214">
+            <div style="width:30px; height:30px; borderRadius:5px; background:#2b2f33; color:#f2f1ee; fontSize:9px; fontWeight:700; display:flex; alignItems:center; justifyContent:center; flexShrink:0">HTS</div>
+            <div style="flex:1; minWidth:0">
+              <div style="fontSize:13px; fontWeight:700; overflow:hidden; textOverflow:ellipsis; whiteSpace:nowrap">{{ ls.title }}</div>
+              <div style="fontSize:11px; color:#6f7276; marginTop:2px">{{ ls.meta }}</div>
+            </div>
+            <div style="fontSize:11px; fontWeight:700; color:#c2974e">LOAD</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;ringColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#a9803f&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#a9803f&quot;,&quot;#c2974e&quot;,&quot;#8d6a33&quot;,&quot;#6f7276&quot;],&quot;section&quot;:&quot;Theme&quot;}}">
+const METRICS = ['Reps', 'Rep Range (min-max)', 'Weight (lb)', 'Weight (kg)', 'Weight (%)', 'Weight (LWP+)',
+  'Time (min::sec)', 'Seconds (s)', 'Distance (miles)', 'Distance (yd)', 'Distance (ft)', 'Distance (inches)',
+  'Distance (meters)', 'Height (inches)', 'Calories (cal)', 'RPE', 'Watts', 'Velocity (m/s)', 'Other Number'];
+
+const YEAR = 2026;
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
+// sessions keyed month-day (0-indexed month)
+const SESSIONS = {
+  '7-10': { title: 'Week 1 Day 1', published: true, items: ['Warm Up', 'Bench Press 3 x 6-8', 'Romanian Deadlift 3 x 6-8'] },
+  '7-11': { title: '2026-8-11', published: false, items: ['Bench Press 3 Sets'] },
+};
+
+function buildCells(month, hover, onEnter, onLeave) {
+  const first = new Date(YEAR, month, 1);
+  const lead = (first.getDay() + 6) % 7; // monday-first
+  const daysIn = new Date(YEAR, month + 1, 0).getDate();
+  const prevIn = new Date(YEAR, month, 0).getDate();
+  const out = [];
+  for (let i = 0; i < 42; i++) {
+    const n = i - lead + 1;
+    const inMonth = n >= 1 && n <= daysIn;
+    const date = inMonth ? n : n < 1 ? prevIn + n : n - daysIn;
+    const key = month + '-' + n;
+    const ses = inMonth ? SESSIONS[key] : null;
+    out.push({
+      date,
+      dateColor: inMonth ? '#f2f1ee' : '#3f4246',
+      bg: inMonth ? 'transparent' : '#0a0b0c',
+      hasSession: !!ses,
+      title: ses ? ses.title : '',
+      items: ses ? ses.items.slice(0, 2) : [],
+      published: !!(ses && ses.published),
+      unpublished: !!(ses && !ses.published),
+      markBg: ses && ses.published ? '#2b2f33' : '#1c1f22',
+      titleColor: ses && ses.published ? '#f2f1ee' : '#6f7276',
+      showActions: inMonth && !ses && hover === key,
+      onEnter: inMonth && !ses ? () => onEnter(key) : null,
+      onLeave: inMonth && !ses ? onLeave : null,
+    });
+  }
+  return out;
+}
+
+class Component extends DCLogic {
+  state = {
+    view: 'teams',
+    coachInstr: '', calDay: 11,
+    published11: false,
+    report: null, month: 7, hover: null, libOpen: false, savedLib: false,
+    library: [{ title: 'Week 1 Day 1', coachInstr: '', blocks: [
+      { category: 'Strength/Power', name: 'Bench Press', instr: '', sets: 3, metric: 'Reps', optional: 'Weight (lb)', v: ['', '', ''], v2: ['', '', ''] },
+      { category: '', name: 'Romanian Deadlift', instr: '', sets: 3, metric: 'Reps', optional: 'Weight (lb)', v: ['', '', ''], v2: ['', '', ''], linked: false },
+    ] }],
+    openMenu: null, savedBlock: null,
+    blocks: [{ category: 'Strength/Power', name: 'Bench Press', instr: '',
+      sets: 3, metric: 'Reps', optional: 'Weight (lb)', v: ['', '', ''], v2: ['', '', ''] }],
+  };
+
+  set(patch) { this.setState(patch); }
+
+  componentDidMount() {
+    this.fit = () => {
+      const k = Math.min(window.innerWidth / 985, window.innerHeight / 692);
+      this.setState({ scale: k });
+    };
+    this.fit();
+    window.addEventListener('resize', this.fit);
+  }
+
+  componentWillUnmount() { window.removeEventListener('resize', this.fit); }
+
+  renderVals() {
+    const s = this.state;
+    const view = s.view;
+
+    // consecutive linked blocks form one superset group: A1, A2 … unlinked stay A, B
+    const groups = [];
+    s.blocks.forEach((b, i) => {
+      if (i === 0 || !b.linked) groups.push([i]);
+      else groups[groups.length - 1].push(i);
+    });
+    const blockTag = {};
+    const inSuperset = {};
+    groups.forEach((g, gi) => g.forEach((idx, pos) => {
+      blockTag[idx] = String.fromCharCode(65 + gi) + (g.length > 1 ? String(pos + 1) : '');
+      inSuperset[idx] = g.length > 1;
+    }));
+    const blue = '#a9803f';
+    const green = this.props.ringColor ?? '#a9803f';
+
+    const navItems = [
+      { key: 'teams', label: 'Calendar', radius: '3px', mark: blue },
+      { key: 'library', label: 'Library', radius: '3px', mark: '#8a8d90' },
+      { key: 'analytics', label: 'Analytics', radius: '2px', mark: '#8a8d90' },
+    ];
+
+    const badge = (label, kind) => kind === 'pending' ? { label, bg: '#331516', fg: '#f0625f' }
+      : kind === 'active' ? { label, bg: '#14301c', fg: '#3ecb6a' }
+      : { label, bg: '#f2e8d5', fg: '#9c7136' };
+
+    return {
+      fitTransform: 'scale(' + (s.scale ?? 1) + ')',
+      topTitle: view === 'teams' ? 'THE Hybrid System ▾'
+        : view === 'library' ? 'Train HYBRD ▾'
+        : view === 'analytics' ? 'Analytics' : 'THE Hybrid System',
+      onHome: false, onAthletes: view === 'athletes', onTeams: view === 'teams',
+      onLibrary: view === 'library', onSettings: false,
+      nav: navItems.map(n => ({
+        ...n,
+        bg: view === n.key ? '#33373c' : 'transparent',
+        color: view === n.key ? '#f2f1ee' : '#6f7276',
+        weight: view === n.key ? 700 : 400,
+        onClick: () => this.set({ view: n.key, drawer: null, scopeOpen: false }),
+      })),
+
+      openBuilder: () => this.set({ view: 'library', openMenu: null }),
+      backToProgram: () => this.set({ view: 'teams', openMenu: null }),
+      publishAll: () => this.set({ published11: true }),
+      publishSession: () => this.set({ published11: !s.published11 }),
+      publishBg: s.published11 ? '#8d6a33' : 'linear-gradient(#c2974e,#a9803f)',
+      publishLabel: s.published11 ? 'Published ✓' : 'Publish All',
+      libOpen: s.libOpen,
+      openLib: () => this.set({ libOpen: true }),
+      closeLib: () => this.set({ libOpen: false }),
+      libEmpty: s.library.length === 0,
+      libSessions: s.library.map((ls, i) => ({
+        title: ls.title,
+        meta: ls.blocks.length + (ls.blocks.length === 1 ? ' block' : ' blocks'),
+        onLoad: () => this.set({
+          blocks: ls.blocks.map(b => ({ ...b, v: b.v.slice(), v2: b.v2.slice() })),
+          coachInstr: ls.coachInstr,
+          libOpen: false, view: 'library', openMenu: null, savedLib: false,
+        }),
+      })),
+      saveLibColor: s.savedLib ? '#c2974e' : '#9a9c9e',
+      saveLibLabel: s.savedLib ? 'SAVED ✓' : 'SAVE TO LIBRARY',
+      saveToLibrary: () => this.set({
+        savedLib: true,
+        library: s.library.concat({
+          title: s.blocks[0] && s.blocks[0].name ? s.blocks[0].name + ' session' : 'Untitled session',
+          coachInstr: s.coachInstr,
+          blocks: s.blocks.map(b => ({ ...b, v: b.v.slice(), v2: b.v2.slice() })),
+        }),
+      }),
+      deleteSession: () => this.set({
+        blocks: [{ category: '', name: '', instr: '', sets: 3, metric: 'Reps', optional: 'Optional', v: ['', '', ''], v2: ['', '', ''] }],
+        coachInstr: '', published11: false, openMenu: null, savedLib: false,
+      }),
+      onStub: view === 'analytics',
+      reports: [
+        { title: 'Readiness', desc: 'Mental and physical state ahead of the session.', glyphRadius: '50%', glyphBg: 'transparent', scopes: ['Single Athlete', 'Team/Group'] },
+        { title: 'Performance', desc: 'Output measured against best estimated 1RM.', glyphRadius: '2px', glyphBg: 'transparent', scopes: ['Single Athlete', 'Team/Group'] },
+        { title: 'Lift History', desc: 'Exercise logging detail and working-max updates.', glyphRadius: '3px', glyphBg: '#c2974e', scopes: ['Complete', 'Working Max'] },
+        { title: 'Training Summary', desc: 'Session stats: readiness, volume and intensity.', glyphRadius: '2px', glyphBg: '#c2974e', scopes: ['Single Athlete', 'Team/Group'] },
+        { title: 'Compliance', desc: 'Engagement with sessions and individual blocks.', glyphRadius: '50%', glyphBg: '#c2974e', scopes: ['Team/Group'] },
+        { title: 'Lift Progress', desc: 'Change in estimated 1RM over time.', glyphRadius: '3px', glyphBg: 'transparent', scopes: ['Team/Group'] },
+      ].map(r => ({ ...r, scopes: r.scopes.map(label => ({
+        label, onClick: () => this.set({ report: r.title + ' — ' + label }),
+      })) })),
+      reportOpen: !!s.report,
+      reportTitle: (s.report || '').split(' — ')[0],
+      reportScope: (s.report || '').split(' — ')[1],
+      closeReport: () => this.set({ report: null }),
+      weekdays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'],
+      monthLabel: MONTHS[s.month] + ' ' + YEAR,
+      prevMonth: () => this.set({ month: (s.month + 11) % 12, hover: null }),
+      nextMonth: () => this.set({ month: (s.month + 1) % 12, hover: null }),
+      monthTabs: MONTHS.map((name, i) => {
+        const on = s.month === i;
+        return {
+          label: name.slice(0, 3).toUpperCase(),
+          bg: on ? '#c2974e' : 'transparent',
+          color: on ? '#070706' : '#9a9c9e',
+          border: on ? '#c2974e' : '#2b2f33',
+          weight: on ? 700 : 500,
+          onClick: () => this.set({ month: i, hover: null }),
+        };
+      }),
+      cells: buildCells(s.month, s.hover, k => this.set({ hover: k }), () => this.set({ hover: null })),
+      blocks: s.blocks.map((b, i) => {
+        const patch = (chg) => {
+          const next = s.blocks.slice();
+          next[i] = { ...next[i], ...chg };
+          this.set({ blocks: next });
+        };
+        const menu = (which) => s.openMenu && s.openMenu.i === i && s.openMenu.which === which;
+        const openM = (which) => () => this.set({ openMenu: menu(which) ? null : { i, which } });
+        return {
+          letter: blockTag[i],
+          showLink: i > 0,
+          showCategory: !b.linked,
+          linked: !!b.linked,
+          linkColor: b.linked ? '#c2974e' : '#9a9c9e',
+          linkFill: b.linked ? '#c2974e' : 'transparent',
+          linkLabel: b.linked ? 'SUPERSET' : 'LINK AS SUPERSET',
+          linkTitle: b.linked ? 'Break the superset' : 'Chain to the block above',
+          onToggleLink: () => {
+            const next = s.blocks.slice();
+            next[i] = { ...next[i], linked: !next[i].linked };
+            this.set({ blocks: next, openMenu: null });
+          },
+          topGap: b.linked ? '10px' : '22px',
+          category: b.category,
+          onCategory: e => patch({ category: e.target.value }),
+          name: b.name,
+          onName: e => { patch({ name: e.target.value }); if (s.savedLib) this.set({ savedLib: false }); },
+          instr: b.instr,
+          instrCount: b.instr.length + '/10000',
+          onInstr: e => patch({ instr: e.target.value }),
+          onRemove: () => this.set({ blocks: s.blocks.filter((_, j) => j !== i), openMenu: null }),
+          setsLabel: b.sets + ' Sets',
+          setsCaret: menu('sets') ? '▴' : '▾',
+          toggleSets: openM('sets'),
+          setsOpen: menu('sets'),
+          setCounts: [1,2,3,4,5,6,7,8,9,10].map(n => ({
+            label: n + (n === 1 ? ' Set' : ' Sets'),
+            bg: b.sets === n ? '#1c1f22' : 'transparent',
+            onClick: () => { patch({ sets: n,
+              v: Array.from({length:n}, (_,k) => b.v[k] ?? ''),
+              v2: Array.from({length:n}, (_,k) => b.v2[k] ?? '') }); this.set({ openMenu: null }); },
+          })),
+          metric: b.metric,
+          metricCaret: menu('metric') ? '▴' : '▾',
+          toggleMetric: openM('metric'),
+          metricOpen: menu('metric'),
+          metricOptions: METRICS.map(label => ({
+            label, bg: b.metric === label ? '#1c1f22' : 'transparent',
+            onClick: () => { patch({ metric: label }); this.set({ openMenu: null }); },
+          })),
+          optional: b.optional,
+          optionalCaret: menu('optional') ? '▴' : '▾',
+          toggleOptional: openM('optional'),
+          optionalOpen: menu('optional'),
+          optionalOptions: ['Optional'].concat(METRICS).map(label => ({
+            label, bg: b.optional === label ? '#1c1f22' : 'transparent',
+            onClick: () => { patch({ optional: label }); this.set({ openMenu: null }); },
+          })),
+          rows: Array.from({ length: b.sets }, (_, k) => ({
+            n: String(k + 1),
+            v: b.v[k] ?? '',
+            v2: b.v2[k] ?? '',
+            onChange: e => { const v = b.v.slice(); v[k] = e.target.value; patch({ v }); },
+            onChange2: e => { const v2 = b.v2.slice(); v2[k] = e.target.value; patch({ v2 }); },
+          })),
+          addSet: () => patch({ sets: Math.min(b.sets + 1, 12), v: b.v.concat(''), v2: b.v2.concat('') }),
+          removeSet: () => patch({ sets: Math.max(b.sets - 1, 1), v: b.v.slice(0, -1), v2: b.v2.slice(0, -1) }),
+          saveLabel: s.savedBlock === i ? 'Saved' : 'Save\nPrescription',
+          saveColor: s.savedBlock === i ? '#c2974e' : '#9a9c9e',
+          onSave: () => this.set({ savedBlock: i }),
+        };
+      }),
+      addBlock: () => this.set({
+        blocks: s.blocks.concat({ category: '', name: '', instr: '', sets: 3,
+          metric: 'Reps', optional: 'Optional', v: ['', '', ''], v2: ['', '', ''] }),
+        openMenu: null,
+      }),
+      previewBlocks: s.blocks.map((b, i) => ({
+        tag: blockTag[i],
+        name: b.name || 'Untitled exercise',
+        sets: b.sets + ' Sets',
+      })),
+      publishSessionLabel: s.published11 ? 'Published' : 'Publish Session',
+      statusLabel: s.published11 ? 'Published' : 'Unpublished',
+      statusDot: s.published11 ? '#3ecb6a' : '#f0625f',
+      monthDays: [
+        3, 4, 5, 6, 7, 8, 9,
+        10, 11, 12, 13, 14, 15, 16,
+        17, 18, 19, 20, 21, 22, 23,
+        24, 25, 26, 27, 28, 29, 30,
+      ].map((n, i) => {
+        const past = n < 10;
+        const weekend = i % 7 > 4;
+        const sel = s.calDay === n;
+        return {
+          n,
+          bg: sel ? '#2b2f33' : 'transparent',
+          color: sel ? '#f2f1ee' : past ? '#55585c' : weekend ? '#6f7276' : '#f2f1ee',
+          weight: sel ? 700 : 400,
+          dot: n === 10 ? '#a9803f' : 'transparent',
+          onClick: () => this.set({ calDay: n }),
+        };
+      }),
+      coachInstr: s.coachInstr,
+      coachCount: s.coachInstr.length + '/10000',
+      onCoachInstr: e => this.set({ coachInstr: e.target.value }),
+
+    };
+  }
+}
+</script>
+</body>
+</html>

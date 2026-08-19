@@ -1,0 +1,64 @@
+/* Design tokens - dataviz reference palette.
+   Validated with the dataviz skill's validate_palette.js:
+   the 3-slot categorical set passes all six checks (--pairs all) in BOTH modes.
+   NOTE: light-mode aqua #1baf7a is 2.74:1 against the surface, which triggers
+   the relief rule - any chart using it MUST ship direct labels or a table view.
+   Declare dark under BOTH the media query and [data-theme] scope so a manual
+   toggle beats the OS setting in both directions. */
+
+:root, .viz-root {
+  color-scheme: light;
+  --surface-1:      #fcfcfb;
+  --page:           #f9f9f7;
+  --sunken:         #f2f2ef;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --axis:           #c3c2b7;
+  --border:         rgba(11,11,11,0.10);
+  --border-strong:  rgba(11,11,11,0.18);
+
+  --series-1: #2a78d6;  /* blue   */
+  --series-2: #eb6834;  /* orange */
+  --series-3: #1baf7a;  /* aqua   */
+  --series-4: #eda100;  /* yellow */
+  --series-7: #4a3aa7;  /* violet */
+
+  --good:     #0ca30c;
+  --warning:  #fab219;
+  --serious:  #ec835a;
+  --critical: #d03b3b;
+  --good-ink: #006300;
+
+  --seq-100: #cde2fb; --seq-250: #86b6ef; --seq-400: #3987e5;
+  --seq-550: #1c5cab; --seq-700: #0d366b;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 10px;
+  --rail: 264px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])), :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d; --sunken: #151514;
+    --text-primary:#fff; --text-secondary:#c3c2b7; --text-muted:#898781;
+    --grid:#2c2c2a; --axis:#383835;
+    --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.20);
+    --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-4:#c98500; --series-7:#9085e9;
+    --good-ink:#0ca30c;
+    --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#3987e5; --seq-550:#86b6ef; --seq-700:#cde2fb;
+  }
+}
+:root[data-theme="dark"], :root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface-1: #1a1a19; --page: #0d0d0d; --sunken: #151514;
+  --text-primary:#fff; --text-secondary:#c3c2b7; --text-muted:#898781;
+  --grid:#2c2c2a; --axis:#383835;
+  --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.20);
+  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-4:#c98500; --series-7:#9085e9;
+  --good-ink:#0ca30c;
+  --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#3987e5;
+  --seq-550:#86b6ef; --seq-700:#cde2fb;
+}

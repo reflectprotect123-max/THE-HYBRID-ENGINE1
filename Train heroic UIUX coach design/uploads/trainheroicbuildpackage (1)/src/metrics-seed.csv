@@ -1,0 +1,15 @@
+key,dimension,canonical_unit,value_type,aggregation,higher_is_better,is_load_bearing
+load,mass,kg,scalar,sum,true,true
+reps,count,rep,scalar,sum,true,false
+rpe,ratio,rpe,scalar,mean,false,false
+rir,count,rep,scalar,mean,false,false
+tempo,time,s,tuple,none,,false
+rest,time,s,scalar,mean,false,false
+duration,time,s,duration,sum,false,false
+distance,length,m,scalar,sum,true,false
+calories,energy,kcal,scalar,sum,true,false
+watts,power,W,scalar,mean,true,false
+velocity,velocity,m/s,scalar,mean,true,false
+rounds,count,round,scalar,sum,true,false
+heart_rate,rate,bpm,scalar,mean,false,false
+height,length,m,scalar,max,true,false

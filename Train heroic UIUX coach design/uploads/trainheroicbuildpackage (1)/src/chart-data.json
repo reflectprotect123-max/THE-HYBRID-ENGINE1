@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "purpose": "Data behind the C1 estimated-1RM chart in index.html",
+    "reference_load_kg": 100,
+    "confidence": "NSCA chart values VERIFIED from the published NSCA Training Load Chart. Epley and Brzycki are standard published formulas."
+  },
+  "nsca_load_chart_pct": {
+    "_comment": "TrainHeroic quote: 'Estimated 1RM are calculated directly from the NSCA load chart, based on the best effort of 15 reps or less.' The chart defines 1-10 and 12 ONLY. 11 is interpolated here. 13/14/15 are UNDEFINED yet still accepted as input.",
+    "1": 100, "2": 95, "3": 93, "4": 90, "5": 87, "6": 85, "7": 83,
+    "8": 80, "9": 77, "10": 75, "11": null, "12": 70,
+    "13": null, "14": null, "15": null,
+    "interpolated_11": 72.5
+  },
+  "formulas": {
+    "epley":   "e1rm = w * (1 + r/30)",
+    "brzycki": "e1rm = w * 36 / (37 - r)",
+    "nsca":    "e1rm = w / (pct[r] / 100)"
+  },
+  "recommendation": {
+    "default": "epley",
+    "override": "per-exercise",
+    "must_store": "formula id alongside every computed e1RM, so history stays reproducible when the default changes",
+    "known_artefact": "Epley returns 103.3 for a 1-rep set at 100kg — it is not calibrated at r=1. Special-case it.",
+    "confidence": "8/10"
+  }
+}

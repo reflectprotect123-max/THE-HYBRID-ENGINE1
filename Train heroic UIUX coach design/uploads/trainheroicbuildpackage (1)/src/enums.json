@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "source": "Observed directly in the TrainHeroic coach app, August 2026",
+    "confidence": "VERIFIED — these are exact strings from the live UI",
+    "note": "Reproduced for interoperability analysis. Adopt block_category as-is; replace prescription_metric with the metric registry in src/schema.sql."
+  },
+
+  "prescription_metric": {
+    "_comment": "The full column-type list. 20 members. Six exist only because unit is baked into identity — collapse those into one metric + a display unit.",
+    "values": [
+      "Reps", "Rep Range (min-max)",
+      "Weight (lb)", "Weight (kg)", "Weight (%)", "Weight (LWP+)",
+      "Time (min::sec)", "Seconds (s)",
+      "Distance (miles)", "Distance (yd)", "Distance (ft)", "Distance (inches)", "Distance (meters)",
+      "Height (inches)", "Calories (cal)", "RPE", "Watts", "Velocity (m/s)",
+      "Other Number", "Optional"
+    ],
+    "constraint": "A prescription is exactly [set_count][param_1][param_2]. No add-column control exists. THIS IS THE CEILING."
+  },
+
+  "block_category": {
+    "_comment": "Adopt as-is. Drives icon, colour, athlete-facing section headings, and the unit of block-level compliance.",
+    "values": ["Uncategorized", "Prep", "Speed/Agility", "Skill/Tech", "Strength/Power", "Conditioning", "Recovery"]
+  },
+
+  "circuit_result_unit": {
+    "_comment": "The single score a free-text circuit reports. 18 members.",
+    "values": [
+      "For Completion", "Calories", "Feet", "Inches", "Meters", "Miles", "Reps", "Rounds",
+      "Seconds", "Time", "Velocity (m/s)", "RPE", "Watts", "Weight", "Yards",
+      "Data", "Percent", "Other Number"
+    ]
+  },
+
+  "athlete_timer": {
+    "values": ["Rest", "Stopwatch", "AMRAP", "For Time", "Tabata", "Custom Interval", "EMOM"]
+  },
+
+  "session_context_menu": {
+    "values": ["Publish", "Preview", "Edit", "Save to Library as…", "Repeat", "Copy", "Delete"]
+  },
+
+  "block_context_menu": {
+    "values": ["Change Block Category", "Change Block Title", "Create a Leaderboard", "Test This Block", "Move Circuit Up", "Move Circuit Down", "Delete Circuit"]
+  },
+
+  "readiness_questions": {
+    "values": ["Sleep", "Mood", "Energy", "Stress", "Soreness"],
+    "scale": "1-5",
+    "rule": "First complete survey of the calendar day only; later submissions discarded.",
+    "unknown": "Whether Stress and Soreness are reverse-scored is UNDOCUMENTED. If you allow custom questions you MUST store a polarity flag per question."
+  },
+
+  "field_limits": {
+    "coach_instructions_chars": 10000,
+    "exercise_instructions_chars": 10000,
+    "circuit_details_chars": 10000,
+    "points_of_performance_chars": 10000,
+    "suggested_swaps_max": 3,
+    "prescription_sets_max_in_template_builder": 10,
+    "e1rm_max_input_reps": 15,
+    "team_logo_px": "300x300",
+    "exercise_video": "YouTube or Vimeo URL only — no upload path"
+  }
+}
