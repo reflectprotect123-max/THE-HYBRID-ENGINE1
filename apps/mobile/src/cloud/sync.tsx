@@ -24,6 +24,8 @@ import {
   materializeAcceptedAssignments,
   type PendingAssignment,
 } from './arc-assignments';
+import { applyPendingArcDecisions, pushProgressionProposals } from './arc-progression';
+import { pendingProgressionProposals } from '../store/progression';
 import { clearArcNameCache } from './arc-roster';
 import { coachWeekFromNamespace, readCoachWeekAttribution, type CoachWeekAttribution } from './arc-coach-week';
 import { useNutrition } from '../store/nutrition';
@@ -524,6 +526,33 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         const orgId = await getMyArcOrgId(client, user.id);
         arcOrgRef.current = orgId;
         if (orgId) {
+          /*
+           * The progression review loop, ported from the web SyncProvider
+           * (apps/web/src/cloud/sync.tsx) — same RPCs, same order, same
+           * best-effort rules; see cloud/arc-progression.ts.
+           *
+           * APPLY first, against this device's freshest known baseline (the
+           * pull and push above have already run): a coach's approval whose
+           * `before` still matches the local `conProgress` lands; a stale one
+           * is refused rather than overwriting what the athlete earned since.
+           * Folded onto the DRAFT's own settings, scoped to `conProgress` —
+           * assigning the whole patched Settings over the draft would put
+           * back any unrelated settings write that landed during the awaits,
+           * which is the exact overwrite `applyMerged`'s comment forbids.
+           */
+          const { settings: patchedSettings } = await applyPendingArcDecisions(client, user.id, dbRef.current.settings);
+          if (patchedSettings) {
+            update((draft) => {
+              draft.settings = { ...draft.settings, conProgress: patchedSettings.conProgress };
+            });
+          }
+          /* PUSH the pending proposals the athlete's own sessions minted
+             (Conditioning.tsx banks one per run; store/progression.ts holds
+             them). `push_progression_proposal` is idempotent on
+             (org, athlete, domain, client_key, source_at), so re-pushing the
+             same pending proposal every reconcile is a server-side no-op. */
+          await pushProgressionProposals(client, orgId, pendingProgressionProposals());
+
           setPendingAssignments(await listPendingAssignments(client, user.id));
 
           const existingWorkoutIds = new Set(dbRef.current.workouts.map((w) => w.id));

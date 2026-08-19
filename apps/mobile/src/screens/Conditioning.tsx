@@ -34,6 +34,8 @@ import {
 } from '@hybrid/engine';
 import { appendSharedCoreEvent } from '@hybrid/shared-core';
 import { useDb } from '../store/db';
+import { conditioningProgressionProposal } from '../lib/progression';
+import { recordProgressionProposals } from '../store/progression';
 import { buzz, createFtmsMonitor, createGeoTracker, createHeartRateMonitor, setKeepAwake } from '../native/capabilities';
 import type { RootStackParams } from '../App';
 import { color } from '@hybrid/design';
@@ -446,8 +448,26 @@ export function ConditioningScreen() {
      */
     Object.assign(rec, withFeltZones(rec));
     rec.cardioCompletion = cardioCompletionFor(rec.fmt ?? fmt, rec.zsec, rec.dur ?? 0);
+    /* Captured out of the store write below, then recorded once it commits —
+       the ledger is MMKV, not the EngineDB, and must not be written from
+       inside a store draft. */
+    const proposal = { current: null as ReturnType<typeof conditioningProgressionProposal> };
     update((d) => {
       const at = Date.now();
+      /*
+       * Mint the ARC progression proposal BEFORE conAdapt's result is written,
+       * because the proposal's `before` is the pre-adapt baseline — that is
+       * what a coach reviews and what the server-side revalidation
+       * (`applyServerProgression`) compares against. Minted from the same
+       * `rec` and settings that feed conAdapt, so the two can never disagree
+       * about what this session earned. Recorded into the local ledger below,
+       * outside this write; sync pushes it best-effort on the next reconcile.
+       *
+       * The LOCAL apply on the next line is unchanged: this athlete's own
+       * progression still moves immediately, exactly as it always has — the
+       * proposal is review material for a coach, not a gate on the athlete.
+       */
+      proposal.current = conditioningProgressionProposal(rec, d.settings);
       const { conProgress } = conAdapt(rec, d.settings);
       d.settings.conProgress = conProgress;
       d.settings.updatedAt = at;
@@ -478,6 +498,10 @@ export function ConditioningScreen() {
       }
       d.settings.conditioning = pushCondHistory(d.settings, rec);
     });
+    /* Both bank paths (session block and standalone history) mint the same
+       proposal — a coach reviews training, not where it was filed. The id is
+       derived from the run, so a double-call cannot record it twice. */
+    if (proposal.current) recordProgressionProposals([proposal.current]);
   };
 
   // First question. Answering it only advances to the second — the record

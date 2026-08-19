@@ -21,6 +21,7 @@ import { Alert, type AlertButton } from 'react-native';
 import { LS_KEY, type CondResult, type EngineDB } from '@hybrid/engine';
 import { renderScreen, renderStack, seed } from '../../test/harness';
 import { storage } from '../store/storage';
+import { progressionLedger, resetProgressionLedgerForTests } from '../store/progression';
 import { ConditioningScreen } from './Conditioning';
 
 /*
@@ -66,7 +67,27 @@ const finishARun = async () => {
 };
 
 describe('ConditioningScreen felt RPE', () => {
+  beforeEach(() => resetProgressionLedgerForTests());
   afterEach(() => jest.restoreAllMocks());
+
+  it('banking a run mints ONE progression proposal for the coach review loop', async () => {
+    /* The ARC push half (cloud/arc-progression.ts) can only push what a
+       session minted. The proposal's `before` must be the PRE-adapt baseline
+       — that is what the server-side revalidation compares against — and its
+       id is derived from the run, so this cannot double-mint. */
+    seed({});
+    renderScreen(<ConditioningScreen />, {});
+
+    await finishARun();
+    fireEvent.press(screen.getByText('RPE 7'));
+    fireEvent.press(screen.getByText('Completed it'));
+
+    const proposals = progressionLedger().proposals;
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0].domain).toBe('conditioning');
+    expect(proposals[0].before).toEqual({ level: 0, miss: 0 });
+    expect(proposals[0].authority).toBe('coach-approval-required');
+  });
 
   it('asks how the run felt, then whether the work was completed, and banks both answers', async () => {
     seed({});
