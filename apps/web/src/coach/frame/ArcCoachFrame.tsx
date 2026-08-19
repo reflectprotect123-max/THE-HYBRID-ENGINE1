@@ -173,12 +173,10 @@ export function ArcCoachFrame() {
               worst kind of stale, because it describes authority. */}
           <p className="mt-1">You write the week. Strength and Conditioning inform it. Nutrition remains context.</p>
         </details>
-        {(location.pathname.includes('/build/') || location.pathname.includes('/planner/')) && (
-          <div className="mt-1.5 rounded-md border border-gold-line bg-gold-wash p-1.5 text-[11px] text-muted">
-            <p className="text-[9px] uppercase tracking-wider text-gold2">Coach authoring mode</p>
-            <p className="mt-0.5">You are editing a specialist proposal input—not logging an athlete session and not placing the resolved week.</p>
-          </div>
-        )}
+        {/* A "Coach authoring mode" panel keyed on `/build/` and `/planner/`
+            stood here until 19 August 2026 — routes the old authoring chain
+            owned and coach-contract rule 8 now forbids ever re-declaring. A
+            branch that can never render is deleted, not kept "just in case". */}
       </aside>
       <div className="min-w-0">
         {/* The warning is keyed on "detail is not this person's", which is true

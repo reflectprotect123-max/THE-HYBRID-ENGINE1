@@ -1,16 +1,19 @@
-import { useNavigate } from 'react-router-dom';
 import { useSync } from '../../cloud/sync';
 
 /*
  * Signing in successfully and still being refused is a different answer from
  * being signed out, and CoachSignIn cannot say it: the form would simply
  * re-render with no error, since nothing about the sign-in failed. This screen
- * says the real thing and — because it renders OUTSIDE the athlete Shell, so
- * there is no nav bar underneath it — carries its own two ways out.
+ * says the real thing and carries its own way out.
+ *
+ * There is ONE way out, not two. A "Go to the athlete app" button used to
+ * navigate to `/training`, which the catch-all redirects straight back to
+ * `/coach` — an infinite visual no-op. The athlete app is the Android app now
+ * (15 August 2026, see CLAUDE.md: `apps/web` is the coach workspace and
+ * nothing else), so the screen says that instead of pretending to link there.
  */
 export function CoachNotAuthorized() {
   const { user, signOut } = useSync();
-  const navigate = useNavigate();
 
   return (
     <main className="grid min-h-screen place-items-center bg-bg px-3 text-text">
@@ -37,13 +40,10 @@ export function CoachNotAuthorized() {
         >
           Sign out
         </button>
-        <button
-          type="button"
-          onClick={() => navigate('/training')}
-          className="w-full rounded-md border border-line2 bg-well px-2 py-2 text-sm text-text"
-        >
-          Go to the athlete app
-        </button>
+        <p className="text-xs text-dim">
+          Looking for the athlete app? It is the Android app — there is no athlete surface on
+          this site.
+        </p>
       </div>
     </main>
   );

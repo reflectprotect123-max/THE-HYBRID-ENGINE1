@@ -193,19 +193,19 @@ export function HomeScreen() {
         published week is told what is true, not shown an empty card that
         reads like a loading state.
       */}
+      {/* No second "This week" header here: the strip header above already
+          labels this section, and the card sits directly beneath the strip it
+          belongs to. */}
       {coachWeek ? (
         <ArcCoachWeekCard week={coachWeek} />
       ) : (
-        <>
-          <SectionHead title="This week" />
-          <Card>
-            <T className="text-3 text-muted">No week has been published for you.</T>
-            <T className="mt-0.5 text-3 text-dim">
-              Sessions you start yourself are still logged and still count — this card is
-              only about a week someone planned ahead.
-            </T>
-          </Card>
-        </>
+        <Card>
+          <T className="text-3 text-muted">No week has been published for you.</T>
+          <T className="mt-0.5 text-3 text-dim">
+            Sessions you start yourself are still logged and still count — this card is
+            only about a week someone planned ahead.
+          </T>
+        </Card>
       )}
 
       {activeSession ? (

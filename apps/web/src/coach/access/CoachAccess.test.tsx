@@ -65,6 +65,10 @@ describe('CoachAccess', () => {
     expect(screen.queryByRole('button', { name: /^sign in$/i })).not.toBeInTheDocument();
     expect(screen.getByText(/not authorised/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /athlete app/i })).toBeInTheDocument();
+    // No "Go to the athlete app" button: it navigated to `/training`, which the
+    // catch-all bounced straight back here. The athlete app is the Android app
+    // now, and the screen says so in words instead.
+    expect(screen.queryByRole('button', { name: /athlete app/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Android app/)).toBeInTheDocument();
   });
 });
