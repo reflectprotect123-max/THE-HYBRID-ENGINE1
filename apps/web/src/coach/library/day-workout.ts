@@ -19,10 +19,14 @@ import type { DayBuilderValue } from './DayBuilder';
  * how two screens start disagreeing about what a session is.
  *
  * SINCE 17 AUGUST 2026 this module carries no exercise/set translation at
- * all — strength authoring (`Exercise`, `StrengthBlock`, `toPlannedSet`,
- * `splitPlannedSet`, `modeForColumns`) went with the rest of the fire-sale
- * rebuild. A non-conditioning block is now a plain `TextBlock`: a heading and
- * a free-text body, nothing else.
+ * all — the OLD strength authoring (`Exercise`, `StrengthBlock`,
+ * `toPlannedSet`, `splitPlannedSet`, `modeForColumns`) went with the rest of
+ * the fire-sale rebuild. `Block` is the three-member union
+ * `StrengthBlock | CondBlock | TextBlock` again as of 18 August 2026 (Phase A
+ * of the strength rebuild, the rebuilt `StrengthBlock` sourced from
+ * `@hybrid/strength-engine`), but THIS module still translates only
+ * conditioning and text blocks: a non-conditioning block it authors is a
+ * plain `TextBlock`, a heading and a free-text body, nothing else.
  */
 
 /** The heading the coach's instructions are carried under. */

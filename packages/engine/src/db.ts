@@ -1,6 +1,6 @@
 import { CON_RETENTION, CON_TRACE_KEEP } from './constants';
 import { uid, uniqArr, ymd } from './num';
-import { isCond, isText, loggedWorkCount, hasLoggedWork } from './session';
+import { isCond, isStrength, isText, loggedWorkCount, hasLoggedWork } from './session';
 import {
   migrateLegacySettings,
   emptyEcosystemNamespace,
@@ -56,13 +56,21 @@ export function sanitizeDB(d: unknown): EngineDB {
   const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
   /*
-   * A block that is neither text nor conditioning is a LEGACY strength block
-   * — real data from before 17 August 2026, when strength (engine, builder,
-   * logger) was deleted whole. Nothing left in this codebase can render or
-   * run one, so `cleanBlock` drops it here rather than half-coercing it into
-   * a `Block` union that no longer has a member shaped like it. This is a
-   * read-time filter only: the stored row itself is untouched, so nothing is
-   * destroyed — it simply stops appearing to a running app.
+   * `StrengthBlock` is a valid `Block` member again as of 18 August 2026
+   * (Phase A of the strength rebuild), so a NEW-shape strength block —
+   * `kind: 'strength'` with an `items` array of `StrengthBlockItem`s from
+   * `@hybrid/strength-engine` — is kept, with its items shape-checked below.
+   *
+   * A block that is none of the three kinds is a LEGACY pre-rebuild strength
+   * block — the old `exercises`/sets shape, carrying no `kind` at all, from
+   * before 17 August 2026 when that model was deleted whole. Nothing left in
+   * this codebase can render or run one, so it is still dropped here.
+   *
+   * Note what dropping MEANS now: this is not a read-time-only filter. The
+   * sanitized DB is persisted by DbProvider.update() and pushed by sync, so a
+   * block `cleanBlock` returns null for is destroyed server-side on the next
+   * save — which is exactly why the new strength shape must be accepted here,
+   * or the first authored strength block would be erased by its own save.
    */
   const cleanBlock = (b: unknown): Block<LoggedSet> | null => {
     const bl = (b && typeof b === 'object' ? b : {}) as Block<LoggedSet>;
@@ -74,6 +82,30 @@ export function sanitizeDB(d: unknown): EngineDB {
       // An older blob may carry an empty `exercises` array from before the
       // split; drop it so no read path treats the block as strength work.
       delete (bl as { exercises?: unknown }).exercises;
+      return bl;
+    }
+    if (isStrength(bl)) {
+      const sb = bl as { id?: unknown; items?: unknown; exercises?: unknown };
+      // The rebuilt shape carries `items`; the legacy shape carried
+      // `exercises` and never `kind`, but a half-migrated row claiming
+      // `kind: 'strength'` without an items array is legacy-shaped too and
+      // must keep being filtered rather than half-coerced.
+      if (typeof sb.id !== 'string' || !sb.id || !Array.isArray(sb.items)) return null;
+      delete sb.exercises;
+      // Per-item shape check against @hybrid/strength-engine's
+      // StrengthBlockItem: id/kind/exerciseId/groupingKey/sets. A garbage item
+      // is dropped; the block survives with the items that hold.
+      sb.items = (sb.items as unknown[]).filter((it) => {
+        if (!it || typeof it !== 'object' || Array.isArray(it)) return false;
+        const item = it as { id?: unknown; kind?: unknown; exerciseId?: unknown; groupingKey?: unknown; sets?: unknown };
+        return (
+          typeof item.id === 'string' && !!item.id &&
+          item.kind === 'strength' &&
+          typeof item.exerciseId === 'string' && !!item.exerciseId &&
+          (item.groupingKey === null || typeof item.groupingKey === 'string') &&
+          Array.isArray(item.sets)
+        );
+      });
       return bl;
     }
     return null;

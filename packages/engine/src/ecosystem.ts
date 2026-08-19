@@ -21,8 +21,16 @@ export interface ProductSnapshotData {
    * profile/recovery facts live in shared-core. Tombstones are deliberately
    * present in both partitions so a delete made by one app cannot be undone
    * by an older snapshot from the other app.
+   *
+   * `liftProgress` was removed from this Pick on 19 August 2026: the field was
+   * deleted from `Settings` with the rest of old strength (17 August 2026) and
+   * only still compiled here via Settings' index signature. Legacy data an old
+   * client pushed still flows regardless: `payloadToDB` passes the settings
+   * blob through opaquely and `mergeSettings`' winner-wins Object.assign
+   * carries unknown keys — the field was only ever re-projected on the way
+   * out, never filtered on the way in.
    */
-  settings: Partial<Pick<Settings, 'liftProgress' | 'conProgress' | 'conditioning' | 'conditioningAck' | 'mobility' | 'folders' | 'deletedIds'>>;
+  settings: Partial<Pick<Settings, 'conProgress' | 'conditioning' | 'conditioningAck' | 'mobility' | 'folders' | 'deletedIds'>>;
 }
 
 const domainKey = (domain: ProductSyncDomain): 'strength' | 'conditioning' => domain;
@@ -42,7 +50,6 @@ function productData(db: EngineDB, domain: ProductSyncDomain): ProductSnapshotDa
         deletedIds: db.settings.deletedIds,
       }
     : {
-        liftProgress: db.settings.liftProgress,
         mobility: db.settings.mobility,
         folders: db.settings.folders,
         deletedIds: db.settings.deletedIds,

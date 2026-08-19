@@ -102,7 +102,20 @@ export function duplicateWorkout<S extends AnySet>(
 ): Workout<S> {
   const blocks: Block<S>[] = w.blocks.map((b) => {
     if (b.kind === 'text') return { ...b, id: uid(), done: false };
-    if (b.kind === 'strength') return { ...b, id: uid() };
+    if (b.kind === 'strength') {
+      // Deep copy, fresh ids at every level that carries one — a shallow
+      // `{ ...b, id: uid() }` left `items[]` and each item's `sets[]` aliased
+      // to the original, so editing the copy mutated the source workout.
+      return {
+        ...b,
+        id: uid(),
+        items: b.items.map((item) => ({
+          ...item,
+          id: uid(),
+          sets: item.sets.map((set) => ({ ...set, id: uid(), targets: set.targets.map((t) => ({ ...t })) })),
+        })),
+      };
+    }
     return { ...b, id: uid(), condResult: undefined };
   });
   return {
@@ -286,13 +299,26 @@ export function rpeGapInfo(
 
 /**
  * Deep-clone a workout's blocks into a pristine session shape: conditioning
- * blocks reset with no result. Text blocks reset ticked-off.
+ * blocks reset with no result. Text blocks reset ticked-off. Strength blocks
+ * deep-copied with fresh ids at every level — and no `done` stamp, which
+ * belongs to text blocks only.
  */
 export function freshSessionBlocks(blocks: Block<AnySet>[]): Block<LoggedSet>[] {
   return (blocks || []).map((b) => {
     if (isCond(b)) {
       const { condResult: _drop, ...rest } = b;
       return { ...rest, id: uid() } as CondBlock;
+    }
+    if (isStrength(b)) {
+      return {
+        ...b,
+        id: uid(),
+        items: b.items.map((item) => ({
+          ...item,
+          id: uid(),
+          sets: item.sets.map((set) => ({ ...set, id: uid(), targets: set.targets.map((t) => ({ ...t })) })),
+        })),
+      };
     }
     return { ...(b as TextBlock), id: uid(), done: false };
   });

@@ -581,10 +581,12 @@ describe('Library folders picker', () => {
 
 describe('Planner toolbar kind guard', () => {
   it('offers Metcon / notes, not Conditioning, for a strength (text) workout', () => {
-    // A `StrengthBlock`-shaped block (exercises/sets) is not a valid `Block`
-    // any more — `Block` is `CondBlock | TextBlock` since 17 August 2026 — so
-    // the fixture here is what a 'strength'-kind workout actually holds now:
-    // a text block, authored through GuidedBuilder's Metcon/notes choice.
+    // An OLD-shape strength block (exercises/sets) is not a valid `Block` any
+    // more, and since 18 August 2026 (Phase A of the strength rebuild) `Block`
+    // is the three-member union `StrengthBlock | CondBlock | TextBlock`, the
+    // rebuilt `StrengthBlock` carrying `items` from `@hybrid/strength-engine`.
+    // The fixture here stays what a 'strength'-kind workout authored through
+    // GuidedBuilder's Metcon/notes choice actually holds: a text block.
     seed({
       workouts: [
         {

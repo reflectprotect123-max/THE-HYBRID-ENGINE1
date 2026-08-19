@@ -20,6 +20,16 @@ describe('product sync namespaces', () => {
     expect(second.partitions.strength?.revision).toBe(first.partitions.strength?.revision);
   });
 
+  it('no longer projects the deleted liftProgress field into the strength snapshot', () => {
+    // `Settings.liftProgress` was deleted 17 August 2026; a legacy value still
+    // in a local blob rides through Settings' index signature but must not be
+    // re-projected into the strength partition's settings.
+    const legacy: EngineDB = { ...base, settings: { liftProgress: { 'back squat': { kg: 100, at: 1 } } } };
+    const out = buildProductSyncNamespace(legacy, 'strength', 'device-a', 10);
+    const settings = (out.partitions.strength?.data as { settings: Record<string, unknown> }).settings;
+    expect('liftProgress' in settings).toBe(false);
+  });
+
   it('folds a remote conditioning snapshot without dropping local strength data', () => {
     const local = buildProductSyncNamespace(base, 'strength', 'device-a', 10);
     const remote = buildProductSyncNamespace({ ...base, sessions: [{ id: 'c-s', kind: 'conditioning', date: '2026-08-04', status: 'completed', blocks: [] }] }, 'conditioning', 'device-b', 20);
