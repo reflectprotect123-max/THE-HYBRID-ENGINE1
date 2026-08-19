@@ -258,6 +258,40 @@ try {
     ));
     if (off !== 'none') throw new Error(`RLS off on: ${off}`);
   });
+  /* Same assertion for the strength rebuild's tables (20260818, secured by
+     20260821): every one must have the RLS switch itself on, or its policies
+     are decoration. coaching_note is asserted separately below because on a
+     machine without pgvector the phase_f migration never applied and the
+     table does not exist — that is the KNOWN ENVIRONMENT GAP, not an RLS
+     failure. */
+  const STRENGTH_TABLES = [
+    'metric', 'equipment', 'exercise', 'strength_block_item', 'prescribed_set',
+    'prescribed_target', 'assigned_session', 'performed_set',
+    'performed_measurement', 'working_max_event', 'pr_event',
+  ];
+  check(`row level security is enabled on all ${STRENGTH_TABLES.length} strength tables`, () => {
+    const list = STRENGTH_TABLES.map((t) => `'${t}'`).join(',');
+    const present = lastLine(runSql(
+      `select count(*) from pg_tables where schemaname='public' and tablename in (${list});`,
+    ));
+    if (Number(present) !== STRENGTH_TABLES.length) throw new Error(`expected ${STRENGTH_TABLES.length} strength tables, found ${present}`);
+    const off = lastLine(runSql(
+      `select coalesce(string_agg(relname, ','), 'none') from pg_class
+       where relname in (${list}) and relnamespace='public'::regnamespace and not relrowsecurity;`,
+    ));
+    if (off !== 'none') throw new Error(`RLS off on: ${off}`);
+  });
+  check('row level security is enabled on coaching_note (where pgvector let it exist)', () => {
+    const exists = lastLine(runSql(`select coalesce(to_regclass('public.coaching_note')::text, 'absent');`));
+    if (exists === 'absent') {
+      if (knownGaps > 0) return; // phase_f never applied here — the named gap covers it
+      throw new Error('coaching_note is missing with no known environment gap to explain it');
+    }
+    const on = lastLine(runSql(
+      `select relrowsecurity from pg_class where oid = 'public.coaching_note'::regclass;`,
+    ));
+    if (on !== 't') throw new Error('RLS off on coaching_note');
+  });
   check('daily_nutrition_totals is a security_invoker view', () => {
     const got = lastLine(runSql(
       `select coalesce((select 1 from pg_class where relname='daily_nutrition_totals'
