@@ -20,5 +20,5 @@
   // `allowImportingTsExtensions` requires `noEmit` (or
   // `emitDeclarationOnly`) — a no-op here since `pnpm run typecheck` already
   // invokes `tsc --noEmit`.
-  "include": ["**/_requestShape.ts", "**/*.test.ts", "**/index.ts", "**/*.d.ts"]
+  "include": ["**/_requestShape.ts", "**/_auth.ts", "**/*.test.ts", "**/index.ts", "**/*.d.ts"]
 }

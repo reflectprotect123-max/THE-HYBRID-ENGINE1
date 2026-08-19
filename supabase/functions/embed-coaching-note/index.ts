@@ -4,8 +4,20 @@
 // writes it back. This is the first Edge Function in this repo — there was
 // no existing supabase/functions/* convention to match, so this follows
 // Supabase's standard Deno Edge Function shape.
+//
+// AUTH MODEL (19 August 2026): verify_jwt=false + shared webhook secret.
+// This function is called by a DATABASE WEBHOOK, and a webhook cannot carry
+// a user's JWT — so JWT verification is deliberately not the gate (there is
+// no supabase/config.toml in this repo to declare it in; deploy with
+// --no-verify-jwt and set the EMBED_WEBHOOK_SECRET function secret, sending
+// the same value as an `x-webhook-secret` header from the webhook
+// definition). The gate is the shared-secret check below, which runs BEFORE
+// the request body is even read: this function holds the service role key,
+// and before this check existed ANY caller who found the URL could drive
+// service-role writes into coaching_note with a caller-supplied id.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { voyageRequestBody } from './_requestShape.ts';
+import { parseWebhookRecord, webhookAuthFailure } from './_auth.ts';
 
 // Voyage AI's voyage-3 embedding model — Anthropic's own recommended
 // embedding provider, since Claude's API does not serve embeddings itself.
@@ -13,10 +25,10 @@ import { voyageRequestBody } from './_requestShape.ts';
 // (Slice 35, a later build); the embedding — and therefore retrievability —
 // lands a few seconds later via this function.
 //
-// The pure request-shaping logic (`voyageRequestBody`) lives in
-// ./_requestShape.ts, not here, so it can be unit-tested without a live
-// Deno runtime or network call — this file's own top-level `jsr:` import
-// and `Deno.serve` call make it unimportable outside Deno.
+// The pure logic (request shaping, webhook auth, payload validation) lives
+// in ./_requestShape.ts and ./_auth.ts, not here, so it can be unit-tested
+// without a live Deno runtime or network call — this file's own top-level
+// `jsr:` import and `Deno.serve` call make it unimportable outside Deno.
 
 async function embedText(body: string, apiKey: string): Promise<number[]> {
   const res = await fetch('https://api.voyageai.com/v1/embeddings', {
@@ -33,7 +45,24 @@ async function embedText(body: string, apiKey: string): Promise<number[]> {
 }
 
 Deno.serve(async (req) => {
-  const { record } = await req.json(); // { record: { id, body } } — webhook payload shape
+  // Auth first, before any body parsing or any work at all. The comparison
+  // inside is constant-time (see _auth.ts), and the failure answers are
+  // fixed strings that echo nothing the caller sent.
+  const denied = webhookAuthFailure(
+    req.headers.get('x-webhook-secret'),
+    Deno.env.get('EMBED_WEBHOOK_SECRET'),
+  );
+  if (denied) return new Response(denied.body, { status: denied.status });
+
+  let payload: unknown;
+  try {
+    payload = await req.json();
+  } catch {
+    return new Response('invalid JSON', { status: 400 });
+  }
+  const record = parseWebhookRecord(payload); // { record: { id, body } } — webhook payload shape
+  if (!record) return new Response('expected { record: { id, body } }', { status: 400 });
+
   const voyageKey = Deno.env.get('VOYAGE_API_KEY');
   if (!voyageKey) return new Response('VOYAGE_API_KEY not configured', { status: 500 });
 
