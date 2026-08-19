@@ -63,14 +63,22 @@ export function decideProgression(exposures: StrengthExposure[], ctx: DecideCtx)
     return { ...base(ctx), action: 'hold', confidence: 0.3, reasonCodes: ['insufficient_exposure'] };
   }
 
-  const recent = sorted.slice(-3);
+  // pain_blocked exposures are "excluded entirely from load-progression math"
+  // (exposure.ts's own contract, and the filter calibrationStateFor already
+  // applies). Filter BEFORE taking the window, or one pain-flagged session
+  // shrinks the evidence three real sessions provide.
+  const usable = sorted.filter(e => e.exposureClass !== 'pain_blocked');
+  const recent = usable.slice(-3);
   // Both the exposure class AND onTarget are required: a RATED session
   // (exposureClass === 'successful') that fell short of the prescribed
   // stimulus is not full evidence of readiness to progress, and neither is
   // an on-target but unrated (successful_but_uncertain) session on its own.
   const allSuccessful = recent.every(e => e.exposureClass === 'successful' && e.onTarget);
   const repeatedDeterioration = recent.filter(e => e.exposureClass === 'missed').length >= 2;
-  const anchor = anchorKgFor(sorted);
+  // anchorKgFor only ever reads successful/successful_but_uncertain exposures,
+  // so `usable` and `sorted` give the same anchor — passing the filtered list
+  // keeps this function's math on one consistent set.
+  const anchor = anchorKgFor(usable);
 
   if (allSuccessful) {
     const deltaPct = 0.025;

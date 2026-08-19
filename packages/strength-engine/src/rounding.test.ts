@@ -30,4 +30,22 @@ describe('roundLoadToEquipment', () => {
   it('clamps to the highest rack value above range', () => {
     expect(roundLoadToEquipment(45, dbRack)).toBe(40);
   });
+
+  it("returns the value unrounded for rounding: 'none' — no increment math, no rack snap", () => {
+    const noneBarbell: Equipment = { ...barbell, rounding: 'none' };
+    expect(roundLoadToEquipment(103.8, noneBarbell)).toBe(103.8);
+    const noneRack: Equipment = { ...dbRack, rounding: 'none' };
+    expect(roundLoadToEquipment(23.1, noneRack)).toBe(23.1);
+  });
+
+  it('treats a zero or negative increment as no increment instead of dividing by it', () => {
+    expect(roundLoadToEquipment(103.8, { ...barbell, incrementKg: 0 })).toBe(103.8);
+    expect(roundLoadToEquipment(103.8, { ...barbell, incrementKg: -2.5 })).toBe(103.8);
+  });
+
+  it('throws on a non-finite load instead of snapping NaN to the lightest rack value', () => {
+    expect(() => roundLoadToEquipment(NaN, dbRack)).toThrow(/finite load/);
+    expect(() => roundLoadToEquipment(Infinity, barbell)).toThrow(/finite load/);
+    expect(() => roundLoadToEquipment(NaN, null)).toThrow(/finite load/);
+  });
 });

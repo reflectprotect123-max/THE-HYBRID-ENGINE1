@@ -54,7 +54,7 @@ describe('golden: 5x5 @ 75% end to end', () => {
         measurements: [{ metricKey: 'load' as const, value: 110 }, { metricKey: 'reps' as const, value: 3 }],
       },
     ];
-    const isPr = detectPr({ exerciseId: 'sq', reps: 3, loadKg: 110 }, null);
+    const isPr = detectPr({ exerciseId: 'sq', reps: 3, loadKg: 110 }, []);
     expect(isPr).toBe(true);
 
     const load = sessionLoad(performed);

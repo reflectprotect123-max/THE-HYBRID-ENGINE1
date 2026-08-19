@@ -117,6 +117,51 @@ describe('decideProgression', () => {
     expect(decision.action).toBe('hold');
   });
 
+  /*
+   * pain_blocked exposures are "excluded entirely from load-progression math"
+   * (exposure.ts). The last-3 window must be taken AFTER filtering them out,
+   * or a pain-flagged session both shrinks the evidence window and eats a
+   * slot three real sessions earned.
+   */
+  it('progresses on [S, S, S, pain] — the pain-blocked exposure does not evict a success from the window', () => {
+    const exposures = [
+      exposure({ performedSetId: 'p1', performedAt: '2026-08-10T10:00:00Z' }),
+      exposure({ performedSetId: 'p2', performedAt: '2026-08-13T10:00:00Z' }),
+      exposure({ performedSetId: 'p3', performedAt: '2026-08-16T10:00:00Z' }),
+      exposure({ performedSetId: 'p4', exposureClass: 'pain_blocked', painFlagged: true, performedAt: '2026-08-20T10:00:00Z' }),
+    ];
+    const decision = decideProgression(exposures, { exerciseId: 'sq' });
+    expect(decision.action).toBe('progress');
+    expect(decision.reasonCodes).toContain('three_on_target');
+  });
+
+  it('holds on [missed, missed, pain] — two usable exposures is still building, never a deload off a pain-padded window', () => {
+    // Filtered, the window is [missed, missed]: calibrationStateFor also
+    // excludes pain_blocked, so 2 usable exposures < MIN_EXPOSURES and the
+    // decision is the insufficient_exposure hold — not a deload reached by
+    // letting the pain exposure pad the count to three.
+    const exposures = [
+      exposure({ performedSetId: 'p1', exposureClass: 'missed', performedAt: '2026-08-10T10:00:00Z' }),
+      exposure({ performedSetId: 'p2', exposureClass: 'missed', performedAt: '2026-08-15T10:00:00Z' }),
+      exposure({ performedSetId: 'p3', exposureClass: 'pain_blocked', painFlagged: true, performedAt: '2026-08-20T10:00:00Z' }),
+    ];
+    const decision = decideProgression(exposures, { exerciseId: 'sq' });
+    expect(decision.action).toBe('hold');
+    expect(decision.reasonCodes).toContain('insufficient_exposure');
+  });
+
+  it('still deloads off the successful anchor when the misses are real: [S, missed, missed, pain]', () => {
+    const exposures = [
+      exposure({ performedSetId: 'p1', loadKg: 100, exposureClass: 'successful', performedAt: '2026-08-08T10:00:00Z' }),
+      exposure({ performedSetId: 'p2', loadKg: 94, exposureClass: 'missed', performedAt: '2026-08-12T10:00:00Z' }),
+      exposure({ performedSetId: 'p3', loadKg: 92, exposureClass: 'missed', performedAt: '2026-08-16T10:00:00Z' }),
+      exposure({ performedSetId: 'p4', exposureClass: 'pain_blocked', painFlagged: true, performedAt: '2026-08-20T10:00:00Z' }),
+    ];
+    const decision = decideProgression(exposures, { exerciseId: 'sq' });
+    expect(decision.action).toBe('deload');
+    expect(decision.deltaKg).toBe(100 * -0.05);
+  });
+
   it('carries deltaKg computed from the anchor kg on a progress decision', () => {
     const exposures = [
       exposure({ performedSetId: 'p1', loadKg: 100, performedAt: '2026-08-14T10:00:00Z' }),

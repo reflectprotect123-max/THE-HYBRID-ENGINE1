@@ -78,6 +78,32 @@ describe('resolveTarget', () => {
     expect(() => resolveTarget(t, squat, ctx())).toThrow(/no resolution strategy/);
   });
 
+  /*
+   * Missing required inputs are malformed rows, not resolvable states. Before
+   * these throws, a missing exprArg fed `undefined` into arithmetic and the
+   * resulting NaN flowed straight into a published snapshot, and a missing
+   * rangeHi emitted `{ lo, hi: undefined }`.
+   */
+  it('throws when a range row has rangeLo but no rangeHi', () => {
+    const t: PrescribedTarget = { metricKey: 'reps', rangeLo: 8 };
+    expect(() => resolveTarget(t, squat, ctx())).toThrow(/missing rangeHi/);
+  });
+
+  it('throws when pct_of_max has no exprArg, even with a working max on record', () => {
+    const t: PrescribedTarget = { metricKey: 'load', exprKind: 'pct_of_max' };
+    expect(() => resolveTarget(t, squat, ctx({ workingMaxAt: () => 140 }))).toThrow(/pct_of_max row missing exprArg/);
+  });
+
+  it('throws when lwp_delta has no exprArg, even with history on record', () => {
+    const t: PrescribedTarget = { metricKey: 'load', exprKind: 'lwp_delta' };
+    expect(() => resolveTarget(t, squat, ctx({ lastPerformedLoad: () => 100 }))).toThrow(/lwp_delta row missing exprArg/);
+  });
+
+  it('throws when pct_of_bodyweight has no exprArg, even with a bodyweight on record', () => {
+    const t: PrescribedTarget = { metricKey: 'load', exprKind: 'pct_of_bodyweight' };
+    expect(() => resolveTarget(t, squat, ctx({ bodyweightAt: () => 89 }))).toThrow(/pct_of_bodyweight row missing exprArg/);
+  });
+
   it('pct_of_max uses exprRefExercise over the exercise\'s own reference_max_exercise_id', () => {
     const t: PrescribedTarget = { metricKey: 'load', exprKind: 'pct_of_max', exprArg: 0.5, exprRefExercise: 'front-squat' };
     const c = ctx({ workingMaxAt: (exId) => (exId === 'front-squat' ? 100 : 999) });
