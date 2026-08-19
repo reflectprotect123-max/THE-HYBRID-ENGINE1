@@ -168,10 +168,20 @@ function WeekBuilder({ athlete, weekStart }: { athlete: ClientSummary; weekStart
         targetId,
         weekStart,
         body,
-        /* Null on a FIRST publish only. After that the version this edit
-           started from goes back, so a colleague who published in between
-           makes this refuse rather than silently overwrite them. */
-        base === 0 ? null : base,
+        /* ALWAYS the version this edit started from — 0 when the read said no
+           plan exists yet — and never null. This line used to send null on a
+           first publish (`base === 0 ? null : base`), and null tells
+           `publish_coach_week` to SKIP the optimistic-lock comparison
+           entirely ("a deliberate force", per the function's own comment). So
+           two coaches racing the FIRST publish of the same week both skipped
+           the lock and the second silently overwrote the first, told
+           "Published. Version 2." Sending 0 keeps the lock armed: the server
+           compares it against `coalesce(max(version), 0)`, so a genuine first
+           publish still passes, and a first publish that lost the race is
+           refused with the same "modified by someone else" error a stale
+           later edit gets. Null stays a server-side capability for callers
+           that mean force; this screen never does. */
+        base,
         publishIdempotencyKey(body, base),
       );
       setPlan(published);

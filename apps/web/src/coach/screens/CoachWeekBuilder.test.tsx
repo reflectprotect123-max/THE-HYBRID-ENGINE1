@@ -159,17 +159,38 @@ describe('CoachWeekBuilder', () => {
     expect(screen.getByText(/Published to Riley Roster/)).toBeInTheDocument();
   });
 
-  it('sends a null base version on a first publish and a real one after', async () => {
+  it('sends base version 0 on a first publish — NEVER null — and the read version after', async () => {
+    /* Null tells `publish_coach_week` to skip the optimistic lock entirely
+       ("a deliberate force"), so the old `base === 0 ? null : base` let two
+       racing FIRST publishes both skip it and the second silently overwrite
+       the first. 0 keeps the lock armed: the server compares it against
+       `coalesce(max(version), 0)`, so a genuine first publish passes and a
+       lost race is refused as "modified by someone else". */
     const repository = rosterRepository();
     await renderBuilder(repository);
 
     await publishWithConfirmation();
-    expect(repository.publishedWeeks[0].baseVersion).toBeNull();
+    expect(repository.publishedWeeks[0].baseVersion).toBe(0);
 
     await publishWithConfirmation();
     /* The screen adopted the version the publish returned, so the second one
-       carries the lock rather than forcing again. */
+       carries that lock forward. */
     expect(repository.publishedWeeks[1].baseVersion).toBe(1);
+  });
+
+  it('surfaces a lost first-publish race as the refusal message, not a success', async () => {
+    /* The server rejects `p_base_version = 0` against an existing week with
+       the same serialization_failure text as any stale edit; the screen must
+       carry that through `publishFailureMessage` rather than claiming a
+       publish that never landed. */
+    const repository = rosterRepository();
+    repository.publishError = new Error('week was modified by someone else');
+    await renderBuilder(repository);
+
+    await publishWithConfirmation();
+
+    expect(screen.getByText(/changed while you were editing it/)).toBeInTheDocument();
+    expect(screen.queryByText(/Published to/)).not.toBeInTheDocument();
   });
 
   it('reports a refusal in the failure voice, never in the success one', async () => {
