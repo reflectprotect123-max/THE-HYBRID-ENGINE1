@@ -1,5 +1,24 @@
 # Claude Handoff — THE Hybrid System
 
+> **ADDENDUM — 21 August 2026, session close-out.** Three updates to the
+> checkpoint directly below, from the session that ran the surgical debug:
+>
+> - The excision is ON `main` now: `bd34ec3` is the head, not a side branch.
+> - The empty duplicate repo `THE-STRENGTH-ENGINE1` (created while the split
+>   was being planned, never seeded — `strengthside` won the race) has been
+>   DELETED by the owner. There is exactly one strength repo:
+>   `reflectprotect123-max/strengthside`. A stale `b10b475` seed tree for the
+>   deleted name existed only in a session sandbox and died with it; nothing
+>   of value was in it that `strengthside` lacks.
+> - Phase B's design inputs are IN THIS REPO at
+>   `Train heroic UIUX coach design/` (`34dfab4`, owner-uploaded): two Claude
+>   Design artboards (Command Center, Readiness, Conditioning,
+>   Library/Calendar, Day Builder — grounded in the real coach source),
+>   screenshots, and the load-increment research brief. The brief's central
+>   deload question is already answered in the engine: `anchorKgFor` deloads
+>   from the last SUCCESSFUL load, never the walked-down one. Phase B (coach
+>   strength bench) and Phase C (mobile logger) build in `strengthside`.
+>
 > **AUTHORITATIVE CHECKPOINT — 21 August 2026. STRENGTH IS EXCISED: Task 2 of
 > the repo split is executed on branch `claude/strength-excision`.
 > `@hybrid/strength-engine`, the five strength migrations,
