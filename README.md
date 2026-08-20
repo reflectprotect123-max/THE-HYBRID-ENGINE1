@@ -130,11 +130,15 @@ Rows they wrote are still readable and `athlete_weekly_plans` still accepts
 packages/session-authoring (the shared session-running state machine behind
 the athlete's live logger) and packages/engine/src/lift.ts, fold.ts,
 adaptive/ and catalogue.ts went whole on 17 August 2026 — the fire-sale
-rebuild. Strength (engine math, the coach's exercise wizard, the athlete's
-live logger, the exercise catalogue/picker) is deleted and being rebuilt
-from scratch. Conditioning and nutrition are untouched. `apps/web/src/coach/pillars/Strength.tsx` and
-`apps/mobile/src/screens/StrengthRebuilding.tsx` are placeholders where the
-deleted screens used to be.
+rebuild. Strength then MOVED OUT ENTIRELY on 21 August 2026 with Task 2 of
+the repo split: the rebuilt packages/strength-engine, its five migrations,
+the embed-coaching-note function, both placeholder screens
+(apps/web/src/coach/pillars/Strength.tsx,
+apps/mobile/src/screens/StrengthRebuilding.tsx — paths unbackticked because
+they no longer exist) and the parity apparatus all live at
+reflectprotect123-max/strengthside now, against the same Supabase project.
+Conditioning and nutrition are untouched. See CLAUDE.md's "Strength is
+excised" section for the boundary that binds both repositories.
 
 The rebuild status, rollout gates and product commands are in
 [`docs/ARCHITECTURE_STATUS.md`](docs/ARCHITECTURE_STATUS.md). Claude Code's

@@ -30,7 +30,6 @@ import { WhoopProvider } from './cloud/whoop';
 import { Concept2Provider } from './cloud/concept2';
 import { HomeScreen } from './screens/Home';
 import { TrainingScreen } from './screens/Training';
-import { StrengthRebuilding } from './screens/StrengthRebuilding';
 import { SettingsScreen } from './screens/Settings';
 import { LibraryScreen } from './screens/Library';
 import { ProgressScreen } from './screens/Progress';
@@ -84,10 +83,9 @@ export type TabParams = {
 
 export type RootStackParams = {
   Tabs: NavigatorScreenParams<TabParams> | undefined;
-  /* No params. The round-major logger owns block navigation itself — it
-     opens on the active session and moves by its own block strip, so there
-     is no exercise for a caller to address. */
-  Logger: undefined;
+  /* `Logger` left this param list on 21 August 2026 with the
+     StrengthRebuilding stub and its route — strength (and Phase C's real
+     logger) MOVED to reflectprotect123-max/strengthside. */
   Planner: { id: string };
   GuidedBuilder: { id: string };
   Recap: { id: string };
@@ -319,16 +317,11 @@ function AppInner() {
               ) : (
                 <Stack.Navigator screenOptions={stackOptions}>
                   <Stack.Screen name="Tabs" component={TabNav} />
-                  {/* Wrapped rather than passed straight through, so the
-                      empty state's way back is the navigator's — the logger
-                      itself is rendered by the parity harness too, where
-                      there is no NavigationContainer for a useNavigation to
-                      resolve against. */}
-                  <Stack.Screen name="Logger">
-                    {({ navigation }) => (
-                      <StrengthRebuilding onLeave={() => navigation.navigate('Tabs', { screen: 'Train' })} />
-                    )}
-                  </Stack.Screen>
+                  {/* The `Logger` route and the StrengthRebuilding stub it
+                      mounted MOVED to reflectprotect123-max/strengthside on
+                      21 August 2026 with Task 2 of the repo split — Phase C's
+                      real logger is that repo's app, and nothing here has
+                      navigated to `Logger` since the fire-sale rebuild. */}
                   <Stack.Screen name="Planner" component={PlannerScreen} />
                   <Stack.Screen name="GuidedBuilder" component={GuidedBuilderScreen} />
                   <Stack.Screen name="Recap" component={RecapScreen} />

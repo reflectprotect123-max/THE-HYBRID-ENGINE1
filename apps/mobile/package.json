@@ -14,8 +14,6 @@
     "build": "tsc -p tsconfig.json --noEmit",
     "test": "jest",
     "bundle": "expo export --platform android --output-dir .expo-export",
-    "//parity": "Exports the parity harness \u2014 src/root.web.tsx, and nothing that imports src/App. Consumed by the two parity gates, which serve the output as a static site.",
-    "parity:build": "expo export --platform web --output-dir .expo-parity",
     "ios": "expo run:ios"
   },
   "dependencies": {

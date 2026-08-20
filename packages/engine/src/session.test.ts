@@ -2,10 +2,11 @@
  * `fillLinkedSets` (authoring-side set propagation) and `duplicateExercise`
  * were deleted whole on 17 August 2026 with the rest of strength — both
  * existed only to type and build the OLD `Exercise`/`StrengthBlock` content.
- * Their describe blocks went with them. Since 18 August 2026 (Phase A of the
- * strength rebuild) `Block` is the three-member union
- * `StrengthBlock | CondBlock | TextBlock` again, `StrengthBlock` now sourced
- * from `@hybrid/strength-engine`.
+ * Their describe blocks went with them. Phase A (18 August 2026) briefly made
+ * `Block` a three-member union again with `StrengthBlock` sourced from
+ * `@hybrid/strength-engine`; on 21 August 2026 that member MOVED to
+ * reflectprotect123-max/strengthside with Task 2 of the repo split, and
+ * `Block` is back to `CondBlock | TextBlock`.
  *
  * `duplicateWorkout` survives — it clones a Workout at the block level, not
  * the exercise level, so it never depended on strength shapes for anything
@@ -18,7 +19,6 @@
 import { describe, expect, it } from 'vitest';
 import { blockDurations, sessionDuration, duplicateWorkout, freshSessionBlocks } from './session';
 import type { CondBlock, Session, TextBlock, Workout } from './types';
-import type { StrengthBlock } from '@hybrid/strength-engine';
 
 /*
  * duplicateWorkout — clone a workout as a new, independent, unscheduled
@@ -172,55 +172,10 @@ describe('duplicateWorkout', () => {
     expect(w.sample).toBe(true);
   });
 
-  const strengthBlock = (): StrengthBlock => ({
-    id: 'strength-block',
-    kind: 'strength',
-    heading: 'Main lift',
-    items: [
-      {
-        id: 'item-1',
-        kind: 'strength',
-        exerciseId: 'sq',
-        groupingKey: null,
-        sets: [
-          { id: 'set-1', ordinal: 1, isOptional: false, isAmrap: false, targets: [{ metricKey: 'reps', literalValue: 5 }] },
-          { id: 'set-2', ordinal: 2, isOptional: false, isAmrap: false, targets: [{ metricKey: 'load', exprKind: 'pct_of_max', exprArg: 0.75 }] },
-        ],
-      },
-    ],
-  });
-
-  /*
-   * The strength branch used to be `{ ...b, id: uid() }` — a shallow copy, so
-   * `items[]` and each item's `sets[]` were the SAME arrays as the original's.
-   * Editing the duplicate mutated the source workout.
-   */
-  it('deep-copies a strength block — mutating the duplicate\'s sets leaves the original untouched', () => {
-    const original = strengthBlock();
-    const copy = duplicateWorkout(workout({ blocks: [original] }));
-    const copied = copy.blocks[0] as StrengthBlock;
-    expect(copied.items).not.toBe(original.items);
-    expect(copied.items[0].sets).not.toBe(original.items[0].sets);
-    copied.items[0].sets[0].ordinal = 99;
-    copied.items[0].sets[0].targets[0].literalValue = 1;
-    copied.items.push({ id: 'extra', kind: 'strength', exerciseId: 'dl', groupingKey: null, sets: [] });
-    expect(original.items).toHaveLength(1);
-    expect(original.items[0].sets[0].ordinal).toBe(1);
-    expect(original.items[0].sets[0].targets[0].literalValue).toBe(5);
-  });
-
-  it('gives a strength block fresh ids at every level that carries one', () => {
-    const original = strengthBlock();
-    const copy = duplicateWorkout(workout({ blocks: [original] }));
-    const copied = copy.blocks[0] as StrengthBlock;
-    expect(copied.id).not.toBe(original.id);
-    expect(copied.items[0].id).not.toBe(original.items[0].id);
-    expect(copied.items[0].sets.map((s) => s.id)).not.toContain('set-1');
-    expect(copied.items[0].sets.map((s) => s.id)).not.toContain('set-2');
-    // Content survives the re-iding.
-    expect(copied.items[0].exerciseId).toBe('sq');
-    expect(copied.items[0].sets[1].targets[0]).toEqual({ metricKey: 'load', exprKind: 'pct_of_max', exprArg: 0.75 });
-  });
+  /* The strength-block deep-copy cases (aliased items/sets, fresh ids at
+   * every level) MOVED to reflectprotect123-max/strengthside on 21 August
+   * 2026 with the rest of strength — `duplicateWorkout` has no strength
+   * branch to pin any more. */
 
   // `folderIds`, unlike `days`/`dates`/`sample`/`_rev` above, is deliberately
   // KEPT — see duplicateWorkout's own doc comment. A folder is organisational
@@ -322,47 +277,10 @@ describe('blockDurations survives a blob it did not write', () => {
   });
 });
 
-describe('freshSessionBlocks and the rebuilt StrengthBlock', () => {
-  const strengthBlock = (): StrengthBlock => ({
-    id: 'strength-block',
-    kind: 'strength',
-    heading: 'Main lift',
-    items: [
-      {
-        id: 'item-1',
-        kind: 'strength',
-        exerciseId: 'sq',
-        groupingKey: null,
-        sets: [{ id: 'set-1', ordinal: 1, isOptional: false, isAmrap: false, targets: [{ metricKey: 'reps', literalValue: 5 }] }],
-      },
-    ],
-  });
-
-  /*
-   * StrengthBlock used to fall into the TextBlock else-branch: stamped with a
-   * `done: false` field that belongs to text blocks only, and its items left
-   * carrying the template's own ids.
-   */
-  it('gives a strength block fresh ids and no done stamp', () => {
-    const original = strengthBlock();
-    const [fresh] = freshSessionBlocks([original]);
-    expect(fresh.kind).toBe('strength');
-    expect('done' in fresh).toBe(false);
-    const sb = fresh as StrengthBlock;
-    expect(sb.id).not.toBe(original.id);
-    expect(sb.items[0].id).not.toBe(original.items[0].id);
-    expect(sb.items[0].sets[0].id).not.toBe('set-1');
-    expect(sb.items[0].exerciseId).toBe('sq');
-    expect(sb.items[0].sets[0].targets).toEqual([{ metricKey: 'reps', literalValue: 5 }]);
-  });
-
-  it('deep-copies a strength block so a session edit cannot reach back into the template', () => {
-    const original = strengthBlock();
-    const [fresh] = freshSessionBlocks([original]) as [StrengthBlock];
-    fresh.items[0].sets[0].ordinal = 99;
-    expect(original.items[0].sets[0].ordinal).toBe(1);
-  });
-
+describe('freshSessionBlocks after the repo split', () => {
+  /* The strength cases (fresh ids, no done stamp, deep copy) MOVED to
+   * reflectprotect123-max/strengthside on 21 August 2026 with the rest of
+   * strength — `freshSessionBlocks` has no strength branch to pin. */
   it('still resets conditioning and text blocks the way it always did', () => {
     const cond = { id: 'c1', kind: 'conditioning', condFmt: 'intervals', condResult: { fmt: 'intervals', dur: 600 } } as CondBlock;
     const text = { id: 't1', kind: 'text', heading: 'Metcon', body: 'row', done: true } as TextBlock;

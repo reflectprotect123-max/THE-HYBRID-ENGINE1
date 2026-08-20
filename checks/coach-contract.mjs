@@ -449,12 +449,13 @@ console.log('Coach surface contract\n');
  *
  * `useDb()` / `useNutrition()` / the progression ledger are the signed-in
  * account's own local stores — correct only while `engine-local` is
- * selected. Every route that reads them behind `/readiness`, `/strength`,
+ * selected. Every route that reads them behind `/readiness`,
  * `/conditioning`, `/nutrition`, `/progression`, `/review/:weekStart` and
  * `/legacy` must be wrapped in `ClientDetailGate`, which blocks instead of
  * merely disclosing. (`/coach/author`, `/build/:id` and `/planner/:id` were on
  * this list until 14 August 2026, when the routes and the authoring ledger
- * behind them were deleted.)
+ * behind them were deleted; `/strength` until 21 August 2026, when it MOVED
+ * to reflectprotect123-max/strengthside with the repo split.)
  * (see ClientDetailGate.tsx's own header comment for why a disclosure
  * banner a coach can act past is not a guard).
  *
@@ -497,7 +498,9 @@ console.log('Coach surface contract\n');
   /* `legacy` left this list on 14 August 2026 with the route and CoachShell.
      A path named here and no longer declared would fail as "ungated", which is
      the wrong reason — the deleted-route guard above is what keeps it gone. */
-  const gatedPaths = ['readiness', 'strength', 'conditioning', 'nutrition', 'progression', 'week/:athleteId/:weekStart'];
+  // 'strength' left this list on 21 August 2026 — the route MOVED to
+  // reflectprotect123-max/strengthside with Task 2 of the repo split.
+  const gatedPaths = ['readiness', 'conditioning', 'nutrition', 'progression', 'week/:athleteId/:weekStart'];
   const ungatedRoutes = gatedPaths.filter((path) => {
     // The route line itself, e.g. `<Route path="author" element={<ClientDetailGate ...`
     const line = new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*element=\\{<ClientDetailGate\\b`);

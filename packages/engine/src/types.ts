@@ -149,14 +149,14 @@ export interface TextBlock {
   exercises?: undefined;
 }
 
-/** A strength block now lives in `@hybrid/strength-engine` — see `StrengthBlock`
- * (the block-level container of exercise entries) and `StrengthBlockItem`/
- * `PrescribedSet` (one entry inside it) there. `Block<S>` regains its third
- * member as a reference to that package's shape rather than redefining it
- * here, so the two packages cannot drift apart on what a strength block is. */
-import type { StrengthBlock } from '@hybrid/strength-engine';
-
-export type Block<S extends AnySet = LoggedSet> = StrengthBlock | CondBlock | TextBlock;
+/* `StrengthBlock` left this union on 21 August 2026 with Task 2 of the repo
+ * split (docs/superpowers/plans/2026-08-19-strength-repo-split.md): strength
+ * MOVED to reflectprotect123-max/strengthside, whose own apps render it. The
+ * union is back to the two kinds this repo's products render. A stored
+ * `kind: 'strength'` block is legacy data here and is dropped by `sanitizeDB`'s
+ * cleanBlock exactly like the pre-rebuild shape — nothing left in this
+ * codebase can render or run one. */
+export type Block<S extends AnySet = LoggedSet> = CondBlock | TextBlock;
 
 export interface Workout<S extends AnySet = LoggedSet> {
   id: string;

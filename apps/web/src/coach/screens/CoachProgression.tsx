@@ -194,6 +194,10 @@ export function CoachProgression() {
    */
   if (loading) return <p className="p-4 text-xs text-dim" role="status">Loading…</p>;
   const isLocalClient = !selectedClient || selectedClient.source === 'engine-local';
-  if (isLocalClient) return <Navigate to="/coach/strength" replace />;
+  /* Was `/coach/strength` until 21 August 2026, when the Strength pillar
+     MOVED to reflectprotect123-max/strengthside with Task 2 of the repo
+     split. Conditioning is the pillar that still owns a live self-coach
+     progression queue, so the old-bookmark redirect lands there now. */
+  if (isLocalClient) return <Navigate to="/coach/conditioning" replace />;
   return <RosterProgressionView clientId={selectedClient.id} clientName={selectedClient.name} />;
 }

@@ -11,16 +11,15 @@ import type {
   Workout,
   TextBlock,
 } from './types';
-import type { StrengthBlock } from '@hybrid/strength-engine';
-
 /*
  * `isWarmupBlock`/`blockExercises`/`newWarmupBlock`/`newSet`/`newEx`/
  * `newBlock`/`isLiftMode`/`fillLinkedSets`/`duplicateExercise`/`rxLine` were
  * deleted whole on 17 August 2026 (fire-sale rebuild) — they existed only to
- * type and build the old in-repo strength shape. `Block` is now
- * `StrengthBlock | CondBlock | TextBlock`, `StrengthBlock` coming back from
- * `@hybrid/strength-engine` as of Phase A. Nothing in this file casts to a
- * strength shape that no longer exists here.
+ * type and build the old in-repo strength shape. `isStrength` and the
+ * `StrengthBlock` union member followed on 21 August 2026 with Task 2 of the
+ * repo split: strength MOVED to reflectprotect123-max/strengthside, and
+ * `Block` is back to `CondBlock | TextBlock`. Nothing in this file types,
+ * builds or guards a strength shape any more.
  */
 
 export function isCond(b: Block | null | undefined): b is CondBlock {
@@ -29,10 +28,6 @@ export function isCond(b: Block | null | undefined): b is CondBlock {
 
 export function isText(b: Block | null | undefined): b is TextBlock {
   return !!b && (b as TextBlock).kind === 'text';
-}
-
-export function isStrength(b: Block | null | undefined): b is StrengthBlock {
-  return !!b && (b as StrengthBlock).kind === 'strength';
 }
 
 export function newTextBlock(): TextBlock {
@@ -102,20 +97,9 @@ export function duplicateWorkout<S extends AnySet>(
 ): Workout<S> {
   const blocks: Block<S>[] = w.blocks.map((b) => {
     if (b.kind === 'text') return { ...b, id: uid(), done: false };
-    if (b.kind === 'strength') {
-      // Deep copy, fresh ids at every level that carries one — a shallow
-      // `{ ...b, id: uid() }` left `items[]` and each item's `sets[]` aliased
-      // to the original, so editing the copy mutated the source workout.
-      return {
-        ...b,
-        id: uid(),
-        items: b.items.map((item) => ({
-          ...item,
-          id: uid(),
-          sets: item.sets.map((set) => ({ ...set, id: uid(), targets: set.targets.map((t) => ({ ...t })) })),
-        })),
-      };
-    }
+    // The strength branch (deep copy of items/sets with fresh ids) MOVED to
+    // reflectprotect123-max/strengthside on 21 August 2026 with the rest of
+    // strength — `Block` no longer has a strength member to copy.
     return { ...b, id: uid(), condResult: undefined };
   });
   return {
@@ -249,32 +233,18 @@ export function hasLoggedWork(s: Session | null | undefined): boolean {
         (isText(b) && !!b.done),
     )
   );
-  /* A StrengthBlock is deliberately NOT counted here, and that is Phase A of
-     the strength rebuild speaking, not an oversight: the block as stored in
-     EngineDB carries PRESCRIPTION only (items/sets of PrescribedSet), while
-     performed sets live server-side, so nothing on-device can tell a trained
-     strength session from an untouched one. Claiming logged work for a bare
-     prescription would put a "trained" dot on days nobody trained. Phase C
-     (on-device strength logging) is what gives this function a marker to
-     read; until then EXISTENCE is protected separately — see
-     `hasStrengthPrescription` and `expireStaleSessions`. The same reasoning
-     covers `loggedWorkCount` above and `sessionRpe` (no performed strength
-     set means no felt RPE to average). */
+  /* Strength blocks are no longer representable here at all — the union lost
+     its strength member on 21 August 2026 when strength MOVED to
+     reflectprotect123-max/strengthside. The Phase A/Phase C accounting
+     semantics that used to be pinned in this file (prescription-only blocks
+     count for existence, never for logged work) moved with it — see that
+     repo's docs/superpowers/specs/2026-08-17-strength-rebuild-design.md. */
 }
 
-/**
- * Whether a session carries any PRESCRIBED strength work: a StrengthBlock
- * with at least one item. This is EXISTENCE, not logged work — Phase A stores
- * no performed-state on the block (see the note in `hasLoggedWork`), so this
- * must never feed a "trained" indicator. Its one job is to keep
- * `expireStaleSessions` from binning a strength day as untrained: destroying
- * the only local copy of a coach-prescribed session because the device cannot
- * see the server-side performed sets would be data loss, not tidying.
- * Phase C replaces this with a real performed-marker check.
- */
-export function hasStrengthPrescription(s: Session | null | undefined): boolean {
-  return !!s && (s.blocks || []).some((b) => isStrength(b) && Array.isArray(b.items) && b.items.length > 0);
-}
+/* `hasStrengthPrescription` MOVED to reflectprotect123-max/strengthside on
+   21 August 2026 with the rest of strength — its one job was protecting
+   strength-day EXISTENCE in `expireStaleSessions`, and there are no strength
+   days in this repo's products to protect any more. */
 
 /*
  * `exLogFor`/`exBest`/`detectPRs`/`bestE1rmByLift` were deleted whole on
@@ -324,26 +294,16 @@ export function rpeGapInfo(
 
 /**
  * Deep-clone a workout's blocks into a pristine session shape: conditioning
- * blocks reset with no result. Text blocks reset ticked-off. Strength blocks
- * deep-copied with fresh ids at every level — and no `done` stamp, which
- * belongs to text blocks only.
+ * blocks reset with no result. Text blocks reset ticked-off. (The strength
+ * branch — deep copy of items/sets with fresh ids — MOVED to
+ * reflectprotect123-max/strengthside on 21 August 2026 with the rest of
+ * strength.)
  */
 export function freshSessionBlocks(blocks: Block<AnySet>[]): Block<LoggedSet>[] {
   return (blocks || []).map((b) => {
     if (isCond(b)) {
       const { condResult: _drop, ...rest } = b;
       return { ...rest, id: uid() } as CondBlock;
-    }
-    if (isStrength(b)) {
-      return {
-        ...b,
-        id: uid(),
-        items: b.items.map((item) => ({
-          ...item,
-          id: uid(),
-          sets: item.sets.map((set) => ({ ...set, id: uid(), targets: set.targets.map((t) => ({ ...t })) })),
-        })),
-      };
     }
     return { ...(b as TextBlock), id: uid(), done: false };
   });

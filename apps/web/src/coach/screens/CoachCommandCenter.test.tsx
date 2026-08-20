@@ -147,9 +147,12 @@ describe('CoachCommandCenter', () => {
     await renderCommandCenter(repo);
 
     expect(screen.getByRole('link', { name: /Readiness/ })).toHaveAttribute('href', '/coach/readiness');
-    expect(screen.getByRole('link', { name: /Strength/ })).toHaveAttribute('href', '/coach/strength');
     expect(screen.getByRole('link', { name: /Conditioning/ })).toHaveAttribute('href', '/coach/conditioning');
     expect(screen.getByRole('link', { name: /Nutrition/ })).toHaveAttribute('href', '/coach/nutrition');
+    // The Strength tile MOVED to reflectprotect123-max/strengthside on
+    // 21 August 2026 (repo split, Task 2) — its absence is asserted, not
+    // ignored, so a resurrected tile fails loudly here.
+    expect(screen.queryByRole('link', { name: /Strength/ })).not.toBeInTheDocument();
   });
 
   it('shows the signed-in athlete a real readiness band, not the mockup placeholder', async () => {
@@ -167,6 +170,10 @@ describe('CoachCommandCenter', () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [ENGINE_LOCAL_CLIENT, ROSTER_CLIENT];
     repo.progressionProposals = [
+      // A strength-domain proposal can still arrive from the server (the
+      // strength repo's athletes push them); this bench simply has no tile
+      // to count it on since 21 August 2026 (repo split, Task 2) — so it
+      // must be IGNORED here, not crash the count.
       rosterProposal({ id: 'p1', domain: 'strength' }),
       rosterProposal({ id: 'p2', domain: 'conditioning', clientKey: 'row_erg', subject: 'Row erg' }),
     ];
@@ -181,8 +188,8 @@ describe('CoachCommandCenter', () => {
       });
     });
 
-    expect(screen.getByRole('link', { name: /Strength/ })).toHaveTextContent('1');
     expect(screen.getByRole('link', { name: /Conditioning/ })).toHaveTextContent('1');
+    expect(screen.queryByRole('link', { name: /Strength/ })).not.toBeInTheDocument();
   });
 
   /*

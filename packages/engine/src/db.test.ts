@@ -159,50 +159,16 @@ describe('the actual removeFolder write path survives a merge with a stale remot
   });
 });
 
-describe('sanitizeDB and the rebuilt StrengthBlock', () => {
+describe('sanitizeDB and strength-shaped blocks after the repo split', () => {
   /*
-   * `StrengthBlock` is a valid `Block` member again (18 August 2026, Phase A
-   * of the strength rebuild), and sanitizeDB's output is PERSISTED — DbProvider
-   * .update() saves it and sync pushes it — so `cleanBlock` returning null for
-   * the new shape would destroy the first authored strength block server-side
-   * on its own save. The legacy pre-rebuild shape (an `exercises` field, no
-   * `kind`) must still be filtered.
+   * The Phase A keep-the-new-shape cases MOVED to
+   * reflectprotect123-max/strengthside on 21 August 2026 with Task 2 of the
+   * repo split. What this repo must still pin is the CLEAN CUT: every
+   * strength shape — legacy `exercises`/no-kind AND the Phase A
+   * `kind: 'strength'`/items shape — is filtered by cleanBlock, because
+   * nothing left in this codebase can render or run either one.
    */
-  const strengthBlock = () => ({
-    id: 'sb-new',
-    kind: 'strength',
-    heading: 'Main lift',
-    items: [
-      {
-        id: 'it1',
-        kind: 'strength',
-        exerciseId: 'sq',
-        groupingKey: null,
-        sets: [{ id: 'set1', ordinal: 1, isOptional: false, isAmrap: false, targets: [{ metricKey: 'reps', literalValue: 5 }] }],
-      },
-    ],
-  });
-
-  it('keeps a new-shape strength block through sanitizeDB, items intact', () => {
-    const out = sanitizeDB({
-      workouts: [{ id: 'w1', kind: 'strength', blocks: [strengthBlock()], updatedAt: 1 }],
-      sessions: [],
-      settings: {},
-    });
-    expect(out.workouts).toHaveLength(1);
-    expect(out.workouts[0].blocks).toEqual([strengthBlock()]);
-  });
-
-  it('keeps a new-shape strength block on a session too', () => {
-    const out = sanitizeDB({
-      workouts: [],
-      sessions: [{ id: 's1', date: '2026-08-19', status: 'completed', kind: 'strength', blocks: [strengthBlock()] }],
-      settings: {},
-    });
-    expect(out.sessions[0].blocks).toEqual([strengthBlock()]);
-  });
-
-  it('still filters the legacy pre-rebuild strength shape (exercises, no kind)', () => {
+  it('filters the legacy pre-rebuild strength shape (exercises, no kind)', () => {
     const out = sanitizeDB({
       workouts: [{ id: 'w1', kind: 'strength', blocks: [{ id: 'legacy', exercises: [{ name: 'Back Squat', sets: [] }] }], updatedAt: 1 }],
       sessions: [],
@@ -211,31 +177,28 @@ describe('sanitizeDB and the rebuilt StrengthBlock', () => {
     expect(out.workouts[0].blocks).toEqual([]);
   });
 
-  it('filters a kind: strength block with no items array — legacy-shaped despite the label', () => {
+  it('filters the Phase A kind: strength items shape too — strength lives in the other repo now', () => {
+    const phaseABlock = {
+      id: 'sb-new',
+      kind: 'strength',
+      heading: 'Main lift',
+      items: [
+        {
+          id: 'it1',
+          kind: 'strength',
+          exerciseId: 'sq',
+          groupingKey: null,
+          sets: [{ id: 'set1', ordinal: 1, isOptional: false, isAmrap: false, targets: [{ metricKey: 'reps', literalValue: 5 }] }],
+        },
+      ],
+    };
     const out = sanitizeDB({
-      workouts: [{ id: 'w1', kind: 'strength', blocks: [{ id: 'half', kind: 'strength', exercises: [] }], updatedAt: 1 }],
-      sessions: [],
+      workouts: [{ id: 'w1', kind: 'strength', blocks: [phaseABlock], updatedAt: 1 }],
+      sessions: [{ id: 's1', date: '2026-08-19', status: 'completed', kind: 'strength', blocks: [phaseABlock] }],
       settings: {},
     });
     expect(out.workouts[0].blocks).toEqual([]);
-  });
-
-  it('drops garbage items from a kept strength block, keeps the valid ones', () => {
-    const b = strengthBlock();
-    const out = sanitizeDB({
-      workouts: [
-        {
-          id: 'w1',
-          kind: 'strength',
-          blocks: [{ ...b, items: [b.items[0], null, { id: '', kind: 'strength', exerciseId: 'sq', groupingKey: null, sets: [] }, { id: 'x', kind: 'text', exerciseId: 'sq', groupingKey: null, sets: [] }] }],
-          updatedAt: 1,
-        },
-      ],
-      sessions: [],
-      settings: {},
-    });
-    const kept = out.workouts[0].blocks[0] as { items: unknown[] };
-    expect(kept.items).toEqual(b.items);
+    expect(out.sessions[0].blocks).toEqual([]);
   });
 });
 

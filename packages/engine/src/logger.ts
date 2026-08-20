@@ -1,4 +1,4 @@
-import { isCond, isStrength, isText } from './session';
+import { isCond, isText } from './session';
 import type { Session } from './types';
 
 /*
@@ -49,17 +49,9 @@ export function sessionProgress(s: Session): { done: number; total: number; pct:
   let done = 0;
   let total = 0;
   s.blocks.forEach((b) => {
-    if (isStrength(b)) {
-      // Phase A of the strength rebuild: the block as stored locally is
-      // PRESCRIPTION only — performed sets live server-side, so there is no
-      // per-set marker to count as done, and counting the block into `total`
-      // would put an unfillable segment on the meter (Finish could never read
-      // all-done on a session the athlete has no way to log here). It
-      // contributes nothing to this meter until Phase C defines on-device
-      // strength logging; existence is protected in `expireStaleSessions`
-      // via `hasStrengthPrescription` instead.
-      return;
-    }
+    // The strength skip (a prescription-only block contributes nothing to
+    // this meter) MOVED to reflectprotect123-max/strengthside on 21 August
+    // 2026 with the rest of strength — `Block` has no strength member here.
     if (isCond(b)) {
       total += 1;
       if (b.condResult) done += 1;

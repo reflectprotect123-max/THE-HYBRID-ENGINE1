@@ -208,7 +208,10 @@ describe('CoachProgression (self-coach)', () => {
         <MemoryRouter initialEntries={['/coach/progression']}>
           <Routes>
             <Route path="/coach/progression" element={<CoachProgression />} />
-            <Route path="/coach/strength" element={<p>Strength pillar landed</p>} />
+            {/* Was /coach/strength until 21 August 2026, when the Strength
+                pillar MOVED to reflectprotect123-max/strengthside (repo
+                split, Task 2) — Conditioning owns the self-coach queue now. */}
+            <Route path="/coach/conditioning" element={<p>Conditioning pillar landed</p>} />
           </Routes>
         </MemoryRouter>
       </DbProvider>,
@@ -216,13 +219,13 @@ describe('CoachProgression (self-coach)', () => {
     );
   }
 
-  it('redirects a local (self-coach) client to /coach/strength instead of rendering a ledger here', async () => {
+  it('redirects a local (self-coach) client to /coach/conditioning instead of rendering a ledger here', async () => {
     const repo = new FakeCoachWorkspaceRepository();
     repo.clients = [rosterClient({ id: 'engine-local', name: 'Alex Morgan', source: 'engine-local' })];
     renderAt(repo);
     await act(async () => {});
 
-    expect(screen.getByText('Strength pillar landed')).toBeInTheDocument();
+    expect(screen.getByText('Conditioning pillar landed')).toBeInTheDocument();
     expect(screen.queryByText('Decision history')).not.toBeInTheDocument();
   });
 
@@ -230,7 +233,7 @@ describe('CoachProgression (self-coach)', () => {
    * The redirect must not fire off the EMPTY first paint. `clients` is []
    * until the fetch settles, which made `selectedClient` null and every
    * visitor look local — including a roster coach, who would be bounced to
-   * /coach/strength before their own client existed. Harmless while the rail
+   * the self-coach pillar before their own client existed. Harmless while the rail
    * linked here (the click came after the fetch); fatal once the owner
    * removed that link on 11 August 2026 and the address bar became the only
    * way in, because this route is the app's only roster approve/decline.
@@ -241,10 +244,10 @@ describe('CoachProgression (self-coach)', () => {
     renderAt(repo);
 
     // Before the fetch settles: no redirect has happened.
-    expect(screen.queryByText('Strength pillar landed')).not.toBeInTheDocument();
+    expect(screen.queryByText('Conditioning pillar landed')).not.toBeInTheDocument();
 
     await act(async () => {});
-    expect(screen.queryByText('Strength pillar landed')).not.toBeInTheDocument();
+    expect(screen.queryByText('Conditioning pillar landed')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Riley Roster.{0,3}s pending proposals/i })).toBeInTheDocument();
   });
 });

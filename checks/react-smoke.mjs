@@ -125,10 +125,10 @@ page.on('console', (m) => {
  *    `apps/mobile/src/screens/logger/SessionLogger.tsx` with its colocated
  *    `SessionLogger.test.tsx`, plus `HotCard`, `PieceCard`, `BlockScreen`,
  *    `BlockStrip`, `RestTakeover` and `FinishCard`, each with a colocated test
- *    beside it. End to end, the same session is driven through a real browser
- *    by `checks/parity-behaviour.mjs` and `checks/parity-harness.mjs`
- *    (`pnpm run check:parity-mobile`), which diff a live run against the
- *    recorded prototype trace. The autoregulation ARITHMETIC these scenarios
+ *    beside it. (The end-to-end parity gates that drove the same session in a
+ *    real browser were deleted 21 August 2026 with the repo split — their
+ *    restore condition belongs to reflectprotect123-max/strengthside; see
+ *    ci.yml's header.) The autoregulation ARITHMETIC these scenarios
  *    watched arrive on screen — 100kg at target 8 rated 7 becoming 102.5 — is
  *    pinned directly, and for all 672 combinations, by
  *    `packages/engine/src/golden.test.ts`, `autoreg.test.ts` and

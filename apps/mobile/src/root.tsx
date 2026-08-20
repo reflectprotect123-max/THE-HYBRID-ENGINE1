@@ -3,17 +3,13 @@ import { App } from './App';
 /*
  * The root component Metro resolves per platform.
  *
- * `index.js` imports `./src/root` without an extension, so Metro picks
- * `root.web.tsx` when bundling for web and THIS file for android and ios.
- * That is the whole mechanism behind the parity harness: the harness is a
- * separate module graph, entered only on web, and the android bundle can
- * never reach it — not by convention, but because the file that imports it
- * is not part of the android graph at all.
- *
- * The alternative was to fork on `package.json`'s `main` field, which
- * `@expo/config`'s `resolveEntryPoint` also supports. It was rejected: `main`
- * is read by EAS and by the native build, and repointing it to an
- * extensionless path to unlock platform extensions is a change to the release
- * path in order to serve a check. This fork touches nothing native.
+ * `root.web.tsx` — the parity harness's web-only sibling of this file — was
+ * deleted on 21 August 2026 with the parity gates: the harness recorded the
+ * OLD strength logger's behaviour, and its restore condition ("Phase C ships
+ * the new logger") belongs to reflectprotect123-max/strengthside now, where
+ * a reference copy of the harness lives under docs/reference/parity-harness.
+ * The extensionless `./src/root` import in index.js stays — it resolves here
+ * for android/ios exactly as before, and a future web sibling would slot in
+ * without touching the release path.
  */
 export const Root = App;

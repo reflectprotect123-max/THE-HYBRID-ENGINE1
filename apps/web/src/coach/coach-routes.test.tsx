@@ -85,22 +85,17 @@ describe('coach pillar routes', () => {
    * point — `layer3Ready` WITHOUT a branch is precisely the leak the old
    * assertion feared, and would now fail here rather than passing quietly.
    */
-  it.each(['readiness', 'strength', 'conditioning', 'nutrition'])(
+  /* `strength` left both lists on 21 August 2026 — the pillar and its route
+     MOVED to reflectprotect123-max/strengthside with Task 2 of the repo
+     split, so there is no /coach/strength gate and no Strength.tsx left here
+     to inspect. Its "renders no coach data" case went with it. */
+  it.each(['readiness', 'conditioning', 'nutrition'])(
     'lets a roster client through /coach/%s, because the screen branches for them',
     (path) => {
       expect(gateOpenTag(path)).toMatch(/\blayer3Ready\b/);
     },
   );
 
-  /*
-   * `strength` is excluded here (15 August 2026, strength engine deletion —
-   * CLAUDE.md). `pillars/Strength.tsx` is now a static "being rebuilt"
-   * placeholder with no `selectedClient` read at all — there is no coach data
-   * left in it to leak under a roster athlete's name, so the branch this
-   * check exists to require has nothing left to guard. The route still gates
-   * `layer3Ready` (checked above) and still renders identically, safely, for
-   * both a local and a roster client.
-   */
   it.each([
     ['readiness', 'Readiness'],
     ['conditioning', 'Conditioning'],
@@ -111,12 +106,6 @@ describe('coach pillar routes', () => {
       pillar,
       `${file}.tsx renders a roster client without branching on selectedClient.source — it would show the signed-in coach's own records under that athlete's name.`,
     ).toMatch(/selectedClient\.source !== 'engine-local'/);
-  });
-
-  it('the strength pillar renders no coach data at all, so nothing needs to branch on the client source', () => {
-    const pillar = readFileSync(resolve(__dirname, 'pillars/Strength.tsx'), 'utf8');
-    expect(pillar).not.toMatch(/useDb\(|useCoachWorkspace\(/);
-    expect(pillar).toMatch(/being rebuilt/i);
   });
 
   /* AMENDED 11 August 2026 — see "Task 7 amendment" below. The route is NOT a
@@ -293,10 +282,12 @@ describe('coach route reachability', () => {
     // Was 12; then 11, when `author`, `build/:id`, `planner/:id` and
     // `roster-plan/:workoutId` went with the old authoring chain on 14 August
     // 2026; then 10, after `review/:weekStart` went with the Coordinator the
-    // same day; now 9, after `legacy` went with `CoachShell` hours later.
-    // Lowered deliberately each time, with the reason, rather than left as a
-    // floor no longer tied to anything.
-    expect(declaredPaths.length).toBeGreaterThanOrEqual(9);
+    // same day; then 9, after `legacy` went with `CoachShell` hours later;
+    // now 8, after `strength` MOVED to reflectprotect123-max/strengthside
+    // with Task 2 of the repo split (21 August 2026). Lowered deliberately
+    // each time, with the reason, rather than left as a floor no longer tied
+    // to anything.
+    expect(declaredPaths.length).toBeGreaterThanOrEqual(8);
     expect(componentsFor('')).toContain('CoachCommandCenter');
     // `legacy`/`CoachShell` was the second probe here until it was deleted.
     // `library` replaces it: a route whose component is named differently from

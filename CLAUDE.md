@@ -24,13 +24,16 @@ records; do not follow a stale statement that the rebuild has not started.
   what remained was a shell that nothing imported. Conditioning progression
   lives in `@hybrid/engine` (`conditioning.ts`) and always did the arithmetic
   there.
-  **`@hybrid/strength-engine` is back as of 18 August 2026, Phase A of the
-  strength rebuild** (`docs/superpowers/specs/2026-08-17-strength-rebuild-
-  design.md`). It owns strength prescription resolution, working-max tracking
-  and PR/load detection; `Block<S>` in `@hybrid/engine`'s `types.ts` regains
-  its third member, `StrengthBlock`, sourced from this package. `lift.ts` in
-  `@hybrid/engine` is untouched by this — read it before assuming which layer
-  owns what.
+  **`@hybrid/strength-engine` MOVED to `reflectprotect123-max/strengthside`
+  (21 August 2026, Task 2 of the repo split —
+  `docs/superpowers/plans/2026-08-19-strength-repo-split.md`).** It had come
+  back on 18 August as Phase A of the strength rebuild; the split gave
+  strength its own repository against the SAME Supabase project, with its own
+  coach web app and its own mobile app. `Block<S>` in `@hybrid/engine`'s
+  `types.ts` is back to `CondBlock | TextBlock`, the five strength
+  migrations, `embed-coaching-note` and the parity harness went with the
+  package, and this repo's apps never render strength again. See "Strength is
+  excised" below and the shared-Supabase contract it binds.
 - `@hybrid/coordinator` and `@hybrid/coordinator-adapter` are **DELETED**
   (14 August 2026). This line read "owns weekly conflict resolution and
   chooses the final weekly plan for an athlete with no coach", and before
@@ -144,8 +147,8 @@ once, can catch its regression.
   check proves it.
   **Stage 4 (13 August 2026) closes the set.** `checks/screens.mjs` now
   shoots EVERY `/coach` route at **both** widths — 1440px first, then 420px:
-  the seven above plus `progression`, `day/:date` and
-  `week/:athleteId/:weekStart`. **Ten routes, 20 shots, all green.** The
+  the pillar screens plus `progression`, `day/:date` and
+  `week/:athleteId/:weekStart`. **Nine routes, 18 shots, all green.** The
   parameterised ones are addressed with values the seed really contains — a
   route pointed at a missing id renders a not-found state, which has no
   overflow and would pass while proving nothing.
@@ -155,9 +158,12 @@ once, can catch its regression.
   `roster-plan/:workoutId`. Thirty shots" until the old authoring chain went
   (four routes fewer), then "24 shots" until `review/:weekStart` went with the
   Coordinator on 14 August 2026, then "22" until `legacy` went with CoachShell
-  hours later. It is 20 now — and that last one was caught by a CHECK rather
-  than by a reader, because `checks/docs.mjs` derives the number from
-  `COACH_SHOTS` since the second miss. The way to check is
+  hours later, then "20" until `/coach/strength` MOVED to
+  reflectprotect123-max/strengthside with Task 2 of the repo split
+  (21 August 2026 — corrected in the same commit as the deletion, the count
+  rule's third correction). It is 18 now — and the "22" miss was caught by a
+  CHECK rather than by a reader, because `checks/docs.mjs` derives the number
+  from `COACH_SHOTS` since the second miss. The way to check is
   `node checks/screens.mjs`, whose last line reports the number it actually
   wrote. Quote that rather than this paragraph.
 
@@ -621,6 +627,76 @@ Netlify's monorepo detection offer `apps/lab` as a selectable PROJECT when
 linking a repository, so the bench kept appearing in the site-creation picker
 beside the real apps. A config file in a subdirectory is not inert — it
 advertises that directory as deployable.
+
+## Strength is excised — moved to its own repository (21 August 2026)
+
+Task 2 of the repo split
+(`docs/superpowers/plans/2026-08-19-strength-repo-split.md`), executed after
+Task 1's tree was live and pushed at `reflectprotect123-max/strengthside`.
+This is a MOVE, not a deletion: everything below exists and is maintained in
+that repository, against the SAME Supabase project. What left this tree:
+
+- **`packages/strength-engine`** — copied to the strength repo verbatim at
+  `34dfab4` (its two config divergences are documented in that repo's
+  handoff), then deleted here. History stays in this repo's git, like every
+  other deletion.
+- **The five strength migrations** (`20260818_strength_rebuild`,
+  `20260819_phase_e_pain_metric`, `20260819_phase_f_knowledge_base`,
+  `20260820_strength_hardening`, `20260821_strength_rls`) and
+  **`supabase/functions/embed-coaching-note`** with its workspace membership.
+  The migrations are already applied-or-pending against the shared project;
+  they moved unrenamed because the filename timestamps are the shared
+  ordering.
+- **`Block<S>`'s strength member**: the union is `CondBlock | TextBlock`
+  again. The strength branches left `cleanBlock`, `duplicateWorkout`,
+  `freshSessionBlocks`, `sessionProgress` and `expireStaleSessions`
+  (`hasStrengthPrescription` deleted with its caller), each site carrying a
+  pointer comment. `sanitizeDB` now filters the Phase A `kind: 'strength'`
+  items shape exactly like the legacy `exercises` shape — the clean cut means
+  nothing here can render either, and `db.test.ts` pins the filtering.
+- **The coach bench's strength surface**: the Command Center tile, the
+  `/coach/strength` route and the placeholder pillar. `CoachProgression`'s
+  self-coach redirect lands on `/coach/conditioning` now.
+  `checks/screens.mjs` drops to nine routes / 18 shots (count corrected in
+  this file in the same commit — the count rule's third outing).
+- **`StrengthRebuilding` and the parity apparatus**: the mobile stub and its
+  `Logger` route, `apps/mobile/parity/`, `src/root.web.tsx`, `checks/parity/`,
+  the three parity gate scripts, their package.json entries and ci.yml's
+  commented-out step. The gates' restore condition — "Phase C ships the new
+  logger" — belongs to the strength repo, which keeps a reference copy of the
+  harness under its `docs/reference/parity-harness/`.
+- **`checks/migrations-apply.mjs`'s strength assertions and the pgvector
+  KNOWN ENVIRONMENT GAP machinery** — no remaining migration mentions vector
+  (verified by grep), so the gap allowance had nothing left that could
+  trigger it. CI's pgvector install step went with it.
+- **The strength docs** (specs, plans, the strength-adaptive-engine-v2
+  research, the TrainHeroic teardown package) were COPIED to the strength
+  repo before this excision; the originals remain here as history.
+
+**The shared-Supabase contract — binds BOTH repos from this day:**
+
+- The strength repo owns exactly twelve tables — `metric`, `equipment`,
+  `exercise`, `strength_block_item`, `prescribed_set`, `prescribed_target`,
+  `assigned_session`, `performed_set`, `performed_measurement`,
+  `working_max_event`, `pr_event`, `coaching_note` — plus their RLS and
+  `embed-coaching-note`.
+- This repo owns everything else, including `auth`, the coach–athlete
+  relationship model and `coaches_athlete_anywhere`.
+- Neither repo writes a migration against the other's tables. Not "prefers
+  not to" — a migration here touching a table in that list is a contract
+  violation.
+- A change to `coaches_athlete_anywhere`'s SIGNATURE is a breaking change for
+  the strength repo's RLS and must be coordinated by hand. There is no
+  automated guard; the shared database will not warn you.
+- Migration filename timestamps are the shared ordering. Do not renumber, and
+  never rename a migration that has been pushed.
+
+A `'strength'` DOMAIN STRING is not a strength table: the ARC workspace
+tables this repo owns (`workout_library`, coach-week bodies, progression
+proposals) still store `'strength'` as a discipline value, because strength
+coaches publish through the same shared ARC infrastructure. Those rows are
+data ABOUT strength programs; the strength DATA lives in the twelve tables
+above.
 
 ## Where a test goes
 

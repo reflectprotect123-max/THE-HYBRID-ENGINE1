@@ -16,15 +16,10 @@
     "check:css-state": "node checks/css-state-classes.mjs",
     "smoke": "node checks/react-smoke.mjs",
     "smoke:deploy": "node checks/deploy-smoke.mjs",
-    "//verify": "Everything CI runs that a laptop can run without extra installs (19 August 2026). Stays CI-only, with the reason: web-touch, screens, pwa-update and the parity gates need a Playwright browser plus (for parity) an Expo export — react-smoke and deploy-smoke are kept here because they skip cleanly without a browser, the others hard-require one; the remaining contract suites (pentest, supabase-contract, whoop-contract, concept2-contract, supabase-auth) live in CI's post-build contract loop as one unit — whoop-contract's secret scan sweeps the BUILT bundles, and splitting the loop across two lists is how the two drift. The full list and each reason live in .github/workflows/ci.yml.",
+    "//verify": "Everything CI runs that a laptop can run without extra installs (19 August 2026; parity gates deleted 21 August 2026 with the repo split — see CLAUDE.md). Stays CI-only, with the reason: web-touch, screens and pwa-update need a Playwright browser — react-smoke and deploy-smoke are kept here because they skip cleanly without a browser, the others hard-require one; the remaining contract suites (pentest, supabase-contract, whoop-contract, concept2-contract, supabase-auth) live in CI's post-build contract loop as one unit — whoop-contract's secret scan sweeps the BUILT bundles, and splitting the loop across two lists is how the two drift. The full list and each reason live in .github/workflows/ci.yml.",
     "verify": "node checks/docs.mjs && pnpm run typecheck && pnpm run test && pnpm run check:ecosystem && node checks/coach-contract.mjs && node checks/contrast.mjs && node checks/mobile-touch.mjs && node checks/whoop-deployment-smoke.mjs && node checks/migrations-apply.mjs && pnpm run check:reachability && pnpm run check:css-state && pnpm run build:site && pnpm run check:csp && pnpm run smoke && pnpm run smoke:deploy",
     "dev:web": "pnpm --filter @hybrid/web dev",
-    "build:site": "pnpm run build && node scripts/build-site.mjs",
-    "check:parity-behaviour": "node checks/parity-behaviour.mjs",
-    "check:parity-visual": "node checks/parity-visual.mjs",
-    "check:parity-harness": "node checks/parity-harness.mjs",
-    "//check:parity-mobile": "The mobile side of both gates, end to end: exports apps/mobile's parity harness, serves it, and drives it. One command, so the gate is runnable by anyone rather than only on the machine that hand-started a server.",
-    "check:parity-mobile": "node checks/parity-behaviour.mjs --target=harness && node checks/parity-visual.mjs --target=harness"
+    "build:site": "pnpm run build && node scripts/build-site.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9"

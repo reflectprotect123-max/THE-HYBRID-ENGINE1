@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { CoachAccess } from './access/CoachAccess';
 import { Readiness } from './pillars/Readiness';
-import { Strength } from './pillars/Strength';
 import { Conditioning } from './pillars/Conditioning';
 import { Nutrition } from './pillars/Nutrition';
 import { DayBuilderRoute } from './library/DayBuilderRoute';
@@ -80,7 +79,10 @@ export default function Coach() {
               rather than letting an absence read as a zero.
             */}
             <Route path="readiness" element={<ClientDetailGate tool="Readiness" layer3Ready><Readiness /></ClientDetailGate>} />
-            <Route path="strength" element={<ClientDetailGate tool="Strength" layer3Ready><Strength /></ClientDetailGate>} />
+            {/* `strength` and its pillar MOVED to
+                reflectprotect123-max/strengthside on 21 August 2026 with
+                Task 2 of the repo split — strength has its own coach app
+                there. The address now falls to the catch-all redirect. */}
             <Route path="conditioning" element={<ClientDetailGate tool="Conditioning" layer3Ready><Conditioning /></ClientDetailGate>} />
             <Route path="nutrition" element={<ClientDetailGate tool="Nutrition" layer3Ready><Nutrition /></ClientDetailGate>} />
             {/*
@@ -97,8 +99,9 @@ export default function Coach() {
               proposal has no pillar queue to move into — this route, and
               RosterProgressionActions in progression-actions.tsx, is the only
               place a coach can approve or decline one. Self-coach decisions
-              now live in the Strength/Conditioning pillar queues instead; see
-              CoachProgression.tsx's own header comment.
+              now live in the Conditioning pillar queue instead (the Strength
+              pillar MOVED to reflectprotect123-max/strengthside, 21 August
+              2026); see CoachProgression.tsx's own header comment.
             */}
             <Route path="progression" element={<ClientDetailGate tool="Decisions" layer3Ready><CoachProgression /></ClientDetailGate>} />
             {/*

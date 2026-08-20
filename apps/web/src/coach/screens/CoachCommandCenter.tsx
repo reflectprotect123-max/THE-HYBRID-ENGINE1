@@ -97,17 +97,15 @@ export function CoachCommandCenter() {
       .then((v) => { if (active) setRosterWeekSummary(v); }).catch(() => { if (active) setRosterWeekSummary(null); });
     return () => { active = false; };
   }, [repository, rosterClientId, weekStart]);
-  const rosterStrengthPending = rosterProposals.filter((proposal) => proposal.domain === 'strength').length;
+  // The strength pending-count (and the tile it fed) MOVED to
+  // reflectprotect123-max/strengthside on 21 August 2026 with Task 2 of the
+  // repo split — that repo's own coach app owns the Strength pillar now.
   const rosterConditioningPending = rosterProposals.filter((proposal) => proposal.domain === 'conditioning').length;
   const decided = useMemo(
     () => new Set(progressionLedger.decisions.map((decision) => decision.proposalId)),
     [progressionLedger.decisions],
   );
   const pendingProgression = progressionLedger.proposals.filter((proposal) => !decided.has(proposal.id));
-  // The local self-coach ledger no longer produces a strength proposal at
-  // all (progression.ts, strength engine deletion, CLAUDE.md) — every entry
-  // it can hold is conditioning-domain, so there is nothing to count here.
-  const strengthPending = 0;
   const conditioningPending = pendingProgression.filter((proposal) => proposal.domain === 'conditioning').length;
 
   if (clientsLoading || !selectedClient) return <main className="rd-content" aria-busy="true">Loading coach workspace…</main>;
@@ -121,7 +119,6 @@ export function CoachCommandCenter() {
   const isLocalClient = selectedClient.source === 'engine-local';
 
   const readinessBand: ReadinessBand = isLocalClient ? athleteState.readiness.band : 'unknown';
-  const strengthCount = isLocalClient ? strengthPending : rosterStrengthPending;
   const conditioningCount = isLocalClient ? conditioningPending : rosterConditioningPending;
   const nutritionExceptionCount = isLocalClient ? nutritionReview.exceptions.length : null;
   const nutritionStatus = isLocalClient
@@ -189,30 +186,9 @@ export function CoachCommandCenter() {
           </svg>
         </Link>
 
-        <Link to="/coach/strength" className="rd-tile">
-          <span className="t-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="4.5" cy="12" r="2.5" />
-              <circle cx="19.5" cy="12" r="2.5" />
-              <line x1="7" y1="12" x2="17" y2="12" />
-              <line x1="2" y1="10" x2="2" y2="14" />
-              <line x1="22" y1="10" x2="22" y2="14" />
-            </svg>
-          </span>
-          <span className="t-body">
-            <p className="t-eyebrow">Specialist input</p>
-            <span className="t-row">
-              <span className="t-name">Strength</span>
-              <span className="t-band" style={{ color: 'var(--color-gold2)' }}>
-                <span className="t-dot" />
-                {strengthCount} pending
-              </span>
-            </span>
-          </span>
-          <svg className="t-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </Link>
+        {/* The Strength tile MOVED to reflectprotect123-max/strengthside on
+            21 August 2026 with Task 2 of the repo split — strength has its own
+            coach app there, and this bench never renders strength again. */}
 
         <Link to="/coach/conditioning" className="rd-tile">
           <span className="t-icon">

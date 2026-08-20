@@ -1,8 +1,31 @@
 # Claude Handoff — THE Hybrid System
 
-> **AUTHORITATIVE CHECKPOINT — 18 August 2026, end of session. `main` is at
-> `e9ce6ec`. STRENGTH REBUILD: NON-UI WORK IS DONE. UI IS NEXT. Where this
-> block disagrees with anything below it, this one wins.**
+> **AUTHORITATIVE CHECKPOINT — 21 August 2026. STRENGTH IS EXCISED: Task 2 of
+> the repo split is executed on branch `claude/strength-excision`.
+> `@hybrid/strength-engine`, the five strength migrations,
+> `embed-coaching-note`, the coach bench's strength surface, the mobile
+> StrengthRebuilding stub and the parity apparatus are all gone from this
+> tree — strength lives at `reflectprotect123-max/strengthside`, against the
+> SAME Supabase project. See CLAUDE.md's "Strength is excised" section for
+> the full list and the shared-Supabase contract that now binds both repos.
+> `Block<S>` is `CondBlock | TextBlock`; screens.mjs is nine routes / 18
+> shots; migrations-apply is 20 migrations with no pgvector gap. Full verify
+> green at the excision commit. Where this block disagrees with anything
+> below it, this one wins.**
+>
+> Two corrections to the superseded checkpoint below, which reported them as
+> open: **both security items were FIXED on 19 August 2026** —
+> `embed-coaching-note` gained `_auth.ts` (shared-secret webhook auth,
+> failing closed) in `c5701d3`, and `20260821_strength_rls` put RLS on the
+> whole strength table set with an owner filter on `search_coaching_notes()`
+> in `0dde66f`. Both fixes moved to the strength repo with the split. The
+> "known, accepted" local pgvector failure below is also RESOLVED here by the
+> excision — this repo has no vector migration left; the gap note lives on in
+> the strength repo, where the migration now lives.
+
+> **CHECKPOINT SUPERSEDED (21 August 2026) — 18 August 2026, end of session.
+> `main` is at `e9ce6ec`. STRENGTH REBUILD: NON-UI WORK IS DONE. UI IS
+> NEXT.**
 >
 > ## What's built
 >

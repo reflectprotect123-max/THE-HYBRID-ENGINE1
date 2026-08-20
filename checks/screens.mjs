@@ -109,7 +109,8 @@ function serve(port, dir = 'apps/web/dist') {
  *
  * `apps/web/src/screens/` no longer exists. There is nothing to point a shot
  * at, in any bundle. The equivalent surfaces are `apps/mobile`'s, and they are
- * covered by its own colocated tests and the parity gates.
+ * covered by its own colocated tests. (The parity gates that also covered them
+ * were deleted 21 August 2026 with the repo split — see ci.yml's header.)
  */
 const SHOTS = [];
 
@@ -161,12 +162,15 @@ const THIS_MONDAY = (() => {
 })();
 
 const COACH_SHOTS = [
-  ['12-coach', '/coach', [/Readiness/i, /Strength/i, /Conditioning/i, /Nutrition/i]],
+  // `/Strength/i` left the Command Center pattern on 21 August 2026 with the
+  // tile it matched — the Strength pillar MOVED to
+  // reflectprotect123-max/strengthside with Task 2 of the repo split.
+  ['12-coach', '/coach', [/Readiness/i, /Conditioning/i, /Nutrition/i]],
   ['13-coach-readiness', '/coach/readiness', [/\bHRV\b/i, /Resting HR/i]],
-  // Strength lift trends, the progression queue and the hard-session budget
-  // all went with the strength engine (15 August 2026, CLAUDE.md) — the
-  // pillar is now a static placeholder, and this is the only text it has.
-  ['14-coach-strength', '/coach/strength', [/Strength is being rebuilt/i]],
+  // `14-coach-strength` was deleted 21 August 2026 WITH its route and screen
+  // (repo split, Task 2) — the address now hits the catch-all redirect to
+  // /coach, and a shot of the Command Center filed under the strength route's
+  // name would be the exact dishonest-pass this file's header warns about.
   ['15-coach-conditioning', '/coach/conditioning', [/Time in HR zone/i, /Erg trends/i]],
   ['16-coach-nutrition', '/coach/nutrition', [/Adherence . targets/i, /Weight trend/i]],
   // Stage 3a (11 August) cut this to the calendar alone; stage 3b (13 August)
@@ -215,11 +219,11 @@ const COACH_SHOTS = [
    * names so a filename in an old review still means what it meant.
    */
   // Addressed with no roster selected, so `CoachProgression` redirects a
-  // local/self-coach client straight to `/coach/strength` (unchanged
-  // behaviour) — which is now the strength-is-being-rebuilt placeholder
-  // (15 August 2026, CLAUDE.md), not the old self-coach ledger view this used
-  // to name.
-  ['20-coach-progression', '/coach/progression', [/Strength is being rebuilt/i]],
+  // local/self-coach client to the pillar that owns their queue. That target
+  // was `/coach/strength` until 21 August 2026, when the Strength pillar
+  // MOVED to reflectprotect123-max/strengthside (repo split, Task 2) — it is
+  // the Conditioning pillar now, so the patterns are Conditioning's own.
+  ['20-coach-progression', '/coach/progression', [/Time in HR zone/i, /Erg trends/i]],
   /*
    * `21-coach-review` was here until 14 August 2026, when `review/:weekStart`
    * was deleted with the Coordinator. It is worth recording HOW it went,

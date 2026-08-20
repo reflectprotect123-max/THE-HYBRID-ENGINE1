@@ -1,6 +1,6 @@
 import { CON_RETENTION, CON_TRACE_KEEP } from './constants';
 import { uid, uniqArr, ymd } from './num';
-import { isCond, isStrength, isText, loggedWorkCount, hasLoggedWork, hasStrengthPrescription } from './session';
+import { isCond, isText, loggedWorkCount, hasLoggedWork } from './session';
 import {
   migrateLegacySettings,
   emptyEcosystemNamespace,
@@ -56,21 +56,19 @@ export function sanitizeDB(d: unknown): EngineDB {
   const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
   /*
-   * `StrengthBlock` is a valid `Block` member again as of 18 August 2026
-   * (Phase A of the strength rebuild), so a NEW-shape strength block —
-   * `kind: 'strength'` with an `items` array of `StrengthBlockItem`s from
-   * `@hybrid/strength-engine` — is kept, with its items shape-checked below.
+   * A block that is neither of the two kinds is dropped. That covers BOTH
+   * legacy strength shapes this codebase has carried: the pre-rebuild
+   * `exercises`/sets shape (no `kind` at all, deleted whole 17 August 2026)
+   * AND the Phase A `kind: 'strength'` items shape, whose home MOVED to
+   * reflectprotect123-max/strengthside on 21 August 2026 with Task 2 of the
+   * repo split. Nothing left in this codebase can render or run either one.
    *
-   * A block that is none of the three kinds is a LEGACY pre-rebuild strength
-   * block — the old `exercises`/sets shape, carrying no `kind` at all, from
-   * before 17 August 2026 when that model was deleted whole. Nothing left in
-   * this codebase can render or run one, so it is still dropped here.
-   *
-   * Note what dropping MEANS now: this is not a read-time-only filter. The
+   * Note what dropping MEANS: this is not a read-time-only filter. The
    * sanitized DB is persisted by DbProvider.update() and pushed by sync, so a
    * block `cleanBlock` returns null for is destroyed server-side on the next
-   * save — which is exactly why the new strength shape must be accepted here,
-   * or the first authored strength block would be erased by its own save.
+   * save. For strength blocks that is the split plan's clean cut speaking —
+   * "the hybrid apps never render strength again" — and the strength repo's
+   * own apps read the server-side tables, not this blob.
    */
   const cleanBlock = (b: unknown): Block<LoggedSet> | null => {
     const bl = (b && typeof b === 'object' ? b : {}) as Block<LoggedSet>;
@@ -82,30 +80,6 @@ export function sanitizeDB(d: unknown): EngineDB {
       // An older blob may carry an empty `exercises` array from before the
       // split; drop it so no read path treats the block as strength work.
       delete (bl as { exercises?: unknown }).exercises;
-      return bl;
-    }
-    if (isStrength(bl)) {
-      const sb = bl as { id?: unknown; items?: unknown; exercises?: unknown };
-      // The rebuilt shape carries `items`; the legacy shape carried
-      // `exercises` and never `kind`, but a half-migrated row claiming
-      // `kind: 'strength'` without an items array is legacy-shaped too and
-      // must keep being filtered rather than half-coerced.
-      if (typeof sb.id !== 'string' || !sb.id || !Array.isArray(sb.items)) return null;
-      delete sb.exercises;
-      // Per-item shape check against @hybrid/strength-engine's
-      // StrengthBlockItem: id/kind/exerciseId/groupingKey/sets. A garbage item
-      // is dropped; the block survives with the items that hold.
-      sb.items = (sb.items as unknown[]).filter((it) => {
-        if (!it || typeof it !== 'object' || Array.isArray(it)) return false;
-        const item = it as { id?: unknown; kind?: unknown; exerciseId?: unknown; groupingKey?: unknown; sets?: unknown };
-        return (
-          typeof item.id === 'string' && !!item.id &&
-          item.kind === 'strength' &&
-          typeof item.exerciseId === 'string' && !!item.exerciseId &&
-          (item.groupingKey === null || typeof item.groupingKey === 'string') &&
-          Array.isArray(item.sets)
-        );
-      });
       return bl;
     }
     return null;
@@ -614,16 +588,11 @@ export function expireStaleSessions(
   const out = sessions.filter((s) => {
     if (s.status !== 'active' || s.date >= today) return true;
     changed = true;
-    /* `hasStrengthPrescription` alongside `hasLoggedWork`, because Phase A of
-       the strength rebuild stores performed sets SERVER-SIDE: the local
-       StrengthBlock is prescription only, so `hasLoggedWork` cannot see
-       whether a strength session was trained. Binning it on that blindness
-       would destroy the only local copy of a session that may well have been
-       completed. Promote it to `incomplete` instead — existence, not a claim
-       of training. Phase C (on-device strength logging) is what lets
-       `hasLoggedWork` answer for strength and makes this extra check
-       collapsible back into it. */
-    if (hasLoggedWork(s) || hasStrengthPrescription(s)) {
+    /* The `hasStrengthPrescription` companion check MOVED to
+       reflectprotect123-max/strengthside on 21 August 2026 with the rest of
+       strength — it protected strength-day existence against this exact bin,
+       and there are no strength days in this repo's products any more. */
+    if (hasLoggedWork(s)) {
       s.status = 'incomplete';
       s.completedAt = s.completedAt || s.startedAt || now;
       return true;
